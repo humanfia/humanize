@@ -124,7 +124,7 @@ class Graph(Sheet[None]):
 
     def actions(self) -> list[Action]:
         """Opening the epic in Exomyth, which a chat has no timeline for."""
-        if chatting(self._ran.flow):
+        if chatting(self._ran):
             return []
         return [
             Action(

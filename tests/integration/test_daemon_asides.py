@@ -47,17 +47,9 @@ def _chatted(workspace: Path) -> tuple[daemon.Link, str, str, str]:
     link = daemon.attach("sdk", workspace=workspace, slot=slot)
     heard = Heard()
     link.heard(heard)
-    link.start("chat", "remember papaya", agents={"assistant": AGENT})
-    assert until(
-        lambda: any(
-            one.get("mode") == "listen"
-            for said in heard.of("pending")[-1:]
-            for one in said["pending"]
-        )
-    )
-    epic = next(
-        str(one["epic"]) for one in reversed(heard.of("run")) if one.get("epic")
-    )
+    started = link.chat(AGENT, "remember papaya")
+    assert until(lambda: any(one.get("mode") == "listen" for one in heard.of("asked")))
+    epic = str(started["epic"])
     (opened, *_) = heard.of("opened")
     return link, slot, epic, str(opened["key"])
 

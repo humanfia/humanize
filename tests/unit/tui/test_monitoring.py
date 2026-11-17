@@ -511,10 +511,14 @@ def test_the_flows_an_epic_called_are_said_under_it() -> None:
 @pytest.mark.parametrize(
     ("epic", "chat"),
     [
+        ({"kind": "chat", "flow": "", "ref": ""}, True),
+        ({"epic_kind": "chat", "flow": ""}, True),
+        ({"kind": "flow", "flow": "chat"}, False),
+        # Started by an hmz that ran a chat as the flow `chat`, and so saying no kind.
         ({"flow": "chat"}, True),
         ({"ref": "chat:chat"}, True),
         ({"flow": "ralph"}, False),
     ],
 )
-def test_only_the_chat_flow_is_a_conversation(epic: dict[str, str], chat: bool) -> None:
+def test_a_chat_is_known_by_its_kind(epic: dict[str, str], chat: bool) -> None:
     assert chatting(epic) is chat

@@ -115,7 +115,7 @@ machine says why on its own page, as any [imported epic](/user/web#importing-an-
 ## Notifications {#notifications}
 
 The page's [notifications](/user/web#notifications) -- an epic done, failed or stopped, a question
-for you, a `chat` waiting for your next line, on any daemon -- show in the window's bell and toasts
+for you, a [chat](/user/chat) waiting for your next line, on any daemon -- show in the window's bell and toasts
 as in a browser, and, while the window is hidden or not in front, as system notifications from
 Humanize Desktop. Click one: the window comes to the front, on the epic it is about.
 

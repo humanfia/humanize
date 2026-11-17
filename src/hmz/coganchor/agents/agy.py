@@ -3,6 +3,15 @@
 Slash commands and shaped turns use finite commands, preserving the CLI's print-mode
 behavior. Native cumulative usage follows the conversation across both transports and
 process restarts; each result here reports only its own turn's cost.
+
+In a chat, a `/` line is the one native input it carries, and it carries it without a catalog:
+a line whose first word is a command's shape (`/name`, `/name:sub`) is taken down the print
+transport like any such prompt, and print mode is where `agy` expands its own commands and
+skills (unless `disable_slash_commands` says otherwise). The catalog is left empty because
+`agy` lists its commands nowhere a driver can read, and an empty catalog is what has a chat pass
+every `/` line through as typed rather than refuse the ones it cannot name. Its `!` shell mode
+and `@` file picker belong to its interactive prompt; neither the print nor the stream-json
+transport is documented to read them, so a line opening with either is the words it is.
 """
 
 # pyright: reportPrivateUsage=false

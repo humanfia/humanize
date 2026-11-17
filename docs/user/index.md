@@ -43,9 +43,10 @@ step:
 
 | | Where | Best for |
 | --- | --- | --- |
+| [Chat](/user/chat) | `hmz`, `hmz web` or `hmz chat` | talking to one agent, its CLI's own `/` commands and skills included |
 | [Humanize Desktop](/user/desktop) | an app on macOS or Windows | every epic in one window, with notifications |
 | [`hmz web`](/user/web) | a browser, on any machine | the same page, and your servers' epics beside yours |
-| [`hmz`](/reference/tui) | the terminal, in a repository | setting a flow up and talking to it at the prompt |
+| [`hmz`](/reference/tui) | the terminal, in a repository | a chat, and setting a flow up and talking to it at the prompt |
 | [`hmz exec`](/user/unattended) | a script, or [CI](/user/ci) | runs nobody watches |
 
 ## Everything else

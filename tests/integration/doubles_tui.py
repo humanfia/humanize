@@ -44,13 +44,14 @@ from typing import TYPE_CHECKING, Any
 
 from textual.widgets import OptionList
 
-from hmz.flows.builtin import chat
+from hmz.coganchor.agents.native import NativeCommand
 from hmz.tui import Humanize
 from hmz.tui.dropdown import Dropdown
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Configures, Confirms
 
 if TYPE_CHECKING:
+    import threading
     from collections.abc import Callable
 
     import pytest
@@ -64,16 +65,76 @@ MODEL = "claude-stand-in"
 RUNS = f"claude/{MODEL}:high"
 
 
+#: A flow that is a conversation: one agent, and every line said back is its next turn, as a
+#: chat's are -- but a flow, which the interface reads as any flow: a monitor, views to step
+#: round, a run to stop, a budget to be given.
+TALK = """
+import contextlib
+
+from hmz.flows import (
+    Agent, AgentCollection, AskUserHookAgentMixin, AskUserHookResult, CapabilityNotGranted,
+    EnvCollection, FlowContext, FlowParams, LocalEnv, Outworlder, flow,
+)
+
+
+class Assistant(Agent, AskUserHookAgentMixin):
+    pass
+
+
+class Agents(AgentCollection):
+    assistant: Assistant
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+class Params(FlowParams):
+    pass
+
+
+@flow(agents=Agents, envs=Envs, params=Params, resumable=True)
+async def talk(task, *, agents, envs, params, ctx: FlowContext) -> None:
+    assistant, human = agents["assistant"], agents["human"]
+    conversation = await assistant.spawn()
+    person = await human.spawn()
+
+    async def asked(params):
+        offered = f" ({' / '.join(params.options)})" if params.options else ""
+        said = await human.run(f"{params.question}{offered}", session=person)
+        return AskUserHookResult(answer=said or None)
+
+    with contextlib.suppress(CapabilityNotGranted):
+        assistant.on_ask_user(asked)
+    said = task
+    while said:
+        answered = await assistant.run(said, session=conversation, env=envs["workspace"])
+        said = await human.run(answered, session=person)
+"""
+
+
 def _talks() -> str:
-    """`chat`, reached through a link called `talk`: the conversation, under another name."""
+    """:data:`TALK`, written where a path names it: `talk`, a flow of its own directory."""
     at = Path(tempfile.mkdtemp(prefix="hmz-talk-")) / "talk"
-    at.symlink_to(Path(chat.__file__).parent, target_is_directory=True)
+    at.mkdir()
+    (at / "__init__.py").write_text(TALK)
     return str(at)
 
 
-#: `chat`, named by a link to its directory rather than as `chat`: the same conversation, which
-#: the interface then reads as any flow -- a monitor, views to step round, a run to stop.
+#: :data:`TALK`, named by its path.
 TALKS = _talks()
+
+
+def talks_set_up(workspace: Path) -> None:
+    """Remembers :data:`TALKS` set up in the workspace: the stand-in, and a budget to spend."""
+    from hmz.runtime.kept import read_back
+    from hmz.runtime.settings import Settings
+
+    runs = read_back(RUNS)
+    assert runs is not None
+    Settings(workspace).remember(TALKS, {"assistant": runs}, budget={"cost": 100.0})
+
 
 #: The terminal every pilot runs in.
 SIZE = (100, 40)
@@ -288,6 +349,8 @@ def stand_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     program.write_text(f"#!{sys.executable}\n{_STAND_IN}")
     program.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.defpath}")
+    # And the daemon's chats, stood in for until it serves them.
+    Chats().install(monkeypatch)
     return _workspace(tmp_path, monkeypatch)
 
 
@@ -312,6 +375,13 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
     await on(pilot, Flows)
     await opens(pilot, OWN)
     await shows(pilot, trail("Installed", OWN), "an epic needs one")
+    await gives_a_budget(pilot)
+    await leaves(pilot)
+    await shows(pilot, f"set up: /flow {OWN} <task> starts it")
+
+
+async def gives_a_budget(pilot: Pilot[None]) -> None:
+    """Gives the flow open in `/flow` a dollar to spend, every flow needing a budget."""
     await opens(pilot, "\x1ebudget")
     await on(pilot, Configures)
     await opens(pilot, "cost")
@@ -319,8 +389,6 @@ async def set_up_own_flow(pilot: Pilot[None]) -> None:
         "1", "enter", "tab", "enter"
     )  # a dollar, then the button that sets it
     await on(pilot, Flows)
-    await leaves(pilot)
-    await shows(pilot, f"◉ {OWN}")
 
 
 def nothing_installed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -334,6 +402,7 @@ def nothing_installed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
       The workspace, which is the working directory from here on.
     """
     monkeypatch.setenv("PATH", os.defpath)
+    Chats().install(monkeypatch)
     return _workspace(tmp_path, monkeypatch)
 
 
@@ -531,3 +600,70 @@ def _app(pilot: Pilot[None]) -> Humanize:
     app = pilot.app
     assert isinstance(app, Humanize)
     return app
+
+
+#: What a stand-in chat's harness takes at its own prompt: a command and a skill, a command only
+#: its own interface serves, a skill named as a flow is, a shell and files.
+CATALOG = (
+    NativeCommand("/", "compact", "Compact the conversation", "pass"),
+    NativeCommand("/", "config", "Open the settings", "refuse"),
+    NativeCommand("$", "review", "Review the change", "call"),
+    NativeCommand("$", "rlar", "A skill of the flow's name", "call"),
+    NativeCommand("!", "", "Run a shell command", "emulate"),
+    NativeCommand("@", "", "Mention a file", "pass"),
+)
+
+#: What a `!` command run for a stand-in chat prints.
+PRINTED = "file.txt"
+
+
+class Chats:
+    """The daemon's chats (`chat.*`, Section 4.21 of daemon.md), as the interface asks them.
+
+    Every call goes on to the daemon of the test, whose hosts are held in this process, as it
+    would have; this keeps what was asked, can hold a `chat.start` back (and refuse it once
+    let go), and has every chat's harness list a catalogue of its own -- the stand-in lists no
+    skills, and a test about what a `$` line names needs one that does.
+
+    Attributes:
+      asked: Every call made, as `(method, params)`, oldest first.
+      starting: Set to hold a `chat.start` until it is set, where it is not None.
+      refusing: Whether a held start is refused once let go.
+    """
+
+    def __init__(self, catalog: tuple[NativeCommand, ...] = CATALOG) -> None:
+        self.catalog = catalog
+        self.asked: list[tuple[str, dict[str, Any]]] = []
+        self.starting: threading.Event | None = None
+        self.refusing = False
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> Chats:
+        """Watches every `chat.*` the interface asks from here on."""
+        from hmz.runtime.chatting import Chat
+
+        # The interface's one way to the daemon's chats, named rather than reached into.
+        real = vars(Humanize)["_chat_asked"]
+        catalog = list(self.catalog)
+
+        # A function rather than this bound method, so that the interface is handed to it.
+        def asked(app: Humanize, request: dict[str, Any]) -> dict[str, Any]:
+            said = dict(request)
+            method = str(said.pop("do"))
+            self.asked.append((method, said))
+            if method == "chat.start" and self.starting is not None:
+                self.starting.wait(10)
+                if self.refusing:
+                    raise RuntimeError("no room to start")
+            return real(app, request)
+
+        def natives(chat: Chat) -> list[NativeCommand]:
+            del chat
+            return catalog
+
+        monkeypatch.setattr(Humanize, "_chat_asked", asked)
+        monkeypatch.setattr(Chat, "natives", natives)
+        return self
+
+    def started(self) -> list[dict[str, Any]]:
+        """What each `chat.start` was asked with, oldest first."""
+        return [said for method, said in self.asked if method == "chat.start"]

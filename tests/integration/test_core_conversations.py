@@ -7,19 +7,36 @@ stood when the state kept it only where Humanize copied it out then, brought the
 where the later run keeps its sessions, and carried it to the directory that turn works in.
 Where a run keeps no sessions of its own (`HUMANIZE_SESSIONS=off`), that is the CLI's home, whose
 conversation is never put back to a copy of it.
+
+A chat (`hmz.runtime.chatting.Chat`) keeps its conversation the same way and nothing else: a
+chat carried on is the same epic opened again, its conversation carried on from the files of it
+the epic already holds.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.flows import HarnessError
+from hmz.runtime.chatting import Chat, ChatEnd, ChatSpec
+from hmz.runtime.epic import SESSIONS, read
+from hmz.runtime.epic import epics as held_in
 from hmz.sdk import Hmz
-from tests.integration.doubles_core import AGENT, hmz_exec, install, started, write_flow
+from tests.integration.doubles_core import (
+    AGENT,
+    MODEL,
+    hmz_exec,
+    install,
+    started,
+    write_flow,
+)
 
 if TYPE_CHECKING:
     import subprocess
+    from collections.abc import Sequence
     from pathlib import Path
 
 #: Every epic here is held by a daemon of the test's own, in this process.
@@ -145,3 +162,103 @@ def test_a_kept_session_the_clis_home_went_on_with_is_not_put_back(
     assert f"another copy of conversation {told['session']} is kept at" in later.stderr
     assert held.read_bytes() == went_on
     assert len(started(tmp_path)) == 1
+
+
+# ------------------------------------------------------------------------------------ chats
+
+
+class Person:
+    """Says each line in turn, then nothing; shows nothing, asked nothing."""
+
+    def __init__(self, *says: str) -> None:
+        self.says = list(says)
+        self.shown: list[str] = []
+
+    async def next(self, answered: str) -> str:
+        self.shown.append(answered)
+        return self.says.pop(0) if self.says else ""
+
+    async def ask(self, question: str, options: Sequence[str]) -> str | None:
+        return None
+
+    def shell(self, command: str, out: str, err: str, status: int) -> None:
+        return
+
+
+def _chat(
+    project: Path, person: Person, task: str, agent: str = AGENT, **said: object
+) -> ChatEnd:
+    spec = ChatSpec(workspace=project, agent=agent, task=task, **said)  # pyright: ignore[reportArgumentType]
+    return asyncio.run(Chat(spec, person=person).run())
+
+
+def test_a_chat_talks_in_the_project_and_is_written_down_as_one(
+    tmp_path: Path, project: Path
+) -> None:
+    person = Person("and then?")
+
+    ended = _chat(project, person, "hello there", f"{AGENT}:high")
+
+    assert person.shown == ["did: hello there", "did: and then?"]
+    assert (project / "landed.txt").read_text() == "hello there\nand then?\n"
+    (start,) = started(tmp_path)
+    assert start["cwd"] == str(project.resolve())
+    assert start["argv"][start["argv"].index("--model") + 1] == MODEL
+    assert start["argv"][start["argv"].index("--effort") + 1] == "high"
+    ran = read(ended.epic)
+    assert ran is not None
+    assert (ran.kind, ran.flow, ran.task, ran.how) == (
+        "chat",
+        "",
+        "hello there",
+        "stopped",
+    )
+    (drove,) = ran.agents
+    assert drove.spec == f"{AGENT}:high"
+    (session,) = ran.sessions
+    assert (drove.agent, drove.name) == ("assistant", session.agent)
+    assert session.ident == start["session"]
+    assert ran.spent is not None
+    assert ran.spent["output_tokens"] == 14
+
+
+def test_a_chat_whose_first_turn_fails_ends_failed_with_what_the_cli_said(
+    project: Path,
+) -> None:
+    with pytest.raises(HarnessError, match="it broke"):
+        _chat(project, Person(), "fail: it broke")
+
+    (at,) = held_in(project)
+    ran = read(at)
+    assert ran is not None
+    assert ran.how == "failed"
+
+
+def test_a_chat_carried_on_is_the_same_epic_and_the_same_conversation(
+    tmp_path: Path, project: Path
+) -> None:
+    first = _chat(project, Person(), "the word is papaya")
+    (told,) = started(tmp_path)
+    person = Person()
+
+    again = _chat(project, person, "what was the word?", resume=first.epic)
+
+    assert again.epic == first.epic
+    assert held_in(project) == [first.epic]
+    assert person.shown == ["did: what was the word?"]
+    _, carried = started(tmp_path)
+    argv = carried["argv"]
+    assert argv[argv.index("--resume") + 1] == told["session"]
+    assert "--fork-session" in argv
+    ran = read(first.epic)
+    assert ran is not None
+    assert (ran.how, ran.task) == ("stopped", "the word is papaya")
+    assert ran.reopened
+    before, after = ran.sessions
+    assert (before.ident, after.parent) == (told["session"], told["session"])
+    (transcript,) = (first.epic / SESSIONS / "claude").glob(
+        f"projects/*/{after.ident}.jsonl"
+    )
+    assert b"papaya" in transcript.read_bytes()
+    assert ran.spent is not None
+    assert ran.spent["output_tokens"] == 14

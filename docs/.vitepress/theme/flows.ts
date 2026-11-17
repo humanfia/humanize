@@ -2,8 +2,8 @@
 // <HmzFlow flow="…" /> plays it wherever a page embeds one -- the tutorials do, for the flow
 // each one runs. Every flow's own page, its loop played, is at https://humanfia.ai/flows/.
 //
-// Everything is read off the flows themselves: `src/hmz/flows/builtin/` for `chat` and the six
-// loops beside it, and for the rest the repository each is released from, as the official
+// Everything is read off the flows themselves: `src/hmz/flows/builtin/` for the six
+// loops it ships, and for the rest the repository each is released from, as the official
 // flowverse (https://github.com/humanfia/flowverse) lists it. The visual grammar every scene is
 // drawn in is `components/flow/grammar.ts`.
 
@@ -83,7 +83,7 @@ export interface Scene {
   loop?: { from: string; to: string; said: string }
   /** Every way a run of it ends. The first is the one this diagram plays to. */
   ends: { is: Outcome; said: string }[]
-  /** Whether a budget stops it. Every flow but `chat` has one. Default true. */
+  /** Whether a budget stops it. Every flow has one. Default true. */
   budget?: boolean
   /** Three-dimensional staging, where depth says something flat cannot: lanes that run at
    *  once fan out as layers, and a part that splits sends copies of itself down a level. */
@@ -100,27 +100,6 @@ const text = (said: string, to: string): Pass[] => [{ to, said, via: 'text' }]
 const BUDGET = { is: 'budget' as const, said: 'the budget runs out' }
 
 export const SCENES: Record<string, Scene> = {
-  chat: {
-    of: 'chat',
-    budget: false,
-    envs: [{ id: 'dir', name: 'the directory you started in' }],
-    roles: [
-      { id: 'you', name: 'you', note: 'at the prompt', kind: 'human' },
-      { id: 'agent', name: 'assistant', note: 'one session throughout', kind: 'maker', env: 'dir' },
-    ],
-    turns: [
-      { id: 'y0', role: 'you', at: 0, label: 'what you typed first', session: 'none', pass: text('the turn', 'a0') },
-      { id: 'a0', role: 'agent', at: 1, label: 'answers', session: 'new', pass: text('its answer', 'y1') },
-      { id: 'y1', role: 'you', at: 2, label: 'what you type back', session: 'none', pass: text('the next turn', 'a1') },
-      { id: 'a1', role: 'agent', at: 3, label: 'answers, remembering', session: 'held', pass: text('its answer', 'y2') },
-      { id: 'y2', role: 'you', at: 4, label: 'nothing sent back', session: 'none', pass: text('', 'end') },
-    ],
-    loop: { from: 'a1', to: 'y1', said: 'for as long as you answer' },
-    ends: [{ is: 'you', said: 'you send nothing back' }],
-    caption:
-      'Each answer comes to you, and what you type back is the next turn of the same session. Send nothing back — or run it under hmz exec, where nobody is at the prompt — and the run ends.',
-  },
-
   ralph_loop: {
     of: 'ralph_loop',
     envs: [{ id: 'repo', name: 'your repository' }],

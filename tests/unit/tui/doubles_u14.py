@@ -121,10 +121,8 @@ class Impl:
         return self.said
 
 
-def resolving(
-    flows: dict[str, Described], privileged: frozenset[str] = frozenset()
-) -> tuple[Callable[[str], Impl], Callable[[Impl], bool]]:
-    """A `resolved` loading the flows given and raising for any other, and a `privileged`."""
+def resolving(flows: dict[str, Described]) -> Callable[[str], Impl]:
+    """A `resolved` loading the flows given and raising for any other."""
     loaded = {name: Impl(said) for name, said in flows.items()}
 
     def resolved(flow: str) -> Impl:
@@ -133,7 +131,4 @@ def resolving(
         except KeyError:
             raise ImportError(f"no flow {flow}") from None
 
-    def is_privileged(impl: Impl) -> bool:
-        return any(loaded[name] is impl for name in privileged)
-
-    return resolved, is_privileged
+    return resolved

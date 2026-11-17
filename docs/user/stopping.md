@@ -224,15 +224,18 @@ you save there is what the next run starts with; the running one keeps what it s
 
 ## A chat is not stopped
 
-[`chat`](https://humanfia.ai/flows/chat), the flow `hmz` opens on, is one conversation and
-reads as Claude Code does. Its status line says `running` while the assistant answers and
-`done` once it waits for you, and nothing on it stops the chat:
+A [chat](/user/chat), which `hmz` opens on, is not a flow: it is one conversation, and reads as
+Claude Code does. Its status line says `running` while the assistant answers and `done` once
+it waits for you, and nothing on it stops the chat:
 
 - <kbd>ctrl+c</kbd> clears the line. On an empty one, it says `— press ctrl+c again to exit —`,
   and a second press leaves `hmz`.
-- `/stop` is not offered. Typed anyway, it says `hmz: a chat is not stopped: /clear ends it`.
-- `/clear` ends the chat: the next line you type starts another.
-- `/exit` and <kbd>ctrl+q</kbd> leave without asking.
+- `/stop` is not offered. Typed anyway, it says `hmz: a chat is not stopped: /clear starts another`.
+- `/clear` starts a new chat, leaving this one to fold away: the next line you type starts it.
+- `/exit`, `/quit` and <kbd>ctrl+q</kbd> leave without asking.
+
+A flow started from the chat, with `$<flow>` or `/flow <flow> <task>`, is stopped as any flow
+is; the chat waits on its own meanwhile, and `/chat` brings it back.
 
 There is no monitor, no <kbd>shift+tab</kbd> between views, and no Exomyth in `/epics` for a
 chat either: the transcript is the whole of it.
@@ -243,7 +246,7 @@ chat either: the transcript is the whole of it.
 | --- | --- |
 | <kbd>←</kbd> | With nothing typed, goes up to [the monitor](/user/monitor). |
 | <kbd>esc</kbd> | Puts away a list or a menu, or leaves [btw mode](/user/btw). The flow keeps running. |
-| `/clear` | Clears the transcript you are reading. The flow keeps running; a [chat](#a-chat-is-not-stopped) ends. |
+| `/clear` | Clears the transcript you are reading. The flow keeps running; in a [chat](#a-chat-is-not-stopped), a new chat starts. |
 | a line you type | Goes into the running turn. See [Talking to a running turn](/user/steering). |
 | a question the flow asked you | Ends with the flow when it stops. It never holds a stop up. |
 | a second `/stop` | No longer offered. Typed anyway, says `hmz: the flow is already stopping: …`. A <kbd>ctrl+c</kbd> is what hurries it. |

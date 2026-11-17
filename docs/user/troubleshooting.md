@@ -49,9 +49,8 @@ hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-so
 
 **Cause.** The line names a role the flow does not have: a typo, or another flow's role.
 
-**Fix.** Use a name from the list at the end of the message. `chat` has `assistant`,
-`ralph_loop` has `agent`, and `rlar` has `actor` and `reviewer`. Each flow's page lists its
-roles.
+**Fix.** Use a name from the list at the end of the message. `ralph_loop` has `agent`, and
+`rlar` has `actor` and `reviewer`. Each flow's page lists its roles.
 
 **Verify.** The line is refused for nothing, or for the next thing it is missing.
 
@@ -100,7 +99,8 @@ unattended](/user/unattended#name-an-agent-for-each-role) to see how it is read.
 
 **Symptom.** `hmz exec` refuses the line before anything runs.
 
-**Cause.** Every flow except `chat` runs under a budget, and the line gives none.
+**Cause.** Every flow runs under a budget, and the line gives none. To talk to one agent with
+no budget, run [`hmz chat`](/user/chat#from-the-shell) instead.
 
 **Fix.** Give it one with `-p budget.<limit>=`:
 
@@ -215,7 +215,7 @@ past the check.
 
 **Symptom.** `hmz exec` refuses a flow by name, on a machine that has not fetched the official
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
-that is misspelled. The flows Humanize ships, such as `chat` and `ralph_loop`, never do.
+that is misspelled. The flows Humanize ships, such as `ralph_loop` and `rlar`, never do.
 
 **Cause.** The flowverse's index has not been downloaded yet. `hmz` and this machine's daemon
 each fetch every flowverse in the background as they start; `hmz exec` never does itself, so a
@@ -244,7 +244,7 @@ flow is not installed.
 **Symptom.** `hmz exec` refuses the `-p`, with the lines after it naming the key:
 
 ```
-hmz exec: error: chat:chat: 1 validation error for Params
+hmz exec: error: ralph_loop:ralph_loop: 1 validation error for Params
 foo
   Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]
 ```
@@ -340,7 +340,7 @@ unpriced, and a `cost` limit warns as above.
 **Fix.** Put `--` before it:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-opus-5:high -- "--force is not a flag here"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 -- "--force is not a flag here"
 ```
 
 **Verify.** The run starts.

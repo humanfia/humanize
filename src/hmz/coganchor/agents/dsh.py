@@ -1,4 +1,9 @@
-"""DeepSeek Harness, driven through its Python SDK."""
+"""DeepSeek Harness, driven through its Python SDK.
+
+In a chat every line is said as text, with no catalog of native input: a turn is a call into
+the harness's Python SDK with the message, and there is no interactive prompt on that path to
+read a `/`, `!` or `@` -- those would be its terminal interface's, which this driver never runs.
+"""
 
 # A session and the agent holding it are two halves of one object declared here.
 # pyright: reportPrivateUsage=false

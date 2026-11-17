@@ -193,7 +193,9 @@ def test_an_index_finds_the_release_to_install() -> None:
 
 def test_reserved_holds_the_packages_own_names() -> None:
     assert reserved() >= RESERVED
-    assert "chat" in reserved()
+    assert "goal" in reserved()
+    # A chat is no flow, so a flow of that name is an ordinary one.
+    assert "chat" not in reserved()
 
 
 def test_reading_an_index(theirs: Path) -> None:
@@ -218,7 +220,7 @@ SKIPS: list[tuple[Callable[[Path], object], str]] = [
     (lambda at: release(at, "x", "1.0.0", name="y"), "is not the directory"),
     (lambda at: release(at, "x", "1.0.0", version="1.0.1"), "is not the directory"),
     (lambda at: release(at, "x", "1.0.0", commit="nope"), "commit"),
-    (lambda at: release(at, "chat", "1.0.0"), "built into Humanize"),
+    (lambda at: release(at, "goal", "1.0.0"), "built into Humanize"),
     (lambda at: release(at, "x", "1.0.0", owner="alice", repo="bob/x"), "bob's"),
     (lambda at: (at / "flows" / "Not_A_User" / "x").mkdir(parents=True), "neither"),
     (

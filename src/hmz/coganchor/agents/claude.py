@@ -8,7 +8,7 @@ import re
 import threading
 import uuid
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor import prices
@@ -17,6 +17,8 @@ from .base import DRAIN_SECONDS, AgentBase, StreamSessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
+from .native import NativeCommand
+from .watchdog import Watchdog
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -203,6 +205,57 @@ _ASKING = "manual"
 #: was told of: 2.1.285 word for word.
 _ROOT = "cannot be used with root/sudo privileges"
 
+#: Claude Code's commands that only its own interactive interface serves: a dialog, a picker,
+#: a terminal it sets up, an account it signs in to. Print mode lists some of them among its
+#: slash commands all the same, so they are taken out of what is passed and refused instead,
+#: saying why (protocol `core.md` 8.9.1).
+_INTERACTIVE = (
+    "config",
+    "mcp",
+    "agents",
+    "login",
+    "logout",
+    "permissions",
+    "doctor",
+    "ide",
+    "terminal-setup",
+    "vim",
+    "theme",
+    "statusline",
+    "hooks",
+)
+
+#: Why one of :data:`_INTERACTIVE` is refused.
+_INTERACTIVE_ABOUT = "served only by Claude Code's own interactive interface"
+
+#: The commands hmz serves by calling Claude Code's own operation rather than by passing the
+#: line, so that the agent the chat records moves with the conversation (`core.md` 8.9.5).
+_CALLED = {
+    "model": "change the model this conversation runs on",
+    "effort": "change how hard this conversation thinks",
+}
+
+#: The names frontends keep for hmz (`core.md` 8.9.7): Claude Code has a `/clear` of its own,
+#: and a chat's is a new chat rather than Claude's.
+_RESERVED = frozenset(
+    {
+        "clear",
+        "resume",
+        "exit",
+        "quit",
+        "btw",
+        "flow",
+        "epics",
+        "settings",
+        "chat",
+        "prefer",
+    }
+)
+
+#: A native line that is one of :data:`_CALLED`, with what it was given: the rest of the one
+#: line, so that a prompt of more lines than that is no call and is passed as it was.
+_CALLING = re.compile(r"/(model|effort)(?:[ \t]+(\S[^\n]*?))?[ \t]*")
+
 #: What each kind of token is called on the total Claude states at the end of a turn, and what
 #: it is called on the message each request answered with. The same kinds either way, under
 #: the two spellings Claude uses for them.
@@ -257,6 +310,31 @@ class _Reaching:
     named: str
     arriving: str = ""
     said: bool = False
+
+
+def _answer_to(line: str, named: str) -> dict[str, Any] | None:
+    """Claude's answer to the control request sent as `named`, where this line is it.
+
+    Args:
+      line: A line Claude wrote.
+      named: The `request_id` the request was sent under.
+
+    Returns:
+      The `response` it carries -- `subtype` `success` or `error`, and what was said with
+      it -- or None for any other line.
+    """
+    try:
+        said: Any = json.loads(line)
+    except json.JSONDecodeError:
+        return None  # not ours: Claude prints the odd plain line among the JSON
+    if not isinstance(said, dict):
+        return None
+    held = cast("dict[str, Any]", said)
+    answered: Any = held.get("response")
+    if held.get("type") != "control_response" or not isinstance(answered, dict):
+        return None
+    response = cast("dict[str, Any]", answered)
+    return response if response.get("request_id") == named else None
 
 
 def _result_failure(said: dict[str, Any]) -> str | None:
@@ -409,6 +487,18 @@ class ClaudeCodeSession(StreamSessionBase):
         #: What the process now up was started to think at, so that a flow moving the effort
         #: mid-session is answered by starting one that thinks at the new one.
         self._at: str | None = None
+        #: And the model, for the same reason: `--model` is read when Claude starts, and a
+        #: model the conversation was moved to over the control protocol is the process's
+        #: model from then on without starting another.
+        self._modeled: str | None = None
+        #: What the last `system/init` listed as its slash commands and as its skills, which
+        #: is what this conversation passes to Claude as written (:meth:`natives`). Kept
+        #: across processes: the next one says it again, and until it does this is the best
+        #: answer there is.
+        self._commands: tuple[str, ...] = ()
+        self._skilled: frozenset[str] = frozenset()
+        #: Whether a `system/init` has said them yet.
+        self._inited = False
         #: The id Claude says this session has, taken only once a turn has landed in it.
         self._named: str | None = None
         #: Whether an answer is owed and not yet given: from the turn's prompt, or a word put
@@ -756,6 +846,7 @@ class ClaudeCodeSession(StreamSessionBase):
         self._answering = False
         self._ticket, self._lifecycle, self._ours, self._merged = "", False, None, False
         self._at = self.effort
+        self._modeled = self._agent.config.model
         self._offering = self._telling
         self._gated = self._gating
         self._built = self._configured()
@@ -816,9 +907,13 @@ class ClaudeCodeSession(StreamSessionBase):
         whether the reach is said as it happens. `reconfigure` is the
         one thing that changes a frozen config, and what it says is that every turn from then
         on runs at the new one; a process built under the old one would go on running at it
-        until something else happened to end it.
+        until something else happened to end it. The model is one of those: an agent set up
+        on another one runs on it from its next turn, unless the process was already moved
+        to it over the control protocol (:meth:`_remodel`).
         """
         if self._at is not None and self._at != self.effort:
+            return True
+        if self._modeled is not None and self._modeled != self._agent.config.model:
             return True
         if self._gated is not None and self._gated != self._hooking():
             return True
@@ -1094,6 +1189,219 @@ class ClaudeCodeSession(StreamSessionBase):
             f"{_DECLINED}, where what it asks for is granted"
         )
 
+    def _listed(self, said: dict[str, Any]) -> None:
+        """Keeps what a `system/init` lists as this conversation's slash commands and skills.
+
+        Args:
+          said: The `system/init`, as read. An init that lists neither -- a Claude older
+            than the lists -- leaves what is known as it was.
+        """
+        if "slash_commands" not in said and "skills" not in said:
+            return
+        commands: list[Any] = said.get("slash_commands") or []
+        skills: list[Any] = said.get("skills") or []
+        self._commands = tuple(
+            dict.fromkeys(one for one in [*commands, *skills] if isinstance(one, str))
+        )
+        self._skilled = frozenset(one for one in skills if isinstance(one, str))
+        self._inited = True
+
+    def natives(self) -> list[NativeCommand]:
+        """What a chat may type to this conversation as at Claude Code's own prompt.
+
+        Every command and skill its `system/init` lists, passed as typed: print mode expands a
+        `/name` at the start of a user message as the interactive prompt does, and so it does
+        an `@path`, reading the file into the turn itself. Less the names hmz keeps for its
+        frontends and the commands only the interactive interface serves, which are listed as
+        refused instead; and `/model` and `/effort`, which are called, so that the agent the
+        chat records is the one the conversation runs as. `!` is the chat's own to emulate.
+
+        Until a conversation has said its `system/init` -- before its first turn -- which
+        commands it has is not known, and no `/` entry is listed at all: a chat then passes
+        every `/` line as text (`core.md` 8.9.13), which print mode expands as it would have
+        anyway, rather than refusing a `/compact` it merely has not heard of yet. A native
+        `/model` or `/effort` is still called, by the driver, whatever the chat was offered.
+
+        Returns:
+          The catalog, as `core.md` 8.9.3 has it for `claude`.
+        """
+        fixed = [
+            NativeCommand(
+                "!",
+                "",
+                "run a shell command; its output goes into the next turn",
+                "emulate",
+            ),
+            NativeCommand("@", "", "a file, read into the message", "pass"),
+        ]
+        if not self._inited:
+            return fixed
+        kept = {*_RESERVED, *_INTERACTIVE, *_CALLED}
+        listed = [
+            NativeCommand(
+                "/",
+                name,
+                "a skill" if name in self._skilled else "a Claude Code command",
+                "pass",
+            )
+            for name in self._commands
+            # A name opening on `_` is one Claude keeps for itself, not one it offers.
+            if name not in kept and not name.startswith("_")
+        ]
+        return [
+            *listed,
+            *(NativeCommand("/", name, said, "call") for name, said in _CALLED.items()),
+            *(
+                NativeCommand("/", name, _INTERACTIVE_ABOUT, "refuse")
+                for name in _INTERACTIVE
+            ),
+            *fixed,
+        ]
+
+    def _calls(self, prompt: str) -> str | None:
+        """Serves a native `/model` or `/effort`, without the model being asked anything.
+
+        Args:
+          prompt: The turn's prompt.
+
+        Returns:
+          What to answer the turn with, or None where it is no such line, or not a native
+          turn: a flow's prompt is text, whatever it starts with.
+        """
+        if (
+            not self.native_turn
+            or (called := _CALLING.fullmatch(prompt.strip())) is None
+        ):
+            return None
+        named, given = called.group(1), called.group(2) or ""
+        return self._remodel(given) if named == "model" else self._rethink(given)
+
+    def _remodel(self, model: str) -> str:
+        """Moves the conversation to another model, as Claude Code's own `/model` does.
+
+        The agent is set up as running on it, so that the chat records the agent the
+        conversation is and the next process this session starts -- a restart, an anchored
+        turn -- is started on it. Where a process is up and would go on being the one the
+        next turn speaks to, it is moved too, over the control protocol's `set_model`, which
+        it answers at once and which checks the name against what the account offers: a
+        model it does not know is refused here, and the agent is put back. Where none is up,
+        the next turn's `--model` says it, and a name Claude does not know is said then
+        (:meth:`_running`).
+
+        Args:
+          model: The model, as Claude Code takes it: an alias or an id; "" to be told which.
+
+        Returns:
+          What to answer the turn with, a refusal included.
+        """
+        was = self._agent.config
+        if not model:
+            return f"Model: {was.model}"
+        warm = self._warm()  # asked of the agent as it was, before it is anything else
+        try:
+            self._agent.reconfigure(replace(was, model=model))
+        except ValueError as refused:
+            return str(refused)
+        if not warm:
+            return f"Set model to {model}"
+        try:
+            answered = self._control({"subtype": "set_model", "model": model})
+        except BaseException:
+            self._agent.reconfigure(was)
+            raise
+        if answered.get("subtype") != "success":
+            self._agent.reconfigure(was)
+            return str(answered.get("error") or f"Claude Code would not run {model!r}")
+        self._modeled = model
+        said: dict[str, Any] = answered.get("response") or {}
+        running = str(said.get("model") or "")
+        return f"Set model to {model}" + (
+            f" ({running})" if running and running != model else ""
+        )
+
+    def _rethink(self, effort: str) -> str:
+        """Moves the conversation to another effort, as Claude Code's own `/effort` does.
+
+        Claude has no control request for it, and `--effort` is read when it starts, so the
+        agent is set up at the new rung and the next turn resumes the conversation in a
+        process started at it (:meth:`_stale`). A rung the agent or this conversation was
+        told by a flow goes: what the person said last is what it thinks at.
+
+        Args:
+          effort: The rung, in Claude's own words, or `auto` for none; "" to be told which.
+
+        Returns:
+          What to answer the turn with, a rung Claude has no word for included.
+        """
+        if not effort:
+            return f"Effort: {self.effort or 'auto'}"
+        try:
+            self._agent.reconfigure(replace(self._agent.config, effort=effort))
+        except ValueError as refused:
+            return str(refused)
+        self._agent.effort = self.effort = ""
+        return f"Set effort to {effort}"
+
+    def _warm(self) -> bool:
+        """Whether a process is up that the next turn would go on speaking to.
+
+        Returns:
+          False where none is, where the one up is to be started again anyway (stale, shaped,
+          on another account or in another home), and for an anchored session, whose process
+          ends with each turn.
+        """
+        proc = self._proc
+        return (
+            proc is not None
+            and proc.poll() is None
+            and self._agent.anchor is None
+            and self._shaping is None
+            and not self._stale()
+            and not self.elsewhere()
+            and not self._relodged()
+        )
+
+    def _control(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Asks the process up something over the control protocol, and waits for its answer.
+
+        Between turns, where nobody else is reading what it says: anything else it says while
+        the answer is awaited -- the end of a turn of its own -- is read as a turn would read
+        it, so that what that cost is still this session's.
+
+        Args:
+          request: The request, `subtype` and all.
+
+        Returns:
+          Claude's `response`: `subtype` `success` or `error`, and what it said with it.
+
+        Raises:
+          Failed: If Claude exits rather than answering.
+        """
+        proc = self._proc
+        assert proc is not None  # noqa: S101
+        assert proc.stdout is not None  # noqa: S101
+        named = f"hmz-{uuid.uuid4()}"
+        self._send(
+            json.dumps(
+                {"type": "control_request", "request_id": named, "request": request}
+            )
+            + "\n"
+        )
+        with Watchdog(self, riding=lambda: self._proc) as watch:
+            for line in proc.stdout:
+                watch.saw()
+                answered = _answer_to(line, named)
+                if answered is not None:
+                    return answered
+                for _ in self._read(line):
+                    pass  # nothing of a turn of ours: there is none
+        status = proc.wait()
+        if self._draining is not None:
+            self._draining.join(timeout=DRAIN_SECONDS)
+        complained = "".join(self._complaints)
+        self._shut()
+        raise Failed(status or 1, ["claude"], "", complained)
+
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:
@@ -1115,6 +1423,11 @@ class ClaudeCodeSession(StreamSessionBase):
         Raises:
           Failed: If the turn failed for anything else, or after it had begun.
         """
+        if (called := self._calls(prompt)) is not None:
+            # A person's `/model` or `/effort`, which Claude's own prompt answers without
+            # asking the model anything: the turn is the confirmation, and costs nothing.
+            yield Event(kind="result", text=called)
+            return
         began = False
         try:
             for event in super()._stream(prompt, schema=schema):
@@ -1230,6 +1543,8 @@ class ClaudeCodeSession(StreamSessionBase):
             self._named = str(said["session_id"])
             if self._id is None:
                 self._tells(self._named)
+            if said.get("subtype") == "init":
+                self._listed(said)
             if said.get("subtype") == "init" and (
                 instead := self._running(str(said.get("model") or ""))
             ):
@@ -1309,7 +1624,14 @@ class ClaudeCodeSession(StreamSessionBase):
         elif said.get("type") == "user":
             # A tool answering, which is the only thing said back to Claude on this stream
             # that is worth reading: one of them is an agent of its own having finished.
-            for part in said.get("message", {}).get("content", []):
+            content: object = said.get("message", {}).get("content", [])
+            # Plain text where Claude says something back in the user's place, as after a
+            # `/compact`: no tool answers there.
+            parts = cast("list[Any]", content) if isinstance(content, list) else []
+            for each in parts:
+                if not isinstance(each, dict):
+                    continue
+                part = cast("dict[str, Any]", each)
                 if part.get("type") != "tool_result":
                     continue
                 marked = str(part.get("tool_use_id") or "")

@@ -10,10 +10,10 @@ to compare two agents or two efforts, and to know when a figure is short of the 
 
 ## Try it
 
-Run any flow for one turn:
+Take one turn of a [chat](/user/chat) from the shell:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Name the three primary colours, one line."
 ```
 
@@ -84,11 +84,10 @@ role to give a cheaper model or a lower effort, not the actor.
 ## Example: watch the readout in `hmz`
 
 In the interface, once anything has been spent, the readout sits under the agent lines, above
-the editor. This one is a single [`chat`](https://humanfia.ai/flows/chat) agent a minute in:
+the editor. This one is a [chat](/user/chat)'s agent a minute in:
 
 ```text
                      assistant · claude/claude-haiku-4-5-20251001:low · ● 1   ①
-                                                human · outworlder · asking
                input 20 · output 532 · cache_read 27.7k · cache_write 13.8k   ②
                                                            $0.02 · 15 out/s   ③
 ```
@@ -102,7 +101,8 @@ the editor. This one is a single [`chat`](https://humanfia.ai/flows/chat) agent 
 3. **`$0.02`** is the run so far at list price. **`15 out/s`** is output tokens a second over
    the last five minutes, so it falls while the agent waits on you or on a slow tool.
 
-Press <kbd>←</kbd> for [the monitor](/user/monitor), which splits the same figures by model.
+In a flow, <kbd>←</kbd> opens [the monitor](/user/monitor), which splits the same figures by
+model.
 
 ## Check that it worked
 

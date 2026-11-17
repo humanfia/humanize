@@ -21,6 +21,7 @@ _COPIES = ["copy-name", "copy-task", "copy-path"]
 def _does(
     *,
     flow: str = "ralph",
+    kind: str | None = None,
     resumable: bool,
     foreign: str = "",
     uploads: bool = False,
@@ -35,6 +36,8 @@ def _does(
         sessions=[],
         backed=backed or {},
     )
+    if kind is not None:
+        ran.kind = kind
     return pick.Does(
         cast("Ran", ran), resumable=resumable, foreign=foreign, uploads=uploads
     )
@@ -93,16 +96,62 @@ def test_does_offers_upload_where_there_is_a_target_and_says_how_backups_went() 
     ]
 
 
-@pytest.mark.parametrize("flow", ["chat", "./flows/chat", "git+https://x/flows#chat"])
-def test_a_chat_is_not_offered_in_exomyth_which_draws_no_conversation(
-    flow: str,
+@pytest.mark.parametrize(
+    ("flow", "kind"),
+    [
+        ("", "chat"),
+        # Written by an hmz that ran a chat as the flow `chat`, and so saying no kind.
+        ("chat", None),
+        ("./flows/chat", None),
+        ("git+https://x/flows#chat", None),
+    ],
+)
+def test_a_chat_is_continued_and_not_offered_in_exomyth(
+    flow: str, kind: str | None
 ) -> None:
-    assert pick.chatting(flow)
-    assert [one[0] for one in _does(resumable=False, flow=flow).rows()] == [
+    does = _does(resumable=True, flow=flow, kind=kind)
+
+    assert [one[0] for one in does.rows()] == [
+        "continue",
         "graph",
         "export",
         *_COPIES,
     ]
+    assert does.asked == "2026-10-12 01:02 · chat"
+
+
+def test_a_chat_that_cannot_be_continued_says_so() -> None:
+    does = _does(resumable=False, flow="", kind="chat")
+
+    assert [one[0] for one in does.rows()] == ["graph", "export", *_COPIES]
+    assert does.nothing() == "this chat cannot be continued here"
+
+
+@pytest.mark.parametrize(
+    ("epic", "chat"),
+    [
+        ({"kind": "chat", "flow": ""}, True),
+        ({"epic_kind": "chat", "kind": "host", "flow": ""}, True),
+        ({"kind": "flow", "flow": "ralph"}, False),
+        # A flow that happens to be called `chat` is a flow, once its kind says so.
+        ({"kind": "flow", "flow": "chat"}, False),
+        ({"flow": "chat"}, True),
+        ({"ref": "chat:chat"}, True),
+        ("chat", True),
+        ("ralph", False),
+    ],
+)
+def test_chatting_reads_the_kind_and_an_old_chat_by_its_flow(
+    epic: dict[str, str] | str, chat: bool
+) -> None:
+    assert pick.chatting(epic) is chat
+
+
+def test_an_epic_of_a_flow_called_chat_is_no_chat_where_its_kind_says_so() -> None:
+    does = _does(resumable=True, flow="chat", kind="flow")
+
+    assert [one[0] for one in does.rows()][:1] == ["resume"]
+    assert "exomyth" in [one[0] for one in does.rows()]
 
 
 def test_a_flow_merely_named_like_chat_is_not_a_chat() -> None:

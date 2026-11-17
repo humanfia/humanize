@@ -44,6 +44,11 @@ an internal one for Cursor's cloud workers: it also forces every shell command i
 rejects what the server asks the client about first. A turn at a permission granting no
 network would reach the web through Cursor all the same, so rather than run wider than it
 was told, the agent is refused and the permission is to grant network=True.
+
+In a chat every line is said as text, with no catalog of native input: a turn is one
+`cursor-agent --print`, whose prompt is the words of the turn. Its `/` commands, `@` file picker
+and `!` shell mode are its interactive interface's, and print mode has no flag for any of them
+nor documents reading them out of the prompt, so none is reachable from a run.
 """
 
 from __future__ import annotations

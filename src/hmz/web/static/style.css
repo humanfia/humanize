@@ -2232,6 +2232,86 @@ pre.block {
   cursor: progress;
 }
 
+/* What the word being typed could become, over the box, as a terminal's prompt completes. */
+.composer-complete {
+  max-height: 260px;
+  overflow-y: auto;
+  margin: -2px -2px 4px -6px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.complete-group {
+  padding: 6px 10px 2px;
+  font: 600 10.5px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.complete-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.complete-item.active,
+.complete-item:hover {
+  background: var(--hover);
+}
+
+.complete-item.refused {
+  opacity: 0.6;
+}
+
+.complete-name {
+  font: 600 12.5px var(--mono);
+}
+
+.complete-tag {
+  font: 10.5px var(--mono);
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.complete-tag.tag-skill {
+  color: var(--live-ink);
+}
+
+.complete-tag.tag-flow {
+  color: var(--pink-ink);
+}
+
+.complete-about {
+  font-size: 12px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.complete-hint {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  color: var(--budget-ink);
+}
+
+/* A chat's preference for a `$` name that is both a skill and a flow, and where it comes from. */
+.prefer-switch {
+  align-items: center;
+}
+
+.prefer-label,
+.prefer-from {
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+
 .chip-select,
 .chip-btn {
   display: inline-flex;
@@ -2915,6 +2995,38 @@ table.spending tr.whole td {
 .said.subagent .g,
 .said.btw .g {
   color: var(--live-ink);
+}
+
+/* A `!` command a chat ran and what it printed, as a terminal shows them. */
+.said.shell .g {
+  color: var(--ink-3);
+}
+
+.said.shell .body {
+  padding: 8px 12px;
+  background: #141a1f;
+  color: #e6eff1;
+  border: 2px solid var(--ink);
+}
+
+.said.shell pre {
+  margin: 0;
+  font: 12.5px/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.said.shell .shell-input {
+  color: #9be15d;
+}
+
+.said.shell .shell-stderr,
+.said.shell .shell-status {
+  color: #ff8fa3;
+}
+
+.said.refused {
+  color: var(--fail);
 }
 
 .said.turn {
