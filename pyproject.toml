@@ -176,6 +176,13 @@ hmz = "hmz.cli:main"
 requires = ["uv_build>=0.12.20,<0.13.0"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+# src/hmz/web/vendor is what builds the page's third-party code into src/hmz/web/static/vendor:
+# its sources go in the sdist, its installed packages nowhere, and none of it in the wheel,
+# which carries only what it built.
+source-exclude = ["node_modules"]
+wheel-exclude = ["hmz/web/vendor"]
+
 [dependency-groups]
 dev = [
     # The web interface's page is driven in a real browser by `tests/system/web`: what it
