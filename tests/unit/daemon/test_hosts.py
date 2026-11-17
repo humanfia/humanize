@@ -133,6 +133,21 @@ def test_a_host_that_cannot_attach_is_refused_409(
     assert (refused.value.code, refused.value.message) == (409, said)
 
 
+def test_an_env_call_is_asked_down_the_link_as_it_was_said() -> None:
+    peer = mock.Mock(
+        call=mock.Mock(return_value={"ok": False, "why": "no", "code": 404})
+    )
+
+    assert _hosted(peer).env({"do": "hosts.env.read"}) == {
+        "ok": False,
+        "why": "no",
+        "code": 404,
+    }
+    peer.call.assert_called_once_with(
+        "env", {"said": {"do": "hosts.env.read"}}, timeout=None
+    )
+
+
 def test_a_host_that_will_not_say_is_answered_for() -> None:
     hosted = _hosted(mock.Mock(call=mock.Mock(side_effect=TimeoutError)))
 

@@ -30,6 +30,8 @@ What is held for them:
 - *keys*: which conversation is `<agent>/<n>`, numbered once so every frontend names it alike.
 - *asides*: the side conversations `/btw` opens, read-only and invisible to the run.
 - *history*: every record of the run, in order, so a frontend arriving late reads it all.
+- *envs*: every environment the run holds, and what a frontend does in one -- its files, a
+  terminal, its git (:mod:`hmz.runtime.doing.desk`).
 
 Nothing is ever said to a frontend while anything here is locked. Each has an outbox and a
 thread of its own that empties it, so one that has stopped reading costs its own memory -- up
@@ -45,20 +47,14 @@ import functools
 import itertools
 import json
 import os
-import queue
-import re
 import secrets
-import shlex
 import shutil
 import tempfile
 import threading
 import time
 import weakref
-from concurrent import futures
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
-
-import pydantic
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -67,12 +63,9 @@ if TYPE_CHECKING:
         AgentBase,
         Board,
         Event,
-        Occasion,
         Question,
         SessionBase,
-        Verdict,
     )
-    from hmz.coganchor.faking import FakeCli
     from hmz.runtime.doing.core import Holding
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing.spi import Placement
@@ -244,35 +237,53 @@ def _placed(where: Placement | None) -> dict[str, Any] | None:
     }
 
 
+def _works_at(where: Placement, driver: Any) -> bool:
+    """Whether a session placed `where` works in the directory a driver is at."""
+    try:
+        return (
+            str(where.workdir) == str(driver.workdir)
+            and str(where.backend) == str(driver.backend)
+            and where.provider == driver.provider
+        )
+    except Exception:  # noqa: BLE001 -- a driver that cannot say where it is is nowhere
+        return False
+
+
+#: Every request about an environment, each served by :class:`hmz.runtime.doing.desk.Desk`.
+_ENV_METHODS = (
+    "env.list",
+    "env.stat",
+    "env.read",
+    "env.find",
+    "env.search",
+    "env.write",
+    "env.mkdir",
+    "env.rename",
+    "env.remove",
+    "env.term.open",
+    "env.term.input",
+    "env.term.resize",
+    "env.term.ack",
+    "env.term.close",
+    "env.term.list",
+    "env.git.status",
+    "env.git.diff",
+    "env.git.log",
+    "env.git.stage",
+    "env.git.unstage",
+    "env.git.discard",
+    "env.git.commit",
+    "env.git.snapshots",
+    "env.git.rewind",
+)
+
 #: Where each side conversation carried on from an earlier run keeps what it was carried on
 #: with, by the conversation: taken away as it is closed.
 _SCRATCH: dict[int, Path] = {}
 
 
-#: What The Epic's side conversation asks by `hmz-ask`, by the conversation: closed with it.
-_ASKING: dict[int, _Asks] = {}
-
-#: The skill The Epic's side conversation carries, which tells it how to ask a conversation.
-_SKILL = Path(__file__).parent / "skills" / "ask-conversation"
-
-#: The command The Epic asks a conversation by, as `hmz.runtime.watching.btw.ASK` tells it.
-_ASK = "hmz-ask"
-
-#: How many times The Epic's turn is sent on with answers it has not heard, at most: as many
-#: as it may ask (`hmz.runtime.watching.btw.HOPS`).
-_HOPS = 4
-
-#: What ends one command of a shell line and starts another.
-_SEPARATORS = frozenset({"&&", "||", ";", "|", "&"})
-
-#: A redirection, which is the shell's and not a word of the command.
-_REDIRECTS = re.compile(r"^\d*[<>]")
-
-
 def _closed(one: SessionBase) -> None:
     """Closes one side conversation, and takes away what it was carried on with, if anything."""
-    if (asks := _ASKING.pop(id(one), None)) is not None:
-        asks.close()
     with contextlib.suppress(Exception):
         one.close()
     if (scratch := _SCRATCH.pop(id(one), None)) is not None:
@@ -352,240 +363,6 @@ class _Aside:
     client: str
     session: SessionBase
     busy: bool = False
-    #: What it asks of the epic's conversations, for The Epic's own; None for any other.
-    asks: _Asks | None = None
-
-
-class _Asked(pydantic.BaseModel):
-    """One question The Epic asks a conversation of the epic by `hmz-ask ask`."""
-
-    to: str = pydantic.Field(description="The conversation to ask, as `<agent>/<n>`.")
-    question: str = pydantic.Field(description="What to ask it, as one argument.")
-
-
-class _Asks:
-    """What The Epic asks of the epic's conversations by `hmz-ask`, while a turn of it runs.
-
-    Caught where the agent runs: by a pre-tool-use hook reading the command off the tool call
-    it reached for, and by the command itself, a command line on its PATH. Either hands the
-    question to the frontend that opened the side conversation, which carries it out as it
-    carries out an ask line and gives the answer back (:meth:`answer`). The answer reaches the
-    agent as the refusal of the tool where the CLI waits on its hook (`claude`, `qwen`), as
-    what the command printed where it ran, and otherwise as what the agent is sent on with
-    when its turn would stop. One question caught twice in a turn -- by the hook and by the
-    command alike -- is asked once. `hmz-ask list` is a question too, naming no conversation,
-    which the frontend answers with the conversations of the epic it is asking about: an
-    earlier epic's, where that is what The Epic was opened on, rather than the run here.
-    """
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        #: What the frontend is told next: `ask` and the question, or how the turn ended.
-        self._next: queue.SimpleQueue[tuple[str, Any]] = queue.SimpleQueue()
-        #: This turn's questions, by `(to, question)`, and those the agent was told.
-        self._asked: dict[tuple[str, str], futures.Future[str]] = {}
-        self._heard: set[tuple[str, str]] = set()
-        #: The question the frontend is answering now.
-        self._waiting: futures.Future[str] | None = None
-        self._closed = False
-        #: Whether the agent's CLI waits on its pre-tool-use hook, which is then how the
-        #: agent hears an answer.
-        self.gated: Callable[[], bool] = lambda: False
-
-    def cli(self, *, heard: bool) -> FakeCli:
-        """`hmz-ask` as the agent runs it.
-
-        Args:
-          heard: Whether what it prints reaches the agent, which it does where it ran.
-        """
-        from hmz.coganchor.faking import FakeCli, FakeCommand
-
-        def asks(asked: _Asked) -> str:
-            return self.ask(asked.to, asked.question, heard=heard)
-
-        return FakeCli(
-            _ASK,
-            "Ask a conversation of the epic, by a read-only side copy of it.",
-            (
-                FakeCommand(
-                    "ask",
-                    "Ask one conversation a question, and print its answer",
-                    asks,
-                    _Asked,
-                ),
-                FakeCommand(
-                    "list",
-                    "List the conversations there are to ask",
-                    lambda: self.ask("", "", heard=heard),
-                ),
-            ),
-        )
-
-    def ask(self, to: str, question: str, *, heard: bool) -> str:
-        """Has the frontend ask one conversation one question, and waits for the answer.
-
-        Args:
-          to: The conversation, as `<agent>/<n>`.
-          question: What to ask it.
-          heard: Whether the answer reaches the agent from here.
-        """
-        from hmz.coganchor.agents.hooks import WAITING
-
-        one = (to, question)
-        with self._lock:
-            if self._closed:
-                return "(the side question was closed)"
-            asked = self._asked.get(one)
-            if asked is None:
-                asked = self._asked[one] = futures.Future()
-                self._next.put(("ask", (to, question, asked)))
-        try:
-            answer = asked.result(WAITING)
-        except TimeoutError:
-            return "(no answer in time)"
-        if heard:
-            with self._lock:
-                self._heard.add(one)
-        return answer
-
-    def tool(self, occasion: Occasion) -> Verdict | None:
-        """The pre-tool-use hook: a call of `hmz-ask` carried out, and refused with its answer.
-
-        The refusal is how the answer reaches an agent whose CLI waits on the hook; anywhere
-        else the command goes on to run, and prints the same answer.
-        """
-        from hmz.coganchor.agents import Verdict
-
-        words = _ask_words(occasion)
-        if words is None:
-            return None
-        code, out, err = self.cli(heard=self.gated()).run(words)
-        said = (out + err).strip() or "(no answer)"
-        return Verdict(
-            refused=True,
-            because=f"hmz carried `{shlex.join(['hmz-ask', *words])}` out (exit {code}):"
-            f"\n{said}",
-        )
-
-    def stop(self, occasion: Occasion) -> Verdict | None:
-        """The stop hook: the turn sent on with every answer the agent has not heard yet."""
-        from hmz.coganchor.agents import Verdict
-        from hmz.coganchor.agents.hooks import WAITING
-
-        if occasion.again >= _HOPS:
-            return None
-        with self._lock:
-            unheard = [
-                (one, asked)
-                for one, asked in self._asked.items()
-                if one not in self._heard
-            ]
-            self._heard.update(one for one, _ in unheard)
-        if not unheard:
-            return None
-        answers: list[tuple[str, str]] = []
-        for (to, _), asked in unheard:
-            try:
-                answers.append((to or "sessions", asked.result(WAITING)))
-            except TimeoutError:
-                answers.append((to or "sessions", "(no answer in time)"))
-        return Verdict(
-            refused=True,
-            because="\n".join(
-                [
-                    *(
-                        f'<answer from="{to}">\n{said}\n</answer>'
-                        for to, said in answers
-                    ),
-                    "Ask again, or answer the user.",
-                ]
-            ),
-        )
-
-    def turn(self, session: SessionBase, prompt: str) -> None:
-        """Takes one turn of the agent, on a thread of its own, told of as it ends."""
-        with self._lock:
-            self._asked, self._heard = {}, set()
-
-        def turns() -> None:
-            try:
-                said: Any = session(prompt)
-            except Exception as why:  # noqa: BLE001 -- told the frontend, as a refusal
-                self._next.put(("failed", why))
-            else:
-                self._next.put(("answer", said))
-
-        threading.Thread(target=turns, daemon=True, name="humanize-epic").start()
-
-    def told(self) -> tuple[str, Any]:
-        """What the frontend is told next: a question, `answer` or `failed`, waited for."""
-        kind, said = self._next.get()
-        if kind == "ask":
-            to, question, asked = said
-            with self._lock:
-                self._waiting = asked
-            return kind, (to, question)
-        return kind, said
-
-    def answer(self, text: str) -> bool:
-        """Gives the question the frontend was told its answer. Whether there was one."""
-        with self._lock:
-            asked, self._waiting = self._waiting, None
-        if asked is None:
-            return False
-        with contextlib.suppress(futures.InvalidStateError):
-            asked.set_result(text)
-        return True
-
-    def close(self) -> None:
-        """Answers every question waiting as closed, and the frontend as failed."""
-        with self._lock:
-            self._closed = True
-            waiting = list(self._asked.values())
-        for asked in waiting:
-            with contextlib.suppress(futures.InvalidStateError):
-                asked.set_result("(the side question was closed)")
-        self._next.put(("failed", "the aside was closed"))
-
-
-def _ask_words(occasion: Occasion) -> list[str] | None:
-    """The words `hmz-ask` was called with, read off a tool call, or None for another tool."""
-    for value in (*occasion.input.values(), occasion.about):
-        said = (
-            shlex.join(str(one) for one in cast("list[Any]", value))
-            if isinstance(value, list)
-            else value
-        )
-        if (
-            isinstance(said, str)
-            and _ASK in said
-            and (words := _words(said)) is not None
-        ):
-            return words
-    return None
-
-
-def _words(command: str) -> list[str] | None:
-    """The words after `hmz-ask` in a shell line, looking inside a `sh -c` it is quoted in."""
-    try:
-        words = shlex.split(command)
-    except ValueError:
-        return None
-    starts = True
-    for at, word in enumerate(words):
-        if starts and Path(word).name == _ASK:
-            rest: list[str] = []
-            for one in words[at + 1 :]:
-                if one in _SEPARATORS or _REDIRECTS.match(one):
-                    break
-                rest.append(one.removesuffix(";"))
-                if one.endswith(";"):
-                    break
-            return rest or None
-        if _ASK in word and word != command and (inner := _words(word)) is not None:
-            return inner
-        starts = word in _SEPARATORS or word.endswith(";")
-    return None
 
 
 @dataclasses.dataclass(slots=True, eq=False)
@@ -608,6 +385,13 @@ class _Run:
     )
     board: Board | None = None
     stopped_by: str = ""
+    #: The role each session was opened for and where it works, which says whose turn is
+    #: open in an environment.
+    placed: weakref.WeakKeyDictionary[SessionBase, tuple[str, Placement]] = (
+        dataclasses.field(
+            default_factory=weakref.WeakKeyDictionary[Any, tuple[str, Any]]
+        )
+    )
 
 
 class Host:
@@ -670,6 +454,14 @@ class Host:
         self._letting_go: float | None = None
         self._ticking: threading.Thread | None = None
         self._spent_at = 0.0
+        from hmz.runtime.doing.desk import Desk
+
+        self._desk = Desk(
+            post=self._post_to, record=self._env_record, guard=self._working_at
+        )
+        #: Held while the environments are listed, so that a list made before the run
+        #: ended never lands after the one made as it did.
+        self._listing = threading.Lock()
         self._requests: dict[
             str, Callable[[_Frontend, dict[str, Any]], dict[str, Any]]
         ] = {
@@ -688,6 +480,8 @@ class Host:
             "detach": self._detach,
             "quit": self._quit,
         }
+        for method in _ENV_METHODS:
+            self._requests[method] = functools.partial(self._env_asked, method)
         with self._lock:
             self._snap("clients", clients=[])
             self._snap("claims", claims={})
@@ -699,6 +493,7 @@ class Host:
             self._snap_pending()
             self._snap("usage", run=0, usage=None, budget=None)
             self._snap("board", items=None)
+            self._snap("envs", envs=[])
 
     # ----------------------------------------------------------------- frontends
 
@@ -885,6 +680,35 @@ class Host:
         except Exception as why:  # noqa: BLE001 -- a request that failed is answered as one
             return _no(str(why) or type(why).__name__)
 
+    def env(self, said: dict[str, Any]) -> dict[str, Any]:
+        """Does one `hosts.env.*` on an env of the epic going here, which no frontend asks.
+
+        Carried out through the env's own driver, on the run's loop, as the flow would, and
+        neither attaching anybody nor telling the run (Section 4.23 of daemon.md).
+
+        Args:
+          said: The call: `do`, its method's whole name, and its params.
+
+        Returns:
+          `ok` and the result; or `ok` False, `why`, and the `code` it is refused with.
+        """
+        from hmz.runtime.doing.envs import NO_FLOW, EnvRefusal, answered
+
+        with self._lock:
+            going = self._current or self._stopping
+        holds = None
+        if going is not None:
+            with contextlib.suppress(Exception):
+                holds = going.run.envs
+        if holds is None:
+            return {**_no(NO_FLOW), "code": 409}
+        try:
+            return _ok(**answered(holds, said))
+        except EnvRefusal as why:
+            return {**_no(why.why), "code": why.code}
+        except Exception as why:  # noqa: BLE001 -- what the env could not do, said as it said it
+            return {**_no(str(why) or type(why).__name__), "code": 409}
+
     def status(self) -> dict[str, Any]:
         """What there is to say about the runs here, for somebody asking from outside them.
 
@@ -968,6 +792,7 @@ class Host:
             self._closed = True
             self._over.set()
             self._spoke.notify_all()
+        self._desk.closed()
         for one in runs:
             with contextlib.suppress(Exception):
                 one.run.close()
@@ -1057,6 +882,8 @@ class Host:
         for one in sides:
             del self._asides[one.side]
         _closed_all([one.session for one in sides])
+        # Its terminals live on, for it or anybody to reattach to.
+        self._desk.let_go(frontend.client)
         self._snap_clients()
         self._snap_claims()
 
@@ -1196,6 +1023,9 @@ class Host:
             # The epic is named a moment after the run starts, and nothing announces it.
             self._snap_run()
             self._folds()
+        # What the run holds changes as its flow derives and destroys, unannounced.
+        self._lists_envs()
+        self._desk.tick()
 
     def _folds(self) -> None:
         """Folds a chat away that has been between turns with nobody attached for long enough.
@@ -1369,6 +1199,7 @@ class Host:
             self._snap("usage", run=number, usage=None, budget=started["budget"])
             self._ticks()
         _closed_all(sides)
+        self._lists_envs()
         run.watch(functools.partial(self._heard, current))
         run.opened(functools.partial(self._opened, current))
         run.noticed(functools.partial(self._noticed, current))
@@ -1455,6 +1286,7 @@ class Host:
             if self._last is current and spent is not None:
                 self._snap("usage", **spent)
             self._spoke.notify_all()
+        self._lists_envs()
 
     def _stop(self, frontend: _Frontend, said: dict[str, Any]) -> dict[str, Any]:
         del said
@@ -1511,6 +1343,7 @@ class Host:
             for session in closing:
                 stopping.working.discard(session)
             self._snap_sessions(self._current or stopping)
+        self._lists_envs()
         return _ok(closed=len(closing))
 
     def _quit(self, frontend: _Frontend, said: dict[str, Any]) -> dict[str, Any]:
@@ -1522,6 +1355,54 @@ class Host:
         del said
         self.detach(frontend.client)
         return _ok()
+
+    # -------------------------------------------------------------- environments
+
+    def _lists_envs(self) -> None:
+        """Says the environments of the run in view as they stand. Not under the lock."""
+        with self._listing:
+            with self._lock:
+                shown = self._current or self._stopping or self._last
+                going = shown is not None and shown in (self._current, self._stopping)
+            if shown is None:
+                return
+            holds = None
+            if going:
+                with contextlib.suppress(Exception):
+                    holds = shown.run.envs
+            envs = self._desk.refresh(shown.number, holds, going=going)
+            with self._lock:
+                if not self._closed:
+                    self._snap("envs", envs=envs)
+
+    def _env_asked(
+        self, method: str, frontend: _Frontend, said: dict[str, Any]
+    ) -> dict[str, Any]:
+        return _ok(**self._desk.asked(frontend.client, frontend.name, method, said))
+
+    def _post_to(self, client: str, message: dict[str, Any]) -> None:
+        """Says one message to one frontend alone: what a terminal it watches printed."""
+        frontend = self._frontends.get(client)
+        if frontend is not None:
+            self._post(frontend, message, _sized(message))
+
+    def _env_record(self, message: dict[str, Any]) -> None:
+        """Writes what a frontend did in an environment into the run's history."""
+        with self._lock:
+            if not self._closed:
+                self._record(message)
+
+    def _working_at(self, run: int, driver: Any) -> str | None:
+        """The role of a session with a turn open where a driver works, if any."""
+        with self._lock:
+            for shown in (self._current, self._stopping):
+                if shown is None or shown.number != run:
+                    continue
+                for session in list(shown.working):
+                    placed = shown.placed.get(session)
+                    if placed is not None and _works_at(placed[1], driver):
+                        return placed[0]
+        return None
 
     # ---------------------------------------------------------------- what opened
 
@@ -1555,6 +1436,8 @@ class Host:
             # role it fills.
             key = self._key_of(current, agent, session)
             current.agents.append(agent)
+            if where is not None:
+                current.placed[session] = (role, where)
             if person:
                 if current.board is None:
                     board = current.board = agent.board
@@ -2172,13 +2055,10 @@ class Host:
 
     def _aside(self, frontend: _Frontend, said: dict[str, Any]) -> dict[str, Any]:
         side = said.get("side")
-        if side and "answered" in said:
-            return self._answers_back(frontend, str(side), str(said["answered"] or ""))
         if side:
             return self._turns(frontend, str(side), str(said.get("prompt") or ""))
         key = str(said.get("key") or "")
         runs = str(said.get("runs") or "")
-        asks: _Asks | None = None
         with self._lock:
             shown = self._last
             found = shown.known.get(key) if shown is not None and key else None
@@ -2187,39 +2067,19 @@ class Host:
         if found is not None:
             agent, session = found
             opened, forked = _side_of(agent, session, key, fork=bool(said.get("fork")))
-        elif runs and said.get("recall"):
-            # A session of an earlier run, carried on from where that run kept it.
+        elif runs:
+            # A session of an earlier run, carried on from where that run kept it where it
+            # says where, and otherwise a new session of its agent.
             made = _made(runs)
             if made is None:
                 return _no(f"{runs} is not an agent that can be made here")
             opened, forked = _recalled(
                 made,
-                str(said["recall"]),
+                str(said.get("recall") or ""),
                 str(said.get("kept") or ""),
                 str(said.get("cwd") or self._hmz.workspace),
                 fork=bool(said.get("fork")),
             )
-        elif runs:
-            made = _made(runs)
-            if made is None:
-                return _no(f"{runs} is not an agent that can be made here")
-            if said.get("asks"):
-                asks = _Asks()
-            opened, forked = (
-                _read_only(made, "btw", asks).new(str(self._hmz.workspace)),
-                False,
-            )
-            if asks is not None:
-                _ASKING[id(opened)] = asks
-                # Run where the CLI has a shell to run it in, and caught by the hook alone
-                # where it has none.
-                try:
-                    opened.shelves((asks.cli(heard=True),))
-                except NotImplementedError:
-                    pass
-                except Exception:
-                    _closed(opened)
-                    raise
         else:
             return _no("an aside is about a conversation, or asks an agent")
         with self._lock:
@@ -2227,32 +2087,8 @@ class Host:
                 _closed_all([opened])
                 return _no("this frontend has gone")
             side = f"s{next(self._sides)}"
-            self._asides[side] = _Aside(side, frontend.client, opened, asks=asks)
+            self._asides[side] = _Aside(side, frontend.client, opened)
         return _ok(side=side, forked=forked)
-
-    def _epic_said(self, aside: _Aside, asks: _Asks) -> dict[str, Any]:
-        """What The Epic's turn comes to next: a question it asks, or how the turn ended."""
-        kind, said = asks.told()
-        if kind == "ask":
-            to, question = said
-            return _ok(ask={"to": to, "question": question})
-        with self._lock:
-            aside.busy = False
-        if kind == "failed":
-            return _no(str(said) or type(said).__name__)
-        return _ok(answer=str(said or "").strip())
-
-    def _answers_back(
-        self, frontend: _Frontend, side: str, text: str
-    ) -> dict[str, Any]:
-        with self._lock:
-            aside = self._asides.get(side)
-            if aside is None or aside.client != frontend.client:
-                return _no(f"no aside {side} is open")
-        asks = aside.asks
-        if asks is None or not asks.answer(text):
-            return _no(f"aside {side} asked nothing")
-        return self._epic_said(aside, asks)
 
     def _turns(self, frontend: _Frontend, side: str, prompt: str) -> dict[str, Any]:
         with self._lock:
@@ -2262,9 +2098,6 @@ class Host:
             if aside.busy:
                 return _no("the aside is still answering the last question")
             aside.busy = True
-        if aside.asks is not None:
-            aside.asks.turn(aside.session, prompt)
-            return self._epic_said(aside, aside.asks)
         try:
             answer = str(aside.session(prompt) or "").strip()
         finally:
@@ -2315,7 +2148,7 @@ def _made(runs: str) -> AgentBase | None:
         return None
 
 
-def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> AgentBase:
+def _read_only(source: AgentBase, name: str) -> AgentBase:
     """A read-only agent like another, invisible to the run it was taken from.
 
     Held to a fence that writes nothing (:meth:`~hmz.coganchor.fence.Fence.reading`): the
@@ -2327,16 +2160,11 @@ def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> Agent
     Args:
       source: The agent.
       name: What the copy is called.
-      asks: What The Epic asks of the epic's conversations, for The Epic's: its copy carries
-        the `ask-conversation` skill and the hooks that catch `hmz-ask`. None for a copy that
-        carries no skill and no hook.
 
     Raises:
       Unfenced: If the fence cannot be held on this machine, saying so -- rather than a side
         question answered by an agent that could write.
     """
-    from hmz.coganchor.agents import Moment, Unhooked
-    from hmz.coganchor.agents.skills import Loaded
     from hmz.coganchor.fence import READ, Fence
 
     fence = source.config.fence
@@ -2357,27 +2185,15 @@ def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> Agent
         settings["asks"] = False
     if hasattr(source.config, "approve_mcps"):
         settings["approve_mcps"] = False
-    # Codex's read-only sandbox refuses the socket `hmz-ask` reaches this process on: that
-    # one command is let out of it, and every other stays in, network and all.
+    # Nothing is let out of Codex's read-only sandbox.
     if hasattr(source.config, "unsandboxed"):
-        settings["unsandboxed"] = () if asks is None else (_ASK,)
+        settings["unsandboxed"] = ()
     clone = source.clone(
-        config=dataclasses.replace(source.config, **settings),
-        name=name,
-        skills=() if asks is None else (Loaded(_SKILL.name, _SKILL, "humanize"),),
+        config=dataclasses.replace(source.config, **settings), name=name, skills=()
     )
     # Watched by nothing that shows it, so a command-backed backend does not echo the side
     # answer onto the stdout of whatever is holding the run.
     clone.watch(lambda _agent, _session, _event: None)
-    if asks is not None:
-        hooks = weakref.ref(clone.hooks)
-        asks.gated = lambda: (
-            (held := hooks()) is not None and held.gated(Moment.PRE_TOOL_USE)
-        )
-        # Not on a harness that serves no hook, which is left the ask line.
-        with contextlib.suppress(Unhooked):
-            clone.hooks.on(Moment.PRE_TOOL_USE, asks.tool)
-            clone.hooks.on(Moment.STOP, asks.stop)
     return clone
 
 

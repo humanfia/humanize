@@ -63,20 +63,13 @@ from hmz.coganchor.prices import refresh
 from hmz.daemon import Hmz
 from hmz.runtime import telemetry
 from hmz.runtime.kept import read_back, written
-from hmz.runtime.watching.btw import (
-    NOBODY,
-    THE_EPIC,
-    Btw,
-    FlowSnapshot,
-    Left,
-    compact,
-    opened_as,
-)
+from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left
 from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
 
 from .complete import Command, hinted, offered
+from .envs import Reach, opens_env, used
 from .flows import INSTALLED, VERSES, Flows, Lists
 from .history import History
 from .keyboard import reads_long_reports
@@ -989,6 +982,15 @@ class Humanize(App[None]):
         #: by name, which `/epics` marks.
         self._notices: Notices | None = None
         self._unseen: set[str] = set()
+        #: The environments the runs in front of us use, as the host's `envs` snapshot last
+        #: said them, and how `/env` reaches them: through the link attached to then.
+        self._opened_envs: list[dict[str, Any]] = []
+        self._reach = Reach(
+            # Late, since the link is attached later and moved between hosts after.
+            lambda said: self._link.asked(said, seconds=_ENV_PATIENCE),
+            lambda: self._opened_envs,
+            self.show,
+        )
         #: Who this interface is to the runs, as they named it: its client id and its name.
         self._me = ""
         self._named = ""
@@ -1505,6 +1507,8 @@ class Humanize(App[None]):
         self._frontends, self._claims = {}, {}
         self._pending, self._queued, self._given = [], [], []
         self._boarded = None
+        self._opened_envs = []
+        self._reach.moved()
         self._live = self._starting = self._afk = False
         self._run = self._seen_last = self._stopping = None
         self._halted, self._forcing, self._answering = set(), set(), set()
@@ -2361,8 +2365,7 @@ class Humanize(App[None]):
         # And btw mode, in the colour its answers are in: every line typed goes to a side
         # conversation rather than to the flow while it is on.
         if (mode := self._btw) is not None:
-            asked = mode.target or THE_EPIC
-            left = f"[cyan]btw{_DOT}{escape(asked)}[/]{_DOT}{left}"
+            left = f"[cyan]btw{_DOT}{escape(mode.target)}[/]{_DOT}{left}"
         # For a moment after it happens, beside whatever else the line says: writing to a
         # clipboard is silent, and a person who has just dragged across half a screen is
         # owed the one word that says it went somewhere.
@@ -2764,6 +2767,19 @@ class Humanize(App[None]):
         left here since is one it finds.
         """
         return bool(self._no_resume)
+
+    def refused_env(self) -> str:
+        """Why `/env` cannot be run: there being no environment here to open."""
+        return "" if self._opened_envs else "no environment is open here"
+
+    def action_env(self, named: str = "") -> None:
+        """Opens the environments of the run in front of us, or one's panels where named.
+
+        Args:
+          named: A role, a chain of roles or an environment's id, or "" for all of them.
+        """
+        if why := opens_env(self, self._reach, named):
+            self.show(f"hmz: {why}", "red")
 
     def held_elsewhere(self, doing: str) -> str:
         """Why the outworlder being read is not this interface's to do something about.
@@ -3218,7 +3234,7 @@ class Humanize(App[None]):
             self._btw_ask(mode, question)
 
     def _btw_target(self) -> str:
-        """Who a side question here goes to: a session's view key, or "" for The Epic.
+        """Who a side question here goes to: a session's view key, or "" for nobody.
 
         Returns:
           `<agent>/<n>` for a session, the newest of an agent's where the view is the
@@ -3258,11 +3274,13 @@ class Humanize(App[None]):
         if self._btw is not None:
             return ""
         target = self._btw_target()
-        if target:
-            if target not in self._btw_sessions():
-                return f"/btw: no conversation found for {target}"
-        elif not self.settings.btw:
-            return f"/btw: {NOBODY}"
+        if not target:
+            return (
+                "/btw: a side question is asked of a session; /ai asks Ai-chan about the "
+                "epic"
+            )
+        if target not in self._btw_sessions():
+            return f"/btw: no conversation found for {target}"
         return ""
 
     def _enter_btw(self) -> Btw | None:
@@ -3276,16 +3294,11 @@ class Humanize(App[None]):
             aside=self._link.aside,
             unaside=lambda side: self._asks("unaside", quiet=True, side=side),
             sessions=self._btw_sessions,
-            source=self._btw_source,
-            asking=lambda key, asking: self._on_screen(
-                self.show,
-                f"[dim]btw · asking {escape(key)}: {escape(compact(asking, 120))}[/dim]",
-            ),
         )
         with self._btw_lock:
             self._btw = mode
         self.show(
-            f"[cyan]btw · {escape(target or THE_EPIC)}[/] [dim]each "
+            f"[cyan]btw · {escape(target)}[/] [dim]each "
             "line is a question; /btw or esc to exit[/dim]"
         )
         self._draw()
@@ -3354,15 +3367,9 @@ class Humanize(App[None]):
             task=self._flow_task,
             workspace=_where(),
             going=self._run is not None,
-            working=self._working,
             waiting=len(self._queued) + len(self._given),
             waiting_for_input=bool(self._waits_on()),
         )
-
-    def _btw_source(self) -> dict[str, str] | None:
-        """What The Epic is opened as: the agent `/settings` names, and no other."""
-        said = read_back(self.settings.btw) if self.settings.btw else None
-        return opened_as(written(said) if said is not None else "")
 
     def _run_btw(self, mode: Btw, question: str, snapshot: FlowSnapshot) -> None:
         """Runs one side turn and posts only its final display event."""
@@ -3923,14 +3930,6 @@ class Humanize(App[None]):
             self._draw()  # and the status line says which mode this is in from now on
         if said.btw is not None:
             self.settings.btw = said.btw
-            # Not the one open now: a side conversation is one agent from its first turn on.
-            self.show(
-                "[dim]/btw will ask "
-                f"{escape(said.btw)} about {THE_EPIC} next time you enter btw mode[/dim]"
-                if said.btw
-                else f"[dim]/btw will ask nobody about {THE_EPIC}: set its agent to ask it"
-                "[/dim]"
-            )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.
@@ -4530,6 +4529,10 @@ class Humanize(App[None]):
           by: The link it was told on, which it is taken from only while that is the one
             heard, or None for one told here.
         """
+        # A terminal's output, which a shell being bridged takes on this thread: the screen
+        # is handed over to it, and its loop is waiting on the shell rather than drawing.
+        if (by is None or by is self._hearing) and self._reach.told(message):
+            return
         with self._arriving:
             self._arrived.append((by, message))
             if self._draining:
@@ -4604,6 +4607,11 @@ class Humanize(App[None]):
             self._never_sent(message)
         elif kind == "printed":
             self._prints(str(message.get("text") or ""))
+        elif kind == "env_used":
+            # Somebody's hand in one of the run's environments, said quietly: what a file
+            # changed under an agent came from is worth seeing, and is not the agent's.
+            self.show(used(message, self._opened_envs), "dim")
+            self._reach.moved()
         elif kind == "notice":
             # Humanize's own word about the run, such as a cap nothing can price: said
             # whatever the details say, as `hmz exec` says it on its stderr.
@@ -4634,9 +4642,15 @@ class Humanize(App[None]):
             # that began before this interface arrived is working whether or not the record
             # of it beginning was kept.
             if message.get("run") == self._generation:
-                self._working = set(message.get("working") or ())
+                working: set[str] = {str(one) for one in message.get("working") or ()}
+                if self._working - working:
+                    self._reach.moved()  # a turn ended, which may have changed files
+                self._working = working
         elif kind == "calls":
             self._called = list(message.get("calls") or ())
+        elif kind == "envs":
+            self._opened_envs = [dict(one) for one in message.get("envs") or ()]
+            self._reach.moved()
         elif kind == "clients":
             self._frontends = {
                 one["client"]: one["name"] for one in message.get("clients") or ()
@@ -5327,6 +5341,10 @@ def _machine() -> dict[str, object]:
     }
 
 
+#: How long one `env.*` call is waited on: a host that stopped answering must not hold a shell
+#: in raw mode, or an editor open, for good.
+_ENV_PATIENCE = 60.0
+
 #: What the editor understands, named as opencode names them, one step along: what answers
 #: here is a flow rather than an agent, so opencode's `/agents` is `/flow`, and what a flow
 #: runs on is an agent apiece rather than one model, so its `/models` is the page along from
@@ -5381,6 +5399,13 @@ _COMMANDS: tuple[Command, ...] = (
         # only left out: typed, it looks again for itself, and says what it found.
         refuses=lambda app: app.refused_resume(),
         unlisted=lambda app: app.nothing_to_resume(),
+    ),
+    Command(
+        "env",
+        "Files, changes and a shell of the run's environments",
+        lambda app, argv: app.action_env(argv[0] if argv else ""),
+        takes="[role]",
+        refuses=lambda app: app.refused_env(),
     ),
     Command(
         "settings",

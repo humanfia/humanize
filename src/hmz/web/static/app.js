@@ -19,6 +19,7 @@ const VIEWS = {
   live: () => import('./views/epic.js'),
   epics: () => import('./views/epic.js'),
   flows: () => import('./views/flows.js'),
+  envs: () => import('./views/envs.js'),
 }
 
 /** Every dialog, opened over the view the page was on. */

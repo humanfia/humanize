@@ -34,6 +34,7 @@ from hmz.flows import (
     Graceful,
     HarnessKind,
     HarnessMismatch,
+    LocalEnv,
     MissingRole,
     Outworlder,
     OutworlderRunHookResult,
@@ -41,8 +42,10 @@ from hmz.flows import (
     Permission,
     RequirementError,
     ResourceUnmet,
+    ScratchDirEnvMixin,
     SessionEndHookResult,
     SessionError,
+    TemporaryClonedDirEnvMixin,
     allow,
     deny,
     flow,
@@ -1296,3 +1299,82 @@ async def test_an_outworlders_hook_cancelled_with_its_asker_ends_its_way_out_as_
     # Already on its way out, it was not cancelled again as the run ended.
     assert heard == []
     assert '"accepted"' in journal.read_text()
+
+
+# ------------------------------------------------------------------- what a run holds
+
+
+class Copies(Env, FilesEnvMixin, TemporaryClonedDirEnvMixin, ScratchDirEnvMixin): ...
+
+
+class Here(LocalEnv, FilesEnvMixin): ...
+
+
+class WantsCopies(EnvCollection):
+    repo: Copies
+    here: Here
+
+
+class Told:
+    """A recorder, which is what the environments a run holds are found by."""
+
+
+#: The recorder each run of `copies` was given, by its task.
+RECORDERS: dict[str, Told] = {}
+
+
+@flow(agents=AgentCollection, envs=WantsCopies, params=Nothing)
+async def copies(
+    task: str,
+    *,
+    agents: AgentCollection,
+    envs: WantsCopies,
+    params: Nothing,
+    ctx: FlowContext,
+) -> list[list[tuple[str, str, str | None]]]:
+    """Says what the run holds as it derives and destroys, by role, chain and parent."""
+    del agents, params, ctx
+    run = engine.held_by(RECORDERS[task])
+    assert run is not None
+
+    def held() -> list[tuple[str, str, str | None]]:
+        assert run is not None
+        return [(one.role, one.chain, one.parent) for one in run.held_envs()]
+
+    seen = [held()]
+    repo = envs["repo"]
+    copy = await repo.derive_temp_clone("t")
+    await copy.derive_scratch("s")
+    await repo.derive_scratch("kept")
+    seen.append(held())
+    await repo.destroy_temp_clone("t")
+    seen.append(held())
+    assert envs["here"].role == "here"
+    return seen
+
+
+async def test_a_run_holds_its_environments_until_each_is_destroyed() -> None:
+    told = RECORDERS["one"] = Told()
+
+    seen = await run_flow(
+        copies,
+        "one",
+        agents={},
+        envs={"repo": FakeEnvDriver(workdir="/repo")},
+        params={},
+        budget=UNLIMITED,
+        local=FakeEnvDriver(workdir="/here"),
+        recorder=told,  # pyright: ignore[reportArgumentType]
+    )
+
+    root = "local@/repo"
+    assert seen[0] == [("repo", root, None), ("here", "local@/here", None)]
+    assert seen[1][2:] == [
+        ("repo", f"{root}#temp_clone(t)", root),
+        ("repo", f"{root}#temp_clone(t)#scratch(s)", f"{root}#temp_clone(t)"),
+        ("repo", f"{root}#scratch(kept)", root),
+    ]
+    # What was made in the copy goes with it.
+    assert seen[2][2:] == [("repo", f"{root}#scratch(kept)", root)]
+    # And the run, once over, is nobody's to find.
+    assert engine.held_by(told) is None

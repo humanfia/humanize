@@ -17,8 +17,9 @@ and pydantic validates models declared in Python rather than schemas read from a
 
 Each call is carried out on a thread of its own, so that one call of a session waits on no
 other (Section 6.4.4) -- but for the calls of one session that name one `sub`, which are carried
-out one after another in the order sent, `epic.aside` apart (Section 6.4.5). A notification is
-handed to its handler on the peer's reading thread, in the order notifications arrive.
+out one after another in the order sent, `epic.aside` and the calls to an environment apart
+(Section 6.4.5). A notification is handed to its handler on the peer's reading thread, in the order
+notifications arrive.
 """
 
 from __future__ import annotations
@@ -60,8 +61,9 @@ _TYPES: dict[str, Callable[[object], bool]] = {
 #: The first call of a session.
 _HELLO = "session.hello"
 
-#: The one call naming a subscription that waits on none of the others (Section 6.4.5).
-_APART = "epic.aside"
+#: The calls naming a subscription that wait on none of the others (Section 6.4.5): `epic.aside`,
+#: and every method of the namespace `env`, as the names they begin with.
+_APART = ("epic.aside", "env.")
 
 
 class Dispatcher:
@@ -164,7 +166,7 @@ class Dispatcher:
     def _start(self, handler: Handler, call: Call) -> None:
         """Carries a call out on a thread, behind the calls of its session naming its `sub`."""
         sub = call.params.get("sub")
-        if not isinstance(sub, str) or call.method == _APART:
+        if not isinstance(sub, str) or call.method.startswith(_APART):
             threading.Thread(
                 target=_carry_out, args=(handler, call), name=call.method, daemon=True
             ).start()

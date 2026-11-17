@@ -1,0 +1,504 @@
+/* An environment's Changes panel: the list of changed files beside the diff of the one picked, as
+   Source Control lays them out. Every colour is a token of style.css. A row stands --ch-row tall,
+   which changes.js lays the list out by. */
+
+.changes {
+  --ch-row: 24px;
+  display: grid;
+  grid-template-columns: minmax(260px, 360px);
+  height: 100%;
+  min-height: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 13px;
+}
+
+.changes.diffing {
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+}
+
+.ch-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.ch-grow {
+  flex: 1 1 auto;
+}
+
+.ch-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+}
+
+.ch-branch {
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ch-sync {
+  display: inline-flex;
+  gap: 6px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ch-tool:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.ch-tool:focus-visible {
+  outline: 2px solid var(--live);
+  outline-offset: -2px;
+}
+
+.ch-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ch-banner {
+  margin: 0;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  color: var(--budget-ink);
+}
+
+.ch-errors:empty {
+  display: none;
+}
+
+.ch-errors .error {
+  margin: 6px 8px;
+}
+
+.ch-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ch-message {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.ch-message:focus {
+  outline: 2px solid var(--live);
+  outline-offset: -1px;
+}
+
+.ch-box-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ch-amend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ch-hint {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-hint.long {
+  color: var(--budget-ink);
+}
+
+.ch-hint.over {
+  color: var(--fail);
+}
+
+.ch-reason {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.ch-reason:empty {
+  display: none;
+}
+
+.ch-reason.error {
+  color: var(--fail);
+}
+
+.ch-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 96px;
+  overflow: auto;
+  outline: none;
+}
+
+.ch-list:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--live);
+}
+
+.ch-spacer {
+  position: relative;
+}
+
+.ch-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--ch-row);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: calc(6px + var(--depth, 0) * 14px);
+  padding-right: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ch-row:hover {
+  background: var(--hover);
+}
+
+.ch-row.picked {
+  background: color-mix(in srgb, var(--pink) 18%, transparent);
+}
+
+.ch-list:focus .ch-row.cursor {
+  box-shadow: inset 0 0 0 1px var(--live);
+}
+
+.ch-kind-group {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.ch-title {
+  flex: 1 1 auto;
+}
+
+.ch-twist {
+  display: inline-flex;
+  color: var(--ink-3);
+  transition: transform 0.1s;
+}
+
+.ch-twist.open {
+  transform: rotate(90deg);
+}
+
+.ch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-name.gone {
+  text-decoration: line-through;
+}
+
+.ch-dir,
+.ch-orig {
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.ch-orig {
+  flex: 0 1 auto;
+}
+
+.ch-dir {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.ch-acts {
+  display: none;
+  gap: 2px;
+}
+
+.ch-row:hover .ch-acts,
+.ch-row.picked .ch-acts,
+.ch-list:focus .ch-row.cursor .ch-acts {
+  display: inline-flex;
+}
+
+.changes.closed .ch-acts,
+.changes.closed [data-hmz='diff-move'] {
+  display: none;
+}
+
+.ch-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--line);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-count:empty {
+  display: none;
+}
+
+summary .ch-count {
+  margin-left: 6px;
+}
+
+.ch-letter {
+  width: 14px;
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-weight: 700;
+  text-align: center;
+}
+
+.st-M {
+  color: var(--budget-ink);
+}
+
+.st-A,
+.st-Q {
+  color: var(--done);
+}
+
+.st-D {
+  color: var(--fail);
+}
+
+.st-R,
+.st-C {
+  color: var(--cyan-ink);
+}
+
+.st-U {
+  color: var(--pink-ink);
+}
+
+.ch-none {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 12px;
+  color: var(--ink-3);
+}
+
+.ch-section {
+  border-top: 1px solid var(--line);
+  max-height: 40%;
+  overflow: auto;
+  flex: 0 0 auto;
+}
+
+.ch-section summary {
+  position: sticky;
+  top: 0;
+  padding: 4px 8px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ch-quiet {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--ink-3);
+}
+
+.ch-commit-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'hash subject when'
+    'hash author when';
+  column-gap: 8px;
+  padding: 4px 10px;
+}
+
+.ch-commit-row:hover {
+  background: var(--hover);
+}
+
+.ch-hash {
+  grid-area: hash;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--link);
+}
+
+.ch-subject {
+  grid-area: subject;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ch-author {
+  grid-area: author;
+  color: var(--ink-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ch-when {
+  grid-area: when;
+  color: var(--ink-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ch-snapshot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+}
+
+.ch-snapshots .error {
+  margin: 6px 10px;
+}
+
+.ch-ref {
+  flex: 1 1 auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ch-diff {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ch-diff-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.ch-diff-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ch-side-label {
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.ch-counter {
+  min-width: 64px;
+  color: var(--ink-3);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-diff-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.ch-diff-body > .cm-mergeView,
+.ch-diff-body > .cm-editor {
+  height: 100%;
+}
+
+.ch-diff-body > .cm-mergeView {
+  overflow: auto;
+}
+
+.ch-diff-body > .loading,
+.ch-diff-body > .error {
+  margin: 12px;
+}
+
+.ch-notice {
+  margin: 0;
+  padding: 16px;
+  color: var(--ink-2);
+}
+
+.ch-notice p {
+  margin: 0 0 8px;
+}
+
+@media (max-width: 860px) {
+  .changes,
+  .changes.diffing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .changes.diffing .ch-side {
+    display: none;
+  }
+
+  .ch-acts {
+    display: inline-flex;
+  }
+}

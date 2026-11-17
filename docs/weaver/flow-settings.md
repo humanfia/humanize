@@ -27,7 +27,7 @@ file to write to. Anything the flow always does the same way stays a constant in
 | Where | What your model does there |
 | --- | --- |
 | `hmz exec -p key=value` | Each value is read as its field's type, then the whole model is validated. A refusal stops the run before any agent starts. |
-| `/flow` at the prompt | The fields become a form. The type decides how each row is answered, `description` is the line beside it. |
+| `/flow` at the prompt, the web's new epic | The fields become a form. Each row is named by the field's `title`, or by its key where it has none; the type decides how it is answered, `description` is the line beside it. |
 | another flow calling yours | It passes an instance of your class, or a mapping validated into one. |
 | inside your flow | `params` is always a validated instance: the defaults where nothing was set, never `None`. |
 
@@ -123,7 +123,8 @@ async def polish(
    each field's `description`, not the class's.
 3. **`passes: int = Field(default=1, ge=1, le=5, …)`**: the type says `-p passes=3` is read as
    an `int`; `ge` and `le` are pydantic's bounds, so `-p passes=9` is refused before anything
-   runs; `description` is the line shown under it on the form.
+   runs; `description` is the line shown under it on the form. Give it `title="Review passes"`
+   and the form names the row so; without one it is named `passes`, as the command line is.
 4. **`Literal["correctness", "style", "tests"]`** is a choice. The command line accepts exactly
    those words, and the form drops them under the row in the order written.
 5. **`commit: bool`** is a switch: `-p commit=true` on the command line, `on` or `off` on the

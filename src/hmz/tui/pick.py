@@ -3464,6 +3464,8 @@ class Configures(Drafts["BaseModel"]):
     def _line(self, name: str, *, here: bool) -> str:
         """One setting: what it is called, what it is set to at the far end, what it is for.
 
+        It is called by the title the flow gave it, or by its name where it gave none.
+
         A setting being written carries a caret, where the next letter would land. Without it
         a blank one reads as a setting nothing can be typed into -- which is the one thing
         about this list that has to be visible, since a switch and a word look the same until
@@ -3477,7 +3479,8 @@ class Configures(Drafts["BaseModel"]):
           The row, as markup.
         """
         value = self._typed_in[name]
-        about = dict(self._fields)[name].description or ""
+        field = dict(self._fields)[name]
+        about = field.description or ""
         # A value still selected whole is drawn reversed, as a selection is, and the next
         # letter replaces it rather than landing after it; there is no caret beside it.
         if value and self._editing == name and self._whole == name:
@@ -3491,7 +3494,7 @@ class Configures(Drafts["BaseModel"]):
                 caret="[reverse] [/reverse]" if self._editing == name else "",
                 toggles=switch(values),
             )
-        return self._setting(name, chip, about, here=here)
+        return self._setting(field.title or name, chip, about, here=here)
 
     def _values(self, name: str) -> tuple[str, ...]:
         """What a setting is picked from, where it is one of a fixed few.
