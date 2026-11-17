@@ -93,12 +93,16 @@ from .monitoring import (
     place_key,
 )
 from .pick import (
+    AI_NEW,
     CONTINUES,
     DETACHES,
     FOLLOWS,
     LOCAL_DAEMON,
     RESUMES,
     STOPS,
+    AiAsked,
+    AiChanNew,
+    AiChans,
     Chosen,
     Declared,
     Epics,
@@ -108,12 +112,15 @@ from .pick import (
     RemoteEpics,
     Reports,
     Runs,
+    ai_chan,
+    ai_scope,
     asks,
     budget_of,
     daemon_names,
     declared_of,
     let_go,
     named_as,
+    nous_named,
     opens_on,
     params_model,
     params_of,
@@ -251,6 +258,10 @@ _VIEWED = {
     "session": "one agent's transcript",
     "outworlder": "an outworlder's transcript",
 }
+
+#: What a `/btw` refused off a session says beside where it works: a side question is of a
+#: session, and the epic as a whole is Ai-chan's to answer (Section 7.10.3 of tui.md).
+_ABOUT_EPIC = "; /ai asks Ai-chan about the epic"
 
 #: How long a second ctrl+c has to arrive in for the two to be one gesture. Long enough to
 #: read the line that says what the next press does and then press it, and short enough that
@@ -1075,6 +1086,12 @@ class Humanize(App[None]):
         #: a time, or `chat:<hex>` for one chat's -- every conversation is a host of its own,
         #: and so an epic of its own, beside the flows and beside every other conversation.
         self._slot = ""
+        #: The Ai-chan conversation the log screen follows, as `aichan.list` answers one, or
+        #: None while it follows a workspace's own host or a chat's (Section 7.19 of tui.md).
+        self._ai: dict[str, Any] | None = None
+        #: A new Ai-chan conversation set up on `/ai` and waiting for the first line said,
+        #: which is its task and makes it, or None.
+        self._ai_new: AiAsked | None = None
         #: The link whose messages are taken, which is the one attached to -- or None while
         #: this interface is moving from one host to another: what the one let go of still
         #: says on its way out is about runs nobody here is reading any more.
@@ -1154,6 +1171,8 @@ class Humanize(App[None]):
         self._afar: tuple[str, str] | None = None
         #: Which host the link held is attached to, as `(slot, afar)`.
         self._linked_to: tuple[str, tuple[str, str] | None] = ("", None)
+        #: And the Ai-chan conversation that host is, or None.
+        self._linked_ai: dict[str, Any] | None = None
         #: Requests waiting to be asked, in order, on the one thread that asks them: a line
         #: typed twice is two lines in the order they were typed -- and moving to another host
         #: is one of them, so that what is asked after it is asked of that one.
@@ -1572,6 +1591,7 @@ class Humanize(App[None]):
         slot: str,
         afar: tuple[str, str] | None,
         start: dict[str, Any] | None = None,
+        ai: dict[str, Any] | None = None,
     ) -> None:
         """Moves this interface onto a host of this workspace, or of one on another daemon.
 
@@ -1580,20 +1600,27 @@ class Humanize(App[None]):
         anything, so that it is reached before whatever is asked of it after.
 
         Args:
-          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's, `ai:<hex>`
+            for an Ai-chan conversation's.
           afar: The daemon of another machine and its workspace, or None for this one's.
           start: What to start there once it is reached, as `epic.start` takes it, or None.
+          ai: The Ai-chan conversation whose host it is, as `aichan.list` answers one, or None
+            for a host that is no conversation's -- which is leaving the one followed.
         """
         self._hearing = None
         self._forgets()
         self._slot, self._afar = slot, afar
-        self._requests.put(lambda: self._reattaches(slot, afar, start))
+        self._ai, self._ai_new = ai, None
+        # Of the workspace of the conversation's host, which for the scope `daemon` is none of
+        # this machine's projects (Section 4.22.1.2 of daemon.md).
+        self._requests.put(lambda: self._reattaches(slot, afar, start, ai))
 
     def _reattaches(
         self,
         slot: str,
         afar: tuple[str, str] | None,
         start: dict[str, Any] | None,
+        ai: dict[str, Any] | None = None,
     ) -> None:
         """Lets go of the host attached to for another, on the thread that asks the runs.
 
@@ -1601,18 +1628,23 @@ class Humanize(App[None]):
           slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
           afar: The daemon of another machine and its workspace, or None for this one's.
           start: What to start there once it is reached, or None.
+          ai: The Ai-chan conversation whose host it is, or None.
         """
         was = self._linked
+        # Of the workspace of the conversation's host, which for the scope `daemon` is none of
+        # this machine's projects (Section 4.22.1.2 of daemon.md).
+        there = str(ai["workspace"]) if ai is not None else ""
         try:
-            link = self._reaches(slot, afar)
+            link = self._reaches(slot, afar, there)
         except Exception as why:  # noqa: BLE001 -- a host that will not come up is said
             self._hearing = was
             # Back on the host still attached to, unless it was moved on again meanwhile.
             if (self._slot, self._afar) == (slot, afar):
                 self._slot, self._afar = self._linked_to
+                self._ai = self._linked_ai
             self._on_screen(self.show, f"hmz: {why}", "red")
             return
-        self._linked_to = (slot, afar)
+        self._linked_to, self._linked_ai = (slot, afar), ai
         self._linked = self._hearing = link
         self._me = link.client
         link.heard(self._hears(link))
@@ -1630,7 +1662,9 @@ class Humanize(App[None]):
         self._asks("start", refused=self._not_started, **start)
         self._draw()
 
-    def _reaches(self, slot: str, afar: tuple[str, str] | None = None) -> Link:
+    def _reaches(
+        self, slot: str, afar: tuple[str, str] | None = None, there: str = ""
+    ) -> Link:
         """This interface's end of one of the workspace's hosts, through the daemon holding it.
 
         This machine's, which starts one where none is; or that of another machine, over the
@@ -1639,6 +1673,7 @@ class Humanize(App[None]):
         Args:
           slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
           afar: The daemon of another machine and its workspace, or None for this one's.
+          there: The workspace of this machine the host is of, or "" for this one.
 
         Returns:
           The link, attached as an interface.
@@ -1649,7 +1684,7 @@ class Humanize(App[None]):
             from hmz.daemon.link import remote
 
             return remote(remotes(), afar[0], afar[1], slot)
-        return daemon.attach("tui", workspace=self.hmz.workspace, slot=slot)
+        return daemon.attach("tui", workspace=there or self.hmz.workspace, slot=slot)
 
     def leaves_afar(self) -> bool:
         """Comes back from an epic followed on another daemon, for esc: to its list of epics.
@@ -2588,6 +2623,15 @@ class Humanize(App[None]):
         # conversation rather than to the flow while it is on.
         if (mode := self._btw) is not None:
             left = f"[cyan]btw{_DOT}{escape(mode.target)}[/]{_DOT}{left}"
+        # And the Ai-chan conversation followed, or the one waiting for its first line.
+        if (new := self._ai_new) is not None:
+            left = (
+                f"[$accent]Ai-chan{_DOT}new{_DOT}{escape(ai_scope(new._asdict(), short=True))}[/]"
+                f"{_DOT}{left}"
+            )
+        elif (ai := self._ai) is not None:
+            scope = escape(ai_scope(ai, short=True))
+            left = f"[$accent]Ai-chan#{ai['id']}{_DOT}{scope}[/]{_DOT}{left}"
         # For a moment after it happens, beside whatever else the line says: writing to a
         # clipboard is silent, and a person who has just dragged across half a screen is
         # owed the one word that says it went somewhere.
@@ -2840,7 +2884,9 @@ class Humanize(App[None]):
             # to offer: what it would do next is what it is called here. In btw mode every
             # line is a side question.
             keys.append(
-                "enter ask"
+                "enter start"
+                if self._ai_new is not None
+                else "enter ask"
                 if self._btw is not None
                 else "enter send"
                 if self.chatting() and (self._turn or self._starting)
@@ -2954,6 +3000,9 @@ class Humanize(App[None]):
         a flow of several agents is left out of it. Told by the epic's kind, never by what
         its flow is called: a flow named `chat` is a flow like any other.
         """
+        # And an Ai-chan conversation, which is drawn as one (Section 7.19.6 of tui.md).
+        if self._ai is not None:
+            return True
         # And the one stopping, where one is: what is unwinding is that epic.
         run = self._run or (self._seen_last if self._stopping is not None else None)
         if run is not None:
@@ -2962,13 +3011,15 @@ class Humanize(App[None]):
 
     def refused_chat(self) -> str:
         """Why `/chat` has nothing to do now: the chat is on the screen already."""
-        return "the chat is already on the screen" if self.chatting() else ""
+        # An Ai-chan conversation is drawn as a chat, but is not this interface's chat.
+        on = self.chatting() and self._ai is None
+        return "the chat is already on the screen" if on else ""
 
     def refused_prefer(self) -> str:
         """Why `/prefer` cannot run now: anywhere but in a chat, which is what it is about."""
         return (
             ""
-            if self.chatting()
+            if self.chatting() and self._ai is None
             else "/prefer works only in a chat: /chat goes back to it"
         )
 
@@ -2985,6 +3036,14 @@ class Humanize(App[None]):
         the one thing to mean, and a command typed on purpose that answers with nothing reads
         as a command that did not work.
         """
+        if self._ai is not None:
+            # Her open turn, which stopping interrupts and leaves the conversation between
+            # turns (Section 7.19.7 of tui.md).
+            return (
+                ""
+                if self._working
+                else "Ai-chan is not answering, so there is nothing to stop"
+            )
         if self.chatting():
             return "a chat is not stopped: /clear starts another"
         if self._run is not None:
@@ -3349,7 +3408,14 @@ class Humanize(App[None]):
         if line.startswith("/") and line[1:].partition(" ")[0] in _BY_NAME:
             self._commands(line)
             return
-        if self.chatting() and line[:1] in "$/!@" and self._natively(line):
+        # Not over an Ai-chan conversation, which is drawn as a chat but has no harness's
+        # input to read a line as (Section 14 of [CORE]).
+        if (
+            self.chatting()
+            and self._ai is None
+            and line[:1] in "$/!@"
+            and self._natively(line)
+        ):
             return
         # A `$` names the flow to run and, after it, what to run it on. Not while a question
         # is up: the next line typed is the answer to that, whatever it begins with, and an
@@ -3520,12 +3586,12 @@ class Humanize(App[None]):
     def action_btw(self, question: str = "") -> None:
         """Enters btw mode, asks in it, or leaves it, which is what `/btw` is.
 
-        A side question must never become a steer. In a session's view it goes to a
-        read-only fork of that session where its CLI can fork one, and otherwise to a
-        read-only, skill-free copy of the same agent seeded from a snapshot -- ended sessions
-        included. On the interface's own transcript, or on the monitor, it goes to the btw
-        agent, which may ask any session's side conversation in turn. Either way the flow's
-        own sessions carry on untouched on their own threads.
+        A side question must never become a steer. It is asked of the session read -- the
+        newest of an agent's where the view is the agent's own -- and goes to a read-only fork
+        of that session where its CLI can fork one, and otherwise to a read-only, skill-free
+        copy of the same agent seeded from a snapshot, ended sessions included (Section 9.5 of
+        core.md). The flow's own sessions carry on untouched on their own threads. About an
+        epic as a whole, Ai-chan answers: `/ai`.
 
         Once in, every line typed is one more turn of the same side conversation, until
         `/btw` on its own or esc leaves it and closes what it opened.
@@ -3546,11 +3612,11 @@ class Humanize(App[None]):
             self._btw_ask(mode, question)
 
     def _btw_target(self) -> str:
-        """Who a side question here goes to: a session's view key, or "" for nobody.
+        """The session a side question here is asked of, as `<agent>/<n>`, or "" for none.
 
         Returns:
-          `<agent>/<n>` for a session, the newest of an agent's where the view is the
-          agent's own, and "" for the home transcript, the monitor and an outworlder's view.
+          The session read, or the newest of an agent's where the view is the agent's own;
+          "" off a session view, and on an agent's that has opened none yet.
         """
         if self._view_kind() != "session":
             return ""
@@ -3580,11 +3646,20 @@ class Humanize(App[None]):
         """Why btw mode cannot be entered here, or "" where it can -- and always to leave it.
 
         Returns:
-          Why there is nobody to ask: the conversation on the screen gone, or no agent to
-          ask at all.
+          Why there is no session to ask: an Ai-chan conversation followed, whose questions
+          are its own turns, or the session on the screen gone (Section 7.10 of tui.md).
         """
         if self._btw is not None:
             return ""
+        kind = self._view_kind()
+        if self._ai is not None or kind != "session":
+            # As a command is refused off the views it works in, and pointing at Ai-chan:
+            # the epic as a whole is hers to answer (Section 7.10.3 of tui.md).
+            here = "Ai-chan's" if self._ai is not None else _VIEWED[kind]
+            return (
+                f"/btw is only available on {_VIEWED['session']}, not on {here}"
+                f"{_ABOUT_EPIC}"
+            )
         target = self._btw_target()
         if not target:
             return (
@@ -3596,7 +3671,7 @@ class Humanize(App[None]):
         return ""
 
     def _enter_btw(self) -> Btw | None:
-        """Starts btw mode against whatever is on the screen, saying so."""
+        """Starts btw mode against the session on the screen, saying so."""
         if why := self.refused_btw():
             self.show(f"hmz: {why}", "red")
             return None
@@ -3725,6 +3800,91 @@ class Humanize(App[None]):
         del question  # The question itself is already in the transcript.
         self.show(f"hmz: /btw: {failure}", "red")
 
+    @work
+    async def action_ai(self) -> None:
+        """Opens the Ai-chan conversations of the daemon and New, which is what `/ai` is.
+
+        A conversation chosen is followed in the log screen; New asks for a conversation's
+        scope, nous, preset and network, and leaves the log screen waiting for the first line
+        said, which makes it (Section 7.19 of tui.md).
+        """
+        try:
+            listed = await asyncio.to_thread(ai_chan, "list")
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self.show(f"hmz: /ai: {why}", "red")
+            return
+        sheet = AiChans(list(listed.get("conversations") or ()))
+        picked = await self.push_screen_wait(sheet)
+        if (ai := self._ai) is not None and ai["id"] in sheet.forgotten:
+            # Gone with its host: this directory's own is followed again.
+            self._moves("", None)
+            self._draw()
+        if picked is None:
+            return
+        if picked != AI_NEW:
+            one = sheet.conversation(picked)
+            if one is not None:
+                self._moves(str(one["slot"]), None, ai=one)
+                self._draw()
+            return
+        try:
+            nouses = await asyncio.to_thread(nous_named)
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self.show(f"hmz: /ai: {why}", "red")
+            return
+        asked = await self.push_screen_wait(
+            AiChanNew(
+                nouses,
+                workspace=str(self.hmz.workspace),
+                # The epic going or last on this directory's host, where it follows one of
+                # this machine's: a scope names an epic of this daemon.
+                epic=self._epic_now if self._ai is None and self._afar is None else "",
+                nous=self.settings.ai_chan,
+            )
+        )
+        if asked is None:
+            return
+        self._ai_new = asked
+        self.show(
+            "[dim]Ai-chan: the next line you say starts the conversation; "
+            "/clear to drop it[/dim]"
+        )
+        self._draw()
+
+    def ai_now(self) -> str:
+        """What `/ai` does as things stand, for the row of the command table."""
+        return (
+            "Carry another Ai-chan conversation on, or start one"
+            if self._ai is not None
+            else ""
+        )
+
+    @work
+    async def _makes_ai(self, asked: AiAsked, task: str) -> None:
+        """Makes a new Ai-chan conversation by `aichan.create`, and follows it.
+
+        Args:
+          asked: The conversation as `/ai` set it up.
+          task: The first line said, which is its first message.
+        """
+        try:
+            made = await asyncio.to_thread(ai_chan, "create", **asked.made(task))
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self.show(f"hmz: /ai: {why}", "red")
+            # Still waiting for its first line, which may be said again.
+            if self._ai_new is None:
+                self._ai_new = asked
+                self._draw()
+            return
+        one = {
+            **asked._asdict(),
+            "id": made["id"],
+            "workspace": made["workspace"],
+            "slot": made["slot"],
+        }
+        self._moves(str(made["slot"]), None, ai=one)
+        self._draw()
+
     def action_clear(self) -> None:
         """Clears the screen, and in a chat starts another conversation, as Claude Code's does.
 
@@ -3741,6 +3901,13 @@ class Humanize(App[None]):
         The screen is one transcript, so what is cleared is that one: clearing every agent's
         would be `/clear` reaching into ones nobody was looking at.
         """
+        if self._ai is not None:
+            # Left to its host, which folds it away in its own time: this interface follows
+            # this directory's own host again (Section 7.19.8 of tui.md).
+            self._moves("", None)
+            self._draw()
+            return
+        self._ai_new = None
         if self.chatting():
             self._continuing = None
             # A new chat, with nothing of the last one's: its own host, its own catalogue,
@@ -3780,8 +3947,14 @@ class Humanize(App[None]):
         it stops a flow. A `/stop` is not a press and must not be counted as one -- but
         neither may it leave a press made before it standing, or the press made after it
         would be the second of a gesture the command interrupted.
+
+        Following an Ai-chan conversation it stops her open turn alone, and the conversation
+        goes on between turns.
         """
-        self.action_stop_flow()
+        if self._ai is not None:
+            self._asks("stop")
+        else:
+            self.action_stop_flow()
         self._presses = 0
         self._draw()  # rather than at the next tick: it was just typed
 
@@ -4309,8 +4482,17 @@ class Humanize(App[None]):
                 else "[dim]showing turn responses only, without details[/dim]"
             )
             self._draw()  # and the status line says which mode this is in from now on
-        if said.btw is not None:
-            self.settings.btw = said.btw
+        if said.ai_chan is not None:
+            self.settings.ai_chan = said.ai_chan
+            # Not the ones made already: a conversation keeps its nous (Section 14.3.1 of
+            # core.md).
+            self.show(
+                f"[dim]the next Ai-chan conversation thinks with {escape(said.ai_chan)}"
+                "[/dim]"
+                if said.ai_chan
+                else "[dim]/ai will ask which nous each new Ai-chan conversation thinks "
+                "with[/dim]"
+            )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.
@@ -5263,8 +5445,9 @@ class Humanize(App[None]):
             self._mine = ""
         elif self._live:
             self._flow_shown = True
-        # A side conversation is about the run it was opened on, and that run has gone.
-        if self._btw is not None:
+        # A side conversation is about the run it was opened on, and that run has gone --
+        # where it has: one read back on reaching a host again is the run it was opened on.
+        if self._btw is not None and self._live:
             self._leave_btw("a new flow started")
         with self._btw_lock:
             self._flow_task = record["task"]
@@ -5486,7 +5669,9 @@ class Humanize(App[None]):
                 f"[yellow]{_SAID}[/] [dim]{escape(text)}[/]",
                 packs=False,
             )
-        elif kind == "tool" and self._details:
+        elif kind == "tool" and (self._details or self._ai is not None):
+            # Every tool Ai-chan calls is shown, whatever the details say: what she did to
+            # hmz is the conversation (Section 7.19.6 of tui.md).
             # The tool on the bullet, what it came back with under it -- Claude Code's shape.
             named, _, about = text.partition(" ")
             self._on_screen(
@@ -5604,7 +5789,13 @@ class Humanize(App[None]):
         Args:
           text: What was said.
         """
-        if self.chatting():
+        if (new := self._ai_new) is not None:
+            # The first line of a new Ai-chan conversation, which is its task and makes it.
+            self._ai_new = None
+            self._said_by_you(text)
+            self._makes_ai(new, text)
+            self._draw()
+        elif self.chatting() and self._ai is None:
             self._says_to_chat(text)
         elif (asked := self._answers_to()) is not None and self._form_of(asked):
             self._types_into_form(asked, text)
@@ -5637,6 +5828,9 @@ class Humanize(App[None]):
             # Into the turn on the view being read, or the next one to start there: the runs
             # pin it above the prompt until it goes, and say who said it once it has. Asked
             # after the start before it, so a run still starting is the one it is said to.
+            self._asks("say", text=text, to=self._attached)
+        elif self._ai is not None:
+            # Her next turn, whatever her host says of it: no flow is started on her host.
             self._asks("say", text=text, to=self._attached)
         else:
             # No flow going, which leaves the chat to say it to.
@@ -6376,13 +6570,20 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "btw",
-        "Ask side questions; press esc or /btw to stop",
+        "Ask side questions of this session; press esc or /btw to stop",
         lambda app, argv: app.action_btw(" ".join(argv).strip()),
         takes="[question]",
+        # Of a session, which is where it is refused elsewhere -- but leaving it is not.
         refuses=lambda app: app.refused_btw(),
         now=lambda app: (
             "Ask one more; alone, leave btw mode (esc too)" if app.in_btw() else ""
         ),
+    ),
+    Command(
+        "ai",
+        "Talk to Ai-chan, who operates hmz for you",
+        lambda app, _: app.action_ai(),
+        now=lambda app: app.ai_now(),
     ),
     Command(
         "epics",
