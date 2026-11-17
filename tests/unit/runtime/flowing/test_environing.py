@@ -28,6 +28,7 @@ from hmz.flows import (
 )
 from hmz.runtime.flowing.environing import (
     ENVS,
+    LOGIN_SHELL,
     REWIND_SCRIPT,
     SNAPSHOT_SCRIPT,
     SNAPSHOTS_SCRIPT,
@@ -43,7 +44,7 @@ from hmz.runtime.flowing.environing import (
     tidy_workdir,
     worktree_dir,
 )
-from hmz.runtime.flowing.spi import ENV_CAPABILITIES, Placement
+from hmz.runtime.flowing.spi import ENV_CAPABILITIES, EnvEntry, Placement
 from tests.unit.runtime.flowing.doubles_u11 import (
     MemoryMachine,
     Said,
@@ -413,6 +414,129 @@ async def test_a_path_is_the_workdirs_unless_absolute_or_under_home() -> None:
     assert await driver.read("~/y") == b"three"
     with pytest.raises(EnvFileNotFound):
         await driver.read("nope")
+
+
+async def test_a_directory_is_listed_directories_first_then_by_name() -> None:
+    machine = MemoryMachine(dirs=("/work", "/work/zeta", "/work/alpha"))
+    machine.files[PurePosixPath("/work/b.txt")] = b"bee"
+    machine.files[PurePosixPath("/work/a.txt")] = b"a"
+    driver = _driver(machine)
+
+    listed = await driver.list(".")
+
+    assert [(one.name, one.kind) for one in listed] == [
+        ("alpha", "dir"),
+        ("zeta", "dir"),
+        ("a.txt", "file"),
+        ("b.txt", "file"),
+    ]
+    assert await driver.stat("b.txt") == EnvEntry("b.txt", "file", 3, 1.5)
+    with pytest.raises(EnvFileNotFound):
+        await driver.list("missing")
+    with pytest.raises(EnvFileNotFound):
+        await driver.stat("missing")
+
+
+async def test_a_directory_is_made_with_those_above_it() -> None:
+    machine = MemoryMachine()
+
+    await _driver(machine).mkdir("a/b")
+
+    assert {PurePosixPath("/work/a"), PurePosixPath("/work/a/b")} <= machine.dirs
+
+
+async def test_a_path_is_moved_only_to_where_nothing_is() -> None:
+    machine = MemoryMachine()
+    machine.files[PurePosixPath("/work/a.txt")] = b"a"
+    machine.files[PurePosixPath("/work/b.txt")] = b"b"
+    driver = _driver(machine)
+
+    with pytest.raises(EnvError, match="already there"):
+        await driver.rename("a.txt", "b.txt")
+    with pytest.raises(EnvFileNotFound):
+        await driver.rename("nope", "c.txt")
+    await driver.rename("a.txt", "a.txt")
+    await driver.rename("a.txt", "c.txt")
+
+    assert machine.files == {
+        PurePosixPath("/work/b.txt"): b"b",
+        PurePosixPath("/work/c.txt"): b"a",
+    }
+
+
+async def test_a_tree_is_removed_but_never_the_workdir_or_above() -> None:
+    machine = MemoryMachine(dirs=("/work", "/work/sub"))
+    machine.files[PurePosixPath("/work/sub/x")] = b"x"
+    driver = _driver(machine)
+
+    await driver.remove("sub")
+
+    assert PurePosixPath("/work/sub") not in machine.dirs
+    assert not machine.files
+    with pytest.raises(EnvFileNotFound):
+        await driver.remove("sub")
+    for above in (".", "/", "..", "/work/"):
+        with pytest.raises(EnvError, match="will not remove"):
+            await driver.remove(above)
+
+
+async def test_a_terminal_runs_the_login_shell_in_the_workdir_unless_told() -> None:
+    machine = MemoryMachine()
+    driver = _driver(machine)
+
+    shell = await driver.pty(None, cols=80, rows=24)
+    told = await driver.pty(["top"], cols=100, rows=30)
+
+    first, second = machine.ptys
+    assert first.argv == ("/bin/sh", "-c", LOGIN_SHELL, "humanize")
+    assert (first.cwd, first.sizes) == (WORK, [(80, 24)])
+    assert (second.argv, second.sizes) == (("top",), [(100, 30)])
+    await shell.write(b"ls\r")
+    assert await shell.read() == b"ls\r"
+    await told.resize(120, 40)
+    assert second.sizes[-1] == (120, 40)
+
+
+@pytest.mark.parametrize(
+    ("argv", "cols", "rows"), [([], 80, 24), (None, 0, 24), (None, 80, 0)]
+)
+async def test_a_terminal_with_nothing_to_run_or_no_room_is_refused(
+    argv: list[str] | None, cols: int, rows: int
+) -> None:
+    with pytest.raises(ValueError, match=r"program|room"):
+        await _driver().pty(argv, cols=cols, rows=rows)
+
+
+async def test_a_terminal_in_a_missing_workdir_leaves_the_driver_unavailable() -> None:
+    machine = MemoryMachine(dirs=())
+    driver = MachineEnvDriver(machine, WORK, seen=True)
+
+    with pytest.raises(EnvUnavailable):
+        await driver.pty(None, cols=80, rows=24)
+    assert not driver.available
+
+
+async def test_closing_a_driver_kills_its_terminals_and_forgets_ended_ones() -> None:
+    machine = MemoryMachine()
+    root = _driver(machine)
+    derived = await root.derive_subdir("sub")
+    ended = await root.pty(None, cols=80, rows=24)
+    mine = await derived.pty(None, cols=80, rows=24)
+    theirs = await root.pty(None, cols=80, rows=24)
+    first, second, third = machine.ptys
+
+    first.end(0)
+    assert await ended.wait() == 0
+    await until(lambda: len(machine.running) == 2)
+    await derived.close()
+    assert (second.killed, third.killed) == (1, 0)
+    assert await mine.wait() == 137
+    await root.close()
+
+    assert (first.killed, third.killed) == (0, 1)
+    assert await theirs.wait() == 137
+    with pytest.raises(EnvError, match="closed"):
+        await root.pty(None, cols=80, rows=24)
 
 
 # -------------------------------------------------------------------------------- deriving

@@ -127,7 +127,7 @@ if TYPE_CHECKING:
         UserPromptSubmitHookResult,
     )
 
-    from .engine import Call
+    from .engine import Call, Run
     from .spi import (
         AgentDriver,
         EnvDriver,
@@ -142,6 +142,7 @@ __all__ = [
     "AgentView",
     "Conversations",
     "EnvView",
+    "HeldEnv",
     "OutworlderView",
     "SessionView",
     "away_answer",
@@ -1110,6 +1111,29 @@ def _dropped(opened: Opened) -> None:
 # ------------------------------------------------------------------------- environments
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class HeldEnv:
+    """One environment a run holds, as the host's env panels show it.
+
+    Attributes:
+      role: The environment role it fills, or `workspace` for the run's own workspace
+        until a `LocalEnv` role names it.
+      chain: How it was derived from what a command line named, as a journal knows it.
+      parent: The chain of the environment it was derived from, or None for a root.
+      driver: The driver: the real one, which the panels use beyond any grant.
+      declared: The environment mixins the role declared.
+      made: The driver it was made through, the kind and the id, for a temporary copy or a
+        scratch directory -- which goes from what the run holds once it is destroyed.
+    """
+
+    role: str
+    chain: str
+    parent: str | None
+    driver: EnvDriver
+    declared: frozenset[type]
+    made: tuple[int, str, str] | None = None
+
+
 class EnvView:
     """An environment, as one flow is handed it: a driver, and what the role was granted.
 
@@ -1189,8 +1213,11 @@ class EnvView:
                 f"{self._role}: {what} needs {mixin.__name__} on the role"
             )
 
-    def _derived(self, driver: EnvDriver, step: str) -> Self:
-        self._node.run.derived[id(driver)] = driver
+    def _derived(
+        self, driver: EnvDriver, step: str, made: tuple[str, str] | None = None
+    ) -> Self:
+        run = self._node.run
+        run.derived[id(driver)] = driver
         cls = type(self)
         view = cls.__new__(cls)
         view._driver = driver
@@ -1198,6 +1225,16 @@ class EnvView:
         view._node = self._node
         view._role = self._role
         view._chain = f"{self._chain}#{step}"
+        run.holds(
+            HeldEnv(
+                self._role,
+                view._chain,
+                self._chain,
+                driver,
+                self._grant.capabilities,
+                None if made is None else (id(self._driver), *made),
+            )
+        )
         return view
 
     async def derive_subdir(self, *, subdir: PurePosixPath | str) -> EnvView:
@@ -1280,7 +1317,7 @@ class EnvView:
         node = self._node
         node.check()
         derived = await self._driver.derive_temp_clone(id, holder=self)
-        view = self._derived(derived, f"temp_clone({id})")
+        view = self._derived(derived, f"temp_clone({id})", ("temp_clone", id))
         node.made(self, "temp_clone", id, view)
         return view
 
@@ -1289,13 +1326,14 @@ class EnvView:
         self._node.check()
         await self._driver.destroy_temp_clone(id)
         self._node.unmade(self._driver, "temp_clone", id)
+        self._node.run.forget(self._driver, "temp_clone", id)
 
     async def derive_scratch(self, id: str) -> Self:  # noqa: A002 -- the flow API's
         self._need(ScratchDirEnvMixin, "derive_scratch")
         node = self._node
         node.check()
         derived = await self._driver.derive_scratch(id)
-        view = self._derived(derived, f"scratch({id})")
+        view = self._derived(derived, f"scratch({id})", ("scratch", id))
         node.made(self, "scratch", id, view)
         return view
 
@@ -1304,6 +1342,7 @@ class EnvView:
         self._node.check()
         await self._driver.destroy_scratch(id)
         self._node.unmade(self._driver, "scratch", id)
+        self._node.run.forget(self._driver, "scratch", id)
 
     # The machine, as the runtime reads it; a flow declares what it needs instead.
 
@@ -1714,19 +1753,28 @@ type Releasable = Opened | Made
 class Made:
     """A temporary copy or scratch directory a flow call made, to remove when it ends."""
 
-    __slots__ = ("driver", "id", "kind")
+    __slots__ = ("driver", "id", "kind", "run")
 
-    def __init__(self, driver: EnvDriver, kind: str, id: str) -> None:  # noqa: A002
+    def __init__(
+        self,
+        driver: EnvDriver,
+        kind: str,
+        id: str,  # noqa: A002
+        run: Run | None = None,
+    ) -> None:
         self.driver = driver
         self.kind = kind
         self.id = id
+        self.run = run
 
     async def release(self) -> None:
-        """Removes it."""
+        """Removes it, and takes it off what its run holds."""
         if self.kind == "temp_clone":
             await self.driver.destroy_temp_clone(self.id)
         else:
             await self.driver.destroy_scratch(self.id)
+        if self.run is not None:
+            self.run.forget(self.driver, self.kind, self.id)
 
 
 def limits_of(

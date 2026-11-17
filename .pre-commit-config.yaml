@@ -12,6 +12,11 @@
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
 
+# The page's third-party code: built and minified by src/hmz/web/vendor, and held by CI's
+# `vendor` job to be what that builds, byte for byte. Large, and nobody's to tidy: whitespace
+# at the end of a line in it can be inside a string.
+exclude: ^src/hmz/web/static/vendor/
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
