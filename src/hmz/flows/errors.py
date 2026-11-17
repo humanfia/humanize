@@ -165,7 +165,14 @@ class BudgetExceeded(FlowRuntimeError):
 
     Sticky: once a flow's budget is spent, every later turn of that flow and its children
     raises again rather than spending more.
+
+    Attributes:
+      own: Whether `run` raised it for the turn's own `budget` while every budget above the
+        turn still has some left -- a turn cut short that the flow may go on from -- rather
+        than for a budget of the flow or one above it, which every later turn would hit too.
     """
+
+    own: bool = False
 
 
 class DurationExceeded(BudgetExceeded, TimeoutError):

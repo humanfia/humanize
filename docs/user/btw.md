@@ -113,22 +113,11 @@ Who answers depends on what is on the screen when you type `/btw`:
   and knows everything the conversation knew. Otherwise, or if the fork fails, it is a fresh
   session of the same agent, given a snapshot of the run and what that role has done lately.
   This works for a conversation that has ended too, with no flow running.
-- **The monitor, or the screen before a run opens a conversation** (`btw · The Epic`):
-  **The Epic**, the agent chosen as **/btw The Epic** on the
-  [General page of `/settings`](/user/settings#general) -- the same one for every epic. With
-  none chosen there, nobody answers The Epic: no agent of the run stands in. It is given a
-  snapshot of the run, and with every question the list of its sessions, and it may put a
-  question of its own to any session's side copy, up to 4 per question you ask. Each one shows
-  as a dim `btw · asking <session>: …` line.
+- **The monitor, or the screen before a run opens a conversation**: `/btw` is refused, since a
+  side question is asked of a session; `/ai` asks Ai-chan about the epic as a whole.
 
-  The Epic carries an `ask-conversation` skill that tells it to ask a session rather than guess,
-  by running `hmz-ask ask --to <session> --question "…"` (`hmz-ask list` lists the sessions).
-  hmz catches that command where The Epic runs and answers it mid-turn: Claude Code and Qwen
-  Code hear the answer through a hook, a CLI that ran the command reads it from its output, and
-  any other CLI is told it when its turn would end. A CLI that cannot run a command at the
-  read-only rung asks by replying with `@ask <session>: <question>` lines instead.
-  MiniMax Code, DeepSeek Harness and ACP agents have no read-only rung, so they cannot answer
-  The Epic; a side question to one fails, saying so.
+MiniMax Code, DeepSeek Harness and ACP agents have no read-only rung, so a side question to one
+fails, saying so.
 
 The snapshot holds:
 
