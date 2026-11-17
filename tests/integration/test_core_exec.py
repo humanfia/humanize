@@ -530,7 +530,10 @@ def test_an_env_role_works_where_its_e_names(tmp_path: Path) -> None:
 def test_a_wrong_agent_env_or_param_is_refused_before_anything_starts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], argv: list[str], says: str
 ) -> None:
-    said = _refused(capsys, "-f", "goal", "-p", "budget.cost=1", *argv, "hello")
+    # A limit of its own, so that the budget is never what is wrong, whichever of its limits
+    # the case gets wrong.
+    bounded = ["-p", "budget.output_tokens=1000000"]
+    said = _refused(capsys, "-f", "goal", *bounded, *argv, "hello")
 
     assert "hmz exec: error" in said
     assert says in said
