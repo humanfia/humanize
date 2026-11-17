@@ -1,0 +1,108 @@
+/* A question's face as the page draws it around its frame: a quiet bar naming the view, with the
+   switch to the plain form; a calm skeleton while it opens; and the frame, which fades in once
+   the face listens. In the page's tokens, light and dark alike. */
+
+.face {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.face-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-h-sm);
+  color: var(--ink-3);
+  font: 600 12px var(--sans);
+  letter-spacing: 0.02em;
+}
+
+.face-mark {
+  color: var(--cyan-ink);
+}
+
+.face-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.face-gap {
+  flex: 1;
+}
+
+.face-note {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--gold);
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.face-stage {
+  position: relative;
+  min-height: 48px;
+}
+
+.face-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 0.18s ease-out, height 0.12s ease-out;
+}
+
+.face[data-state='ready'] .face-frame {
+  opacity: 1;
+}
+
+/* While the face opens: three soft bars, where it will be drawn, breathing slowly. */
+.face-skeleton {
+  position: absolute;
+  inset: 0 0 auto;
+  display: grid;
+  gap: 10px;
+  padding: 4px 0;
+  pointer-events: none;
+}
+
+.face[data-state='ready'] .face-skeleton,
+.face[data-state='failed'] .face-skeleton {
+  display: none;
+}
+
+.face-bone {
+  display: block;
+  width: 72%;
+  height: 14px;
+  background: var(--line);
+  animation: face-breathe 1.6s ease-in-out infinite;
+}
+
+.face-bone.wide {
+  width: 100%;
+  height: 72px;
+}
+
+.face-bone.short {
+  width: 40%;
+}
+
+@keyframes face-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .face-bone {
+    animation: none;
+  }
+
+  .face-frame {
+    transition: none;
+  }
+}

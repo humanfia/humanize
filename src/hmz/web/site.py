@@ -54,12 +54,29 @@ _KINDS = {
 }
 
 #: What a page of the interface may load and run: its own files and nothing else, but that it
-#: may reach the relay of any `webrtc:` route, whose host the server cannot know.
+#: may reach the relay of any `webrtc:` route, whose host the server cannot know, and frame its
+#: own `faces/frame.html`.
 _POLICY = (
     "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
-    "script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'; "
-    "base-uri 'none'; form-action 'self'"
+    "script-src 'self'; connect-src 'self' ws: wss:; frame-src 'self'; "
+    "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 )
+
+#: The document a question's face runs in, inside a sandboxed frame of the page.
+_FACE = "faces/frame.html"
+
+#: What a face may load and run: its own inline code and styles, the page's files, and pictures
+#: and fonts it carries itself; nothing it can reach anything with. Only the page may frame it.
+_FACE_POLICY = (
+    "default-src 'none'; script-src 'unsafe-inline' 'self'; "
+    "style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; "
+    "connect-src 'none'; frame-ancestors 'self'"
+)
+
+#: The files a face may import as modules from its opaque origin, which asks for them across
+#: origins as `Origin: null`: libraries anybody on this machine is served anyway. No other
+#: origin is let read them.
+_SHARED = ("vendor/",)
 
 #: What each part of the name of a file the page is made of is spelled with: words, never a dot,
 #: so that no part is `..` and nothing hidden is named.
@@ -378,7 +395,18 @@ class _Handler(BaseHTTPRequestHandler):
         kind = _KINDS.get(f".{name.rpartition('.')[2]}")
         if kind is None or not held.is_file():
             raise _Refusal("There is nothing here by that name.", 404)
-        self._sends(held.read_bytes(), kind, page=name.endswith(".html"))
+        policy = None
+        if name == _FACE:
+            policy = _FACE_POLICY
+        elif name.endswith(".html"):
+            policy = _POLICY
+        self._sends(
+            held.read_bytes(),
+            kind,
+            policy=policy,
+            framed=name == _FACE,
+            shared=name.startswith(_SHARED),
+        )
 
     def _json(self, answer: Any, status: int) -> None:
         body = json.dumps(answer, ensure_ascii=False, separators=(",", ":"))
@@ -390,28 +418,45 @@ class _Handler(BaseHTTPRequestHandler):
         kind: str,
         status: int = 200,
         *,
-        page: bool = False,
+        policy: str | None = None,
+        framed: bool = False,
+        shared: bool = False,
         cache: str = "no-cache",
     ) -> None:
-        """An answer, which a browser that has it already is told it has."""
+        """An answer, which a browser that has it already is told it has.
+
+        Args:
+          body: What is answered.
+          kind: Its media type.
+          status: Its status.
+          policy: The Content-Security-Policy it is served with, if any.
+          framed: Whether the page may frame it (`faces/frame.html`), which no other may be.
+          shared: Whether an opaque origin may read it: a face importing one of the page's
+            libraries.
+          cache: Its Cache-Control.
+        """
         tag = f'W/"{hashlib.sha256(body).hexdigest()[:16]}"'
         if status == HTTPStatus.OK and self.headers.get("If-None-Match") == tag:
             self.send_response(HTTPStatus.NOT_MODIFIED)
             self.send_header("ETag", tag)
-            self._ends(0)
+            self._ends(0, framed=framed)
             return
         self.send_response(status)
         self.send_header("Content-Type", kind)
         self.send_header("Cache-Control", cache)
         self.send_header("ETag", tag)
-        if page:
-            self.send_header("Content-Security-Policy", _POLICY)
-        self._ends(len(body))
+        if policy is not None:
+            self.send_header("Content-Security-Policy", policy)
+        if shared and self.headers.get("Origin") == "null":
+            self.send_header("Access-Control-Allow-Origin", "null")
+        self._ends(len(body), framed=framed)
         self.wfile.write(body)
 
-    def _ends(self, length: int) -> None:
-        """Ends the headers of an answer `length` bytes long."""
+    def _ends(self, length: int, *, framed: bool = False) -> None:
+        """Ends the headers of an answer `length` bytes long, which only `framed` may be framed."""
         for name, value in self.HEADERS.items():
+            if framed and name == "X-Frame-Options":
+                value = "SAMEORIGIN"  # noqa: PLW2901 -- the one file the page frames
             self.send_header(name, value)
         self.send_header("Content-Length", str(length))
         self.end_headers()

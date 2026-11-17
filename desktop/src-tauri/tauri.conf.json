@@ -9,7 +9,16 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost ws: wss:"
+      "csp": {
+        "default-src": "'self'",
+        "connect-src": "ipc: http://ipc.localhost ws: wss:",
+        "script-src": "'self' 'unsafe-inline'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self' data:",
+        "frame-src": "'self'"
+      },
+      "dangerousDisableAssetCspModification": ["script-src", "style-src"]
     }
   },
   "bundle": {
