@@ -252,3 +252,34 @@ def test_budgeted_of_shows_a_budget_without_checking_it(
         sheet.graceful_output_tokens,
     )
     assert (sheet.duration, sheet.cost, sheet.output_tokens, graces) == shown
+
+
+class _Titled(BaseModel):
+    rounds: int = pydantic.Field(
+        default=3, title="Review rounds", description="how many"
+    )
+    goal: str = ""
+
+
+async def test_a_param_is_named_by_its_title_and_by_its_key_without_one() -> None:
+    from textual.app import App
+    from textual.widgets import OptionList
+
+    form = pick.Configures("loop", _Titled, None)
+
+    class _Host(App[None]):
+        def on_mount(self) -> None:
+            self.push_screen(form)
+
+    host = _Host()
+    async with host.run_test() as pilot:
+        await pilot.pause()
+        listing = form.query_one("#choices", OptionList)
+        rows = [
+            str(listing.get_option_at_index(at).prompt)
+            for at in range(listing.option_count)
+        ]
+    titled = next(row for row in rows if "Review rounds" in row)
+    assert "rounds" not in titled.replace("Review rounds", "")
+    assert "how many" in titled
+    assert any("goal" in row for row in rows)
