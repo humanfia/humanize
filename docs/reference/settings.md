@@ -46,6 +46,7 @@ workspaces:
 enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
+ai_chan: claude/claude-opus-5:high # this machine
 every_epic: true                   # this machine
 sandbox:                           # this machine; written by hand
   backend: auto                    # auto, landlock or bwrap: what holds a grant on Linux
@@ -101,6 +102,7 @@ backup:                            # this machine
 | <span id="enable-sentry"></span>`enable_sentry` | `bool` | absent: *nobody has been asked*; the TUI asks at its first start; everything else reports nothing | the first-start question; `/settings` › General › **Error reports** | every process that could report (read once per process) | immediately in the process that changed it; at start elsewhere. [`HUMANIZE_SENTRY`](/reference/environment#humanize-sentry) overrides it for one process without writing it. Reading never writes it. |
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: nobody answers The Epic | `/settings` › General › **/btw The Epic**; web **Settings › General › The Epic** | the TUI, the web page | the next side conversation of The Epic opened; the one agent that answers The Epic, for every epic: no epic keeps one of its own, and no agent of a run stands in |
+| `ai_chan` | `str`: a nous's name, or `cli[@account]/model:effort` | `""`: no default, `/ai` asks for one | `/settings` › General › **Ai-chan** | the TUI | the next Ai-chan conversation made; one made keeps its nous |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
 | `daemons` | list of `{name, id, routes}`: `id` the daemon id pinned, 52 base32 characters, or `""` until it first answers over a trusted route, which pins it; `routes` the routes it is reached by (Section 3.3 of `protocol/wire.md`), in the order they are raced, the first a trusted one (`stdio:ssh://…`, `stdio:local`, `stdio:wsl`) where `id` is `""`. An entry an earlier release wrote, `{via, host, user, port, identity_file, proxy_jump, options, alias}` or `{via: easytier, secret, peers}`, is read as the `stdio:ssh` or `easytier:<name>` route it reached, and written so at the next write, an EasyTier one's secret and nodes moving to `easytier` | `[]`: Local alone | `Remotes.pair` from a pairing code, the terminal interface's [Daemons](/user/settings#daemons) page and its **Import…** | the terminal interface, `hmz exec`, the SDK; never the web page, which keeps [its own](/reference/web#kept) | at once: a daemon added is reached the first time it is asked for, one removed is let go of |
 | `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page) | `hmz`; never the web page, which keeps [its own](/reference/web#kept) | immediately: the next notice of a kind is told or not |
@@ -298,7 +300,7 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | Page | Row | Key | Kind |
 | --- | --- | --- | --- |
 | General | Details | `details` | switch |
-| General | /btw The Epic | `btw` | pick |
+| General | Ai-chan | `ai_chan` | pick |
 | General | Error reports | `enable_sentry` | switch |
 | General | What is sent | — | shows the lists |
 | Workspace | Default flow | `workspaces.<path>.flow` | read-only |
