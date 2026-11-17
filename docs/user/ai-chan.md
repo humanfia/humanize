@@ -26,8 +26,8 @@ steer a session, or run the tests in an epic's environment.
 
 ## Try it
 
-At the prompt, type `/ai`, pick **New**, press <kbd>enter</kbd> on the form as it comes, and say
-what you want:
+At the prompt, type `/ai`, pick **New**, press **Done** on the form as it comes, and say what
+you want:
 
 ```text
 ❯ /ai
@@ -35,7 +35,7 @@ what you want:
 ```
 
 On the page of [`hmz web`](/user/web) or in [Humanize Desktop](/user/desktop), click Ai-chan's
-face on any view instead: a drawer opens beside it, with **New**.
+avatar at the right of any view's bar instead: a drawer opens beside it, with **New**.
 
 ## How it works
 
@@ -85,66 +85,63 @@ You have run a few epics in `~/code/shop` today and want the gist without openin
 under **New**:
 
 ```text
-  hmz › /ai
-  ╭──────────────────────────────────────────────────────────────────────────╮
-  │ + New                                                                    │   ①
-  │──────────────────────────────────────────────────────────────────────────│
-  │ check the reviewer's last round                                  waiting │   ②
-  │   epic 0912-a1b2c3 · opus · read-only · network off                      │
-  │ what did the benchmark score                                      folded │
-  │   daemon · opus · read-only · network off                                │
-  ╰──────────────────────────────────────────────────────────────────────────╯
+  New                                                                         ①
+    a conversation of its own scope, nous and permission
+  Ai-chan#2 · check the reviewer's last round                                 ②
+    epic 0912-a1b2c3 · claude/claude-opus-5:high · read-only · network off · between turns
+  Ai-chan#1 · what did the benchmark score
+    daemon · claude/claude-opus-5:high · read-only · network off · folded away
 ```
 
 Pick **New**. A form asks for the scope, the nous, the preset and the network, each set to its
-default. Nothing is running here, so the scope is `workspace`, this directory. Press **Done**,
-then say what you want:
+default. Nothing has run here, so the scope is `workspace`, this directory. Press **Done**: the
+first line you say is the task that starts the conversation.
 
 ```text
 ❯ summarize what my epics here did today, one line each
-● Ai-chan#4 · workspace ~/code/shop                                          ③
-  ▸ runs.list  ok · 4 epics                                                  ④
-  ▸ runs.read  ok · 0912-a1b2c3 ralph_loop
-  …
+  …                                                                          ③
   Four epics today:
   - 09:12 ralph_loop: added the coupon endpoint; done in 3 rounds, $2.10.
   - 11:40 rlar: the reviewer refused the migration twice; stopped by its budget.
   …
+Ai-chan#3 · workspace shop · ◉ done                                          ④
 ```
 
 What to look at, by number:
 
 1. **New** makes a conversation. Every one you made is listed under it, newest first.
-2. **Each conversation** says its title, its scope, its nous, its preset and whether its
-   network is on, and how it stands: `running` (a turn open), `waiting` (between turns) or
-   `folded` (folded away).
-3. **`Ai-chan#4`** on the status line is the conversation you follow, with its scope.
-4. **Each tool she calls** is a line of her turn: the method, and how it was answered.
+2. **Each conversation**, `Ai-chan#<n>` and its title, says its scope, its nous, its preset,
+   whether its network is on, and how it stands: `answering`, `between turns` or `folded away`.
+3. **Each tool she calls** is a tool line of her turn, as an agent's is, even with
+   [Details](/user/settings#details) off: what she asked Humanize for, and how it was answered.
+4. **`Ai-chan#3 · workspace shop`** at the front of the status line is the conversation you
+   follow, with its scope.
 
 ### Check it worked
 
 - She answered from what your epics wrote down: each line names an epic you ran.
-- `/ai` again lists the conversation, its state `waiting`: between turns, ready for your next
-  line.
+- `/ai` again lists the conversation, `between turns`: ready for your next line.
 
 ## Open a conversation
 
 | Where | Open | New | Stop her turn | Forget |
 | --- | --- | --- | --- | --- |
-| The prompt (`hmz`) | `/ai`, then a conversation | `/ai` › **New**: a form, then say the first line | `/stop` | `/ai`, then **Forget** on a conversation |
-| The page (`hmz web`) | Ai-chan's face, on every view, then a conversation | **New** in the drawer: a form; <kbd>enter</kbd> in the task box makes it | **Stop**, while her turn is open | **Forget** on a conversation |
+| The prompt (`hmz`) | `/ai`, then <kbd>enter</kbd> on a conversation | `/ai` › **New**: a form, **Done**, then say the first line | `/stop` | `/ai`, <kbd>m</kbd> on a conversation, **forget** |
+| The page (`hmz web`) | Ai-chan's avatar, at the right of every view's bar, then a conversation | **New** in the drawer: a form, then type the task and press <kbd>enter</kbd> | **Stop**, while she answers | **Forget** on a conversation |
 | Humanize Desktop | as on the page | as on the page | as on the page | as on the page |
 
 - **At the prompt**, the log screen follows the conversation you open, as it follows a chat:
   each line you say is her next turn. `/clear` leaves her conversation going and comes back to
   this directory's own. `/btw` is refused while you follow her: she is not a session of an
   epic.
-- **On the page**, the drawer stays open, as it was, from view to view, until you close it.
-  On a phone it covers the view; <kbd>esc</kbd> or its close button puts it away.
+- **On the page**, the drawer stays open from view to view until you close it, and lists each
+  conversation as **Answering**, **Waiting** or **Folded away**. Its form also takes a
+  **Title**, made from the task where you leave it empty. On a phone the drawer covers the view;
+  <kbd>esc</kbd> or its close button puts it away.
 - **Stopping** interrupts her turn and leaves the conversation between turns. It does not end
   it.
 - **Forgetting** removes the conversation from the list and deletes her scratch directory. It
-  asks first.
+  asks first (`Forget Ai-chan#<n>?` at the prompt), and cannot be undone.
 
 ## Many conversations
 
@@ -206,7 +203,7 @@ unless you mean it.
 
 ## Troubleshooting
 
-### `Name Ai-chan's nous: the ai_chan setting names none.`
+### `Name Ai-chan's nous: the ai_chan setting names none.` {#no-nous}
 
 No nous was given, and the **Ai-chan** setting names none. Pick one on the form, or set
 **Ai-chan** on the [General page](/user/settings#general).
@@ -240,5 +237,5 @@ directory, or `daemon`.
   epic hearing it.
 - [Talking to a running turn](/user/steering): say something to an agent yourself.
 - [Settings](/user/settings#general): the nous a new conversation thinks with.
-- [TUI reference](/reference/tui#ai): `/ai`, its menu and its form.
+- [TUI reference](/reference/tui#ai-chan): `/ai`, its menu and its form.
 - [Daemon reference](/reference/daemon#ai-chan): every method she may call, and what refuses it.

@@ -1,30 +1,21 @@
-"""Bounded context for questions asked beside a flow, and the line the btw agent asks by.
+"""Bounded context for questions asked beside a flow, about one of its sessions.
 
 The primary flow is deliberately not queried for a side question: doing that would either
 serialize a turn behind the flow's session lock or put the question into its conversation. A
-side conversation is opened instead -- a read-only fork of one session where its CLI can fork,
+session side copy is opened instead -- a read-only fork of the session where its CLI can fork,
 a read-only copy of the same agent seeded from a small, immutable snapshot where it cannot --
 and it explains where the flow has got to without becoming part of the run.
 
-A question about the whole flow goes to the btw agent, which may in turn ask any one session's
-side conversation. It does so by running :data:`ASK`, the command its `ask-conversation`
-skill names, which is caught where the agent runs -- by a hook, or by the command itself --
-and handed back here to carry out in the middle of its turn. On a CLI that runs no command at
-the read-only rung it writes a line instead, `@ask <view-key>: <question>`, which the
-interface reads off its answer and carries out.
-
-What opens those conversations and carries a question through them is :class:`Btw`, asking the
-runs through whatever link the frontend holds: the terminal interface and the web interface
-ask a side question the same way, and open the btw agent as the same agent.
+What opens that copy and carries a question through it is :class:`Btw`, asking the runs
+through whatever link the frontend holds: the terminal interface and the daemon's `btw.*`
+ask a side question the same way.
 """
 
 from __future__ import annotations
 
-import contextlib
-import re
 import threading
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from hmz.coganchor.prices import money
 
@@ -32,23 +23,15 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
 __all__ = [
-    "ASK",
-    "HOPS",
-    "NOBODY",
-    "THE_EPIC",
     "AgentProgress",
     "Btw",
     "FlowSnapshot",
     "Left",
     "Observation",
-    "asked",
     "compact",
-    "format_answers",
-    "format_asking",
     "format_forked",
     "format_snapshot",
     "format_turn",
-    "opened_as",
 ]
 
 _MAX_OBSERVATIONS = 32
@@ -56,25 +39,6 @@ _MAX_OBSERVATION_CHARS = 600
 _MAX_AGENTS = 64
 _MAX_HANDOVERS = 128
 _MAX_SPENDING = 32
-_MAX_SESSIONS = 64
-
-#: How many sessions the btw agent may ask on one question: an agent that keeps asking must
-#: not keep a side question going without limit.
-HOPS = 4
-
-#: The command the btw agent asks a session by, as its `ask-conversation` skill names it.
-ASK = "hmz-ask"
-
-#: What the btw agent is told where it asks past :data:`HOPS`.
-_NO_MORE = "No more asks this question: answer the user with what you have."
-
-#: One question from the btw agent to one session's side conversation, on a line of its own --
-#: bare, as an item of a list or a quote, or in backticks.
-_ASKS = re.compile(
-    r"^[ \t]*(?:(?:[-*+>]|\d+[.)])[ \t]*)*(`?)@ask[ \t]+`?([^\s`]+?)`?[ \t]*:[ \t]*"
-    r"(\S.*?)\1[ \t]*$",
-    re.MULTILINE,
-)
 
 _UNTOUCHED = (
     "Never steer, stop, resume, or send a message to the flow, and do not modify any "
@@ -126,9 +90,6 @@ class FlowSnapshot:
     #: to be able to tell a figure that is the total from one that is a floor under it.
     kinds: tuple[tuple[str, float, bool], ...] = ()
     waiting_for_input: bool = False
-    #: Every conversation the flow has opened, as `(view-key, what it is)`: which the btw agent
-    #: may ask about by key. Empty for a side conversation about one session.
-    sessions: tuple[tuple[str, str], ...] = ()
 
 
 def compact(text: str, limit: int = _MAX_OBSERVATION_CHARS) -> str:
@@ -137,65 +98,6 @@ def compact(text: str, limit: int = _MAX_OBSERVATION_CHARS) -> str:
     if len(one) <= limit:
         return one
     return f"{one[: limit - 1]}…"
-
-
-def asked(answer: str) -> tuple[list[tuple[str, str]], str]:
-    """Reads the btw agent's questions to sessions off one of its answers.
-
-    Args:
-      answer: What it answered.
-
-    Returns:
-      Each `(view-key, question)` it asked, in order, and the answer less those lines.
-    """
-    asks = [(key, question.strip()) for _, key, question in _ASKS.findall(answer)]
-    return asks, _ASKS.sub("", answer).strip()
-
-
-def format_answers(answers: list[tuple[str, str]], *, more: bool) -> str:
-    """What the btw agent is told back once the sessions it asked have answered.
-
-    Args:
-      answers: Each `(view-key, answer)`, in the order they were asked.
-      more: Whether it may still ask more this turn.
-    """
-    lines = [
-        f'<answer from="{compact(key, 120)}">\n{compact(answer, 4000)}\n</answer>'
-        for key, answer in answers
-    ]
-    lines.append("Ask again, or answer the user." if more else _NO_MORE)
-    return "\n".join(lines)
-
-
-def format_asking(sessions: Sequence[tuple[str, str]]) -> str:
-    """What the btw agent is told, with every question, of the sessions and how to ask one.
-
-    Args:
-      sessions: Each conversation of the flow as `(view-key, what it is)`, which may be none
-        yet: the agent may still list them as they are by the time it asks.
-    """
-    shown = sessions[:_MAX_SESSIONS]
-    lines = ["<sessions>"]
-    lines.extend(f"- {compact(key, 120)}: {compact(what, 240)}" for key, what in shown)
-    if len(sessions) > len(shown):
-        lines.append(f"- (sessions omitted: {len(sessions) - len(shown)})")
-    if not sessions:
-        lines.append("- none opened yet")
-    lines.extend(
-        (
-            "</sessions>",
-            (
-                "Ask a session rather than guess at what it did or knows: run "
-                f'`{ASK} ask --to <session> --question "<question>"` (your ask-conversation '
-                f"skill), and `{ASK} list` for the sessions as they are now. Where you cannot "
-                "run a command, reply instead with nothing but lines of the form "
-                "`@ask <session>: <question>`, one per question. Each question goes to a "
-                "read-only side copy of that session, and its answer comes back to you. You may "
-                f"ask up to {HOPS} per user question. Otherwise answer the user."
-            ),
-        )
-    )
-    return "\n".join(lines)
 
 
 def format_forked(key: str, question: str) -> str:
@@ -221,7 +123,7 @@ def format_turn(question: str) -> str:
     return f"<user_question>\n{compact(question, 4000)}\n</user_question>"
 
 
-def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -> str:
+def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str) -> str:
     """Builds the first prompt of a side conversation opened from a snapshot.
 
     The snapshot is explicitly delimited as observational data. Agent output can contain
@@ -231,15 +133,13 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
     Args:
       snapshot: The flow, frozen.
       question: What was asked.
-      about: The session the question is about, as the interface names it, or "" for one
-        about the whole flow -- which is the btw agent's, and is told how to ask a session
-        (:func:`format_asking`).
+      about: The session the question is about, as the interface names it.
     """
     lines = [
-        f"You are answering a side question about the session `{compact(about, 120)}` of a "
-        "coding flow; the observations below are the ones from its agent."
-        if about
-        else "You are the btw agent, answering a side question about a coding flow.",
+        (
+            f"You are answering a side question about the session `{compact(about, 120)}` "
+            "of a coding flow; the observations below are the ones from its agent."
+        ),
         "The primary flow is running independently. " + _UNTOUCHED,
         "",
         "<flow_snapshot>",
@@ -331,31 +231,8 @@ def format_snapshot(snapshot: FlowSnapshot, question: str, *, about: str = "") -
         )
     else:
         lines.append("- none observed")
-    lines.extend(("</flow_snapshot>", ""))
-    if not about:
-        lines.extend((format_asking(snapshot.sessions), ""))
-    lines.append(format_turn(question))
+    lines.extend(("</flow_snapshot>", "", format_turn(question)))
     return "\n".join(lines)
-
-
-#: Who a side question about the whole epic is asked of, as every frontend names it.
-THE_EPIC = "The Epic"
-
-#: Why a question to The Epic is refused while settings name nobody to answer it.
-NOBODY = "Nobody answers The Epic yet: set the agent that does in the settings, under General."
-
-
-def opened_as(chosen: str) -> dict[str, str] | None:
-    """What the btw agent -- The Epic -- is opened as: the one the settings name, and no other.
-
-    Args:
-      chosen: The agent the settings name, as `-a` spells one, or "" for none.
-
-    Returns:
-      What to open a side conversation with -- `runs`, an agent as `-a` spells one -- or None
-      where nobody is named, which is nobody to ask: no agent of the epic stands in.
-    """
-    return {"runs": chosen} if chosen else None
 
 
 class Left(Exception):  # noqa: N818 -- a way out rather than a failure
@@ -363,29 +240,20 @@ class Left(Exception):  # noqa: N818 -- a way out rather than a failure
 
 
 class Btw:
-    """Btw mode: who a side question goes to, and the side conversations opened for it.
+    """Btw mode: the session a side question goes to, and the side copy opened of it.
 
     Asked one question at a time, on whichever thread asks it, and closed from any: a side
     conversation opened after it was closed is closed again at once.
 
     Args:
-      target: The session asked, as `<agent>/<n>`, or "" for the btw agent.
+      target: The session asked, as `<agent>/<n>`.
       aside: Asks the runs about a side conversation -- opens one, or takes one turn of
-        one -- as a link's `aside` does, answering what the runs answered. The btw agent's
-        is opened with `asks`, and a turn of it answered with `ask` -- a question it ran
-        :data:`ASK` with, or one naming no session for `hmz-ask list`, answered with
-        `sessions` -- goes on once that is given back as `answered`.
+        one -- as a link's `aside` does, answering what the runs answered.
       unaside: Closes one side conversation, by the number the runs gave it.
       sessions: The run's conversations a side one may be opened on, `<agent>/<n>` apiece.
-      source: What the btw agent is opened as (:func:`opened_as`), or None for nothing.
-      asking: Told each session the btw agent asks, and what, as it asks it.
-      opening: What opens the target's side conversation, as a link's `aside` takes it, for
-        a session that is none of the run's -- one an earlier run kept, carried on from where
-        it was kept: its agent as `runs`, its conversation as `recall` and where it is as
-        `kept`. None for a session of the run, opened by its key.
 
     Attributes:
-      target: The session asked, or "" for the btw agent.
+      target: The session asked.
       busy: Whether a question is being answered.
     """
 
@@ -396,22 +264,15 @@ class Btw:
         aside: Callable[..., Mapping[str, Any]],
         unaside: Callable[[str], object],
         sessions: Callable[[], Sequence[str]],
-        source: Callable[[], dict[str, str] | None],
-        asking: Callable[[str, str], object] | None = None,
-        opening: Mapping[str, Any] | None = None,
     ) -> None:
         self.target = target
-        self._opening = dict(opening) if opening is not None else None
         self.busy = False
         self._aside = aside
         self._unaside = unaside
         self._sessions = sessions
-        self._source = source
-        self._asking = asking
         self._lock = threading.Lock()
-        #: Each side conversation opened, as the runs number it, by the session it is about
-        #: -- "" for the btw agent's own.
-        self._sides: dict[str, str] = {}
+        #: The side conversation open, as the runs number it, or None before one is.
+        self._side: str | None = None
         self._closed = False
 
     @property
@@ -427,34 +288,36 @@ class Btw:
           snapshot: The flow, frozen when the question was.
 
         Returns:
-          What the side conversation answered, with no `@ask` left in it, or "" for none.
+          What the side conversation answered, or "" for nothing.
 
         Raises:
           Left: If the mode was left while a side conversation was being opened.
         """
         self.busy = True
         try:
-            if self.target:
-                return self._turn(self.target, question, snapshot)
-            return self._agent_turn(question, snapshot)
+            return self._turn(question, snapshot)
         finally:
             self.busy = False
 
     def close(self, *, unasking: bool = True) -> None:
-        """Leaves the mode, closing every side conversation it opened.
+        """Leaves the mode, closing the side conversation it opened.
 
         Args:
-          unasking: Whether to ask the runs to close them, which a frontend going does not
+          unasking: Whether to ask the runs to close it, which a frontend going does not
             need: every side conversation it opened goes with it.
         """
         with self._lock:
             self._closed = True
-            held, self._sides = list(self._sides.values()), {}
-        if unasking:
-            for side in held:
-                self._unaside(side)
+            held, self._side = self._side, None
+        if unasking and held is not None:
+            self._unaside(held)
 
-    def _kept(self, key: str, side: str) -> str:
+    def forget(self) -> None:
+        """Lets go of a side conversation the runs closed, so the next question opens one."""
+        with self._lock:
+            self._side = None
+
+    def _kept(self, side: str) -> str:
         """Holds a side conversation on the mode, or closes it for a mode that has gone.
 
         Raises:
@@ -462,7 +325,7 @@ class Btw:
         """
         with self._lock:
             if not self._closed:
-                self._sides[key] = side
+                self._side = side
                 return side
         self._unaside(side)
         raise Left
@@ -471,25 +334,21 @@ class Btw:
         """One turn of a side conversation: what it answered to a prompt."""
         return str(self._aside(side=side, prompt=prompt).get("answer") or "")
 
-    def _turn(self, key: str, question: str, snapshot: FlowSnapshot) -> str:
-        """One turn of one session's side conversation, opening it the first time.
+    def _turn(self, question: str, snapshot: FlowSnapshot) -> str:
+        """One turn of the session's side copy, opening it the first time.
 
         A fork of the session where its CLI forks, carrying its history, and a copy of its
-        agent seeded from the snapshot where it cannot, or where the fork will not open --
+        agent seeded from the snapshot where it cannot, or where the fork will not answer --
         which of the two the runs opened is what they say back.
         """
-        side = self._sides.get(key)
+        key = self.target
+        side = self._side
         if side is not None:
             return self._said(side, format_turn(question))
-        opening = self._opening
-        if opening is None and key not in self._sessions():
+        if key not in self._sessions():
             return f"(session {key} not found)"
-        opened = (
-            self._aside(**opening, fork=True)
-            if opening
-            else self._aside(key=key, fork=True)
-        )
-        side = self._kept(key, str(opened["side"]))
+        opened = self._aside(key=key, fork=True)
+        side = self._kept(str(opened["side"]))
         if opened.get("forked"):
             try:
                 if answer := self._said(side, format_forked(key, question)):
@@ -498,94 +357,15 @@ class Btw:
                 pass
             # A fork that opened and would not answer: a copy of its agent is asked instead.
             with self._lock:
-                if self._sides.get(key) == side:
-                    del self._sides[key]
+                if self._side == side:
+                    self._side = None
             self._unaside(side)
-            # A copy of its agent, opened afresh: for an earlier run's, without its history.
-            fresh = {"runs": opening["runs"]} if opening else {"key": key}
-            side = self._kept(key, str(self._aside(**fresh)["side"]))
+            side = self._kept(str(self._aside(key=key)["side"]))
         agent = key.rpartition("/")[0]
         about = replace(
             snapshot,
             observations=tuple(
                 one for one in snapshot.observations if one.agent in (agent, "")
             ),
-            sessions=(),
         )
         return self._said(side, format_snapshot(about, question, about=key))
-
-    def _agent_turn(self, question: str, snapshot: FlowSnapshot) -> str:
-        """One turn of the btw agent, carrying out whatever it asks of the sessions.
-
-        What it asks by :data:`ASK` arrives in the middle of its turn, as the runs' `ask`,
-        and is answered back into that turn; what it asks by ask lines arrives with the end
-        of it, and is answered with the next. Either way at most :data:`HOPS` in all.
-        """
-        side = self._sides.get("")
-        if side is None:
-            source = self._source()
-            if source is None:
-                return ""
-            side = self._kept("", str(self._aside(**source, asks=True)["side"]))
-            prompt = format_snapshot(snapshot, question)
-        else:
-            prompt = "\n\n".join(
-                (format_asking(snapshot.sessions), format_turn(question))
-            )
-        hops = 0
-        said = self._aside(side=side, prompt=prompt)
-        while True:
-            ask: object = said.get("ask")
-            if isinstance(ask, dict):
-                held = cast("dict[str, object]", ask)
-                key, asking = str(held.get("to") or ""), str(held.get("question") or "")
-                answer = _NO_MORE
-                try:
-                    if not key:
-                        # `hmz-ask list`: the sessions of the epic asked about, not a hop.
-                        answer = "\n".join(self._sessions()) or "(no session yet)"
-                    elif hops < HOPS:
-                        hops += 1
-                        answer = self._hop(key, asking, snapshot)
-                    said = self._aside(side=side, answered=answer)
-                except BaseException:
-                    # Its turn waits on an answer nobody will give now: closed, so that the
-                    # next question opens it afresh rather than finding it still answering.
-                    with self._lock:
-                        gone = self._sides.pop("", None)
-                    if gone is not None:
-                        with contextlib.suppress(Exception):
-                            self._unaside(gone)
-                    raise
-                continue
-            asks, answer = asked(str(said.get("answer") or ""))
-            if not asks or hops >= HOPS:
-                return answer
-            answers: list[tuple[str, str]] = []
-            for key, asking in asks[: HOPS - hops]:
-                hops += 1
-                answers.append((key, self._hop(key, asking, snapshot)))
-            said = self._aside(
-                side=side, prompt=format_answers(answers, more=hops < HOPS)
-            )
-
-    def _hop(self, key: str, asking: str, snapshot: FlowSnapshot) -> str:
-        """Carries out one question of the btw agent to one session, as it is told back.
-
-        Raises:
-          Left: If the mode was left while that session's side conversation was opening.
-        """
-        if self._asking is not None:
-            self._asking(key, asking)
-        if key not in self._sides and key not in (known := self._sessions()):
-            return (
-                f"(session {key} not found; the sessions are: "
-                f"{', '.join(known) or 'none yet'})"
-            )
-        try:
-            said = self._turn(key, asking, snapshot)
-        except Left:
-            raise
-        except Exception as why:  # noqa: BLE001 -- told back rather than raised
-            said = f"(could not ask: {why})"
-        return said or "(no answer)"

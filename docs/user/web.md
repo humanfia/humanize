@@ -69,7 +69,6 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search epics** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
-| **Ai-chan** (her face, on every view) | A drawer beside the view: every conversation with [Ai-chan](/user/ai-chan) | Make one, talk to her, stop her turn, forget one. See [Ai-chan](#ai-chan) |
 
 The foot of the sidebar is the [daemon bar](#daemon-bar): it names the daemon the page shows,
 its host and whether it is reached, and says how many epics are going on it. Its menu holds
@@ -124,17 +123,17 @@ The panel beside it (the button at the top right shows and hides it) holds:
   and changes while the epic is held (see [Into its environments](/features/environments)) -- the
   **Frontends** reading it, the flows going or the flows it called, and how it was set up and
   where it is written down. A chat has an **Environment** panel beside its conversation instead.
-- **Aside.** A side question, as [`/btw`](/user/btw) asks it, of one session's side copy --
-  any epic's session, an earlier one forked from where that epic kept it, so it answers with
-  that session's own history. Keep as many asides as you like: each is a side conversation of
-  its own, on a tab named by the session it asks (`btw · <agent>/<n>`), and **New aside** opens
+- **Aside.** A side question, as [`/btw`](/user/btw) asks it, of one session's side copy -- any
+  epic's session, an earlier one forked from where that epic kept it, so it answers with that
+  session's own history. Keep as many asides as you like: each is a side conversation of its
+  own, on a tab named by the session it asks (`btw · <agent>/<n>`), and **New aside** opens
   another. A new aside's **Ask** chip, above its box, picks the session: each agent with the
-  role it fills, opening onto its conversations, newest first; type in its box to narrow it.
-  Its first question fixes the session it asks -- to ask another, open another aside. While
-  one answers it says `… is thinking…`, and a pulsing dot marks its tab. The epic never sees
-  any of it. Every question after the first goes on in the same side conversation until you
-  press its **Close**, or a new epic starts. To ask about the epic as a whole, ask
-  [Ai-chan](#ai-chan).
+  role it fills, opening onto its conversations, newest first; type in its box to narrow it. Its
+  first question fixes the session it asks -- to ask another, open another aside. While one
+  answers it says `… is thinking…`, and a pulsing dot marks its tab. The epic never sees any of
+  it. Every question after the first goes on in the same side conversation until you press its
+  **Close**, or a new epic starts. A question about the whole epic, or several, is
+  [Ai-chan's](#ai-chan).
 - **Board.** For an epic that holds one: edit, remove and add its lines. See
   [The mission board](/user/board).
 - **People.** Each person the flow has: **Answer it here** holds the role for this browser,
@@ -284,6 +283,32 @@ directory last set it up:
 needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
 conversation.
 
+### Ai-chan {#ai-chan}
+
+Ai-chan is an agent you operate Humanize through by talking to her. Her avatar, at the right of
+every view's bar, opens and closes her drawer beside the view; it stays open as you go from view
+to view, until you close it. On a phone it covers the view: close it with its button or
+<kbd>Escape</kbd>.
+
+The drawer lists every conversation with her on the daemon shown, newest first: its title, what
+it reaches, its nous, its preset, whether its network is on, and whether she is **Answering**,
+**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm.
+
+**New** asks what the conversation is fixed to:
+
+- **Scope.** **Daemon** -- every workspace and epic --, **Workspace** -- one workspace and its
+  epics --, or **Epic** -- one epic. It starts on the epic the view shows, else the workspace,
+  else the daemon.
+- **Nous.** Starts on the one **Settings › General** names for her; with none named there,
+  pick one.
+- **Preset.** `read-only`, the default, or `danger-full-access`; and **Network**, off by default.
+- **Title**, from the task where left empty.
+
+Type the task and press <kbd>Enter</kbd>: the conversation opens as a chat, her answers beside
+her avatar and each tool she calls a line to open. While she answers, **Stop** stops her turn and
+leaves the conversation waiting for your next line. One that folded away is carried on by opening
+it and saying something.
+
 ### Settings {#settings}
 
 Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches and
@@ -294,7 +319,7 @@ daemon:
 | Page | What is there |
 | --- | --- |
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
-| **General** | Whether a turn's working is shown, the nous [Ai-chan](/user/ai-chan) thinks with by default, and [error reports](/user/reporting) |
+| **General** | Whether a turn's working is shown, **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
@@ -387,27 +412,6 @@ A pair holds both its themes, each with its `colors` and `images`, in place of a
 `cyan-ink`, `pink`, `pink-ink`, `lavender`, `gold`, `done`, `fail`, `lane-1` to `lane-6`), and
 `images` by plane (`page`, `sidebar`, `panel`, `dialog`). Importing keeps what a theme can hold
 and drops the rest: an unknown token, a value that is not a colour, a picture that is not an image.
-
-### Ai-chan {#ai-chan}
-
-Ai-chan's face, on every view, opens the **Ai-chan drawer** beside it, and closes it
-again. The drawer stays open, as it was, while you go from view to view of one daemon. On a phone
-it covers the view; <kbd>esc</kbd> or its close button puts it away.
-
-- **The list**: every conversation with Ai-chan on the daemon shown, newest first, each with its
-  title, scope, nous, preset, whether its network is on, and whether her turn is open, she is
-  between turns, or it has folded away. **Forget** on one asks, then forgets it.
-- **New**: a form for the scope -- **Daemon**, **Workspace** or **Epic**, set to the epic you are
-  looking at, else its directory -- the directory and the epic it names, the nous (the one set
-  under **Settings › General**), the preset (`read-only` until you pick `danger-full-access`),
-  **Network** (off) and the task. <kbd>enter</kbd> in the task box makes the conversation and
-  opens it.
-- **A conversation**: drawn as a chat, her answers beside her face, with a box for your next
-  line. Each tool she calls is one line, the method and how it was answered; click it to open
-  it. **Stop** stops her open turn, without asking. A folded conversation carries on when you
-  say something in it.
-
-What she may do, and what she is refused: [Ai-chan](/user/ai-chan).
 
 ## Example: start an epic in the browser, answer it in the terminal
 

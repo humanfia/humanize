@@ -13,6 +13,8 @@ import json
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any, cast
 
+from pydantic.json_schema import GenerateJsonSchema
+
 from hmz.rpc import Code, RpcError
 
 from .workspaces import place
@@ -32,6 +34,17 @@ __all__ = [
     "offered",
     "remembers",
 ]
+
+
+class _Authored(GenerateJsonSchema):
+    """A params schema whose fields carry a title only where the flow wrote one.
+
+    Pydantic titles every field after its name otherwise, and a client shows a field by its
+    title before its name: one it made up would hide the name the flow is set up by.
+    """
+
+    def field_title_should_be_set(self, schema: Any) -> bool:  # noqa: ARG002
+        return False
 
 
 def listed(hmz: Any) -> dict[str, Any]:
@@ -77,8 +90,9 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
       name: The flow, as it is offered.
 
     Returns:
-      Its agent and environment roles, its params as a JSON schema, whether an epic of it can
-      be picked up, and what this workspace last ran it with.
+      Its agent and environment roles, its params as a JSON schema (a field titled only where
+      the flow titled it), whether an epic of it can be picked up, and what this workspace
+      last ran it with.
 
     Raises:
       RpcError: 404, if there is no such flow, or it will not load.
@@ -122,7 +136,7 @@ def declared(hmz: Any, name: str) -> dict[str, Any]:
             }
             for role in flow.envs
         ],
-        "params": flow.params.model_json_schema(),
+        "params": flow.params.model_json_schema(schema_generator=_Authored),
         "remembered": {
             "agents": {
                 role: written(runs) for role, runs in settings.agents(name).items()

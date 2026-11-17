@@ -141,10 +141,11 @@ none running, `chat` set up -- is one conversation, read as Claude Code reads on
 
 ### Left side {#status-left}
 
-`[btw · <who> ][afk… ][details ]<state>[ · copied]`
+`[Ai-chan#<n> · <scope> ][btw · <who> ][afk… ][details ]<state>[ · copied]`
 
 | Part | Text | Condition |
 | --- | --- | --- |
+| Ai-chan | `Ai-chan#<n> · <scope>`, or `Ai-chan · new · <scope>` while a new one waits for its first line; accent | an [Ai-chan conversation](#ai-chan) followed |
 | btw | `btw · <agent>/<n>`, cyan | [btw mode](#btw) on |
 | afk | `afk` | away for every role; |
 | | `afk <role>, <role>` | away for some roles; yellow |
@@ -155,7 +156,7 @@ State: the first row that holds.
 
 | # | Condition | Text |
 | --- | --- | --- |
-| 0 | A [chat](#chat) going | `◉ done` with no turn open and a *listen* question pending; else `<spinner> running… (<s>s)`, as row 2 without the names and the stop hint. |
+| 0 | A [chat](#chat) or an [Ai-chan conversation](#ai-chan) going | `◉ done` with no turn open and a *listen* question pending; else `<spinner> running… (<s>s)`, as row 2 without the names and the stop hint. |
 | 1 | A run going, no turn open, a *listen* question pending | `·\|· waiting for <you\|name> · ctrl+c twice to stop` (muted, not animated). `you` where some such question is unowned or owned by this frontend; else the first owner's name. |
 | 2 | A turn open, or a run going | `<spinner> <names>… (<s>s · ctrl+c twice to stop)`. Spinner `·\|·` `·/·` `·—·` `·\·`, a frame per 0.5 s, cyan. `<names>`: the working agents, comma-separated; with none, the flows running joined by ` ▸ ` (innermost last), else the flow set up. `<s>`: since the oldest open turn began, else since the run began. |
 | 3 | Otherwise | `◉ <flow> · <cwd>`, with `$HOME` as `~`. |
@@ -168,7 +169,7 @@ Hints joined by ` · `, in this order; each only when its condition holds.
 | --- | --- | --- |
 | 1 | `↑↓ move`, `tab select`, `esc cancel` | The offers list is open. **Nothing else is shown.** |
 | 2 | `enter run` | The line starts with `/` and its first word is a command available in this view and not refused now. |
-| 2 | `enter ask` · `enter answer` · `enter send` · `enter start` | Some other text: btw on · a question is answerable here · a run is going · otherwise. |
+| 2 | `enter start` · `enter ask` · `enter answer` · `enter send` · `enter start` | Some other text: a new [Ai-chan conversation](#ai-chan) waits for its first line · btw on · a question is answerable here · a run is going · otherwise. |
 | 3 | `shift+tab switch view` | The round holds a view other than the one read and its agent's newest conversation. |
 | 4 | `/ commands` | Always. |
 | 5 | `shift+enter newline` | Always. |
@@ -242,7 +243,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | --- | --- | --- | --- | --- |
 | <span id="cmd-flow"></span>`/flow` | `[flow]` | all | never; `[flow]` itself is refused while a run is going | — |
 | <span id="cmd-ai"></span>`/ai` | — | all | never | — |
-| <span id="cmd-btw"></span>`/btw` | `[question]` | `session` | the conversation read is gone; while [Ai-chan](#ai) is followed | — |
+| <span id="cmd-btw"></span>`/btw` | `[question]` | all | out of btw mode: off a `session` view, an [Ai-chan conversation](#ai-chan) followed, or the session gone (see [btw](#btw)) | — |
 | <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
 | <span id="cmd-env"></span>`/env` | `[role]` | all | no environment is open (the host's `envs` snapshot is empty) | — |
@@ -250,7 +251,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
 | <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
 | <span id="cmd-claim"></span>`/claim` | `[on\|off]` | `outworlder` | on an outworlder another frontend holds | — |
-| <span id="cmd-stop"></span>`/stop` | — | all | no run going, a [chat](#chat) going, or it is stopping | — |
+| <span id="cmd-stop"></span>`/stop` | — | all | no run going, a [chat](#chat) going, or it is stopping; following [Ai-chan](#ai-chan), her turn not open | — |
 | <span id="cmd-exit"></span>`/exit` | — | all | never | — |
 
 </RefFilter>
@@ -260,8 +261,8 @@ Each command's line in the completion list:
 | Command | About | Instead, when |
 | --- | --- | --- |
 | `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
-| `/ai` | `Talk to Ai-chan, in a conversation new or kept` | |
-| `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
+| `/ai` | `Talk to Ai-chan, who operates hmz for you` | `Carry another Ai-chan conversation on, or start one` — one followed |
+| `/btw` | `Ask side questions of this session; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage epics here, or of another daemon` | |
 | `/resume` | `Resume the last epic in this directory` | |
 | `/env` | `Files, changes and a shell of the run's environments` | |
@@ -289,6 +290,7 @@ Every message is red and prefixed `hmz: `.
 | `/claim off` | not held by this frontend | `<role> is not yours to release` |
 | `/stop` | nothing running | `no flow is running` |
 | `/stop` | a [chat](#chat) going | `a chat is not stopped: /clear starts another` |
+| `/stop` | [Ai-chan](#ai-chan) between turns | `Ai-chan is not answering, so there is nothing to stop` |
 | `/stop` | stopping | `the flow is already stopping: it is finishing the turn it was in` |
 | `/resume` | a run going | `cannot resume an epic while a flow is running: press ctrl+c twice to stop it first` |
 
@@ -298,7 +300,9 @@ Every message is red and prefixed `hmz: `.
 | `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup, workspace or usage` |
 | `/epics <word>` | not `@` and a daemon's name | `/epics takes a daemon as @<name>: choose @local, @<daemon>, …` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
-| `/btw` | not on one agent's transcript | the wrong-view message, adding that `/ai` asks Ai-chan about the epic |
+| `/btw` | off a `session` view, out of btw mode | `/btw is only available on one agent's transcript, not on <view>; /ai asks Ai-chan about the epic` |
+| `/btw` | an [Ai-chan conversation](#ai-chan) followed | `/btw is only available on one agent's transcript, not on Ai-chan's; /ai asks Ai-chan about the epic` |
+| `/btw` | the agent read has no session yet | `/btw: <agent> has no session yet` |
 | `/btw` | the session is gone | `/btw: no conversation found for <agent>/<n>` |
 | `/btw <q>` | busy | `btw is still answering the last question` |
 | `/env` | no environment | `no environment is open here` |
@@ -318,7 +322,7 @@ Enters [btw mode](#btw), asking `[question]` if given. In btw mode, `/btw` alone
 
 ### `/ai` {#ai-command}
 
-Opens the [Ai-chan menu](#ai).
+Opens the [Ai-chan menu](#ai-chan).
 
 ### `/epics [@daemon]` {#epics-command}
 
@@ -526,29 +530,26 @@ where it is one, else on the view being read:
 
 | Aspect | Rule |
 | --- | --- |
-| Enter | `/btw [question]`, on one agent's transcript only. Prints `btw · <agent>/<n> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
+| Enter | `/btw [question]`, on a `session` view only. Prints `btw · <agent>/<n> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
 | In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
-| Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
-| Target | The conversation read (for an agent's view, its newest): its session side copy. Nothing picks another agent. On any other view `/btw` is refused, saying `/ai` asks [Ai-chan](#ai) about the epic. |
-| Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that agent (the last 32 observations, 600 characters each). Ended sessions included. |
-| Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused. |
+| Leave | `/btw` alone or `esc`: `btw: exited`; a run starting while this frontend reads the host: `btw: exited -- a new flow started` (one read back on reaching the host again does not). Side sessions are closed (`unaside`). |
+| Target | The conversation read (for a role view, its newest). Any other view refuses `/btw`, pointing at [`/ai`](#ai-chan): a whole epic is Ai-chan's to answer. No agent is chosen for a side question. |
+| Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
+| Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
 | Answer | `●` (cyan) `btw · <question>` (dim), then the answer in cyan, continuation lines indented 2, on the current view. |
-| Failures | `hmz: btw is still answering the last question`, `hmz: /btw: no conversation found for <agent>/<n>`, `hmz: /btw could not read flow progress: <e>`, `hmz: /btw could not start: <e>`, `hmz: /btw: <why>` (e.g. `the agent returned no answer`). |
+| Failures | `hmz: btw is still answering the last question`, `hmz: /btw could not read flow progress: <e>`, `hmz: /btw could not start: <e>`, `hmz: /btw: <why>` (e.g. `the agent returned no answer`). |
 
-## Ai-chan (`/ai`) {#ai}
+## Ai-chan (`/ai`) {#ai-chan}
 
-[Ai-chan](/user/ai-chan) conversations of this machine's daemon (`aichan.list`), in a
-[menu](#menus):
-
-| Element | Rule |
+| Aspect | Rule |
 | --- | --- |
-| List | **New** first, then every conversation, newest first: its title, scope, nous, preset, whether its network is on, and its state: `running` (a turn open), `waiting` (between turns), `folded` (no host holds it). |
-| Choosing one | The log screen follows its host (`epic.attach` on its `ai:` slot), which carries a folded one on. |
-| **New** | A form, in order: **Scope** (`daemon`, `workspace`, `epic`; default `epic` of the epic going or last on the host followed, where there is one, else `workspace` of this directory); **Nous** (every nous of `nous.list`; default the [`ai_chan` setting](#general-page)); **Preset** (`read-only`, `danger-full-access`; default `read-only`); **Network** (`off`, `on`; default `off`). **Done** leaves the menu with the log screen waiting; the first line said makes the conversation (`aichan.create`, the line its task), then follows it. |
-| **Forget** | On a conversation: asks for confirmation, then `aichan.forget`. |
-| Following | Drawn as a [chat](#chat); the status line names `Ai-chan#<n>` and the scope. Each tool Ai-chan calls is a tool line of her turn: the method and how it was answered. |
-| Lines | A line said is her next turn. `/stop` stops her open turn and leaves the conversation between turns (`Ai-chan is not answering, so there is nothing to stop` with none open). `/btw` is refused. `/clear` leaves her to her host and follows this directory's own host again. |
-| Refusals | `aichan.create`'s, in red with `hmz: `: `Name Ai-chan's nous: the ai_chan setting names none.`, `Tell Ai-chan something to start with.`, `There is no epic <epic> in <workspace>.`, and the host's own reason where it refuses the start. |
+| Menu | `/ai` lists **New**, then every conversation `aichan.list` answers, newest first: `Ai-chan#<n> · <title>`, and beside it its scope (`daemon`, `workspace <dir>`, `epic <name>`), nous, preset, `network on\|off`, and `answering`, `between turns` or `folded away`. |
+| Carrying one on | `enter` on a conversation follows its host (`epic.attach` on its `ai:` slot), which carries on one that folded away. |
+| Forgetting one | `m` on a conversation offers **forget**, which asks `Forget Ai-chan#<n>?` and then calls `aichan.forget`. |
+| New | A form: **scope** ▾ (`epic`, of the epic going or last on this directory's host, where there is one, else `workspace`, of this directory; or `daemon`), **nous** ▾ (every nous `nous.list` answers, written as `-a` spells an agent where there is none; defaulting to the `ai_chan` setting of the [General page](#general-page); required), **preset** ▾ (`read-only`, `danger-full-access`), **network** ▾ (`off`, `on`). **Done** leaves the menu, prints `Ai-chan: the next line you say starts the conversation; /clear to drop it`, and the next line said is the task of `aichan.create`; its conversation is then followed. A refusal is `hmz: /ai: <why>`. |
+| Drawn | As a [chat](#chat), with `Ai-chan#<n> · <scope>` (a workspace by its last part) at the front of the [status line](#status-left). Every tool she calls is shown as a tool line, [details](#general-page) on or off. |
+| Lines | A line said is her next turn. `/stop` interrupts her open turn, leaving the conversation between turns. `/btw` is refused. |
+| Leaving | [`/clear`](#clear-command) leaves her to her host and follows this directory's own host again. |
 
 ## Several frontends {#several-people-on-one-run}
 
@@ -1497,7 +1498,7 @@ in force.
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
 | Notifications | at once on save: the next notice of a kind is told or not | — |
-| Ai-chan | the next Ai-chan conversation made; one already made keeps its own | `takes effect on the next Ai-chan conversation` |
+| Ai-chan | the next Ai-chan conversation made | `takes effect on the next Ai-chan conversation` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Nous | next failed turn | — |
@@ -1512,7 +1513,7 @@ order done, including things done at once, even after a discard), then:
 | --- | --- |
 | Error reports on / off | `error reporting enabled` / `error reporting disabled` |
 | Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
-| Ai-chan | `a new Ai-chan conversation thinks with <spec>`, or with none `a new Ai-chan conversation asks for its nous` |
+| Ai-chan | `the next Ai-chan conversation thinks with <spec>`, or with none `/ai will ask which nous each new Ai-chan conversation thinks with` |
 | Forget | `cleared saved settings for this directory; Humanize will open without them on next launch` |
 
 ### General page {#general-page}
@@ -1523,7 +1524,7 @@ in this order, under the heading in the first column.
 | Heading | Row | Values (description) | Default | Stored as |
 | --- | --- | --- | --- | --- |
 | Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
-| Agents | **Ai-chan** ▾ `the nous a new conversation with Ai-chan thinks with` | `none` (`each new conversation asks`), the current choice (`chosen`), every nous, `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up Ai-chan`) | none | `ai_chan` (an agent spec or a nous) |
+| Agents | **Ai-chan** ▾ `the nous a new Ai-chan conversation defaults to` | `none` (`ask for one each time`), the current choice (`chosen`), each nous (`a nous`), `another…` (`set an agent up`: the [agent sheet](#what-each-agent-is) titled `Set up Ai-chan`) | none | `ai_chan` (a nous's name or `cli[@account]/model:effort`); takes effect on the next [Ai-chan conversation](#ai-chan) made |
 | Privacy | **Error reports** ▾ `send error reports to Humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
 | Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
 

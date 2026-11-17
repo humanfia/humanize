@@ -288,6 +288,27 @@ over a session of its own (5 s) and returns `{}` on any failure.
 | `hosts.detach` `{workspace, slot?}` | `let_go`, after telling each frontend `gone` (`let go`). |
 | `hosts.stop` `{workspace, slot?}` | `{}` at once; the host then closes. |
 
+### Envs of an epic {#hosts-env}
+
+`hosts.env.*` work in the envs of the epic a host is going with, through each env's own driver on
+the run's loop, as the flow would; they attach nobody, start no host and tell the epic nothing.
+Each takes `{workspace, slot?}`, and each but `hosts.env.list` an `env`: the name of an env role,
+or `workspace` for the run's own workspace until a `LocalEnv` role takes it. A `path` is relative
+to the env's workdir.
+
+| Method | Answer |
+| --- | --- |
+| `hosts.env.list` | `envs`: `[{name, kind, workdir, can}]`, `can` among `read`, `write`, `exec`, `grep`. |
+| `hosts.env.read` `{env, path, offset?, length?}` | `text` (at most 1 MiB from `offset`, as UTF-8, bad bytes as U+FFFD), `size`, `eof`. |
+| `hosts.env.write` `{env, path, text}` | `size`: the file is written whole, its directories made. |
+| `hosts.env.exec` `{env, argv, seconds?}` | `code` (`null` once killed after `seconds`, default 120), and the last 1 MiB of `stdout` and `stderr`. |
+| `hosts.env.grep` `{env, pattern, path?, limit?}` | `matches`: `[{path, line, text}]`, at most `limit` (default 200), each line cut at 400 characters; `more`. Run as `grep -rnIsE` in the env. |
+
+Refused 409 `no flow is running, so no env is open` where no epic is going there (or no host is held),
+404 for an unknown `env` or a missing file, 400 for a path outside the workdir (by `..`, an absolute
+path, or a symbolic link on this machine) or an empty `argv`, and 409 `The env <env> cannot <what>.`
+where the env lacks the capability.
+
 Text clipping: every string longer than 262 144 characters in a history record or snapshot is
 cut to that length plus `… (<n> more characters)`.
 
@@ -362,8 +383,14 @@ is closed on `unaside`, when its frontend detaches, when a run starts, and when 
 No message announces asides. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused:
 `<harness> cannot answer a side question: it has no read-only rung`.
 
-`btw.*` opens only session side copies: an aside is always of one session of the epic, and
-of no other agent.
+The daemon's `btw.*` asks each side question of a session through a frontend of its own, of
+kind `btw`, on the host holding that session: the workspace's own host for the epic in view
+there, a chat's own slot for that chat. An epic no host holds any longer is asked on the
+workspace's own host with `runs`, `recall`, `kept` and `cwd`; an epic starting there does not
+end such an aside, whose next question opens its side copy again. The daemon reads the epic
+replayed to it on attaching as the epic going, not as one starting, and lets go of a host a
+minute after the last aside on it closed or its last question was asked. An aside whose first
+question fails is not kept.
 
 ## Ai-chan {#ai-chan}
 
@@ -380,7 +407,7 @@ budget.
 
 | Method | Fields (default) | Answer | Refusals |
 | --- | --- | --- | --- |
-| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `network` (`false`), `title` (`""`: the task's first line, cut at 80), `task` (required) | `id`, `workspace`, `slot`, once its host has taken the start | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
+| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the [`ai_chan` setting](/reference/settings#machine-settings)), `preset` (`read-only`), `network` (`false`), `title` (`""`: the task's first line, cut at 80), `task` (required) | `id`, `workspace`, `slot`, once its host has taken the start | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
 | `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `state` (`running`, `waiting`, `folded`), `created` | — |
 | `aichan.forget` (write) | `id` (required) | `{}`; closes its host, removes its entry and scratch directory, keeps its epic's records | 404 `There is no Ai-chan #<id>.` |
 
