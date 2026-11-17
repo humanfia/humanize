@@ -3,7 +3,9 @@
     from hmz.sdk import Hmz
 
     hmz = Hmz()
-    hmz.run("chat", "say hello", agents={"assistant": "claude/claude-haiku-4-5:low"}).run()
+    hmz.run(
+        "goal", "win", agents={"worker": "claude/claude-haiku-4-5:low"}, budget={"cost": 1}
+    ).run()
 
 :class:`Hmz` is a workspace and everything that can be done in it: what was set up to run
 there, the accounts, the runtimes, the epics already written. Its epics are run by a daemon

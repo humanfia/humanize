@@ -188,9 +188,14 @@ def test_every_budget_exceeded_is_a_budget_exceeded(project: Path) -> None:
         ).run()
 
 
-def test_a_loop_is_refused_without_a_budget(project: Path) -> None:
-    with pytest.raises(Refused, match="budget"):
-        Hmz(project).run("ralph_loop", "the task", agents={"agent": _agent()})
+@pytest.mark.parametrize(
+    ("flow", "role"), [("ralph_loop", "agent"), ("goal", "worker")]
+)
+def test_every_flow_is_refused_without_a_budget(
+    project: Path, flow: str, role: str
+) -> None:
+    with pytest.raises(Refused, match=r"budget|spend"):
+        Hmz(project).run(flow, "the task", agents={role: _agent()})
 
 
 def test_a_role_the_flow_does_not_declare_is_refused(project: Path) -> None:
