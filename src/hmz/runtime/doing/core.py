@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.backends import Model, Profile
     from hmz.flows import Budget, FlowParams
-    from hmz.runtime.chatting import Person, Prefer
+    from hmz.runtime.chatting import Person, Prefer, Role
     from hmz.runtime.doing.accounts import Accounts
     from hmz.runtime.doing.backups import Backups
     from hmz.runtime.doing.daemons import Daemons
@@ -392,6 +392,7 @@ class Holding(Hmz):
         person: Person,
         resume: str | os.PathLike[str] | None = None,
         prefer: Prefer | None = None,
+        role: Role | None = None,
     ) -> Chatting:
         """A chat in this workspace, in this process, set up and ready to be had.
 
@@ -406,6 +407,8 @@ class Holding(Hmz):
           resume: The epic directory of a chat to carry on, or None for a new one.
           prefer: This chat's own preference for a `$` name that is both a native skill and
             a flow, or None to go by the person's setting.
+          role: What its assistant is beyond its agent -- Ai-chan's, for a conversation
+            of hers -- or None for a plain chat's.
 
         Returns:
           The chat, held as a run is. Nothing has started: `run()` has it, here.
@@ -419,5 +422,6 @@ class Holding(Hmz):
             task,
             resume=Path(resume) if resume is not None else None,
             prefer=prefer,
+            role=role,
         )
         return Chatting(Chat(spec, person=person))

@@ -72,7 +72,6 @@ if TYPE_CHECKING:
         offered,
         offers,
         resolved,
-        scratched,
         within,
     )
     from .harnesses import open_agent, open_outworlder
@@ -217,7 +216,6 @@ __all__ = [
     "run_fake",
     "run_flow",
     "running",
-    "scratched",
     "serves",
     "within",
 ]
@@ -315,7 +313,6 @@ _WRITTEN = {
     "parse_params": "hmz.runtime.flowing.specs",
     "probe": "hmz.runtime.flowing.environments",
     "resolved": "hmz.runtime.flowing.finding",
-    "scratched": "hmz.runtime.flowing.finding",
     "run_fake": "hmz.runtime.flowing.fakes",
     "run_flow": "hmz.runtime.flowing.engine",
     "running": "hmz.runtime.flowing.engine",

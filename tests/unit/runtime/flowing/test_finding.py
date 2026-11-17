@@ -22,7 +22,6 @@ from hmz.runtime.flowing.finding import (
     offered,
     offers,
     resolved,
-    scratched,
     within,
 )
 from hmz.runtime.flowing.index import RECORD
@@ -194,14 +193,6 @@ def test_resolved_loads_the_flow_a_name_comes_to(places: Places) -> None:
 def test_a_flow_of_the_package_is_humanizes_own(places: Places) -> None:
     del places
     assert builtin(resolved("goal")) is True
-    assert scratched(resolved("goal")) is False
-
-
-def test_ai_chan_works_in_her_scratch_directory(places: Places) -> None:
-    del places
-    her = resolved("ai_chan")
-    assert builtin(her) is True
-    assert scratched(her) is True
 
 
 def test_resolved_fetches_a_repository_ref_on_this_thread(

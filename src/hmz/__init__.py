@@ -8,24 +8,17 @@ import functools
 import os
 import pathlib
 import stat
-import sys
 import tempfile
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-__all__ = ["here", "home", "host", "machine", "machine_id", "working_in"]
+__all__ = ["here", "home", "machine", "working_in"]
 
 #: What Humanize's own directories are called, and what they were called before.
 _NAME = ".hmz"
 _WAS = ".humanize"
-
-#: Where Linux keeps the id of the machine, written once when it was installed.
-_MACHINE_ID = "/etc/machine-id"
-
-#: The line of `ioreg` that holds a Mac's own id.
-_PLATFORM_UUID = r'"IOPlatformUUID"\s*=\s*"([^"]+)"'
 
 #: The workspace a thread is working in, where it is not the directory being run in.
 _WORKING: contextvars.ContextVar[pathlib.Path | None] = contextvars.ContextVar(
@@ -68,45 +61,6 @@ def here() -> pathlib.Path:
     with contextlib.suppress(OSError):
         _project(at.absolute(), home())
     return at
-
-
-def host() -> str:
-    """This machine's host name, up to its first `.`."""
-    import socket
-
-    return socket.gethostname().split(".")[0]
-
-
-def machine_id() -> str:
-    """What this machine is called among the machines that mount one home.
-
-    Returns:
-      The content of `/etc/machine-id` on Linux and the `IOPlatformUUID` on macOS, and the
-      host name up to its first `.` elsewhere -- and where either cannot be read, as in a
-      container that was given no machine id.
-    """
-    import re
-    import subprocess
-
-    if sys.platform == "linux":
-        with contextlib.suppress(OSError, UnicodeDecodeError):
-            with open(_MACHINE_ID, encoding="ascii") as reading:  # noqa: PTH123
-                said = reading.read().strip()
-            if said:
-                return said
-    elif sys.platform == "darwin":
-        with contextlib.suppress(OSError, subprocess.SubprocessError):
-            ran = subprocess.run(
-                ["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=10,
-            )
-            found = re.search(_PLATFORM_UUID, ran.stdout)
-            if found:
-                return found.group(1)
-    return host()
 
 
 def machine() -> pathlib.Path:

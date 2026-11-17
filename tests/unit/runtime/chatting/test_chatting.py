@@ -14,6 +14,7 @@ import hmz.coganchor.fence
 from hmz.coganchor import prices, providers
 from hmz.coganchor.agents.native import NativeCommand
 from hmz.flows import (
+    Access,
     AskUserHookAgentMixin,
     AskUserHookResult,
     EnvBackendKind,
@@ -25,7 +26,7 @@ from hmz.flows import (
     Usage,
 )
 from hmz.runtime import epic, flowing
-from hmz.runtime.chatting import Chat, ChatEnd, ChatSpec, resolve
+from hmz.runtime.chatting import Chat, ChatEnd, ChatSpec, Role, resolve
 from hmz.runtime.flowing import harnesses
 from hmz.runtime.flowing.spi import HookTable, Kept, Placement, TurnRequest
 from hmz.runtime.runner import Refused
@@ -846,3 +847,71 @@ def test_a_model_or_effort_changed_in_a_chat_is_its_agent_from_then_on(
     chosen = Settings(wired.workspace).chat_agent
     assert chosen is not None
     assert chosen.spec == "claude/opus:low"
+
+
+# ------------------------------------------------------------------------------ a role
+
+
+def _role(workdir: Path, closed: list[int] | None = None) -> Role:
+    from hmz.flows import FakeTool, Permission, allow, deny
+
+    return Role(
+        workdir=workdir,
+        permission=Permission(
+            preset="danger-full-access", network=False, granular=(deny("/"), allow("."))
+        ),
+        briefing="You are her.",
+        tools=(FakeTool("look", "Looks.", lambda: "seen"),),
+        close=None if closed is None else (lambda: closed.append(1)),
+    )
+
+
+def test_a_chat_with_a_role_works_where_it_says_held_to_it_and_briefed_once(
+    wired: Wired, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    at: list[Path] = []
+
+    def local_env(where: Path) -> Env:
+        at.append(where)
+        return wired.env
+
+    monkeypatch.setattr(flowing, "local_env", local_env, raising=False)
+    closed: list[int] = []
+
+    _had(wired, Person(["more"]), role=_role(scratch, closed))
+
+    assert at == [scratch]
+    assert wired.driver.prompts == ["You are her.\n\nhi", "more"]
+    (opened,) = wired.driver.opened
+    assert opened["permission"].network is False
+    assert opened["permission"].access("/etc") == Access.NONE
+    assert [one.name for one in opened["tools"]] == ["look"]
+    assert opened["clis"] == ()
+    assert closed == [1]
+
+
+def test_a_chat_with_a_role_carried_on_with_nothing_said_waits_and_is_not_briefed_again(
+    wired: Wired, tmp_path: Path
+) -> None:
+    role = _role(tmp_path)
+    first = _had(wired, Person(), role=role)
+    person = Person(["and now?"])
+
+    _had(wired, person, task="", resume=first.epic, role=role)
+
+    assert person.shown == ["", "did: and now?"]
+    assert wired.driver.prompts == ["You are her.\n\nhi", "and now?"]
+
+
+def test_a_new_conversation_put_in_for_one_not_carried_on_is_briefed(
+    wired: Wired, tmp_path: Path
+) -> None:
+    role = _role(tmp_path)
+    first = _had(wired, Person(), role=role)
+    wired.driver.refuses_carrying = HarnessRefused("gone")
+
+    _had(wired, Person(), task="again", resume=first.epic, role=role)
+
+    assert wired.driver.prompts[-1] == "You are her.\n\nagain"

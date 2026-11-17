@@ -86,15 +86,6 @@ ALLOWED: dict[str, set[str]] = {
     # `Outworlder.new` (see HANDED_THROUGH), and the fake tools and command lines it hands an
     # agent, which are coganchor's own (see FAKING).
     "hmz.flows": {"hmz.runtime.flowing", "hmz.coganchor.faking"},
-    # Ai-chan: a flow that is a frontend of the daemon, through the SDK's session alone, held
-    # off the daemon's socket by a fence it checks, and knowing which conversation a tool of
-    # hers is called in from the engine (see AI_CHAN).
-    "hmz.flows.builtin.ai_chan": {
-        "hmz.flows",
-        "hmz.coganchor.fence",
-        "hmz.runtime.flowing.engine",
-        "hmz.sdk",
-    },
     "hmz.runtime.doing": {
         "hmz.coganchor",
         "hmz.reach",
@@ -175,10 +166,6 @@ ALLOWED: dict[str, set[str]] = {
 
 #: The one pair allowed to name each other, and only lazily.
 HANDED_THROUGH = ("hmz.flows", "hmz.runtime.flowing")
-
-#: The one flow that is a frontend as well: it names the SDK and the engine, which name the
-#: flow API, and so the layers it may name may name it -- though nothing but loading it does.
-AI_CHAN = "hmz.flows.builtin.ai_chan"
 
 #: The calls of the flow API that hand their work to the engine.
 HANDING = {"flow", "load", "new"}
@@ -316,7 +303,6 @@ def test_no_two_layers_name_each_other_but_the_flow_api_and_its_engine() -> None
         and not _covers(other, one)
         and _may_name(one, other)
         and _may_name(other, one)
-        and AI_CHAN not in (one, other)
     }
     assert both <= {HANDED_THROUGH}, both
 
@@ -351,8 +337,6 @@ def test_no_import_cycle_crosses_a_layer_but_the_handed_through_pair() -> None:
 def test_the_flow_api_names_the_engine_only_inside_the_calls_that_hand_to_it() -> None:
     reached: dict[str, set[str]] = {}
     for source in sorted((SRC / "hmz" / "flows").rglob("*.py")):
-        if _covers(AI_CHAN, _module(source)):
-            continue
         for node, calls in _within(ast.parse(source.read_text())):
             for name in _spelled(node, _package(source)):
                 if name.split(".")[0] != "hmz" or _covers("hmz.flows", name):

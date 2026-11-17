@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
+from unittest import mock
 
 import pytest
 
@@ -368,9 +369,11 @@ class Workspace:
         person: Any,
         resume: str | None = None,
         prefer: str | None = None,
+        role: Any = None,
     ) -> FakeChatting:
         self.asked_chats.append(
             {"agent": agent, "task": task, "resume": resume, "prefer": prefer}
+            | ({} if role is None else {"role": role})
         )
         made = FakeChatting(
             agent,
@@ -1335,6 +1338,48 @@ def _chatted(host: Host, alice: Told, where: Workspace, **said: Any) -> FakeChat
     return chat
 
 
+def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
+    where: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.runtime.doing import aichan
+
+    reached: list[aichan.Reach] = []
+
+    def role(reach: aichan.Reach) -> object:
+        reached.append(reach)
+        return mock.sentinel.role
+
+    monkeypatch.setattr(aichan, "role", role)
+    host = Host(cast("Any", where), "ai:1")
+    try:
+        alice = Told(host, "alice")
+        ai = {"id": 1, "scope": "daemon", "preset": "read-only", "network": False}
+
+        answer = alice.asks("chat.start", agent="claude/opus:high", task="hi", ai=ai)
+
+        assert answer["ok"], answer
+        assert reached == [aichan.Reach(id=1)]
+        assert where.asked_chats[-1]["role"] is mock.sentinel.role
+        refused = alice.asks("start", flow="ralph", task="fix it")
+        assert refused["why"] == "an Ai-chan host runs its own conversation"
+    finally:
+        host.close()
+
+
+def test_an_ai_chan_conversation_carried_on_needs_nothing_said(
+    where: Workspace,
+) -> None:
+    assert hosting.chat_checked(
+        cast("Any", where), {"agent": "claude/opus", "task": ""}
+    ) == {"ok": False, "why": "a chat starts with something said", "code": 400}
+    where.epics.kept["20260101-chat"] = where.workspace / "20260101-chat"
+    checked = hosting.chat_checked(
+        cast("Any", where),
+        {"agent": "claude/opus", "task": "", "resume": "20260101-chat", "ai": {}},
+    )
+    assert (checked["ok"], checked["task"]) == (True, "")
+
+
 def test_a_chat_starts_on_its_own_host_and_says_it_is_a_chat(
     chatting: tuple[Host, Told], where: Workspace
 ) -> None:
@@ -1703,30 +1748,6 @@ def test_a_flow_listening_on_the_workspaces_own_host_never_folds(
     assert not asking.done.wait(1.0)
     assert host.status()["state"] == "running"
     assert host.status()["epic_kind"] == "flow"
-
-
-def test_ai_chan_on_her_own_host_says_her_turn_and_folds_away(
-    where: Workspace, outworlders: Outworlders, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(hosting, "FOLD", 0.0)
-    host = Host(cast("Any", where), "ai:1")
-    try:
-        alice = Told(host, "alice")
-        _started(alice, where)
-        assert host.status()["turn"] == "running"
-        assert outworlders.ask is not None
-        asking = Asking()(outworlders.ask, Question("anything else?"))
-        alice.told("asked", run=1, mode="listen")
-        assert host.status()["turn"] == "done"
-
-        host.detach(alice.client)
-
-        # Nobody there, between turns: what she waits on is answered with nothing.
-        assert asking.done.wait(PATIENCE)
-    finally:
-        host.close()
-        for one in where.runs:
-            one.released.set()
 
 
 def _waited(what: Callable[[], bool]) -> bool:

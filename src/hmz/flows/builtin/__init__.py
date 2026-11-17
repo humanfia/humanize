@@ -7,10 +7,6 @@ they are what Humanize is for before anything has been fetched: a machine that h
 reached a network still has to have a loop to leave running, and a first run that had to clone
 before it could would be a first run that failed on the train.
 
-Beside them is `ai_chan`, Ai-chan, the agent through which you operate hmz, which the
-daemon runs for each conversation with her: written against :mod:`hmz.flows` too, and
-speaking to the daemon through :mod:`hmz.sdk`, with no budget of her own.
-
 Talking to one agent is not among them: a chat is no flow, but an epic of its own kind
 (:mod:`hmz.runtime.chatting`), with no loop around it to keep here.
 

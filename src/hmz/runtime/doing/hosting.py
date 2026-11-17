@@ -70,7 +70,7 @@ if TYPE_CHECKING:
         SessionBase,
     )
     from hmz.coganchor.agents.native import NativeCommand
-    from hmz.runtime.chatting import Prefer
+    from hmz.runtime.chatting import Prefer, Role
     from hmz.runtime.doing.core import Hmz, Holding
     from hmz.runtime.doing.running import Chatting, Run
     from hmz.runtime.flowing.spi import Placement
@@ -1033,22 +1033,14 @@ class Host:
             **self._turn(shown),
         )
 
-    def _converses(self, shown: _Run) -> bool:
-        """Whether an epic takes turns as a chat does: a chat, or an Ai-chan conversation.
-
-        Ai-chan's flow, on the host of an `ai:` slot, takes turns, is reported and folds away
-        as a chat does (Section 14.8 of core.md).
-        """
-        return shown.run.kind == "chat" or self._slot.startswith("ai:")
-
     def _turn(self, shown: _Run | None) -> dict[str, str]:
         """Where a chat is in its turn: "running" while its agent answers, "done" otherwise.
 
         A turn ends where the chat asks what to say next, or where the chat does; what the
-        agent asks its user mid-turn is not the end of one. Nothing for an epic of any other
-        flow than Ai-chan's. Under the lock.
+        agent asks its user mid-turn is not the end of one. Nothing for an epic of a flow.
+        Under the lock.
         """
-        if shown is None or not self._converses(shown):
+        if shown is None or shown.run.kind != "chat":
             return {}
         listening = any(
             one.run == shown.number and one.mode == "listen" for one in self._questions
@@ -1119,7 +1111,7 @@ class Host:
             not self._slot
             or self._folded
             or current is None
-            or not self._converses(current)
+            or current.run.kind != "chat"
             or self._frontends
             or self._turn(current).get("turn") != "done"
         ):
@@ -1197,6 +1189,8 @@ class Host:
                 return _no("this host has closed")
             if self._slot.startswith("chat:"):
                 return _no("a chat is started with chat.start")
+            if self._slot.startswith("ai:"):
+                return _no("an Ai-chan host runs its own conversation")
             if self._current is not None:
                 return _no("a flow is already running")
             if self._starting:
@@ -1346,10 +1340,18 @@ class Host:
             return checked
         agent, task, resume = checked["agent"], checked["task"], checked["resume"]
         prefer: Prefer | None = checked["prefer"]
+        role: Role | None = None
+        if self._slot.startswith("ai:"):
+            # An Ai-chan conversation: a chat whose assistant plays her role, held to the
+            # reach it was made with (Section 14 of core.md).
+            from hmz.runtime.doing.aichan import Reach
+            from hmz.runtime.doing.aichan import role as playing
+
+            role = playing(Reach.model_validate(said.get("ai") or {}))
         with self._lock:
             if self._closed:
                 return _no("this host has closed", 409)
-            if not self._slot.startswith("chat:"):
+            if not self._slot.startswith(("chat:", "ai:")):
                 return _no(f"{self._slot or 'the workspace'} is not a chat slot.", 400)
             if self._folded:
                 return _no(_FOLDED, 409)
@@ -1369,6 +1371,7 @@ class Host:
                 person=person,
                 resume=resume or None,
                 prefer=prefer,
+                role=role,
             )
         except Exception as why:  # noqa: BLE001 -- a chat that will not start is said so
             with self._lock:
@@ -2604,7 +2607,9 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
       `ok` false with `why` and the `code` to refuse it with.
     """
     task, prefer = said.get("task"), said.get("prefer")
-    if not isinstance(task, str) or not task:
+    # An Ai-chan conversation carried on waits, between turns, for what is said next.
+    waits = said.get("ai") is not None and bool(said.get("resume"))
+    if not isinstance(task, str) or not (task or waits):
         return _no("a chat starts with something said", 400)
     if prefer not in (None, "native", "flow"):
         return _no("prefer is native or flow", 400)

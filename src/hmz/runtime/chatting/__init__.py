@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents.base import AgentBase, SessionBase
     from hmz.coganchor.agents.native import NativeCommand
-    from hmz.flows import AskUserHookResult, Permission, Usage
+    from hmz.flows import AskUserHookResult, FakeCli, FakeTool, Permission, Usage
     from hmz.runtime.backing import Keeping
     from hmz.runtime.epic import Drove, Epic, Ran
     from hmz.runtime.flowing import AgentDriver, EnvDriver, SessionHandle
@@ -156,15 +156,37 @@ def resolve(
 
 
 @dataclass(frozen=True, slots=True)
+class Role:
+    """What the assistant of a chat is beyond its agent: Ai-chan's, for her conversations.
+
+    Attributes:
+      workdir: Where its harness works, in place of the workspace.
+      permission: What it may touch, in place of the workspace and the web.
+      briefing: What it is told ahead of the first message of each new conversation.
+      tools: The tools it is offered.
+      clis: The command lines put on its PATH.
+      close: What is done once the chat has ended.
+    """
+
+    workdir: Path
+    permission: Permission
+    briefing: str
+    tools: tuple[FakeTool, ...] = ()
+    clis: tuple[FakeCli, ...] = ()
+    close: Callable[[], object] | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ChatSpec:
     """What a chat is started with.
 
     Attributes:
       workspace: The workspace it is had in, on this machine.
       agent: The assistant, as `-a` spells an agent (`claude/MODEL:high`).
-      task: The first message.
+      task: The first message; "" for a chat carried on that waits for the person's.
       resume: The epic directory of a chat to carry on, or None for a new one.
       prefer: This chat's own preference, or None to go by the person's setting.
+      role: What the assistant is beyond its agent, or None for a plain chat's.
     """
 
     workspace: Path
@@ -172,6 +194,7 @@ class ChatSpec:
     task: str
     resume: Path | None = None
     prefer: Prefer | None = None
+    role: Role | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -396,7 +419,7 @@ class Chat:
                 watch = getattr(driver, "watch", None)
                 if callable(watch):
                     watch(listener)
-            local = local_env(workspace)
+            local = local_env(spec.role.workdir if spec.role else workspace)
             _priced()
             await _placeable(driver, local)
         except BaseException as why:
@@ -464,6 +487,8 @@ class Chat:
             finally:
                 if keeping is not None:
                     keeping.ended()
+                if spec.role is not None and spec.role.close is not None:
+                    spec.role.close()
         return ChatEnd(epic.path, "stopped")
 
 
@@ -550,6 +575,13 @@ class _Talk:
         #: The `!` commands run since the last turn, carried into the next as blocks.
         ran: list[str] = []
         message = chat.spec.task
+        role = chat.spec.role
+        #: Whether the conversation open now was told its role's briefing.
+        briefed = role is None or carrying
+        if not message and before is not None:
+            # Carried on with nothing said yet: between turns, waiting on the person.
+            message = await person.next(unkept)
+            unkept = ""
         try:
             while message:
                 line = message.strip()
@@ -587,6 +619,8 @@ class _Talk:
                 # turn, so what `!` ran waits for the turn after it.
                 ahead = bool(ran) and not (native and line[:1] in "/$")
                 prompt = "\n".join([*ran, line]) if ahead else line
+                if not briefed and role is not None:
+                    prompt = f"{role.briefing}\n\n{prompt}"
                 try:
                     answered = await self._turn(handle, prompt, native=native)
                     if native and line.split(maxsplit=1)[0] in ("/model", "/effort"):
@@ -599,11 +633,12 @@ class _Talk:
                         # one: a turn that failed -- a limit, the network -- is said instead.
                         unkept = _restarted(str(failed))
                         handle = await self._renewed(handle)
+                        briefed = role is None
                         carrying = False
                         continue
                     answered = f"That turn could not be taken: {failed}"
                 else:
-                    self.taken = True
+                    self.taken = briefed = True
                     if ahead:
                         ran.clear()
                 opening = carrying = False
@@ -678,11 +713,19 @@ class _Talk:
           HarnessError: The leaf for why it could not be opened.
         """
         placement = self._local.placement()
-        permission = _permission()
+        role = self._chat.spec.role
+        permission = _permission() if role is None else role.permission
+        offered: dict[str, Any] = (
+            {} if role is None else {"tools": role.tools, "clis": role.clis}
+        )
         # Given only where there is one, as the driver's contract has it.
         handle = await (
             self._driver.open(
-                placement, permission=permission, skills=(), hooks=self._hooks
+                placement,
+                permission=permission,
+                skills=(),
+                hooks=self._hooks,
+                **offered,
             )
             if kept is None
             else self._driver.open(
@@ -691,6 +734,7 @@ class _Talk:
                 skills=(),
                 hooks=self._hooks,
                 carry_on=kept,
+                **offered,
             )
         )
         self.handle = handle

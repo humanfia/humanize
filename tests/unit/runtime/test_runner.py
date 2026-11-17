@@ -195,12 +195,6 @@ class Params(pydantic.BaseModel):
     rounds: int = 1
 
 
-class Conversation(Params):
-    """The params of an Ai-chan conversation, as far as a runner reads them."""
-
-    id: int = 0
-
-
 @dataclass
 class Impl:
     """A flow, loaded, as far as a runner reads one."""
@@ -270,8 +264,6 @@ class Flowing:
     """Everything a runner asks of the engine and its drivers, answered here."""
 
     impl: Impl
-    scratched: bool = False
-    local_at: list[Path] = field(default_factory=list[Path])
     refuses: BaseException | None = None
     opened_agents: list[AgentSpec] = field(default_factory=list[AgentSpec])
     opened_envs: list[EnvSpec] = field(default_factory=list[EnvSpec])
@@ -314,11 +306,7 @@ class Flowing:
             return "returned"
         return self.flow(said)
 
-    def is_scratched(self, impl: Impl) -> bool:
-        return self.scratched
-
     def local_env(self, at: Path) -> Env:
-        self.local_at.append(at)
         return self.local
 
     def find(self, cli: str, name: str) -> object:
@@ -350,7 +338,6 @@ def declared() -> Declaration:
 def engine_(declared: Declaration, monkeypatch: pytest.MonkeyPatch) -> Flowing:
     made = Flowing(Impl(declared))
     monkeypatch.setattr(flowing, "resolved", made.resolved, raising=False)
-    monkeypatch.setattr(flowing, "scratched", made.is_scratched, raising=False)
     monkeypatch.setattr(flowing, "run_flow", made.run_flow, raising=False)
     monkeypatch.setattr(flowing, "probe", made.probe, raising=False)
     monkeypatch.setattr(flowing, "local_env", made.local_env, raising=False)
@@ -966,40 +953,6 @@ def test_a_run_with_no_limit_on_cost_writes_down_a_cost_that_reads_back(
 
     assert _ran(runner)["budget"]["cost"] == "Infinity"
     assert _ran(runner)["kind"] == "flow"
-
-
-def test_a_run_fills_its_local_roles_with_the_workspace(
-    engine_: Flowing, tmp_path: Path
-) -> None:
-    runner = _runner(workspace=tmp_path)
-
-    runner.run("go")
-
-    assert engine_.local_at == [tmp_path]
-
-
-def test_ai_chan_runs_unbounded_in_her_conversations_scratch_directory(
-    engine_: Flowing, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import hmz
-
-    engine_.scratched = True
-    monkeypatch.setattr(hmz, "machine_id", lambda: "box")
-    runner = Runner(
-        "ai_chan",
-        agents=cast("Any", {"builder": Agent()}),
-        params=cast("Any", Conversation(id=3)),
-        workspace=tmp_path,
-    )
-
-    runner.run("hello")
-
-    assert _ran(runner)["budget"]["cost"] == "Infinity"
-    (scratch,) = engine_.local_at
-    assert scratch == hmz.home() / "ai" / "box" / "3"
-    assert scratch.is_dir()
-    assert scratch.stat().st_mode & 0o777 == 0o700
-    assert scratch.parent.stat().st_mode & 0o777 == 0o700
 
 
 def test_a_resumable_flow_keeps_its_journal_in_the_epic(

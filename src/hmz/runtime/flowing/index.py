@@ -100,7 +100,6 @@ RECORD = ".installed.json"
 #: name is an ordinary one (Section 8.3.6 of [CORE]).
 RESERVED = frozenset(
     {
-        "ai_chan",
         "continue_loop",
         "flame_chase",
         "goal",

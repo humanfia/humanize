@@ -828,8 +828,7 @@ place of the build its installation carries (Section 7.5); one that does not exi
 the builds of Section 7.5.1 from which it copies one to another machine; hmz MUST set it to that
 directory.
 
-**3.11.2.17** `HUMANIZE_AICHAN_LINK` MUST name, to the host of an `ai:` slot and to the flow
-`ai_chan` it runs, the socket of that conversation's scoped link (Section 7.6.9, Section 4.22.6 of
+**3.11.2.17** `HUMANIZE_AICHAN_LINK` MUST name, to the host of an `ai:` slot, the socket of that conversation's scoped link (Section 7.6.9, Section 4.22.6 of
 [DAEMON]); the daemon MUST set it for that host alone, and no other process MUST read it.
 #### 3.11.3. Other variables
 

@@ -62,7 +62,6 @@ __all__ = [
     "offers",
     "placed",
     "resolved",
-    "scratched",
     "within",
 ]
 
@@ -100,10 +99,6 @@ def placed(file: str | os.PathLike[str]) -> Path:
 #: Worked out from where this file is rather than by importing the flow API, which a listing
 #: of places has no need to pay for.
 BUILTIN_AT = placed(__file__).parents[2] / "flows" / "builtin"
-
-#: Where Ai-chan's flow is, said by where it is rather than by a name a flow of yours could
-#: take.
-_SCRATCHED_AT = BUILTIN_AT / "ai_chan"
 
 #: What a flow's own name is separated from the one inside it by. A module that holds one
 #: visible flow is named by itself; one that holds three names the others after it.
@@ -438,23 +433,6 @@ def builtin(flow: FlowImpl) -> bool:
       Whether it was defined under :data:`BUILTIN_AT`.
     """
     return _made(flow).is_relative_to(BUILTIN_AT)
-
-
-def scratched(flow: FlowImpl) -> bool:
-    """Whether a flow is Ai-chan's `ai_chan`, run in her conversation's scratch directory.
-
-    Her `LocalEnv` roles are that directory rather than the workspace she is about, and she
-    talks for as long as you do, so she runs with no budget (Section 14.4 of core.md). Shipping
-    with Humanize is not what earns either: the loops beside her spend under a budget, like a
-    flow of anybody's.
-
-    Args:
-      flow: The flow.
-
-    Returns:
-      Whether it was defined in the package's own `ai_chan`.
-    """
-    return _made(flow).is_relative_to(_SCRATCHED_AT)
 
 
 def _made(flow: FlowImpl) -> Path:

@@ -1833,11 +1833,11 @@ conversation's host where one holds it (Section 4.13.6), MUST forget it as Secti
 
 #### 4.22.5. Ai-chan hosts
 
-**4.22.5.1** The host of an `ai:` slot MUST, as it starts, run its conversation's epic of the flow
-`ai_chan`, with the params of Section 14.4.2 of [CORE] from the conversation's record, the agent of
-the role `ai_chan` its `nous`, and `HUMANIZE_AICHAN_LINK` naming the socket of its scoped link
+**4.22.5.1** The host of an `ai:` slot MUST, as it starts, have its conversation's chat (Section
+14.4 of [CORE]), with what Section 14.4.2 of [CORE] names from the conversation's record, its
+assistant the conversation's `nous`, and `HUMANIZE_AICHAN_LINK` naming the socket of its scoped link
 (Section 3.11.2.17 of [FILES]): anew, with the task of `aichan.create` as the first message, the
-first time; and carrying on its recorded epic (`resume`), waiting between turns, every later time.
+first time; and carrying on its recorded epic, waiting between turns, every later time.
 
 **4.22.5.2** `epic.attach` naming the `ai:` slot of a conversation whose host has gone MUST start
 that host as Section 4.22.5.1 states and attach to it; `epic.attach` and `hosts.open` naming an

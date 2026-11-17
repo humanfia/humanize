@@ -17,12 +17,16 @@ moment, and never makes a second while it holds one.
 from __future__ import annotations
 
 import base64
+import contextlib
 import datetime
 import fcntl
 import hashlib
 import os
 import re
 import secrets
+import socket
+import subprocess
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -36,7 +40,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 )
 from cryptography.x509.oid import NameOID
 
-from hmz import home, host, machine_id
+from hmz import home
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -74,6 +78,12 @@ _SIGNATURE = 64
 
 #: What an SPKI fingerprint looks like: 32 bytes in lowercase base32, unpadded.
 _FINGERPRINT = re.compile(r"[a-z2-7]{52}")
+
+#: Where Linux keeps the id of the machine, written once when it was installed.
+_MACHINE_ID = "/etc/machine-id"
+
+#: The line of `ioreg` that holds a Mac's own id.
+_PLATFORM_UUID = re.compile(r'"IOPlatformUUID"\s*=\s*"([^"]+)"')
 
 
 @dataclass(frozen=True)
@@ -178,6 +188,40 @@ def verifies(certificate: x509.Certificate, message: bytes, signature: bytes) ->
     except InvalidSignature:
         return False
     return True
+
+
+def host() -> str:
+    """This machine's host name, up to its first `.`."""
+    return socket.gethostname().split(".")[0]
+
+
+def machine_id() -> str:
+    """What this machine is called among the machines that mount one home.
+
+    Returns:
+      The content of `/etc/machine-id` on Linux and the `IOPlatformUUID` on macOS, and the
+      host name up to its first `.` elsewhere -- and where either cannot be read, as in a
+      container that was given no machine id.
+    """
+    if sys.platform == "linux":
+        with contextlib.suppress(OSError, UnicodeDecodeError):
+            with open(_MACHINE_ID, encoding="ascii") as reading:  # noqa: PTH123
+                said = reading.read().strip()
+            if said:
+                return said
+    elif sys.platform == "darwin":
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            ran = subprocess.run(
+                ["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
+            found = _PLATFORM_UUID.search(ran.stdout)
+            if found:
+                return found.group(1)
+    return host()
 
 
 def directory() -> Path:

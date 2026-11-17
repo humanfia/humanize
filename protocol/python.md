@@ -1583,8 +1583,8 @@ of the others. A `Graceful` whose three fields agree MUST be read as the `bool` 
 turns each counting. `Usage.cost` MUST be in US dollars. `Usage.output_tokens` MUST be the tokens
 agents wrote.
 
-**3.12.1.6** hmz MUST require a budget for the top call of every epic except of the `ai_chan` flow,
-given as specified in [CLI]. A top call of it given none MUST run under `Budget(cost=math.inf)`.
+**3.12.1.6** hmz MUST require a budget for the top call of every epic, given as specified in
+[CLI].
 
 #### 3.12.2. Effective budget
 
@@ -1819,7 +1819,6 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 
 | Flow | Agent roles | Role needs | Resumable |
 | --- | --- | --- | :-: |
-| `ai_chan` | `ai_chan`, `human: Outworlder` | none | ✓ |
 | `ralph_loop` | `agent` | none | |
 | `stateful_ralph` | `agent` | none | ✓ |
 | `continue_loop` | `agent` | none | |
@@ -1828,8 +1827,7 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 | `rlar` | `actor`, `reviewer` | none | ✓ |
 
 **3.14.3.2** Every flow MUST be granted exactly what its roles declare. A chat is not a flow, and
-is specified in Section 8 of [CORE]; the behaviour of `ai_chan`, whose environment role is
-`scratch` in place of `workspace`, is specified in Section 14 of [CORE].
+is specified in Section 8 of [CORE], as an Ai-chan conversation is in Section 14 of [CORE].
 
 **3.14.3.3** Each flow of Section 3.14.3.1 MUST run until its budget is spent,
 `rlar` also until its reviewer says the work is done, and MUST end the epic with the failure of any
@@ -2318,8 +2316,7 @@ them, or an instance of the flow's `FlowParams`, sent as its JSON; `None` MUST m
 defaults.
 
 **4.4.5.9** The parameter `budget` MUST accept a `Budget` or a mapping validated as `Budget`
-validates one; `None` MUST mean an unlimited cost for the built-in `ai_chan` flow and MUST be
-refused for every other flow.
+validates one; `None` MUST be refused.
 
 **4.4.5.10** `profile_flow` and `profile_environment` MUST mean what `--profile-flow` and
 `--profile-environment` mean in [CLI].
@@ -3455,8 +3452,8 @@ the message `the daemon went away`.
 
 **4.21.8** `Client.local` with `kind` `ai-chan` MUST open its session over the scoped link that
 `HUMANIZE_AICHAN_LINK` names (Section 3.11.2.17 of [FILES]) in place of the daemon's socket, MUST
-NOT start a daemon, and MUST raise `OSError` where that variable is unset; the flow `ai_chan` speaks
-to the daemon through that `Client` alone (Section 14.6.2 of [CORE]).
+NOT start a daemon, and MUST raise `OSError` where that variable is unset; Ai-chan's tools speak
+to the daemon over that scoped link alone (Section 14.6.2 of [CORE]).
 
 ## 5. Security Considerations
 
