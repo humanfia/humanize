@@ -57,6 +57,7 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | --- | --- |
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
 | Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
+| Asking a person | [`Markdown`, `Code`, `Diff`, `Table`, `Image`, `Json`, `Chart`, `Block`](#context-blocks), [`Face`, `FACE_GUIDE`](#face) |
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` ([table](#what-each-harness-serves)) |
 | Fake tools and command lines | [`FakeTool`](#fake-tools), [`FakeCli`, `FakeCommand`](#fake-clis): `hmz.coganchor.faking`'s own, re-exported |
 | Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
@@ -997,7 +998,7 @@ to) and `session: Session` (the session the moment arrived in). All params and r
 | `SUBAGENT_START` | `subagent: str`, `task: str = ""` | `context: str = ""` |
 | `SUBAGENT_STOP` | `subagent: str`, `said: str = ""` | `block: bool = False`, `reason: str = ""` |
 | `ASK_USER` | `question: str`, `options: tuple[str, ...] = ()` | `answer: str \| None = None` |
-| `OUTWORLDER_RUN` | `prompt: str`, `output_schema: type[BaseModel] \| None = None` | `output: str \| BaseModel` (required) |
+| `OUTWORLDER_RUN` | `prompt: str`, `output_schema: type[BaseModel] \| None = None`, `context: tuple[Block, ...] = ()`, `face: Face \| None = None` | `output: str \| BaseModel` (required) |
 
 The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.g.
 `StopHookParams`, `StopHookResult`). A result constructed with no arguments changes nothing.
@@ -1012,6 +1013,7 @@ The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.
 | `block`, `reason` | See [`run`](#run) for `USER_PROMPT_SUBMIT` and `STOP`. A blocked `PRE_TOOL_USE` refuses the tool and tells the agent `reason` (`refused by a hook` if empty). `SUBAGENT_STOP` results are delivered to no CLI. |
 | `allow`, `reason` | `allow=False` refuses the tool, overriding the bypassed approvals; the agent is told `reason` (on Codex, whose refusals carry no reason, as a steer into the turn). |
 | `output` | What the outworlder's `run` returns: text, or an instance of `output_schema`. |
+| `prompt`, `output_schema`, `context`, `face` | Of `OUTWORLDER_RUN`: what `run` was called with, its [context blocks](#context-blocks) as given, and the [face](#face) the session was spawned with. |
 
 **Rules.**
 
@@ -1075,6 +1077,12 @@ The bases of every `<Moment>HookParams` and `<Moment>HookResult`.
 class Outworlder(Agent, Protocol):
     away: bool                                     # read-only property
 
+    async def spawn(self, *, face: Face | None = None) -> Session: ...
+    async def run(self, prompt: str, *, session: Session, env: Env | None = None,
+                  output_schema: type[M] | None = None, budget: Budget | None = None,
+                  context: Sequence[Block] = ()) -> str | M: ...
+    async def show(self, context: Sequence[Block], *, session: Session) -> None: ...
+
     @classmethod
     def new(cls) -> Self: ...
     def on_outworlder_run(self, fn: HookFn | None) -> None: ...
@@ -1086,13 +1094,23 @@ the run; naming it with `-a` is refused
 
 | Member | Behaviour |
 | --- | --- |
-| `spawn()` | Opens a session of the outworlder. |
-| `run(prompt, session=…, env=None, output_schema=None)` | Asks the person and returns what they typed; with `output_schema`, asks one question per field and builds the model. A person works nowhere: `env` is checked and otherwise ignored. |
+| `spawn(face=None)` | Opens a session of the outworlder. A [`Face`](#face) is mounted for that session's whole life: every question of the session is drawn with it where a face can be drawn. |
+| `run(prompt, session=…, env=None, output_schema=None, budget=None, context=())` | Asks the person and returns the answer: the text, or, with `output_schema`, an instance of it. The whole schema is asked at once, as one question, never a field at a time. `context` goes with the question. A person works nowhere: `env` is checked and otherwise ignored. |
+| `show(context, session=…)` | Puts `context` in front of the person with nothing to answer. Never waits on them. Does nothing while away, and on an outworlder from `new()`. |
 | `away` | `True` under `hmz exec` (no one is at a prompt) and while [`/afk`](/user/afk) is on for the role. |
 | `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |
-| `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. |
+| `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. The hook is handed the prompt, the schema, the context and the session's face ([fields](#hook-fields)). |
 | `fork` | `UnsupportedOperation`: `an outworlder's session cannot be forked`. |
 | `derive(permission=…, skills=…)` | Returns the same outworlder. A permission that the default `Permission()` does not cover raises `CapabilityNotGranted`: `<role>: <permission> is wider than the <granted> an outworlder is granted`. Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
+
+**Who answers.** The run's outworlder is answered by a person through a frontend, the web page
+or the terminal, by an [SDK driver](/reference/sdk#outworlderdriver), or by nobody (away).
+Each is handed the same question: the prompt, the context as JSON, the JSON Schema of
+`output_schema` (`model_json_schema()`, or nothing for text), the face's hash, and the session
+(`<role>/<n>`). Every answer to a schema question is a JSON value, validated against
+`output_schema` by the host before `run` returns. One that does not fit is refused to whoever
+sent it, with each error's `path` and `message`, and the question stays up: `run` never sees a
+misfit.
 
 **While away**, `run` returns at once: `""` for text; the schema built from defaults where
 every field has one; otherwise `OutworlderAway`:
@@ -1104,6 +1122,94 @@ declares no mixin and no harness; a role that does raises `CapabilityMissing`
 (`<ref>: '<role>' asks for what no outworlder can do`). The run's outworlder is asked, and
 asked whether it is away, as the `Outworlder` role the run filled with it, whatever role name
 a caller passes it under.
+
+### Context blocks {#context-blocks}
+
+```python
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Markdown:
+    text: str
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+Block = Markdown | Code | Diff | Table | Image | Json | Chart
+```
+
+What `run(context=…)` and `show` take. Each block is a frozen, slotted, keyword-only
+dataclass with `title: str = ""` and `as_json()`, which returns its JSON form: the form every
+frontend, SDK driver and [face](#face) receives. The JSON form carries `"title"` only where it
+is set.
+
+| Block | Fields | JSON form |
+| --- | --- | --- |
+| `Markdown` | `text: str` | `{"kind": "markdown", "text"}` |
+| `Code` | `text: str`, `language: str = ""` | `{"kind": "code", "text", "language"}` |
+| `Diff` | `patch: str`: a unified diff, which may span files | `{"kind": "diff", "patch"}` |
+| `Table` | `columns: tuple[str, ...]`, `rows: tuple[tuple[Any, ...], ...]` | `{"kind": "table", "columns", "rows"}` |
+| `Image` | `data: bytes`, `mime: str`, `alt: str = ""` | `{"kind": "image", "mime", "data", "alt"}`, `data` in base64; at most 4 MiB before encoding |
+| `Json` | `value: Any` | `{"kind": "json", "value"}` |
+| `Chart` | `spec: Mapping[str, Any]`: a Vega-Lite spec | `{"kind": "chart", "spec"}` |
+
+| Frontend | Draws |
+| --- | --- |
+| Web page | Every kind: Markdown rendered, code and diffs highlighted (a diff file by file), a table, an image, JSON as a tree, a chart. A long block is folded behind a one-line summary; the first is open. |
+| Terminal | Markdown, code, diffs and tables in the transcript; an image or a chart as a line pointing to the web page. |
+
+### `Face` {#face}
+
+```python
+@dataclass(frozen=True)
+class Face:
+    html: str
+    title: str = ""
+
+    @property
+    def hash(self) -> str: ...                    # sha256 hex of html
+    @classmethod
+    def file(cls, path: str | os.PathLike[str], *, title: str = "") -> Face: ...
+    @classmethod
+    def html(cls, text: str, *, title: str = "") -> Face: ...
+    @classmethod
+    async def design(cls, agent: Agent, *, session: Session, about: str,
+                     output_schema: type[BaseModel] | None = None,
+                     env: Env | None = None) -> Face: ...
+
+FACE_GUIDE: str
+```
+
+A page of the flow's own that draws a session's questions in the web page instead of the form
+Humanize draws. Given to [`Outworlder.spawn`](#outworlder). Guide:
+[A face for the person](/weaver/faces).
+
+| Member | Behaviour |
+| --- | --- |
+| `hash` | The sha256 of `html`, in hex. A question names its face by it. |
+| `Face.file(path, title="")` | Reads `path`, relative to the directory of the module that calls it, as UTF-8. |
+| `Face.html(text, title="")` | A face from the HTML itself. |
+| `Face.design(agent, session=…, about=…, output_schema=None, env=None)` | Runs one turn of `agent` in `session` with `FACE_GUIDE`, `about` and the schema's JSON Schema, and returns the first fenced `html` block of its answer, or the whole answer where there is none. `ValueError` where no HTML came back. |
+| `FACE_GUIDE` | The bridge and the rules below, written for an agent: one self-contained HTML file, no network, the page's theme. |
+
+**The bridge.** The face is served in a frame and handed `window.hmz` before its own scripts
+run:
+
+| Call | Behaviour |
+| --- | --- |
+| `hmz.on("ask", ({prompt, context, schema, errors}) => …)` | Each new question of the session. `context`: block JSON forms; `schema`: a JSON Schema or `null`; `errors`: `[]`, or `[{path, message}]` of a refused try. |
+| `hmz.on("show", (context) => …)` | What `show` pushed. |
+| `hmz.on("theme", (tokens) => …)` | The page's CSS variables, on a change of theme. They are set on `:root` before the face loads. |
+| `hmz.submit(value)` | Answers the current question. A promise of `{ok: true}` or `{ok: false, errors}`. |
+| `hmz.resize(height)` | Sets the frame's height, in CSS pixels. |
+
+**Rules.**
+
+| Rule | |
+| --- | --- |
+| Sandbox | `<iframe sandbox="allow-scripts allow-forms">`: an opaque origin, no cookies, no call to the daemon. |
+| Policy | `default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'`. `'self'` lets it import the page's `/vendor/*.js`. |
+| Channel | A `MessageChannel` port handed over once, at load. Messages from anywhere else are ignored. |
+| One per session | One frame per outworlder session, kept across its questions. |
+| Falling back | The form is drawn instead where the face fails to load, throws before it calls `hmz.on("ask", …)`, or does not answer the page within 5 s; and whenever the person presses **Plain form**. |
+| Elsewhere | The terminal and SDK drivers draw no face: they get its hash only. |
 
 ## Environment roles {#where-each-agent-works}
 
@@ -2343,8 +2449,10 @@ Its `argv`, `typed`, `sizes` (`(cols, rows)`, the first the one it was opened wi
 FakeOutworlder(reply: Reply = None, *, away: bool = False)
 ```
 
-Answers like a `FakeAgentDriver` (a function receives `output_schema=`), or is away.
-`asked` lists every prompt it was asked.
+Answers like a `FakeAgentDriver`, or is away: a reply is text, a pydantic model, or a mapping
+or JSON text validated into the schema asked for; a function receives `output_schema=`.
+`asked` lists every question it was asked, each the [`Ask`](/reference/sdk#outworlderdriver) an
+SDK driver receives, with `model` set to the schema asked for.
 
 <style>
 .harness-matrix table {

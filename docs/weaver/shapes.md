@@ -233,8 +233,20 @@ class Triage(BaseModel):
 ```
 
 **Ask a person instead.** Hand the same model to [the person as an agent](/weaver/human-agent),
-and they get a question per field instead of a JSON Schema. The same decision can go to a
-model or to a person.
+and they get one form drawn from it instead of a JSON Schema: `done` as two buttons, `notes`
+as a text box, with whatever you pass as `context`, a diff say, above them. Their answer is
+checked against `Review` as an agent's is, and the flow gets a `Review` either way. The same
+decision can go to a model or to a person:
+
+```python
+reviewer = agents["human"]  # an Outworlder role, instead of an Agent
+review = await reviewer.run(
+    "Is there anything left to do?",
+    session=await reviewer.spawn(),
+    output_schema=Review,
+    context=[Diff(patch=patch)],
+)
+```
 
 ## Pitfalls
 
@@ -250,7 +262,8 @@ model or to a person.
 ## Next steps
 
 - [Answers in a shape](/features/shapes): what the shape moves, drawn
-- [The person as an agent](/weaver/human-agent)
+- [The person as an agent](/weaver/human-agent), and [a face](/weaver/faces) for when the form
+  is not enough
 - [Testing a flow](/weaver/testing-flows)
 - [Reference › `Agent.run`](/reference/flows#run) and
   [Sessions and turns](/reference/flows#sessions-and-turns)

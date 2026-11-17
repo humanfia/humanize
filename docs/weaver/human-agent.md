@@ -6,8 +6,9 @@ import PersonTurn from '../.vitepress/theme/components/weaver-person/PersonTurn.
 
 In this guide you make the person running a flow one of its agents. You build `talk`, a
 conversation where every line the person types is the next turn, then `settle`, which asks the
-person a short questionnaire before an agent starts, and finally `scripted`, which stands in
-for the person with code.
+person one short form before an agent starts, and finally `scripted`, which stands in for the
+person with code. On the way you show the person what they are deciding on: a diff, a table, a
+chart.
 
 Reach for this when a decision in the flow belongs to a person: how to build something, whether
 to go on, what to say next. It is not [steering](/user/steering): steering is you putting words
@@ -15,7 +16,7 @@ into an agent's turn, while an agent of this kind takes turns of its own.
 
 ::: info Before you start
 - A flow of your own running: [Your first flow](/weaver/writing-a-flow).
-- [Answers in a shape](/weaver/shapes), for the questionnaire.
+- [Answers in a shape](/weaver/shapes), for the form.
 - For the last example, [A flow that calls a flow](/weaver/calling-flows).
 :::
 
@@ -25,8 +26,13 @@ into an agent's turn, while an agent of this kind takes turns of its own.
 
 An **outworlder** is whoever is outside the run: the person at the prompt, or whatever stands in
 for them. A flow declares one as a role typed `Outworlder`, and drives it the way it drives a
-coding agent: `spawn` a session, then `run` in it. `run` shows the person the prompt and
-returns what they typed.
+coding agent: `spawn` a session, then `run` in it. `run` shows the person the prompt, and
+anything you pass as `context` with it, and returns their answer: what they typed, or a value of
+the `output_schema` you asked for.
+
+Whoever answers, a person in the web page, a person at the prompt, a calling flow or a program,
+gets the same question: a prompt, its context and, for a shape, its JSON Schema. Every answer
+is checked against the schema in one place before the flow sees it.
 
 Three things set it apart from a coding agent:
 
@@ -136,9 +142,9 @@ hmz exec: error: talk: 'human' is assigned automatically by the runtime and cann
 
 ## Example: ask for a shape
 
-Give the person an [`output_schema`](/weaver/shapes), and they are asked **a question per
-field** instead of being shown a schema. `settle` asks how to build something, then has the
-builder build it that way:
+Give the person an [`output_schema`](/weaver/shapes), and they are asked the whole of it at
+once, as one form drawn from the model, never a field at a time. `settle` asks how to build
+something, then has the builder build it that way:
 
 ```python
 # .hmz/flows/settle/__init__.py
@@ -192,42 +198,52 @@ async def settle(
     return await builder.run(prompt, session=session, env=workspace)
 ```
 
-1. **`Settled`** is the questionnaire. Each field is one question, and its `description` is the
-   question's wording. Every field has a default, which is what the flow does when nobody is
-   there to say.
-2. **`human.run(…, output_schema=Settled)`** asks the fields one by one and returns a
-   `Settled` built from the answers. What the model refuses is asked again on that field, with
-   the model's own message.
+1. **`Settled`** is the form. Each field is one input, and its `description` is the input's
+   label. Every field has a default, which is what the form suggests and what the flow does
+   when nobody is there to say.
+2. **`human.run(…, output_schema=Settled)`** asks the whole form at once and returns a
+   `Settled`. An answer the model refuses never reaches the flow: the person is shown why,
+   beside the field, and answers again.
 3. **The answers steer the flow** as typed values, never by parsing a sentence.
 
-At the prompt, the person sees:
+### What the person sees
 
-<pre class="asking-tty" aria-label="The questionnaire at the prompt, drawn after the interface"><span class="said">●</span> How should I do this: add a subtract function to calc.py?
+In the [web page](/user/web), the question is one card under the graph: the prompt as its
+headline, then the form, then **Submit**.
 
-Which way should this be built? -- or `-` for careful
-<span class="dim">      · fast
-      · careful
-   type an answer, or /afk to stop being asked</span>
-<span class="you">❯</span> fast
-<span class="said">●</span> Write tests for it? -- or `-` for yes
-<span class="dim">      · yes
-      · no
-   type an answer, or /afk to stop being asked</span>
-<span class="you">❯</span> -
+<pre class="asking-tty" aria-label="The form in the web page, drawn after the interface"><span class="said">How should I do this: add a subtract function to calc.py?</span>
+
+Which way should this be built?
+<span class="you">[&nbsp;fast&nbsp;]  [&nbsp;careful&nbsp;·&nbsp;suggested&nbsp;]</span>
+
+Write tests for it?
+<span class="you">[&nbsp;Yes,&nbsp;write&nbsp;tests&nbsp;·&nbsp;suggested&nbsp;]  [&nbsp;No&nbsp;tests&nbsp;]</span>
+
+<span class="you">[&nbsp;Submit&nbsp;]</span>  <span class="dim">or ctrl+enter</span>
 </pre>
-<p class="asking-tty-note">Drawn after the interface, not recorded. <code>settled</code> is
+<p class="asking-tty-note">Drawn after the web page, not recorded. Pressing <strong>fast</strong>,
+then <strong>Submit</strong>, makes <code>settled</code>
 <code>Settled(approach='fast', tests=True)</code>.</p>
 
-| In the model | What they are asked |
-| --- | --- |
-| `description=` | the question, or the field's name where there is none |
-| `Literal[…]` | those words, offered as the answers |
-| `bool` | `yes` or `no` |
-| `int`, `float` | the question, with "(a number)" |
-| `list[str]` | one line, "(several, separated by commas)" |
-| a default | "-- or `-` for careful", and a dash takes the default |
+The defaults are already picked and marked `suggested`, so a person who agrees presses
+**Submit**, or <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and is done. At the prompt in a
+terminal, the same question is a line in the transcript, `form · 2 fields — press enter to
+open`, and <kbd>enter</kbd> opens the same form as a sheet. See [Questions](/user/questions).
 
-Each question takes the road [a coding agent's own question](/user/questions) takes.
+| In the model | What they get, on the page and at the prompt |
+| --- | --- |
+| `description=` | the field's label, or the field's name where there is none |
+| `Literal[…]`, an `Enum` | up to five values: a row of large buttons; more: a list to search |
+| `bool` | two buttons, worded from the description, never a bare checkbox |
+| `int`, `float` | a number field |
+| `str` | a text field |
+| `list[…]` | a row per item, with add and remove |
+| a nested model | its fields, grouped under its name |
+| a default | prefilled and marked `suggested`; fields with none come first |
+
+A field that does not fit, a word where a number goes, is said beside the field when the
+person leaves it or presses **Submit**, never while they type. Every answer goes through the
+same check, the one the host makes, whoever answers it.
 
 Run from a command line, the person is away and the defaults decide. A real run:
 
@@ -258,14 +274,65 @@ The line lands among the builder's, because a flow's output is not held back for
 | an `output_schema` whose fields all have defaults | the model built from its defaults |
 | an `output_schema` with a field that has none | raises `OutworlderAway` |
 
-Turning `/afk` on while a question is up answers it as nobody. So does a person who keeps
-typing what the model refuses.
+Turning `/afk` on while a question is up answers it as nobody.
+
+## Show them what they decide on {#context}
+
+A question rarely stands alone: the person approves a diff, picks from a table, reads a plan.
+Hand it over as `context`, and it is drawn under the prompt and above the form:
+
+```python
+from hmz.flows import Diff, Markdown, Table
+
+_, patch, _ = await workspace.exec(["git", "diff"])  # ①
+review = await human.run(
+    "Ship this?",
+    session=listening,
+    output_schema=Review,
+    context=[  # ②
+        Markdown(text="The builder says **all checks pass**."),
+        Diff(patch=patch, title="The change"),
+        Table(columns=("check", "result"), rows=(("check.py", "ok"),), title="Checks"),
+    ],
+)
+await human.show([Markdown(text="Thanks. The builder is on it.")], session=listening)  # ③
+```
+
+1. **`workspace.exec`** needs `ShellEnvMixin` on the role. See
+   [What an environment can do](/reference/flows#what-an-environment-can-do).
+2. **`context=[…]`** is a list of blocks, drawn in order. Each long one is folded behind a line
+   that sums it up, `+12 −3 in 2 files` or `table · 40 rows`, and the first is open.
+3. **`human.show(…)`** puts blocks in front of the person with nothing to answer: progress, a
+   result, a chart. It returns at once, and does nothing while the person is away.
+
+| Block | Shows |
+| --- | --- |
+| `Markdown(text=…)` | formatted text |
+| `Code(text=…, language="")` | code, highlighted |
+| `Diff(patch=…)` | a unified diff, file by file |
+| `Table(columns=…, rows=…)` | a table |
+| `Image(data=…, mime=…, alt="")` | a picture, up to 4 MiB |
+| `Json(value=…)` | any JSON value, as a tree to open |
+| `Chart(spec=…)` | a [Vega-Lite](https://vega.github.io/vega-lite/) chart |
+
+Every block takes a `title=`. At the prompt in a terminal, text, code, diffs and tables are
+drawn in the transcript, and an image or a chart is a line pointing to the web page. Context
+works with text questions too: `human.run("Anything to add?", session=…, context=[…])`.
+
+For a decision the form does not serve well, give the session a [face](/weaver/faces): your
+own HTML, handed the same prompt, context and schema.
 
 ## Stand in for the person
 
-Sometimes a flow means to answer for the person itself: running `talk` with a script of lines,
-or a supervisor that answers a callee's questions with a model of its own.
-`Outworlder.new()` makes an outworlder the caller answers for, through `on_outworlder_run`:
+Sometimes code means to answer for the person: a flow running `talk` with a script of lines, a
+supervisor that answers a callee's questions with a model of its own, a program driving a run
+from outside. Each is a **caller**, and each gets exactly what a person gets: the prompt, its
+context, and the schema to answer in.
+
+### From a calling flow
+
+`Outworlder.new()` makes an outworlder the calling flow answers for, through
+`on_outworlder_run`:
 
 ```python
 # .hmz/flows/scripted/__init__.py
@@ -318,7 +385,9 @@ async def scripted(
 1. **`load("talk")`** is the `talk` flow beside this one, ready to call.
 2. **The script** is what the person would type: one follow-up, then an empty line to end.
 3. **`typed`** is an `on_outworlder_run` hook. It is called with `params.prompt`, what the
-   person was shown, and `params.output_schema`, the schema asked for or `None` for text.
+   person would have been shown, `params.output_schema`, the schema asked for or `None` for
+   text, `params.context`, the blocks passed with it, and `params.face`, the session's
+   [face](/weaver/faces) or `None`.
 4. **`Outworlder.new()`** makes an outworlder for this flow to answer for. Until a hook is hung
    on it, it is away.
 5. **`on_outworlder_run(typed)`** makes every `run` of it call `typed`. The hook answers with
@@ -350,22 +419,82 @@ The script's first line became the second turn, and its empty line ended `talk`,
 the stand-in as not away.
 
 The hook runs as the flow that hung it, so it may take a turn of one of the caller's agents to
-answer, schema and all:
+answer, context, schema and all:
 
 ```python
+import json
+
+
 async def answered(params: OutworlderRunHookParams) -> OutworlderRunHookResult:
+    seen = [json.dumps(block.as_json()) for block in params.context]  # ①
+    prompt = "\n\n".join([params.prompt, *seen])
     thinking = await supervisor.spawn()
     if params.output_schema is None:
-        said = await supervisor.run(params.prompt, session=thinking, env=workspace)
+        said = await supervisor.run(prompt, session=thinking, env=workspace)
     else:
         said = await supervisor.run(
-            params.prompt,
+            prompt,
             session=thinking,
             env=workspace,
-            output_schema=params.output_schema,
+            output_schema=params.output_schema,  # ②
         )
     return OutworlderRunHookResult(output=said)
 ```
+
+1. **`block.as_json()`** is a block as the web page and a program receive it, here put in the
+   supervisor's prompt.
+2. **The same schema** the person would have filled in. The supervisor answers it as a whole.
+
+`show` on an outworlder made with `Outworlder.new()` does nothing: there is nobody to show.
+
+### From a program {#from-a-program}
+
+A program running a flow through the [SDK](/reference/sdk#outworlderdriver) answers its
+`Outworlder` roles with a driver: an object with `away_for` and `run`. `run` is handed an `Ask`,
+the question as the web page receives it, and answers with text, or with a mapping for a
+schema:
+
+```python
+# answer.py
+from typing import Any
+
+from hmz.sdk import Ask, Hmz
+
+
+class Reviewer:
+    def away_for(self, role: str) -> bool:  # ①
+        return False
+
+    async def run(self, ask: Ask, role: str) -> str | dict[str, Any]:  # ②
+        print(f"{role} asked: {ask.prompt}")
+        if ask.schema is None:
+            return "looks good"
+        if ask.errors:  # ③
+            print(f"  refused: {ask.errors[0]['message']}")
+        return {"approach": "fast", "tests": False}
+
+    def show(self, context: tuple[dict[str, Any], ...], session: str, role: str) -> None:  # ④
+        print(f"{role} was shown {[block['kind'] for block in context]}")
+
+
+run = Hmz().run(
+    "settle",
+    "add a subtract function to calc.py",
+    agents={"builder": "claude/claude-sonnet-5-5:low"},
+    budget={"cost": 1},
+    outworlder=Reviewer(),
+)
+print(run.run())
+```
+
+1. **`away_for(role)`** says whether to set that role away. An away role is never asked.
+2. **`run(ask, role)`** is every question of that role: `ask.prompt`, `ask.context` (blocks as
+   JSON), `ask.schema` (a JSON Schema, or `None` for text), `ask.face` (a face's hash, or `""`)
+   and `ask.session` (`<role>/<n>`, the same for every question of one outworlder session).
+3. **`ask.errors`** is set when the last answer did not fit: the same question comes back with
+   each error's `path` and `message`, up to three more times. If the last of those does not
+   fit either, the role is set away.
+4. **`show`** is optional. Leave it out and what the flow shows is not handed to the program.
 
 ## Check it worked
 
@@ -405,7 +534,8 @@ async def test_the_person_settles_how() -> None:
         "settle", "add subtract", agents={"builder": builder}, outworlder=person
     )
 
-    assert person.asked == ["How should I do this: add subtract?"]  # ④
+    assert [ask.prompt for ask in person.asked] == ["How should I do this: add subtract?"]  # ④
+    assert person.asked[0].schema["properties"].keys() == {"approach", "tests"}
     assert builder.prompts == [
         "add subtract\n\nBuild it the fast way. Write no tests."
     ]
@@ -443,7 +573,8 @@ async def test_the_script_stands_in_for_the_person() -> None:
    what ends `talk`. Without it, the person would answer `"ok"` from then on.
 2. **No person given** is a person who is away, so `talk` takes one turn.
 3. **`FakeOutworlder(reply)`** answers from a script, here a mapping read into `Settled`.
-4. **`person.asked`** is every prompt put to the person.
+4. **`person.asked`** is every question put to the person, each an `Ask`: its `prompt`, and
+   the `schema` it was asked in.
 5. **Away, the defaults decide**, exactly as in the real run above.
 6. **The run's own person is never asked** when the stand-in answers for them.
 
@@ -457,9 +588,11 @@ may also pass on the outworlder it was handed, which is the same person.
 await talk(task, agents={"assistant": agents["assistant"]}, envs=envs, params=FlowParams())
 ```
 
-**Unattended and attended alike.** Give every field of a questionnaire a default, and the same
-flow runs from `hmz exec` or a CI job, deciding by its defaults, and asks when somebody is
-there.
+**Unattended and attended alike.** Give every field of a form a default, and the same flow
+runs from `hmz exec` or a CI job, deciding by its defaults, and asks when somebody is there.
+
+**A screen of its own.** Spawn the session with a [face](/weaver/faces), `human.spawn(face=…)`,
+and the web page draws the question with your HTML instead of the form.
 
 ## Pitfalls
 
@@ -467,6 +600,10 @@ there.
   the field a default, if the flow should run unattended.
 - **`on_outworlder_run` only works on `Outworlder.new()`.** On the run's own outworlder it
   raises `CapabilityNotGranted`: the person at the prompt answers for themselves.
+- **One form, not many questions.** Asking for each field with its own `run` makes the person
+  wait between them and lose sight of the whole. Ask one model, and let the form group it.
+- **`show` is not a question.** Nothing waits for the person to read it, and nobody sees it
+  while they are away. Ask with `context` when the flow must wait.
 - **It reaches none of a CLI's moments.** `on_stop` and the rest are there, since every agent
   has them, but a hook hung on one is never called.
 - **It cannot be forked, and carries no skills.** `fork` raises `UnsupportedOperation`, and
@@ -474,12 +611,14 @@ there.
 
 ## Next steps
 
-- [You, as one of the agents](/features/human): the questionnaire, to click through
+- [You, as one of the agents](/features/human): the form, to click through
+- [A face for the person](/weaver/faces): your own HTML for a question
 - [Questions](/user/questions) and [Being away (/afk)](/user/afk)
 - [Answers in a shape](/weaver/shapes)
 - [The agent asking the flow](/weaver/tools): questions an agent puts to the flow
-- [Reference › `Outworlder`](/reference/flows#outworlder) and [The person at the
-  prompt](/reference/flows#the-person-at-the-prompt)
+- [Reference › `Outworlder`](/reference/flows#outworlder),
+  [context blocks](/reference/flows#context-blocks) and
+  [SDK › `OutworlderDriver`](/reference/sdk#outworlderdriver)
 
 <style scoped>
 .asking-tty {
