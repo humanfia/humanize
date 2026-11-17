@@ -39,7 +39,7 @@ def read(hmz: Any) -> dict[str, Any]:
       hmz: Humanize, for the workspace.
 
     Returns:
-      `workspace`, `flow`, `btw`, `details`, `reports`, `flows`, `backup`, `listen` and
+      `workspace`, `flow`, `ai_chan`, `details`, `reports`, `flows`, `backup`, `listen` and
       `ice_servers`, with nothing signed in.
     """
     from hmz.coganchor import settings as kept
@@ -48,7 +48,7 @@ def read(hmz: Any) -> dict[str, Any]:
     return {
         "workspace": str(hmz.workspace),
         "flow": settings.flow,
-        "btw": settings.btw,
+        "ai_chan": settings.ai_chan,
         "details": settings.details,
         "reports": settings.enable_sentry,
         "flows": sorted(settings.flows()),
@@ -80,8 +80,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
 
     Args:
       hmz: Humanize, for the workspace.
-      said: Any of `btw`, `details`, `reports`, `backup`, `listen` and `ice_servers`; anything
-        else is not read.
+      said: Any of `ai_chan`, `details`, `reports`, `backup`, `listen` and `ice_servers`;
+        anything else, the `btw` an earlier release wrote among it, is not read.
 
     Returns:
       What :func:`read` answers afterwards.
@@ -93,8 +93,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
     from hmz.coganchor import settings as kept
 
     # All of it read before any of it is written: a request refused changes nothing.
-    if "btw" in said and not isinstance(said["btw"], str):
-        raise _refused("btw is an agent as -a spells one, or nothing.")
+    if "ai_chan" in said and not isinstance(said["ai_chan"], str):
+        raise _refused("ai_chan is a nous or an agent spec, or nothing.")
     if "details" in said and not isinstance(said["details"], bool):
         raise _refused("details is true or false.")
     if "reports" in said and not isinstance(said["reports"], bool):
@@ -110,8 +110,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
         _back_up_to(hmz, said["backup"])
     if machine:
         kept.changes(lambda now: now.update(machine))
-    if "btw" in said:
-        hmz.settings.btw = said["btw"]
+    if "ai_chan" in said:
+        hmz.settings.ai_chan = said["ai_chan"]
     if "details" in said:
         hmz.settings.detailing(on=said["details"])
     if "reports" in said:

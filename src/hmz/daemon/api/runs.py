@@ -25,6 +25,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from hmz.daemon import reach
 from hmz.daemon.api import files, workspaces
 from hmz.rpc import Code, RpcError
 
@@ -534,6 +535,7 @@ def listed(
     q: str = "",
     offset: int = 0,
     limit: int = 50,
+    kept: Callable[[str, str], bool] | None = None,
 ) -> dict[str, Any]:
     """One page of the runs written down, newest first, as `runs.list` answers it.
 
@@ -546,10 +548,14 @@ def listed(
       q: Only those whose task, flow or epic name holds this, or "" for every one.
       offset: How many of those found to pass over.
       limit: How many to answer at most.
+      kept: Whether a run is there at all, by its epic name and workspace, as though no
+        other were: Ai-chan's reach (Section 4.21.4 of daemon.md); None for every one.
     """
     from hmz.runtime.epic import found
 
     every = runs.all(workspace)
+    if kept is not None:
+        every = [ran for ran in every if kept(ran.name, ran.workspace)]
     held = held_by(every, going)
     went = [
         (
@@ -739,6 +745,7 @@ def _list(call: Call) -> dict[str, Any]:
         q=params.get("q", ""),
         offset=offset,
         limit=limit,
+        kept=reach.epics(),
     )
 
 

@@ -43,7 +43,7 @@ def held(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
 
 class _Settings:
-    flow, btw, details, enable_sentry = "chat", "", False, None
+    flow, ai_chan, details, enable_sentry = "chat", "", False, None
 
     def __init__(self) -> None:
         self.forgot = False

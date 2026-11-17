@@ -24,7 +24,7 @@ __all__ = ["PROTOCOL", "admit", "hello"]
 PROTOCOL = "3.0.0"
 
 #: What a client is, among those Section 6.5.3 names.
-type Kind = Literal["tui", "web", "desktop", "cli", "sdk", "bridge"]
+type Kind = Literal["tui", "web", "desktop", "cli", "sdk", "bridge", "ai-chan"]
 
 
 def hello(

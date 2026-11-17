@@ -15,8 +15,9 @@ from hmz.rpc import Closed, RpcError
 class _Session:
     """A session as a subscription sees one: what it was told."""
 
-    def __init__(self) -> None:
+    def __init__(self, reach: Any = None) -> None:
         self.name, self.kind = "ana", "tui"
+        self.reach = reach
         self.lock = threading.Lock()
         self.subs: dict[str, Any] = {}
         self.told: list[dict[str, Any]] = []
@@ -168,3 +169,31 @@ def test_no_host_is_held_before_one_is_opened() -> None:
     assert len(hosts) == 0
     assert hosts.listed() == []
     assert hosts.get("/w", "") is None
+
+
+def test_an_ai_slot_of_no_conversation_is_refused_404() -> None:
+    with pytest.raises(RpcError) as refused:
+        Hosts(mock.Mock()).opened("/w", "ai:ab")
+    assert (refused.value.code, refused.value.message) == (
+        404,
+        "There is no Ai-chan conversation ai:ab.",
+    )
+
+
+def test_an_epic_scoped_ai_chan_is_let_go_once_another_epic_starts() -> None:
+    from hmz.daemon.reach import Reach
+
+    session = _Session(Reach(1, "epic", "/w", "mine", "read-only", network=False))
+    sub = Subscription(session, "s1", mock.Mock(), figures=False)  # pyright: ignore[reportArgumentType]
+    session.subs["s1"] = sub
+    # Replayed before the sub is answered: the host's history is no epic starting.
+    sub.told({"type": "run", "epic": "older"})
+    sub.opened()
+    sub.told({"type": "run", "epic": "mine"})
+    assert not sub.gone
+    sub.told({"type": "run", "epic": "theirs"})
+    assert sub.gone
+    assert session.told[-1]["message"] == {
+        "type": "gone",
+        "why": "out of Ai-chan's scope",
+    }

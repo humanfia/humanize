@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
+from hmz.daemon.reach import KIND
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -157,6 +158,14 @@ class _Methods:
         name, kind = client.get("name"), client.get("kind")
         if not isinstance(name, str) or not isinstance(kind, str):
             raise _refused(-32602, "session.hello takes client as {name, kind}.")
+        # Ai-chan says hello on her scoped link alone, and is named for her conversation
+        # (Section 4.22.6.2 and Section 4.22.1.3).
+        if session.reach is not None and kind != KIND:
+            raise _refused(403, "This link is Ai-chan's.")
+        if session.reach is None and kind == KIND:
+            raise _refused(403, "Only Ai-chan says hello as ai-chan.")
+        if session.reach is not None:
+            name = f"Ai-chan#{session.reach.id}"
         session.name, session.kind = name, kind
         return {
             "daemon_id": router.daemon_id,

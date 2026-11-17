@@ -23,6 +23,7 @@ from hmz.daemon import where
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from hmz.daemon.reach import Links
     from hmz.daemon.sessions import Session
     from hmz.rpc import Call, Peer
 
@@ -39,6 +40,9 @@ _FIGURING = 1.0
 
 #: Why a subscription ends whose host process ended without closing.
 WENT_AWAY = "the host went away"
+
+#: Why an epic-scoped Ai-chan's subscription ends once another epic starts on its host.
+OUT_OF_SCOPE = "out of Ai-chan's scope"
 
 
 class Subscription:
@@ -92,9 +96,23 @@ class Subscription:
             ).start()
 
     def told(self, message: dict[str, Any]) -> None:
-        """Takes one message the host told this frontend."""
+        """Takes one message the host told this frontend.
+
+        One of an epic-scoped Ai-chan's ends once another epic than hers starts on its host
+        (Section 4.21.3.3 of daemon.md).
+        """
         with self._lock:
             if self._gone:
+                return
+            reach = self.session.reach
+            if (
+                reach is not None
+                and reach.scope == "epic"
+                and self._open
+                and message.get("type") == "run"
+                and message.get("epic") not in (None, "", reach.epic)
+            ):
+                self.end(OUT_OF_SCOPE)
                 return
             if self._following is not None:
                 _follows(self._following, message)
@@ -243,6 +261,31 @@ class Hosted:
         answer: Any = self._call("ask", {"client": client, "said": said})
         return answer if isinstance(answer, dict) else {"ok": False, "why": "no answer"}  # pyright: ignore[reportUnknownVariableType]
 
+    def started(self, said: dict[str, Any]) -> dict[str, Any]:
+        """Starts an epic on the host as the daemon's own frontend, let go of once answered.
+
+        Args:
+          said: The start: `do` `start`, and what that takes.
+
+        Returns:
+          The host's answer, which says `ok`.
+        """
+        attached: Any = self._call(
+            "attach",
+            {
+                "tag": f"daemon/{id(said):x}",
+                "name": "hmz",
+                "kind": "daemon",
+                "replay": False,
+                "since": None,
+            },
+        )
+        client = str(attached["client"])
+        try:
+            return self.ask(client, said)
+        finally:
+            self.detach(client)
+
     def detach(self, client: str) -> None:
         """Lets one frontend go, without waiting on the host."""
         threading.Thread(
@@ -338,6 +381,9 @@ class Hosts:
         self._order = itertools.count()
         #: Whether a host was ever taken on.
         self.ever = False
+        #: What starts the host of an `ai:` slot, and listens on its scoped link while it is
+        #: up; None where nothing does, and every `ai:` slot is of no conversation.
+        self.ai: Links | None = None
 
     def __len__(self) -> int:
         with self._lock:
@@ -356,11 +402,14 @@ class Hosts:
     def opened(self, workspace: str, slot: str) -> Hosted:
         """The host of a workspace and slot, started where none is.
 
-        `slot` `chat:` or `exec:` alone is a new slot of that kind.
+        `slot` `chat:` or `exec:` alone is a new slot of that kind. An `ai:` slot's host is
+        started as its Ai-chan conversation's (Section 4.22.5 of daemon.md), again once it
+        has gone.
 
         Raises:
-          RpcError: 409 for a chat or an `hmz exec` whose host has gone, and 503 where the
-            host could not be started.
+          RpcError: 409 for a chat or an `hmz exec` whose host has gone, or an Ai-chan host
+            that refused its start; 404 for an `ai:` slot of no conversation; and 503 where
+            the host could not be started.
         """
         from hmz.rpc import Code, RpcError
 
@@ -371,6 +420,10 @@ class Hosts:
             held = self._held.get(key)
             if held is not None:
                 return held
+            if slot.startswith("ai:") and self.ai is None:
+                raise RpcError(
+                    Code.NOT_FOUND, f"There is no Ai-chan conversation {slot}."
+                )
             if key in self._gone:
                 raise RpcError(
                     Code.CONFLICT,
@@ -383,34 +436,61 @@ class Hosts:
             if starting is None:
                 starting = self._starting[key] = Future()
         if mine:
-            try:
-                hosted = self._starts(workspace, slot)
-            except Exception as why:  # noqa: BLE001 -- whoever waits on it is told why
-                with self._lock:
-                    del self._starting[key]
-                starting.set_exception(
-                    RpcError(Code.UNAVAILABLE, f"The host could not be started: {why}")
-                )
-            else:
-                with self._lock:
-                    del self._starting[key]
-                    self.ever = True
-                    # Held only while its link is open: one that closed on its way here is
-                    # gone already, and its link's closing found nothing to let go of.
-                    if hosted.peer is not None and not hosted.peer.closed:
-                        self._held[key] = hosted
-                    up = key in self._held
-                if up:
-                    starting.set_result(hosted)
-                else:
-                    starting.set_exception(
-                        RpcError(Code.UNAVAILABLE, "The host went as it came up.")
-                    )
-                self._changed()
+            self._starts_up(workspace, slot, starting)
         return starting.result()
 
-    def _starts(self, workspace: str, slot: str) -> Hosted:
-        """Starts a host process, and links it."""
+    def _starts_up(self, workspace: str, slot: str, starting: Future[Hosted]) -> None:
+        """Starts the host of a slot, and settles what those waiting on it are answered."""
+        from hmz.rpc import Code, RpcError
+
+        key = (workspace, slot)
+        ai = self.ai if slot.startswith("ai:") else None
+        try:
+            env = ai.before(workspace, slot) if ai is not None else None
+            hosted = self._starts(workspace, slot, env)
+        except Exception as why:  # noqa: BLE001 -- whoever waits on it is told why
+            with self._lock:
+                del self._starting[key]
+            if ai is not None:
+                ai.went(slot)
+            starting.set_exception(
+                why
+                if isinstance(why, RpcError)
+                else RpcError(Code.UNAVAILABLE, f"The host could not be started: {why}")
+            )
+            return
+        with self._lock:
+            del self._starting[key]
+            self.ever = True
+            # Held only while its link is open: one that closed on its way here is
+            # gone already, and its link's closing found nothing to let go of.
+            if hosted.peer is not None and not hosted.peer.closed:
+                self._held[key] = hosted
+            up = key in self._held
+        if not up:
+            starting.set_exception(
+                RpcError(Code.UNAVAILABLE, "The host went as it came up.")
+            )
+        elif ai is not None:
+            try:
+                ai.after(hosted)
+            except Exception as why:  # noqa: BLE001 -- whoever waits on it is told why
+                hosted.stop()
+                starting.set_exception(
+                    why
+                    if isinstance(why, RpcError)
+                    else RpcError(Code.CONFLICT, f"Ai-chan could not start: {why}")
+                )
+            else:
+                starting.set_result(hosted)
+        else:
+            starting.set_result(hosted)
+        self._changed()
+
+    def _starts(
+        self, workspace: str, slot: str, env: dict[str, str] | None = None
+    ) -> Hosted:
+        """Starts a host process, with `env` beside the daemon's environment, and links it."""
         from hmz.daemon.detaching import spawns
         from hmz.reach.pipes import SocketPipe
         from hmz.rpc import Peer
@@ -418,7 +498,9 @@ class Hosts:
         ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             kept = theirs.fileno()
-            spawns(["host", workspace, slot, str(kept)], _PATIENCE, keep=(kept,))
+            spawns(
+                ["host", workspace, slot, str(kept)], _PATIENCE, keep=(kept,), env=env
+            )
         except OSError:
             ours.close()
             raise
@@ -430,11 +512,14 @@ class Hosts:
         def went() -> None:
             with self._lock:
                 # A slot is gone for good only once its host was held: one that never came
-                # up may be started again.
-                if self._held.get(key) is hosted:
+                # up may be started again. An Ai-chan host is started again as attached to.
+                mine = self._held.get(key) is hosted
+                if mine:
                     del self._held[key]
-                    if slot:
+                    if slot and not slot.startswith("ai:"):
                         self._gone.add(key)
+            if mine and slot.startswith("ai:") and self.ai is not None:
+                self.ai.went(slot)
             hosted.went()
             self._changed()
 

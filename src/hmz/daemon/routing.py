@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from hmz.daemon.listening import Listener
+    from hmz.daemon.reach import Reach
     from hmz.daemon.sessions import Session
     from hmz.rpc import Call, Dispatcher, Handler, Peer, Pipe
     from hmz.trust.identity import Identity
@@ -83,6 +84,7 @@ class Router:
         opened: Callable[[str], None] | None = None,
     ) -> None:
         from hmz.daemon.hosts import Hosts
+        from hmz.daemon.reach import Links
         from hmz.daemon.sessions import Idems
         from hmz.trust.devices import Devices
         from hmz.trust.pairing import Codes
@@ -104,6 +106,14 @@ class Router:
         self._revoking = threading.local()
         self.listeners: list[Listener] = []
         self.hosts = Hosts(self._touched)
+        #: The Ai-chan conversations, the hosts of their `ai:` slots and their scoped links.
+        self.links = Links(
+            lambda pipe, reach: self.admit(
+                pipe, fingerprint="", trusted=True, reach=reach
+            ),
+            self._dropped,
+        )
+        self.hosts.ai = self.links
         self.devices = Devices()
         self.codes = Codes()
         self.idems = Idems()
@@ -227,6 +237,7 @@ class Router:
         for session in sessions:
             session.close()
         self.hosts.stop_all()
+        self.links.close()
         for name in (where.SOCKET, where.RECORD):
             with contextlib.suppress(OSError):
                 (self._at / name).unlink()
@@ -272,13 +283,21 @@ class Router:
 
     # -- sessions
 
-    def admit(self, pipe: Pipe, *, fingerprint: str, trusted: bool = False) -> Peer:
-        """Takes a session on: over the socket, or secured over a listener.
+    def admit(
+        self,
+        pipe: Pipe,
+        *,
+        fingerprint: str,
+        trusted: bool = False,
+        reach: Reach | None = None,
+    ) -> Peer:
+        """Takes a session on: over the socket, a scoped link, or secured over a listener.
 
         Args:
           pipe: Its pipe, secured where its carrier is untrusted.
           fingerprint: Its client's device fingerprint; "" over a trusted carrier.
           trusted: Whether its carrier is trusted.
+          reach: The reach of the Ai-chan conversation whose scoped link it came over.
 
         Returns:
           Its JSON-RPC end, which reads it from now on.
@@ -293,7 +312,11 @@ class Router:
         held: list[Session] = []
         out = Outgoing(pipe, lambda: held[0].behind())  # noqa: PLW0108 -- made after
         session = Session(
-            out, trusted=trusted, fingerprint=fingerprint or LOCAL, device=device
+            out,
+            trusted=trusted,
+            fingerprint=fingerprint or LOCAL,
+            device=device,
+            reach=reach,
         )
         held.append(session)
         with self._lock:
@@ -330,6 +353,17 @@ class Router:
         for sub in subs:
             sub.dropped()
 
+    def _dropped(self, ident: int) -> None:
+        """Closes every session over the scoped link of a conversation, as its host goes."""
+        with self._lock:
+            dropped = [
+                one
+                for one in self._sessions.values()
+                if one.reach is not None and one.reach.id == ident
+            ]
+        for one in dropped:
+            one.close()
+
     def _revoked(self, device: Any) -> None:
         """Closes every session of a device revoked, but the one revoking it, which goes last."""
         sparing = getattr(self._revoking, "session", None)
@@ -360,7 +394,12 @@ class Router:
         return dispatcher
 
     def _guarded(self, name: str, handler: Handler) -> Handler:
-        """A handler held to the pairing gate (Section 4.5.10) and to `idem` (Section 6.7)."""
+        """A handler held to the pairing gate, to a reach, and to `idem`.
+
+        The pairing gate of Section 4.5.10, the reach of a session that carries one of Section
+        4.21, and `idem` of Section 6.7.
+        """
+        from hmz.daemon.reach import Held, holding
         from hmz.rpc import Code, RpcError
         from hmz.trust.pairing import NOT_PAIRED, UNPAIRED
 
@@ -368,6 +407,19 @@ class Router:
             session = self.session(call)
             if name not in UNPAIRED and not session.paired:
                 raise RpcError(Code.NOT_PAIRED, NOT_PAIRED)
+            if session.reach is None:
+                return idempotent(session, call)
+            held = Held(session.reach, session, self.hosts, self.links.kept)
+            refusal = held.refusal(name, call.params)
+            if refusal is not None:
+                raise RpcError(Code.FORBIDDEN, refusal)
+            token = holding.set(held)
+            try:
+                return held.answered(name, idempotent(session, call))
+            finally:
+                holding.reset(token)
+
+        def idempotent(session: Session, call: Call) -> Any:
             idem = call.params.get("idem")
             if not isinstance(idem, str):
                 return handler(call)

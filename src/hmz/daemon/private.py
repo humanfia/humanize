@@ -41,8 +41,11 @@ class _Held(Hosts):
         super().__init__(changed)
         self._holding = holding
 
-    def _starts(self, workspace: str, slot: str) -> Hosted:
-        """Holds a host on a thread of this process, and links it."""
+    def _starts(
+        self, workspace: str, slot: str, env: dict[str, str] | None = None
+    ) -> Hosted:
+        """Holds a host on a thread of this process, and links it; `env` is the process's."""
+        del env
         from hmz.daemon.carrying import serves
         from hmz.reach.pipes import SocketPipe
         from hmz.rpc import Peer
