@@ -1,16 +1,18 @@
 """This machine, as an environment driver does its work on it.
 
 Commands are the event loop's own subprocesses, each in a process group of its own so that
-a timeout kills everything it started. Files are read and written by this process on a
-worker thread -- no process per read -- and written atomically. What the machine has is read
-once per process: CPUs and memory from the kernel, as they are asked for, and GPUs from
-`nvidia-smi`, which :meth:`LocalMachine.probe` runs off the loop.
+a timeout kills everything it started; a terminal is a pty `ptyprocess` forks, which the
+loop reads and writes as the kernel says it can. Files are read, written and listed by
+this process on a worker thread -- no process per read -- and written atomically. What the
+machine has is read once per process: CPUs and memory from the kernel, as they are asked
+for, and GPUs from `nvidia-smi`, which :meth:`LocalMachine.probe` runs off the loop.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import errno
 import fcntl
 import os
 import secrets
@@ -23,22 +25,27 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from hmz import home
-from hmz.flows import EnvBackendKind, EnvError, TempCloneBusy
+from hmz.flows import EnvBackendKind, EnvError, EnvUnavailable, TempCloneBusy
 
 from .environing import (
     GPU_QUERY,
     KILLED_WITHIN,
+    TERM,
     Machine,
+    Pty,
     Resources,
     env_error,
     exit_status,
     gpus_of,
     started_error,
 )
-from .spi import Placement
+from .spi import EnvEntry, Placement
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    import builtins
+    from collections.abc import Callable, Sequence
+
+    from ptyprocess import PtyProcess  # pyright: ignore[reportMissingTypeStubs]
 
 __all__ = ["LocalMachine"]
 
@@ -185,6 +192,210 @@ class _LocalRun:
         self._transport.close()
 
 
+# ------------------------------------------------------------------------------ terminals
+
+#: The most one read of a terminal answers.
+_READ = 1 << 16
+
+#: The longest a terminal's end is waited between two looks for it.
+_LOOKED_EVERY = 0.5
+
+
+def _spawned(
+    argv: Sequence[str], cwd: PurePosixPath, cols: int, rows: int
+) -> PtyProcess:
+    """A program started on a pty, in a session of its own whose terminal that is.
+
+    Raises:
+      OSError: If it could not be: not found, not runnable, or `cwd` not there.
+    """
+    from ptyprocess import PtyProcess  # pyright: ignore[reportMissingTypeStubs]
+
+    env = dict(os.environ)
+    env["TERM"] = TERM
+    for sized in ("COLUMNS", "LINES"):
+        env.pop(sized, None)
+    where = str(cwd)
+    command = list(argv)
+    if "/" in command[0] and not command[0].startswith("/"):
+        # Looked for here, before the child is in `cwd`: a path is the workdir's.
+        command[0] = os.path.join(where, command[0])  # noqa: PTH118 -- a string it takes
+    try:
+        # Into `cwd` before the program is run rather than by `ptyprocess`'s own `cwd`,
+        # which would raise in the child it forked, where nobody catches it.
+        return PtyProcess.spawn(  # pyright: ignore[reportUnknownMemberType]
+            command,
+            env=env,
+            dimensions=(rows, cols),
+            preexec_fn=lambda: os.chdir(where),
+        )
+    except FileNotFoundError as error:
+        if error.errno is not None:
+            raise
+        # Not on the PATH, or `cwd` gone since it was looked at, which `ptyprocess` says
+        # with no errno.
+        gone = not os.path.isdir(where)  # noqa: PTH112 -- a string it takes
+        raise FileNotFoundError(
+            errno.ENOENT, os.strerror(errno.ENOENT), where if gone else argv[0]
+        ) from error
+
+
+def _session(leader: int) -> set[int]:
+    """The process groups of every process in the session a terminal's program leads."""
+    import psutil
+
+    groups = {leader}
+    for pid in psutil.pids():
+        with contextlib.suppress(OSError):
+            if os.getsid(pid) == leader:
+                groups.add(os.getpgid(pid))
+    return groups
+
+
+class _LocalPty(Pty):
+    """A program on a pty here, whose master the loop reads and writes when it can."""
+
+    def __init__(self, process: PtyProcess) -> None:
+        self._process = process
+        # Let go of by `ptyprocess` without the pauses it would otherwise sleep through.
+        process.delayafterclose = 0
+        process.delayafterterminate = 0
+        self._fd: int = process.fd
+        self._pid: int = process.pid
+        os.set_blocking(self._fd, False)
+        self._loop = asyncio.get_running_loop()
+        self._closed = False
+        self._waiting: set[asyncio.Future[None]] = set()
+        self._reading = asyncio.Lock()
+        self._writing = asyncio.Lock()
+        self._status: asyncio.Future[int] | None = None
+        self._killing: asyncio.Future[None] | None = None
+
+    async def _ready(
+        self,
+        watch: Callable[..., object],
+        unwatch: Callable[[int], object],
+    ) -> None:
+        """Waits for the kernel to say the master can be read, or written; or for it to close."""
+        ready: asyncio.Future[None] = self._loop.create_future()
+
+        def able() -> None:
+            if not ready.done():
+                ready.set_result(None)
+
+        self._waiting.add(ready)
+        watch(self._fd, able)
+        try:
+            await ready
+        finally:
+            self._waiting.discard(ready)
+            if not self._closed:
+                unwatch(self._fd)
+
+    async def read(self) -> bytes:
+        async with self._reading:
+            while not self._closed:
+                try:
+                    data = os.read(self._fd, _READ)
+                except BlockingIOError:
+                    await self._ready(self._loop.add_reader, self._loop.remove_reader)
+                    continue
+                except OSError as error:
+                    # Linux says the far end has gone with EIO, where macOS ends the file.
+                    if error.errno != errno.EIO:
+                        raise env_error(error, "could not read a terminal") from error
+                    data = b""
+                if not data:
+                    self._close()
+                return data
+            return b""
+
+    async def write(self, data: bytes) -> None:
+        async with self._writing:
+            left = memoryview(data)
+            while left and not self._closed:
+                try:
+                    wrote = os.write(self._fd, left)
+                except BlockingIOError:
+                    await self._ready(self._loop.add_writer, self._loop.remove_writer)
+                    continue
+                except OSError:
+                    return  # it has ended, and what is typed at it is dropped
+                left = left[wrote:]
+
+    async def resize(self, cols: int, rows: int) -> None:
+        if not self._closed:
+            with contextlib.suppress(OSError):
+                self._process.setwinsize(rows, cols)  # pyright: ignore[reportUnknownMemberType]
+
+    async def wait(self) -> int:
+        if self._status is None:
+            self._status = asyncio.ensure_future(self._reaped())
+        return await asyncio.shield(self._status)
+
+    async def _reaped(self) -> int:
+        """Looks for it to have ended, more seldom the longer it runs, and reaps it."""
+        import ptyprocess  # pyright: ignore[reportMissingTypeStubs]
+
+        pause = 0.005
+        while True:
+            try:
+                alive = self._process.isalive()
+            except ptyprocess.PtyProcessError:
+                return 1
+            if not alive:
+                break
+            await asyncio.sleep(pause)
+            pause = min(pause * 2, _LOOKED_EVERY)
+        killed = self._process.signalstatus
+        if killed is not None:
+            return 128 + int(killed)
+        return int(self._process.exitstatus or 0)
+
+    async def kill(self) -> None:
+        if self._killing is None:
+            self._killing = asyncio.ensure_future(self._kill())
+        await asyncio.shield(self._killing)
+
+    async def _kill(self) -> None:
+        status = self._status
+        if status is None or not status.done():
+            # Every group of its session: the program's, and those job control put each
+            # job in, the foreground's and the background's -- while the program is not yet
+            # reaped, so that the session's number cannot be another's.
+            groups = {self._pid}
+            with contextlib.suppress(OSError):
+                groups = await asyncio.to_thread(_session, self._pid)
+            for group in groups:
+                if group > 0:
+                    with contextlib.suppress(OSError):
+                        os.killpg(group, signal.SIGKILL)
+        # Let go of before it is waited for: what it wrote and nobody read would otherwise
+        # hold up its exit, which on macOS waits for the terminal's output to drain.
+        self._close()
+        with contextlib.suppress(TimeoutError):
+            async with asyncio.timeout(KILLED_WITHIN):
+                await self.wait()
+
+    def _close(self) -> None:
+        """Lets go of the master, waking whoever waits on it."""
+        if self._closed:
+            return
+        self._closed = True
+        self._loop.remove_reader(self._fd)
+        self._loop.remove_writer(self._fd)
+        for waiting in list(self._waiting):
+            if not waiting.done():
+                waiting.set_result(None)
+        with contextlib.suppress(OSError):
+            self._process.fileobj.close()
+        self._process.closed = True
+
+    def release(self) -> None:
+        if self._status is not None and self._status.done():
+            self._close()
+
+
 # ---------------------------------------------------------------------------------- holds
 
 
@@ -302,6 +513,33 @@ def _removed(path: Path) -> None:
 
 def _is_dir(path: Path) -> bool:
     return path.is_dir()
+
+
+def _entry(path: Path, name: str) -> EnvEntry:
+    """What one path is, a final link not followed."""
+    info = path.lstat()
+    mode = info.st_mode
+    target = None
+    if stat.S_ISDIR(mode):
+        kind = "dir"
+    elif stat.S_ISLNK(mode):
+        kind = "link"
+        target = str(path.readlink())
+    elif stat.S_ISREG(mode):
+        kind = "file"
+    else:
+        kind = "other"
+    return EnvEntry(name, kind, info.st_size, info.st_mtime_ns / 1e9, target)
+
+
+def _listed(path: Path) -> builtins.list[EnvEntry]:
+    """What a directory holds; what goes while it is looked at is left out."""
+    entries: builtins.list[EnvEntry] = []
+    with os.scandir(path) as listing:
+        for one in listing:
+            with contextlib.suppress(FileNotFoundError):
+                entries.append(_entry(Path(one.path), one.name))
+    return entries
 
 
 def _taken(pid: int) -> bool:
@@ -423,6 +661,35 @@ class LocalMachine(Machine):
 
     async def is_dir(self, path: PurePosixPath) -> bool:
         return await asyncio.to_thread(_is_dir, _local(path))
+
+    async def list(self, path: PurePosixPath) -> builtins.list[EnvEntry]:
+        try:
+            return await asyncio.to_thread(_listed, _local(path))
+        except OSError as error:
+            raise env_error(error, f"could not list {path}") from error
+
+    async def stat(self, path: PurePosixPath) -> EnvEntry:
+        try:
+            return await asyncio.to_thread(_entry, _local(path), path.name)
+        except OSError as error:
+            raise env_error(error, f"could not look at {path}", missing=True) from error
+
+    async def rename(self, path: PurePosixPath, to: PurePosixPath) -> None:
+        try:
+            await asyncio.to_thread(os.rename, _local(path), _local(to))
+        except OSError as error:
+            raise env_error(error, f"could not move {path} to {to}") from error
+
+    async def pty(
+        self, argv: Sequence[str], cwd: PurePosixPath, *, cols: int, rows: int
+    ) -> _LocalPty:
+        if not await self.is_dir(cwd):
+            raise EnvUnavailable(f"the workdir {cwd} is not there")
+        try:
+            process = await asyncio.to_thread(_spawned, argv, cwd, cols, rows)
+        except OSError as error:
+            raise started_error(error, argv, str(cwd)) from error
+        return _LocalPty(process)
 
     async def remove(self, path: PurePosixPath) -> None:
         try:

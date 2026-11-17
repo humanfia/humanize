@@ -41,6 +41,9 @@ dependencies = [
     # took, are PEP 440's and PEP 508's rules: `hmz update` reads both.
     "packaging>=26.2",
     "psutil>=7.2.2",
+    # A terminal opened on this machine's environment beside a run: a pty forked with the
+    # session and controlling terminal a shell's job control needs.
+    "ptyprocess>=0.7.0",
     # A flow says what it can be configured with by declaring a model, and the menu that
     # asks is read off that model: the types, the bounds and the combinations a flow
     # refuses are all written once, where the flow declares them.
@@ -60,7 +63,9 @@ dependencies = [
     # ordinary dependency rather than an extra: an install that could be missing the half
     # that reports its own failures is an install whose failures are not reported.
     "sentry-sdk>=2.71.0",
-    "textual>=8.2.8",
+    # With its tree-sitter grammars: `/env` edits an environment's files in a code editor,
+    # and code read without its colours is code read slower.
+    "textual[syntax]>=8.2.8",
     # What an entry is added to a copy of Grok Build's `config.toml` with, for an account
     # behind a gateway: what the person at this machine wrote in theirs -- their comments and
     # their order among it -- is still there in the copy after an entry is.
@@ -170,6 +175,13 @@ hmz = "hmz.cli:main"
 [build-system]
 requires = ["uv_build>=0.12.20,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# src/hmz/web/vendor is what builds the page's third-party code into src/hmz/web/static/vendor:
+# its sources go in the sdist, its installed packages nowhere, and none of it in the wheel,
+# which carries only what it built.
+source-exclude = ["node_modules"]
+wheel-exclude = ["hmz/web/vendor"]
 
 [dependency-groups]
 dev = [

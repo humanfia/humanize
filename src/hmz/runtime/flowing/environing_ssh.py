@@ -6,8 +6,9 @@ architecture and cached there by its digest, which needs no Python there -- and 
 `ssh`, and a
 :class:`~hmz.coganchor.remote.RemoteClient` speaks to it. That half runs each command in a
 process group of its own and sends its stdout and stderr apart, kills the group when asked,
-and reads and writes files -- a write atomically, making the directories above it -- which
-is everything a driver needs, so nothing is added to the wire. Every `ssh` it starts rides
+and reads and writes files -- a write atomically, making the directories above it -- lists them, and
+runs a command on a pty of its own whose window it sets again when asked, which is
+everything a driver needs. Every `ssh` it starts rides
 one master connection per host (`ControlMaster`), and the serving half is started once per
 root driver and shared by everything derived from it.
 
@@ -29,6 +30,7 @@ import posixpath
 import shlex
 import signal
 import threading
+from collections import deque
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from types import MappingProxyType
@@ -39,16 +41,19 @@ from hmz.flows import EnvBackendKind, EnvConnectionError, EnvError, EnvUnavailab
 from .environing import (
     GPU_QUERY,
     KILLED_WITHIN,
+    TERM,
     Machine,
+    Pty,
     Resources,
     env_error,
     gpus_of,
     started_error,
 )
 from .specs import DESTINATION
-from .spi import ENV_TOOLS, Placement
+from .spi import ENV_TOOLS, EnvEntry, Placement
 
 if TYPE_CHECKING:
+    import builtins
     from collections.abc import Coroutine, Mapping, Sequence
 
     from hmz.coganchor.proto import Stream
@@ -259,6 +264,19 @@ def _is_dir_now(client: RemoteClient, path: str) -> bool:
     return False
 
 
+def _entry(said: Mapping[str, Any], name: str) -> EnvEntry:
+    """One path as the serving half describes it, in `STAT` and `LISTDIR`."""
+    kind = said.get("kind")
+    target = said.get("target")
+    return EnvEntry(
+        name,
+        kind if kind in ("file", "dir", "link") else "other",
+        int(said.get("size") or 0),
+        int(said.get("mtime_ns") or 0) / 1e9,
+        str(target) if kind == "link" and target is not None else None,
+    )
+
+
 # ------------------------------------------------------------------------------ commands
 
 
@@ -398,7 +416,157 @@ def _background(doing: Coroutine[Any, Any, Any]) -> None:
     task.add_done_callback(over)
 
 
-def _abandoned(running: _RemoteRun, starting: asyncio.Future[None]) -> None:
+#: How much of what a terminal wrote is kept unread before the oldest of it is let go of:
+#: the wire has no way to hold up a program on the host, so this is where it is bounded.
+_UNREAD = 8 << 20
+
+#: The most one read of a terminal answers.
+_READ = 1 << 16
+
+
+class _RemotePty(Pty):
+    """A program on a pty on the host, its output heard on the client's reader thread.
+
+    What it writes is handed to the loop as it comes and queued for :meth:`read`; each thing
+    done to it -- typing, a new window, a signal -- is sent from a thread, since sending waits
+    its turn behind whatever else is being sent, and typing in the order it was typed.
+    """
+
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        machine: SSHMachine,
+        argv: Sequence[str],
+        cwd: str,
+    ) -> None:
+        self._loop = loop
+        self._machine = machine
+        self._argv = argv
+        self._cwd = cwd
+        self._unread: deque[bytes] = deque()
+        self._held = 0
+        self._arrived = asyncio.Event()
+        self._done: asyncio.Future[int] = loop.create_future()
+        self._typing = asyncio.Lock()
+        self._sizing = asyncio.Lock()
+        self._window: tuple[int, int] | None = None
+        self._sent: tuple[int, int] | None = None
+        self._killing: asyncio.Task[None] | None = None
+        self.handle: ExecHandle | None = None
+
+    def start_now(self, client: RemoteClient, cols: int, rows: int) -> None:
+        """Starts it, from a thread that may wait to send."""
+        self._sent = (rows, cols)
+        self.handle = client.start_exec(
+            list(self._argv),
+            self._cwd,
+            {"TERM": TERM},
+            self.wrote,
+            self.ended,
+            tty=True,
+            winsize=(rows, cols),
+        )
+
+    def wrote(self, stream: Stream, data: bytes) -> None:
+        """Hands what it wrote to the loop. On the reader thread, before :meth:`ended`."""
+        del stream
+        with contextlib.suppress(RuntimeError):  # the loop is gone, and nobody reads
+            self._loop.call_soon_threadsafe(self._got, data)
+
+    def _got(self, data: bytes) -> None:
+        self._unread.append(data)
+        self._held += len(data)
+        while self._held > _UNREAD and len(self._unread) > 1:
+            self._held -= len(self._unread.popleft())
+        self._arrived.set()
+
+    def ended(self, payload: dict[str, Any] | None, why: OSError | None) -> None:
+        """Hands how it ended to the loop. On the reader thread."""
+        with contextlib.suppress(RuntimeError):
+            self._loop.call_soon_threadsafe(self._settle, payload, why)
+
+    def _settle(self, payload: dict[str, Any] | None, why: OSError | None) -> None:
+        if self._done.done():
+            return
+        said = payload or {}
+        if why is not None:
+            if isinstance(why, _reported()):
+                # It could not be started: said on the terminal, as a shell would say it.
+                self._got(f"{self._argv[0]}: {why.strerror or why}\r\n".encode())
+                status = 127 if why.errno == errno.ENOENT else 126
+            else:
+                # The connection went, which to the terminal is a hangup.
+                if isinstance(why, ConnectionError):
+                    self._machine.lost()
+                status = 128 + signal.SIGHUP
+        elif said.get("exit_code") is not None:
+            status = int(said["exit_code"])
+        else:
+            killed = int(said.get("signal") or 0)
+            status = 128 + killed if killed else 1
+        self._done.set_result(status)
+        self._arrived.set()
+
+    async def read(self) -> bytes:
+        while not self._unread:
+            if self._done.done():
+                return b""
+            self._arrived.clear()
+            await self._arrived.wait()
+        pieces: list[bytes] = []
+        size = 0
+        while self._unread and size < _READ:
+            piece = self._unread.popleft()
+            pieces.append(piece)
+            size += len(piece)
+        self._held -= size
+        return b"".join(pieces)
+
+    async def write(self, data: bytes) -> None:
+        handle = self.handle
+        if handle is None or not data:
+            return
+        async with self._typing:
+            if self._done.done():
+                return
+            with contextlib.suppress(OSError):
+                await asyncio.to_thread(handle.send_stdin, bytes(data))
+
+    async def resize(self, cols: int, rows: int) -> None:
+        # One at a time and the latest asked for: windows asked for while one is being
+        # sent are sent as the last of them, once it has been.
+        self._window = (rows, cols)
+        async with self._sizing:
+            handle, window = self.handle, self._window
+            if handle is None or self._done.done() or window == self._sent:
+                return
+            self._sent = window
+            await asyncio.to_thread(handle.resize, *window)
+
+    async def wait(self) -> int:
+        return await asyncio.shield(self._done)
+
+    async def kill(self) -> None:
+        # Once, and waited on by everyone who asks -- and not cancelled with any of them.
+        if self._killing is None:
+            self._killing = asyncio.ensure_future(self._kill())
+        await asyncio.shield(self._killing)
+
+    async def _kill(self) -> None:
+        handle = self.handle
+        if handle is not None and not self._done.done():
+            # The program's group; whatever runs in the terminal's foreground is hung up on
+            # as the program, which leads the terminal's session, goes.
+            _background(asyncio.to_thread(handle.signal, signal.SIGKILL))
+        await asyncio.wait({self._done}, timeout=KILLED_WITHIN)
+        if not self._done.done():
+            self._done.set_result(128 + signal.SIGKILL)
+            self._arrived.set()
+
+
+def _abandoned(
+    running: _RemoteRun | _RemotePty, starting: asyncio.Future[None]
+) -> None:
     """Kills a command whose starter was cancelled, once it has started, if it did."""
     if starting.cancelled() or starting.exception() is not None:
         return
@@ -638,6 +806,78 @@ class SSHMachine(Machine):
             return await asyncio.to_thread(_is_dir_now, client, str(path))
         except OSError as error:
             raise self._failed(error, f"could not look at {path}") from error
+
+    async def list(self, path: PurePosixPath) -> builtins.list[EnvEntry]:
+        client, _ = await self._connected()
+        try:
+            said = await asyncio.to_thread(client.listdir, str(path))
+        except OSError as error:
+            raise self._failed(error, f"could not list {path}") from error
+        entries: builtins.list[dict[str, Any]] = said.get("entries") or []
+        return [_entry(one, str(one.get("name", ""))) for one in entries]
+
+    async def stat(self, path: PurePosixPath) -> EnvEntry:
+        from hmz.coganchor.proto import Op
+
+        client, _ = await self._connected()
+        try:
+            said = await asyncio.to_thread(client.call, Op.STAT, path=str(path))
+        except OSError as error:
+            raise self._failed(
+                error, f"could not look at {path}", missing=True
+            ) from error
+        return _entry(said, path.name)
+
+    async def rename(self, path: PurePosixPath, to: PurePosixPath) -> None:
+        client, _ = await self._connected()
+        try:
+            await asyncio.to_thread(client.rename, str(path), str(to))
+        except OSError as error:
+            raise self._failed(error, f"could not move {path} to {to}") from error
+
+    async def remove(self, path: PurePosixPath) -> None:
+        """Removes a tree; one that is not there is a no-op.
+
+        A file or a link is unlinked where it is; a directory is removed by
+        :data:`~hmz.runtime.flowing.environing.REMOVE_SCRIPT`, as on every machine.
+
+        Raises:
+          EnvError: If it could not be removed.
+        """
+        from hmz.flows import EnvFileNotFound
+
+        try:
+            entry = await self.stat(path)
+        except EnvFileNotFound:
+            return
+        if entry.kind == "dir":
+            await super().remove(path)
+            return
+        client, _ = await self._connected()
+        try:
+            await asyncio.to_thread(client.unlink, str(path))
+        except OSError as error:
+            if error.errno != errno.ENOENT:
+                raise self._failed(error, f"could not remove {path}") from error
+
+    async def pty(
+        self, argv: Sequence[str], cwd: PurePosixPath, *, cols: int, rows: int
+    ) -> _RemotePty:
+        if not await self.is_dir(cwd):
+            raise EnvUnavailable(f"the workdir {cwd} is not there")
+        client, _ = await self._connected()
+        opened = _RemotePty(asyncio.get_running_loop(), self, argv, str(cwd))
+        starting = asyncio.ensure_future(
+            asyncio.to_thread(opened.start_now, client, cols, rows)
+        )
+        try:
+            await asyncio.shield(starting)
+        except asyncio.CancelledError:
+            starting.add_done_callback(lambda _: _abandoned(opened, starting))
+            raise
+        except OSError as error:
+            raise self._failed(error, f"could not run {argv[0]!r}") from error
+        return opened
 
 
 def _homed(facts: _Facts, path: PurePosixPath) -> PurePosixPath:

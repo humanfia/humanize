@@ -246,6 +246,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | <span id="cmd-btw"></span>`/btw` | `[question]` | all | out of btw mode: off a `session` view, an [Ai-chan conversation](#ai-chan) followed, or the session gone (see [btw](#btw)) | — |
 | <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
+| <span id="cmd-env"></span>`/env` | `[role]` | all | no environment is open (the host's `envs` snapshot is empty) | — |
 | <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
 | <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
@@ -264,6 +265,7 @@ Each command's line in the completion list:
 | `/btw` | `Ask side questions of this session; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
 | `/epics` | `View and manage epics here, or of another daemon` | |
 | `/resume` | `Resume the last epic in this directory` | |
+| `/env` | `Files, changes and a shell of the run's environments` | |
 | `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace, usage` | |
 | `/clear` | `Clear the screen` | |
 | `/afk` | `Toggle whether an agent may ask you` | |
@@ -303,6 +305,8 @@ Every message is red and prefixed `hmz: `.
 | `/btw` | the agent read has no session yet | `/btw: <agent> has no session yet` |
 | `/btw` | the session is gone | `/btw: no conversation found for <agent>/<n>` |
 | `/btw <q>` | busy | `btw is still answering the last question` |
+| `/env` | no environment | `no environment is open here` |
+| `/env <role>` | no such role, chain or id | `/env: no environment '<role>' here; choose <roles>` |
 
 ### `/flow [flow]` {#flow-command}
 
@@ -329,6 +333,37 @@ machine's (`@local`) until another is turned to -- or on `@<daemon>`, one of tho
 ### `/resume` {#resume}
 
 See [`/resume`](#carrying-the-last-one-on-outright).
+
+### `/env [role]` {#env-command}
+
+Opens **Environments**: every environment of the epic or chat in front of you, as the host's `envs` snapshot lists
+them, grouped by role with each derived environment under the one it came from
+(`└ <chain>`), each row saying backend, provider and workdir; a closed one is dimmed and ends
+`closed`. Enter opens it on its first page; `[role]` (a role, a chain or an environment id, an
+open root first) opens that environment on its first page directly. The snapshot is kept as
+the host updates it, and every `env_used` record is drawn as a dim line,
+`<by> <what>[ <path>] in <chain>`.
+
+An environment's pages are those its real capabilities (`caps`) give, in this order; it opens
+on the first whose capability the flow also declared, else Files. `tab` and `shift+tab` step to
+the next and the last page:
+
+| Page | Shown when `caps` has | Does |
+| --- | --- | --- |
+| Files | `files` | Lists a directory (`env.list`), folders first; enter opens a folder or a file, backspace goes up. `n` new file (made empty, `if_match: ""`, then opened), `N` new folder, `r` rename, `d` delete (asked first; recursive), `e` edits the file in `$VISUAL`, else `$EDITOR`, else `vi`, on a temporary copy, the terminal handed over, and writes it back against what was read where it changed. `ctrl+p` opens any file of `env.find`, narrowed by typing; `?` (or `ctrl+shift+f`) asks for text, lists `env.search`'s matches, and opens one at its line. |
+| Changes | `git` or `git_worktree` | `env.git.status` as **Merge Changes**, **Staged Changes**, **Changes** and **Untracked**, each with its count, under the branch, `↑ahead ↓behind upstream` and the root. Enter shows the file's diff (`env.git.diff`, the staged one from Staged Changes) coloured; `s` stage, `u` unstage, `x` discard (asked first), `c` commit (a message, and amend), `r` refresh; buttons stage or unstage all. It refreshes on its own after an `env_used` record and when a turn ends. |
+| Shell | `shell` | Hands this terminal over to a shell in the environment (`env.term.open` at this terminal's size, or one this interface left running, picked from `env.term.list`, its scrollback replayed). Keys go to it raw; a change of size is `env.term.resize`; output is acknowledged every 64 KiB. `~.` first on a line comes back and leaves it running; `~~` sends one `~`. Its ending comes back with `shell in <chain>: exited with status <n>`. A refusal of `env.term.open` or of what was typed -- `Terminals are off for paired devices; turn on envs.paired_terminals.` among them -- is said in red. |
+| Snapshots | `rewind` | `env.git.snapshots`; enter rewinds to one (`env.git.rewind`), asked first. A refusal (`<role> is working here; stop it first`) is said under the list. |
+
+**The editor.** A file opens full-screen in a code editor with line numbers, coloured by its
+name where a grammar is installed. It saves itself 1 s after the last edit and on leaving
+(`env.write` with `if_match` the etag last read or written), one write at a time; `ctrl+s`
+saves now and esc saves, then closes. The status line says the path, `Ln`, `Col`, and
+`● edited`, `Saving…`, `Saved` or why it did not save. A write refused because the file changed
+on disk keeps your text and asks: **Keep mine** (write over it, `if_match: null`),
+**Reload** (read it again, dropping yours) or **Show diff** (disk against yours, then asks
+again). A binary file, one that is not UTF-8, and one larger than 5 MiB are not opened in it:
+the list says why, and `e` opens them in your own editor.
 
 ### `/settings [page]` {#settings-command}
 
