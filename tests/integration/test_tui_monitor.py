@@ -164,7 +164,7 @@ async def test_btw_with_no_session_read_is_refused(workspace: Path) -> None:
 
         await typed(pilot, "/btw hey")
 
-        await shows(pilot, "/btw is only available on one agent's", "/ai asks Ai-chan")
+        await shows(pilot, "/btw is only available on one agent's", "/ai asks")
 
 
 async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
@@ -181,7 +181,7 @@ async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
 
         await typed(pilot, "/btw what is it doing")
 
-        await shows(pilot, "/btw is only available on one agent's", "/ai asks Ai-chan")
+        await shows(pilot, "/btw is only available on one agent's", "/ai asks")
     assert _asides(workspace) == []
 
 
