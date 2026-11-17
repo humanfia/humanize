@@ -1,4 +1,4 @@
-"""`hmz.daemon.api.aichan`: what a conversation is refused as it is made, and when none is."""
+"""`hmz.daemon.api.aichan`: what a conversation is refused as it is made."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ from unittest import mock
 
 import pytest
 
-from hmz.daemon.api.aichan import METHODS
+from hmz.daemon.api.aichan import served
 from hmz.rpc import RpcError
 
 
 def _refused(method: str, **params: Any) -> tuple[int, str]:
     with pytest.raises(RpcError) as refused:
-        METHODS[method](mock.Mock(params=params))
+        served(mock.Mock())[method](mock.Mock(params=params))
     return refused.value.code, refused.value.message
 
 
@@ -42,11 +42,3 @@ def test_a_conversation_said_wrongly_is_refused_400(
     params: dict[str, Any], message: str
 ) -> None:
     assert _refused("aichan.create", task="hi", **params) == (400, message)
-
-
-def test_nothing_is_served_without_a_daemon(monkeypatch: pytest.MonkeyPatch) -> None:
-    from hmz.daemon import routing
-
-    monkeypatch.setattr(routing, "serving", None)
-
-    assert _refused("aichan.list") == (503, "No daemon is serving here.")

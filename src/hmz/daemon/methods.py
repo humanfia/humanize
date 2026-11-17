@@ -467,7 +467,10 @@ class _Methods:
         from hmz.daemon.asides import Asides
 
         asides = Asides(self._router)
+        # Found as the families are, above this layer; served over this daemon.
+        aichan = importlib.import_module("hmz.daemon.api.aichan")
         return {
+            **aichan.served(self._router),
             "session.hello": self.hello,
             "pair.create": self.pair_create,
             "pair.claim": self.pair_claim,

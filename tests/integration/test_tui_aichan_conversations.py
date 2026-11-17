@@ -1,22 +1,20 @@
 """`/ai`: Ai-chan's conversations, made, followed as a chat, carried on and forgotten.
 
-`aichan.*` is answered here by a daemon of the test's own, which makes a conversation as the
-daemon does -- a host of its own slot, `ai:<hex>`, its task the first message -- but runs the
-stand-in's chat on that host in place of the flow `ai_chan`: what is under test is the
+`aichan.*` is answered by the test's own daemon as any daemon answers it -- a host of its own
+slot, `ai:<hex>`, its task the first message -- whose host runs a stand-in for the flow
+`ai_chan` that talks to the stand-in agent as a chat does: what is under test is the
 interface, which reads her conversation as it reads any chat.
 """
 
 from __future__ import annotations
 
-import itertools
-import threading
-import uuid
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz import daemon as daemons
-from hmz.rpc import Code, RpcError
+from hmz.daemon import reach
+from hmz.runtime import flowing
+from hmz.runtime.flowing import finding
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import Acts, AiChanNew, AiChans, AiForgets
@@ -41,81 +39,77 @@ if TYPE_CHECKING:
     from textual.pilot import Pilot
 
     from hmz.daemon.private import Private
-    from hmz.rpc import Call
 
 
-class _Conversations:
-    """`aichan.list`, `aichan.create` and `aichan.forget`, as a daemon answers them."""
+#: Stands in for the flow `ai_chan`: a chat with her, as Humanize's `chat` has with its agent.
+_AI_CHAN = """
+from hmz.flows import (
+    Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, Outworlder, flow,
+)
 
-    def __init__(self, scratch: Path) -> None:
-        self.held: list[dict[str, Any]] = []
-        self.made: list[dict[str, Any]] = []
-        self._scratch = scratch
-        self._ids = itertools.count(1)
-        self._lock = threading.Lock()
 
-    def serves(self, served: Private) -> None:
-        """Answers the three methods on the test's daemon."""
-        served.dispatcher.register("aichan.list", self.listed)
-        served.dispatcher.register("aichan.create", self.create)
-        served.dispatcher.register("aichan.forget", self.forget)
+class Agents(AgentCollection):
+    ai_chan: Agent
+    human: Outworlder
 
-    def listed(self, call: Call) -> dict[str, Any]:
-        del call
-        with self._lock:
-            return {"conversations": [dict(one) for one in self.held]}
 
-    def create(self, call: Call) -> dict[str, Any]:
-        said = {key: value for key, value in call.params.items() if key != "idem"}
-        self.made.append(said)
-        # A scope of the whole daemon is held in a workspace of its own.
-        workspace = str(said.get("workspace") or self._scratch)
-        slot = f"ai:{uuid.uuid4().hex[:12]}"
-        with daemons.attach("sdk", workspace=workspace, slot=slot) as link:
-            link.start("chat", said["task"], agents={"assistant": RUNS})
-        one = {
-            "id": next(self._ids),
-            "title": said["task"][:80],
-            "scope": said["scope"],
-            "workspace": workspace,
-            "epic": said.get("epic", ""),
-            "nous": said["nous"],
-            "preset": said["preset"],
-            "network": said["network"],
-            "slot": slot,
-            "state": "waiting",
-            "created": "2026-11-17T00:00:00Z",
-        }
-        with self._lock:
-            self.held.insert(0, one)
-        return {"id": one["id"], "workspace": workspace, "slot": slot}
+class Envs(EnvCollection):
+    workspace: LocalEnv
 
-    def forget(self, call: Call) -> dict[str, Any]:
-        number = call.params["id"]
-        with self._lock:
-            if not any(one["id"] == number for one in self.held):
-                raise RpcError(Code.NOT_FOUND, f"There is no Ai-chan #{number}.")
-            self.held = [one for one in self.held if one["id"] != number]
-        return {}
+
+class Params(FlowParams):
+    id: int = 0
+    scope: str = ""
+    workspace: str = ""
+    epic: str = ""
+    preset: str = ""
+    network: bool = False
+
+
+@flow(agents=Agents, envs=Envs, params=Params, name="ai_chan", resumable=True)
+async def ai_chan(task, *, agents, envs, params, ctx):
+    her, human = agents["ai_chan"], agents["human"]
+    talk, person = await her.spawn(), await human.spawn()
+    said = task
+    while said:
+        answered = await her.run(said, session=talk, env=envs["workspace"])
+        said = await human.run(answered, session=person)
+"""
 
 
 @pytest.fixture
-def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
-    """The stand-in `claude` on `PATH`, and the `ai_chan` setting naming it."""
-    del asking
+def workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None, daemon: Private
+) -> Path:
+    """The stand-in `claude` on `PATH`, the `ai_chan` setting naming it, and her flow.
+
+    The daemon's `aichan.*` is its own; the flow her host runs is the stand-in above, held
+    as a chat is, which is how the interface reads her conversation.
+    """
+    del asking, daemon
     here = stand_in(tmp_path, monkeypatch)
     Settings().ai_chan = RUNS
+    flow = tmp_path / "fakes" / "ai_chan"
+    flow.mkdir(parents=True)
+    (flow / "__init__.py").write_text(_AI_CHAN)
+    monkeypatch.setattr(reach, "FLOW", str(flow))
+    was = finding.privileged
+
+    def chats(impl: Any) -> bool:
+        return was(impl) or impl.name == "ai_chan"
+
+    monkeypatch.setattr(finding, "privileged", chats)
+    monkeypatch.setattr(flowing, "privileged", chats)
     return here
 
 
-@pytest.fixture
-def conversations(daemon: Private, tmp_path: Path) -> _Conversations:
-    """Ai-chan's conversations, as the test's daemon answers for them."""
-    scratch = tmp_path / "ai"
-    scratch.mkdir()
-    held = _Conversations(scratch)
-    held.serves(daemon)
-    return held
+#: What a conversation is kept with that the interface chose.
+_KEPT = ("id", "title", "scope", "workspace", "epic", "nous", "preset", "network")
+
+
+def _made(daemon: Private) -> list[dict[str, Any]]:
+    """Each conversation the daemon keeps, as it keeps it."""
+    return daemon.links.kept.all()
 
 
 async def _new(pilot: Pilot[None]) -> AiChanNew:
@@ -136,7 +130,7 @@ async def _done(pilot: Pilot[None]) -> None:
 
 
 async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_it(
-    workspace: Path, conversations: _Conversations
+    workspace: Path, daemon: Private
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
@@ -146,7 +140,7 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
         await shows(pilot, "scope", "workspace", "nous", RUNS, "read-only", "off")
         await _done(pilot)
         await shows(pilot, "Ai-chan · new · workspace", "Ai-chan: the next line")
-        assert conversations.made == []
+        assert _made(daemon) == []
 
         await typed(pilot, "hello there")
 
@@ -154,20 +148,22 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
         await typed(pilot, "go on")
         await shows(pilot, "heard go on", "◉ done")
 
-    (made,) = conversations.made
-    assert made == {
+    (made,) = _made(daemon)
+    assert {key: made[key] for key in _KEPT} == {
+        "id": 1,
+        "title": "hello there",
         "scope": "workspace",
         "workspace": str(app.hmz.workspace),
+        "epic": "",
         "nous": RUNS,
         "preset": "read-only",
         "network": False,
-        "task": "hello there",
     }
     assert heard(workspace) == ["hello there", "go on"]
 
 
 async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_daemon(
-    workspace: Path, conversations: _Conversations
+    workspace: Path, daemon: Private
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
@@ -187,20 +183,20 @@ async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_dae
         await typed(pilot, "look around")
         await shows(pilot, "heard look around", "Ai-chan#1 · daemon")
 
-    (made,) = conversations.made
-    assert made == {
+    (made,) = _made(daemon)
+    assert {key: made[key] for key in _KEPT} == {
+        "id": 1,
+        "title": "look around",
         "scope": "daemon",
+        "workspace": str(daemon.links.kept.at.resolve()),
+        "epic": "",
         "nous": RUNS,
         "preset": "danger-full-access",
         "network": True,
-        "task": "look around",
     }
 
 
-async def test_her_tools_are_shown_and_btw_and_stop_are_hers(
-    workspace: Path, conversations: _Conversations
-) -> None:
-    del conversations
+async def test_her_tools_are_shown_and_btw_and_stop_are_hers(workspace: Path) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
@@ -221,7 +217,7 @@ async def test_her_tools_are_shown_and_btw_and_stop_are_hers(
 
 
 async def test_a_conversation_is_carried_on_from_the_list_and_forgotten_there(
-    workspace: Path, conversations: _Conversations
+    workspace: Path, daemon: Private
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
@@ -253,5 +249,5 @@ async def test_a_conversation_is_carried_on_from_the_list_and_forgotten_there(
         await pilot.press("enter")
         await on(pilot, AiChans)
         await shows(pilot, "no conversation yet")
-    assert conversations.held == []
+    assert _made(daemon) == []
     assert heard(workspace)[-1] == "and again"

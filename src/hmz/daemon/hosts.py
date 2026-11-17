@@ -517,24 +517,11 @@ class Hosts:
         finally:
             theirs.close()
         hosted = Hosted(workspace, slot)
-        key = (workspace, slot)
-
-        def went() -> None:
-            with self._lock:
-                # A slot is gone for good only once its host was held: one that never came
-                # up may be started again. An Ai-chan host is started again as attached to.
-                mine = self._held.get(key) is hosted
-                if mine:
-                    del self._held[key]
-                    if slot and not slot.startswith("ai:"):
-                        self._gone.add(key)
-            if mine and slot.startswith("ai:") and self.ai is not None:
-                self.ai.went(slot)
-            hosted.went()
-            self._changed()
-
         hosted.peer = Peer(
-            SocketPipe(ours, trusted=True), hosted.told, on_close=went, name="hmz-link"
+            SocketPipe(ours, trusted=True),
+            hosted.told,
+            on_close=lambda: self.went(hosted),
+            name="hmz-link",
         )
         try:
             said: Any = hosted.peer.call("status", {}, timeout=_PATIENCE)
@@ -543,6 +530,25 @@ class Hosts:
             raise OSError(f"the host did not say what it holds: {why}") from why
         hosted.said = dict(said)
         return hosted
+
+    def went(self, hosted: Hosted) -> None:
+        """Lets go of a host whose link has closed, and of every subscription to it.
+
+        A slot is gone for good only once its host was held: one that never came up may be
+        started again. An Ai-chan host is started again as it is attached to, and its scoped
+        link goes with it.
+        """
+        key = (hosted.workspace, hosted.slot)
+        with self._lock:
+            mine = self._held.get(key) is hosted
+            if mine:
+                del self._held[key]
+                if hosted.slot and not hosted.slot.startswith("ai:"):
+                    self._gone.add(key)
+        if mine and hosted.slot.startswith("ai:") and self.ai is not None:
+            self.ai.went(hosted.slot)
+        hosted.went()
+        self._changed()
 
     def stop_all(self) -> None:
         """Closes every host, as the daemon goes."""

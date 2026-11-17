@@ -3,11 +3,13 @@
 Each conversation is recorded in `<home>/ai/<machine>/conversations.yaml`, held on a host of an
 `ai:` slot of its own in the workspace of its scope -- `<home>/ai/<machine>` itself for the scope
 `daemon` -- and kept until it is forgotten, whether or not a host holds it. What starts that
-host, and the scoped link it is told of, is :class:`hmz.daemon.reach.Links`.
+host, and the scoped link it is told of, is :class:`hmz.daemon.reach.Links`. Served by
+whichever daemon names them (:func:`served`), a private one among them.
 """
 
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -21,7 +23,7 @@ if TYPE_CHECKING:
     from hmz.daemon.routing import Router
     from hmz.rpc import Call, Handler
 
-__all__ = ["METHODS"]
+__all__ = ["served"]
 
 #: How long a title taken from the task is, at most.
 _TITLE = 80
@@ -38,14 +40,6 @@ _LISTED = (
     "network",
     "slot",
 )
-
-
-def _router() -> Router:
-    from hmz.daemon import routing
-
-    if routing.serving is None:
-        raise RpcError(Code.UNAVAILABLE, "No daemon is serving here.")
-    return routing.serving
 
 
 def _refused(message: str) -> RpcError:
@@ -93,7 +87,7 @@ def _checked(params: Mapping[str, Any]) -> tuple[str, str, str]:
     return scope, workspace, epic
 
 
-def _create(call: Call) -> dict[str, Any]:
+def _create(router: Router, call: Call) -> dict[str, Any]:
     from hmz.daemon.methods import workspace as placed
 
     params = call.params
@@ -105,7 +99,6 @@ def _create(call: Call) -> dict[str, Any]:
     task = str(params["task"])
     if not task.strip():
         raise _refused("Tell Ai-chan something to start with.")
-    router = _router()
     links = router.links
     if scope == "daemon":
         links.kept.at.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -149,9 +142,8 @@ def _state(router: Router, conversation: Mapping[str, Any]) -> str:
     )
 
 
-def _list(call: Call) -> dict[str, Any]:
+def _list(router: Router, call: Call) -> dict[str, Any]:
     del call
-    router = _router()
     return {
         "conversations": [
             {key: one.get(key) for key in _LISTED}
@@ -161,9 +153,8 @@ def _list(call: Call) -> dict[str, Any]:
     }
 
 
-def _forget(call: Call) -> dict[str, Any]:
+def _forget(router: Router, call: Call) -> dict[str, Any]:
     ident = int(call.params["id"])
-    router = _router()
     kept = router.links.kept
     conversation = next((one for one in kept.all() if one["id"] == ident), None)
     if conversation is None:
@@ -175,9 +166,10 @@ def _forget(call: Call) -> dict[str, Any]:
     return {}
 
 
-#: Each method of the family, by name.
-METHODS: Mapping[str, Handler] = {
-    "aichan.create": _create,
-    "aichan.list": _list,
-    "aichan.forget": _forget,
-}
+def served(router: Router) -> dict[str, Handler]:
+    """Each method of the family, by name, over the daemon that serves it."""
+    return {
+        "aichan.create": functools.partial(_create, router),
+        "aichan.list": functools.partial(_list, router),
+        "aichan.forget": functools.partial(_forget, router),
+    }
