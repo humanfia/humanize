@@ -124,9 +124,11 @@ of a `webrtc:` route, whose host the server cannot know. `'unsafe-inline'` in `s
 the editor and the terminal style what they draw from their own scripts; scripts stay the
 server's own files only.
 
-The editor (CodeMirror 6) and the terminal (xterm.js) are the page's only third-party code,
-served from `/vendor/codemirror.js`, `/vendor/xterm.js` and `/vendor/xterm_css.css`. They are
-built from the pinned packages in `src/hmz/web/vendor/`; see
+The page's only third-party code is served from `/vendor/`: the editor (CodeMirror 6) at
+`codemirror.js`, the terminal (xterm.js) at `xterm.js` and `xterm_css.css`, Markdown (marked
+and DOMPurify) at `markdown.js`, and charts (Vega-Lite through vega-embed, its expressions
+interpreted rather than compiled, so no `eval` is needed) at `vega.js`. They are built from the
+pinned packages in `src/hmz/web/vendor/`; see
 [Rebuilding the vendored code](/contributing/architecture#vendored-web-code).
 
 ## `/here` {#here}

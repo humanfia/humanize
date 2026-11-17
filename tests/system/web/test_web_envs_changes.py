@@ -3,16 +3,13 @@
 The panel is mounted alone, as the environments frame mounts it, on a `ctx` whose `call`
 answers `env.git.*` out of a repository held in the page: files with a HEAD, an index and a
 worktree side each, staged, unstaged, discarded and committed as git would. The editor it draws
-diffs with is CodeMirror, bundled for the test out of npm into `/vendor/codemirror.js` as the
-contract names it: without `node` and `pnpm`, or the registry, the test is skipped.
+diffs with is CodeMirror, from `/vendor/codemirror.js`, the bundle the package ships.
 """
 
 from __future__ import annotations
 
 import contextlib
 import os
-import shutil
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlsplit
@@ -35,76 +32,8 @@ pytestmark = [
     pytest.mark.usefixtures("daemon"),
 ]
 
-#: The packages the bundle is made of, at their latest, so that each is had once.
-_PACKAGES = (
-    "codemirror",
-    "@codemirror/view",
-    "@codemirror/state",
-    "@codemirror/commands",
-    "@codemirror/search",
-    "@codemirror/merge",
-    "@codemirror/lang-python",
-    "esbuild",
-)
-
-#: What `/vendor/codemirror.js` exports, as the web module contract names it.
-_ENTRY = """
-import { EditorView } from '@codemirror/view'
-import { python } from '@codemirror/lang-python'
-export { EditorView, keymap } from '@codemirror/view'
-export { EditorState, Compartment } from '@codemirror/state'
-export { basicSetup } from 'codemirror'
-export { indentWithTab } from '@codemirror/commands'
-export { search, openSearchPanel, gotoLine } from '@codemirror/search'
-export { MergeView, unifiedMergeView } from '@codemirror/merge'
-export function languageFor(name) { return /\\.py$/.test(name) ? python() : null }
-export function themeFor({ dark }) { return EditorView.theme({}, { dark }) }
-"""
-
 #: Mounts the panel on a repository held in the page, kept on `window.repo`.
 _MOUNT = (Path(__file__).parent / "envs_changes_bench.js").read_text()
-
-
-@pytest.fixture(scope="session")
-def codemirror(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """CodeMirror, bundled as `/vendor/codemirror.js` exports it, or the test is skipped."""
-    pnpm = shutil.which("pnpm")
-    if not shutil.which("node") or not pnpm:
-        pytest.skip("node and pnpm make the editor's bundle")
-    at = tmp_path_factory.mktemp("codemirror")
-    (at / "package.json").write_text('{"name": "bundle", "private": true}\n')
-    (at / "entry.js").write_text(_ENTRY)
-    env = {**os.environ, "CI": "1"}
-
-    def add(*flags: str) -> bool:
-        said = subprocess.run(
-            [pnpm, "add", "--silent", *flags, *_PACKAGES],
-            cwd=at,
-            env=env,
-            timeout=300,
-            check=False,
-        )
-        return said.returncode == 0
-
-    try:
-        # pnpm from 10 on runs no package's build unless allowed; before, it knows no such flag.
-        if not add("--allow-build=esbuild") and not add():
-            pytest.skip("the editor's packages could not be fetched")
-        subprocess.run(
-            [
-                str(at / "node_modules" / ".bin" / "esbuild"),
-                "entry.js",
-                "--bundle",
-                "--format=esm",
-                "--outfile=codemirror.js",
-            ],
-            cwd=at,
-            check=True,
-            timeout=120,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        pytest.skip(f"the editor's bundle could not be made: {error}")
-    return at / "codemirror.js"
 
 
 def _mounted(
@@ -146,21 +75,13 @@ def _through(route: Route) -> None:
 
 
 @contextlib.contextmanager
-def _opened(site: Site, engine: str, codemirror: Path) -> Generator[Page]:
+def _opened(site: Site, engine: str) -> Generator[Page]:
     """The page, then a bench of its own on the same interface to mount the panel on."""
     with opened(site, engine=engine) as page:
-        page.route(
-            "**/vendor/codemirror.js",
-            lambda route: route.fulfill(
-                path=str(codemirror), content_type="text/javascript"
-            ),
-        )
         # The bench is handed over by the test, and what a page so handed reaches is fetched
         # for it too: the browser lets such a page reach this machine's addresses no other way.
         page.route(
-            lambda url: (
-                urlsplit(url).path.endswith((".js", ".css")) and "/vendor/" not in url
-            ),
+            lambda url: urlsplit(url).path.endswith((".js", ".css")),
             _through,
         )
         page.route(
@@ -188,9 +109,9 @@ def _shots(tmp_path: Path) -> Path:
 
 
 def test_groups_stage_unstage_discard_and_commit(
-    site: Site, codemirror: Path, engine: str, tmp_path: Path
+    site: Site, engine: str, tmp_path: Path
 ) -> None:
-    with _opened(site, engine, codemirror) as page:
+    with _opened(site, engine) as page:
         _mounted(page, caps=["files", "git"])
         expect(page.locator("[data-hmz=changes-sync]")).to_have_text("↑0↓2")
         assert _counts(page) == {"staged": "1", "changes": "2", "untracked": "2"}
@@ -275,10 +196,8 @@ def test_groups_stage_unstage_discard_and_commit(
         page.screenshot(path=str(_shots(tmp_path) / f"changes-empty-{engine}.png"))
 
 
-def test_diff_side_by_side_and_inline(
-    site: Site, codemirror: Path, engine: str, tmp_path: Path
-) -> None:
-    with _opened(site, engine, codemirror) as page:
+def test_diff_side_by_side_and_inline(site: Site, engine: str, tmp_path: Path) -> None:
+    with _opened(site, engine) as page:
         _mounted(page, caps=["files", "git"])
         _row(page, "changes", "src/app.py").click()
         side = page.locator("[data-hmz=diff-side]")
@@ -311,9 +230,9 @@ def test_diff_side_by_side_and_inline(
 
 
 def test_conflicts_bar_the_commit_and_snapshots_are_gated(
-    site: Site, codemirror: Path, engine: str
+    site: Site, engine: str
 ) -> None:
-    with _opened(site, engine, codemirror) as page:
+    with _opened(site, engine) as page:
         _mounted(page, caps=["files", "git"], conflict=True)
         assert _counts(page)["merge"] == "1"
         expect(page.locator("[data-hmz=changes-commit]")).to_be_disabled()
@@ -348,8 +267,8 @@ def test_conflicts_bar_the_commit_and_snapshots_are_gated(
         expect(page.locator("[data-hmz=change]").first).to_be_visible()
 
 
-def test_the_tree_view_folds_folders(site: Site, codemirror: Path, engine: str) -> None:
-    with _opened(site, engine, codemirror) as page:
+def test_the_tree_view_folds_folders(site: Site, engine: str) -> None:
+    with _opened(site, engine) as page:
         _mounted(page, caps=["files", "git"])
         page.locator("[data-hmz=changes-view]").click()
         folder = page.locator(".ch-kind-dir[data-group=changes][data-path=src]")

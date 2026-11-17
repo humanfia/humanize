@@ -1,0 +1,4 @@
+# What src/hmz/web/vendor builds: committed so the page needs no build, and held by CI to be
+# what the lockfile builds. Generated, so reviews and language stats pass over it.
+src/hmz/web/static/vendor/** linguist-generated=true
+src/hmz/web/vendor/pnpm-lock.yaml linguist-generated=true
