@@ -221,6 +221,12 @@ directory it ran in.
 
 You pressed **Stop** or typed `/stop` between her turns. There is nothing to interrupt.
 
+### `Ai-chan's harness must be kept from the daemon's socket, which Landlock cannot do: set sandbox.backend to bwrap` {#bwrap}
+
+On Linux only bubblewrap keeps her CLI from Humanize's own socket; Landlock closes paths, not
+connections to a socket. Install bubblewrap and set `sandbox.backend` to `bwrap` (see
+[Permissions](/user/permissions)), then start the conversation again. macOS needs nothing.
+
 ### She says she is read-only
 
 The conversation is `read-only`, and what you asked changes something. The preset cannot change:
