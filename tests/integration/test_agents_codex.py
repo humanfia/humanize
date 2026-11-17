@@ -56,6 +56,35 @@ def codex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
     return held
 
 
+def _fenced(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    rules: list[tuple[str, str]],
+    *,
+    online: bool = True,
+) -> Fence:
+    """A fence of those rules, taken to be put up here though nothing is put up at all.
+
+    What is checked is what Codex is told inside it, not the fence itself.
+    """
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    # Where the stand-in looks for rules beside Humanize's, for it to say what it was told.
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True, exist_ok=True)
+    return Fence.of(
+        rules=rules, online=online, workdir=tmp_path, home=tmp_path / "home"
+    )
+
+
 def _told(codex: Standins, method: str) -> list[dict[str, Any]]:
     """What each call of one method was sent, oldest first."""
     return [
@@ -251,10 +280,11 @@ def test_a_turn_that_has_gone_silent_is_ended_by_the_watchdog(
         CodexAgent(CONFIG).new()("hang")
 
 
-def test_an_approval_is_put_to_the_hook_and_refused(codex: Standins) -> None:
-    agent = CodexAgent(
-        CodexAgentConfig(model="gpt-stand-in", effort="high", permission="bypass")
-    )
+def test_an_approval_is_put_to_the_hook_and_refused(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fence = _fenced(monkeypatch, tmp_path, [("/", READ), (".", WRITE)])
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
     seen: list[Occasion] = []
 
     def gate(occasion: Occasion) -> Verdict:
@@ -270,12 +300,20 @@ def test_an_approval_is_put_to_the_hook_and_refused(codex: Standins) -> None:
     assert "rm -rf /" in seen[0].about
 
 
-def test_an_approval_nobody_refused_is_accepted(codex: Standins) -> None:
-    agent = CodexAgent(
-        CodexAgentConfig(model="gpt-stand-in", effort="high", permission="bypass")
-    )
+def test_an_approval_nobody_refused_is_accepted(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fence = _fenced(monkeypatch, tmp_path, [("/", READ), (".", WRITE)])
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
 
     assert json.loads(agent.new()("approve")) == {"decision": "accept"}
+
+
+def test_an_approval_asked_of_an_agent_with_no_fence_is_refused(
+    codex: Standins,
+) -> None:
+    """Driven by hand, Codex asks over its own defaults, and Humanize has no yes to give."""
+    assert json.loads(CodexAgent(CONFIG).new()("approve")) == {"decision": "decline"}
 
 
 def test_a_question_is_put_to_whoever_drives_the_agent(codex: Standins) -> None:
@@ -439,13 +477,20 @@ def test_codex_under_an_account_a_gateway_holds_asks_it_in_the_responses_api(
     [((), None), (("tix",), 'prefix_rule(pattern=["tix"], decision="allow")\n')],
 )
 def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
-    codex: Standins, unsandboxed: tuple[str, ...], ruled: str | None, tmp_path: Path
+    codex: Standins,
+    unsandboxed: tuple[str, ...],
+    ruled: str | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # A fence that writes nothing, which is Codex's `read-only` sandbox -- told here as the
+    # fence holding it, the platform being one Codex's sandbox cannot start inside a fence on.
+    monkeypatch.setattr("sys.platform", "linux")
+    fence = _fenced(monkeypatch, tmp_path, [("/", READ)], online=False)
     theirs = tmp_path / "home" / ".codex" / "rules"
-    theirs.mkdir(parents=True)
     (theirs / "default.rules").write_text("")
     config = dataclasses.replace(
-        CONFIG, permission="read-only", unsandboxed=(*unsandboxed, "absent")
+        CONFIG, fence=fence, unsandboxed=(*unsandboxed, "absent")
     )
     session = CodexAgent(config).new()
     session.shelves(
@@ -454,9 +499,12 @@ def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
 
     said = list(session.stream("rules"))
 
-    # The rest of the read-only sandbox is untouched: the network stays cut.
+    # The rest of the sandbox is untouched: the network stays cut.
     told = json.loads(said[-1].text)
-    assert (told["policy"], told["rules"]) == (None, ruled)
+    assert (told["policy"], told["rules"]) == (
+        {"type": "externalSandbox", "networkAccess": "restricted"},
+        ruled,
+    )
     # The user's own rules are read beside Humanize's, and never written.
     assert "default.rules" in told["theirs"]
     assert sorted(one.name for one in theirs.iterdir()) == ["default.rules"]
@@ -464,62 +512,53 @@ def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
 
 @pytest.mark.parametrize("platform", ["linux", "darwin"])
 @pytest.mark.parametrize(
-    ("permission", "local", "user", "online"),
+    ("local", "user", "online", "sandbox"),
     [
-        ("read-only", READ, READ, True),
-        ("workspace-write", WRITE, READ, True),
-        # Wider than the rung: `bypass` stepped down by a Codex that forbids full access,
-        # under a fence that writes the home and cuts the network.
-        ("workspace-write", WRITE, WRITE, False),
+        (READ, READ, True, "read-only"),
+        (WRITE, READ, True, "danger-full-access"),
+        (WRITE, WRITE, False, "danger-full-access"),
     ],
 )
-def test_a_fence_around_codex_holds_the_rung_in_place_of_codex(
+def test_a_fence_around_codex_is_read_for_its_sandbox_and_holds_it(
     codex: Standins,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     platform: str,
-    permission: str,
     local: str,
     user: str,
     online: bool,
+    sandbox: str,
 ) -> None:
-    """Codex's own sandbox cannot start inside the fence, on Linux as on a Mac.
+    """A fence that writes nothing is `read-only`, one that writes is full access, never asked.
 
-    Inside Landlock bubblewrap may not mount, and with `use_legacy_landlock` codex-cli 0.163.0
-    panics: every command of the turn would fail -- whether or not the fence is as narrow as
-    the rung. The fence itself is not put up here, only what Codex is told inside it.
+    And Codex's own sandbox cannot start inside the fence, on Linux as on a Mac: inside
+    Landlock bubblewrap may not mount, and with `use_legacy_landlock` codex-cli 0.163.0
+    panics, so every command of a `read-only` turn would fail. The fence holds it instead.
     """
-
-    def enforceable(*, net: bool) -> bool:
-        del net
-        return True
-
-    def wrapper(fence: Fence) -> list[str]:
-        del fence
-        return []
-
-    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
-    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
     monkeypatch.setattr("sys.platform", platform)
-    # Where the stand-in looks for rules beside Humanize's, for it to say what it was told.
-    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
-    fence = Fence.of(
-        rules=[("/", READ), ("~", user), (".", local)],
+    fence = _fenced(
+        monkeypatch,
+        tmp_path,
+        [("/", READ), ("~", user), (".", local)],
         online=online,
-        workdir=tmp_path,
-        home=tmp_path / "home",
     )
-    agent = CodexAgent(dataclasses.replace(CONFIG, permission=permission, fence=fence))
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
     try:
         said = list(agent.new(tmp_path).stream("rules"))
     finally:
         agent.stop()
 
+    (opened,) = _told(codex, "thread/start")
+    assert (opened["sandbox"], opened["approvalPolicy"]) == (sandbox, "never")
     told = json.loads(said[-1].text)
-    assert told["policy"] == {
-        "type": "externalSandbox",
-        "networkAccess": "enabled" if online else "restricted",
-    }
+    assert told["policy"] == (
+        {
+            "type": "externalSandbox",
+            "networkAccess": "enabled" if online else "restricted",
+        }
+        if sandbox == "read-only"
+        else None
+    )
 
 
 @pytest.mark.parametrize(
@@ -557,7 +596,7 @@ def test_a_codex_named_in_sandbox_native_is_held_by_its_own_sandbox(
         workdir=tmp_path,
         home=tmp_path / "home",
     )
-    agent = CodexAgent(dataclasses.replace(CONFIG, permission="bypass", fence=fence))
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
     try:
         said = list(agent.new(tmp_path).stream("rules"))
     finally:
@@ -611,12 +650,12 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_its_sandbox_cannot_carv
         workdir=tmp_path,
         home=tmp_path / "home",
     )
-    agent = CodexAgent(dataclasses.replace(CONFIG, permission="bypass", fence=fence))
+    agent = CodexAgent(dataclasses.replace(CONFIG, fence=fence))
     try:
         said = list(agent.new(tmp_path).stream("rules"))
     finally:
         agent.stop()
 
-    # At `bypass` a fence from outside leaves Codex told nothing of its sandbox.
+    # Under a fence that writes, a fence from outside leaves Codex told nothing of its sandbox.
     assert json.loads(said[-1].text)["policy"] is None
     assert wrapped

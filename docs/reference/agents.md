@@ -368,8 +368,10 @@ Per-backend rules:
 - **codex**: on a machine whose requirements forbid `danger-full-access`, the agent runs with
   sandbox `workspace-write` and approval `on-request`, every request granted, and says once
   per agent, as a `notice` event to whatever watches it (on stderr where nothing does): `codex:
-  this machine will not run an agent at bypass, so it runs at auto, where what it asks for is
-  granted`. `CodexAgentConfig.approvals` replaces the approval policy. With an `ASK_USER` hook
+  this machine will not run an agent at danger-full-access, so it runs at workspace-write, where
+  what it asks for is granted`. A fence that writes nothing is never stepped down: `read-only`
+  has nothing below it. `CodexAgentConfig.approvals` replaces the approval policy `never`, and
+  says nothing to an agent with no fence. With an `ASK_USER` hook
   hung it is started with the feature `default_mode_request_user_input`. Both take hold from
   the session's next turn (the app server is restarted). Where Codex's own sandbox cannot start
   inside the fence (macOS, and Linux under Landlock), each turn under a fence is sent

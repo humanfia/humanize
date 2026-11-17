@@ -807,14 +807,15 @@ HUMANIZE_WATCHDOG=3600 hmz
 
 **Verify.** Long quiet turns finish instead of being stopped.
 
-### `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks for is granted` {#codex-this-machine-will-not-run-an-agent-at-bypass-so-it-runs-at-auto}
+### `codex: this machine will not run an agent at danger-full-access, so it runs at workspace-write, where what it asks for is granted` {#codex-this-machine-will-not-run-an-agent-at-danger-full-access}
 
 **Symptom.** A note when a Codex agent starts. The work goes on.
 
 **Cause.** This Codex has requirements set by whoever manages it, an enterprise policy or the
-machine's own, and they forbid full access. So the agent runs in Codex's `workspace-write`
-sandbox with approval `on-request`: Codex asks before it reaches past the workspace, and
-Humanize says yes. Its [permission](/user/permissions) is held by the fence either way.
+machine's own, and they forbid full access. So an agent whose grant writes somewhere runs in
+Codex's `workspace-write` sandbox with approval `on-request`, not `danger-full-access`: Codex
+asks before it reaches past the workspace, and Humanize says yes. Its
+[permission](/user/permissions) is held by the fence either way.
 
 **Fix.** Nothing to do.
 

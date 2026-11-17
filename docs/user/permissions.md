@@ -269,15 +269,15 @@ shows. The copy runs as `@local/<flow>`.
 
 ### On a machine somebody else manages
 
-**Codex, where the organisation or the platform forbids full access.** The agent runs one step
-down, and says so once:
+**Codex, where the organisation or the platform forbids full access.** An agent whose grant
+writes somewhere runs in Codex's `workspace-write` sandbox instead, and says so once:
 
 ```text
-codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks for is granted
+codex: this machine will not run an agent at danger-full-access, so it runs at workspace-write, where what it asks for is granted
 ```
 
 It keeps the same freedom: Codex asks before it reaches past the workspace, and Humanize says
-yes.
+yes. The fence still holds where its writes land.
 
 **Claude Code, on an account whose managed settings turn off bypass mode, or as root.** The
 agent runs at `acceptEdits` instead, and says so once:

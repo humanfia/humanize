@@ -28,7 +28,7 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.agents.base import KEEPING
-from hmz.coganchor.agents.codex import strict, turning, unattended
+from hmz.coganchor.agents.codex import sandboxing, strict, turning
 from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
@@ -177,6 +177,23 @@ def _agent(**given: Any) -> CodexAgent:
     return CodexAgent(CodexAgentConfig(**_DEFAULTS | given))
 
 
+def _fence(where: Path, local: str = WRITE, *, online: bool = True) -> Fence:
+    """A fence reading everything and giving the workdir `local`."""
+    return Fence.of(
+        rules=[("/", READ), (".", local)],
+        online=online,
+        workdir=where,
+        home=where / "home",
+    )
+
+
+@pytest.fixture
+def fenced(monkeypatch: pytest.MonkeyPatch) -> Callable[..., Fence]:
+    """Fences this machine is taken to be able to put up, made as :func:`_fence` makes them."""
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    return _fence
+
+
 class _Shape(BaseModel):
     ok: bool
     why: str = "x"
@@ -284,28 +301,24 @@ def test_strict_ends_on_a_definition_nested_in_the_one_it_names() -> None:
 
 
 @pytest.mark.parametrize(
-    ("permission", "tier", "expected"),
+    ("local", "tier", "expected"),
     [
-        ("read-only", "default", {"approvalPolicy": "never", "sandbox": "read-only"}),
+        (READ, "default", {"approvalPolicy": "never", "sandbox": "read-only"}),
         (
-            "auto",
-            "default",
-            {"approvalPolicy": "on-request", "sandbox": "workspace-write"},
-        ),
-        (
-            "bypass",
+            WRITE,
             "fast",
             {"approvalPolicy": "never", "sandbox": "danger-full-access"},
         ),
-        ("", "default", {}),
-        ("no such rung", "default", {}),
+        (None, "default", {}),
+        (None, "fast", {}),
     ],
 )
-def test_unattended_is_the_rung_and_the_tier(
-    permission: str, tier: str, expected: dict[str, str]
+def test_sandboxing_is_read_off_the_fence_beside_the_tier(
+    tmp_path: Path, local: str | None, tier: str, expected: dict[str, str]
 ) -> None:
+    """A fence writing nothing is `read-only`, one that writes is full access, none silence."""
     service = "priority" if tier == "fast" else "default"
-    held = unattended(permission, tier)
+    held = sandboxing(None if local is None else _fence(tmp_path, local), tier)
     assert held == {"serviceTier": service} | expected
     assert "sandbox" not in turning(held)
     assert turning(held) == {
@@ -428,33 +441,40 @@ def test_goals_cannot_be_disabled_once_a_server_ran_with_them(
 
 
 @pytest.mark.parametrize(
-    ("permission", "sandbox", "policy"),
-    [
-        ("bypass", "danger-full-access", "never"),
-        ("auto", "workspace-write", "on-request"),
-    ],
+    ("local", "sandbox"), [(WRITE, "danger-full-access"), (READ, "read-only")]
 )
-def test_the_rung_goes_with_the_thread_and_the_policy_with_each_turn(
+def test_the_sandbox_goes_with_the_thread_and_the_policy_with_each_turn(
     spawner: Spawner,
     server: _Server,
+    fenced: Callable[..., Fence],
     tmp_path: Path,
-    permission: str,
+    local: str,
     sandbox: str,
-    policy: str,
 ) -> None:
-    _agent(permission=permission, service_tier="fast").new(tmp_path)("hi")
+    _agent(fence=fenced(tmp_path, local), service_tier="fast").new(tmp_path)("hi")
     (opened,) = server.called("thread/start")
-    assert (opened["sandbox"], opened["approvalPolicy"]) == (sandbox, policy)
+    assert (opened["sandbox"], opened["approvalPolicy"]) == (sandbox, "never")
     (turned,) = server.called("turn/start")
     assert "sandbox" not in turned
-    assert turned["approvalPolicy"] == policy
+    assert turned["approvalPolicy"] == "never"
     assert turned["serviceTier"] == "priority"
 
 
-def test_an_approval_policy_of_its_own_replaces_the_rungs(
+def test_an_agent_with_no_fence_is_told_nothing_of_what_it_may_do(
     spawner: Spawner, server: _Server, tmp_path: Path
 ) -> None:
-    _agent(permission="bypass", approvals="untrusted").new(tmp_path)("hi")
+    """Driven by hand: Codex is left at its own defaults, an approval policy said or not."""
+    _agent(approvals="untrusted").new(tmp_path)("hi")
+    (opened,) = server.called("thread/start")
+    (turned,) = server.called("turn/start")
+    for said in (opened, turned):
+        assert not {"sandbox", "sandboxPolicy", "approvalPolicy"} & set(said)
+
+
+def test_an_approval_policy_of_its_own_replaces_never(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    _agent(fence=fenced(tmp_path), approvals="untrusted").new(tmp_path)("hi")
     (opened,) = server.called("thread/start")
     assert opened["approvalPolicy"] == "untrusted"
     assert opened["sandbox"] == "danger-full-access"
@@ -673,14 +693,14 @@ def test_a_refused_call_is_a_failed_turn(
         _agent().new(tmp_path)("hi")
 
 
-def test_a_rung_the_installation_forbids_is_stepped_down_and_remembered(
-    spawner: Spawner, server: _Server, tmp_path: Path
+def test_full_access_the_installation_forbids_is_stepped_down_and_remembered(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
     server.refusing["thread/start"] = {
         "code": -1,
         "message": "approval_policy cannot be used because requirements do not allow it",
     }
-    agent = _agent(permission="bypass")
+    agent = _agent(fence=fenced(tmp_path))
     agent.new(tmp_path)("hi")
     refused, stepped = server.called("thread/start")
     assert refused["sandbox"] == "danger-full-access"
@@ -698,12 +718,12 @@ _FORBIDS = {
 }
 
 
-def test_a_forbidden_rung_is_stepped_down_under_an_approval_policy_of_its_own(
-    spawner: Spawner, server: _Server, tmp_path: Path
+def test_forbidden_full_access_is_stepped_down_under_an_approval_policy_of_its_own(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
-    """`untrusted`, as while a permission-request hook is hung, goes down with the rung."""
+    """`untrusted`, as while a permission-request hook is hung, goes down with the sandbox."""
     server.refusing["thread/start"] = dict(_FORBIDS)
-    agent = _agent(permission="bypass", approvals="untrusted")
+    agent = _agent(fence=fenced(tmp_path), approvals="untrusted")
     agent.new(tmp_path)("hi")
     agent.new(tmp_path)("again")
     refused, stepped, again = server.called("thread/start")
@@ -721,11 +741,37 @@ def test_a_forbidden_rung_is_stepped_down_under_an_approval_policy_of_its_own(
     }
 
 
+def test_never_said_as_its_own_asks_alike_on_every_turn_once_stepped_down(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    """`never` is what the fence is told already, so a step down asks on every turn."""
+    server.refusing["thread/start"] = dict(_FORBIDS)
+    agent = _agent(fence=fenced(tmp_path), approvals="never")
+    agent.new(tmp_path)("hi")
+    agent.new(tmp_path)("again")
+    _, *stepped = server.called("thread/start")
+    assert {one["approvalPolicy"] for one in stepped} == {"on-request"}
+    assert {one["approvalPolicy"] for one in server.called("turn/start")} == {
+        "on-request"
+    }
+
+
+def test_a_refused_read_only_sandbox_is_not_stepped_down(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    """`read-only` has nothing below it: the refusal is the turn's."""
+    server.refusing["thread/start"] = dict(_FORBIDS)
+    with pytest.raises(Failed, match="requirements do not allow"):
+        _agent(fence=fenced(tmp_path, READ)).new(tmp_path)("hi")
+    (refused,) = server.called("thread/start")
+    assert refused["sandbox"] == "read-only"
+
+
 def test_a_step_down_is_told_once_to_each_agent_watching(
-    spawner: Spawner, server: _Server, tmp_path: Path
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
     told: dict[str, list[str]] = {}
-    agents = [_agent(permission="bypass") for _ in range(2)]
+    agents = [_agent(fence=fenced(tmp_path)) for _ in range(2)]
     for agent in agents:
         agent.watch(
             lambda who, _session, event: (
@@ -738,8 +784,8 @@ def test_a_step_down_is_told_once_to_each_agent_watching(
         agent.new(tmp_path)("hi")
         agent.new(tmp_path)("again")
     said = (
-        "codex: this machine will not run an agent at bypass, so it runs at auto,"
-        " where what it asks for is granted"
+        "codex: this machine will not run an agent at danger-full-access, so it runs"
+        " at workspace-write, where what it asks for is granted"
     )
     assert told == {agent.id: [said] for agent in agents}
 
@@ -758,9 +804,7 @@ def test_a_native_codex_cut_off_the_network_is_not_configured_from_this_machines
         workdir=tmp_path,
         home=tmp_path / "home",
     )
-    agent = _agent(
-        permission="bypass", machine=AnchoredConfig(anchor=anchor), fence=offline
-    )
+    agent = _agent(machine=AnchoredConfig(anchor=anchor), fence=offline)
     with contextlib.suppress(Exception):
         agent.new(tmp_path)("hi")
     assert spawner.started
@@ -776,14 +820,20 @@ def test_a_server_that_goes_away_fails_the_turn(
 
 
 @pytest.mark.parametrize(
-    ("permission", "refuse", "decision"),
-    [("bypass", False, "accept"), ("bypass", True, "decline"), ("", False, "decline")],
+    ("local", "refuse", "decision"),
+    [
+        (WRITE, False, "accept"),
+        (READ, False, "accept"),
+        (WRITE, True, "decline"),
+        (None, False, "decline"),
+    ],
 )
-def test_an_approval_is_granted_at_a_named_rung_unless_a_hook_refuses(
+def test_an_approval_is_granted_under_a_fence_unless_a_hook_refuses(
     spawner: Spawner,
     server: _Server,
+    fenced: Callable[..., Fence],
     tmp_path: Path,
-    permission: str,
+    local: str | None,
     refuse: bool,
     decision: str,
 ) -> None:
@@ -808,7 +858,7 @@ def test_an_approval_is_granted_at_a_named_rung_unless_a_hook_refuses(
         server.after[900] = lambda: _says(_message("done"))(proc, thread, turn)
 
     server.turns = [asks]
-    agent = _agent(permission=permission)
+    agent = _agent(fence=None if local is None else fenced(tmp_path, local))
     agent.hooks.on(Moment.PERMISSION_REQUEST, hook)
     agent.new(tmp_path)("hi")
     (reply,) = [one for one in server.replies if one.get("id") == 900]
