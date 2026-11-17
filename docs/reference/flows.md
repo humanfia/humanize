@@ -1836,6 +1836,7 @@ refusal below exits `hmz exec` with status 2 before anything runs. Other flags:
 | --- | --- |
 | no `=`, or empty role | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
 | role not an identifier | ``-a '<item>': '<role>' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier`` |
+| empty CLI (`a=/m`) | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
 | unknown CLI | `-a '<item>': unknown CLI '<cli>'; see the CLI reference for supported names` |
 | known CLI with an empty model or no `/` | `-a '<item>': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
 | `@` with nothing after | `-a '<item>': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |

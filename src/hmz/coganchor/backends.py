@@ -5301,7 +5301,7 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
     # where that is spelled as one, and left off it is no rung at all.
     from hmz.coganchor.spelling import parted
 
-    backend, _, said = spec.partition("/")
+    backend, slash, said = spec.partition("/")
     model, effort = parted(said)
     # The account, if one was named: a CLI is never spelled with an `@` in it, so the two are
     # told apart wherever the agent was written -- `-a`, a settings file, an interface. An
@@ -5316,6 +5316,9 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
     if not backend:
         raise ValueError("expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]")
     profile = named(backend)
+    # With no slash, a known CLI followed by :EFFORT is missing its model.
+    if profile is None and not slash and ":" in backend:
+        profile = named(backend.partition(":")[0].strip())
     if profile is None:
         raise ValueError(
             f"unknown CLI {backend!r}; see the CLI reference for supported names"

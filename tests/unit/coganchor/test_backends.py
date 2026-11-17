@@ -614,6 +614,7 @@ def test_read(
         ("claude@/m", "expected an account"),
         ("nobody/m", "unknown CLI 'nobody'; see the CLI reference"),
         ("claude", "missing model"),
+        ("claude:high", "missing model"),
         ("claude/ :high", "missing model"),
     ],
 )

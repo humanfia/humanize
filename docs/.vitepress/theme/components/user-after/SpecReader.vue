@@ -125,8 +125,10 @@ function read(value: string): Reading {
     if (monkey >= 0 && !account) {
       return refused(`-a '${one}': expected an account after @, as in claude@deepseek/MODEL:EFFORT`)
     }
-    const cli = named(cliAs)
-    if (!cli || !model) return refused(`-a '${one}': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
+    if (!cliAs) return refused(`-a '${one}': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
+    const cli = named(cliAs) ?? (slash < 0 ? named(cliAs.split(':', 1)[0].trim()) : undefined)
+    if (!cli) return refused(`-a '${one}': unknown CLI '${cliAs}'; see the CLI reference for supported names`)
+    if (!model) return refused(`-a '${one}': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
     if (agents.some((other) => other.role === role)) {
       return refused(`-a: the role '${role}' is given twice`)
     }

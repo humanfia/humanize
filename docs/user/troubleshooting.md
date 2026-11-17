@@ -82,8 +82,8 @@ want the agents to work in.
 
 **Symptom.** `hmz exec` prints its usage, then this.
 
-**Cause.** The model is missing. The CLI and the model are required; the effort may be left
-off, which asks for none.
+**Cause.** The model is missing. `-a agent=claude:high` gives the same error. The CLI and the
+model are required; the effort may be left off, which asks for none.
 
 **Fix.** Write the CLI, a `/` and the model, and the effort after a `:` if you want one. `auto`
 is the effort that asks for none:
