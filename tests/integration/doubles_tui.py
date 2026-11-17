@@ -293,9 +293,9 @@ def stand_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def folds_fast(monkeypatch: pytest.MonkeyPatch) -> None:
     """Folds a chat nobody reads away half a second after its turn, rather than a minute."""
-    from hmz.runtime.doing import hosting
+    from tests.integration.doubles_daemon import folds
 
-    monkeypatch.setattr(hosting, "FOLD", 0.5)
+    folds(0.5, monkeypatch)
 
 
 def own_flow(workspace: Path, source: str = WRITES) -> None:

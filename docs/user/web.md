@@ -5,12 +5,12 @@
 epic written down, starting one in any directory, what they spent, and what Humanize remembers.
 It is one more window onto the runs `hmz` shows, not a copy of them. Start an epic in the
 terminal and answer it in the browser, or the other way round. The same page reaches the epics of
-[other machines](#daemons) over ssh, one at a time, and [tells you](#notifications) when an epic
-on any of them ends or asks you something.
+[other machines](#daemons) -- over ssh, by a pairing code, or peer to peer -- one at a time, and
+[tells you](#notifications) when an epic on any of them ends or asks you something.
 
 ::: info At a glance
 - **You will** watch, steer and start epics in any directory from a browser, on this machine or
-  an ssh host, read an epic written down, see what they spent, and be told when one needs you.
+  another, read an epic written down, see what they spent, and be told when one needs you.
 - **Use it when** a picture of a run reads better than a transcript: its agents and who handed
   to whom, each session's turns laid out over time, a week's spend by flow.
 - **You need** Humanize installed as in [Installation](/user/installation), and a browser on the
@@ -34,8 +34,9 @@ hmz web: http://127.0.0.1:43017/?key=Xq1rB0…
 
 ## How it works
 
-`hmz web` is a frontend of every directory's runs, where `hmz` is a frontend of one. It reaches
-a directory's runs through the same [host](/features/daemon) as `hmz` opened there, so what one
+The page is a client of this machine's [daemon](/features/daemon), as `hmz` is: `hmz web`
+serves its files and carries it to the daemon, and the page asks the daemon everything itself.
+It reaches a directory's runs through the same host as `hmz` opened there, so what one
 window does, every other window sees: a line said in the browser is in the terminal's transcript marked `· by browser`, and a
 question answered in the terminal stops waiting in the browser.
 
@@ -44,7 +45,8 @@ That has three consequences:
 - **The run does not live in the page.** Closing the tab, or stopping `hmz web`, leaves the run
   going, as closing a terminal does. See [Leaving it running](/user/leaving).
 - **One page for the machine.** Start `hmz web` anywhere: it serves every directory, and the one
-  it was started in is only the one a new epic is offered first. A directory is reached only
+  it was started in is only the one a new epic is offered first. It listens on the same port as
+  the last time, so a kept address, and what the page keeps in your browser, still hold. A directory is reached only
   while the page shows it or acts on it, so a host with nothing to do still goes.
 - **It only listens on this machine.** The address is `127.0.0.1` (`localhost` works too, over
   IPv4 or IPv6), and it carries a key made
@@ -60,7 +62,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first, each marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, such as `hmz exec`, read as it writes itself down; a `chat` only `●` while its agent answers, the blinking gold `●` while it asks, `✕` failed, else `■` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first, each marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a `chat` only `●` while its agent answers, the blinking gold `●` while it asks, `✕` failed, else `■` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
 | **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a `chat` is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
@@ -292,13 +294,13 @@ daemon:
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
 | **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
-| **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
+| **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
-| **Daemons** | **Local**, always there, and every SSH and P2P daemon with its state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Import** hosts from your SSH config, **Connect** or **Remove** one, asked first |
-| **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Chat turns**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept on this machine, never per daemon |
+| **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
+| **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Chat turns**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 
 Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
 until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
@@ -308,8 +310,8 @@ kept and opened again. Picking one changes nothing else on screen.
 holds to other daemons at once. Tick the daemons, or **All**, then **Apply**. Each daemon then
 says **Applied** or why it refused. **General** sends the form as it stands, saved or not.
 **Backup** sends every target and default, in place of the daemon's own. A target signed into its URL
-is refused there, since the URL is never shown whole. **Fallback** and
-**Runtimes** send each step or runtime, written over the one of the same name there, or added.
+is refused there, since the URL is never shown whole. **Nous** and
+**Runtimes** send each nous or runtime, written over the one of the same name there, or added.
 Nothing a daemon already has is taken away. **Accounts** cannot be copied, since their secrets
 are never shown (**Secrets stay put**). **Workspace** and **Usage** are of one daemon's
 directories, and have no **Batch apply**.
@@ -410,9 +412,10 @@ Start `hmz web` in a project, and open **New epic**:
 Each machine whose epics the page reaches is a **daemon**: the [daemon](/features/daemon) there
 holds its runs. **Local** is this machine, always there and never removed -- where `hmz` runs in
 WSL, as with Humanize Desktop on Windows, the WSL distribution, its host shown as `Debian (WSL)`. Every other
-is an **SSH** daemon, an ssh host reached the way `ssh` reaches it, with your keys and your ssh
-config; or a **P2P** daemon, a machine running [`hmz server`](#over-easytier) reached over
-EasyTier with a secret you both know.
+is a remote daemon, of one of three kinds: **SSH**, an ssh host reached the way `ssh` reaches
+it, with your keys and your ssh config; **P2P**, a machine reached [over EasyTier](#over-easytier)
+with a secret you both know; or **Paired**, a machine whose daemon made a pairing code you
+claimed here.
 
 The page shows one daemon at a time: the sidebar's folders and epics, a new epic, search,
 flows and the Daemon pages of Settings are all that daemon's. To see another's, switch to it.
@@ -434,71 +437,93 @@ A daemon is in one of these states:
 | State | What it means |
 | --- | --- |
 | `idle` | Not connected to yet. |
-| `connecting` | `ssh` is reaching the host and starting `hmz web` there; or EasyTier is joining the server's network. |
+| `connecting` | A route is being opened: `ssh` reaching the host, EasyTier joining the network, a relay joining, TLS and hello. |
 | `installing` | The host has no `hmz`, or another version, and it is being installed (see [What happens on connect](#on-connect)); or, for a P2P daemon, `Downloading EasyTier <version>` here. |
 | `up` | Reached: its epics are on the page. |
 | `failed` | It could not be reached; the menu says why, and **Connect** tries again. |
 
 ### Adding one {#adding-a-daemon}
 
-**Settings → Daemons** lists Local and every remote daemon, each with its kind and mode (`SSH ·
-SSH Config`, `SSH · hmz-stored` or `P2P · EasyTier`) and its state. **New daemon** asks you to
-pick a kind, **SSH** or **P2P**, and a mode under it; then the **name** the page calls it --
-letters, digits, `.`, `_` and `-`; `local` is Local's and cannot be taken -- and how to reach it:
+**Settings → Daemons** lists Local and every remote daemon, each with its kind -- and mode, as
+`SSH · SSH Config`, `SSH · Custom` or `P2P · EasyTier` -- what reaches it, and its state.
+**New daemon** asks you to pick a kind, **Code**, **SSH** or **P2P**, and a mode under it; then
+the **name** the page calls it -- letters, digits, `.`, `_` and `-`; `local` is Local's and
+cannot be taken -- and how to reach it:
 
 | Kind | Mode | What you give |
 | --- | --- | --- |
-| **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config`, picked from a list; picking one fills in the name. It is resolved through your config every time, so editing the config edits the daemon. |
-| **SSH** | **hmz-stored** | The host, user, port, key, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept in Humanize, and the config is not read again. |
-| **P2P** | **EasyTier** | The secret the other machine's [`hmz server`](#over-easytier) was started with: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. |
+| **Code** | | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair` or by **Pair a device** on a page that reaches it. It is claimed at once, over the routes it carries, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. |
+| **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config` not yet added, picked from a list; picking one fills in the name. Nothing here writes to the config. It is resolved through your config every time, so editing the config edits the daemon. |
+| **SSH** | **Custom** | The host, user, port, identity file, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept by the page, and the config is not read again. |
+| **P2P** | **EasyTier** | The secret that machine's EasyTier entry holds: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. |
 
-**Read SSH config** at the foot of the page lists every host of your `~/.ssh/config` not yet
-added, with a switch each: switch on the ones you want, then **Import**, and each is added as an
-**SSH Config** daemon. Nothing here writes to the config.
+**SSH** and **P2P** are offered only where the page can open their routes: in a browser,
+through `hmz web`; in [Humanize Desktop](/user/desktop), through the app.
 
 Edit a daemon, connect to it to check it, or remove it, which asks first. Editing opens the form
-in the daemon's own kind and mode; a P2P daemon's secret is never shown again, and leaving it
-empty keeps it. Removing one forgets
-how to reach it, and nothing on the host: its epics, and its `hmz`, stay there.
+in the daemon's own kind and mode, with every route it is reached by, in the order they are
+tried, to add to, take from or reorder; a P2P daemon's secret is never shown again, and leaving
+it empty keeps it. Removing one forgets how to reach it, and nothing on the host: its epics,
+its `hmz` and its pairing of this machine stay there.
 
-The daemons are kept in this machine's `~/.hmz/settings.yaml`, under `daemons`.
+The daemons are kept by this browser, in its IndexedDB: each its name, the daemon id pinned,
+and its [routes](/reference/settings#settings-yaml). Another browser, Humanize Desktop, and `hmz`
+in a terminal each keep their own.
+
+Below the form, **Devices** has, for each daemon that is up, **Pair a device**, which makes a
+pairing code for another machine or browser to claim -- shown with when it expires, and a
+button that copies it -- and the devices paired with that daemon, each with when it was last
+seen; **Revoke** one, asked first, and it can reach that daemon no more.
 
 ### What happens on connect {#on-connect}
 
-Connecting runs `hmz web --no-open --attached --port 0` on the host over `ssh`, forwards a free
-port here to the one it printed with `ssh -N -L`, and passes the page's calls for that daemon
-through Local's `hmz web` to it. Nothing on the host listens beyond its own loopback, and your
-browser only ever talks to Local.
+Connecting races the daemon's routes, in the order they are kept, each a quarter of a second
+after the one before. In a browser, Local is reached through `hmz web`, and every other route
+but a WebRTC one through `hmz web` too, which opens it from this machine: over `ssh`, it runs
+`hmz daemon connect --stdio` on the host through a login shell, whose standard streams carry the
+session -- what the login shell's profile prints goes to standard error, and the session begins
+after the line `hmz-stdio/1` that command prints first, so what the shell `ssh` itself starts
+prints (a `~/.bashrc` that echoes) is skipped too; over a TCP
+port, a relay or EasyTier, it opens mutual TLS held to the daemon's id, which pairing gave it.
+The first to say hello as that daemon wins, and the others are closed. A daemon first reached
+over `ssh` has the id it answered pinned, and one that later answers as another fails with
+`<name> is not the daemon it was paired with.`
 
-- **It brings the host the same Humanize.** Before it starts `hmz web` there, it asks the host's
+- **It brings the host the same Humanize.** Before it starts anything over `ssh`, it asks the host's
   `hmz --version`, through a login shell with `~/.local/bin` on its `PATH`. Where there is none,
   or one of another version, it runs `uv tool install --force --python '>=3.12' 'hmz==<version>'`
   on the host, at this machine's version, installing uv there first where the host has none.
   The daemon says `installing` meanwhile.
 - **It never replaces an `hmz` holding running epics.** Where the host's daemon has epics
   running, or it cannot tell, the `hmz` there is left as it is, and the daemon says why.
-- **It keeps reaching it.** A connection that drops is tried again, waiting longer each time.
-- **The epics outlive it.** Stopping `hmz web` here closes every ssh connection, and the
-  `hmz web` on each host stops with it; the epics there keep going, held by that host's
+- **It keeps reaching it.** A session that drops is tried again after a second, the wait
+  doubling after each further failure up to a minute.
+- **The epics outlive it.** Closing the page, or stopping `hmz web` here, closes every session,
+  and every `ssh` and EasyTier it started; the epics there keep going, held by that host's
   daemon. See [Leaving it running](/user/leaving).
 
 ### Over EasyTier (P2P) {#over-easytier}
 
-Where you cannot `ssh` to a machine -- it is behind a NAT, or you only reach it out -- start a
-server on it, with a secret of at least 16 bytes and the EasyTier node both machines are to
-meet through -- one of your own, or a public one:
+Where you cannot `ssh` to a machine -- it is behind a NAT, or you only reach it out -- its
+daemon can listen on an EasyTier network instead. On that machine, give its `~/.hmz/settings.yaml`
+an EasyTier entry -- a secret of at least 16 bytes and the node both machines are to meet
+through, one of your own or a public one -- and a listener on it:
 
-```sh
-hmz server start --mode p2p --secret "$(cat ~/hmz-secret)" --peer tcp://node.example:11010
+```yaml
+easytier:
+  home:
+    secret: "<at least 16 bytes>"
+    nodes: ["tcp://node.example:11010"]
+listen: ["easytier:home"]
 ```
 
-It prints `hmz server: started (pid <n>)` and returns; the server keeps going after the terminal
-closes, until `hmz server stop`. Then, on your own machine, add a **P2P** › **EasyTier** daemon
-with the same secret and at least one of the same nodes.
+and make a pairing code there, `hmz daemon pair`. Then, on your own machine, add a **P2P** ›
+**EasyTier** daemon of the same name, with the same secret and at least one of the same nodes:
+it writes the EasyTier entry of that name here, which the route `easytier:home` opens with. A
+route over EasyTier is held to the daemon's id, which only pairing gives: claim that machine's
+code under **Code**, and the daemon it adds is reached over EasyTier. Until it is paired, a P2P
+daemon fails with `easytier:home needs the id of the daemon it reaches.`
 
-- **It waits for the server to answer.** Connecting joins the network, waits until the
-  server's `hmz web` answers through it, and then asks it every few seconds: a server that stops
-  answering is reached again, waiting longer each time.
 - <span id="easytier-nodes"></span>**The two ends meet through a shared node.** EasyTier runs no public node
   of its own, so you name one or more each side: a URL such as `tcp://host:11010` (or `udp`,
   `ws`, `wss`, `quic`, `wg`). The form lists the nodes EasyTier's community shares, as the
@@ -512,15 +537,14 @@ with the same secret and at least one of the same nodes.
   [EasyTier](https://easytier.cn)'s `easytier-core` from its GitHub release into
   `~/.hmz/easytier/<version>/` the first time, checked against the checksum Humanize pins, and
   reuse it after. It runs without root and without a network device.
-- **The secret stays with you.** The EasyTier network's name and password, and the key of the
-  server's `hmz web`, are each derived from the secret; the secret itself is never sent, nor
-  put on a command line (the server is handed it on its standard input). Anyone with the secret can reach the server's epics: keep it as you
-  keep a password.
-- **The same Humanize.** Nothing is installed on the server's machine from here. A server
-  older than this machine's `hmz` is refused, as an older daemon is; update it there with
-  `hmz update`, then `hmz server stop` and `start` again.
-- **The epics outlive it.** `hmz server stop` stops its `hmz web` and EasyTier, never an epic.
-  Where `easytier-core` goes while the server runs, the server starts it again a second later.
+- **The secret stays with you.** The EasyTier network's name and password are each derived from
+  the secret; the secret itself is never sent, nor put on a command line, and the page is never
+  handed it back once written. Anyone with the secret can reach that machine's daemon port, but
+  is still held to mutual TLS and pairing there; keep it as you keep a password all the same.
+- **The same Humanize.** Nothing is installed on that machine from here: update it there with
+  `hmz update`.
+- **The epics outlive it.** Taking `easytier:home` out of `listen` stops its EasyTier, never an
+  epic.
 
 ## Notifications {#notifications}
 
@@ -529,11 +553,11 @@ not only the one showing:
 
 | Kind | When |
 | --- | --- |
-| **done** | An epic ended, done; or a `chat` finished a turn and waits for your next line. |
+| **done** | An epic ended, done. |
 | **failed** | An epic failed, crashed, ran out of its budget, or was refused. |
 | **stopped** | An epic was stopped. Never a `chat`: leaving one is no news. |
 | **asked** | A flow put a question to a person: the outworlder. See [Questions](/user/questions). |
-| **listening** | A flow other than `chat` waits for what to say next. |
+| **listening** | A `chat` finished a turn and waits for your next line, or another flow waits for what to say next. |
 
 Each says which daemon, which directory and which epic it came from, and what was asked or how
 it ended.
@@ -541,7 +565,7 @@ it ended.
 - **The bell**, at the top of the sidebar, counts the ones you have not read. Click it for the
   **menu**: the latest notifications of every daemon, newest first, each labelled with its
   daemon. Click one to open its epic, switching to its daemon; mark them all read, or clear
-  them. The last 200 or so are kept.
+  them. This browser keeps the newest 200.
 - **Toasts.** A new notification also shows as a card in the corner of the page for a few
   seconds.
 - **System notifications.** While the page is hidden or not focused, a notification is also
@@ -553,14 +577,16 @@ it ended.
 None is shown of the epic you are looking at -- a question or a chat turn there included: it is
 read as it comes.
 
-A daemon is heard from while it is reached: Local always, an ssh host once it is `up`.
+The page asks each daemon for its notices itself, while it is reached: Local always, a remote
+daemon once it is `up`. It takes up again after the last it heard of each, so what happened while
+the page was closed, or a daemon out of reach, is told once it is back.
 
 **Settings → Notifications** switches each kind on or off, and system notifications as a whole.
 A browser shows system notifications only once you allow it: press the button on that page,
 which asks the browser. A kind switched off is not shown, kept or counted. These are App
-settings: they are kept in this machine's `~/.hmz/settings.yaml`, under `notifications`, and hold
-for every daemon, never one daemon apart. `hmz` reads the same settings, on its
-[Notifications page](/user/settings#notifications), and tells you of this machine's epics too.
+settings: they are kept by this browser, with the notifications themselves, and hold for every
+daemon, never one daemon apart. `hmz` has its own, on its
+[Notifications page](/user/settings#notifications).
 
 ## From another machine {#over-ssh}
 
@@ -596,9 +622,9 @@ answered only where it was meant to be:
   never hands that name the key's cookie.
 - **Only the browser it was opened in.** The key in the address becomes a cookie that scripts
   cannot read and other sites cannot send. A browser without it is told it is not let in.
-- **Only its own page.** Every change is JSON from the page's own address, and every question
-  about the runs comes from it: a page elsewhere -- even one served from another port of this
-  machine -- reaches nothing, and a form on another site cannot post to it.
+- **Only its own page.** The page reaches a daemon only over the WebSockets `hmz web` opens for
+  its own address: a page elsewhere -- even one served from another port of this machine --
+  cannot open them, and a form on another site cannot post to it.
 - **The key on no command line.** The browser `hmz web` opens is opened on a page only you can
   read, which sends it on to the address: another account on a shared machine cannot read the
   key off the browser's command line.
@@ -609,15 +635,14 @@ The key changes every time `hmz web` starts, so an address from an earlier one l
 
 ## Variations
 
-- **A port of your own.** `hmz web --port 8765` listens on that port. `0`, the default, picks
-  any free one.
+- **A port of your own.** `hmz web --port 8765` listens on that port. Without it, `hmz web`
+  listens on the port it listened on last time, kept in `~/.hmz/web-port`, or any free one where
+  that is taken or none is kept; `--port 0` picks any free one.
 - **No browser.** `hmz web --no-open` only prints the address, for a browser of your choosing.
   On a machine without a desktop -- one reached over ssh -- it opens none anyway.
 - **Stopped by what started it.** `hmz web --attached` stops once its standard input closes,
   so a program that starts it -- a desktop app, a script -- takes it down by exiting, even by
   crashing.
-- **Runs that end with it.** With `HUMANIZE_DAEMON=off`, `hmz web` holds the runs in its own
-  process, and stopping it stops them, as [`hmz` does](/user/leaving#when-it-cant-be-left-running).
 
 ## Troubleshooting
 
@@ -628,14 +653,13 @@ running `hmz web` printed, key and all.
 
 ### `hmz: the web interface cannot be served: … Address already in use`
 
-Something already listens on that port: another `hmz web`, perhaps. Pick another `--port`, or
-leave it out.
+Something already listens on the `--port` you gave: another `hmz web`, perhaps. Pick another,
+or leave it out.
 
-### `the runs … are held by an older Humanize`
+### `hmz: … older Humanize …`
 
-An older Humanize holds that directory's runs, or this machine's: the page says so where it
-asks for them, and serves every other directory. Stop them with that version, as the message
-says.
+This machine's daemon is one an older Humanize started, and `hmz web` serves nothing over it.
+Stop it with that version, as the message says, and start `hmz web` again.
 
 ### The sidebar says why the host let it go
 
@@ -645,17 +669,17 @@ says `idle` or how many are `live` again once it has.
 
 ### A daemon says `failed`
 
-`ssh` could not reach the host, or `hmz web` could not start there; the daemon bar's menu, and
+`ssh` could not reach the host, or `hmz` could not be installed or started there; the daemon bar's menu, and
 **Settings → Daemons**, say what it said. Check that `ssh <host>` works from a terminal here
 without asking for anything -- a password or a host key to accept cannot be answered from the
 page -- then press **Connect**.
 
 ### A P2P daemon says `failed`
 
-EasyTier could not be downloaded here, or the server could not be reached on its network. Check
-that `hmz server start` is running on the other machine with the very same secret, and that
-both machines can reach a node the daemon and the server's `--peer` both name; then press
-**Connect**. One that says it is served by an older Humanize is a server to update there.
+EasyTier could not be downloaded here, or that machine's daemon could not be reached on its
+network. Check that its `listen` names `easytier:<name>` with the very same secret, that both
+machines can reach a node both entries name, and that this machine is paired with it -- one
+that says it `needs the id of the daemon it reaches` is not; then press **Connect**.
 
 ### A daemon will not update its `hmz`
 
@@ -680,4 +704,4 @@ It runs the CLI's own sign-in, which needs a terminal. Make that account from `/
 - [Watching a run (the monitor)](/user/monitor): the same run, drawn in the terminal.
 - [Leaving it running](/user/leaving): how a run outlives every window onto it.
 - [Humanize Desktop](/user/desktop): the same page in a window of its own, on macOS and Windows.
-- [Web reference](/reference/web): the command line, every route the page uses, and the stream.
+- [Web reference](/reference/web): the command line, what `hmz web` serves, and what the page keeps.

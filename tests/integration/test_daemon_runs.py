@@ -1,6 +1,6 @@
 """Runs started, read, answered and stopped through a host, by frontends of their own.
 
-The host is forked for real by `hmz.daemon.host()`; the frontends are `hmz.daemon.Link`s here
+The host is started for real by `hmz.daemon.host()`; the frontends are `hmz.daemon.Link`s here
 and programs written against `hmz.sdk` in processes of their own. The flows drive no agent:
 whoever is outside the run is a frontend, and the rest is the workspace's own files.
 """
@@ -14,7 +14,7 @@ import pytest
 
 from hmz import daemon
 from hmz.daemon import linked
-from hmz.runtime import Hmz, Refused
+from hmz.runtime import Holding, Host, Refused
 from tests.integration.doubles_daemon import (
     ASKS,
     PATIENCE,
@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 
 pytestmark = [
     pytest.mark.timeout(90),
-    pytest.mark.filterwarnings("ignore:.*use of fork.*:DeprecationWarning"),
 ]
 
 
@@ -167,11 +166,11 @@ def test_a_second_run_while_one_is_running_is_refused(held: daemon.Daemon) -> No
 def test_a_refusal_reads_the_same_through_the_daemon_as_in_this_process(
     held: daemon.Daemon,
 ) -> None:
-    host = Hmz().host()
+    host = Host(Holding())
     here = linked(host, name="here")
     try:
         with held.link(name="there") as there:
-            for request in ({"do": "nope"}, {"do": "start", "flow": "./missing"}):
+            for request in ({"do": "start", "flow": "./missing"}, {"do": "claim"}):
                 with pytest.raises(Refused) as far:
                     there.asked(request)
                 with pytest.raises(Refused) as near:

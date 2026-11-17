@@ -8,56 +8,55 @@ import '../.vitepress/theme/components/ref-cli/ref.css'
 
 # Daemon reference
 
-The **daemon**: one process per machine and user, which every frontend reaches and which
-hands each to the **host** of the workspace it names: one process per workspace, holding that
-workspace's runs. And the protocol **frontends** use to read and drive them. A frontend is an
+The **daemon**: one process per machine and user, the one JSON-RPC endpoint every client
+reaches -- on its socket, and on whatever it [listens](#listeners) on beside it -- and which
+speaks for each client to the **host** of the workspace it names: one process per workspace and
+slot, holding that workspace's runs. Every client is a client of a daemon over a session of the
+[wire protocol](https://github.com/humanfia/humanize/blob/main/protocol/wire.md): frames and
+JSON-RPC 2.0 whose methods `protocol/openrpc.json` lists. A frontend is an
 `hmz` interface (`kind` `tui`), the [web interface](/reference/web) `hmz web` serves (`kind`
 `web`, named `browser`), or a program linked through the [SDK](/reference/sdk#link) (`kind`
 `sdk`). Package: `hmz.daemon`. Notation: [Conventions](/reference/#conventions).
 
 ```text
- hmz (alice@tui) ──┐                               ┌─ host process, ~/src/api ──────────────────┐
- hmz web (browser) ┼── daemon.sock ── daemon ──┬──▶│ Host: the run, claims, away, queued lines, │
- program (ci@sdk) ─┘   (one per machine)       │   │ questions, history, snapshots              │
-                                               │   └────────────────────────────────────────────┘
- MESSAGE frames: JSON requests in, messages    └──▶┌─ host process, ~/src/web ──────────────────┐
- out; CONTROL frames. The daemon hands each        │ …                                          │
- socket to its host and carries none of it.        └────────────────────────────────────────────┘
+ hmz (alice@tui) ──┐ daemon.sock (trusted)          ┌─ host process, ~/src/api ─────────────┐
+ hmz web (browser) ┼────────────── daemon ─────┬──▶│ Host: the run, claims, away, queued  │
+ program (ci@sdk) ─┘                (one per   │   │ lines, questions, history, snapshots │
+ another machine ── tcp/ws/relay ── machine)   │   └──────────────────────────────────────┘
+   (mutual TLS)     webrtc (DTLS)              └──▶┌─ host process, ~/src/web ─────────────┐
+                                                   │ …                                     │
+ JSON-RPC sessions end at the daemon, which        └───────────────────────────────────────┘
+ speaks to each host down a link of its own.
 ```
 
 ## Terms {#terms}
 
 | Term | Definition |
 | --- | --- |
-| host | `hmz.runtime.Host`: a workspace's runs as every attached frontend shares them. Held either in a host process or in the interface's own process. |
-| daemon | The detached process, one per machine and user, listening on `daemon.sock` and handing each connection to the host process of the workspace it names. |
-| host process | The detached process, one per workspace, standing in that workspace and holding its `Host`. Reached only through the daemon. |
-| frontend | One attachment to a host, through a [`Link`](#link). Has a client id (`c1`, `c2`, …) and a name. |
+| host | `hmz.runtime.Host`: a workspace's runs as every attached frontend shares them. Held in a host process (or, for an epic run on fakes, in the calling program's [private daemon](/reference/sdk#fakes)). |
+| daemon | The detached process, one per machine and user, serving JSON-RPC on `daemon.sock` and its listeners, and speaking to the host process of each workspace for its clients. |
+| host process | The detached process, one per workspace and slot, started by the daemon, standing in that workspace and holding its `Host`. Reached only by the daemon, down a socket pair. |
+| session | One client's connection to the daemon: `session.hello`, then calls, answers and notifications. |
+| frontend | One attachment to a host: one epic subscription (`epic.attach`), held by a [`Link`](#link). Has a client id (`c1`, `c2`, …) and a name. |
 | run | One run of one flow on the host, numbered from 1 per host. |
-| request | A JSON object a frontend sends, with `do`. |
-| message | A JSON object the host sends, with `type`. |
+| request | A call to an epic, `epic.<do>`; a `Link` takes it as a JSON object with `do`. |
+| message | A JSON object the host sends, with `type`, carried as the notification `epic.event`. |
 
 ## When a daemon is used {#when-used}
 
 | Caller | Host |
 | --- | --- |
-| `hmz` at a terminal | A host process, found or started (see [CLI › Where the runs are held](/reference/cli#where-runs-are-held)). |
-| `hmz` with stdin or stdout not a TTY, or `HUMANIZE_DAEMON` = `off`/`0`/`no` | In the interface's process. |
-| `hmz` after 3 failed attempts, 0.5 s apart | In the interface's process; stderr says `hmz: runs cannot be detached from the terminal (<why>), so they will run in this process instead`. |
+| `hmz`, whatever the terminal | A host process, found or started (see [CLI › Where the runs are held](/reference/cli#where-runs-are-held)). After 3 failed attempts, 0.5 s apart, stderr says `hmz: the daemon cannot be reached: <why>` and it exits `1`. |
 | `hmz web` | A host process, found or started with [`attach`](#module), tried 3 times 0.5 s apart; where none can be had it says so and exits `1`. |
-| `hmz web` with `HUMANIZE_DAEMON` = `off`/`0`/`no` | In `hmz web`'s process. |
-| `Daemons().host()`, `hmz.daemon.host()` | A host process, found or started. `HUMANIZE_DAEMON` is not consulted. |
-| `Hmz().host()` | In the calling process. |
-| `hmz exec` | No host. |
-
-A host in the interface's process is reached through the same `Link` class; closing that
-interface closes its runs, so `/exit` offers **Cancel** instead of **Detach and exit**.
+| `hmz exec`, `Hmz().run()` | A host process on a new exec slot (`exec:<hex>`) of the workspace, started by this machine's daemon. |
+| `Hmz().run()` with a driver object, `fakes.run_fake()` | A host in the calling program's own [private daemon](/reference/sdk#fakes). |
+| `Daemons().host()`, `hmz.daemon.host()` | A host process, found or started. |
 
 ## Files {#files}
 
 Directory: `<tmp>/humanize-<uid>/`, where `<tmp>` is Python's `tempfile.gettempdir()` (`$TMPDIR`,
-`$TEMP` or `$TMP`, else `/tmp`) and `<uid>` the user's id: `hmz.machine()`, shared with the
-[bundle cache](/reference/files#temporary). Made `0700` where missing; one that is not a
+`$TEMP` or `$TMP`, else `/tmp`) and `<uid>` the user's id: `hmz.machine()`, shared with
+[other caches](/reference/files#temporary). Made `0700` where missing; one that is not a
 directory, not this user's, or that its group or others can write is refused with
 `PermissionError: <dir> is not a directory only this user can write; remove it`. Never under
 `$HUMANIZE_HOME`: a daemon is one machine's process, and a home directory several machines
@@ -73,8 +72,7 @@ mount would list each machine's daemon on every other.
 What a host process writes while it holds a run goes into that run's epic instead, as
 `host.log` (`0600`, append, never rotated) beside its
 [`epic.jsonl`](/reference/files#h-epics-ws-stamp-hex6): the host's file descriptors 1 and 2
-(output of CLIs the run spawns), and entries written by `logged()`: `the daemon could not carry
-a round of messages`, `a <type> message was too long to carry`. The run is the one going, else
+(output of CLIs the run spawns), and entries written by `logged()`. The run is the one going, else
 the one stopping, else the last.
 
 ```json
@@ -82,7 +80,7 @@ the one stopping, else the last.
   "pid": 41237,
   "started": "2026-09-30T08:15:42Z",
   "kind": "daemon",
-  "protocol": 2
+  "protocol": "3.0.0"
 }
 ```
 
@@ -91,7 +89,7 @@ the one stopping, else the last.
 | `pid` | int | The daemon process. |
 | `started` | string | UTC, `%Y-%m-%dT%H:%M:%SZ`. |
 | `kind` | string | `"daemon"`. |
-| `protocol` | int | `2`. A `daemon.json` without it, or with another, is an older Humanize's daemon, which nothing here reaches. |
+| `protocol` | string | `3.0.0`, `hmz.rpc.PROTOCOL`. A `daemon.json` without it, or of another major version, is another Humanize's daemon, which nothing here reaches. |
 
 A workspace is known by `str(Path(workspace or cwd).resolve())`: two checkouts of one
 repository are two workspaces, and two spellings of one directory are one.
@@ -108,42 +106,54 @@ gone is cleaned with the rest.
 
 | Function | Returns | Rule |
 | --- | --- | --- |
-| `running(workspace=None)` | `Daemon \| None` | The host of that workspace, where the daemon's `daemon.json` parses as an object with an int `pid` of a live process (`kill(pid, 0)`; `EPERM` counts as alive), its socket accepts a connection within 1 s, its CONTROL [`list`](#routing) names the workspace, and that host's pid is alive. Where the daemon's `protocol` is not `2`: a `Daemon` for the daemon itself, with its `protocol` (`0` for none). Otherwise `None`. |
-| `daemons()` | `list[Daemon]` | Every host the daemon lists whose pid is alive, sorted by `started` (oldest first); the daemon itself where its `protocol` is not `2`; `[]` with no daemon. |
-| `host(workspace=None, *, seconds=10.0)` | `Daemon` | Starts the daemon where none is, then `running(workspace)`, else starts a host process; waits up to `seconds` for each. Tried twice, 0.1 s apart: a daemon that went as its host came up is started again. |
+| `running(workspace=None)` | `Daemon \| None` | The host of that workspace, where the daemon's `daemon.json` parses as an object with an int `pid` of a live process (`kill(pid, 0)`; `EPERM` counts as alive), its socket accepts a connection within 1 s, its `hosts.list` names the workspace, and that host's pid is alive. Where the daemon's `protocol` is not of major version `3`: a `Daemon` for the daemon itself, with its `protocol` (`""` for none). Otherwise `None`. |
+| `daemons()` | `list[Daemon]` | Every host the daemon lists whose pid is alive, sorted by `started` (oldest first); the daemon itself where its `protocol` is of another major version; `[]` with no daemon. |
+| `host(workspace=None, *, seconds=10.0, slot="")` | `Daemon` | Starts the daemon where none is, then calls `hosts.open`, which starts the host where none is; waits up to `seconds` for each. Tried twice, 0.1 s apart: a daemon that went as its host came up is started again. |
+| `start(seconds=10.0)` | `None` | Starts the daemon where none is, as the first client that needs one does. |
 | `older(daemon)` | `str` | `the runs in <workspace> are held by an older Humanize (pid <pid>); stop it with that version`, or `on this machine` for a daemon. |
 
 `host()` raises `OSError`:
 
 | Condition | `OSError` text |
 | --- | --- |
-| an older Humanize's daemon (protocol not `2`), or a host it left holding the workspace | `[Errno <EADDRINUSE>] ` + `older(daemon)` (98 on Linux, 48 on macOS) |
+| another Humanize's daemon (protocol of another major version), or one refusing `session.hello` with 426 | `[Errno <EADDRINUSE>] ` + `older(daemon)` (98 on Linux, 48 on macOS) |
 | the daemon or the new host reported a failure | the reported text, e.g. `the run could not be held: <why>` |
 | no daemon is listening after the wait | `this machine's daemon did not come up` |
-| no host is listed after both tries | `the runs in <workspace> did not come up` |
+| `hosts.open` refused | its message, e.g. `This chat has folded away.` |
+| no host came up after both tries | `the runs in <workspace> did not come up` |
 
 Two callers racing to start the daemon: the loser's lock fails (`EAGAIN`: `[Errno 11] Resource
-temporarily unavailable` on Linux, `[Errno 35]` on macOS), and `host()` uses the winner. Two racing to start a host of one
-workspace: the daemon refuses the second (`the runs in <workspace> are already held`), and
-`host()` returns the first.
+temporarily unavailable` on Linux, `[Errno 35]` on macOS), and `host()` uses the winner. Two calls
+needing a host of one slot of a workspace at once take on one, which both use.
 
 ## Process {#process}
 
-`host()` starts the daemon, where none is, and then the workspace's host process, each by
-double fork:
+The first client that needs the daemon starts it, and the daemon starts each host process,
+each a fresh interpreter -- never a fork of a process that may hold threads -- running
+`python -Pm hmz.daemon.detached <pipe> daemon` or `… <pipe> host <workspace> <slot> <link>`. It
+inherits only the standard three descriptors, the pipe it says it is up on and, for a host, its
+end of a socket pair, which is its link:
 
 | Step | Process | Action |
 | --- | --- | --- |
-| 1 | caller | Creates a pipe; flushes stdout/stderr; forks. Waits on the pipe (polled every 0.1 s, up to `seconds`), then reaps the middle process. |
-| 2 | middle | `setsid()` (no controlling terminal); forks; exits `0`. |
-| 3 | daemon or host | Ignores `SIGHUP`; stdin from `/dev/null`; fds 1, 2 to `daemon.log`. |
-| 4 | daemon | Takes the lock, binds the socket, writes `daemon.json`, writes `listening\n` to the pipe, [routes](#routing). |
-| 4 | host | Changes to the workspace; ignores `SIGINT`; `Hmz().reports()`; makes the `Host`; fds 1, 2 to a pipe a thread appends to the run's `host.log` (`daemon.log` before any run); replaces `sys.stdout` and `sys.stderr` with `Printed`; on `SIGTERM` closes the host from a new thread. Connects to the daemon and sends CONTROL `serve` (`pid`, `workspace`, `started`, `kind` `host`, `protocol`); the daemon answers one byte `+`, or closes the connection where another host holds the workspace. Writes `listening\n` to the pipe, serves. |
+| 1 | caller | Creates a pipe; flushes stdout/stderr; starts the process in a new session (`setsid`: no controlling terminal), stdin from `/dev/null`, fds 1, 2 to `daemon.log`, its environment the caller's. Waits on the pipe (polled every 0.1 s, up to `seconds`), then reaps it. |
+| 2 | started | Forks, while it has no other thread, and exits `0`, so that the fork leads no session and can never take a controlling terminal. |
+| 3 | daemon or host | Ignores `SIGHUP`; unwinds on `SIGTERM`, whatever the caller made of it. |
+| 4 | daemon | Takes the lock, binds the socket, writes `daemon.json`, writes `listening\n` to the pipe, takes [sessions](#sessions) and opens its [listeners](#listeners). |
+| 4 | host | Changes to the workspace; ignores `SIGINT`; `Hmz().reports()`; makes the `Host`; fds 1, 2 to a pipe a thread appends to the run's `host.log` (`daemon.log` before any run); replaces `sys.stdout` and `sys.stderr` with `Printed`; on `SIGTERM` closes the host from a new thread. Writes `listening\n` to the pipe and serves its [link](#links). |
 | — | either, on failure | Writes `the run could not be held: <why>\n` to the pipe, closes it, puts fds 1, 2 back on `daemon.log` and logs a traceback there, exits `1`. |
 
-The caller reads the pipe: `listening…` or EOF returns; any other text raises `OSError` with it.
-A timeout without either returns silently, and `host()` then raises only if nothing is
-listed.
+**Environment.** A host runs in the daemon's environment, and the daemon in that of the client
+that started it -- except under `hmz daemon serve` with no controlling terminal, as the service
+`hmz daemon install` writes runs it: there it first takes the environment of `$SHELL -ilc`
+(`$SHELL` unset: the account's shell), read between two marks of `env -0` and given 5 s, else
+its own; drops `PWD`, `OLDPWD`, `SHLVL` and `_`; and appends to `PATH` whichever of
+`~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` and `/bin`
+it lacks. A changed profile reaches the hosts once the daemon is started again.
+
+The caller reads the pipe: `listening…` returns; any other text raises `OSError` with it, and
+EOF with none `it ended before it came up; daemon.log says why`. A timeout returns silently, and
+`host()` then raises only if nothing is listed.
 
 **`Printed`.** In the host, each complete line written to `sys.stdout`/`sys.stderr` (a flow's
 `print`, a Python traceback) becomes a [`printed`](#history-records) message to every frontend.
@@ -151,27 +161,73 @@ Output written directly to descriptors 1 and 2 by child processes goes to the ru
 
 **Shutdown.** `Host.close()` withdraws questions, drops queued lines, stops every run, tells
 every frontend `gone` (`the host was closed`), and waits up to **15 s** from the first close for
-runs to release what they made (containers included). The carrier then flushes for up to
-**5 s** and the host process exits; the daemon stops handing it anything.
+runs to release what they made (containers included). The host process then exits; the
+daemon ends every subscription still attached to it with `gone` (`the host went away`).
 
-## Routing {#routing}
+## Sessions {#sessions}
 
-The daemon reads the first frame of each connection without taking it off the socket
-(`MSG_PEEK`, up to 64 KiB, within 10 s), and then:
+<span id="routing"></span>
 
-| First frame | The daemon |
+Every session is the same JSON-RPC 2.0 over frames (a big-endian u32 length, then one JSON
+object, at most 32 MiB), whichever carrier it came over:
+
+| Carrier | Security | Paired |
+| --- | --- | --- |
+| `daemon.sock` | none: the operating system admitted the user | from the start, as the device `local` |
+| a `tcp`, `ws`, `relay` or `easytier` [listener](#listeners) | mutual TLS 1.3, ALPN `hmz`, each side's self-signed device certificate (`hmz.trust`) | where the client's SPKI fingerprint is a paired device |
+| a `webrtc` listener | the DTLS of a data channel whose fingerprints the daemon signs (`hmz.rtc`) | where `dtls:<fingerprint>` is a paired device |
+
+| Rule | Value |
 | --- | --- |
-| CONTROL `serve` | Reads it; takes the connection as the host of that workspace and `slot`, kept for as long as it is open. A second host of one slot of a workspace whose host is alive is refused by closing. |
-| CONTROL without `workspace` | Answers it: `list` with `{"ok": true, "held": [{"pid", "workspace", "started", "slot"}, …]}` (registration order); anything else with `{"ok": false, "why": "no such request: <repr of do>"}`. |
-| MESSAGE or CONTROL whose `workspace` and `slot` (`""` without one) a host holds | Passes the socket to that host down its connection (`SCM_RIGHTS`, beside one byte `+`), and keeps its own descriptor until the host says it has it with one byte back. The host reads the frame itself. |
-| MESSAGE or CONTROL whose `workspace` and `slot` nobody holds | MESSAGE: a `reply` with `to` the request's `id`, `ok: false`, `why: no runs are held in <workspace>` (and ` for <slot>`). CONTROL: `{"ok": false, "why": …}`. Then closes. |
-| another kind | Answers with `GONE` (``held for frontends by a newer Humanize; `hmz` of it reads it``) and closes. |
-| a length no frame has, nothing within 10 s, or EOF | Closes. |
+| First call | `session.hello` `{protocol, client: {name, kind}}`; anything else first is refused -32600. Answered `daemon_id`, `version`, `protocol`, `capabilities` (`webrtc` where a `webrtc:` listener is open and `aiortc` is installed), `machine`, `wsl`, `newer`, `paired`, `device`. |
+| Versions | A client of major version 3 and a minor version no greater than the daemon's is admitted; any other is refused 426 with `data.protocol`. |
+| Unpaired | May call `session.hello`, `pair.claim` and `rpc.discover` alone; anything else is refused 401, `This device is not paired: claim a pairing code first.` |
+| Order | Each call on a thread of its own; those naming one `sub` in the order sent, `epic.aside` apart. |
+| Writes | A call carrying `idem` is carried out once per device and key; its answer is kept 600 s, the latest 1 024 per device. |
+| Outgoing | One queue per session, written by a thread of its own; past 64 MiB its notifications are dropped and every subscription is ended: `gone` (`too far behind; attach again`), or `notices.event` with `gone`. |
+| Calls the daemon makes | None. |
 
-The daemon closes once it has held no host for **2 s**, or **60 s** after it started where no
-host ever came, and on `SIGTERM`: it closes every host's connection, unbinds the socket, and
-removes `daemon.json`. A host whose connection to the daemon closes closes its runs as a
-CONTROL `stop` does: nobody new could reach them.
+The methods served here are `session.*`, `rpc.discover`, `pair.*`, `devices.*`, [`hosts.*`](#control-requests),
+[`epic.*`](#requests) and `btw.*`; every other family (settings, epics written down, flows, …)
+is a module of `hmz.daemon.api` naming its own in `METHODS`, found by `pkgutil` as the daemon
+starts. A method `protocol/openrpc.json` lists that nothing serves is refused -32601.
+
+| Method | Answer |
+| --- | --- |
+| `pair.create` `{routes?, seconds?}` | `code` (`hmz-pair:…`) and `expires`; routes default to the listeners'. 409 `There is no route to pair over: give one, or listen.` |
+| `pair.claim` `{token, name}` | `daemon_id`, `device`; pairs the session's device. 403 for a code not held, 409 on a paired session. |
+| `devices.list` | `devices`: `[{name, fingerprint, added, seen, live}]`. |
+| `devices.revoke` `{name}` | `dropped`; removes the device, answers, then closes every session of it. 400 for `local`, 404 for no such device. |
+
+The daemon closes once it has held no host and no session for **2 s**, or **60 s** after it
+started where nothing ever came -- unless it listens beyond its socket or `hmz daemon serve`
+started it -- and on `SIGTERM`: it closes every session and host, unbinds the socket, and
+removes `daemon.json`. A host whose link to the daemon closes closes its runs as `hosts.stop`
+does: nobody could reach them.
+
+### Listeners {#listeners}
+
+The setting `listen` and each `hmz daemon serve --listen` name listener specs, opened beside
+the socket; the setting's are opened and closed as it changes.
+
+| Spec | Listens |
+| --- | --- |
+| `tcp://<address>:<port>` | A TCP socket; `0` takes any port. |
+| `ws://<address>:<port>` | WebSocket binary messages; any other request is answered 404. |
+| `relay:<ws-url>` | Registered at that relay under the daemon id, accepting native joins. |
+| `webrtc:<ws-url>` | Registered at that relay, answering WebRTC joins with the STUN and TURN servers of `ice_servers`. |
+| `easytier:<name>` | The EasyTier entry of that name joined, its virtual address `10.144.144.1` reaching port 41817 of the loopback. |
+
+A listener's route -- `0.0.0.0` named by this machine's host name, port `0` by the port taken --
+is what `pair.create` puts in a code. One that cannot be opened is written to `daemon.log` and
+tried again after 1 s, doubling to 60 s.
+
+### Links {#links}
+
+The daemon speaks to each host process with JSON-RPC down a socket pair, of calls of its own no
+client sees: `attach` `{tag, name, kind, replay, since}`, `ask` `{client, said}`, `detach`,
+`status`, `detach_all`, and the notification `close`; the host sends each frontend's messages
+up as `told` `{tag, message}`.
 
 ## Lifecycle {#lifecycle}
 
@@ -179,11 +235,14 @@ CONTROL `stop` does: nobody new could reach them.
 
 A workspace's runs are held by more than one host: its own, slot `""`, which runs its flows one
 at a time and refuses a second (`a flow is already running`), and one per chat, slot
-`chat:<hex>` (12 hex digits from `hmz.daemon.where.chat()`), beside it. A chat started on a slot
+`chat:<hex>` (12 hex digits from `hmz.daemon.where.chat()`), and one per `hmz exec`, slot
+`exec:<hex>`, beside it. `epic.attach` and `hosts.open` with `chat:` or `exec:` alone make a new
+slot of that kind; one whose host has gone is refused 409 (`This chat has folded away.`, `This
+epic has ended.`). A chat started on a slot
 of its own never waits on a flow, nor a flow on it, and a second chat is a second slot. Every
-call that reaches a host -- `attach`, `running`, `host`, the hello, a CONTROL question --
+call that reaches a host -- `attach`, `running`, `host`, `epic.attach`, `hosts.*` --
 takes `slot`, and without one means the workspace's own. `where.slot(said)` checks one,
-raising `ValueError` for anything but `""` and `chat:<hex>`.
+raising `ValueError` (`<slot> is not a slot`) for anything but `""`, `chat:<hex>` and `exec:<hex>`.
 
 A chat's host **folds** its chat away once the chat has waited for its next line with no
 frontend attached for **60 s** (`hmz.runtime.doing.hosting.FOLD`): every role is made away, the
@@ -192,76 +251,55 @@ the host is then idle, and goes. A folded host refuses a start (`this chat has f
 carry it on from its epic`): the chat is carried on by starting `chat` on a new slot with
 `resume` its epic, which goes on in that same epic.
 
-Each host process's carrier checks every **0.5 s**. The host closes itself, and its process
+Each host process checks every **0.5 s**. The host closes itself, and its process
 exits, when it is **idle** and either a
-frontend has ever said `hello` or **60 s** have passed since it started. Idle means all of:
+frontend has ever attached or **60 s** have passed since it started. Idle means all of:
 
 - no frontend attached;
 - no run going, starting or stopping;
 - no *kept* run: a run that ended while no frontend was attached, and that nobody stopped, is
   kept until a frontend attaches -- but never a chat folded away.
 
-It also closes on `SIGTERM`, a CONTROL [`stop`](#control-requests), a MESSAGE
-[`quit`](#requests), or after 8 consecutive failed carrier rounds (each logged). Connections
-arriving after close are closed at once. CONTROL connections do not count as reaching the host.
+It also closes on `SIGTERM`, [`hosts.stop`](#control-requests), [`epic.quit`](#requests),
+and when its link to the daemon closes. `hosts.*` calls do not count as attaching.
 
 | `Daemon` method | Effect |
 | --- | --- |
-| `detach()` | CONTROL `detach`: every frontend is told `gone` (`let go`); runs continue. Returns the count. |
-| `stop(*, seconds=20.0)` | CONTROL `stop`; polls every 0.1 s for the pid to go. Returns whether it went. If the request is not answered `ok`, returns `not alive`. |
+| `detach()` | `hosts.detach`: every frontend is told `gone` (`let go`); runs continue. Returns the count. |
+| `stop(*, seconds=20.0)` | `hosts.stop`; polls every 0.1 s for the pid to go. Returns whether it went. Where the call is refused or not answered, returns `not alive`. |
 | `kill(*, seconds=20.0)` | `SIGTERM` to the host's process; after `seconds`, `SIGKILL` and up to 20 s more. The daemon and every other host are left alone. Returns whether it went. |
 
-## Frames {#protocol}
+## Hosts {#control-requests}
 
-Both directions carry frames:
+<span id="protocol"></span>
 
-```text
-+------+----------------------+-------------------+
-| kind | length (u32, big-end) | payload (length)  |
-| 1 B  | 4 B                  |                   |
-+------+----------------------+-------------------+
-```
+`hosts.*` ask about a host without attaching to it; all but `hosts.open` start none, and a
+workspace and slot no host holds is refused 404, `no runs are held in <workspace>`, and ` for <slot>`
+after it for a slot. `Daemon.asked(said)` calls `hosts.<do>` with the daemon's `workspace` and `slot`
+over a session of its own (5 s) and returns `{}` on any failure.
 
-| Kind | Byte | Payload |
-| --- | --- | --- |
-| `MESSAGE` | `M` | One UTF-8 JSON object: a request (frontend → host) or a message/reply (host → frontend). |
-| `CONTROL` | `C` | One JSON object: a [control request](#control-requests) or its answer. |
-| `GONE` | `X` | UTF-8 text: why the reader is let go. |
-
-| Rule | Value |
+| Method | Answer |
 | --- | --- |
-| Largest payload a reader accepts | 4 194 304 bytes (`1 << 22`). A larger length is a protocol error: the host drops the connection; a `Link` reads it as `gone` (`the host went away`). |
-| Largest frame the host sends | 4 194 303 bytes including the 5-byte header. A larger message is dropped and logged (`a <type> message was too long to carry`). Replies are not checked. |
-| Frame kind the daemon or host does not know | Answered with `GONE`: ``held for frontends by a newer Humanize; `hmz` of it reads it``, then closed. |
-| Text clipping | Every string longer than 262 144 characters in a history record or snapshot is cut to that length plus `… (<n> more characters)`. Not applied to `welcome`, `live`, `gone` or replies. |
-| JSON | `ensure_ascii=False`; values not JSON-native are `str()`-ed. |
-| `PROTOCOL` | `2`. |
+| `hosts.list` | `held`: `[{pid, workspace, started, slot}]`, in the order taken on. |
+| `hosts.running` | `running`: every host whose epic is going or stopping, with `state`, `run`, `flow`, `epic`, `task`, `turn` (a chat's), `workspace`, `slot`, `asking` (`<run>:<question>`). |
+| `hosts.open` `{workspace, slot?}` | Starts the host where none is: `pid`, `workspace`, `started`, `kind`, `protocol`, `slot`. |
+| `hosts.status` `{workspace, slot?}` | The [status keys](#status). |
+| `hosts.detach` `{workspace, slot?}` | `let_go`, after telling each frontend `gone` (`let go`). |
+| `hosts.stop` `{workspace, slot?}` | `{}` at once; the host then closes. |
 
-## Control requests {#control-requests}
-
-One CONTROL frame per connection; no `hello`. With `workspace`, the daemon passes it to that
-workspace's host, which answers with one CONTROL frame (5 s send timeout) and closes; without,
-the daemon answers it ([Routing](#routing)). `Daemon.asked(said)` sends one with the daemon's
-`workspace` added (no connect timeout; 5 s send/receive) and returns `{}` on any failure.
-
-| `do` | Answer |
-| --- | --- |
-| `status` | `{"ok": true, …what the host said to the daemon, …status keys}` |
-| `detach` | `{"ok": true, "let go": <n>}` after telling each frontend `gone` (`let go`). |
-| `stop` | `{"ok": true}` at once; the host then closes. |
-| other | `{"ok": false, "why": "no such request: <repr of do>"}` |
+Text clipping: every string longer than 262 144 characters in a history record or snapshot is
+cut to that length plus `… (<n> more characters)`.
 
 ### Status {#status}
 
-`Daemon.status()`, `Host.status()` and MESSAGE `status`:
+`Daemon.status()`, `Host.status()`, `hosts.status` and `epic.status`:
 
 | Key | Type | Value |
 | --- | --- | --- |
-| `ok` | bool | `true` (CONTROL answer only). |
-| `pid`, `workspace`, `started`, `kind`, `protocol` † | | The host process's, as it said them to the daemon (`kind` `host`) (CONTROL answer and fallback only). |
+| `pid`, `workspace`, `started`, `kind`, `protocol` † | | The host process's (`kind` `host`) (`hosts.status` and fallback only). |
 | `attached` † | int | Frontends attached. |
 | `clients` | list | `[{client, name, kind}]`. |
-| `slot` | string | Which of its workspace's [hosts](#slots): `""` its own, `chat:<hex>` a chat's. |
+| `slot` | string | Which of its workspace's [hosts](#slots): `""` its own, `chat:<hex>` a chat's, `exec:<hex>` an `hmz exec`'s. |
 | `state` | string | `running`, `stopping` or `idle`. |
 | `run` | int | The run going, else the one stopping, else the last; `0` for none. |
 | `flow` | string | That run's flow, or `""`. |
@@ -275,47 +313,27 @@ the daemon answers it ([Routing](#routing)). `Daemon.asked(said)` sends one with
 A host that does not answer (starting, wedged) yields only the † keys: the `Daemon`'s own
 fields with `attached: 0`, `flows: []`, `calls: []`.
 
-## Requests {#requests}
+## Calls to an epic {#requests}
 
-A frontend's first request must be `hello`. Every request may carry `id`. Each is answered, on
-the connection it came in on, by one `reply` whose `to` is that `id` (`""` where none), with
-`ok` and the answer's fields, or `ok: false` and `why`:
+`epic.attach` `{workspace, slot?, replay?, since?, figures?, scratch?}` attaches the session to
+a host as one frontend, starting the workspace's host where none is, and answers `sub`,
+`client`, `workspace` and `slot`; the host's [messages](#messages) then arrive as
+`epic.event` `{sub, message}`, none before the answer. `since` `{epoch, seq}` sends only the
+records after `seq` where `epoch` is the host's and every one after it is kept; `figures`
+also sends `figures`, at most once a second; `scratch` attaches to a new directory of its own.
+Every other call to an epic is `epic.<do>` `{sub, …}`, answered with the host's fields, or
+refused 409 with its `why`; a `sub` not open on the session is refused 410. `epic.start`,
+`say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board` and `quit` are writes,
+taking `idem`.
 
-```json
-{"type": "reply", "to": "r7", "ok": true, "run": 3}
-{"type": "reply", "to": "r8", "ok": false, "why": "a flow is already running"}
-```
-
-Requests of one frontend are carried out in the order sent, on a thread per frontend, off the
-thread carrying bytes. `aside` requests run on threads of their own, outside that order.
-An exception inside a request is refused with `str(exception)` or its type name.
-
-| Any request | Refusal |
+| Any call | Refusal |
 | --- | --- |
-| before `hello` | `a frontend says hello first` |
-| unknown `do` | `no such request: '<do>'` |
 | from a frontend no longer attached | `this frontend is not attached` |
 
-| `do` | Fields (type, default) | Answer | Refusals |
+| `epic.<do>` | Fields (type, default) | Answer | Refusals |
 | --- | --- | --- | --- |
-| `hello` | `workspace` (str: the daemon hands the frontend to its host; not read by the host), `name` (str, `""`: `<login>@<kind>`), `kind` (str, `"sdk"`), `replay` (bool, `true`; only a literal `false` disables) | `client` | `this frontend has already said hello`, `the frontend went while it was saying hello`, `this host has closed` |
-| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path) | `run` (int) | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. A run that is only *stopping* does not block `start`. |
-| `say` | `text` (str, required), `to` (str, `""`) | — | `a line says something`, `no flow is running to say it to` (also while stopping), `<role> is <name>'s` (for `to: "outworlder:<role>"`) |
-| `answer` | `question` (id), `text` (str, required; a number `1‥n` that is not itself an option picks that option) | — | `an answer says something`, `already answered by <name>`, `no question <id> is waiting`, `<role> is <name>'s` |
-| `stop` | — | — | `the flow is already stopping: it is closing out the turn it was in`, `no flow is running, so there is nothing to stop` |
-| `force` | — | `closed` (int): conversations closed mid-turn | `no flow is running, so there is nothing to stop` |
-| `afk` | `on` (bool, required), `role` (str, `""` = every role) | — | `afk is on or off`, `<role> is <name>'s`. Needs no run. |
-| `claim` | `role` (str, required), `take` (bool, `false`) | — | `a role to claim is named`, `<role> is <name>'s` (without `take`). Needs no run; role not checked against the flow. |
-| `release` | `role` | — | `<role> is not yours to release` |
-| `board` | `key`, `value` (`""` removes the line); acts on the last run's board as `user` | — | `this run has no board`, `<key> is not on the board`, `<key> is flow's to change, not user's` (and other `<key> is <whose>'s to change, not <by>'s` refusals) |
-| `aside` (open) | `key` (`<agent>/<n>` of the last run) with `fork` (bool), **or** `runs` (an `-a` spec after `<role>=`) -- with `recall` (what its CLI called a session an earlier run kept), `kept` (where that run kept it) and `cwd`, and `fork`, for a side conversation about that session | `side` (`s<n>`), `forked` (bool) | `<key> has no conversation to ask`, `<runs> is not an agent that can be made here`, `an aside is about a conversation, or asks an agent`, `this frontend has gone` |
-| `aside` (ask) | `side`, `prompt` | `answer` (str, stripped); for The Epic's, `ask` (`to`, `question`) while a run of `hmz-ask` waits (`to` empty for `hmz-ask list`, answered with the sessions one per line) | `no aside <side> is open`, `the aside is still answering the last question` |
-| `aside` (answer an ask) | `side`, `answered` (str) | as `aside` (ask) | `no aside <side> is open`, `aside <side> asked nothing` |
-| `unaside` | `side` | — | `no aside <side> is open` |
-| `status` | — | [status keys](#status) without the † host keys | — |
-| `detach` | — | — (then `gone`: `let go`) | — |
-| `quit` | — | — (the host closes) | — |
-
+| `attach` | as above | `sub`, `client`, `workspace`, `slot` | `the frontend went while it was saying hello`, `this host has closed`, `This chat has folded away.`, `This epic has ended.` |
+| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup`, `remember` (bool, `false`) | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, `an exec host runs one epic` (an exec host that has started one), any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. The daemon checks the epic as `flows.check` does before the host is asked -- so a refusal starts nothing -- and with `remember` checks it as `flows.setup` does, writing it down once the host has taken the start, so that a start refused leaves the set-up there was. A run that is only *stopping* does not block `start`. |
 ### Routing of `say` {#say-routing}
 
 | `to` | The line |
@@ -356,10 +374,10 @@ sandbox, network cut.
 
 ## Messages {#messages}
 
-On `hello`, atomically:
+On `epic.attach`, atomically:
 
-1. `welcome`: `client`, `name`, `kind`, `workspace`, `slot`, `pid` (host process), `protocol` (`2`).
-2. The history records, oldest first (omitted with `replay: false`).
+1. `welcome`: `client`, `name`, `kind`, `workspace`, `slot`, `pid` (host process), `protocol` (`3.0.0`), `epoch` (this life of the host).
+2. The history records, oldest first (omitted with `replay: false`; only those after `since` where it holds).
 3. Every snapshot, in the order `clients`, `claims`, `away`, `run`, `sessions`, `calls`,
    `waiting`, `pending`, `usage`, `board`.
 4. `live`: `seq` (the last record's), `elided` (records dropped from the front).
@@ -441,15 +459,12 @@ The last message a frontend receives: `{"type": "gone", "why": …}`.
 
 | `why` | Cause |
 | --- | --- |
-| `let go` | `detach` (MESSAGE or CONTROL), the frontend closing its socket, or an in-process `Link.close()` |
-| `the host was closed` | CONTROL `stop`, `quit`, `SIGTERM`, idle close |
-| `fell too far behind; open it again` | The host's queue for this frontend exceeded 64 MiB (cleared first) |
-| `too far behind; attach again` | The socket backlog exceeded 64 MiB (cut back to the frame in progress) |
-| ``held for frontends by a newer Humanize; `hmz` of it reads it`` | A `GONE` frame, converted by `Link` |
-| `the host went away` | Synthesised by `Link` on EOF, a socket error or a bad frame |
+| `let go` | `epic.detach`, `hosts.detach`, or an in-process `Link.close()`; a session closing ends its subscriptions without one |
+| `the host was closed` | `hosts.stop`, `epic.quit`, `SIGTERM`, idle close |
+| `too far behind; attach again` | The host's queue for this frontend, or the session's queue, exceeded 64 MiB |
+| `the host went away` | The host process ended without closing; also synthesised by `Link` where its session ends |
 
-After `gone` the host sends no more messages but still sends replies, and gives the socket up
-to 5 s to drain.
+After `gone` the subscription has ended: a call naming it is refused 410.
 
 ## Frontends {#hosting}
 
@@ -457,7 +472,7 @@ to 5 s to drain.
 
 | Rule | |
 | --- | --- |
-| Names | `hello.name`, used verbatim; `""` becomes `<HUMANIZE_NAME or login or "somebody">@<kind>`. A name already attached gets `#2`, `#3`, …. The final name is sent in `welcome`. |
+| Names | `session.hello`'s `client.name`, used verbatim; `""` becomes `<HUMANIZE_NAME or login or "somebody">@<kind>`. A name already attached gets `#2`, `#3`, …. The final name is sent in `welcome`. |
 | Client ids | `c1`, `c2`, … per host; never reused. |
 | Claims | A claimed `Outworlder` role may be answered, spoken to (`outworlder:<role>`) and set away only by its holder. `take: true` takes it from another holder, which learns it only from the `claims` and `pending` snapshots. Claims are released when the holder detaches; its questions' `owner` becomes `null`. Claims are not persisted. Claims do not restrict `say` to agents. |
 | Questions | Recorded only while the run is current, the host open, and the role not away; otherwise the flow gets no answer at once. Shown to every frontend with `owner`. Answerable by the owner, or by anybody where `owner` is `null`; the first answer wins. They stay pending with nobody attached. |
@@ -470,14 +485,14 @@ to 5 s to drain.
 `hmz.daemon.Link`, exported as [`hmz.sdk.Link`](/reference/sdk#link). Signatures are on the
 SDK page; transport behaviour:
 
-| Aspect | Over a socket (`reached`) | In process (`linked`) |
+| Aspect | Through the daemon (`reached`) | In process (`linked`) |
 | --- | --- | --- |
 | Made by | `Daemon.link(name="", kind="sdk", *, replay=True)`, `hmz.daemon.reached(at, workspace, name="", kind="sdk", *, replay=True)` | `hmz.daemon.linked(host, name="", kind="tui", *, replay=True)` |
-| Attach failure | `OSError` (nothing listening; no `hello` reply within 10 s; refused hello, including `no runs are held in <workspace>`) | `RuntimeError("this host has closed")` |
-| Requests | Ids `r1`, `r2`, …; `seconds` honoured: `TimeoutError("no answer to '<do>' in <s>s")` | Run synchronously; `seconds` ignored |
+| Attach failure | `OSError` (nothing listening; `session.hello` or `epic.attach` refused or not answered within 10 s) | `RuntimeError("this host has closed")` |
+| Requests | `epic.<do>` with its `sub`, writes with an `idem` of their own; `seconds` honoured: `TimeoutError("no answer to '<do>' in <s>s")`, the call then cancelled | Run synchronously; `seconds` ignored |
 | Refusal | `Refused(why)` | `Refused(why)` |
 | Host gone | Pending and later requests are refused with the `gone` reason; a send error with `the host could not be reached: <err>` | — |
-| `close()` | Shuts the socket (sends no `detach`; the host sees EOF and says `let go`). Idempotent. | `host.detach(client)` |
+| `close()` | Closes its session; the daemon lets its frontend go. Idempotent. | `host.detach(client)` |
 
 Messages are delivered in order, either through iteration (`for said in link`, ending after
 `gone` or `close()`) or to one listener set with `heard()`, on a thread named
@@ -503,6 +518,7 @@ class Daemon: ...                                   # see SDK › Daemon
 def running(workspace=None, *, slot: str = "") -> Daemon | None: ...
 def daemons() -> list[Daemon]: ...                  # every host, chats' included
 def host(workspace=None, *, seconds: float = 10.0, slot: str = "") -> Daemon: ...
+def start(seconds: float = 10.0) -> None: ...                # the daemon, where none runs
 def older(daemon: Daemon) -> str: ...
 class Older(RuntimeError): ...                      # the runs are held by an older Humanize
 def attach(kind: str, name: str = "", *, workspace=None, slot: str = "") -> Link: ...
@@ -514,20 +530,18 @@ Hmz, Host, Refused                                  # hmz.runtime's, fetched on 
 ```
 
 `hmz.daemon.link.remote` reaches the runs of a workspace on another machine through that
-machine's `hmz web`, reached over ssh as `/epics @<name>` reaches it: each request is posted to
-`/api/held/<do>` with the workspace (a refusal answered `{"ok": false, "why": …}`, raised as
-`Refused`), and its `/api/held/stream` is told to the link -- every `record` and `standing`
-event's data, then `gone` where the stream says `gone` or `again` or ends. The link's `client`
-is the one that interface says it is; `OSError` where it says nothing within 30 s. `close()`
-stops following.
+machine's daemon, over the session `Remotes.client` keeps to it, as `/epics @<name>` reaches
+it: `epic.attach` there, as `reached` attaches over this machine's socket -- its `epic.event`
+notifications are the messages told to the link, and each request is the call `epic.<do>`, a
+refusal raised as `Refused`. `OSError` where that daemon is not reached or will not attach.
+`close()` stops following.
 
-`attach` is how `hmz` and `hmz web` reach runs held apart from them: it finds the host holding
-the workspace's runs, or starts the daemon and one where none is, and links to it as `kind`,
+`attach` is how `hmz` and `hmz web` reach runs held apart from them: it starts the daemon
+where none is and attaches through it (`epic.attach` starts the host), as `kind`,
 tried **3** times **0.5 s** apart while linking raises `OSError`, the last of which it raises. A
-daemon or host of another `protocol` raises `Older`, saying what [`older`](#discovery) says,
+daemon of another `protocol` raises `Older`, saying what [`older`](#discovery) says,
 and nothing is started beside it.
 
-`hmz.daemon.proto`: `GONE = b"X"`, `CONTROL = b"C"`, `MESSAGE = b"M"`, `PROTOCOL = 2`,
-`frame(kind, payload=b"") -> bytes`, `spoken(kind, said) -> bytes` (JSON-encodes a dict),
-`asked(payload) -> dict` (`{}` for bad JSON or a non-object), `Frames().feed(data) ->
-list[tuple[kind, payload]]` (returns complete frames once each; raises `ValueError("a frame of <n> bytes is not one of these")` for an oversize length).
+`hmz.daemon.link.dialed(at, name="", kind="sdk", *, serve=None, seconds=10.0)` opens a
+session over the socket and says `session.hello`, answering the `hmz.rpc.Peer` and the hello;
+`OSError` where nothing answers, `EADDRINUSE` with the refusal of another protocol.

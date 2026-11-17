@@ -17,8 +17,8 @@ layers at once, a backend and a command, every file to visit in order.
 ## How the layers work
 
 `src/hmz/` is a stack of layers, and code in each layer may import only the layers the table
-below gives it. Pick a layer to see what it may import and open its SPEC. A test holds the
-same table, so an import that breaks it fails the run.
+below gives it. Pick a layer to see what it may import and open its protocol document. A test
+holds the same table, so an import that breaks it fails the run.
 
 <HmzStack />
 
@@ -26,8 +26,9 @@ same table, so an import that breaks it fails the run.
 
 | You are changing | Put it in |
 | --- | --- |
-| how a coding agent CLI is driven, or its accounts, models, fallbacks or prices | `coganchor/` |
+| how a coding agent CLI is driven, or its accounts, models, nous or prices | `coganchor/` |
 | the machine an agent's turns land on | `coganchor/machines/`, per [Machines](/reference/machines#writing-a-machine-of-your-own) |
+| what runs beside the agent or on its target: mirrors, the supervisor, the fence, the serving half, the broker | `crates/coganchor/`, the `coganchor` program, in Rust; see [`coganchor`](/contributing/#coganchor) |
 | a type, mixin, hook or error a flow imports | `flows/`, then check the flows [humanfia/flowverse](https://github.com/humanfia/flowverse) lists still work |
 | how a flow runs: the engine, budgets, resuming, the harness and environment drivers | `runtime/flowing/`, then check those flows too |
 | the `hmz exec` line: a flag, a refusal | `runtime/runner.py` |
@@ -37,8 +38,11 @@ same table, so an import that breaks it fails the run.
 | anything two of `cli`, `tui`, `web` and `daemon` would each need | `runtime/doing/`, once |
 | who is outside a run: claims, away, questions, lines said to agents, asides | `runtime/doing/hosting.py` |
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
-| a view of the web interface, or a route it answers | `web/`: the page under `web/static/`, plain ES modules, and its routes beside the server |
-| runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
+| a view of the web interface, or what its server answers | `web/`: the page under `web/static/`, plain ES modules speaking JSON-RPC to daemons (`rpc/`, `api.js`); the server in `site.py` -- the page's files, `/here`, admission -- and its bridges `/rpc` and `/dial` in `bridge.py` |
+| runs kept going after the terminal closes, and the one JSON-RPC endpoint every client reaches them through, on its socket and its listeners | `daemon/` |
+| a method the daemon serves beyond epics and sessions: settings, accounts, nous, runtimes, EasyTier, flows, workspaces, paths, notices, runs, backups, files | `daemon/api/`, a module per family naming its own in `METHODS` |
+| a carrier between a client and a daemon: a route, dialing it, listening, racing routes | `reach/` |
+| the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
 | a flow Humanize ships | `flows/builtin/`, for `chat` and the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
@@ -58,9 +62,10 @@ when:
   nothing else of Humanize but `hmz.coganchor.faking`, which holds `FakeTool`, `FakeCli` and
   `FakeCommand`, and that is checked too.
 - **A top-level package is missing from the table.** `cli` is the one exemption.
-- **The anchor's target half loads more than it may.** `coganchor/serve/` runs on the target
-  machine, which may be any architecture, so it may import `coganchor.proto`, and
-  `coganchor.fence` with the `coganchor.linux` bindings it is put up with, and nothing else.
+
+Nothing of `src/hmz/` runs on a target. The halves of a session that run beside the agent and on
+the machine its work lands on are the Rust program `coganchor`, in `crates/coganchor/`, which
+the test does not read; `hmz.coganchor` finds the build for a machine and drives it.
 
 To add a layer or an edge, edit `ALLOWED` in that test. The diagram above copies it, so change
 `docs/.vitepress/theme/components/HmzStack.vue` in the same commit.
@@ -82,7 +87,7 @@ page of `/settings`.
 
 **You need:** the CLI installed and signed in, so a system test can drive it; its `--help`
 and a turn or two of its own logs, since several steps copy what it really writes; and which
-kind of driver it needs, which `specs/features/agents.md` says.
+kind of driver it needs, which `protocol/core.md` says.
 
 ### 1. Describe it, in `coganchor/`
 
@@ -177,7 +182,7 @@ kind of driver it needs, which `specs/features/agents.md` says.
     grep -rln mimo docs --include='*.md' --include='*.vue' --exclude-dir=node_modules
     ```
 
-    Where a SPEC lists the backends too, propose the change: do not edit a SPEC unless you were
+    Where the protocol lists the backends too, propose the change: do not edit it unless you were
     asked to.
 
 ### Check it worked
@@ -205,55 +210,36 @@ uv run pytest -n0 tests/system/test_harness_task.py -k <name>
 4. **A terse help.** Every flag's help, command summary, description and epilog is thirty words
    or fewer; the detail goes in [CLI reference](/reference/cli). A unit test in
    `tests/unit/cli/` reaches every parser through `main` and fails on anything longer. A
-   subcommand a command routes by hand, as `hmz internal anchor` routes `serve`, needs a line
-   in its `ROUTES`.
+   subcommand a command routes by hand needs a line in its `ROUTES`.
 
 Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and with
 `uv run hmz <command> --help`.
 
-## SPECs
+## The protocol {#protocol}
 
-`specs/` states everything Humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
-nothing about how it is built. `specs/api/` holds the interfaces: the flow API, the SDK, the
-daemon protocol, the HTTP API, the command line, `settings.yaml`, and every file Humanize may
-leave on disk. `specs/features/` holds one file per feature. `specs/README.md` holds the rules
-every SPEC is written by and the terms they share. Pick a layer in the diagram to open the SPEC
-that governs what it shows. Change the code to match the SPEC, and do not edit a SPEC unless you
-were asked to. Propose a SPEC change separately. How the layers are built and may name one
-another is this page's business, not a SPEC's.
+`protocol/` states everything Humanize shows to the outside, in MUST, MUST NOT and MAY terms, and
+nothing about how it is built: every interface (the command line, the terminal interface, the web
+page and the server that bridges it to daemons, the desktop app, the daemon's wire protocol, the flow API and the SDK),
+what Humanize does to the system under it (`settings.yaml`, environment variables, every file it
+may leave on disk), and what each feature does as a user sees it. Another team could build a
+product that behaves the same from these documents alone. They are written as RFCs are;
+`protocol/core.md` holds the conventions every document follows and the terms they share. Pick a
+layer in the diagram to open the document that governs what it shows. Change the code to match
+the protocol, and do not edit a protocol document unless you were asked to. Propose a protocol
+change separately. How the layers are built and may name one another is this page's business,
+not the protocol's.
 
-::: details Every SPEC
+::: details Every document
 | | |
 | --- | --- |
-| `specs/README.md` | How a SPEC is written, numbered and cited; the terms every SPEC shares |
-| `specs/api/flows.md` | The flow API: what a flow imports, declares and is handed |
-| `specs/api/sdk.md` | `hmz.sdk`: how a program that is not Humanize drives it |
-| `specs/api/daemon.md` | The daemon's protocol, as a frontend sees it |
-| `specs/api/http.md` | Every HTTP endpoint `hmz web` serves |
-| `specs/api/cli.md` | Every command line |
-| `specs/api/settings.md` | Every key of `settings.yaml`, and every environment variable read |
-| `specs/api/files/home.md` | `~/.hmz` |
-| `specs/api/files/workspace.md` | What Humanize may leave in a workspace, and what never |
-| `specs/api/files/epics.md` | An epic's directory, its records, and `.hmzepic` archives |
-| `specs/api/files/machine.md` | Per-user temporary and cache directories |
-| `specs/api/files/harness-homes.md` | What Humanize keeps or builds for each CLI's home |
-| `specs/api/files/desktop.md` | The macOS app's files |
-| `specs/api/files/targets.md` | What Humanize may leave on another machine, container or job |
-| `specs/features/epics.md` | Starting, stopping, budgeting and picking up an epic |
-| `specs/features/agents.md` | Driving coding agent CLIs: configuration, permissions, faults |
-| `specs/features/accounts.md` | Which account an agent runs as |
-| `specs/features/placements.md` | Where a CLI runs against where its work is, and mirrors |
-| `specs/features/environments.md` | Local, ssh, docker, swarm, Apple container and Slurm envs |
-| `specs/features/chat.md` | The chat flow, in every frontend |
-| `specs/features/btw.md` | Side questions |
-| `specs/features/monitoring.md` | The live monitor, cost, notices, traces and profiles |
-| `specs/features/backups.md` | Git backups, export and import |
-| `specs/features/telemetry.md` | What is reported, and what never |
-| `specs/features/updates.md` | `hmz update` and update notices |
-| `specs/features/daemons.md` | One daemon per machine, and remote daemons |
-| `specs/features/tui.md` | Every behaviour the terminal interface must have |
-| `specs/features/web.md` | Every behaviour the web interface must have |
-| `specs/features/desktop.md` | Humanize Desktop, the macOS app in `desktop/`: a window on `hmz web` |
+| `protocol/core.md` | Conventions and shared terms; epics, agents, accounts, placements, environments, chat, side questions, monitoring, backups, telemetry, updates |
+| `protocol/cli.md` | Every command line |
+| `protocol/tui.md` | Every behaviour the terminal interface must have |
+| `protocol/daemon.md` | One daemon per machine, remote daemons, and the daemon's protocol as a frontend sees it |
+| `protocol/web.md` | Every behaviour the web page must have, and every path `hmz web` serves: its files, `/here`, `/rpc` and `/dial` |
+| `protocol/desktop.md` | Humanize Desktop, the app in `desktop/`: a window on the page it carries, the pipes that page reaches daemons through, and its files |
+| `protocol/python.md` | The flow API, and `hmz.sdk`: how a program that is not Humanize drives it |
+| `protocol/files.md` | Every key of `settings.yaml`, every environment variable read, and every file Humanize may leave on disk, here or on another machine |
 :::
 
 ## Next steps

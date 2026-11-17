@@ -1,9 +1,9 @@
 """Every builtin flow run through `hmz.sdk.Hmz`, on the local workspace, by scripted agents.
 
 The agents are the SDK's own fakes (`hmz.sdk.fakes`) and everything else is real: the flow
-is found and loaded by name, handed a local environment on a project of the test's own,
-driven by the engine under its budget, and written down as an epic that `Hmz.epics` reads
-back -- and picked up from there by `resume`.
+is found and loaded by name, handed a local environment on a project of the test's own, and
+driven by the engine under its budget, through the private daemon the SDK starts for driver
+objects -- whose home, and the epic written there, go with it.
 
 The loops pause five seconds between rounds, so a test that needs a second round takes that
 long; a round is ended at once by a cost that is not graceful, which stops the turn that
@@ -30,6 +30,9 @@ from tests.integration.doubles_core import MODEL, install
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+#: An epic of specs is held by this machine's daemon, stood in by one of the test's own.
+pytestmark = pytest.mark.usefixtures("daemon")
 
 #: What a run may spend: the turn that takes it past 0.5 is stopped where it is. Agents
 #: costing 0.3 a turn are stopped in their second, agents costing 1 in their first.
@@ -62,10 +65,8 @@ def test_chat_talks_until_the_person_says_nothing(project: Path) -> None:
     assert person.asked == ["heard hello", "heard and then?"]
     # One conversation: the second turn is said in the session of the first.
     assert len(assistant.sessions) == 1
-    (epic,) = hmz.epics.all()
-    ran = hmz.epics.read(epic)
-    assert ran is not None
-    assert (ran.flow, ran.task, ran.how) == ("chat", "hello", "done")
+    # Written in the private daemon's home, which went with it.
+    assert hmz.epics.all() == []
 
 
 def test_goal_sets_the_task_as_the_agents_goal(project: Path) -> None:
@@ -156,46 +157,6 @@ def test_rlar_ends_when_the_reviewer_says_it_is_done(project: Path) -> None:
     (review,) = reviewer.prompts
     # The task, then what the actor said as it ended its turn, which is held to the repository.
     assert review.index("the task") < review.index("worked")
-
-
-def test_rlar_picked_up_hands_a_fresh_actor_the_last_review(project: Path) -> None:
-    hmz = Hmz(project)
-    not_yet = {"done": False, "notes": "the tests are missing"}
-
-    # The actor's second turn spends it, after the first round's review is kept.
-    with pytest.raises(CostExceeded):
-        hmz.run(
-            "rlar",
-            "the task",
-            agents={
-                "actor": _agent(cost=0.3),
-                "reviewer": _agent(not_yet, cost=0.0),
-            },
-            budget=BUDGET,
-        ).run()
-    (first,) = hmz.epics.all()
-    assert hmz.epics.picks_up(first)
-    assert hmz.epics.state(first)["notes"] == "the tests are missing"
-
-    actor = _agent(cost=0.0)
-    hmz.run(
-        "rlar",
-        "the task",
-        agents={
-            "actor": actor,
-            "reviewer": _agent({"done": True, "notes": "done"}, cost=0.0),
-        },
-        budget={"cost": 1},
-        resume=True,
-    ).run()
-
-    (prompt,) = actor.prompts
-    assert prompt.startswith("the task")
-    assert prompt.endswith("the tests are missing")
-    second = hmz.epics.all()[-1]
-    ran = hmz.epics.read(second)
-    assert ran is not None
-    assert ran.picked_up == first.name
 
 
 def test_a_cost_spent_gracefully_lets_the_turn_finish(project: Path) -> None:

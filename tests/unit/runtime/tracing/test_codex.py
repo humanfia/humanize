@@ -141,6 +141,127 @@ def test_reads_the_messages_of_a_rollout_said_as_completed_items(
     assert said[1].args["text"] == "well, thanks"
 
 
+def test_each_request_s_usage_goes_on_its_first_model_call(tmp_path: Path) -> None:
+    def usage(at: float, out: int, total: int) -> dict[str, Any]:
+        return ev(
+            at,
+            "token_count",
+            info={
+                "last_token_usage": {"input_tokens": 10, "output_tokens": out},
+                "total_token_usage": {"output_tokens": total},
+            },
+        )
+
+    def call(at: float, ident: str) -> dict[str, Any]:
+        return ri(at, "custom_tool_call", name="exec", call_id=ident, input="ls")
+
+    def answer(at: float, ident: str) -> dict[str, Any]:
+        return ri(at, "custom_tool_call_output", call_id=ident, output="a")
+
+    # As Codex writes them: a request's usage once its tool calls are answered, and said
+    # again, unmoved, where nothing new was spent.
+    rollout(
+        tmp_path,
+        "a",
+        [
+            meta("thread-aaaaaaaa"),
+            row(0.5, "turn_context", model="gpt-5", effort="high"),
+            ev(1, "task_started", turn_id="t1"),
+            ev(1, "user_message", message="build it"),
+            ri(2, "reasoning", summary=[{"text": "plan"}]),
+            call(3, "c1"),
+            answer(4, "c1"),
+            usage(4.1, 7, 7),
+            call(5, "c2"),
+            answer(6, "c2"),
+            usage(6.1, 3, 10),
+            usage(6.2, 3, 10),
+            item(7, "AgentMessage", "built"),
+            usage(7.1, 2, 12),
+            ev(8, "task_complete", last_agent_message="built"),
+            # A turn cut off before its request said what it spent: what the next turn spends
+            # is that turn's own.
+            ev(9, "task_started", turn_id="t2"),
+            ev(9, "user_message", message="ship it"),
+            ri(10, "reasoning", summary=[{"text": "cut off"}]),
+            ev(11, "turn_aborted", reason="interrupted"),
+            ev(12, "task_started", turn_id="t3"),
+            ev(12, "user_message", message="again"),
+            item(13, "AgentMessage", "shipped"),
+            usage(13.1, 4, 16),
+            ev(14, "task_complete", last_agent_message="shipped"),
+            # What another agent sent the thread is what its request read, not what it wrote.
+            ev(15, "task_started", turn_id="t4"),
+            ri(
+                16,
+                "agent_message",
+                author="/root",
+                recipient="/root/child",
+                content="hi",
+            ),
+            item(17, "AgentMessage", "reported"),
+            usage(17.1, 5, 21),
+            ev(18, "task_complete", last_agent_message="reported"),
+            # A call cut off with its turn is never answered, and holds no later request back.
+            ev(19, "task_started", turn_id="t5"),
+            call(20, "c3"),
+            ev(21, "turn_aborted", reason="interrupted"),
+            ev(22, "task_started", turn_id="t6"),
+            call(23, "c4"),
+            answer(24, "c4"),
+            usage(24.1, 6, 27),
+        ],
+    )
+    [session] = codex.collect(tmp_path, None, None, ALL)
+
+    spent = [
+        (a.category, a.name, a.args["usage"]["output_tokens"], a.args["model"])
+        for a in sorted(session.actions, key=lambda a: a.start)
+        if "usage" in a.args
+    ]
+    assert spent == [
+        ("llm", "think: plan", 7, "gpt-5"),
+        ("llm", "generate", 3, "gpt-5"),
+        ("message", "say: built", 2, "gpt-5"),
+        ("message", "say: shipped", 4, "gpt-5"),
+        ("message", "say: reported", 5, "gpt-5"),
+        ("llm", "generate", 6, "gpt-5"),
+    ]
+
+
+def test_a_request_over_closes_its_reasoning(tmp_path: Path) -> None:
+    def usage(at: float, out: int) -> dict[str, Any]:
+        return ev(
+            at,
+            "token_count",
+            info={
+                "last_token_usage": {"output_tokens": out},
+                "total_token_usage": {"output_tokens": at},
+            },
+        )
+
+    rollout(
+        tmp_path,
+        "a",
+        [
+            meta("thread-aaaaaaaa"),
+            ev(1, "task_started", turn_id="t1"),
+            ri(2, "reasoning", summary=[{"text": "first"}]),
+            usage(2.1, 7),
+            ri(3, "reasoning", summary=[{"text": "second"}]),
+            item(4, "AgentMessage", "done"),
+            usage(4.1, 3),
+        ],
+    )
+    [session] = codex.collect(tmp_path, None, None, ALL)
+
+    assert [
+        (a.name, a.args["usage"]["output_tokens"])
+        for a in sorted(session.actions, key=lambda a: a.start)
+        if "usage" in a.args
+    ] == [("think: first", 7), ("think: second", 3)]
+
+
 def test_subagent_threads_follow_their_parent(tmp_path: Path) -> None:
     rollout(
         tmp_path,

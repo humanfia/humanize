@@ -31,7 +31,7 @@ _PRICED = {"priced": 1e-6, "dear": 1e-3}
 def _prices(monkeypatch: pytest.MonkeyPatch) -> None:
     """A price list of the tests' own: `priced` and `dear` are on it, nothing else is."""
 
-    def cost(usage: Mapping[str, float], model: str) -> float | None:
+    def cost(usage: Mapping[str, float], model: str, **_: float) -> float | None:
         per = _PRICED.get(model)
         return None if per is None else usage.get("output", 0.0) * per
 
@@ -135,6 +135,50 @@ def test_a_ledger_reads_every_agent_once() -> None:
     assert read.seconds >= 0
     assert ledger.allowance == Allowance(dollars=1)
     assert ledger.began > 0
+
+
+def test_a_ledger_prices_one_hour_cache_writes_as_such(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def cost(
+        usage: Mapping[str, float],
+        model: str,
+        *,
+        hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
+    ) -> float:
+        return usage["cache_write"] * 1e-6 + hour * 1e-6
+
+    class _Writer(_Spender):
+        def spent(self) -> Usage:
+            return Usage({"cache_write": 1e6}, hour=4e5)
+
+    monkeypatch.setattr(prices, "cost", cost)
+    writer = _Writer("priced")
+    read = Ledger(Allowance(dollars=10), [writer]).reads()
+    assert read.dollars == pytest.approx(1.4)
+
+
+def test_a_ledger_prices_long_context_requests_at_their_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def cost(
+        usage: Mapping[str, float],
+        model: str,
+        *,
+        hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
+    ) -> float:
+        return usage["input"] * 1e-6 + sum((tiered or {}).values()) * 1e-6
+
+    class _Long(_Spender):
+        def spent(self) -> Usage:
+            return Usage({"input": 1e6}, tiered={"input>272000": 3e5})
+
+    monkeypatch.setattr(prices, "cost", cost)
+    long = _Long("priced")
+    read = Ledger(Allowance(dollars=10), [long]).reads()
+    assert read.dollars == pytest.approx(1.3)
 
 
 def test_a_ledger_of_nothing_priced_reads_no_money() -> None:

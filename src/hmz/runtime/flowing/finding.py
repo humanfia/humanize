@@ -60,10 +60,37 @@ __all__ = [
     "inside",
     "offered",
     "offers",
+    "placed",
     "privileged",
     "resolved",
     "within",
 ]
+
+#: What a flow's directory holds the flow itself in. The rest of the directory is what it
+#: imports and the `skills/` it brings, so the entry point is named rather than guessed.
+ENTRY = "__init__.py"
+
+
+def placed(file: str | os.PathLike[str]) -> Path:
+    """Where a flow's file is, the one way every flow's file is said, links followed.
+
+    Every link is followed, the file's own included -- one flow is one file, however many
+    links lead to it -- but an entry point's own: an `__init__.py` is what makes its directory
+    a flow, which is what that directory's `skills/` and everything beside it are found by,
+    and a link standing in for one leads to a file of some other name in some other directory.
+    So for one, only the directory it is in is followed.
+
+    Args:
+      file: The file, as found or as the code defined in it says.
+
+    Returns:
+      The path, absolute.
+    """
+    file = Path(file)
+    if file.name != ENTRY:
+        return Path(os.path.realpath(file))
+    return Path(os.path.realpath(file.parent)) / ENTRY
+
 
 #: Where the flows Humanize ships in the package are: `hmz/flows/builtin`, beside the flow API
 #: they are written against, rather than beside this file, which is how one is found. They are
@@ -72,15 +99,11 @@ __all__ = [
 #: places one of them is kept in is Humanize's business rather than whoever is running it.
 #: Worked out from where this file is rather than by importing the flow API, which a listing
 #: of places has no need to pay for.
-BUILTIN_AT = Path(__file__).resolve().parents[2] / "flows" / "builtin"
+BUILTIN_AT = placed(__file__).parents[2] / "flows" / "builtin"
 
 #: Where the one flow Humanize trusts with more than it declares is: `chat`, the package's own,
 #: said by where it is rather than by a name a flow of yours could take.
 _PRIVILEGED_AT = BUILTIN_AT / "chat"
-
-#: What a flow's directory holds the flow itself in. The rest of the directory is what it
-#: imports and the `skills/` it brings, so the entry point is named rather than guessed.
-ENTRY = "__init__.py"
 
 #: What a flow's own name is separated from the one inside it by. A module that holds one
 #: visible flow is named by itself; one that holds three names the others after it.
@@ -439,8 +462,8 @@ def privileged(flow: FlowImpl) -> bool:
 
 
 def _made(flow: FlowImpl) -> Path:
-    """The file a flow was defined in, with every link on the way followed."""
-    return Path(os.path.realpath(flow.fn.__code__.co_filename))
+    """The file a flow was defined in, as :func:`placed` says it."""
+    return placed(flow.fn.__code__.co_filename)
 
 
 def _split(named_: str) -> tuple[str, str]:
@@ -494,7 +517,7 @@ def find(named_: str) -> str:
     for verse in places:
         beside = within(verse, flow)
         if beside is not None:
-            return str(beside.resolve())
+            return str(placed(beside))
     return ""
 
 
@@ -508,7 +531,7 @@ def _path(said: str) -> str:
     """
     for shape in (os.path.join(said, ENTRY), said, f"{said}.py"):
         if os.path.isfile(shape):
-            return os.path.realpath(shape)
+            return str(placed(shape))
     return ""
 
 

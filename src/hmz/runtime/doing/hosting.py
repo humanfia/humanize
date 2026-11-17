@@ -47,6 +47,7 @@ import json
 import os
 import queue
 import re
+import secrets
 import shlex
 import shutil
 import tempfile
@@ -72,14 +73,11 @@ if TYPE_CHECKING:
         Verdict,
     )
     from hmz.coganchor.faking import FakeCli
-    from hmz.runtime.doing.core import Hmz
+    from hmz.runtime.doing.core import Holding
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing.spi import Placement
 
-__all__ = ["FOLD", "PROTOCOL", "Host", "record"]
-
-#: Which version of the messages this speaks, said to every frontend as it arrives.
-PROTOCOL = 2
+__all__ = ["FOLD", "Host", "record"]
 
 #: How long one text in a message may be before the rest of it is counted instead. A turn's
 #: answer is kilobytes; a tool that printed a file is the case this is for, and a frame of the
@@ -205,6 +203,14 @@ def _user() -> str:
 def _json(model: Any) -> Any:
     """A pydantic model as JSON-native values, `Infinity` spelled as it reads back."""
     return json.loads(model.model_dump_json())
+
+
+def _returned(value: Any) -> Any:
+    """What a flow returned, as JSON: every value that is not JSON-native as its text."""
+    try:
+        return json.loads(json.dumps(value, default=str, ensure_ascii=False))
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def _epic_of(shown: _Run | None) -> str:
@@ -607,7 +613,7 @@ class _Run:
 class Host:
     """One workspace's runs, or one chat's, shared by every frontend attached to them."""
 
-    def __init__(self, hmz: Hmz, slot: str = "") -> None:
+    def __init__(self, hmz: Holding, slot: str = "") -> None:
         """Holds the workspace and no run, with nobody attached.
 
         Args:
@@ -617,6 +623,9 @@ class Host:
         """
         self._hmz = hmz
         self._slot = slot
+        #: What names this life of the host, which a frontend that attaches again with
+        #: `since` is told its records only where it still names.
+        self.epoch = secrets.token_hex(8)
         #: Since when a chat here has been between turns with nobody attached, and whether
         #: it has been folded away for it.
         self._alone: float | None = None
@@ -700,6 +709,7 @@ class Host:
         heard: Callable[[dict[str, Any]], None],
         *,
         replay: bool = True,
+        since: tuple[str, int] | None = None,
     ) -> str:
         """Takes a frontend on, and tells it everything it needs to read the runs from here.
 
@@ -714,6 +724,9 @@ class Host:
           kind: What it is: `tui`, `cli` or `sdk`.
           heard: What each message is handed to.
           replay: Whether to be told the run so far, or only what happens from here.
+          since: The `epoch` and `seq` of the last record a frontend attaching again was told:
+            it is told only those after it where this is the host it was told them by and
+            every one after it is still kept, and every record kept otherwise.
 
         Returns:
           Its client id, which every request of its names it by.
@@ -734,6 +747,8 @@ class Host:
             frontend = _Frontend(client, named, kind, heard)
             # A finished run kept for one frontend to come and read: this is that one.
             self._keeps = False
+            from hmz.rpc import PROTOCOL
+
             welcome = {
                 "type": "welcome",
                 "client": client,
@@ -743,11 +758,20 @@ class Host:
                 "slot": self._slot,
                 "pid": os.getpid(),
                 "protocol": PROTOCOL,
+                "epoch": self.epoch,
             }
             self._post(frontend, welcome, _sized(welcome))
+            after = 0
+            if since is not None:
+                replay = True
+                first = self._history[0][0]["seq"] if self._history else self._seq + 1
+                epoch, seq = since
+                if epoch == self.epoch and first <= seq + 1 <= self._seq + 1:
+                    after = seq
             if replay:
                 for message, size in self._history:
-                    self._post(frontend, message, size)
+                    if message["seq"] > after:
+                        self._post(frontend, message, size)
             # Everybody else hears of it now, and this one with the rest of the state below.
             self._frontends[client] = frontend
             self._snap_clients(but=client)
@@ -989,7 +1013,7 @@ class Host:
             if client != but and not self._post(frontend, message, size)
         ]
         for frontend in behind:
-            self._let_go(frontend, "fell too far behind; open it again", keep=False)
+            self._let_go(frontend, "too far behind; attach again", keep=False)
 
     def _record(self, message: dict[str, Any]) -> None:
         """Says one thing that happened, and keeps it for whoever arrives later."""
@@ -1199,8 +1223,7 @@ class Host:
         self._folded = True
         self._away_all = True
         self._away_of.clear()
-        self._snap("away", all=True, of={})
-        self._spoke.notify_all()
+        self._goes_away()
 
     def _calls(self, now: float | None = None) -> list[dict[str, Any]]:
         """Every flow call going here, oldest first: since when, or how long for `now`."""
@@ -1268,6 +1291,8 @@ class Host:
                 return _no("a flow is already starting")
             if self._folded:
                 return _no("this chat has folded away; carry it on from its epic")
+            if self._slot.startswith("exec:") and self._runs:
+                return _no("an exec host runs one epic")
             self._starting = True
             number = self._runs + 1
         try:
@@ -1366,7 +1391,7 @@ class Host:
         from hmz.runtime import telemetry
         from hmz.runtime.runner import Refused
 
-        how, why = "done", ""
+        how, why, result = "done", "", None
         try:
             # Said where every frontend reads it, as a command line says it on its stderr.
             if blind := current.run.unreadable():
@@ -1375,7 +1400,7 @@ class Host:
                         self._record(
                             {"type": "notice", "run": current.number, "text": blind}
                         )
-            current.run.run()
+            result = _returned(current.run.run())
         except (asyncio.CancelledError, Stopped):
             how = "stopped"
         except Refused as refused:
@@ -1422,6 +1447,7 @@ class Host:
                     "how": how,
                     "why": why,
                     "mono": time.monotonic(),
+                    "result": result,
                 }
             )
             self._snap_run()
@@ -1948,8 +1974,8 @@ class Host:
                     self._answers(asked, line.text, line.by, line.client)
                     self._snap_waiting()
                     continue
-                # Re-asked every tick as well as on every word, so that `/afk` and a run
-                # that has gone are noticed however they came about.
+                # Re-asked every tick as well as on every word, so that a run that has
+                # gone is noticed however it came about.
                 self._spoke.wait(_TICK)
 
     def _line_for(self, current: _Run, role: str) -> _Line | None:
@@ -2085,9 +2111,19 @@ class Host:
                     one for one in self._away_of if self._may(frontend.client, one)
                 ]:
                     del self._away_of[held]
-            self._snap("away", all=self._away_all, of=dict(self._away_of))
-            self._spoke.notify_all()
+            self._goes_away()
         return _ok()
+
+    def _goes_away(self) -> None:
+        """Says who is away, and withdraws every question of a role that is. Under the lock.
+
+        Withdrawn now, not when the asking thread next looks: away set and cleared again
+        before it looks would leave its question waiting for nobody.
+        """
+        self._snap("away", all=self._away_all, of=dict(self._away_of))
+        for asked in [one for one in self._questions if self.away_for(one.role)]:
+            self._withdraws(asked, "away")
+        self._spoke.notify_all()
 
     # --------------------------------------------------------------------- board
 
@@ -2271,6 +2307,7 @@ def _made(runs: str) -> AgentBase | None:
                 model=spec.model,
                 effort=spec.effort,
                 provider=spec.provider,
+                nous=spec.nous,
                 **identifying(made, spec.cli),
             )
         )
@@ -2294,8 +2331,8 @@ def _read_only(source: AgentBase, name: str, asks: _Asks | None = None) -> Agent
     from hmz.coganchor.agents import Moment, Unhooked
     from hmz.coganchor.agents.skills import Loaded
 
-    # The read-only rung is what a flow's NONE maps to; a backend that cannot express it is
-    # refused here rather than running a side question with write permissions.
+    # The read-only rung is what a flow's `read-only` preset maps to; a backend that cannot
+    # express it is refused here rather than running a side question with write permissions.
     if "read-only" not in type(source).rungs:
         raise ValueError(
             f"{source.backend} cannot answer a side question: it has no read-only rung"

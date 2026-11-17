@@ -12,7 +12,6 @@ import shutil
 import threading
 from typing import TYPE_CHECKING
 
-import psutil
 import pytest
 from pydantic import BaseModel
 
@@ -22,6 +21,7 @@ from tests.integration.doubles_agents import (
     CHATTING,
     Endpoint,
     Standins,
+    children,
     kinds,
     routing,
     serving,
@@ -298,11 +298,7 @@ def test_a_turn_through_a_litellm_gateway_reaches_the_accounts_endpoint(
     assert call.env["LITELLM_GATEWAY_KEY"] is None
     assert not through.running
     # And not started again by being taken out of pi's file.
-    assert not any(
-        "litellm.proxy" in " ".join(one.cmdline())
-        for one in psutil.Process().children(recursive=True)
-        if one.status() != psutil.STATUS_ZOMBIE
-    )
+    assert not any("litellm.proxy" in argv for _, argv in children())
     # Declared in a copy of pi's file in its virtual home, never in the user's own.
     assert not (tmp_path / "home/.pi/agent/models.json").exists()
 

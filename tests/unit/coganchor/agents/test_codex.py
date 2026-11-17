@@ -7,15 +7,17 @@ the command a server is started as, the calls a turn is made of, and the turn re
 
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import replace
+from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, Json
 
-from hmz.coganchor import AnchorConfig, gateway, providers
+from hmz.coganchor import AnchorConfig, fence, gateway, prices, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -27,12 +29,13 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.base import KEEPING
 from hmz.coganchor.agents.codex import strict, turning, unattended
+from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
-from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner
+from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, fenceable
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from hmz.coganchor.agents import Occasion
 
@@ -189,14 +192,95 @@ def test_strict_requires_every_property_and_closes_every_object() -> None:
     assert "required" not in held["properties"]["inner"]
 
 
-def test_strict_leaves_a_property_named_like_a_keyword_alone() -> None:
+def test_strict_leaves_names_and_data_that_look_like_keywords_alone() -> None:
+    def example() -> dict[str, Any]:
+        return {"$ref": "#/$defs/x", "default": "a", "properties": {}}
+
     schema = {
         "type": "object",
         "properties": {"default": {"type": "string", "default": "a"}},
+        "examples": [example()],
     }
     held = strict(schema)
     assert held["properties"] == {"default": {"type": "string"}}
     assert held["required"] == ["default"]
+    assert held["examples"] == [example()]
+
+
+class _Mood(StrEnum):
+    """The type's own words."""
+
+    CALM = "calm"
+
+
+class _Place(BaseModel):
+    path: str
+
+
+class _Node(BaseModel):
+    kids: list[Annotated[_Node, Field(description="a kid")]]
+
+
+class _Described(BaseModel):
+    mood: _Mood = Field(description="the field's words")
+    place: _Place = Field(description="where")
+    tree: _Node = Field(description="a tree")
+    packed: Json[_Place]
+    more: list[_Described]
+
+
+def _crowded(node: object) -> list[dict[str, object]]:
+    """Every node of a schema with a keyword beside its `$ref`."""
+    if isinstance(node, list):
+        return [one for item in cast("list[object]", node) for one in _crowded(item)]
+    if not isinstance(node, dict):
+        return []
+    held = cast("dict[str, object]", node)
+    found = [held] if "$ref" in held and len(held) > 1 else []
+    return found + [one for value in held.values() for one in _crowded(value)]
+
+
+def test_strict_writes_a_described_reference_out_with_its_description() -> None:
+    held = strict(_Described.model_json_schema())
+    assert _crowded(held) == []
+    said = held["properties"]
+    assert said["mood"]["description"] == "the field's words"
+    assert said["mood"]["enum"] == ["calm"]
+    assert said["place"]["description"] == "where"
+    assert said["place"]["additionalProperties"] is False
+    assert said["tree"]["description"] == "a tree"
+    # Inside its own definition a reference cannot be written out: it loses its words.
+    assert held["$defs"]["_Node"]["properties"]["kids"]["items"] == {
+        "$ref": "#/$defs/_Node"
+    }
+
+
+def test_strict_ends_on_a_definition_nested_in_the_one_it_names() -> None:
+    leaf = {"$ref": "#/$defs/Leaf", "description": "the root leaf"}
+    schema = {
+        "type": "object",
+        "properties": {"top": {"$ref": "#/$defs/Tree", "description": "a tree"}},
+        "$defs": {
+            "Leaf": {"type": "object", "properties": {"v": {"type": "string"}}},
+            "Tree": {
+                "type": "object",
+                "properties": {"x": {"type": "string"}},
+                "$defs": {
+                    "Leaf": {"type": "object", "properties": {"leaf": leaf}},
+                    "Loop": {
+                        "type": "object",
+                        "properties": {
+                            "t": {"$ref": "#/$defs/Tree", "description": "up"}
+                        },
+                    },
+                },
+            },
+        },
+    }
+    held = strict(schema)
+    assert _crowded(held) == []
+    nested = held["$defs"]["Tree"]["$defs"]["Leaf"]["properties"]["leaf"]
+    assert nested["description"] == "the root leaf"
 
 
 @pytest.mark.parametrize(
@@ -434,6 +518,30 @@ def test_cached_input_is_counted_beside_the_input_not_inside_it(
     assert "cache_read" in CodexAgent.counts
 
 
+def test_a_request_past_a_long_context_line_is_counted_beside_the_kinds(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked: list[tuple[dict[str, float], str]] = []
+
+    def tiered(request: Mapping[str, float], model: str) -> dict[str, float]:
+        asked.append((dict(request), model))
+        return {f"{kind}>500": tokens for kind, tokens in request.items()}
+
+    monkeypatch.setattr(prices, "tiered", tiered)
+    server.turns = [_says(_message("done"), total=(1000, 30), cached=900)]
+    session = _agent().new(tmp_path)
+    result = list(session.stream("hi"))[-1]
+    # Read off the one request the server says came back, for the model the turn ran on.
+    assert asked == [({"input": 100.0, "cache_read": 900.0, "output": 30.0}, "gpt-x")]
+    marked = {"input>500": 100.0, "cache_read>500": 900.0, "output>500": 30.0}
+    assert dict(result.spent) == {"input": 100, "cache_read": 900, "output": 30}
+    assert result.spent.tiered == marked
+    assert session.spent().tiered == marked
+
+
 @pytest.mark.parametrize(
     "ending",
     [
@@ -584,6 +692,81 @@ def test_a_rung_the_installation_forbids_is_stepped_down_and_remembered(
     assert server.called("thread/start")[-1]["sandbox"] == "workspace-write"
 
 
+_FORBIDS = {
+    "code": -1,
+    "message": "approval_policy cannot be used because requirements do not allow it",
+}
+
+
+def test_a_forbidden_rung_is_stepped_down_under_an_approval_policy_of_its_own(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    """`untrusted`, as while a permission-request hook is hung, goes down with the rung."""
+    server.refusing["thread/start"] = dict(_FORBIDS)
+    agent = _agent(permission="bypass", approvals="untrusted")
+    agent.new(tmp_path)("hi")
+    agent.new(tmp_path)("again")
+    refused, stepped, again = server.called("thread/start")
+    assert (refused["sandbox"], refused["approvalPolicy"]) == (
+        "danger-full-access",
+        "untrusted",
+    )
+    for one in (stepped, again):
+        assert (one["sandbox"], one["approvalPolicy"]) == (
+            "workspace-write",
+            "untrusted",
+        )
+    assert {one["approvalPolicy"] for one in server.called("turn/start")} == {
+        "untrusted"
+    }
+
+
+def test_a_step_down_is_told_once_to_each_agent_watching(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    told: dict[str, list[str]] = {}
+    agents = [_agent(permission="bypass") for _ in range(2)]
+    for agent in agents:
+        agent.watch(
+            lambda who, _session, event: (
+                told.setdefault(who.id, []).append(event.text)
+                if event.kind == "notice"
+                else None
+            )
+        )
+        server.refusing["thread/start"] = dict(_FORBIDS)
+        agent.new(tmp_path)("hi")
+        agent.new(tmp_path)("again")
+    said = (
+        "codex: this machine will not run an agent at bypass, so it runs at auto,"
+        " where what it asks for is granted"
+    )
+    assert told == {agent.id: [said] for agent in agents}
+
+
+def test_a_native_codex_cut_off_the_network_is_not_configured_from_this_machines(
+    spawner: Spawner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The target's Codex runs the command, so this machine's features say nothing of it."""
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    # The target is never reached here: only what was started on the way to it matters.
+    spawner.script = lambda proc: proc.exit(255)
+    anchor = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
+    offline = Fence.of(
+        rules=[("/", READ), (".", WRITE)],
+        online=False,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = _agent(
+        permission="bypass", machine=AnchoredConfig(anchor=anchor), fence=offline
+    )
+    with contextlib.suppress(Exception):
+        agent.new(tmp_path)("hi")
+    assert spawner.started
+    assert not [one for one in spawner.started if "features" in one.args]
+
+
 def test_a_server_that_goes_away_fails_the_turn(
     spawner: Spawner, server: _Server, tmp_path: Path
 ) -> None:
@@ -615,7 +798,11 @@ def test_an_approval_is_granted_at_a_named_rung_unless_a_hook_refuses(
             {
                 "id": 900,
                 "method": "item/commandExecution/requestApproval",
-                "params": {"threadId": thread, "command": "rm -rf build"},
+                "params": {
+                    "threadId": thread,
+                    "turnId": turn,
+                    "command": "rm -rf build",
+                },
             }
         )
         server.after[900] = lambda: _says(_message("done"))(proc, thread, turn)
@@ -643,6 +830,7 @@ def test_a_question_is_put_to_whoever_is_driving(
                 "method": "item/tool/requestUserInput",
                 "params": {
                     "threadId": thread,
+                    "turnId": turn,
                     "questions": [
                         {
                             "id": "q1",

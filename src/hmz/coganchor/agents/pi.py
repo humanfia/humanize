@@ -362,15 +362,20 @@ class PiSession(StreamSessionBase):
           cwd: The directory this conversation works in, as for `SessionBase`.
         """
         super().__init__(agent, cwd)
-        #: The id this session was opened under, noted as the command line is built and taken
-        #: as the session's own only once a turn has landed in it. Ours rather than pi's: an
-        #: RPC pi announces nothing when it comes up. `--mode json` writes the session file's
-        #: own header as its first line and that line says the id; `--mode rpc` writes only
-        #: what the session emits, which begins with the answer to the first command, and the
-        #: id is there for the asking as `get_state` and nowhere else. It does not have to
-        #: say it: `--session-id` is the exact id, pi creates it where there is none, and a
-        #: `--fork` given one alongside forks into that id or exits rather than choosing
-        #: another -- so the id asked for is the id there is.
+        #: The id the process is started under while this session has none of its own,
+        #: noted as the command line is built. Ours rather than pi's: an RPC pi announces
+        #: nothing when it comes up. `--mode json` writes the session file's own header as its
+        #: first line and that line says the id; `--mode rpc` writes only what the session
+        #: emits, which begins with the answer to the first command, and the id is there for
+        #: the asking as `get_state` and nowhere else. It does not have to say it:
+        #: `--session-id` is the exact id, pi creates it where there is none, and a `--fork`
+        #: given one alongside forks into that id or exits rather than choosing another -- so
+        #: the id asked for is the id there is, once pi has taken a prompt into it.
+        self._asked: str | None = None
+        #: What the CLI calls this conversation, once it calls it anything: for pi, the id it
+        #: took a prompt into, and nothing before -- an id a process was only asked to open,
+        #: by a pi that never started or never took the prompt, is nobody's. Taken as the
+        #: session's own only once a turn has landed in it.
         self._named: str | None = None
         #: What the agent has said so far in the turn now running, and what went wrong with
         #: it if anything did. Both are cleared as the turn's answer is given.
@@ -404,11 +409,6 @@ class PiSession(StreamSessionBase):
         #: start, as :func:`_gateway` names it, or None for an account on none.
         self._declaring: tuple[str, dict[str, Any]] | None = None
 
-    @property
-    def named(self) -> str | None:
-        """What pi calls this conversation, which is the id it was opened with."""
-        return self._id or self._named
-
     def _command(self) -> list[str]:
         """Builds the ``pi --mode rpc`` that reads commands on stdin and says events on stdout.
 
@@ -423,9 +423,10 @@ class PiSession(StreamSessionBase):
         config = self._agent.config
         # A fresh id per attempt: an opening turn that failed may still have left pi holding
         # the session it was given, and retrying under that one would resume a turn that never
-        # happened.
+        # happened. Asked for, and named by nothing until pi has taken a prompt into it.
         pinned = self._id or str(uuid.uuid4())
-        self._named = pinned
+        if self._id is None:
+            self._asked, self._named = pinned, None
         argv = [
             "pi",
             "--mode",
@@ -688,6 +689,14 @@ class PiSession(StreamSessionBase):
                     yield Event(
                         kind="failed", text=str(said.get("error") or "the turn failed")
                     )
+            case "response" if said.get("command") == "prompt":
+                # The prompt taken into the session pi was started under, which it makes
+                # where there is none: named from here, and the run's, whether or not the
+                # turn lands.
+                if self._named is None:
+                    self._named = self._asked
+                if self._id is None and self._named is not None:
+                    self._tells(self._named)
             case "extension_ui_request":
                 self._answer(said)
             case "message_update":
@@ -931,12 +940,12 @@ class PiAgent(AgentBase):
         """The fence, with the model APIs this machine's `models.json` points pi at let through.
 
         pi has no sandbox -- no mode, no flag, nothing its security notes will call one -- so
-        every scope of the fence is held from outside, and :meth:`natively` is left as it is.
+        every rule of the fence is held from outside, and :meth:`natively` is left as it is.
         What this adds is the one thing the fence cannot read off the backend's table: pi takes
         providers of its own from `models.json` in its home, each at a `baseUrl` written there
         and in no variable, and a turn on one of them talks to that host and no other. So a
         machine whose pi runs on a gateway declared there would have its every turn cut at
-        `online=NONE`, which is the model API the scope promises to leave.
+        `network=False`, which is the model API the permission promises to leave.
 
         Only the provider the model is named under: that provider's `baseUrl` and any of its
         models', and nothing where the file does not declare it -- a built-in provider's hosts

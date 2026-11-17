@@ -15,17 +15,15 @@ a program runs says something untrue about it. What they are is said instead of 
 one door marked `internal`, so that `hmz --help` is the whole of what this program does and
 still reads as the few commands anybody types.
 
-A command imports what it needs when it is the one asked for, and no earlier. Two things turn
-on that: `hmz exec` must not pay for the terminal interface it is not opening, and
-`hmz internal anchor serve` is what the zipapp bootstrapped onto a target runs, where
-coganchor is the only layer present and the architecture is whatever the target happens to be.
+A command imports what it needs when it is the one asked for, and no earlier: `hmz exec` must
+not pay for the terminal interface it is not opening.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
 one of them costs nothing for the others -- which is what `web.py`, `update.py`, `backup.py`,
-and `anchor.py`, `cli.py`, `cred.py`, `fence.py`, `hook.py` and `tools.py`, the six under
-`hmz internal`, are. `exec` has none: the line it takes is read by
-:func:`hmz.runtime.runner.read_line`, since the terminal interface starts a flow from the same
-parts.
+and `cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are. The other
+three -- `anchor`, `cred` and `fence` -- are `coganchor`'s, which this process becomes. `exec`
+has none: the line it takes is read by :func:`hmz.runtime.runner.read_line`, since the
+terminal interface starts a flow from the same parts.
 
 :mod:`hmz.cli.output` is the one module every command may reach: who is reading -- somebody at
 a terminal, or a program -- is one question rather than one per command, and it costs nothing
@@ -40,22 +38,18 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from argparse import ArgumentParser
-    from collections.abc import Generator, MutableMapping
+    from collections.abc import Callable, Generator, MutableMapping
 
-    from hmz.runtime import Hmz, Run
+    from hmz.sdk import Run
     from hmz.tui import Humanize
 
-    from .output import Out
+__all__ = ["COMMANDS", "INTERNAL", "main", "many", "opens"]
 
-__all__ = ["APART", "COMMANDS", "INTERNAL", "main", "many", "opens"]
+#: How long a second interrupt waits for the daemon to say it forced the epic.
+_FORCING = 5.0
 
-#: What says whether runs may be held apart from the terminal at all, for a machine that
-#: would rather they went with the window. `off`, `0` or `no`; anything else is silence, and
-#: silence is runs held by a host wherever there is a terminal on both ends.
-APART = "HUMANIZE_DAEMON"
-
-#: How long `hmz exec` waits for its epic's backups once the run is over.
-_BACKING = 60.0
+#: How often `hmz exec` asks whether the backups of its epic are done.
+_LOOKING = 0.5
 
 #: How long the interface waits, once it is closed, for the backups it queued itself.
 _CLOSING = 15.0
@@ -127,13 +121,19 @@ def _exec(argv: list[str]) -> int:
 def _executes(argv: list[str]) -> int:
     """What :func:`_exec` does, before an interrupt anywhere in it is made an exit status.
 
+    The epic is held by this machine's daemon, on an exec slot of its own: this follows it
+    there to its end, and whatever ends this process but a signal leaves it going.
+
     Args:
       argv: What followed the command name.
 
     Returns:
-      Zero, once the flow has returned.
+      Zero, once the flow has returned; one where it failed.
     """
-    from hmz.runtime import Hmz, Refused, telemetry
+    import asyncio
+
+    from hmz.runtime import Refused
+    from hmz.sdk import Hmz
 
     from .output import Out, Shown
 
@@ -149,7 +149,7 @@ def _executes(argv: list[str]) -> int:
 
     with Out(as_json=line.as_json) as out, Shown(out) as shown:
         try:
-            # Nobody is at a prompt, so whoever is outside the run is away: a flow that asks
+            # Nobody is at a prompt, so whoever is outside the epic is away: a flow that asks
             # the person anything is answered with nothing, or its schema's defaults.
             running = hmz.run(
                 line.flow,
@@ -169,18 +169,21 @@ def _executes(argv: list[str]) -> int:
             # own rejections do. What the flow raises for itself is the flow's.
             print(f"hmz exec: error: {error}", file=sys.stderr)
             raise SystemExit(2) from error
+        except OSError as error:
+            print(_unreached(error), file=sys.stderr)
+            raise SystemExit(1) from error
         ended: list[int] = []
+        running.watch(shown.heard)
+        running.opened(shown.opened)
+        running.printed(out.printed)
+        # An environment moved off the runtime its `-e` named, said as it is.
+        running.noticed(lambda said: out.aside(f"hmz exec: {said}"))
+        # Said and then run, never asked: a command line has nobody to ask, so what it can
+        # do is say so plainly, on the stream that is not the answer.
+        if blind := running.unreadable():
+            out.aside(f"hmz exec: {blind}")
         try:
-            # From the moment there is a run to stop: stopped before it has started, it lets
-            # go of the drivers it was given all the same.
             with _ending(running, ended):
-                running.watch(shown.heard)
-                # An environment moved off the runtime its `-e` named, said as it is.
-                running.noticed(lambda said: out.aside(f"hmz exec: {said}"))
-                # Said and then run, never asked: a command line has nobody to ask, so what
-                # it can do is say so plainly, on the stream that is not the answer.
-                if blind := running.unreadable():
-                    out.aside(f"hmz exec: {blind}")
                 running.run()
         except Refused as error:
             if ended:
@@ -190,6 +193,9 @@ def _executes(argv: list[str]) -> int:
             # needs, which is only known once it has been asked -- still before the flow ran.
             print(f"hmz exec: error: {error}", file=sys.stderr)
             raise SystemExit(2) from error
+        except OSError as error:
+            print(_unreached(error), file=sys.stderr)
+            raise SystemExit(1) from error
         except (KeyboardInterrupt, SystemExit):
             # Somebody stopping a run is not a run that went wrong.
             raise
@@ -199,57 +205,88 @@ def _executes(argv: list[str]) -> int:
             # which is what having one is for -- so it is said in a line rather than reported
             # as a crash and printed as a traceback nobody has anything to do about.
             out.aside(f"hmz exec: stopped -- {why}")
-        except BaseException as why:
+        except (RuntimeError, asyncio.CancelledError) as why:
             if ended:
                 # Nor is one an interrupt, a terminate or a hangup stopped, once it has let go
                 # of what it made: it exits as the signal would have had it.
                 raise SystemExit(128 + ended[0]) from None
-            # Reported and then raised on exactly as it was: what a flow does when it fails
-            # is the flow's business and the person at the terminal's, and this is only
-            # Humanize finding out that it happened.
-            telemetry.crash(why, doing="hmz exec")
-            raise
+            # What the epic's host said of how it failed -- the exception, or the traceback,
+            # which the host has reported where reporting was answered yes -- said as it was.
+            out.aside(str(why) or type(why).__name__)
+            return 1
         finally:
-            _backed_up(hmz, out)
+            # Not after a signal, on which it exits as soon as the epic has ended (Section
+            # 7.15.1 of cli.md).
+            if not ended:
+                _backs_up(running, out.aside)
     if ended:
         raise SystemExit(128 + ended[0])
     return 0
 
 
-def _backed_up(hmz: Hmz, out: Out) -> None:
-    """Lets the epic's backups finish once the run has said how it went, for so long.
+def _backs_up(running: Run, say: Callable[[str], object]) -> None:
+    """Waits for the backups of an epic that has ended, for so long, and lets go of it.
 
-    The process is all that is backing them up, so going at once would drop them; waiting for
-    ever on a remote that does not answer would hold a line up that is done.
+    Attached all the while, as the run stays until its backups are done, so that its host
+    waits for them too (Section 7.11.4 and Section 7.11.5 of cli.md). Asked of the daemon that
+    held it, over a session of its own, and never of one started to answer.
 
     Args:
-      hmz: What the run was run through.
-      out: Where to say that it is waiting, and what it left.
+      running: The run.
+      say: What a line on standard error is said through.
     """
-    if hmz.backups.wait(0):
+    import time
+
+    from hmz.reach import dial
+    from hmz.runtime import Refused
+    from hmz.sdk.client import Client
+    from hmz.sdk.running import BACKING, backed
+
+    epic = running.epic
+    if epic is None or not running.wait(0):
+        # Never started, or let go of before it ended: there is nothing to wait for here.
         return
-    out.aside("hmz exec: backing the epic up")
-    if not hmz.backups.wait(_BACKING):
-        out.aside(
-            f"hmz exec: a backup took longer than {_BACKING:.0f}s and was left; "
+    try:
+        with Client.over(dial("unix:"), kind="cli") as client:
+            if backed(client, epic.name):
+                return
+            say("hmz exec: backing the epic up")
+            ending = time.monotonic() + BACKING
+            while time.monotonic() < ending:
+                time.sleep(_LOOKING)
+                if backed(client, epic.name):
+                    return
+        say(
+            f"hmz exec: a backup took longer than {BACKING:.0f}s and was left; "
             "`hmz backup EPIC` sends it again"
         )
+    except (OSError, ValueError, Refused):
+        # The daemon gone: nothing is left to wait on.
+        return
+    finally:
+        running.close()
+
+
+def _unreached(error: OSError) -> str:
+    """What `hmz exec` says of a daemon it could not reach, or one of another version."""
+    import errno
+
+    if error.errno == errno.EADDRINUSE:
+        return f"hmz: {error.strerror or error}"
+    return f"hmz: the daemon cannot be reached: {error}"
 
 
 @contextlib.contextmanager
 def _ending(running: Run, ended: list[int]) -> Generator[None]:
-    """Stops a run on an interrupt, a terminate or a hangup, while it runs.
+    """Stops the epic on an interrupt, a terminate or a hangup, while this follows it.
 
-    Left to themselves a terminate or a hangup would end the process where it stood, and what
-    the run made would outlive it -- a container going on running until the next run on its
-    provider found it. An interrupt left to itself is asyncio's, which cancels the flow and
-    then raises on whatever the flow's cancelling ended in, as a traceback. Stopped here
-    instead, all three the same way, the run unwinds and lets go of everything it made first.
+    The daemon holds the epic, so this process ending any other way leaves it going. A signal
+    is somebody stopping it: the epic is told to stop, unwinds and lets go of everything it
+    made, and this waits for it to end before exiting as the signal would have had it.
 
     A second terminate or hangup while it does is ignored. A second interrupt is not: it is
-    somebody at a terminal whose run is not letting go, and it ends the process there and
-    then, as the interrupt would have without any of this -- which is the one way out of an
-    unwinding that hangs that does not need another terminal.
+    somebody at a terminal whose epic is not letting go, and it forces it -- every session
+    with a turn open is closed -- and ends the process there and then.
 
     Args:
       running: The run.
@@ -269,15 +306,26 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
         if ended:
             running.stop()
 
+    def forces() -> None:
+        # The epic's sessions closed under whatever turn is open, then this process ended
+        # as the interrupt would have ended it -- after a moment at most, however slow the
+        # daemon is to say it has.
+        closing = threading.Thread(target=running.close, daemon=True)
+        closing.start()
+        closing.join(_FORCING)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGINT)
+
     def ends(signum: int, _frame: object) -> None:
-        # Once: a second is the run already letting go of what it made, which cancelling it
+        # Once: a second is the epic already letting go of what it made, which stopping it
         # again would cut short -- but for an interrupt, which is asked to cut it short.
         if not ended:
             ended.append(signum)
             told.set()
         elif signum == signal.SIGINT:
-            signal.signal(signal.SIGINT, signal.SIG_DFL)
-            os.kill(os.getpid(), signal.SIGINT)
+            threading.Thread(
+                target=forces, daemon=True, name="humanize-forcing"
+            ).start()
 
     was: dict[int, Any] = {}
     for one in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
@@ -297,6 +345,37 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
         told.set()
 
 
+def _coganchor(command: str, argv: list[str]) -> int:
+    """Hands an internal command to `coganchor`, which carries out the anchor's three.
+
+    This process becomes that program, so nothing after this call runs where there is one.
+
+    Args:
+      command: `anchor`, `fence` or `cred`.
+      argv: What followed the command's name.
+
+    Returns:
+      127, having said so, where no `coganchor` is built for this machine.
+    """
+    import os
+    import platform
+
+    from hmz.coganchor import binary
+
+    program = binary.found()
+    if program is not None:
+        # And told where the builds for other machines are, as every `coganchor` started here
+        # is (`binary.here`): it ships the one a target needs from there.
+        os.environ.setdefault(binary.BINARIES, str(binary.shelf()))
+        os.execv(program, [str(program), *binary.translated(command, argv)])  # noqa: S606
+    print(
+        "hmz: no coganchor is built for this machine "
+        f"({platform.system()} {platform.machine()})",
+        file=sys.stderr,
+    )
+    return 127
+
+
 def _anchor(argv: list[str]) -> int:
     """Runs the agent named on the command line, with its work landing on another machine.
 
@@ -304,11 +383,9 @@ def _anchor(argv: list[str]) -> int:
       argv: What followed the command name.
 
     Returns:
-      The agent's exit status, or one of our own if it never ran.
+      127 where there is no `coganchor` to run it; otherwise this process becomes it.
     """
-    from .anchor import anchor
-
-    return anchor(argv)
+    return _coganchor("anchor", argv)
 
 
 def _cred(argv: list[str]) -> int:
@@ -318,11 +395,9 @@ def _cred(argv: list[str]) -> int:
       argv: What followed the command name.
 
     Returns:
-      The program's exit status, or one of our own if it never ran.
+      127 where there is no `coganchor` to run it; otherwise this process becomes it.
     """
-    from .cred import cred
-
-    return cred(argv)
+    return _coganchor("cred", argv)
 
 
 def _fence(argv: list[str]) -> int:
@@ -332,11 +407,9 @@ def _fence(argv: list[str]) -> int:
       argv: What followed the command name.
 
     Returns:
-      The program's exit status, or one of our own if it never ran.
+      127 where there is no `coganchor` to run it; otherwise this process becomes it.
     """
-    from .fence import fence
-
-    return fence(argv)
+    return _coganchor("fence", argv)
 
 
 def _tools(argv: list[str]) -> int:
@@ -392,21 +465,35 @@ def _web(argv: list[str]) -> int:
     """
     from .web import web
 
-    return web(argv, apart=_apart_is_wanted())
+    return web(argv)
 
 
-def _server(argv: list[str]) -> int:
-    """Starts this machine's server apart from the terminal, or stops the one running.
+def _daemon(argv: list[str]) -> int:
+    """Runs, reaches, pairs or installs this machine's daemon.
 
     Args:
       argv: What followed the command name.
 
     Returns:
-      Zero once it has started or stopped; one where it could not be.
+      That command's exit status.
     """
-    from .server import server
+    from .daemon import daemon
 
-    return server(argv)
+    return daemon(argv)
+
+
+def _relay(argv: list[str]) -> int:
+    """Serves a relay daemons register with and devices reach them through, until stopped.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero once it has been stopped; one where it could not listen.
+    """
+    from .relay import relay
+
+    return relay(argv)
 
 
 def _update(argv: list[str]) -> int:
@@ -515,25 +602,18 @@ def _tui() -> int:
 
 
 def opens() -> int:
-    """Opens the interface, in this process, on the runs held for this directory.
+    """Opens the interface, in this process, as a frontend of this machine's daemon.
 
-    Runs of a flow outlive the terminal they were started from, which is what makes leaving
-    one running an answer to `/exit`: a host holds this directory's runs where nothing has to
-    be reading them, and every interface opened here -- this one, one in the next terminal,
-    one a colleague opened over ssh -- is one more frontend of the same runs, each whole and
-    each its own. So a line that opens the interface reads the runs a host already holds
-    here, and starts a host where none is.
-
-    A terminal on both ends is what makes that worth doing. With nobody to read it -- output
-    going to a file, a test driving the interface itself -- the runs are held in this process
-    instead, and go with it.
+    Epics outlive the terminal they were started from, which is what makes leaving one
+    running an answer to `/exit`: a host of the daemon holds this directory's epics where
+    nothing has to be reading them, and every interface opened here -- this one, one in the
+    next terminal, one a colleague opened over ssh -- is one more frontend of the same epics,
+    each whole and each its own. The daemon is started where none runs.
 
     Returns:
-      Zero, once the interface has been closed; one where the runs let go of it first.
+      Zero, once the interface has been closed; one where the daemon let go of it first, or
+      could not be reached.
     """
-    if not (_apart_is_wanted() and _at_a_terminal()):
-        return _here()
-
     from hmz import daemon
 
     from .output import Out
@@ -551,25 +631,11 @@ def opens() -> int:
         print(f"hmz: {why}", file=sys.stderr)
         return 1
     except OSError as failed:
-        # A machine that will not fork, a home directory that cannot be written, a socket
-        # that will not bind: none of those is a reason not to open the interface. What is
-        # lost is being able to walk away from the runs, which is said and then done without.
-        print(
-            f"hmz: runs cannot be detached from the terminal ({failed}), so "
-            "they will run in this process instead",
-            file=sys.stderr,
-        )
-        return _here()
+        print(f"hmz: the daemon cannot be reached: {failed}", file=sys.stderr)
+        return 1
     from hmz.tui import Humanize
 
     return _closes(Humanize(link=link))
-
-
-def _here() -> int:
-    """Opens the interface in this process, holding this directory's runs itself."""
-    from hmz.tui import Humanize
-
-    return _closes(Humanize())
 
 
 def _closes(app: Humanize) -> int:
@@ -604,35 +670,6 @@ def _closes(app: Humanize) -> int:
     return app.return_code or 0
 
 
-def _apart_is_wanted() -> bool:
-    """Whether this machine wants a run held apart from the terminal at all.
-
-    Answered for one process without writing anything down, the way the reporting question
-    is: a scripted install, a machine somebody would rather have the run go with the window
-    on, and this suite are all one variable rather than a line each of them has to remember
-    to pass.
-
-    Returns:
-      Whether to hold one. False only where the variable says so outright.
-    """
-    import os
-
-    return os.environ.get(APART, "").strip().lower() not in ("off", "0", "no")
-
-
-def _at_a_terminal() -> bool:
-    """Whether there is a terminal on both ends of this process to walk away from.
-
-    Runs held apart from the terminal are worth holding so only where somebody could come
-    back to them: output going to a file and input coming from a pipe are runs held here, in
-    this process, exactly as they always were.
-
-    Returns:
-      Whether there is one.
-    """
-    return sys.stdin.isatty() and sys.stdout.isatty()
-
-
 #: What Humanize spawns for itself, each as what carries it out and the line `hmz internal`
 #: shows it as. A turn taken as an account runs the CLI with the paths it keeps its
 #: credentials at pointed into that account's directory, and the supervisor doing the pointing
@@ -643,8 +680,8 @@ def _at_a_terminal() -> bool:
 #: callbacks are in. A moment of a flow's is that same shape once more: a CLI takes a hook by
 #: starting a program and waiting for what it says, which is the one place a `PreToolUse` can
 #: be refused rather than watched. An anchored turn is the fourth: `AnchorConfig.command()`
-#: renders one for every turn whose work lands on another machine, and the zipapp
-#: bootstrapped onto a target answers it by running `hmz internal anchor serve`. A fenced turn
+#: renders one for every turn whose work lands on another machine, and the `coganchor`
+#: shipped to a target answers it by running `coganchor anchor`. A fenced turn
 #: is the fifth, and the same shape as the first: the wall around a CLI is put up by the
 #: process it walls in, and the one serving its proxy has to stay outside it. A flow's own
 #: command line is the sixth: a shell runs a program by finding a file on its PATH, so the
@@ -664,22 +701,20 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Five are for
-#: anybody: running a flow in a directory, serving the web interface, keeping this machine's
-#: daemon reachable from others, moving Humanize itself to its newest release, and backing an
-#: epic up from a script -- everything else Humanize
-#: keeps is walked at the prompt
-#: rather than typed, a run already held here included, which `hmz` with no command opens.
+#: Each command, as what carries it out and the line a listing shows it as. Six are for
+#: anybody: running a flow in a directory, serving the web interface, running, reaching and
+#: pairing this machine's daemon, serving a relay daemons and devices meet through, moving
+#: Humanize itself to its newest release, and backing an epic up from a script -- everything
+#: else Humanize keeps is walked at the prompt rather than typed, a run already held here
+#: included, which `hmz` with no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
 #: person may type stays short while what Humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
-    "server": (
-        _server,
-        "keep this machine's daemon reachable from others until stopped",
-    ),
+    "daemon": (_daemon, "run, reach, pair and install this machine's daemon"),
+    "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
     "backup": (_backup, "back epics up to git repositories, or download them"),
     "internal": (_internal, "internal commands used by Humanize; do not run directly"),

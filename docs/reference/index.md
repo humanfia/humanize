@@ -22,14 +22,14 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | --- | --- | --- |
 | [CLI](/reference/cli) | `hmz`, `hmz exec`, `hmz internal …`: synopsis, options, the `-f`/`-a`/`-e`/`-p` grammars, refusals, output and NDJSON schema, signals, exit statuses | `hmz.cli` |
 | [TUI](/reference/tui) | The interface `hmz` opens: views, status line, commands, keys, menus, `/settings`, the monitor, completion, history | `hmz.tui` |
-| [Web](/reference/web) | The interface `hmz web` serves: letting a browser in, what is refused, the page's addresses, every route it calls, the stream | `hmz.web` |
+| [Web](/reference/web) | The interface `hmz web` serves: letting a browser in, what is refused, `/here`, the bridges `/rpc` and `/dial` to daemons, the page's addresses and what it keeps | `hmz.web` |
 | [Daemon](/reference/daemon) | The machine's daemon and its per-workspace host processes, their files, lifecycle, frame protocol, requests, messages and multi-frontend rules | `hmz.daemon` |
 | [SDK](/reference/sdk) | `hmz.sdk`: every exported class, method, parameter, return type and exception | `hmz.sdk` |
 | [Flows](/reference/flows) | The flow API: `@flow`, roles, params, budgets, context, errors, testing | `hmz.flows` |
 | [Agents](/reference/agents) | Coding-agent drivers below the flow API: backends, sessions, hooks, fences | `hmz.coganchor` |
 | [Machines](/reference/machines) | Environments: local, ssh, docker, swarm, Apple containers, Slurm; runtimes | `hmz.coganchor` |
 | [Providers](/reference/providers) | Accounts an agent runs as, ways in | `hmz.coganchor` |
-| [Remote execution](/reference/remote-execution) | `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
+| [Remote execution](/reference/remote-execution) | `coganchor` and `hmz internal anchor`: harness placement, targets, mirrors | `hmz.coganchor` |
 | [Tracing](/reference/tracing) | Epics, journals, traces, profiling, export | `hmz.runtime` |
 | [Files](/reference/files) | Everything under `$HUMANIZE_HOME` and a workspace's `.hmz/` | — |
 | [Environment variables](/reference/environment) | Every variable any part of Humanize reads or sets | — |
@@ -49,7 +49,7 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | a key | [TUI › Keys](/reference/tui#keys) |
 | a menu, sheet or form | [TUI › Menus](/reference/tui#menus), [`/settings`](/reference/tui#what-humanize-remembers) |
 | the monitor | [TUI › Monitor](/reference/tui#watching-the-run) |
-| a route the web interface answers | [Web › API](/reference/web#api) |
+| a path the web interface answers | [Web › `/rpc`](/reference/web#rpc), [`/dial`](/reference/web#dial) |
 | a daemon request or message | [Daemon › Requests](/reference/daemon#requests), [Messages](/reference/daemon#messages) |
 | a Python class or method | [SDK](/reference/sdk) |
 | a file under `~/.hmz` | [Files](/reference/files) |
@@ -75,5 +75,5 @@ limit and error. Each page states behaviour; tasks and explanations are in the
 | role | A name a flow declares for an agent, an environment or an outworlder. |
 | frontend | An interface or program attached to a [host](/reference/daemon). |
 
-Where behaviour and a spec under `specs/` differ, these pages describe the behaviour of the
+Where behaviour and a document under `protocol/` differ, these pages describe the behaviour of the
 code.

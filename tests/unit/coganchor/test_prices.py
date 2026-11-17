@@ -242,6 +242,78 @@ def test_cost_of_an_unlisted_model_is_no_answer(listed: Path) -> None:
     assert prices.cost({"input": 1000}, "nobody-lists-me") is None
 
 
+def _in_yuan(**overrides: Any) -> dict[str, Any]:
+    """The listing with a model priced in yuan, the first input item of it in dollars."""
+    listing = _listing(**overrides)
+    listing["versions"][1]["models"].append(
+        {
+            "id": "glm-5.3",
+            "name": "GLM-5.3",
+            "provider": "zhipu",
+            "pricingItems": [
+                {"category": "input_tokens", "price": 8, "currency": "CNY"},
+                {"category": "input_tokens", "price": 1.5},
+                {"category": "output_tokens", "price": 28, "currency": "CNY"},
+            ],
+        }
+    )
+    listing["versions"][1]["models"].append(
+        {
+            "id": "yuan-only",
+            "pricingItems": [
+                {"category": "output_tokens", "price": 4, "currency": "CNY"}
+            ],
+        }
+    )
+    return listing
+
+
+def test_a_price_in_yuan_is_turned_into_dollars_at_the_lists_rate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _source(
+        tmp_path, monkeypatch, _in_yuan(exchangeRate={"pair": "USD/CNY", "usdCny": 8})
+    )
+    assert prices.refresh(wait=True)
+    priced = prices.price("glm-5.3")
+    assert priced is not None
+    assert priced.per_million == {"input": 1.0, "output": 3.5}
+    yuan = prices.price("yuan-only")
+    assert yuan is not None
+    assert yuan.per_million == {"output": 0.5}
+    # An item that names no currency is in dollars.
+    sonnet = prices.price("claude-sonnet-5")
+    assert sonnet is not None
+    assert sonnet.per_million["input"] == 3.0
+
+
+@pytest.mark.parametrize(
+    "rate",
+    [
+        None,
+        {"pair": "USD/EUR", "usdCny": 8},
+        {"pair": "USD/CNY", "usdCny": 0},
+        {"pair": "USD/CNY", "usdCny": -8},
+        {"pair": "USD/CNY", "usdCny": float("nan")},
+        {"pair": "USD/CNY", "usdCny": True},
+        {"pair": "USD/CNY", "usdCny": "8"},
+        {"pair": "USD/CNY"},
+        "8",
+    ],
+)
+def test_a_price_in_yuan_without_a_usable_rate_is_left_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rate: object
+) -> None:
+    said = _in_yuan() if rate is None else _in_yuan(exchangeRate=rate)
+    _source(tmp_path, monkeypatch, said)
+    assert prices.refresh(wait=True)
+    priced = prices.price("glm-5.3")
+    assert priced is not None
+    # The dollar item behind it is taken instead; the yuan never lands as dollars.
+    assert priced.per_million == {"input": 1.5}
+    assert prices.price("yuan-only") is None
+
+
 @pytest.mark.parametrize(
     "said",
     [
@@ -410,3 +482,282 @@ def test_refresh_sweeps_copies_abandoned_beside_the_list(
     assert prices.refresh(wait=True)
     assert not old.exists()
     assert recent.exists()
+
+
+def _written(price: float, duration: str | None) -> dict[str, Any]:
+    return {
+        "category": "cache_write_tokens",
+        "price": price,
+        "conditions": {"contextRange": "all", "cacheDuration": duration},
+    }
+
+
+def _with_hours(*writes: dict[str, Any]) -> dict[str, Any]:
+    """The listing with a model sold two cache writes, five-minute and one-hour (#553)."""
+    listing = _listing()
+    listing["versions"][1]["models"].append(
+        {
+            "id": "claude-opus-5-5",
+            "pricingItems": [
+                {"category": "input_tokens", "price": 4},
+                *writes,
+                {"category": "cache_read_tokens", "price": 0.2},
+                {"category": "output_tokens", "price": 20},
+            ],
+        }
+    )
+    return listing
+
+
+@pytest.mark.parametrize(
+    "writes",
+    [
+        (_written(5, "5m"), _written(8, "1h")),
+        (_written(8, "1h"), _written(5, "5m")),
+    ],
+)
+def test_a_one_hour_cache_write_is_kept_beside_the_five_minute_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writes: tuple[dict[str, Any], ...]
+) -> None:
+    _source(tmp_path, monkeypatch, _with_hours(*writes))
+    assert prices.refresh(wait=True)
+    priced = prices.price("claude-opus-5-5")
+    assert priced is not None
+    assert priced.per_million == {
+        "input": 4.0,
+        "cache_write": 5.0,
+        "cache_write_1h": 8.0,
+        "cache_read": 0.2,
+        "output": 20.0,
+    }
+    # The issue's row: 100,000 tokens written to the one-hour cache, at list price.
+    usage = {"input": 6.0, "output": 500.0, "cache_write": 100_000.0}
+    assert prices.cost(usage, "claude-opus-5-5", hour=100_000) == pytest.approx(
+        0.810024
+    )
+    # Counted as five-minute writes where nobody says otherwise, as before.
+    assert prices.cost(usage, "claude-opus-5-5") == pytest.approx(0.510024)
+    # Writes counted in an earlier reckoning and only now said to be one-hour ones: what
+    # they cost beyond the five-minute price they were counted at.
+    assert prices.cost({}, "claude-opus-5-5", hour=100_000) == pytest.approx(0.3)
+
+
+def test_one_hour_writes_of_a_model_without_a_one_hour_price_cost_a_cache_write(
+    listed: Path,
+) -> None:
+    usage = {"cache_write": 1_000_000.0}
+    assert prices.cost(usage, "claude-sonnet-5", hour=1_000_000) == pytest.approx(3.75)
+
+
+def test_a_one_hour_price_that_is_not_a_number_refuses_every_price(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(tmp_path, monkeypatch, None)
+    listing = _with_hours(_written(5, "5m"), _written(12345, "1h"))
+    source.write_text(json.dumps(listing).replace("12345", "NaN"), encoding="utf-8")
+    assert not prices.refresh(wait=True)
+    with pytest.raises(prices.PriceError, match=r"cache_write_1h"):
+        prices.cost({"input": 1000}, "claude-sonnet-5")
+
+
+def _ranged(
+    kind: str, price: float, within: str, currency: str = "USD"
+) -> dict[str, Any]:
+    return {
+        "category": f"{kind}_tokens",
+        "price": price,
+        "currency": currency,
+        "conditions": {"contextRange": within, "cacheDuration": None},
+    }
+
+
+def _with_tiers(*models: dict[str, Any]) -> dict[str, Any]:
+    """The listing with models priced higher past a long-context line (#554)."""
+    listing = _listing(exchangeRate={"pair": "USD/CNY", "usdCny": 5.0})
+    listing["versions"][1]["models"].extend(models)
+    return listing
+
+
+#: Priced the way the list prices GPT-6 Astra: a request past 272k tokens of prompt is
+#: priced at the dearer tier for the whole of it.
+_LONG = {
+    "id": "long-1",
+    "pricingItems": [
+        _ranged("input", 2, "input <= 272k tokens"),
+        _ranged("cache_read", 0.1, "input <= 272k tokens"),
+        _ranged("output", 10, "input <= 272k tokens"),
+        _ranged("input", 4, "input > 272k tokens"),
+        _ranged("cache_read", 0.2, "input > 272k tokens"),
+        _ranged("output", 15, "input > 272k tokens"),
+    ],
+}
+
+
+@pytest.fixture
+def tiered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    _source(
+        tmp_path,
+        monkeypatch,
+        _with_tiers(
+            _LONG,
+            {
+                "id": "stepped-1",
+                "pricingItems": [
+                    _ranged("input", 1, "input < 32k tokens", "CNY"),
+                    _ranged("input", 2, "input >= 32k tokens", "CNY"),
+                    _ranged("output", 4, "input <= 32k tokens"),
+                    _ranged("output", 5, "32k < input <= 128k tokens"),
+                    _ranged("output", 6, "128K < input <= 256k tokens"),
+                    _ranged("output", 7, "256k < prompt <= 1M tokens"),
+                    _ranged("output", 8, "prompt > 1.5M tokens"),
+                    _ranged("output", 9, "input > some tokens"),
+                ],
+            },
+            {
+                "id": "hours-1",
+                "pricingItems": [
+                    _ranged("input", 1, "input <= 200k tokens"),
+                    _ranged("input", 2, "input > 200k tokens"),
+                    *(
+                        {
+                            "category": "cache_write_tokens",
+                            "price": rate,
+                            "conditions": {"contextRange": within, "cacheDuration": d},
+                        }
+                        for rate, within, d in [
+                            (1.25, "input <= 200k tokens", "5m"),
+                            (2, "input <= 200k tokens", "1h"),
+                            (2.5, "input > 200k tokens", "5m"),
+                            (4, "input > 200k tokens", "1h"),
+                        ]
+                    ),
+                    _ranged("input", 3, "input > 400k tokens"),
+                ],
+            },
+        ),
+    )
+    assert prices.refresh(wait=True)
+    return prices.where()
+
+
+def test_each_long_context_tier_is_kept_by_the_line_it_is_above(tiered: Path) -> None:
+    priced = prices.price("stepped-1")
+    assert priced is not None
+    # The standard price is `per_million`, whatever order the list gives the tiers in.
+    assert priced.per_million == {"input": 0.2, "output": 4.0}
+    assert priced.tiers == {
+        31_999: {"input": 0.4},
+        32_000: {"output": 5.0},
+        128_000: {"output": 6.0},
+        256_000: {"output": 7.0},
+        1_500_000: {"output": 8.0},
+    }
+    kept = json.loads(tiered.read_text(encoding="utf-8"))["models"]
+    assert kept["long-1"]["per_million"] == {
+        "input": 2.0,
+        "cache_read": 0.1,
+        "output": 10.0,
+    }
+    assert kept["long-1"]["tiers"] == {
+        "272000": {"input": 4.0, "cache_read": 0.2, "output": 15.0}
+    }
+    # A model with no tier is kept in the shape it always was.
+    assert "tiers" not in kept["claude-opus-5"]
+
+
+@pytest.mark.parametrize(
+    ("prompt", "line"),
+    [(271_999, 0), (272_000, 0), (272_001, 272_000)],
+)
+def test_a_request_is_tiered_by_how_long_its_prompt_was(
+    tiered: Path, prompt: int, line: int
+) -> None:
+    request = {"input": 1.0, "cache_read": prompt - 1.0, "output": 10.0}
+    expected = {
+        f"input>{line}": 1.0,
+        f"cache_read>{line}": prompt - 1.0,
+        f"output>{line}": 10.0,
+    }
+    assert prices.tiered(request, "long-1") == (expected if line else {})
+
+
+def test_the_highest_line_a_prompt_is_past_is_its_tier(tiered: Path) -> None:
+    assert prices.tiered({"input": 200_000.0, "output": 1.0}, "stepped-1") == {
+        "input>128000": 200_000.0,
+        "output>128000": 1.0,
+    }
+    assert prices.tiered({"input": 1e9}, "unlisted") == {}
+    assert prices.tiered({"input": 1e9}, "claude-opus-5") == {}
+
+
+def test_a_request_past_the_line_is_priced_at_its_tier_and_a_total_is_not(
+    tiered: Path,
+) -> None:
+    # One request of 300k tokens of prompt costs what the list says past the line.
+    one = {"input": 300_000.0, "output": 1000.0}
+    marked = prices.tiered(one, "long-1")
+    assert prices.cost(one, "long-1", tiered=marked) == pytest.approx(
+        0.3 * 4 + 0.001 * 15
+    )
+    # Two of 150k each, the same tokens added up, are both under it.
+    assert prices.tiered({"input": 150_000.0, "output": 500.0}, "long-1") == {}
+    assert prices.cost(one, "long-1") == pytest.approx(0.3 * 2 + 0.001 * 10)
+
+
+def test_a_tier_that_does_not_price_a_kind_leaves_it_at_the_standard_price(
+    tiered: Path,
+) -> None:
+    usage = {"input": 1_000_000.0, "output": 1_000_000.0}
+    # `stepped-1` past 31,999 prices input alone: its output there is the standard price.
+    marked = {"input>31999": 1_000_000.0, "output>31999": 1_000_000.0, "odd": 1.0}
+    assert prices.cost(usage, "stepped-1", tiered=marked) == pytest.approx(0.4 + 4)
+
+
+def test_one_hour_writes_past_the_line_are_priced_at_the_tiers_one_hour_rate(
+    tiered: Path,
+) -> None:
+    one = {"input": 10.0, "cache_read": 150_000.0, "cache_write": 100_000.0}
+    marked = prices.tiered(one, "hours-1", hour=100_000)
+    assert marked["cache_write_1h>200000"] == 100_000
+    bill = prices.cost(one, "hours-1", hour=100_000, tiered=marked)
+    assert bill == pytest.approx(10 * 2 / 1e6 + 0.4)
+    # Under the line, the standard one-hour rate.
+    assert prices.tiered({"input": 10.0}, "hours-1", hour=5) == {}
+    assert prices.cost(one, "hours-1", hour=100_000) == pytest.approx(10 / 1e6 + 0.2)
+
+
+def test_a_tier_without_a_cache_write_price_leaves_writes_at_the_standard_price(
+    tiered: Path,
+) -> None:
+    # Past 400k `hours-1` prices input alone, which is cheaper than a standard write.
+    one = {"input": 500_000.0, "cache_write": 1_000_000.0}
+    marked = prices.tiered(one, "hours-1")
+    assert prices.cost(one, "hours-1", tiered=marked) == pytest.approx(1.5 + 1.25)
+
+
+def test_a_tier_price_that_is_not_a_number_refuses_every_price(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _source(tmp_path, monkeypatch, None)
+    listing = _with_tiers(
+        {
+            "id": "long-2",
+            "pricingItems": [
+                _ranged("input", 2, "input <= 272k tokens"),
+                _ranged("input", 12345, "input > 272k tokens"),
+            ],
+        }
+    )
+    source.write_text(json.dumps(listing).replace("12345", "NaN"), encoding="utf-8")
+    assert not prices.refresh(wait=True)
+    with pytest.raises(prices.PriceError, match=r"long-2"):
+        prices.cost({"input": 1000}, "claude-sonnet-5")
+
+
+def test_a_kept_tier_that_is_not_a_number_refuses_every_price(tiered: Path) -> None:
+    kept = json.loads(tiered.read_text(encoding="utf-8"))
+    kept["models"]["long-1"]["tiers"]["272000"]["input"] = 12345
+    tiered.write_text(json.dumps(kept).replace("12345", "Infinity"), encoding="utf-8")
+    os.utime(tiered, (time.time() + 5, time.time() + 5))
+    with pytest.raises(prices.PriceError, match=r"long-1"):
+        prices.price("long-1")

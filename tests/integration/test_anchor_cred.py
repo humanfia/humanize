@@ -1,6 +1,6 @@
 """Running an agent with its credentials pointed elsewhere, as far as that goes without ptrace.
 
-`hmz internal cred` is spawned as `redirect.command` renders it. Answering the paths is a
+`coganchor internal cred` is spawned as `redirect.command` renders it. Answering the paths is a
 ptrace supervisor's, which is a system test's to check; what is checked here is the line,
 the refusal of a machine that cannot supervise, the arguments the command takes, and -- where
 this machine can supervise -- what of a turn's processes outlives it.
@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.coganchor import binary
 from hmz.coganchor.providers import redirect
 
 if TYPE_CHECKING:
@@ -46,7 +47,8 @@ def test_swaps_are_named_on_the_line_the_turn_is_spawned_as() -> None:
         kept=[("/home/me/.claude/projects", "/runs/r1/projects")],
     )
 
-    assert line[1:5] == ["-Pm", "hmz", "internal", "cred"]
+    assert line[0] == str(binary.here())
+    assert line[1:3] == ["internal", "cred"]
     assert "--map=/home/me/.claude/.credentials.json=/p/creds.json" in line
     assert "--keep=/home/me/.claude/projects=/runs/r1/projects" in line
     assert line[-3:] == ["--", "claude", "--print"]

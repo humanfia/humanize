@@ -139,24 +139,18 @@ class LiteLLMSession(SessionBase):
         self, agent: LiteLLMAgent, cwd: str | os.PathLike[str] | None = None
     ) -> None:
         super().__init__(agent, cwd)
-        #: The id the turn now opening this conversation will adopt, while it runs.
-        self._attempt_id: str | None = None
         #: The answer being streamed now, so that a cut can close it from another thread.
         self._live: object | None = None
         #: What the turn now running waits on for the answer's chunks, so that a cut can end it.
         self._chunks: queue.SimpleQueue[object] | None = None
 
-    @property
-    def named(self) -> str | None:
-        """The id, including the one whose opening turn is still running."""
-        return super().named or self._attempt_id
-
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:
         """Sends the history and the prompt as one chat completion, and reads the answer."""
+        # Named here and kept here, as the history the turn adds to: a session no answer was
+        # kept for is no session at all, and is named to nobody -- the run among them.
         session_id = self._id or f"session-{uuid.uuid4().hex}"
-        self._attempt_id = session_id
         model = self._model()
         saying = Saying()
         usage = Usage()
@@ -247,7 +241,6 @@ class LiteLLMSession(SessionBase):
             yield self._shows(Event(kind="failed", text=said))
             raise kind(1, ["litellm", model], output="", stderr=said) from why
         finally:
-            self._attempt_id = None
             self._live = None
             self._chunks = None
 

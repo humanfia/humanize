@@ -2,7 +2,7 @@
 // in, completed as it is typed, and beside it a list of what is in a directory -- the way there
 // across its top, a step a click -- gone into a directory at a time and picked from.
 
-import { get } from './api.js'
+import { call } from './api.js'
 import { fill, h, icon, iconButton } from './dom.js'
 import { follow } from './shell.js'
 
@@ -14,7 +14,7 @@ import { follow } from './shell.js'
  * @param {string} [made.placeholder]
  * @param {string} [made.id]
  * @param {(path: string) => void} [made.changed] Told the path whenever it changes.
- * @param {string} [made.from] Whose paths: '' for the daemon the page is on, else `/d/<name>`.
+ * @param {string} [made.from] Whose paths: '' for the daemon the page is on, else its name.
  */
 export function pathPicker({ value = '', files = false, label, placeholder = files ? '~/file' : '~/folder', id, changed = () => {}, from = '' }) {
   const list = `paths-${Math.random().toString(36).slice(2, 8)}`
@@ -38,7 +38,7 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     clearTimeout(typed)
     typed = setTimeout(async () => {
       try {
-        const { paths } = await get(`${from}/api/paths?typed=${encodeURIComponent(input.value)}`)
+        const { paths } = await call('paths.complete', { typed: input.value }, { on: from || undefined })
         fill(offered, paths.map((one) => h('option', { value: one })))
       } catch {
         fill(offered)
@@ -56,7 +56,7 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     else fill(panel, h('p', { class: 'loading', role: 'status' }, 'Reading…'))
     let read
     try {
-      read = await get(`${from}/api/files?at=${encodeURIComponent(dir)}${files ? '&files=1' : ''}${hidden ? '&hidden=1' : ''}`)
+      read = await call('paths.list', { at: dir, files, hidden }, { on: from || undefined })
     } catch (error) {
       if (mine !== asked) return
       if (dir !== '~') return show('~')

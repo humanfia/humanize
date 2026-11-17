@@ -197,23 +197,28 @@ export function settled(act, ms = 200) {
   }
 }
 
-/** The seconds an ISO 8601 duration says, as a budget is written: `PT1H30M`, `P1DT2.5S`. */
+/**
+ * The seconds an ISO 8601 duration says, as a budget is written: `PT1H30M`, `P1DT2.5S`, and from
+ * a year on `P1Y2D` -- a year being the 365 days pydantic writes one as.
+ */
 export function secondsOf(duration) {
   if (typeof duration === 'number') return duration
-  const said = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?)?$/.exec(duration || '')
+  const said = /^P(?:(\d+)Y)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?)?$/.exec(duration || '')
   if (!said) return null
-  const [, days, hours, minutes, seconds] = said.map((one) => Number(one || 0))
-  return days * 86400 + hours * 3600 + minutes * 60 + seconds
+  const [, years, days, hours, minutes, seconds] = said.map((one) => Number(one || 0))
+  return (years * 365 + days) * 86400 + hours * 3600 + minutes * 60 + seconds
 }
 
-/** What a role lets the agent filling it touch, scope by scope. */
+/**
+ * What a role lets the agent filling it touch: its preset, then each rule of its own in the
+ * order said, the last that matches a path deciding it, and whether it goes online.
+ */
 export function permitted(permission) {
-  const touches = { all: 'writes', read: 'reads', none: 'keeps out of' }
+  const touches = { write: 'writes', read: 'reads', none: 'keeps out of' }
   return [
-    `${touches[permission.local]} its workdir`,
-    `${touches[permission.user]} the rest of your home`,
-    `${touches[permission.system]} the rest of the machine`,
-    permission.online === 'all' ? 'goes online' : 'stays offline',
+    permission.preset,
+    ...permission.granular.map((rule) => `${touches[rule.access]} ${rule.path}`),
+    permission.network ? 'goes online' : 'stays offline',
   ].join(' · ')
 }
 

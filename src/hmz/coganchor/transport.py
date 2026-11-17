@@ -1,4 +1,4 @@
-"""Getting a :class:`~hmz.coganchor.proto.Channel` to ``serve`` on the target.
+"""Getting a :class:`~hmz.coganchor.proto.Channel` to the serving half on the target.
 
 Seven ways in, and they are two kinds of thing.
 
@@ -6,24 +6,27 @@ Five of them *start* the serving half and take the pipe they started it down. ``
 runs it as a child of this process, where ``REAL`` is the directory standing in for the
 target's copy of the workspace; ``ssh://[user@]host[:port]``,
 ``docker://container[?options][@endpoint]``, ``apple-container://container`` and
-``slurm://JOBID`` ship a self-contained zipapp of coganchor to the far side and run it there,
-needing nothing installed but a Python 3. Those five differ in one thing only -- how a command
-is run over there -- so they are one road with five prefixes, and :class:`Road` is that road. A
-docker container's prefix names the daemon holding it, which :class:`Endpoint` is, and
+``slurm://JOBID`` ship `coganchor`, built for the far side's OS and architecture, and run it
+there, needing nothing installed but a `/bin/sh`. Those five differ in one thing only -- how a
+command is run over there -- so they are one road with five prefixes, and :class:`Road` is that
+road. A docker container's prefix names the daemon holding it, which :class:`Endpoint` is, and
 whatever its options say of the user, the variables and the wrapper each command there is run
 as, with and under; an Apple container's names none, Apple's `container` reaching the
 containers of this Mac and no other; and a Slurm job's is an `srun` sharing that job's
 allocation, on the node it was given.
 
 Two of them *find* a serving half somebody else started. ``tcp://host:port`` dials one left
-listening. ``peer://TICKET@BROKER:PORT`` meets one through
-:mod:`hmz.coganchor.rendezvous`, which is the answer where the two halves are on two machines
-that cannot dial each other and only Humanize can reach both.
+listening, and carries the session inside TLS (:mod:`hmz.coganchor.tls`), proving the token
+rather than sending it. ``peer://TICKET@BROKER:PORT`` is met through a broker
+(:mod:`hmz.coganchor.rendezvous`), which is the answer where the two halves are on two machines
+that cannot dial each other and only Humanize can reach both -- and which `coganchor cog` dials
+itself, a meeting being for one session.
 
-What makes the far side cheap is that none of this is paid twice. The zipapp is built once per
-source tree and cached by its digest on both sides of the link; an `ssh` reaches a host once
-and every later command rides the connection the first one opened; and a road already walked
-is not walked again to be told what it already said.
+What makes the far side cheap is that none of this is paid twice. The far side is asked its
+`uname -sm` once, and the build for it lands in its cache as `coganchor-<digest>`, once per
+machine per build; an `ssh` reaches a host once and every later command rides the connection
+the first one opened; and a road already walked is not walked again to be told what it already
+said.
 """
 
 from __future__ import annotations
@@ -34,26 +37,21 @@ import logging
 import os
 import re
 import shlex
-import shutil
 import socket
 import stat
 import subprocess
-import sys
 import tempfile
 import threading
-import time
-import zipapp
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hmz import coganchor
-from hmz.coganchor import atomic
+from hmz.coganchor import binary, tls
 from hmz.coganchor.proto import Channel
 from hmz.coganchor.unix import sockets
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from hmz.coganchor.rendezvous import Meeting
 
@@ -62,17 +60,17 @@ __all__ = [
     "Road",
     "Target",
     "Transport",
-    "build_bundle",
-    "bundled",
+    "awaiting",
+    "coganchor_command",
     "connect",
-    "python_command",
+    "idling",
     "serve_line",
     "ssh_flags",
 ]
 
 log = logging.getLogger(__name__)
 
-#: Where the bootstrapped copy is cached on a target reached over ssh.  Written with `$HOME`
+#: Where the shipped `coganchor` is cached on a target reached over ssh.  Written with `$HOME`
 #: rather than `~`, because the shell that expands it is the one *inside* the line -- the
 #: whole line is quoted on its way across, so a `~` would arrive as a directory of that name.
 REMOTE_CACHE = "$HOME/.cache/humanize"
@@ -89,7 +87,7 @@ APPLE = "apple-container"
 SLURM = "slurm"
 
 #: Where a harness put on another machine keeps its mirror of the workspace. *Beside* the
-#: archive's cache rather than inside it, and that is not a matter of taste: `~/.cache/humanize`
+#: program's cache rather than inside it, and that is not a matter of taste: `~/.cache/humanize`
 #: is one of the directories a supervised turn deliberately answers from the machine the agent
 #: runs on -- it is Humanize's own state, and the whole point of naming it is that it does not
 #: cross. A mirror underneath it would be a mirror no path was ever translated through, so the
@@ -105,125 +103,11 @@ CONTAINER_MIRRORS = "/tmp/humanize-mirrors"  # noqa: S108
 #: with; and `exec`, a word of the wrapper each is run under, in the order they are written.
 _DOCKER_OPTIONS = ("user", "env", "exec")
 
-#: Where a target may keep a Python, in the order they are tried.  ``python3`` first, which
-#: answers on every Linux and on a Mac somebody has set up; then the versioned names, which is
-#: what a Homebrew or a python.org install answers to when the bare one was never linked; then
-#: the paths those two install at, for a target whose ``PATH`` is the short one a non-login
-#: shell gets.  ``/usr/bin/python3`` last: on macOS it is the Command Line Tools shim, which is
-#: either an interpreter too old for this or a prompt to install Xcode, and on Linux it is the
-#: one ``PATH`` has already found.
-PYTHON_CANDIDATES = (
-    "python3",
-    "python3.14",
-    "python3.13",
-    "python3.12",
-    "/opt/homebrew/bin/python3",
-    "/usr/local/bin/python3",
-    "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
-    "/usr/bin/python3",
-)
-
-#: The oldest Python the bundle runs on, which is this project's own floor.
-MINIMUM_PYTHON = (3, 12)
-
-#: How many hex digits of an archive's SHA-256 name it, here and on every target.
-_DIGEST = 16
-
-#: How long an archive nothing has asked for is kept, here and on a target, before the next
-#: one built or installed beside it sweeps it away. By age rather than by count, because the
-#: only archive it is unsafe to remove is one a run is still using, and every run touches the
-#: one it uses each time it asks for it: an archive left alone this long belongs to a checkout
-#: or a version nobody is running.
+#: How long a build nothing has run is kept on a target before the next one shipped beside it
+#: sweeps it away. By age rather than by count, because the only build it is unsafe to remove
+#: is one a run is still using, and every run touches the one it runs each time it runs it: a
+#: build left alone this long belongs to a version nobody is running.
 _KEPT_FOR = 14 * 24 * 3600
-
-#: Installing that copy, for a target reached by piping it there, in the target's own Python
-#: because that is the one thing it is certain to have that can take a digest. What arrived is
-#: checked against the digest it was sent as, and a copy already there against the same digest
-#: before it is believed: a name is only a promise, and a copy a run cut short or a Humanize of
-#: another checkout left under it would otherwise be the code every later session on that
-#: machine runs. A copy that answers is left where it is, touched so the sweep below counts it
-#: as used -- rewriting it would be rewriting a file a live session may still be importing
-#: from; one that does not is replaced.
-#:
-#: Written under a name of its own and moved into place, so a session finds the whole archive
-#: or none of it. That name carries the writer's pid, because two sessions bootstrapping one
-#: machine at the same moment is the ordinary case rather than the unlucky one -- a fleet
-#: coming up does it by the hundred.
-#:
-#: The cache's own path is the far side's shell's to expand and make, which is what
-#: :func:`_installing` has it do, since it has a `$HOME` in it that only that machine can say.
-#: Then every other archive and half-written copy nobody has touched in `_KEPT_FOR` seconds
-#: goes.
-_INSTALL_SOURCE = f"""\
-import hashlib, os, sys, time
-cache = os.environ["HUMANIZE_BUNDLES"]
-name, want, kept = sys.argv[1], sys.argv[2], float(sys.argv[3])
-path = os.path.join(cache, name)
-came = sys.stdin.buffer.read()
-if hashlib.sha256(came).hexdigest()[:{_DIGEST}] != want:
-    sys.exit(f"Humanize: {{len(came)}} bytes arrived that are not {{name}}")
-try:
-    with open(path, "rb") as held:
-        there = hashlib.file_digest(held, "sha256").hexdigest()[:{_DIGEST}]
-except OSError:
-    there = ""
-if there == want:
-    try:
-        os.utime(path)
-    except FileNotFoundError:
-        there = ""
-    except OSError:
-        pass
-if there != want:
-    staged = f"{{path}}.{{os.getpid()}}"
-    try:
-        with open(staged, "wb") as writing:
-            writing.write(came)
-            writing.flush()
-            os.fsync(writing.fileno())
-        os.replace(staged, path)
-    except BaseException:
-        if os.path.exists(staged):
-            os.unlink(staged)
-        raise
-now = time.time()
-for one in os.scandir(cache):
-    if one.name.startswith("humanize-") and ".pyz" in one.name and one.name != name:
-        try:
-            if now - one.stat(follow_symlinks=False).st_mtime > kept:
-                os.unlink(one.path)
-        except OSError:
-            pass
-"""
-
-#: And the same as one line, which is what crosses: a word with newlines in it is one that
-#: every log of a command line, and every stand-in for `ssh`, reads as several.
-_INSTALLING = f"exec({_INSTALL_SOURCE!r})"
-
-
-def _installing(
-    cache: str, name: str, digest: str, python: str = "", *, owned: bool = False
-) -> list[str]:
-    """The command that installs an archive arriving on its input, on the far side.
-
-    Args:
-      cache: The directory it goes in, as that machine's own shell spells it.
-      name: What it is called there.
-      digest: What its SHA-256 has to start with, there and on its way.
-      python: The Python to try there first, or "" for the usual ones alone.
-      owned: Whether `cache` has to be the far side's user's alone before anything goes in
-        it, as :func:`python_command` says.
-
-    Returns:
-      The argv to run over there.
-    """
-    return python_command(
-        ["-c", _INSTALLING, name, digest, str(_KEPT_FOR)],
-        setting=(("HUMANIZE_BUNDLES", cache),),
-        python=python,
-        owned=(cache,) if owned else (),
-    )
-
 
 #: What every `ssh` this reaches for carries. `-T` because the far side is a pipe rather than a
 #: terminal, and the keepalive so that a session held open across a long turn is not dropped by
@@ -233,7 +117,7 @@ _SSH_OPTIONS = ("-T", "-o", "BatchMode=no", "-o", "ServerAliveInterval=30")
 #: And what makes the second command to a host cost nothing: the first one leaves a master
 #: connection behind, and every later one rides it rather than paying for a TCP handshake, a
 #: key exchange and an authentication of its own. A turn against a remote target opens several
-#: -- install the bundle, start the serving half, and whatever the harness itself needs -- so
+#: -- ship the program, start the serving half, and whatever the harness itself needs -- so
 #: this is most of the difference between an anchored turn starting now and starting in a
 #: second. It is on unless `HUMANIZE_SSH_REUSE` says `off`, `0`, `no` or `false` -- trimmed and in
 #: any case -- or is set and empty, which is for a machine whose sshd refuses multiplexing.
@@ -244,49 +128,26 @@ _SSH_REUSE = ("-o", "ControlMaster=auto", "-o", "ControlPersist=120")
 #: and then renames it from.
 _CONTROL = 40 + 9 + 17
 
-#: Finding an interpreter, in POSIX sh, because this runs on the target before anything of
-#: Humanize exists there.  Each candidate is *run* rather than merely looked for: macOS's
-#: ``/usr/bin/python3`` is a shim that is there whether or not an interpreter is behind it,
-#: and answers with a prompt to install Xcode when none is.  What it is asked is its version,
-#: so a target whose only Python is older than the bundle needs is passed over here rather
-#: than failing on a syntax error a frame later.  A target with none at all is told what was
-#: looked for, since what to do about it is to install one of them.
-_FIND_PYTHON = (
-    "for py in {candidates}; do "
-    'command -v "$py" >/dev/null 2>&1 || continue; '
-    '"$py" -c "import sys; sys.exit(sys.version_info < {minimum})" >/dev/null 2>&1 '
-    "|| continue; "
-    "{run}; "
-    "done; "
-    'echo "Humanize: no python {version} or newer on this machine; '
-    'looked for: {candidates}" >&2; '
-    "exit 127"
-)
 
-
-def python_command(
+def coganchor_command(
     args: list[str],
-    bundle: str = "",
+    program: str,
     setting: Sequence[tuple[str, str]] = (),
-    python: str = "",
     owned: Sequence[str] = (),
 ) -> list[str]:
-    """The command that runs ``args`` under the target's Python, wherever it keeps one.
+    """The command that runs `coganchor` on the target, where :meth:`Road.shipped` put it.
 
-    Argv, so that a path holding a space or a quote reaches the target as it is.  Called with
-    nothing it is the part that does the finding, which is what whoever has to hand a target
-    one string instead -- ``ssh`` does -- quotes before writing its own arguments after it.
+    Argv, so that a path holding a space or a quote reaches the target as it is. The program
+    is the whole of what that machine needs. Touched as it is run, so the sweep a ship of
+    another build makes on that machine never counts one a run is still starting from as one
+    nobody uses -- a process ships it once, and may go on running it for weeks.
 
     Args:
-      args: What to run, after the interpreter or after the archive.
-      bundle: The archive to run, as the *target's* shell will read it, so that a `$HOME` in
-        it is expanded on the machine it names a directory on. Empty runs the interpreter
-        itself, which is what looking for one is.
+      args: What follows the program's name, its mode first.
+      program: Where it is, as the *target's* shell will read it.
       setting: Variables to export first, whose values are read by the shell on the far side
         -- which is the only way to name that machine's home directory, since everything in
         `args` crosses as the word it already is.
-      python: An interpreter to try before every other, for a machine whose own are all too
-        old: absolute, or under `~/` for that machine's home.
       owned: Directories that have to be the far side's user's alone before anything else
         runs, as that machine's shell spells them: each is made, refused where it is a link
         or another user's, and made `0700`.
@@ -294,25 +155,26 @@ def python_command(
     Returns:
       The argv to run over there.
     """
-    first = ""
-    if python.startswith("~/"):
-        first = '"$HOME"' + shlex.quote(python[1:]) + " "
-    elif python:
-        first = shlex.quote(python) + " "
-    script = _FIND_PYTHON.format(
-        candidates=first + " ".join(PYTHON_CANDIDATES),
-        minimum=f"({MINIMUM_PYTHON[0]}, {MINIMUM_PYTHON[1]})",
-        version=".".join(str(part) for part in MINIMUM_PYTHON),
-        run=f'exec "$py" "{bundle}" "$@"' if bundle else 'exec "$py" "$@"',
-    )
-    if bundle:
-        # Touched by every line that runs it, so the sweep an install of another version makes
-        # on that machine never counts an archive a run of this one is still starting from as
-        # one nobody uses -- a process pushes it once, and may go on running it for weeks.
-        script = f'touch -c "{bundle}" 2>/dev/null; ' + script
-    # In front of the search rather than inside it, so a variable is set whichever
-    # interpreter answers -- and `mkdir` with it, since a directory named by one of these is
-    # one the far side has to have and nothing over there is going to make it first.
+    script = f'touch -c "{program}" 2>/dev/null; exec "{program}" "$@"'
+    return ["/bin/sh", "-c", _prefaced(script, setting, owned), "coganchor", *args]
+
+
+def _prefaced(
+    script: str, setting: Sequence[tuple[str, str]], owned: Sequence[str]
+) -> str:
+    """A far-side script, with the directories it needs checked and its variables set first.
+
+    Args:
+      script: What runs once they are.
+      setting: As :func:`coganchor_command` takes them.
+      owned: As :func:`coganchor_command` takes them.
+
+    Returns:
+      The whole script.
+    """
+    # In front of what runs rather than inside it -- and `mkdir` with it, since a directory
+    # named by one of these is one the far side has to have and nothing over there is going to
+    # make it first.
     for name, value in setting:
         script = (
             f'{name}="{value}"; export {name}; mkdir -p "${name}" || exit 1; ' + script
@@ -326,10 +188,91 @@ def python_command(
             f'{{ echo "Humanize: {path} is not a directory this user owns" >&2; '
             "exit 1; }; " + script
         )
-    # ``/bin/sh`` by its path rather than its name, since the ``PATH`` this is reaching past
-    # is the same one that would have to hold a shell.  ``$0`` is what sh prefixes its own
-    # complaints with, so it is named for whose command this is.
-    return ["/bin/sh", "-c", script, "humanize", *args]
+    return script
+
+
+#: Putting `coganchor` on a target, in its `/bin/sh`, which is all a machine with nothing of
+#: Humanize on it is sure to have. A build already there under its name is touched and left:
+#: it is named by its digest, and rewriting it would be rewriting a program a live session may
+#: be running. One that is not is read off the input into `<path>.<pid>` -- two sessions
+#: shipping to one machine at once being the ordinary case -- checked to be as long as what
+#: was sent, so that a link cut half-way leaves nothing under the name, made `0700` and moved
+#: into place. Then every other build and half-written copy nobody has touched in `{days}`
+#: whole days and more goes, and so does any `humanize-*.pyz` archive an earlier Humanize,
+#: which shipped itself as Python, left there. `{cache}`, `{name}` and `{size}` are the far
+#: side's directory, the build's name there and its length in bytes.
+_SHIPPING = (
+    'c="{cache}"; mkdir -p "$c" || exit 1; p="$c/{name}"; '
+    'if [ -f "$p" ]; then touch "$p"; else '
+    't="$p.$$"; '
+    'if cat > "$t" && n=$(wc -c < "$t") && [ $n -eq {size} ] && chmod 700 "$t" '
+    '&& mv -f "$t" "$p"; then :; else rm -f "$t"; '
+    'echo "Humanize: coganchor did not arrive whole at $p" >&2; exit 1; fi; fi; '
+    'find "$c" -maxdepth 1 -type f \\( -name "coganchor-*" -o -name "humanize-*.pyz*" \\) '
+    '! -name "{name}" -mtime +{days} '
+    "-exec rm -f {{}} + 2>/dev/null; exit 0"
+)
+
+
+def _shipping(cache: str, name: str, size: int, *, owned: bool = False) -> list[str]:
+    """The command that puts a build arriving on its input on the far side.
+
+    Args:
+      cache: The directory it goes in, as that machine's own shell spells it.
+      name: What it is called there.
+      size: How many bytes it is.
+      owned: Whether `cache` has to be the far side's user's alone first, as
+        :func:`coganchor_command` says.
+
+    Returns:
+      The argv to run over there.
+    """
+    # Whole days, as `find` counts them: `+13` is fourteen days or more.
+    days = _KEPT_FOR // (24 * 3600) - 1
+    script = _SHIPPING.format(cache=cache, name=name, size=size, days=days)
+    return ["/bin/sh", "-c", _prefaced(script, (), (cache,) if owned else ())]
+
+
+def awaiting(cache: str) -> str:
+    """A far-side script that waits for the right `coganchor` to land in `cache`.
+
+    For a machine that starts the anchor itself -- a Slurm job's batch step -- before anybody
+    has asked it what it is: every build there is to ship is named, by the `uname -sm` it is
+    for, and the one for the machine the script runs on is waited for, as `$p`.
+
+    Args:
+      cache: Where :meth:`Road.shipped` puts it, as that machine's shell spells it.
+
+    Returns:
+      The script, which leaves `$p` naming the program, or fails saying no build fits.
+    """
+    builds: dict[Path, list[str]] = {}
+    for system in ("Linux", "Darwin"):
+        for machine in ("x86_64", "amd64", "aarch64", "arm64"):
+            build = binary.shipped(system, machine)
+            if build is not None:
+                builds.setdefault(build, []).append(f'"{system} {machine}"')
+    cases = "".join(
+        f'{"|".join(spellings)}) p="{cache}/coganchor-{binary.digest(build)}";; '
+        for build, spellings in builds.items()
+    )
+    return (
+        f'case "$(uname -sm)" in {cases}'
+        '*) echo "Humanize: no coganchor is built for $(uname -sm)" >&2; exit 1;; esac; '
+        'while [ ! -f "$p" ]; do sleep 1; done'
+    )
+
+
+def idling() -> list[str]:
+    """What a container does while the turns come and go: nothing, for as long as it is let.
+
+    The image needs no interpreter, `coganchor` being all that is shipped to it, so a `sleep`
+    is all it does.
+
+    Returns:
+      The container's command.
+    """
+    return ["/bin/sh", "-c", "exec sleep 2147483647"]
 
 
 #: What a `docker` sent to any daemon but this machine's default is run without. Each of them
@@ -528,6 +471,23 @@ def _ssh_shim(options: Sequence[tuple[str, str]]) -> str:
 _SHIMS: set[str] = set()
 
 
+def _touched(path: Path) -> bool:
+    """Marks a file as just used, and says whether it was there to mark."""
+    try:
+        os.utime(path)
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _read(path: Path) -> str:
+    """What a file says, stripped, or nothing at all where there is none to read."""
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return ""
+
+
 @dataclass(frozen=True, slots=True)
 class Target:
     """Where the target is.
@@ -535,8 +495,8 @@ class Target:
     Attributes:
       host: The host, the container, or for a `slurm://` target the job's id.
       path: For a `local` target, the directory standing in for the workspace; for a
-        `docker://` one, its daemon; for a `slurm://` one, the Python to run the serving half
-        with on the job's node where that node's own are all too old, `?python=PATH`.
+        `docker://` one, its daemon; for a `slurm://` one, the Python it names, `?python=PATH`,
+        which is read and kept for the spelling and not used: `coganchor` needs none.
       options: For an ssh target, what its `ssh` is told besides the destination, as
         `(KEYWORD, VALUE)` pairs: each an ssh_config keyword, passed as `-o KEYWORD=VALUE`,
         but for `F`, the config file ssh reads instead of the user's own (`-F VALUE`).
@@ -802,10 +762,9 @@ class Road:
       prefix: What goes in front of a command to send it there.
       quotes: Whether the far side reads the line through a shell before running it, and so
         whether every word has to survive that reading.
-      cache: Where the bundle is kept over there, as that machine's own shell reads it.
+      cache: Where `coganchor` is kept over there, as that machine's own shell reads it.
       mirrors: And where a harness running there keeps its mirrors, which is somewhere else
         again -- see :data:`REMOTE_MIRRORS` for why it may not be under `cache`.
-      python: The Python to try there before every other, or "" for those alone.
       owned: Whether `cache` and `mirrors` are the far side's user's own, and so are checked
         to be before anything goes in them or runs out of them: a container's commands run as
         a user its target names, among others of that container's that could have made a
@@ -817,7 +776,6 @@ class Road:
     quotes: bool
     cache: str
     mirrors: str
-    python: str = ""
     owned: bool = False
 
     @classmethod
@@ -908,7 +866,6 @@ class Road:
                 quotes=False,
                 cache=REMOTE_CACHE,
                 mirrors=REMOTE_MIRRORS,
-                python=target.path,
             )
         raise ValueError(f"nothing is started on the far side of {target.describe()}")
 
@@ -959,7 +916,7 @@ class Road:
 
         Named for what it mirrors rather than for the turn using it: a mirror kept between
         turns is a workspace whose files are already there the second time, which is the one
-        saving worth more than every other here put together. And beside the archive's cache
+        saving worth more than every other here put together. And beside the program's cache
         rather than inside it -- :data:`REMOTE_MIRRORS` is where that is argued.
 
         Args:
@@ -973,11 +930,12 @@ class Road:
     def hmz(
         self, argv: Sequence[str], *, setting: Sequence[tuple[str, str]] = ()
     ) -> list[str]:
-        """The argv this machine runs to have `hmz internal ...` run over there.
+        """The argv this machine runs to have `hmz internal ...` run over there, as `coganchor`.
 
-        The bundle is installed on the way, and installed once: it is named by its digest, so
-        a machine that already has this one is left with it and this process does not ask a
-        second time.
+        The line is `coganchor`'s own spelling of the same command: `internal anchor serve
+        ...` is `coganchor anchor ...`, `internal anchor ...` is `coganchor cog ...`. The program
+        is shipped on the way, and shipped once: it is named by its digest, so a machine that
+        already has this build is left with it and this process does not ask a second time.
 
         Args:
           argv: What follows `hmz`, e.g. `["internal", "anchor", "serve", "--stdio"]`.
@@ -989,61 +947,79 @@ class Road:
           The local command to spawn.
 
         Raises:
-          ConnectionError: If the bundle cannot be put on the target.
+          ValueError: For a line `coganchor` does not carry out.
+          ConnectionError: If there is no `coganchor` for this machine, or it cannot be put
+            on the target.
         """
+        if list(argv[:1]) != ["internal"] or len(argv) < 2:  # noqa: PLR2004 -- `internal` and a command
+            raise ValueError(f"coganchor does not run `hmz {shlex.join(argv)}`")
+        translated = binary.translated(argv[1], list(argv[2:]))
         if self.target.scheme == "local":
-            return [*_myself(), *argv]
-        # The archive's directory, and the mirrors' where a setting puts something in it.
+            try:
+                return [str(binary.here()), *translated]
+            except FileNotFoundError as missing:
+                raise ConnectionError(str(missing)) from missing
+        return self.line(
+            coganchor_command(
+                translated, self.shipped(), setting=setting, owned=self._owning(setting)
+            )
+        )
+
+    def _owning(self, setting: Sequence[tuple[str, str]]) -> list[str]:
+        """The directories a line has to find the far side's user's own, as `owned` says.
+
+        The program's directory, and the mirrors' where a setting puts something in it.
+        """
         owned = [self.cache] if self.owned else []
         if self.owned and any(
             value.startswith(f"{self.mirrors}/") for _, value in setting
         ):
             owned.append(self.mirrors)
-        return self.line(
-            python_command(
-                list(argv),
-                bundle=self.installed(),
-                setting=setting,
-                python=self.python,
-                owned=owned,
-            )
-        )
+        return owned
 
-    def installed(self) -> str:
-        """Puts the bundle on the target if it is not already there, and says where.
+    def shipped(self) -> str:
+        """Puts `coganchor` on the target if it is not already there, and says where.
+
+        The build for the target's own OS and architecture, which it is asked once, named
+        `coganchor-<digest>` in :attr:`cache` and installed by :data:`_SHIPPING`. Once per
+        machine per build for the life of this process: it is named by what is in it, so a
+        second push would write the same bytes over the same path.
 
         Returns:
-          The archive's path over there, as that machine's shell reads it.
+          The program's path over there, as that machine's shell reads it.
 
         Raises:
-          ConnectionError: If it cannot be written, or what arrived is not what was sent.
+          ConnectionError: If the target cannot say what it is, there is no build for it, or
+            the build cannot be written there.
         """
+        system, machine = self._platform()
+        program = binary.shipped(system, machine)
+        if program is None:
+            raise ConnectionError(
+                f"could not install Humanize on {self.target.describe()}: no coganchor "
+                f"is built for {system} {machine}; a target must be Linux or macOS on "
+                "x86-64 or aarch64"
+            )
         try:
-            archive, digest = bundled()
+            digest = binary.digest(program)
         except OSError as failed:
             raise ConnectionError(
                 f"could not install Humanize on {self.target.describe()}: {failed}"
             ) from failed
-        name = f"humanize-{digest}.pyz"
+        name = f"coganchor-{digest}"
         where = f"{self.cache}/{name}"
-        # One push per machine per bundle for the life of this process. The archive is named
-        # by what is in it, so a second push would write the same bytes over the same path --
-        # a round trip, and a file a live session may be importing from, for no news. Asked
-        # before the archive is read, so a machine that already has it costs no megabyte of
-        # this one's memory either.
         already = (self.target.describe(), digest)
         with _PUSHED_LOCK:
             if already in _PUSHED:
                 return where
         try:
-            carried = archive.read_bytes()
-        except FileNotFoundError:
-            # Swept between being asked for and being read, which only an archive nothing had
-            # used for weeks can be: built again, under the same name.
-            carried = _rebundled().read_bytes()
+            carried = program.read_bytes()
+        except OSError as failed:
+            raise ConnectionError(
+                f"could not install Humanize on {self.target.describe()}: {failed}"
+            ) from failed
         result = self.run(
-            _installing(self.cache, name, digest, self.python, owned=self.owned),
-            carried,
+            _shipping(self.cache, name, len(carried), owned=self.owned), carried
         )
         if result.returncode != 0:
             raise ConnectionError(
@@ -1055,25 +1031,54 @@ class Road:
             _PUSHED.add(already)
         return where
 
+    def _platform(self) -> tuple[str, str]:
+        """The target's `uname -sm`, asked once per machine for the life of this process.
+
+        Raises:
+          ConnectionError: If it could not be asked, or did not answer as `uname` does.
+        """
+        described = self.target.describe()
+        with _PUSHED_LOCK:
+            known = _UNAMES.get(described)
+        if known is not None:
+            return known
+        # Through the shell, which finds `uname` on its PATH: a road such as `srun` may run
+        # the program it is handed without looking it up.
+        said = self.run(["/bin/sh", "-c", "exec uname -sm"])
+        words = said.stdout.decode(errors="replace").split()
+        if said.returncode != 0 or len(words) != 2:  # noqa: PLR2004 -- the OS, and the machine
+            raise ConnectionError(
+                f"could not ask {described} what it is: "
+                f"{said.stderr.decode(errors='replace').strip() or ' '.join(words)}"
+                f"{self._said()}"
+            )
+        known = (words[0], words[1])
+        with _PUSHED_LOCK:
+            _UNAMES[described] = known
+        return known
+
     def forget(self) -> None:
-        """Forgets that this machine was given the bundle, for one that has been replaced.
+        """Forgets that this machine was given `coganchor`, for one that has been replaced.
 
         A container made again under a name one had before is a new machine holding nothing,
         and the memo would otherwise answer for it with what the old one was given -- as
-        every user a target of it named, each of whom was given one of their own.
+        every user a target of it named, each of whom was given one of their own. What it said
+        it was goes too, a machine made again being free to be another kind.
         """
         named = _machine(self.target.describe())
         with _PUSHED_LOCK:
             _PUSHED.difference_update(
                 [one for one in _PUSHED if _machine(one[0]) == named]
             )
+            for one in [one for one in _UNAMES if _machine(one) == named]:
+                del _UNAMES[one]
 
     def _said(self) -> str:
         """The tail of what a container printed, for an error that does not say enough.
 
         A container whose own process could not start is one docker then reports as merely
-        not running; why it could not -- that there is no Python it can use, and where it was
-        looked for -- was said on the way out and is in the log and nowhere else.
+        not running; why it could not was said on the way out and is in the log and nowhere
+        else.
         """
         if self.target.scheme == "docker":
             asking = self.target.endpoint.docker(
@@ -1093,14 +1098,17 @@ class Road:
         return f"; the container said: {tail}" if tail else ""
 
 
-#: Which machines already hold which bundle, so that a road walked twice is not paid for
+#: Which machines already hold which build, so that a road walked twice is not paid for
 #: twice. The target *whole* rather than its host, because two machines can answer to one
 #: name -- `ssh://box:2201` and `ssh://box:2202` are two of them, and so are two containers
 #: of one name on two daemons, which is why a container's spelling carries its endpoint -- and
-#: a memo that could not tell them apart is a second machine left without the archive it is
-#: about to be asked to run. And the digest, because a rebuilt bundle is a different file.
+#: a memo that could not tell them apart is a second machine left without the program it is
+#: about to be asked to run. And the digest, because a rebuilt program is a different file.
 _PUSHED: set[tuple[str, str]] = set()
 _PUSHED_LOCK = threading.Lock()
+
+#: What each machine said its `uname -sm` was, as `(OS, machine)`, by its target's spelling.
+_UNAMES: dict[str, tuple[str, str]] = {}
 
 
 def _machine(spelled: str) -> str:
@@ -1113,163 +1121,6 @@ def _machine(spelled: str) -> str:
     if target.scheme == "docker":
         return replace(target, options=()).describe()
     return spelled
-
-
-def _myself() -> list[str]:
-    """How this process starts another Humanize on the machine it is already running on.
-
-    Two answers, because there are two ways this code is ever running. Installed, it is a
-    module and `-m` reaches it. Inside the archive a target was bootstrapped with, there is no
-    installed `hmz` to import and `-m hmz` would find nothing -- which is exactly the case a
-    harness put on another machine is in when it starts a serving half beside itself, that
-    being how the work and the harness land on one machine. The archive knows its own path,
-    so it is asked for it.
-    """
-    archive = getattr(getattr(coganchor, "__loader__", None), "archive", "")
-    return [sys.executable, str(archive)] if archive else [sys.executable, "-m", "hmz"]
-
-
-#: The archive this process last used, as `(stamp, path, digest, touched)`. The digest is
-#: what a target caches the archive under, and reading a megabyte off disk to work it out again
-#: is what asking for it a second time would otherwise cost. `touched` is when it was last
-#: marked as used, on the monotonic clock.
-_bundle_held: tuple[str, Path, str, float] | None = None
-_BUNDLING = threading.Lock()
-
-#: How often the archive held is marked as used. Far inside :data:`_KEPT_FOR`, so that no
-#: sweep ever finds it old while a run holds it, and far outside the time between two turns,
-#: so that marking it is not a write to the disk for every one of them.
-_RETOUCH = 3600.0
-
-
-def bundled() -> tuple[Path, str]:
-    """The archive for the current source tree, and the name a target caches it under.
-
-    The archive held is touched every so often while it is asked for, which is what keeps
-    another run's sweep from taking it away while this one is still shipping it -- and what
-    finds that it has gone anyway, after a run idle for longer than the sweep waits, so that
-    it is built again rather than read from a path that is no longer there.
-
-    Returns:
-      Where it is, and the digest of what is in it.
-    """
-    global _bundle_held  # noqa: PLW0603 -- one archive per process, per source tree
-    source = Path(coganchor.__file__).parent
-    stamp = _lately(source)
-    with _BUNDLING:
-        now = time.monotonic()
-        held = _bundle_held
-        if held is not None and held[0] == stamp:
-            if now - held[3] < _RETOUCH:
-                return held[1], held[2]
-            if _touched(held[1]):
-                _bundle_held = (*held[:3], now)
-                return held[1], held[2]
-        archive, digest = _built(source, stamp)
-        _bundle_held = (stamp, archive, digest, now)
-        return archive, digest
-
-
-def _rebundled() -> Path:
-    """The archive again, for one that has gone from under this process since it was held.
-
-    Returns:
-      Where it is now.
-    """
-    global _bundle_held  # noqa: PLW0603 -- one archive per process, per source tree
-    with _BUNDLING:
-        _bundle_held = None
-    return bundled()[0]
-
-
-def _built(source: Path, stamp: str) -> tuple[Path, str]:
-    """The archive for the tree a stamp was taken of, built unless it already has been.
-
-    What a stamp built is written down under the stamp's own name, so that finding the
-    archive again is one small read rather than a build. The archive itself is written under a
-    name of its own, named by its digest once that is known, and moved into place: whoever
-    reads `humanize-<digest>.pyz` reads exactly the bytes that digest was taken of, which is
-    the whole of what a target caching it by that name relies on.
-
-    Args:
-      source: The package the archive is made of.
-      stamp: What :func:`_stamped` said of it.
-
-    Returns:
-      Where the archive is, and its digest.
-    """
-    # Imported here rather than above: on a target, `hmz` is the namespace the bundle cut
-    # down to this package, and only the machine that builds an archive keeps one.
-    from hmz import machine
-
-    # One per user rather than one shared, and the archives in it named by what is in them
-    # rather than by whose they are: two checkouts, two installed versions or two users on
-    # one machine each find their own archive there and never one another's.
-    home = machine()
-    index = home / f"{stamp}.digest"
-    digest = _read(index)
-    if digest:
-        archive = home / f"humanize-{digest}.pyz"
-        if _touched(archive):
-            _touched(index)
-            return archive, digest
-    handle, staged = tempfile.mkstemp(dir=home, prefix="humanize-", suffix=".pyz.new")
-    os.close(handle)
-    made = Path(staged)
-    try:
-        _write_bundle(source, made)
-        with made.open("rb") as reading:
-            digest = hashlib.file_digest(reading, "sha256").hexdigest()[:_DIGEST]
-        archive = home / f"humanize-{digest}.pyz"
-        # Over one already there, if one is: the same name is the same bytes, and a run
-        # already reading the old file goes on reading it.
-        made.replace(archive)
-    except BaseException:
-        # A build that failed leaves nothing of itself behind.
-        made.unlink(missing_ok=True)
-        raise
-    # The index after the archive, and only if it was written: an index that got there first
-    # would name an archive a run that died mid-build never finished.
-    atomic.writes(index, f"{digest}\n", mode=0o600)
-    _swept(home, archive)
-    return archive, digest
-
-
-def _touched(path: Path) -> bool:
-    """Marks a file as just used, and says whether it was there to mark."""
-    try:
-        os.utime(path)
-    except FileNotFoundError:
-        return False
-    return True
-
-
-def _swept(home: Path, keeping: Path) -> None:
-    """Removes whatever in this user's directory of archives nothing has used in a while.
-
-    Only after a build, which is the one moment a new archive has joined the rest, and only
-    what has gone :data:`_KEPT_FOR` untouched: every run touches the archive it is using
-    every :data:`_RETOUCH` seconds while it asks for it, so nothing old enough to go is
-    anything a run still holds.
-
-    Args:
-      home: The directory.
-      keeping: The archive just built, which goes nowhere whatever its age says.
-    """
-    now = time.time()
-    # And what an earlier Humanize kept beside it, one archive every checkout shared.
-    legacy = home.with_name(f"{home.name}.pyz")
-    for one in [*home.iterdir(), legacy, legacy.with_suffix(".stamp")]:
-        # What a build made, and nothing else: this machine's daemon keeps its socket and the
-        # lock it holds for as long as it runs beside the archives, and a lock swept from
-        # under a daemon is a second daemon.
-        if one == keeping or not (
-            one.name.startswith("humanize-") or one.suffix == ".digest"
-        ):
-            continue
-        with contextlib.suppress(OSError):
-            if now - one.lstat().st_mtime > _KEPT_FOR:
-                one.unlink()
 
 
 #: The ssh options that make one connection serve every command, worked out once. Making the
@@ -1360,7 +1211,7 @@ def serve_line(
 
     Raises:
       ValueError: If nothing is started on the far side of this target.
-      ConnectionError: If the bundle cannot be put there.
+      ConnectionError: If `coganchor` cannot be put there.
     """
     how = ["--peer", str(meeting)] if meeting is not None else ["--stdio"]
     asked: list[str] = []
@@ -1381,22 +1232,25 @@ def connect(target: Target, exports: list[str], token: str | None = None) -> Tra
       The channel, and the process holding it open where this started one.
 
     Raises:
-      OSError: If the target cannot be reached.
+      OSError: If the target cannot be reached, or is a meeting: a `peer://` target is met
+        by `coganchor cog` itself, a ticket being good for one session.
       ValueError: If the target cannot be read.
     """
     if target.scheme == "tcp":
         sock = socket.create_connection((target.host, target.port), timeout=30.0)
-        sock.settimeout(None)
         # Nagle off, the way a punched socket has it off: this protocol is a small request
         # and a small reply, over and over, and a delay waiting for a second frame that is
         # not coming is a delay per syscall the agent makes.
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        return Transport(Channel.from_socket(sock))
+        # The handshake within the same 30 seconds a step; the session as long as it lasts.
+        # An empty token is none, as an empty `$HUMANIZE_TOKEN` is to the serving half.
+        sealed = tls.dial(sock, token.encode() if token else None, target.describe())
+        sock.settimeout(None)
+        return Transport(Channel.from_pipe(sealed, sealed.bound))
     if target.scheme == "peer":
-        from hmz.coganchor import rendezvous
-
-        met = rendezvous.dial(target.meeting, rendezvous.ANCHOR)
-        return Transport(Channel.from_socket(met))
+        raise ConnectionError(
+            f"{target.describe()} is a meeting for one session, which coganchor keeps"
+        )
     return _spawn(serve_line(target, exports), token)
 
 
@@ -1424,204 +1278,3 @@ def _spawn(command: list[str], token: str | None) -> Transport:
     assert process.stdin is not None  # noqa: S101
     assert process.stdout is not None  # noqa: S101
     return Transport(Channel(process.stdout, process.stdin), process)
-
-
-#: What the target has no use for, left out of the bundle by name. This package is two
-#: things: the anchor -- the wire, the supervisor and the serving half, which is what a
-#: target runs -- and everything Humanize knows about driving a coding agent CLI, which a
-#: target never does. The anchor half ships whole, ptrace layer and register maps included,
-#: because pruning *that* would be a list to keep in step and nothing is lost by carrying
-#: it: the target only ever runs ``anchor serve``, which reaches none of it. The driving
-#: half is a different answer -- it is megabytes of drivers, it reaches the network to read
-#: prices and catalogues, and no line the target runs can arrive at it. It is named here
-#: rather than inferred, and ``test_the_bundle_carries_nothing_that_drives_an_agent`` is
-#: what notices a new one.
-DRIVING = ("agents", "providers", "machines", "backends.py", "models.py", "fallbacks.py",
-           "prices.py")  # fmt: skip
-
-
-def build_bundle(destination: Path | None = None) -> Path:
-    """Package the anchor, and the command line reaching it, as a zipapp for the target.
-
-    The anchor half of this package ships whole -- see :data:`DRIVING` for what does not and
-    why.  Nothing is lost by carrying the tracer with it: the target only ever runs ``anchor
-    serve``, which :func:`hmz.cli.main` reaches without importing the modules that need
-    ptrace or an x86-64 register map -- nor any other subpackage, none of which is here -- so
-    the bundle runs on a target of any architecture.  It is pure stdlib, so a host needs
-    nothing but ``python3``.
-
-    Built once per source tree rather than once per session, where no destination is given:
-    the archive is a function of the source alone, so an unchanged tree is an unchanged
-    archive, and the one already built for it is found by a few hundred `stat` calls rather
-    than by copying the package, zipping it and rewriting every mode and timestamp in it,
-    every time an agent is anchored. See :func:`bundled`.
-
-    Args:
-      destination: Where to write it. None keeps it in this user's own directory of
-        archives, `$TMPDIR/humanize-<uid>/humanize-<digest>.pyz`.
-
-    Returns:
-      Where it is.
-    """
-    if destination is None:
-        return bundled()[0]
-    source = Path(coganchor.__file__).parent
-    _publish(destination, lambda staged: _write_bundle(source, staged))
-    return destination
-
-
-#: How long a reading of the source tree is trusted for. Every rendered line asks whether the
-#: archive is still the right one, and asking costs a `stat` per file in this package -- which
-#: for a hub rendering a line per turn is the largest single thing it does per turn, and it is
-#: asking a question whose answer cannot change while a run is going. Seconds rather than the
-#: whole run: somebody editing this package with a hub up should not have to restart it, and a
-#: few seconds of staleness is the most that can cost them.
-_RESTAMP = 5.0
-_stamp_held: tuple[float, str] | None = None
-_STAMPING = threading.Lock()
-
-
-def _lately(source: Path) -> str:
-    """What the source tree was, as of a moment ago.
-
-    Args:
-      source: The package to read.
-
-    Returns:
-      Its stamp, taken afresh if the last one has gone stale.
-    """
-    global _stamp_held  # noqa: PLW0603 -- one reading per process at a time
-    with _STAMPING:
-        now = time.monotonic()
-        if _stamp_held is not None and now - _stamp_held[0] < _RESTAMP:
-            return _stamp_held[1]
-        stamp = _stamped(source)
-        _stamp_held = (now, stamp)
-        return stamp
-
-
-def _stamped(source: Path) -> str:
-    """What the source tree is now, cheaply enough to ask before every session.
-
-    Sizes and modification times rather than contents: reading the package to decide whether
-    to rebuild it costs as much as rebuilding it, while the questions a filesystem answers
-    from the directory entry it already has cost nothing worth measuring. An edit that keeps
-    a file's size and its timestamp to the nanosecond is the one this would miss, and there
-    is no way to make one by accident.
-    """
-    seen = hashlib.sha256()
-    # The version the archive carries, which a checkout's version bump changes with no file of
-    # this package changing.
-    seen.update(f"{coganchor.__version__}\n".encode())
-    # Both trees the archive is made of -- the command line goes in too -- and each by where
-    # it is, so that two checkouts never share a stamp however alike their files look.
-    for tree in (source, source.parent / "cli"):
-        seen.update(f"{tree.resolve()}\n".encode())
-        for path in sorted(tree.rglob("*")):
-            if "__pycache__" in path.parts or path.is_dir():
-                continue
-            found = path.stat()
-            seen.update(
-                f"{path.relative_to(tree)}\0{found.st_size}\0{found.st_mtime_ns}\n".encode()
-            )
-    return seen.hexdigest()
-
-
-def _read(path: Path) -> str:
-    """What an index says, or nothing at all where there is none to read."""
-    try:
-        return path.read_text().strip()
-    except OSError:
-        return ""
-
-
-def _publish(destination: Path, writing: Callable[[Path], None]) -> None:
-    """Puts a file in place whole or not at all, by writing it elsewhere and moving it there.
-
-    Two sessions starting at once build the same bytes to the same path, and a reader must
-    find the whole file or the last one, never a half-written archive it would then ship to a
-    target.
-
-    Args:
-      destination: Where it goes.
-      writing: What fills it, given the name to write under.
-
-    Raises:
-      OSError: Whatever `writing` raises, with nothing of the attempt left behind.
-    """
-    handle, staged = tempfile.mkstemp(
-        dir=destination.parent, prefix=f"{destination.name}."
-    )
-    os.close(handle)
-    try:
-        writing(Path(staged))
-        os.replace(staged, destination)
-    except BaseException:
-        os.unlink(staged)  # a write that failed leaves nothing of itself behind
-        raise
-
-
-def _write_bundle(source: Path, destination: Path) -> None:
-    """Builds the archive itself, which is what a changed source tree costs.
-
-    Args:
-      source: The package to put in it.
-      destination: Where to write it, which :func:`_publish` is what moves into place.
-    """
-    with tempfile.TemporaryDirectory(prefix="humanize-bundle-") as staging:
-        root = Path(staging)
-        # Laid out under the package's own dotted name, so that moving the package moves the
-        # bundle with it rather than breaking on the target, which is where it would surface.
-        parts = coganchor.__name__.split(".")
-        shutil.copytree(
-            source,
-            root.joinpath(*parts),
-            ignore=shutil.ignore_patterns("__pycache__", "*.md", *DRIVING),
-        )
-        for depth in range(1, len(parts)):
-            # A namespace of its own rather than the installed ``hmz/__init__.py``: the
-            # bundle stays pure stdlib however the rest of Humanize grows, and a regular package
-            # cannot be shadowed by an unrelated ``hmz`` already on the target's path.
-            init = root.joinpath(*parts[:depth]) / "__init__.py"
-            init.write_text(
-                f'"""{".".join(parts[:depth])}, cut down to {parts[depth]}."""\n'
-            )
-        # The command line comes too, because it is the only one: what the target runs is the
-        # same ``hmz internal anchor`` a user would run there, and each of its commands names
-        # the layers it needs only from inside itself, none of which is this one.
-        # Taken off disk rather than imported, so that the serving half still names nothing
-        # above itself.
-        shutil.copytree(
-            source.parent / "cli",
-            root.joinpath(*parts[:-1]) / "cli",
-            ignore=shutil.ignore_patterns("__pycache__", "*.md"),
-        )
-        # Written by hand rather than via zipapp's ``main=`` shim, which calls
-        # the entry point but throws its return value away -- a target that
-        # failed to start would then look like a clean exit.
-        (root / "__main__.py").write_text(
-            "from hmz.cli import main\n\nraise SystemExit(main())\n"
-        )
-        # And the version, as the metadata an installed `hmz` has, which is where
-        # `coganchor.__version__` is read from: a harness run from here says which Humanize it
-        # is, and there is no install here to say it. It is found ahead of any `hmz` that
-        # machine has of its own, because the archive is first on its interpreter's path.
-        info = root / f"hmz-{coganchor.__version__}.dist-info"
-        info.mkdir()
-        (info / "METADATA").write_text(
-            f"Metadata-Version: 2.1\nName: hmz\nVersion: {coganchor.__version__}\n"
-        )
-        # One timestamp for everything, so the archive is a function of the source alone: the
-        # bundle is addressed on the target by its digest, and a build stamp would miss that
-        # cache on every connect and leave another copy behind. A zip entry holds local
-        # wall-clock time and cannot predate 1980, so the instant is the one reading as
-        # 1980-01-02 here: a fixed instant would fall out of that range west of UTC, and would
-        # still leave the digest following the machine's timezone.
-        when = time.mktime((1980, 1, 2, 0, 0, 0, 0, 2, -1))
-        for path in root.rglob("*"):
-            # Modes for the same reason: the files written just above carry the builder's
-            # umask, and a checkout's own bits vary with it too. Nothing on the target reads
-            # them -- it runs the archive, and zipimport ignores the entries' modes.
-            path.chmod(0o755 if path.is_dir() else 0o644)
-            os.utime(path, (when, when))
-        zipapp.create_archive(root, destination, interpreter="/usr/bin/env python3")

@@ -43,6 +43,7 @@ import re
 import shlex
 import textwrap
 import threading
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -94,10 +95,6 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.backends import Model, Way
-
-    # Under another name, because that is what it is on these pages: one place's step, the
-    # chain it falls back along and how it is tried again.
-    from hmz.coganchor.fallbacks import Falls as Step
     from hmz.coganchor.machines.sshconfig import SSHHost
     from hmz.coganchor.machines.store import (
         AppleContainerRuntime,
@@ -107,9 +104,10 @@ if TYPE_CHECKING:
         SSHRuntime,
         SwarmRuntime,
     )
+    from hmz.coganchor.nous import Graph, Node, Nous
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
-    from hmz.daemon.link import Link
+    from hmz.reach.routes import Route
     from hmz.runtime.epic import Ran
     from hmz.runtime.flowing import AgentRole, EnvRole
 
@@ -136,10 +134,12 @@ __all__ = [
     "Doing",
     "Drafts",
     "Epics",
-    "Failing",
-    "Fallbacks",
+    "GraphForm",
     "Held",
     "Leaves",
+    "NodeForm",
+    "NousForm",
+    "NousPage",
     "Picks",
     "Places",
     "Popup",
@@ -4594,8 +4594,8 @@ _REPORTS, _QUIET = "on", "off"
 
 #: The pages of `/settings`, in the order they are listed on its first screen: from the
 #: broadest to the nearest. Which epics this machine tells of follows what is true of it, and
-#: the daemons -- this machine's and other machines' -- come after. The fallbacks are beside
-#: the accounts, since what a turn falls back to is another account or model; the machines a
+#: the daemons -- this machine's and other machines' -- come after. The nous are beside
+#: the accounts, since a concrete nous is an account and a model; the machines a
 #: flow's environments go on follow, then
 #: the repositories epics are backed up to; this directory's own come last. Where flows come
 #: from is `/flow`'s (:mod:`hmz.tui.flows`). The menu itself is :mod:`hmz.tui.settings`; the
@@ -4606,7 +4606,7 @@ _REPORTS, _QUIET = "on", "off"
     _NOTIFICATIONS,
     _DAEMONS,
     _ACCOUNTS,
-    _FALLBACK,
+    _NOUS,
     _MACHINES,
     _BACKUP,
     _DIRECTORY,
@@ -5340,23 +5340,19 @@ class Catalogue(Picks):
         self._fill()
 
 
-#: The place a chain is written against, and the places it falls back to, by the id each is put
-#: up under on its form: the second is followed by where on the chain the row is, counting from
-#: zero, so that a chain of three is three rows and one more to add a fourth on.
-_FAILS, _GOES = "fails", "goes"
-
-#: What a row of the list of places is put up under when the account it is of has not said
+#: What a row of the list of nous is put up under when the account it is of has not said
 #: what it runs: this, then the CLI and the account either side of :data:`_HALVES`.
 _UNASKED = "\x1d"
 
 
 class Places(Picks):
-    """Which place: every CLI here, as each of its accounts, at each model it runs -- one list.
+    """Which nous: the virtual ones written, then every concrete one there is -- one list.
 
-    One list rather than three questions in a row. A place is the three of them together,
-    and somebody looking for one knows it by any of them -- `opus`, `work`, `codex` -- which
-    a search of one list finds and a walk of three sheets makes them answer in order. An
-    account that has not said what it runs is a row of its own, and choosing it asks.
+    One list rather than three questions in a row. A concrete nous is a CLI, an account and a
+    model together, and somebody looking for one knows it by any of them -- `opus`, `work`,
+    `codex` -- which a search of one list finds and a walk of three sheets makes them answer in
+    order. An account that has not said what it runs is a row of its own, and choosing it
+    asks.
     """
 
     def __init__(
@@ -5365,44 +5361,31 @@ class Places(Picks):
         asked: str,
         current: str = "",
         *,
-        leaving: str = "",
-        nowhere: bool = False,
+        named: Sequence[str] = (),
     ) -> None:
         """Initializes the choosing.
 
         Args:
           offered: The backends offered here, which is which CLIs there are to choose from.
           asked: What the sheet asks.
-          current: The place in force now, which the tick goes against.
-          leaving: The place a step is written against, which is not one it can go to.
-          nowhere: Whether falling back nowhere is one of the answers.
+          current: The nous in force now, which the tick goes against.
+          named: The virtual nous that may be chosen too, listed first.
         """
         super().__init__(current)
         self.asked = asked
         self.about = (
-            "Here an agent is a CLI, an account and a model: what a turn can fail "
-            "on. Search by any of the three."
+            "A concrete nous is a CLI, an account and a model; a virtual nous is a "
+            "name for a graph of others. Search by any of them."
         )
         self._offered = dict(offered)
-        self._leaving = leaving
-        self._nowhere = nowhere
+        self._named = tuple(named)
         self._asking = ""
         self._said = ""
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Every place there is, by CLI and then by account, and the ones not yet asked."""
+        """The virtual nous, then every concrete one by CLI and account, and those not asked."""
         hmz = _hmz()
-        listed: list[tuple[str, str, str]] = (
-            [
-                (
-                    "",
-                    "nowhere",
-                    "no fallback; fail the turn when retries are exhausted",
-                )
-            ]
-            if self._nowhere
-            else []
-        )
+        listed = [(one, one, "virtual nous") for one in self._named]
         for cli in sorted(self._offered):
             if _drives(cli) is None:
                 continue
@@ -5425,13 +5408,12 @@ class Places(Picks):
                     )
                     continue
                 for model in models:
-                    spec = hmz.fallbacks.spec(cli, model.name, account)
-                    if spec != self._leaving:
-                        listed.append((spec, spec, ", ".join(model.efforts)))
+                    spec = hmz.nous.spec(cli, model.name, account)
+                    listed.append((spec, spec, ", ".join(model.efforts)))
         return listed
 
     def nothing(self) -> str:
-        """What came of asking, or that there is nowhere to choose."""
+        """What came of asking, or that there is nothing to choose."""
         if self._asking:
             return f"checking {escape(self._asking)} for models…"
         if self._said:
@@ -5440,7 +5422,7 @@ class Places(Picks):
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Answers with the place, or asks an account that has not said what it runs.
+        """Answers with the nous, or asks an account that has not said what it runs.
 
         Args:
           event: What was chosen.
@@ -5480,101 +5462,293 @@ def _tried(tries: int) -> str:
     return str(tries) if tries else "none"
 
 
-class Failing(Form["Step | str"]):
-    """Everything about one chain, on one form: where it fails, where it goes, how it retries.
+#: The rows of the nous form, the graph form and the node form, by the id each is put up
+#: under. A node of the graph form is its id after :data:`_NODE`, and an edge of the node form
+#: its fault class after :data:`_ON`.
+_NAME, _CHOOSE, _OF_GRAPH, _THEN = "name", "choose", "graph", "then"
+_START, _NODE, _ADD_NODE = "start", "node:", "add"
+_ID, _KIND, _USE, _BALANCE, _AMONG, _SPREAD, _ON = (
+    "id",
+    "kind",
+    "use",
+    "balance",
+    "among",
+    "spread",
+    "on:",
+)
 
-    One form rather than a walk. Adding a step used to be the three questions a place is,
-    asked twice over on six sheets, and how it is tried again a menu of its own opened from
-    another: here every place is a row apiece, each opening the one list of places, and the
-    three that say how a failed turn is tried again are stepped where they stand beside them
-    -- the tries first, since they are spent before the chain is walked.
+#: The edge a failure with any fault no other edge names follows.
+_ANY = "*"
 
-    Where it falls back to is a list, in the order its places are tried, and is edited the way
-    the rest of the form is -- by opening a row. The row after the last opens onto a place to
-    add; a row already holding one opens onto the same list with `nowhere` at its head, which
-    takes that place off the chain; and choosing a place that is already further along swaps
-    the two, which is how a chain is put in another order without a key of its own to learn.
-    The place that fails is never offered, and no place can be on the chain twice.
+#: An edge to no node, which is the graph failing with that fault: no word, so no node's id.
+_NO_EDGE = "—"
 
-    Held until `/settings` is saved, as the rest of the page is. On a step already written,
-    taking it away is a row of its own above the one that keeps it.
+#: A balance node that tries every nous it picks among before it fails.
+_EVERY = "all"
+
+
+def _ordered(graph: Graph) -> list[Node]:
+    """A graph's nodes in order from its start, each before the nodes its edges go on to."""
+    seen: dict[str, Node] = {}
+
+    def visit(at: str) -> None:
+        node = graph.node(at)
+        if node is None or node.id in seen:
+            return
+        seen[node.id] = node
+        for _, to in node.on:
+            visit(to)
+
+    visit(graph.start)
+    return [*seen.values(), *(one for one in graph.nodes if one.id not in seen)]
+
+
+def _node_said(node: Node) -> str:
+    """One node as a row says it: its nous, or its strategy and its nous with their weights."""
+    if node.use:
+        return node.use
+    among = ", ".join(f"{name}×{weight}" for name, weight in node.among)
+    spread = f"; spread {node.spread}" if node.spread else ""
+    return f"{node.balance}({among}{spread})"
+
+
+def _graph_said(graph: Graph | None) -> str:
+    """A graph as a row says it: its nodes in order from the start, or `none`."""
+    if graph is None:
+        return "none"
+    return " → ".join(_node_said(one) for one in _ordered(graph))
+
+
+def _nous_said(one: Nous) -> str:
+    """One nous as its row says it: which kind, how it is tried again, its graph, its then."""
+    tries = (
+        "no retries"
+        if not one.tries
+        else f"{one.tries} {'retry' if one.tries == 1 else 'retries'}"
+    )
+    graph = (f"graph {_graph_said(one.graph)}",) if one.graph is not None else ()
+    return _DOT.join(
+        (
+            "virtual" if one.virtual else "concrete",
+            tries,
+            one.policy,
+            _lasting(one.timeout),
+            *graph,
+            f"then {_graph_said(one.then)}",
+        )
+    )
+
+
+def _names(one: Nous) -> set[str]:
+    """Every nous one nous names, in its graph and its then."""
+    graphs = [graph for graph in (one.graph, one.then) if graph is not None]
+    return {name for graph in graphs for name in graph.names()}
+
+
+def _renamed(one: Nous, was: str, name: str) -> Nous:
+    """One nous with a virtual nous it is or names called by another name."""
+
+    def moved(graph: Graph | None) -> Graph | None:
+        if graph is None:
+            return None
+        return replace(
+            graph,
+            nodes=tuple(
+                replace(
+                    node,
+                    use=name if node.use == was else node.use,
+                    among=tuple(
+                        (name if member == was else member, weight)
+                        for member, weight in node.among
+                    ),
+                )
+                for node in graph.nodes
+            ),
+        )
+
+    return replace(
+        one,
+        name=name if one.name == was else one.name,
+        graph=moved(one.graph),
+        then=moved(one.then),
+    )
+
+
+def _graph_refusal(owner: str, graph: Graph) -> tuple[Graph | None, str]:
+    """A graph as the settings would hold it, or why they would refuse it.
+
+    Asked of :mod:`hmz.coganchor.nous` itself, so that what is refused here is refused there
+    and said in its words, before anything is written: nothing is until /settings is saved.
+
+    Args:
+      owner: The nous the graph is of, which the reason names.
+      graph: The graph.
+
+    Returns:
+      The graph, its nous spelled as they are written, and "" -- or None and why not.
+    """
+    try:
+        made = _hmz().nous.checked(owner, graph)
+    except ValueError as why:
+        return None, str(why)
+    return made, ""
+
+
+def _refusal(one: Nous, others: Sequence[Nous]) -> str:
+    """Why one nous could not be written beside the others held, as `put` would say, or "".
+
+    Args:
+      one: The nous.
+      others: Every other nous the page holds.
+
+    Returns:
+      The reason, or "" for none.
+    """
+    book = _hmz().nous
+    name = book.reads(one.name)
+    if not name:
+        return (
+            f"{one.name!r} is not a nous: expected HARNESS[@ACCOUNT]/MODEL[:EFFORT] "
+            "or a name"
+        )
+    if "/" not in name and one.graph is None:
+        return f"{name} is a virtual nous, and needs a graph"
+    if not one.says():
+        return f"{name} says nothing: give it retries or a then"
+    made = replace(one, name=name)
+    for graph in (one.graph, one.then):
+        if graph is not None and (why := _graph_refusal(name, graph)[1]):
+            return why
+    try:
+        book.check(made, others)
+    except ValueError as why:
+        return str(why)
+    return ""
+
+
+class NousForm(Form["Nous | str"]):
+    """Everything about one nous, on one form: its name, how it is tried again, its graphs.
+
+    The name is typed, or chosen from every concrete nous the accounts and installed harnesses
+    run, with an effort picked beside it; a name with no `/` is a virtual nous, which has a
+    graph. Its tries, wait policy and limit are stepped where they stand, and its graph and its
+    then each open the graph form.
+
+    Held until `/settings` is saved, as the rest of the page is. On a virtual nous already
+    written the name renames it; taking a nous away is a button beside the one that keeps it.
     """
 
     def __init__(
         self,
         offered: Mapping[str, tuple[Model, ...]],
-        step: Step | None = None,
+        one: Nous | None = None,
         *,
-        steps: Sequence[Step] = (),
+        held: Sequence[Nous] = (),
     ) -> None:
-        """Initializes the form on a step, or on nothing for one being added.
+        """Initializes the form on a nous, or on nothing for one being added.
 
         Args:
-          offered: The backends offered here, which is what a place is chosen out of.
-          step: What is written against the place now, or None to write a new one.
-          steps: The steps the page is holding, so that a step added for a place that has
-            one already starts from it rather than quietly replacing it with nothing.
+          offered: The backends offered here, which is what a concrete nous is chosen out of.
+          one: The nous as the page holds it now, or None to add one.
+          held: Every nous the page holds, which this one is checked beside.
         """
-        from hmz.coganchor.fallbacks import Falls
+        from hmz.coganchor.nous import Nous
 
         super().__init__()
         self._offered = dict(offered)
-        self._held_steps = {one.spec: one for one in steps}
-        #: What to say under the form while nothing is wrong with it.
-        self._noted = ""
-        self._unwritten = step is None
-        held = step or Falls("")
-        #: Where it falls back to, in order, which is a list rather than one row's answer.
-        self._chain: list[str] = list(held.to)
+        self._unwritten = one is None
+        start = one or Nous("", policy=_hmz().nous.default)
+        self._from = start.name
+        self._renames = start.virtual
+        self._others = [other for other in held if other.name != start.name]
+        self._graph: Graph | None = start.graph
+        self._then: Graph | None = start.then
+        self._timeout = start.timeout
         self._typed_in = {
-            _FAILS: held.spec,
-            _HOW_MANY: _tried(held.tries),
-            _POLICY: held.policy,
-            _HOW_LONG: _lasting(held.timeout),
+            _NAME: start.name,
+            _HOW_MANY: _tried(start.tries),
+            _POLICY: start.policy,
+            _HOW_LONG: _lasting(start.timeout),
         }
 
+    def _said_name(self) -> str:
+        return self._typed_in[_NAME].strip()
+
+    def _concrete(self) -> bool:
+        return "/" in self._said_name()
+
+    def _parts(self) -> tuple[str, str, str, str] | None:
+        """The concrete nous named: its CLI, model, account and effort, or None for none."""
+        if not self._concrete():
+            return None
+        try:
+            _, profile, model, effort, provider = backends.read(self._said_name())
+        except ValueError:
+            return None
+        return profile.name, model, provider, effort
+
+    def _efforts(self) -> list[str]:
+        """The efforts the concrete nous named runs at, `auto` first."""
+        parts = self._parts()
+        if parts is None:
+            return []
+        cli, model, provider, effort = parts
+        accounts = _hmz().accounts
+        models = (
+            accounts.models(cli, provider)
+            if provider
+            else self._offered.get(cli) or accounts.models(cli)
+        )
+        found = next((one.efforts for one in models if one.name == model), ())
+        return list(
+            dict.fromkeys((backends.AUTO, *found, *((effort,) if effort else ())))
+        )
+
     def asked(self) -> list[Question]:
-        """The two places, and the three rungs of trying again."""
-        said = _hmz().fallbacks.named(self._typed_in[_POLICY])
+        """The name, how it is tried again, and its graphs."""
+        said = _hmz().nous.named(self._typed_in[_POLICY])
+        naming = self._unwritten or self._renames
         return [
             *(
                 (
                     Question(
-                        _FAILS,
-                        "fails on",
-                        "the agent whose turns cannot run",
+                        _NAME,
+                        "name",
+                        "HARNESS[@ACCOUNT]/MODEL[:EFFORT], or a name for a virtual nous"
+                        if self._unwritten
+                        else "renames this virtual nous",
+                        needed=not self._said_name(),
+                    ),
+                )
+                if naming
+                else ()
+            ),
+            *(
+                (
+                    Question(
+                        _CHOOSE,
+                        "choose",
+                        "a concrete nous the accounts and installed harnesses run",
                         _OPENS_ONTO,
-                        needed=not self._typed_in[_FAILS],
                     ),
                 )
                 if self._unwritten
                 else ()
             ),
             *(
-                Question(
-                    f"{_GOES}{at}",
-                    "then" if at else "falls back to",
-                    "if that fails too, in a new conversation"
-                    if at
-                    else "fallback agent for failed turns, in a new conversation",
-                    _OPENS_ONTO,
+                (
+                    Question(
+                        _EFFORT,
+                        "effort",
+                        "how hard the model is asked to think",
+                        _STEPS,
+                    ),
                 )
-                for at in range(len(self._chain))
+                if self._unwritten and self._concrete()
+                else ()
             ),
             Question(
-                f"{_GOES}{len(self._chain)}",
-                "then" if self._chain else "falls back to",
-                "add an agent to try after the ones above"
-                if self._chain
-                else "fallback agent for failed turns, in a new conversation",
-                _OPENS_ONTO,
-                needed=self._unwritten and not self._chain,
-            ),
-            Question(
-                _HOW_MANY,
-                "tries",
-                "how many times to retry a failed turn before falling back",
-                _STEPS,
+                _HOW_MANY, "tries", "how many times to retry a failed turn", _STEPS
             ),
             Question(
                 _POLICY,
@@ -5582,45 +5756,76 @@ class Failing(Form["Step | str"]):
                 said.about if said is not None else "how long to wait between retries",
                 _STEPS,
             ),
-            Question(_HOW_LONG, "for", "maximum time to keep retrying", _STEPS),
+            Question(_HOW_LONG, "limit", "the longest to keep retrying", _STEPS),
+            *(
+                ()
+                if self._concrete()
+                else (
+                    Question(
+                        _OF_GRAPH,
+                        "graph",
+                        "what this virtual nous is: nodes tried along their edges",
+                        _OPENS_ONTO,
+                        needed=self._graph is None,
+                    ),
+                )
+            ),
+            Question(
+                _THEN,
+                "then",
+                "where a turn goes once its tries are spent, in a new conversation",
+                _OPENS_ONTO,
+            ),
         ]
 
     def shown(self, one: Question) -> str:
-        """What a row holds, and what an empty place means."""
-        if (at := self._slot(one.held)) is not None:
-            if at < len(self._chain):
-                return self._chain[at]
-            return "+ add" if self._chain else "nowhere"
-        value = self._typed_in.get(one.held, "")
-        if one.held == _FAILS and not value:
-            return "—"
-        return value
-
-    @staticmethod
-    def _slot(held: str) -> int | None:
-        """Where on the chain one row is, or None for a row that is not one of the chain's."""
-        said = held.removeprefix(_GOES)
-        return int(said) if said != held and said.isdigit() else None
+        """What a row holds: the effort of the name, a graph in order from its start."""
+        if one.held == _CHOOSE:
+            return ""
+        if one.held == _EFFORT:
+            parts = self._parts()
+            return (parts[3] if parts else "") or backends.AUTO
+        if one.held == _OF_GRAPH:
+            return _graph_said(self._graph)
+        if one.held == _THEN:
+            return _graph_said(self._then)
+        return super().shown(one)
 
     def choices(self, held: str) -> Sequence[str]:
-        """The rungs of trying again."""
+        """The efforts, and the rungs of trying again."""
+        if held == _EFFORT:
+            return self._efforts()
         if held == _HOW_MANY:
-            return [_tried(one) for one in _TRIES]
+            return [_tried(one) for one in sorted({*_TRIES, self._tries()})]
         if held == _POLICY:
-            return [one.name for one in _hmz().fallbacks.policies()]
+            return [one.name for one in _hmz().nous.policies()]
         if held == _HOW_LONG:
-            return [_lasting(one) for one in _FOR]
+            return [_lasting(one) for one in sorted({*_FOR, self._timeout})]
         return ()
 
+    def _tries(self) -> int:
+        said = self._typed_in[_HOW_MANY]
+        return int(said) if said.isdigit() else 0
+
+    def stepped(self, held: str) -> None:
+        """Writes an effort picked into the name, which is where an effort is kept."""
+        if held != _EFFORT:
+            return
+        picked = self._typed_in.pop(_EFFORT)
+        parts = self._parts()
+        if parts is not None:
+            cli, model, provider, _ = parts
+            self._typed_in[_NAME] = _hmz().nous.spec(cli, model, provider, picked)
+
     def beside(self) -> list[Action]:
-        """Taking it away, for a step already written."""
+        """Taking it away, for a nous already written."""
         if self._unwritten:
             return []
         return [
             Action(
                 _ACT_REMOVE,
                 "remove",
-                "removes this fallback rule when saved",
+                "removes this nous when saved",
                 partial(self.dismiss, _TAKES_AWAY),
                 variant="error",
             )
@@ -5628,373 +5833,745 @@ class Failing(Form["Step | str"]):
 
     def done_about(self) -> str:
         """What answering it does, which is hold it."""
-        return "applies this fallback rule when /settings is saved"
-
-    def note(self) -> str:
-        """That the place chosen has a step already, which this form is now changing."""
-        return self._noted
-
-    def _takes_up(self, place: str) -> None:
-        """Starts from the step a place chosen to fail already has, where it has one.
-
-        Only what has not been changed on the form: a row somebody set is theirs.
-
-        Args:
-          place: The place chosen as the one that fails.
-        """
-        from hmz.coganchor.fallbacks import Falls
-
-        was = self._held_steps.get(place)
-        if was is None:
-            self._noted = ""
-            return
-        fresh = Falls(place)
-        if not self._chain:
-            self._chain = [one for one in was.to if one != place]
-        for held, theirs, unset in (
-            (_HOW_MANY, _tried(was.tries), _tried(fresh.tries)),
-            (_POLICY, was.policy, fresh.policy),
-            (_HOW_LONG, _lasting(was.timeout), _lasting(fresh.timeout)),
-        ):
-            if self._typed_in[held] == unset:
-                self._typed_in[held] = theirs
-        self._noted = (
-            f"{escape(place)} already has a fallback rule; done will update it"
-        )
+        return "applies this nous when /settings is saved"
 
     def opens(self, held: str) -> None:
-        """Opens the list of places for the place that fails or for one on its chain.
-
-        Args:
-          held: Which of them.
-        """
+        """Opens the list of concrete nous, or the graph form on its graph or its then."""
         self._chooses(held)
 
     @work
     async def _chooses(self, held: str) -> None:
-        """Asks which place, and moves on to what is still to be answered.
+        """Asks which nous, or what graph, and holds the answer.
 
         Args:
-          held: The place that fails, or a row of its chain.
+          held: The row opened.
         """
         if self.opening():
             return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
+        showing = self._interface()
+        try:
+            if held == _CHOOSE:
+                chosen: object = await showing.push_screen_wait(
+                    Places(self._offered, "Choose a concrete nous", self._said_name())
+                )
+            else:
+                chosen = await showing.push_screen_wait(
+                    GraphForm(
+                        self._offered,
+                        self._graph if held == _OF_GRAPH else self._then,
+                        owner=self._said_name() or "this nous",
+                        named=[
+                            one.name
+                            for one in self._others
+                            if one.virtual and one.name != self._said_name()
+                        ],
+                        then=held == _THEN,
+                    )
+                )
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        if held == _CHOOSE:
+            self._typed_in[_NAME] = str(chosen)
+        else:
+            graph = None if isinstance(chosen, str) else chosen
+            if held == _OF_GRAPH:
+                self._graph = graph
+            else:
+                self._then = graph
+        self._wrong = ""
+        self.changed()
+        self.kept(held)
+        self._fill()
+
+    def _ask(self) -> None:
+        """Says which nous this is, and what a nous is."""
+        self.query_one("#asked", Label).update(
+            "Add nous" if self._unwritten else escape(self._from)
         )
-        fails = self._typed_in[_FAILS]
-        at = self._slot(held)
-        now = (
-            self._typed_in[held]
-            if at is None
-            else self._chain[at]
-            if at < len(self._chain)
-            else ""
+        self.query_one("#about", Label).update(
+            "What an agent thinks with: a concrete nous, or a virtual one that stands "
+            "for a graph. A failed turn is retried as it says, then goes to its then."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the nous, once it is one the settings would take."""
+        from hmz.coganchor.nous import Nous
+
+        name = self._said_name()
+        made = Nous(
+            name,
+            self._tries(),
+            self._typed_in[_POLICY],
+            next(
+                (one for one in _FOR if _lasting(one) == self._typed_in[_HOW_LONG]),
+                self._timeout,
+            ),
+            None if self._concrete() else self._graph,
+            self._then,
+        )
+        canonical = _hmz().nous.reads(name)
+        others = self._others
+        if self._renames and name != self._from:
+            others = [_renamed(one, self._from, name) for one in others]
+        if not name:
+            self._wrong = "name is required"
+        elif self._renames and self._concrete():
+            self._wrong = f"{name!r} cannot name a virtual nous"
+        elif canonical in {one.name for one in others}:
+            self._wrong = f"{canonical} is already a nous"
+        else:
+            self._wrong = _refusal(made, others)
+        if self._wrong:
+            self._fill()
+            return
+        self.dismiss(replace(made, name=canonical))
+
+
+class GraphForm(Form["Graph | str"]):
+    """One graph, on one form: its start node, a row per node, and a row to add one.
+
+    A node opens the node form, which changes it or takes it away; taking one away takes the
+    edges to it with it. A graph with no nodes is no graph -- a then that goes nowhere.
+    """
+
+    def __init__(
+        self,
+        offered: Mapping[str, tuple[Model, ...]],
+        graph: Graph | None,
+        *,
+        owner: str,
+        named: Sequence[str] = (),
+        then: bool = False,
+    ) -> None:
+        """Initializes the form on a graph, or on none.
+
+        Args:
+          offered: The backends offered here, which a node's nous is chosen out of.
+          graph: The graph, or None for none yet.
+          owner: The nous it is of, which what is wrong with it names.
+          named: The virtual nous a node may use.
+          then: Whether it is a then, which may be taken away.
+        """
+        super().__init__()
+        self._offered = dict(offered)
+        self._owner = owner
+        self._named = tuple(named)
+        self._is_then = then
+        self._graph_nodes: list[Node] = list(graph.nodes) if graph is not None else []
+        self._typed_in = {_START: graph.start if graph is not None else ""}
+
+    def _ids(self) -> list[str]:
+        return [one.id for one in self._graph_nodes]
+
+    def asked(self) -> list[Question]:
+        """The start, a row per node, and one to add another."""
+        return [
+            *(
+                (
+                    Question(
+                        _START, "start", "the node a turn is taken at first", _STEPS
+                    ),
+                )
+                if self._graph_nodes
+                else ()
+            ),
+            *(
+                Question(f"{_NODE}{one.id}", one.id, _edges_said(one), _OPENS_ONTO)
+                for one in self._graph_nodes
+            ),
+            Question(
+                _ADD_NODE,
+                "add node",
+                "a use node naming one nous, or a balance node picking among several",
+                _OPENS_ONTO,
+                needed=not self._graph_nodes,
+            ),
+        ]
+
+    def shown(self, one: Question) -> str:
+        """What a node is, as the page says it."""
+        if one.held.startswith(_NODE):
+            node = next(
+                (n for n in self._graph_nodes if n.id == one.held.removeprefix(_NODE)),
+                None,
+            )
+            return _node_said(node) if node is not None else ""
+        if one.held == _ADD_NODE:
+            return ""
+        return super().shown(one)
+
+    def choices(self, held: str) -> Sequence[str]:
+        """The nodes, for the start."""
+        return self._ids() if held == _START else ()
+
+    def beside(self) -> list[Action]:
+        """Taking a then away, where there is one."""
+        if not (self._is_then and self._graph_nodes):
+            return []
+        return [
+            Action(
+                _ACT_REMOVE,
+                "remove",
+                "the turn goes nowhere once the tries are spent",
+                partial(self.dismiss, _TAKES_AWAY),
+                variant="error",
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "keeps this graph on the nous form"
+
+    def opens(self, held: str) -> None:
+        """Opens the node form on a node, or on a node to add."""
+        self._edits(held)
+
+    @work
+    async def _edits(self, held: str) -> None:
+        """Asks what one node is, and holds it, its edges following a new id.
+
+        Args:
+          held: The row opened.
+        """
+        if self.opening():
+            return
+        was = next(
+            (one for one in self._graph_nodes if f"{_NODE}{one.id}" == held), None
         )
         try:
-            chosen = await showing.push_screen_wait(
+            chosen = await self._interface().push_screen_wait(
+                NodeForm(
+                    self._offered,
+                    was,
+                    taken=[one for one in self._ids() if was is None or one != was.id],
+                    named=self._named,
+                )
+            )
+        finally:
+            self.opened()
+        if chosen is None or chosen == was:
+            return
+        start = self._typed_in[_START]
+        if isinstance(chosen, str):
+            if was is None:
+                return
+            gone = was.id
+            self._graph_nodes = [
+                replace(one, on=tuple((f, to) for f, to in one.on if to != gone))
+                for one in self._graph_nodes
+                if one.id != gone
+            ]
+            if start == gone:
+                start = self._graph_nodes[0].id if self._graph_nodes else ""
+            held = _ADD_NODE
+        elif was is None:
+            self._graph_nodes.append(chosen)
+            start = start or chosen.id
+            held = f"{_NODE}{chosen.id}"
+        else:
+            self._graph_nodes = [
+                chosen
+                if one.id == was.id
+                else replace(
+                    one,
+                    on=tuple(
+                        (f, chosen.id if to == was.id else to) for f, to in one.on
+                    ),
+                )
+                for one in self._graph_nodes
+            ]
+            start = chosen.id if start == was.id else start
+            held = f"{_NODE}{chosen.id}"
+        self._typed_in[_START], self._wrong = start, ""
+        self.changed()
+        self.kept(held)
+        self._fill()
+
+    def _ask(self) -> None:
+        """Says whose graph this is, and what one is."""
+        self.query_one("#asked", Label).update(
+            f"{escape(self._owner)}: {'then' if self._is_then else 'graph'}"
+        )
+        self.query_one("#about", Label).update(
+            "A turn starts at the start node. A node that fails follows the edge named "
+            "after its fault, or else its * edge; with neither, the graph fails."
+        )
+        self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the graph, once the settings would take it; with none for no nodes."""
+        from hmz.coganchor.nous import Graph
+
+        if not self._graph_nodes:
+            self.dismiss(_TAKES_AWAY)
+            return
+        made, self._wrong = _graph_refusal(
+            self._owner, Graph(self._typed_in[_START], tuple(self._graph_nodes))
+        )
+        if made is None:
+            self._fill()
+            return
+        self.dismiss(made)
+
+
+def _edges_said(node: Node) -> str:
+    """Where a node's failures go, as its row on the graph form says it."""
+    if not node.on:
+        return "no edges: a failure here fails the graph"
+    return ", ".join(f"{fault} → {to}" for fault, to in node.on)
+
+
+class NodeForm(Form["Node | str"]):
+    """One node of a graph: its id, its kind and what it takes the turn at, and its edges.
+
+    A use node names one nous, typed or chosen; a balance node a strategy, the nous it picks
+    among each with a weight, written `NOUS WEIGHT` apart by commas, and its spread. An edge
+    apiece for each fault class and for `*`, each to another node or to none.
+    """
+
+    def __init__(
+        self,
+        offered: Mapping[str, tuple[Model, ...]],
+        node: Node | None,
+        *,
+        taken: Sequence[str],
+        named: Sequence[str] = (),
+    ) -> None:
+        """Initializes the form on a node, or on a new one.
+
+        Args:
+          offered: The backends offered here, which its nous is chosen out of.
+          node: The node, or None for one being added.
+          taken: The ids of the graph's other nodes, which its edges may go to.
+          named: The virtual nous it may use.
+        """
+        from hmz.coganchor.nous import Node
+
+        super().__init__()
+        self._offered = dict(offered)
+        self._unwritten = node is None
+        self._taken = list(taken)
+        self._named = tuple(named)
+        free = next(
+            f"n{at}" for at in range(1, len(taken) + 2) if f"n{at}" not in taken
+        )
+        start = node or Node(free)
+        edges = dict(start.on)
+        book = _hmz().nous
+        self._faults = book.faults()
+        self._typed_in = {
+            _ID: start.id,
+            _KIND: _BALANCE if start.balance else _USE,
+            _USE: start.use,
+            _BALANCE: start.balance or book.strategies()[0].name,
+            _AMONG: ", ".join(f"{name} {weight}" for name, weight in start.among),
+            _SPREAD: str(start.spread) if start.spread else _EVERY,
+            **{f"{_ON}{fault}": edges.get(fault, _NO_EDGE) for fault in self._faults},
+        }
+
+    def _balances(self) -> bool:
+        return self._typed_in[_KIND] == _BALANCE
+
+    def asked(self) -> list[Question]:
+        """Its id and kind, what it takes the turn at, and an edge per fault class."""
+        balances = self._balances()
+        strategy = next(
+            (
+                one.about
+                for one in _hmz().nous.strategies()
+                if one.name == self._typed_in[_BALANCE]
+            ),
+            "how it picks",
+        )
+        what = (
+            [
+                Question(_BALANCE, "strategy", strategy, _STEPS),
+                Question(
+                    _AMONG,
+                    "among",
+                    "nous with weights: claude/opus 2, codex/gpt-5 1",
+                    needed=not self._typed_in[_AMONG].strip(),
+                ),
+                Question(
+                    _CHOOSE,
+                    "choose",
+                    "adds a nous to pick among, at weight 1",
+                    _OPENS_ONTO,
+                ),
+                Question(
+                    _SPREAD, "spread", "how many of them to try before it fails", _STEPS
+                ),
+            ]
+            if balances
+            else [
+                Question(
+                    _USE,
+                    "nous",
+                    "the nous it takes the turn at, concrete or virtual",
+                    needed=not self._typed_in[_USE].strip(),
+                ),
+                Question(_CHOOSE, "choose", "picks the nous it uses", _OPENS_ONTO),
+            ]
+        )
+        edges = (
+            [
+                Question(
+                    f"{_ON}{fault}",
+                    f"on {fault}",
+                    "where a failure no other edge names goes"
+                    if fault == _ANY
+                    else f"where a {fault} failure goes",
+                    _STEPS,
+                )
+                for fault in self._faults
+            ]
+            if self._taken
+            else []
+        )
+        return [
+            Question(
+                _ID, "id", "what the edges call it", needed=not self._typed_in[_ID]
+            ),
+            Question(
+                _KIND,
+                "kind",
+                "use: one nous; balance: one of several, picked by a strategy",
+                _STEPS,
+            ),
+            *what,
+            *edges,
+        ]
+
+    def shown(self, one: Question) -> str:
+        """What a row holds; choosing holds nothing."""
+        return "" if one.held == _CHOOSE else super().shown(one)
+
+    def choices(self, held: str) -> Sequence[str]:
+        """The kinds, the strategies, the spreads, and the nodes an edge may go to."""
+        if held == _KIND:
+            return (_USE, _BALANCE)
+        if held == _BALANCE:
+            return [one.name for one in _hmz().nous.strategies()]
+        if held == _SPREAD:
+            most = max(len(self._among()), 1)
+            return [_EVERY, *(str(at) for at in range(1, most + 1))]
+        if held.startswith(_ON):
+            return [_NO_EDGE, *self._taken]
+        return ()
+
+    def means(self, held: str, value: str) -> str:
+        """What a strategy does, said beside it."""
+        if held == _BALANCE:
+            return next(
+                (one.about for one in _hmz().nous.strategies() if one.name == value), ""
+            )
+        if held.startswith(_ON) and value == _NO_EDGE:
+            return "the graph fails"
+        return ""
+
+    def note(self) -> str:
+        """That edges need another node to go to."""
+        return "" if self._taken else "add another node to give this one edges"
+
+    def _among(self) -> list[tuple[str, int]]:
+        """The nous it picks among, each with its weight, as written."""
+        found: list[tuple[str, int]] = []
+        for piece in self._typed_in[_AMONG].split(","):
+            said = piece.strip()
+            if not said:
+                continue
+            name, _, weight = said.rpartition(" ")
+            if name.strip() and weight.isdigit():
+                found.append((name.strip(), int(weight)))
+            else:
+                found.append((said, 1))
+        return found
+
+    def opens(self, held: str) -> None:
+        """Opens the list of nous to choose one from."""
+        self._chooses(held)
+
+    @work
+    async def _chooses(self, held: str) -> None:
+        """Asks which nous, and uses it, or adds it to those picked among.
+
+        Args:
+          held: The row opened.
+        """
+        if self.opening():
+            return
+        try:
+            chosen = await self._interface().push_screen_wait(
                 Places(
                     self._offered,
-                    "Select the agent that fails"
-                    if at is None
-                    else f"Select the fallback agent for {fails or 'it'}",
-                    now,
-                    leaving=fails if at is not None else "",
-                    nowhere=at is not None,
+                    "Choose a nous",
+                    "" if self._balances() else self._typed_in[_USE],
+                    named=self._named,
                 )
             )
         finally:
             self.opened()
         if chosen is None:
             return
-        if at is not None:
-            if self._chains(at, chosen):
-                self._wrong = ""
-                self.changed()
-            # Put up first, so that the cursor moved on to is counted among rows that are
-            # there: a chain one longer is a form one row longer.
-            self._fill()
-            self.kept(f"{_GOES}{min(at, len(self._chain))}")
-            self._fill()
-            return
-        if chosen != now:
-            self._typed_in[held], self._wrong = chosen, ""
-            # The place that fails cannot be on its own chain: chosen as the one that fails,
-            # it comes off the chain rather than leaving a chain that points at itself.
-            self._chain = [one for one in self._chain if one != chosen]
-            self._takes_up(chosen)
-            self.changed()
+        if self._balances():
+            among = self._typed_in[_AMONG].strip()
+            self._typed_in[_AMONG] = f"{among}, {chosen} 1" if among else f"{chosen} 1"
+        else:
+            self._typed_in[_USE] = chosen
+        self._wrong = ""
+        self.changed()
         self.kept(held)
         self._fill()
 
-    def _chains(self, at: int, chosen: str) -> bool:
-        """Puts one place at one position of the chain, which is three things by what it was.
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "keeps this node on the graph form"
 
-        `nowhere` takes the place at that position off; a place already elsewhere on the
-        chain changes places with the one there, which is how the chain is put in another
-        order; and any other place takes that position, or is added at the end of the chain
-        from the row after it.
-
-        Args:
-          at: The position, counting from zero; the length of the chain is the row after it.
-          chosen: The place, or "" for nowhere.
-
-        Returns:
-          Whether the chain changed.
-        """
-        was = list(self._chain)
-        if not chosen:
-            del self._chain[at : at + 1]
-        elif chosen in self._chain:
-            there = self._chain.index(chosen)
-            if at < len(self._chain):
-                self._chain[at], self._chain[there] = chosen, self._chain[at]
-        elif at < len(self._chain):
-            self._chain[at] = chosen
-        else:
-            self._chain.append(chosen)
-        return self._chain != was
+    def beside(self) -> list[Action]:
+        """Taking it away, for a node already on the graph."""
+        if self._unwritten:
+            return []
+        return [
+            Action(
+                _ACT_REMOVE,
+                "remove",
+                "removes this node and the edges to it",
+                partial(self.dismiss, _TAKES_AWAY),
+                variant="error",
+            )
+        ]
 
     def _ask(self) -> None:
-        """Says which place this is about, and what a step is."""
+        """Says which node this is."""
         self.query_one("#asked", Label).update(
-            "Add fallback rule" if self._unwritten else escape(self._typed_in[_FAILS])
+            "Add node" if self._unwritten else escape(self._typed_in[_ID])
         )
         self.query_one("#about", Label).update(
-            "What happens when an agent cannot take a turn: retry as "
-            "configured, then fall back to another agent in a new conversation."
+            "A use node takes the turn at one nous; a balance node picks one of "
+            "several and moves to another when it fails, until spread have failed."
         )
         self._fill()
 
     def action_done(self) -> None:
-        """Answers with the step, once it says something and does not point at itself."""
-        from hmz.coganchor.fallbacks import Falls
+        """Answers with the node, once it holds together."""
+        from hmz.coganchor.nous import Graph, Node
 
-        fails, goes = self._typed_in[_FAILS], tuple(self._chain)
-        tries = next(
-            (one for one in _TRIES if _tried(one) == self._typed_in[_HOW_MANY]), 0
+        id_ = self._typed_in[_ID].strip()
+        on = tuple(
+            (fault, to)
+            for fault in self._faults
+            if (to := self._typed_in[f"{_ON}{fault}"]) != _NO_EDGE
         )
-        if not fails:
-            self._wrong = "select the agent that fails"
-        elif fails in goes:
-            self._wrong = "an agent cannot fall back to itself"
-        elif len(set(goes)) != len(goes):
-            self._wrong = "an agent can be on the chain only once"
-        elif not goes and not tries:
-            self._wrong = "choose a fallback agent or set retries"
-        if self._wrong:
+        spread = self._typed_in[_SPREAD]
+        node = (
+            Node(
+                id_,
+                balance=self._typed_in[_BALANCE],
+                among=tuple(self._among()),
+                spread=int(spread) if spread.isdigit() else 0,
+                on=on,
+            )
+            if self._balances()
+            else Node(id_, use=self._typed_in[_USE].strip(), on=on)
+        )
+        if id_ in self._taken:
+            self._wrong = f"another node is called {id_}"
             self._fill()
             return
-        self.dismiss(
-            Falls(
-                fails,
-                goes,
-                tries,
-                self._typed_in[_POLICY],
-                next(
-                    (one for one in _FOR if _lasting(one) == self._typed_in[_HOW_LONG]),
-                    0.0,
-                ),
-            )
+        # Checked alone, its edges left off: they go to nodes only the graph has.
+        made, self._wrong = _graph_refusal(
+            "this node", Graph(id_, (replace(node, on=()),))
         )
+        if made is None:
+            self._fill()
+            return
+        self.dismiss(replace(made.nodes[0], on=on))
 
 
-class Fallbacks(Pages):
-    """The fallback page of `/settings`: where a turn goes when its place cannot take it.
+class NousPage(Pages):
+    """The nous page of `/settings`: what agents think with, and where a turn goes from each.
 
-    A place is three things and no more: the CLI, the account it runs as, and the model it
-    runs. That is what a turn can fail for having named -- a model retired, a CLI that will
-    not start, a region gone dark, a rate limit on the whole account rather than one request
-    -- and it is what a step is written between. How hard the agent thinks and what it may
-    reach for are what that agent *is*, settled where it was made, and they come across the
-    step unchanged.
-
-    A row says where a turn goes as a chain, in the order its places are tried, and how many
-    times over a failed turn is taken again before the chain is walked. Both are answers to
-    the one thing that went wrong, so both are here. A chain is started only from the place it
-    is written against: a place that is only some chain's fallback has none of its own, and one
-    reached as a fallback carries on along the chain it was reached by.
+    A row per nous written down, concrete or virtual, saying how a failed turn is tried again
+    there and the graphs it goes along. Held until the menu is saved, renames and removals
+    included, and written as the settings write a nous: one at a time, each checked.
     """
 
     #: What the page says it is.
-    STEPS_ABOUT = (
-        "Where a turn falls back when an agent fails, tried in order. An agent "
-        "is a CLI, an account and a model. A chain starts only from the agent "
-        "it is written for. Saved rules apply from the next failed turn."
+    NOUS_ABOUT = (
+        "What agents think with. A concrete nous is HARNESS[@ACCOUNT]/MODEL[:EFFORT]; "
+        "a virtual nous is a name for a graph of others. A failed turn is retried as "
+        "the nous says, then goes to its then."
     )
 
     def __init__(self) -> None:
-        """Holds no steps until the menu reads them."""
+        """Holds no nous until the menu reads them."""
         super().__init__()
-        #: The backends offered here, and what each of them says it runs, which is what
-        #: choosing a place is offered out of.
+        #: The backends offered here, and what each of them says it runs, which is what a
+        #: concrete nous is chosen out of.
         self._offered: dict[str, tuple[Model, ...]] = {}
-        #: The steps, held until the menu is saved.
-        self._steps: list[Step] = []
+        #: The nous, held until the menu is saved, and as they were read.
+        self._nous: list[Nous] = []
+        self._nous_was: list[Nous] = []
+        #: The virtual nous renamed, in order, from and to.
+        self._moves: list[tuple[str, str]] = []
 
-    def _step_rows(self) -> list[tuple[str, str, str]]:
-        """Every row: its id, the place that fails, and what happens when it does.
+    def _read_nous(self) -> None:
+        """Reads every nous written down."""
+        self._nous = list(_hmz().nous.all())
+        self._nous_was = list(self._nous)
+        self._moves = []
 
-        Returns:
-          One `(id, what fails, what happens)` apiece.
-        """
-        return [(one.spec, one.spec, _falling(one)) for one in self._steps]
-
-    def _step_actions(self) -> list[Action]:
-        """What is done about the steps: adding one, searching them, and saving."""
+    def _nous_actions(self) -> list[Action]:
+        """What is done about the nous: adding one, searching them, and saving."""
         return [
             Action(
                 _ACT_ADD,
-                "add fallback rule",
-                "an agent that fails, and its fallback",
-                lambda: self._writes_step(None),
+                "add nous",
+                "a concrete nous, or a virtual one",
+                lambda: self._writes_nous(None),
             ),
             self._searches(),
             self._saves_all(),
         ]
 
-    def _fill_steps(self) -> None:
-        """Puts the steps up, each saying what fails and what happens next."""
+    def _fill_nous(self) -> None:
+        """Puts every nous up, each saying what it is and where its turns go."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
-        rows = [row for row in self._step_rows() if self.fits(row[1], row[2])]
-        landing = self._lands([row[0] for row in rows])
+        rows = [(one.name, _nous_said(one)) for one in self._nous]
+        rows = [row for row in rows if self.fits(*row)]
+        landing = self._lands([name for name, _ in rows])
         self._put(
             listing,
             [
                 Option(
-                    self._row(seen, said, goes, here=named == landing, inforce=True),
-                    id=f"={named}",
+                    self._row(seen, name, said, here=name == landing, inforce=False),
+                    id=f"={name}",
                 )
-                for seen, (named, said, goes) in enumerate(rows)
+                for seen, (name, said) in enumerate(rows)
             ],
             landing,
         )
         self._drawn = listing.highlighted
-        said = self._said or ("" if rows else "no fallback rules configured yet")
+        said = self._said or ("" if rows else "no nous written down yet")
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
         self._footed(Key("enter", "edit"), Key("esc", "close"))
 
-    def _drops_step(self, said: str) -> None:
-        """Holds one place having nothing written about it, until the menu is saved.
-
-        Held rather than done, as everything on this menu is: the row goes from the list at
-        once so that what is read is what is held, and the cursor lands on the first of what
-        is left rather than on a place that is no longer one of the rows.
-
-        Args:
-          said: The place, as it is written down.
-        """
-        self._steps = [one for one in self._steps if one.spec != said]
-        self._said = iffy(f"{escape(said)} has no fallback when this menu is saved")
-        self.changed()
-        self._fill()
-
-    def _took_step(self, named: str) -> None:
-        """Opens the form a step is written on, for the step chosen.
+    def _took_nous(self, named: str) -> None:
+        """Opens the form of the nous chosen.
 
         Args:
           named: The row chosen, by its id.
         """
-        if named:
-            self._writes_step(self._step_of(named))
+        one = next((one for one in self._nous if one.name == named), None)
+        if one is not None:
+            self._writes_nous(one)
 
     @work
-    async def _writes_step(self, step: Step | None) -> None:
-        """Asks what one step is to say, on one form, and holds what it says.
+    async def _writes_nous(self, one: Nous | None) -> None:
+        """Asks what one nous is, on one form, and holds what it says.
 
         Args:
-          step: The step as it is held now, or None for one being added.
+          one: The nous as it is held now, or None for one being added.
         """
         if self.opening():
             return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
         try:
-            chosen = await showing.push_screen_wait(
-                Failing(self._offered, step, steps=self._steps)
+            chosen = await self._interface().push_screen_wait(
+                NousForm(self._offered, one, held=self._nous)
             )
         finally:
             self.opened()
-        if chosen is None:
-            return  # walked out, which changes nothing
-        if chosen == _TAKES_AWAY:
-            if step is not None:
-                self._drops_step(step.spec)
+        if chosen is None or chosen == one:
             return
         if isinstance(chosen, str):
+            if chosen == _TAKES_AWAY and one is not None:
+                self._drops_nous(one.name)
             return
-        if chosen != step:
-            self._holds_step(chosen)
-
-    def _step_of(self, said: str) -> Step:
-        """The step written against one place, or an empty one for a place with none."""
-        from hmz.coganchor.fallbacks import Falls
-
-        return next((one for one in self._steps if one.spec == said), Falls(said))
-
-    def _holds_step(self, step: Step) -> None:
-        """Puts one step in place of whatever was held against that place.
-
-        Args:
-          step: The step as it now stands.
-        """
-        self._steps = [one for one in self._steps if one.spec != step.spec] + [step]
-        self._aim, self._said = step.spec, ""
+        names = [held.name for held in self._nous]
+        at = names.index(one.name) if one is not None else len(names)
+        if one is not None and chosen.name != one.name:
+            self._moves.append((one.name, chosen.name))
+            self._nous = [_renamed(held, one.name, chosen.name) for held in self._nous]
+        self._nous[at : at + 1] = [chosen]
+        self._aim, self._said = chosen.name, ""
         self.changed()
         self._fill()
 
-    def _applies_steps(self, told: list[str]) -> None:
-        """Writes down every step that was changed, and says what it did.
+    def _drops_nous(self, name: str) -> None:
+        """Holds one nous taken away, unless it is a virtual one another names.
+
+        Args:
+          name: The nous.
+        """
+        naming = next(
+            (
+                one.name
+                for one in self._nous
+                if "/" not in name and one.name != name and name in _names(one)
+            ),
+            None,
+        )
+        if naming is not None:
+            self._said = bad(escape(f"{naming} still names {name}"))
+        else:
+            self._nous = [one for one in self._nous if one.name != name]
+            self._said = iffy(f"{escape(name)} is removed when saved")
+            self.changed()
+        self._fill()
+
+    def _applies_nous(self, told: list[str]) -> None:
+        """Writes down every nous that was changed, renamed or taken away, and says so.
+
+        One at a time, as the settings take them, and each checked as it is written: a nous
+        naming a virtual one not written yet is written once that one is.
 
         Args:
           told: What the transcript is to say, which this adds to.
         """
-        steps = _hmz().fallbacks
-        # Against what is written down rather than over it: a menu somebody opened to change
-        # one thing must not report the four it left alone as things it did.
-        was = {one.spec: one for one in steps.all()}
-        held = {one.spec: one for one in self._steps}
-        for gone in was:
-            if gone not in held:
-                try:
-                    steps.clear(gone)
-                except OSError as why:  # settings that cannot be read, or written
-                    told.append(f"hmz: {escape(str(why))}")
-                else:
-                    told.append(f"[dim]{escape(gone)} has no fallback[/dim]")
-        for said, step in held.items():
-            if was.get(said) == step:
-                continue
+        if self._nous == self._nous_was:
+            return
+        book = _hmz().nous
+        for was, name in self._moves:
+            if all(one.name != was for one in book.all()):
+                continue  # never written, so written below under its new name
             try:
-                steps.points(said, step.to)
-                steps.retrying(said, step.tries, step.policy, step.timeout)
+                book.renamed(was, name)
             except (OSError, ValueError) as why:
                 told.append(f"hmz: {escape(str(why))}")
             else:
-                told.append(f"[dim]{escape(said)} {escape(_falling(step))}[/dim]")
-
-
-def _falling(step: Step) -> str:
-    """What happens when one place cannot take a turn, as the one line a row has room for.
-
-    Args:
-      step: The step.
-
-    Returns:
-      How often the turn is taken again there, and where it goes once those are spent.
-    """
-    goes = f"falls back to {', then '.join(step.to)}" if step.to else "no fallback"
-    if not step.tries:
-        return goes
-    over = f", up to {_lasting(step.timeout)}" if step.timeout else ""
-    tries = "retry" if step.tries == 1 else "retries"
-    return f"{step.tries} {tries}, {step.policy}{over}{_DOT}{goes}"
+                told.append(f"[dim]{escape(was)} is now {escape(name)}[/dim]")
+        before = {one.name: one for one in self._nous_was}
+        held = {one.name: one for one in self._nous}
+        left: list[tuple[str, Nous | None]] = [
+            (name, one) for name, one in held.items() if before.get(name) != one
+        ]
+        left += [(one.name, None) for one in book.all() if one.name not in held]
+        while left:
+            failed: list[tuple[str, Nous | None, Exception]] = []
+            for name, one in left:
+                try:
+                    if one is None:
+                        book.clear(name)
+                    else:
+                        book.put(one)
+                except (OSError, ValueError) as why:
+                    failed.append((name, one, why))
+                else:
+                    told.append(
+                        f"[dim]{escape(name)} removed[/dim]"
+                        if one is None
+                        else f"[dim]{escape(name)}: {escape(_nous_said(one))}[/dim]"
+                    )
+            if len(failed) == len(left):
+                told.extend(f"hmz: {escape(str(why))}" for _, _, why in failed)
+                break
+            left = [(name, one) for name, one, _ in failed]
 
 
 #: When an epic is backed up without anybody asking, by the word settings keeps each under:
@@ -6970,7 +7547,9 @@ class Providers(Pages):
             cli, _, name = taken.partition("/")
             try:
                 gone = accounts.remove(cli, name)
-            except ValueError as why:  # a name nothing could ever have been kept under
+            except (OSError, ValueError) as why:
+                # A name nothing could ever have been kept under, or credentials that would
+                # not go: said, like an edit that could not be written.
                 told.append(f"hmz: {escape(str(why))}")
                 continue
             told.append(
@@ -9988,43 +10567,56 @@ class Machines(Pages):
         self._fill()
 
 
-#: The kinds of daemon a form adds, and the modes of each, as the web's New daemon names them:
-#: over ssh, fields hmz keeps or a `Host` of the ssh config; peer to peer, over EasyTier. A
-#: kind starts on its first mode.
-_SSH_KIND, _P2P_KIND = "SSH", "P2P"
-_SSH_CONFIG, _STORED, _EASYTIER = "SSH Config", "hmz-stored", "EasyTier"
-_MODES = {_SSH_KIND: (_STORED, _SSH_CONFIG), _P2P_KIND: (_EASYTIER,)}
+#: The modes a daemon is added or edited in: its pairing code, claimed at once; a `Host` of the
+#: ssh config; what `ssh` is told, typed in; or its routes, typed in order.
+_PAIRED, _SSH_CONFIG, _STORED, _ROUTED = (
+    "Pairing code",
+    "SSH Config",
+    "Custom",
+    "Routes",
+)
+_MODES = (_PAIRED, _SSH_CONFIG, _STORED, _ROUTED)
 
-#: The rows of the daemon form besides those an ssh host is written on: its kind, its mode,
-#: a host of the ssh config its fields are filled from, its secret, and the nodes it meets at.
-_KIND, _MODE, _BRINGS, _SECRET, _PEERS = "kind", "mode", "import", "secret", "peers"
+#: The rows of the daemon form besides those an ssh host is written on: its mode, a host of the
+#: ssh config its fields are filled from, its pairing code, and its routes.
+_MODE, _BRINGS, _CODE, _ROUTES = "mode", "import", "code", "routes"
 
-#: What a daemon's secret is at least, in bytes of UTF-8, and what a shorter one is told.
-_FEWEST_BYTES = 16
-_TOO_SHORT = "A secret must be at least 16 bytes."
+#: The `ssh` options a `stdio:ssh` route carries that a row of their own holds.
+_KEYED = {"IdentityFile": _KEY, "ProxyJump": _JUMP}
 
 
-def _mode(one: Mapping[str, Any]) -> str:
-    """Which mode a daemon is in, as it is written: derived from its fields, never stored."""
-    if one.get("via") == "easytier":
-        return _EASYTIER
-    fields = (_HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS)
-    return (
-        _SSH_CONFIG
-        if one.get(_ALIAS) and not any(one.get(each) for each in fields)
-        else _STORED
-    )
+def _aliases() -> list[str]:
+    """Every host of the ssh config, or none where it cannot be read."""
+    from hmz.coganchor.machines import sshconfig
+
+    try:
+        return sshconfig.aliases()
+    except OSError:
+        return []
+
+
+def _ssh(one: Mapping[str, Any] | None) -> Route | None:
+    """The `stdio:ssh` route a daemon is reached by alone, or None where it is not one."""
+    from hmz.reach.routes import Route
+
+    routes: list[str] = list((one or {}).get("routes") or [])
+    if len(routes) != 1:
+        return None
+    try:
+        route = Route.parse(routes[0])
+    except ValueError:
+        return None
+    return route if route.kind == "ssh" else None
 
 
 class Daemoning(Form["dict[str, Any] | str"]):
     """One daemon of another machine, on one form: what it is called, and what reaches it.
 
-    Of a kind and a mode, as the web's New daemon: over ssh, a `Host` of the ssh config alone
-    or what `ssh` is told on top of it, each blank for what that config says -- typed in, or
-    filled from a host of it; or over EasyTier, its secret and the nodes it meets its server
-    at. Opened on a daemon, it is in the mode that daemon is in; its secret is never shown,
-    and kept where it is left blank. Written as it is answered, as the daemons page writes
-    everything.
+    Added from a pairing code, which is claimed at once and gives its id and routes; or from
+    routes alone -- a `Host` of the ssh config, what `ssh` is told typed in or filled from a
+    host of it, or routes typed in order. Opened on a daemon, it is in the mode its routes are
+    in, and keeps the id it is pinned to. Written as it is answered, as the daemons page
+    writes everything.
     """
 
     def __init__(
@@ -10039,40 +10631,40 @@ class Daemoning(Form["dict[str, Any] | str"]):
         super().__init__()
         self._one = one
         self._taken = taken
-        held = one or {}
-        mode = _mode(held) if one is not None else _STORED
         #: The hosts of the ssh config, read once they are first asked for.
         self._hosts: list[str] | None = None
         #: The host of the ssh config being read to fill the fields from, while it is.
         self._bringing = ""
+        route = _ssh(one)
+        options: dict[str, str] = dict(route.options) if route is not None else {}
+        if one is None:
+            mode = _PAIRED
+        elif route is None or len(options) < len(route.options):
+            # One ssh is told an option twice is kept whole, as the route it is.
+            mode = _ROUTED
+        elif not (route.user or route.port or options) and route.host in _aliases():
+            mode = _SSH_CONFIG
+        else:
+            mode = _STORED
         self._typed_in = {
-            _CALLED: str(held.get("name", "")),
-            _KIND: _P2P_KIND if mode == _EASYTIER else _SSH_KIND,
+            _CALLED: str((one or {}).get("name", "")),
             _MODE: mode,
-            # A `Host` told on top of, as an older form wrote it, is the host ssh is given:
-            # its block of the ssh config applies to it as to the alias.
-            _HOST: str(held.get("host") or held.get("alias", ""))
-            if mode == _STORED
-            else "",
-            _USER: str(held.get("user", "")),
-            _PORT: str(held.get("port") or ""),
-            _KEY: str(held.get("identity_file", "")),
-            _JUMP: str(held.get("proxy_jump", "")),
-            _OPTIONS: ", ".join(
-                f"{key}={value}" for key, value in held.get("options", [])
-            ),
-            _ALIAS: str(held.get("alias", "")) if mode == _SSH_CONFIG else "",
+            _CODE: "",
+            _ALIAS: route.host if route is not None and mode == _SSH_CONFIG else "",
             _BRINGS: "",
-            _SECRET: "",
-            _PEERS: ", ".join(held.get("peers", [])),
+            _HOST: route.host if route is not None and mode == _STORED else "",
+            _USER: route.user if route is not None else "",
+            _PORT: str(route.port or "") if route is not None else "",
+            _KEY: options.get("IdentityFile", ""),
+            _JUMP: options.get("ProxyJump", ""),
+            _OPTIONS: ", ".join(
+                f"{key}={value}" for key, value in options.items() if key not in _KEYED
+            ),
+            _ROUTES: ", ".join((one or {}).get("routes") or []),
         }
 
-    def _keeps(self) -> bool:
-        """Whether a secret is written already, which one left blank keeps."""
-        return self._one is not None and _mode(self._one) == _EASYTIER
-
     def asked(self) -> list[Question]:
-        """Its name, where it is new, its kind and mode, then what that mode asks."""
+        """Its name, where it is new, its mode, then what that mode asks."""
         typed = self._typed_in
         mode = typed[_MODE]
         rows = [
@@ -10088,9 +10680,18 @@ class Daemoning(Form["dict[str, Any] | str"]):
                     ),
                 )
             ),
-            Question(_KIND, "kind", "SSH, or P2P", _STEPS),
             Question(_MODE, "mode", self.means(_MODE, mode), _STEPS),
         ]
+        if mode == _PAIRED:
+            return [
+                *rows,
+                Question(
+                    _CODE,
+                    "code",
+                    "hmz-pair:…, as hmz daemon pair printed it there",
+                    needed=not typed[_CODE].strip(),
+                ),
+            ]
         if mode == _SSH_CONFIG:
             return [
                 *rows,
@@ -10102,24 +10703,14 @@ class Daemoning(Form["dict[str, Any] | str"]):
                     needed=not typed[_ALIAS],
                 ),
             ]
-        if mode == _EASYTIER:
-            keeps = self._keeps()
+        if mode == _ROUTED:
             return [
                 *rows,
                 Question(
-                    _SECRET,
-                    "secret",
-                    "its server's; leave blank to keep current value"
-                    if keeps
-                    else "its server's, at least 16 bytes",
-                    secret=True,
-                    needed=not typed[_SECRET] and not keeps,
-                ),
-                Question(
-                    _PEERS,
-                    "nodes",
-                    "shared EasyTier nodes: tcp://host:port, …",
-                    needed=not typed[_PEERS].strip(),
+                    _ROUTES,
+                    "routes",
+                    "in the order tried: stdio:ssh://host, tcp://host:port, …",
+                    needed=not typed[_ROUTES].strip(),
                 ),
             ]
         return [
@@ -10146,11 +10737,9 @@ class Daemoning(Form["dict[str, Any] | str"]):
         ]
 
     def choices(self, held: str) -> Sequence[str]:
-        """The kinds, the modes of the kind chosen, and the hosts of the ssh config."""
-        if held == _KIND:
-            return tuple(_MODES)
+        """The modes, and the hosts of the ssh config."""
         if held == _MODE:
-            return _MODES[self._typed_in[_KIND]]
+            return _MODES
         if held in (_ALIAS, _BRINGS):
             return self._read_hosts()
         return ()
@@ -10160,9 +10749,10 @@ class Daemoning(Form["dict[str, Any] | str"]):
         if held != _MODE:
             return ""
         return {
+            _PAIRED: "the code hmz daemon pair printed there, claimed now",
             _SSH_CONFIG: "a Host of your ssh config, reached as it says",
-            _STORED: "what ssh is told, kept by hmz: typed in, or imported",
-            _EASYTIER: "an hmz server, met through shared nodes",
+            _STORED: "what ssh is told: typed in, or imported",
+            _ROUTED: "its routes, in the order they are tried",
         }[value]
 
     def _read_hosts(self) -> list[str]:
@@ -10171,25 +10761,19 @@ class Daemoning(Form["dict[str, Any] | str"]):
         Read once, and none where the config cannot be read.
         """
         if self._hosts is None:
-            from hmz.coganchor.machines import sshconfig
-
-            mine = str((self._one or {}).get(_ALIAS, ""))
-            try:
-                every = sshconfig.aliases()
-            except OSError:
-                every = []
+            route = _ssh(self._one)
+            mine = route.host if route is not None else ""
+            every = _aliases()
             self._hosts = [*((mine,) if mine and mine not in every else ()), *every]
         return self._hosts
 
     def stepped(self, held: str) -> None:
-        """Moves the mode to the kind's first, or fills the fields from the host imported.
+        """Fills the fields from the host imported.
 
         Args:
           held: The row that moved.
         """
-        if held == _KIND:
-            self._typed_in[_MODE] = _MODES[self._typed_in[_KIND]][0]
-        elif held == _BRINGS and self._typed_in[_BRINGS]:
+        if held == _BRINGS and self._typed_in[_BRINGS]:
             self._brings(self._typed_in[_BRINGS])
 
     @work(exclusive=True)
@@ -10245,82 +10829,77 @@ class Daemoning(Form["dict[str, Any] | str"]):
             "Add daemon" if self._one is None else escape(self._typed_in[_CALLED])
         )
         self.query_one("#about", Label).update(
-            "Another machine's hmz, reached over ssh or EasyTier: its epics are listed "
-            "with /epics @<name>, and over ssh hmz is installed there where it is missing."
+            "Another machine's hmz, added from the code hmz daemon pair prints there, or "
+            "from its routes: its epics are listed with /epics @<name>."
         )
         self._fill()
 
-    def _checks(self, typed: dict[str, str]) -> str:
-        """What is wrong with what the mode chosen asks, or "" for nothing.
+    def _routes(self, typed: dict[str, str]) -> list[str]:
+        """The routes what the mode chosen asks says, in order.
 
         Args:
-          typed: What each row holds, stripped but for the secret.
+          typed: What each row holds, stripped.
+
+        Raises:
+          ValueError: Saying what is wrong with them.
         """
+        from hmz.reach.routes import Route
+
         mode = typed[_MODE]
         if mode == _SSH_CONFIG:
-            return "" if typed[_ALIAS] else "host is required"
-        if mode == _EASYTIER:
-            if not typed[_SECRET] and not self._keeps():
-                return "secret is required"
-            if typed[_SECRET] and len(typed[_SECRET].encode()) < _FEWEST_BYTES:
-                return _TOO_SHORT
-            return "" if _listed(typed[_PEERS]) else "nodes are required"
+            if not typed[_ALIAS]:
+                raise ValueError("host is required")
+            return [str(Route("ssh", host=typed[_ALIAS]))]
+        if mode == _ROUTED:
+            said = _listed(typed[_ROUTES])
+            if not said:
+                raise ValueError("routes are required")
+            return [str(Route.parse(one)) for one in said]
         if not typed[_HOST]:
-            return "host is required"
+            raise ValueError("host is required")
         if typed[_PORT] and not typed[_PORT].isdigit():
-            return "port is a number"
-        try:
-            _options(typed[_OPTIONS])
-        except ValueError as why:
-            return str(why)
-        return ""
+            raise ValueError("port is a number")
+        options = {
+            keyword: typed[held] for keyword, held in _KEYED.items() if typed[held]
+        } | _options(typed[_OPTIONS])
+        return [
+            str(
+                Route(
+                    "ssh",
+                    host=typed[_HOST],
+                    port=int(typed[_PORT] or 0) or None,
+                    user=typed[_USER],
+                    options=tuple(options.items()),
+                )
+            )
+        ]
 
     def action_done(self) -> None:
-        """Answers with the daemon, once it is named and reached as its mode says."""
+        """Answers with the daemon's code, or its routes, once it is named and they are said."""
         typed = {key: value.strip() for key, value in self._typed_in.items()}
-        # As it was typed: a space may be part of a secret.
-        typed[_SECRET] = self._typed_in[_SECRET]
-        if not typed[_CALLED]:
+        name = typed[_CALLED]
+        self._wrong = ""
+        routes: list[str] = []
+        if not name:
             self._wrong = "name is required"
-        elif self._one is None and typed[_CALLED] in self._taken:
-            self._wrong = f"another daemon is named {typed[_CALLED]}"
+        elif self._one is None and name in self._taken:
+            self._wrong = f"another daemon is named {name}"
+        elif typed[_MODE] == _PAIRED:
+            if not typed[_CODE]:
+                self._wrong = "code is required"
         else:
-            self._wrong = self._checks(typed)
+            try:
+                routes = self._routes(typed)
+            except ValueError as why:
+                self._wrong = str(why)
         if self._wrong:
             self._fill()
             return
-        mode, name = typed[_MODE], typed[_CALLED]
-        config = str((self._one or {}).get("config", ""))
-        if mode == _EASYTIER:
-            # A secret left blank is not said, which keeps the one written.
-            secret = {_SECRET: typed[_SECRET]} if typed[_SECRET] else {}
-            self.dismiss(
-                {
-                    "name": name,
-                    "via": "easytier",
-                    **secret,
-                    "peers": _listed(typed[_PEERS]),
-                }
-            )
-        elif mode == _SSH_CONFIG:
-            self.dismiss(
-                {"name": name, "via": "ssh", "alias": typed[_ALIAS], "config": config}
-            )
-        else:
-            options = _options(typed[_OPTIONS])
-            self.dismiss(
-                {
-                    "name": name,
-                    "via": "ssh",
-                    "host": typed[_HOST],
-                    "user": typed[_USER],
-                    "port": int(typed[_PORT] or 0),
-                    "identity_file": typed[_KEY],
-                    "proxy_jump": typed[_JUMP],
-                    "options": [[key, value] for key, value in options.items()],
-                    "config": config,
-                }
-            )
+        if typed[_MODE] == _PAIRED:
+            self.dismiss({"name": name, "code": typed[_CODE]})
+            return
+        pinned = (self._one or {}).get("id", "")
+        self.dismiss({"name": name, "id": pinned, "routes": routes})
 
 
 class Bringing(Form[tuple[str, ...]]):
@@ -10441,21 +11020,128 @@ class Batching(Form[tuple[tuple[str, ...], tuple[str, ...]]]):
         self.dismiss((pages, daemons))
 
 
-#: What can be done to one daemon of another machine, which is its menu.
-_CONNECTS, _EDITS = "connect", "edit"
+#: What can be done to one daemon, which is its menu.
+_CONNECTS, _EDITS, _PAIRS, _DEVICES = "connect", "edit", "pair", "devices"
+
+
+class Devices(Picks):
+    """The devices paired with one daemon, picking one to revoke."""
+
+    asked = "Devices"
+    SEARCHES: ClassVar = False
+
+    def __init__(self, daemon: str, devices: Sequence[Mapping[str, Any]]) -> None:
+        """Lists the devices a daemon answered `devices.list` with.
+
+        Args:
+          daemon: The daemon, by name.
+          devices: Each device, as it answered.
+        """
+        super().__init__()
+        self._devices = list(devices)
+        self.about = f"Each device paired with {escape(daemon)}: enter revokes one."
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Each device: when it was added, last seen, and how many sessions it holds."""
+        return [
+            (
+                str(one["name"]),
+                str(one["name"]),
+                _DOT.join(
+                    [
+                        f"added {_when(str(one.get('added') or ''))}",
+                        f"seen {_when(str(one.get('seen') or ''))}"
+                        if one.get("seen")
+                        else "never seen",
+                        _many(int(one.get("live") or 0), "session"),
+                    ]
+                ),
+            )
+            for one in self._devices
+        ]
+
+    def nothing(self) -> str:
+        """Where there is none."""
+        return "" if self._devices else "no device is paired with it"
+
+
+class Revokes(Popup):
+    """Whether to revoke a device paired with a daemon, which closes its sessions there."""
+
+    CSS = _popup("Revokes")
+
+    def __init__(self, device: str) -> None:
+        """Initializes the question.
+
+        Args:
+          device: The device.
+        """
+        super().__init__()
+        self.asked = f"Revoke {escape(device)}?"
+        self.about = "Closes its sessions there; it pairs again only with a new code."
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Revoking it, or keeping it."""
+        return [("yes", "revoke", "revoke it now"), ("no", "keep", "keep it")]
+
+
+def _rpc(
+    daemon: str,
+    method: str,
+    params: Mapping[str, Any] | None = None,
+    *,
+    writes: bool = False,
+) -> Any:
+    """One call of a daemon, answered: this machine's over its socket, another's over its session.
+
+    Args:
+      daemon: The daemon, by name.
+      method: The method.
+      params: What it takes.
+      writes: Whether it is a write, which carries an `idem` of its own.
+
+    Raises:
+      LookupError, OSError, RuntimeError, ValueError: If it was not reached or refused it,
+        saying why.
+    """
+    import secrets
+
+    idem = secrets.token_urlsafe(12) if writes else None
+    if daemon != LOCAL_DAEMON:
+        with remotes().client(daemon) as client:
+            return client.call(method, params, idem=idem, seconds=_ASKING)
+    from hmz import daemon as here
+    from hmz.daemon import where
+    from hmz.daemon.link import dialed
+    from hmz.rpc import Closed, RpcError
+
+    here.start()
+    peer, _ = dialed(where.at(), kind="tui")
+    try:
+        return peer.call(
+            method,
+            {**(params or {}), **({"idem": idem} if idem else {})},
+            timeout=_ASKING,
+        )
+    except RpcError as why:
+        raise OSError(why.message) from why
+    except Closed as why:
+        raise OSError("the daemon went away") from why
+    finally:
+        peer.close()
 
 
 class Daemons(Pages):
-    """The daemons page of `/settings`: this machine's, and each reached over ssh or EasyTier.
+    """The daemons page of `/settings`: this machine's, and each of another machine's.
 
     Written as each is changed rather than held until the menu is saved: what is written is
-    a machine `/epics @<name>` reaches, and reaching one runs ssh. How each stands is asked
-    of the reach this interface holds, and drawn again as it changes.
+    a machine `/epics @<name>` reaches. How each stands is asked of the reach this interface
+    holds, and drawn again as it changes.
     """
 
     #: What the page says it is.
     DAEMONS_ABOUT = (
-        "This machine's daemon, and other machines' reached over ssh or EasyTier. "
+        "This machine's daemon, and other machines' reached by their routes. "
         "/epics @<name> lists the epics of one; m on one is its menu."
     )
 
@@ -10481,12 +11167,12 @@ class Daemons(Pages):
         return not getattr(self, "_home", False) and self._tab == _DAEMONS
 
     def _daemon_rows(self) -> list[str]:
-        """Each daemon's row, Local first: what reaches it, and how it stands."""
+        """Each daemon's row, Local first: its routes, and how it stands."""
         reach = remotes()
         return [
             "this machine",
             *(
-                f"{_reached_at(one)}{_DOT}{_stands(reach.state(one['name']))}"
+                f"{', '.join(one['routes'])}{_DOT}{_stands(reach.state(one['name']))}"
                 for one in self._daemons
             ),
         ]
@@ -10497,7 +11183,7 @@ class Daemons(Pages):
             Action(
                 _ACT_ADD,
                 "add daemon",
-                "another machine, reached over ssh or EasyTier",
+                "another machine, from its pairing code or its routes",
                 lambda: self._writes_daemon(None),
             ),
             Action(
@@ -10542,9 +11228,9 @@ class Daemons(Pages):
 
         def applies(name: str) -> str:
             try:
-                for path, body in sent:
-                    remotes().asked(name, path, body)
-            except (LookupError, OSError, RuntimeError) as why:
+                for method, params in sent:
+                    _rpc(name, method, params, writes=True)
+            except (LookupError, OSError, RuntimeError, ValueError) as why:
                 return f"{name}: {why}"
             return f"{name}: applied"
 
@@ -10591,10 +11277,13 @@ class Daemons(Pages):
         self._footed(Key("enter", "menu"), Key("esc", "close"))
 
     def menu(self) -> tuple[str, list[Action]] | None:
-        """What can be done to the daemon under the cursor: Local is only ever there."""
+        """What can be done to the daemon under the cursor: to Local, only its devices."""
         if not self._on_daemons():
             return None
-        one = next((one for one in self._daemons if one["name"] == self.under()), None)
+        under = self.under()
+        if under == "Local":
+            return ("Local", self._pairing(LOCAL_DAEMON))
+        one = next((one for one in self._daemons if one["name"] == under), None)
         if one is None:
             return None
         name = one["name"]
@@ -10623,19 +11312,38 @@ class Daemons(Pages):
                     name,
                     lambda: self.copies(name),
                 ),
+                *(
+                    self._pairing(name)
+                    if remotes().state(name).get("state") == "up"
+                    else []
+                ),
             ],
         )
 
+    def _pairing(self, name: str) -> list[Action]:
+        """Pairing another device with a daemon that is up, and the devices paired with it."""
+        return [
+            Action(
+                _PAIRS,
+                "pair a device…",
+                "a code another device adds it from",
+                lambda: self._pairs(name),
+            ),
+            Action(
+                _DEVICES,
+                "devices…",
+                "the devices paired with it, and revoking one",
+                lambda: self._lists_devices(name),
+            ),
+        ]
+
     def _took_daemon(self, named: str) -> None:
-        """Opens the menu of the daemon chosen, or says what Local is.
+        """Opens the menu of the daemon chosen.
 
         Args:
           named: The row chosen, by its id.
         """
-        if named == "Local":
-            self._said = "Local is this machine's daemon, always there"
-            self._fill()
-            return
+        del named
         self.action_menu()
 
     def _connects(self, name: str) -> None:
@@ -10647,6 +11355,57 @@ class Daemons(Pages):
         else:
             # How it stands is its row's to say.
             self._said = ""
+        self._fill()
+
+    @work
+    async def _pairs(self, name: str) -> None:
+        """Asks a daemon for a pairing code, and shows it, copied."""
+        import asyncio
+
+        self._said = f"asking {escape(name)} for a code…"
+        self._fill()
+        try:
+            said = await asyncio.to_thread(_rpc, name, "pair.create", {}, writes=True)
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            code = str(said["code"])
+            self.copies(code)
+            self._said = f"copied: {escape(code)}"
+        self._fill()
+
+    @work
+    async def _lists_devices(self, name: str) -> None:
+        """Lists the devices paired with a daemon, and revokes the one picked once confirmed."""
+        import asyncio
+
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            said = await asyncio.to_thread(_rpc, name, "devices.list")
+            picked = await showing.push_screen_wait(Devices(name, said["devices"]))
+            sure = picked and await showing.push_screen_wait(Revokes(picked))
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        finally:
+            self.opened()
+        if sure != "yes":
+            return
+        try:
+            await asyncio.to_thread(
+                _rpc, name, "devices.revoke", {"name": picked}, writes=True
+            )
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+        else:
+            self._said = iffy(f"{escape(str(picked))} revoked")
+            self._told.append(f"[dim]device {escape(str(picked))} revoked[/dim]")
         self._fill()
 
     def _removes_daemon(self, name: str) -> None:
@@ -10669,9 +11428,13 @@ class Daemons(Pages):
     async def _writes_daemon(self, one: dict[str, Any] | None) -> None:
         """Asks what one daemon is, on one form, and writes it down at once.
 
+        A pairing code is claimed first, off the loop, and the daemon written as it gives it.
+
         Args:
           one: The daemon as it is written down, or None for one being added.
         """
+        import asyncio
+
         if self.opening():
             return
         showing = cast(
@@ -10691,8 +11454,13 @@ class Daemons(Pages):
             return
         name = chosen.pop("name")
         try:
-            _hmz().daemons.write(name, chosen, replace=one is not None)
-        except (OSError, ValueError) as why:
+            if "code" in chosen:
+                self._said = f"pairing with {escape(name)}…"
+                self._fill()
+                await asyncio.to_thread(remotes().pair, name, chosen["code"])
+            else:
+                _hmz().daemons.write(name, chosen, replace=one is not None)
+        except (OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
             self._aim, self._said = name, f"{escape(name)} saved"
@@ -10745,7 +11513,7 @@ class Adjusted(NamedTuple):
       details: Whether the working of each turn is shown, or None where that was not touched.
       forget: Whether to forget what this workspace was set up to run.
       told: What the pages that write for themselves -- the accounts, the runtimes and the
-        fallbacks -- did, as lines for the transcript.
+        nous -- did, as lines for the transcript.
       btw: The agent that answers The Epic, as `cli@provider/model:effort` or "" for none,
         or None where that was not touched.
       corrected: The accounts corrected, as `(cli, name)`, whose models are to be asked for
@@ -10808,13 +11576,22 @@ class Doing(NamedTuple):
         sheet did it itself.
       said: What happened while the sheet was open, for the transcript: a menu that wrote an
         archive and said nothing afterwards is one nobody can read back.
-      daemon: The daemon whose epics to list instead, by name, or "" to stay on this one.
+      daemon: The daemon whose epics to list instead, by name, or "" to stay on this one;
+        or, to follow an epic there, the daemon it is on.
+      there: The workspace there of the epic to follow.
+      slot: Which of that workspace's hosts holds it: "" for its own, `chat:<hex>` for a
+        chat's.
+      start: What to start there once attached, as `epic.start` takes it, or None to start
+        nothing.
     """
 
     epic: Path | None = None
     doing: str = ""
     said: tuple[str, ...] = ()
     daemon: str = ""
+    there: str = ""
+    slot: str = ""
+    start: dict[str, Any] | None = None
 
 
 def _many(count: int, thing: str) -> str:
@@ -11400,7 +12177,8 @@ class Epics(Sheet[Doing]):
         self._reading = True
         self._fill()
         ran = await asyncio.to_thread(self._read, every=every)
-        if every == self._every:
+        # Gone while it read: closed, or an epic opened from it, it has nothing to show.
+        if every == self._every and self.is_attached:
             self._ran = ran
             self._reading = False
             self._was, self._from = was, start
@@ -11987,6 +12765,12 @@ LOCAL_DAEMON = "local"
 _REACH: list[Any] = []
 _REACHING = threading.Lock()
 
+#: How long a daemon is given to answer one call, in seconds.
+_ASKING = 120.0
+
+#: How much of an epic's archive one `files.read` brings: the most a chunk carries.
+_CHUNK = 1 << 20
+
 
 def remotes() -> Any:
     """Every daemon of another machine, as this interface reaches each."""
@@ -12009,37 +12793,20 @@ def daemon_names() -> list[str]:
 
 
 def _stands(said: dict[str, str]) -> str:
-    """How one daemon stands, as a row says it."""
-    state = said.get("state", "")
-    word = {"idle": "not connected"}.get(state, state)
+    """How one daemon stands, as a row says it: its state, and what was said last."""
+    word = said.get("state", "")
     if said.get("detail"):
         word += f": {said['detail']}"
-    elif state == "up" and said.get("version"):
+    elif word == "up" and said.get("version"):
         word += f", hmz {said['version']}"
     return word
 
 
-def _reached_at(one: dict[str, Any]) -> str:
-    """How a daemon is reached: its mode, then its Host or its login, as ssh is told it."""
-    mode = _mode(one)
-    if mode == _EASYTIER:
-        return f"P2P{_DOT}{mode}"
-    if mode == _SSH_CONFIG:
-        return f"{mode}{_DOT}{one['alias']}"
-    host = str(one.get("host") or one.get("alias", ""))
-    login = f"{one['user']}@{host}" if one.get("user") else host
-    return (
-        f"{mode}{_DOT}{login}:{one['port']}"
-        if one.get("port")
-        else f"{mode}{_DOT}{login}"
-    )
-
-
 class Daemoned(Picks):
-    """Which daemon's epics `/epics` lists: this machine's, or one reached over ssh or EasyTier."""
+    """Which daemon's epics `/epics` lists: this machine's, or another reached by its routes."""
 
     asked = "Daemon"
-    about = "Whose epics to list: this machine's, or another's reached over ssh or EasyTier."
+    about = "Whose epics to list: this machine's, or another's reached by its routes."
     SEARCHES: ClassVar = False
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -12051,7 +12818,9 @@ class Daemoned(Picks):
                 (
                     one["name"],
                     one["name"],
-                    f"{_reached_at(one)}{_DOT}{_stands(reach.state(one['name']))}",
+                    _DOT.join(
+                        [", ".join(one["routes"]), _stands(reach.state(one["name"]))]
+                    ),
                 )
                 for one in _hmz().daemons.all()
             ),
@@ -12060,11 +12829,6 @@ class Daemoned(Picks):
     def nothing(self) -> str:
         """Where more are added, where there are none."""
         return "" if len(self.rows()) > 1 else "add daemons on /settings daemons"
-
-
-def _field(said: object, key: str) -> Any:
-    """One field of what a daemon's interface answered, or None where it said none."""
-    return cast("dict[str, Any]", said).get(key) if isinstance(said, dict) else None
 
 
 def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
@@ -12098,8 +12862,11 @@ def _switching(sheet: Sheet[Doing], current: str, told: list[str]) -> Action:
     )
 
 
-#: Starting an epic on another daemon, and following one going there.
-_ACT_STARTS, _ATTACHES = "start", "follow"
+#: Following an epic on another daemon, which the interface does once a sheet answers so.
+FOLLOWS = "follow"
+
+#: Starting an epic on another daemon.
+_ACT_STARTS = "start"
 
 #: The rows a new epic on another daemon is asked on: where it runs there, which flow, what it
 #: is to do, and what its agents run.
@@ -12114,7 +12881,7 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
     """
 
     def __init__(self, daemon: str, workspace: str) -> None:
-        """Initializes the form on the directory that daemon's interface started in, and chat.
+        """Initializes the form on the directory that daemon last ran an epic in, and chat.
 
         Args:
           daemon: The daemon, by name.
@@ -12182,10 +12949,10 @@ class Starting(Form[tuple[str, str, str, dict[str, str]]]):
         self.dismiss((typed[_THERE], typed[_RUNS], typed[_TASK], roles))
 
 
-def _started_afar(
+def _set_up(
     daemon: str, workspace: str, flow: str, task: str, given: Mapping[str, str]
-) -> Link:
-    """Starts an epic on another daemon as its web page does, and follows that directory.
+) -> dict[str, Any]:
+    """What an epic on another daemon is started with, as that directory last ran the flow.
 
     Args:
       daemon: The daemon, by name.
@@ -12195,58 +12962,46 @@ def _started_afar(
       given: What some of its agent roles run, by role, over what that directory last ran.
 
     Returns:
-      The link the epic is followed by, the epic started.
+      What `epic.start` takes, but its `sub`.
 
     Raises:
-      OSError: If that daemon would not follow or start it, saying why.
+      LookupError, OSError, RuntimeError, ValueError: If the flow cannot be set up there, or
+        a role runs nothing, saying why.
     """
-    import urllib.parse
-
-    from hmz.daemon import Refused
-    from hmz.daemon.link import remote
-
-    reach = remotes()
-    set_up = reach.asked(
-        daemon,
-        "/api/flow?" + urllib.parse.urlencode({"name": flow, "workspace": workspace}),
-    )
-    kept: dict[str, Any] = dict(_field(set_up, "remembered") or {})
+    set_up = _rpc(daemon, "flows.get", {"workspace": workspace, "name": flow})
+    kept: dict[str, Any] = dict(set_up.get("remembered") or {})
     agents = {**dict(kept.get("agents") or {}), **given}
-    for role in cast("list[dict[str, Any]]", _field(set_up, "agents") or []):
+    for role in cast("list[dict[str, Any]]", set_up.get("agents") or []):
         if (
             role.get("required")
             and not role.get("auto")
             and not agents.get(role["name"])
         ):
-            raise OSError(
+            raise ValueError(
                 f"{role['name']} runs nothing there yet: say it as "
                 f"{role['name']}=<cli>/<model>:<effort>"
             )
-    link = remote(reach, daemon, workspace)
-    try:
-        link.start(
-            flow,
-            task,
-            agents=agents,
-            envs=kept.get("envs") or {},
-            params=kept.get("params"),
-            budget=kept.get("budget") or None,
-            profile_flow=bool(kept.get("profile_flow")),
-            profile_environment=bool(kept.get("profile_environment")),
-            backup=kept.get("backup"),
-        )
-    except Refused as why:
-        link.close()
-        raise OSError(str(why)) from why
-    return link
+    return {
+        "flow": flow,
+        "task": task,
+        "agents": agents,
+        "envs": kept.get("envs") or {},
+        "params": kept.get("params"),
+        "budget": kept.get("budget") or None,
+        "profile_flow": bool(kept.get("profile_flow")),
+        "profile_environment": bool(kept.get("profile_environment")),
+        "backup": kept.get("backup"),
+        "resume": False,
+    }
 
 
 class RemoteEpics(Sheet[Doing]):
     """Every epic of a daemon on another machine, newest first, and what to do with one.
 
-    Read through that machine's own web interface, reached over ssh, off the event loop:
-    what an epic there offers is what can be done from here -- its archive brought here,
-    backing it up there, and copying what it is -- and the rest is that machine's own.
+    Read over the session that daemon is reached by, off the event loop. An epic a host there
+    holds is followed as an epic of this machine is, by the interface itself, which this
+    answers with; the rest is its archive brought here, backing it up there, and copying what
+    it is.
     """
 
     BINDINGS: ClassVar = [Binding("n", "starts", "new epic", show=False)]
@@ -12284,10 +13039,13 @@ class RemoteEpics(Sheet[Doing]):
         self._fill()
         try:
             self._ran = await asyncio.to_thread(self._read)
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._ran = []
         self._reading = False
+        # Gone while it read -- an epic started from it closes it -- it has nothing to show.
+        if not self.is_attached:
+            return
         self._fill()
         self._settles_focus()
 
@@ -12295,18 +13053,10 @@ class RemoteEpics(Sheet[Doing]):
         """Every epic the daemon holds, newest first, a page of them at a time."""
         ran: list[dict[str, Any]] = []
         while True:
-            said = remotes().asked(
-                self._daemon, f"/api/runs?limit=200&offset={len(ran)}"
-            )
-            page = _field(said, "runs")
-            if not isinstance(page, list) or not page:
-                return ran
-            ran += [
-                cast("dict[str, Any]", one)
-                for one in cast("list[object]", page)
-                if isinstance(one, dict)
-            ]
-            if len(ran) >= int(_field(said, "total") or 0):
+            said = _rpc(self._daemon, "runs.list", {"offset": len(ran), "limit": 200})
+            page = cast("list[dict[str, Any]]", said.get("runs") or [])
+            ran += page
+            if not page or len(ran) >= int(said.get("total") or 0):
                 return ran
 
     def actions(self) -> list[Action]:
@@ -12325,8 +13075,10 @@ class RemoteEpics(Sheet[Doing]):
 
     @work
     async def action_starts(self) -> None:
-        """Asks what to start there, starts it, and follows it here."""
+        """Asks what to start there, sets it up as that directory last ran it, and follows it."""
         import asyncio
+
+        from hmz.daemon import where
 
         if self.opening():
             return
@@ -12337,64 +13089,47 @@ class RemoteEpics(Sheet[Doing]):
         self._said = f"reaching {escape(self._daemon)}…"
         self._fill()
         try:
-            here = await asyncio.to_thread(remotes().asked, self._daemon, "/api/held")
-        except (LookupError, OSError, RuntimeError) as why:
+            here = await asyncio.to_thread(_rpc, self._daemon, "workspaces.list")
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self.opened()
             self._said = bad(escape(str(why)))
             self._fill()
             return
         self._said = ""
         self._fill()
+        places = cast("list[dict[str, Any]]", here.get("workspaces") or [])
         try:
             chosen = await showing.push_screen_wait(
-                Starting(self._daemon, str(_field(here, "here") or ""))
+                Starting(
+                    self._daemon,
+                    str(here.get("here") or (places[0]["path"] if places else "")),
+                )
             )
         finally:
             self.opened()
         if chosen is None:
             return
         workspace, flow, task, given = chosen
-        self._said = f"starting {escape(flow)} on {escape(self._daemon)}…"
+        self._said = f"setting {escape(flow)} up on {escape(self._daemon)}…"
         self._fill()
         try:
-            link = await asyncio.to_thread(
-                _started_afar, self._daemon, workspace, flow, task, given
+            start = await asyncio.to_thread(
+                _set_up, self._daemon, workspace, flow, task, given
             )
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._said = ""
-        await self._follows(workspace, link)
-
-    async def _attaches(self, workspace: str) -> None:
-        """Follows the runs of one directory there, the epic going in it among them."""
-        import asyncio
-
-        from hmz.daemon.link import remote
-
-        self._said = f"following {escape(workspace)} on {escape(self._daemon)}…"
-        self._fill()
-        try:
-            link = await asyncio.to_thread(remote, remotes(), self._daemon, workspace)
-        except OSError as why:
-            self._said = bad(escape(str(why)))
-            self._fill()
-            return
-        self._said = ""
-        self._fill()
-        await self._follows(workspace, link)
-
-    async def _follows(self, workspace: str, link: Link) -> None:
-        """Opens what a link follows there, and reads the list again once it is left."""
-        from .afar import Afar
-
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
+        self.dismiss(
+            Doing(
+                doing=FOLLOWS,
+                said=tuple(self._told),
+                daemon=self._daemon,
+                there=workspace,
+                slot=where.chat() if chatting(flow) else "",
+                start=start,
+            )
         )
-        await showing.push_screen_wait(Afar(self._daemon, workspace, link))
-        self._rereads()
 
     def enters(self, row: str) -> bool:
         """Every row is an epic, which the arrow right opens the menu of."""
@@ -12478,12 +13213,10 @@ class RemoteEpics(Sheet[Doing]):
                 *(
                     [
                         Action(
-                            _ATTACHES,
+                            FOLLOWS,
                             "follow",
-                            "read it as it goes, and say something to it",
-                            lambda: self.run_worker(
-                                self._attaches(str(one.get("workspace", "")))
-                            ),
+                            "read it as it goes, and steer it",
+                            lambda: self._follows(one),
                         )
                     ]
                     if one.get("held")
@@ -12523,6 +13256,18 @@ class RemoteEpics(Sheet[Doing]):
             ],
         )
 
+    def _follows(self, one: Mapping[str, Any]) -> None:
+        """Answers with the epic to follow, which the interface attaches to there."""
+        self.dismiss(
+            Doing(
+                doing=FOLLOWS,
+                said=tuple(self._told),
+                daemon=self._daemon,
+                there=str(one.get("workspace") or ""),
+                slot=str(one.get("slot") or ""),
+            )
+        )
+
     @on(OptionList.OptionSelected)
     def _took(self, _event: OptionList.OptionSelected) -> None:
         """Opens the menu of the epic chosen, which is all there is to do with one here."""
@@ -12537,21 +13282,18 @@ class RemoteEpics(Sheet[Doing]):
     async def _copies_task(self, name: str) -> None:
         """Copies the whole of what one epic was asked, which its row has only the start of."""
         import asyncio
-        import urllib.parse
 
         self._said = "fetching the task…"
         self._fill()
         try:
             said = await asyncio.to_thread(
-                remotes().asked,
-                self._daemon,
-                f"/api/runs/{urllib.parse.quote(name, safe='')}",
+                _rpc, self._daemon, "runs.get", {"name": name}
             )
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._fill()
             return
-        self._copies(str(_field(said, "task") or ""), "task")
+        self._copies(str(said.get("task") or ""), "task")
 
     def leaving(self) -> None:
         """Leaves, saying in the transcript whatever was gathered while this was open."""
@@ -12564,7 +13306,6 @@ class RemoteEpics(Sheet[Doing]):
           name: The epic.
         """
         import asyncio
-        import urllib.parse
 
         from hmz.runtime.exporting import lands, sized
 
@@ -12577,19 +13318,10 @@ class RemoteEpics(Sheet[Doing]):
             return
         self._said = f"exporting {escape(name)}…"
         self._fill()
-
-        def brings() -> tuple[Path, int]:
-            at = lands(name, to)
-            at.parent.mkdir(parents=True, exist_ok=True)
-            size = remotes().asked(
-                self._daemon,
-                f"/api/runs/{urllib.parse.quote(name, safe='')}/bundle",
-                into=at,
-            )
-            return at, size
-
         try:
-            at, size = await asyncio.to_thread(brings)
+            at, size = await asyncio.to_thread(
+                _brought, self._daemon, name, lands(name, to)
+            )
         except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
@@ -12604,21 +13336,66 @@ class RemoteEpics(Sheet[Doing]):
           name: The epic.
         """
         import asyncio
-        import urllib.parse
 
         self._said = f"backing {escape(name)} up…"
         self._fill()
         try:
             said = await asyncio.to_thread(
-                remotes().asked,
+                partial(_rpc, writes=True),
                 self._daemon,
-                f"/api/runs/{urllib.parse.quote(name, safe='')}/backup",
-                {},
+                "runs.backup",
+                {"name": name},
             )
-        except (LookupError, OSError, RuntimeError) as why:
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
             self._said = bad(escape(str(why)))
         else:
-            queued = cast("list[object]", _field(said, "queued") or [])
+            queued = cast("list[object]", said.get("queued") or [])
             self._said = escape(f"backing {name} up to {', '.join(map(str, queued))}")
             self._told.append(f"[dim]{self._said}[/dim]")
         self._fill()
+
+
+def _brought(daemon: str, name: str, at: Path) -> tuple[Path, int]:
+    """Brings the archive a daemon makes of one epic here, a chunk at a time.
+
+    Written beside where it goes first and moved into place, so that a file there already is
+    replaced whole or not at all.
+
+    Args:
+      daemon: The daemon, by name.
+      name: The epic.
+      at: Where it goes.
+
+    Returns:
+      Where it went, and how many bytes it is.
+
+    Raises:
+      LookupError, OSError, RuntimeError, ValueError: If it could not be brought, saying why.
+    """
+    import base64
+
+    at.parent.mkdir(parents=True, exist_ok=True)
+    beside = at.with_name(f".{at.name}.new")
+    with remotes().client(daemon) as client:
+        handle = client.call("runs.bundle", {"name": name}, seconds=_ASKING)["handle"]
+        written = 0
+        try:
+            with beside.open("wb") as file:
+                while True:
+                    chunk = client.call(
+                        "files.read",
+                        {"handle": handle, "offset": written, "length": _CHUNK},
+                        seconds=_ASKING,
+                    )
+                    read = file.write(base64.b64decode(chunk["data"]))
+                    written += read
+                    if chunk["eof"]:
+                        break
+                    if not read:
+                        raise OSError(f"{daemon} sent nothing of {name}")
+            beside.replace(at)
+        finally:
+            beside.unlink(missing_ok=True)
+            with contextlib.suppress(OSError, RuntimeError, ValueError):
+                client.call("files.close", {"handle": handle}, seconds=_ASKING)
+    return at, written

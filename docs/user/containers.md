@@ -19,7 +19,7 @@ a docker swarm that picks the node for you.
     <dl>
       <dt>agents run</dt><dd>in the container, with the image's CLI, or here, with your sign-in (<a href="#where-the-agent-s-cli-runs">harness</a>)</dd>
       <dt>commands run</dt><dd>in the container</dd>
-      <dt>the image needs</dt><dd>Python 3.12 or newer</dd>
+      <dt>the image needs</dt><dd><code>/bin/sh</code>; no Python</dd>
       <dt>works with</dt><dd>a flow with a role for another machine</dd>
     </dl>
   </div>
@@ -39,7 +39,7 @@ a docker swarm that picks the node for you.
     <dl>
       <dt>agents run</dt><dd>here, with your sign-in</dd>
       <dt>commands run</dt><dd>in the container</dd>
-      <dt>the image needs</dt><dd>an ssh server, Python 3.12 or newer, and the project</dd>
+      <dt>the image needs</dt><dd>an ssh server and the project</dd>
       <dt>works with</dt><dd>a flow with a role for another machine</dd>
     </dl>
   </div>
@@ -87,8 +87,8 @@ The agent's commands run in a fresh container, and its edits land in your direct
   [Installation](/user/installation).
 - **Linux and `docker` here.** The daemon can be this machine's or one reached over a socket,
   TCP, ssh or a docker context; `docker info` must work against it.
-- **An image with Python 3.12 or newer** and `/bin/sh`. It needs no ssh server, no coding agent
-  and no sign-in. With nothing said, `python:3.12-slim` is used.
+- **An image with `/bin/sh`**, for x86-64 or aarch64. It needs no Python, no ssh server, no
+  coding agent and no sign-in. With nothing said, `python:3.12-slim` is used.
 - **The directory on the daemon's host.** It is mounted into the container at the path it has,
   so it has to exist there. For docker's default here, `local`, that is this machine.
 - **A flow with a role for another machine.** The flows Humanize ships and the official
@@ -523,7 +523,8 @@ Read [Security](/user/security).
 | `… has 4 of 4 CPUs free, and 'box' asks for 8` | The daemon, as saved, cannot give the role what it declares. Raise the daemon's allowance, or use another. |
 | `could not start a container of python:3.12: …` | Docker's own words follow: no daemon to reach, an image not pulled, or no shell in the image. |
 | `no directory to give the container on …` | The directory is not on the daemon's host. Make it there. |
-| `could not install Humanize on docker://…: … is not running` | The image has no Python 3.12 or newer; its last words say where it looked. |
+| `could not install Humanize on docker://…: … is not running` | The container stopped as soon as it started; its last words, after `the container said:`, say why. An image with no `/bin/sh` or `sleep` does this. |
+| `could not install Humanize on docker://…: no coganchor is built for …` | The image is for another architecture than x86-64 or aarch64. Use one built for either. |
 | a tool the agent tries to install fails with a permission error | The role may write its workdir only. Put the tool in the image. |
 | `… claude's harness cannot run where its harness setting (env) says: claude is not installed on docker@…` | `env` (the default, and `docker/…` with nothing saved) on an image without the CLI. Save the daemon with its harness `local`, or use an image with the CLI. |
 | containers left behind after a run was killed | `docker rm -f $(docker ps -q --filter label=humanize=$(id -u))` removes yours and nobody else's. |

@@ -111,7 +111,7 @@ if TYPE_CHECKING:
         UserPromptSubmitHookResult,
     )
 
-    from .engine import Recorder
+    from .engine import FlowImpl, Recorder
     from .spi import (
         AgentDriver,
         EnvDriver,
@@ -131,6 +131,7 @@ __all__ = [
     "FakeSession",
     "Handler",
     "Reply",
+    "filled",
     "run_fake",
 ]
 
@@ -1346,14 +1347,60 @@ async def run_fake(
     Returns:
       What the flow returned.
     """
-    from .engine import FlowImpl, load_flow, run_flow
-    from .loading import Remote
-
     if isinstance(flow, str):
         frame = inspect.currentframe()
         asking = frame.f_back if frame is not None else None
-        flow = load_flow(flow, caller_globals=asking.f_globals if asking else {})
+        caller = asking.f_globals if asking else {}
         del frame, asking
+    else:
+        caller = {}
+    impl, drivers, environments, outworlder = await filled(
+        flow, agents=agents, envs=envs, outworlder=outworlder, caller=caller
+    )
+    from .engine import run_flow
+
+    return await run_flow(
+        impl,
+        task,
+        agents=drivers,
+        envs=environments,
+        params={} if params is None else params,
+        budget=Budget(cost=math.inf) if budget is None else budget,
+        outworlder=outworlder,
+        journal=journal,
+        resume=resume,
+        local=FakeEnvDriver(workdir="/here") if local is None else local,
+        recorder=recorder,
+    )
+
+
+async def filled(
+    flow: Flow | str,
+    *,
+    agents: Mapping[str, AgentDriver | OutworlderDriver | Reply] | None,
+    envs: Mapping[str, EnvDriver | Mapping[str, bytes | str]] | None,
+    outworlder: OutworlderDriver | None,
+    caller: dict[str, Any],
+) -> tuple[FlowImpl, dict[str, Any], dict[str, Any], OutworlderDriver | None]:
+    """A flow, loaded, with a fake for every role nobody gave one for, as :func:`run_fake` has.
+
+    Args:
+      flow: The flow, or a ref to load from where `caller` is.
+      agents: By role, as :func:`run_fake` takes them.
+      envs: By role, likewise.
+      outworlder: Whoever fills `Outworlder` roles, or None.
+      caller: The globals of the module asking, which a relative ref is read against.
+
+    Returns:
+      The flow, its agent drivers and its environment drivers by role -- with whatever was
+      given for a role it does not declare, for running it to refuse by name -- and its
+      outworlder.
+    """
+    from .engine import FlowImpl, load_flow
+    from .loading import Remote
+
+    if isinstance(flow, str):
+        flow = load_flow(flow, caller_globals=caller)
     if isinstance(flow, Remote):
         flow = await flow.fetched()
     if not isinstance(flow, FlowImpl):
@@ -1396,16 +1443,4 @@ async def run_fake(
             )
         )
     environments.update(places)
-    return await run_flow(
-        flow,
-        task,
-        agents=drivers,
-        envs=environments,
-        params={} if params is None else params,
-        budget=Budget(cost=math.inf) if budget is None else budget,
-        outworlder=outworlder,
-        journal=journal,
-        resume=resume,
-        local=FakeEnvDriver(workdir="/here") if local is None else local,
-        recorder=recorder,
-    )
+    return flow, drivers, environments, outworlder

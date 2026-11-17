@@ -81,6 +81,12 @@ jobs:
             unit-sdk: [*shared, src/hmz/sdk/**, tests/unit/sdk/**]
             unit-tui: [*shared, src/hmz/tui/**, tests/unit/tui/**]
             unit-web: [*shared, src/hmz/web/**, tests/unit/web/**]
+            # The RPC package holds protocol/openrpc.json to the protocol's text.
+            unit-rpc: [*shared, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
+            unit-trust: [*shared, src/hmz/trust/**, tests/unit/trust/**]
+            unit-reach: [*shared, src/hmz/reach/**, tests/unit/reach/**]
+            unit-relay: [*shared, src/hmz/relay/**, tests/unit/relay/**]
+            unit-rtc: [*shared, src/hmz/rtc/**, tests/unit/rtc/**]
             integration-agents:
               - *shared
               - *kernel
@@ -104,6 +110,7 @@ jobs:
             integration-anchor:
               - *shared
               - src/hmz/**
+              - crates/coganchor/**
               - tests/integration/*_anchor*.py
               - tests/integration/doubles_core.py
               - tests/integration/doubles_easytier.py
@@ -112,8 +119,32 @@ jobs:
               - src/hmz/**
               - tests/integration/*_web*.py
               - tests/integration/doubles_core.py
+            # A daemon reached over each carrier: ssh and EasyTier through their doubles, and a
+            # WebRTC data channel over loopback. reach dials EasyTier and ssh through coganchor.
+            integration-reach:
+              - *shared
+              - *kernel
+              - src/hmz/{cli,daemon,reach,rpc,rtc,trust}/**
+              - tests/integration/*_reach*.py
+              - tests/integration/doubles_ssh.py
+              - tests/integration/doubles_easytier.py
+            integration-relay:
+              - *shared
+              - src/hmz/{cli,reach,relay,rpc,rtc,trust}/**
+              - tests/integration/*_relay*.py
+              - tests/unit/relay/doubles_relay.py
+            # The page's own modules, tested by node alone.
+            js:
+              - .github/workflows/ci.yml
+              - src/hmz/web/static/**
+              - tests/unit/web/js/**
+            coganchor:
+              - crates/coganchor/**
+              - .github/workflows/ci.yml
+            # The app, and the page it carries.
             desktop:
               - desktop/**
+              - src/hmz/web/static/**
               - .github/workflows/ci.yml
 
   # Every pre-commit hook: ruff, pyright, actionlint, zizmor and the file hygiene. Then what a
@@ -126,7 +157,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.12"
           # Restores what cache.yml saved on `main`, and writes nothing.
@@ -156,7 +187,7 @@ jobs:
   tests:
     name: tests (${{ matrix.os }})
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"unit-') || contains(needs.changes.outputs.changes, '"integration-')) }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"unit-') || contains(needs.changes.outputs.changes, '"integration-') || contains(needs.changes.outputs.changes, '"js"')) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -168,7 +199,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.12"
           # Restores what cache.yml saved on `main`, and writes nothing.
@@ -176,6 +207,25 @@ jobs:
 
       - name: uv sync
         run: uv sync --frozen --all-extras
+
+      # The anchor runs only as `coganchor`, which the tests find in crates/coganchor/target.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/coganchor
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-if: false
+
+      - name: cargo build crates/coganchor
+        run: cargo build --locked --manifest-path crates/coganchor/Cargo.toml
+
+      # The fence's second backend on Linux, for the tests that put a program inside it: bwrap,
+      # and the namespaces an ordinary user may make, which Ubuntu's AppArmor holds back.
+      - name: bubblewrap
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: pytest tests/unit/<package>, a package at a time
         env:
@@ -209,9 +259,14 @@ jobs:
         run: |
           export PYTEST_XDIST_AUTO_NUM_WORKERS=$((2 * $(getconf _NPROCESSORS_ONLN)))
           status=0
-          for topic in core agents tui daemon anchor web; do
+          for topic in core agents tui daemon anchor web reach relay; do
             if [[ $EVENT != workflow_dispatch && $CHANGES != *"\"integration-$topic\""* ]]; then
               echo "integration $topic: unchanged"
+              continue
+            fi
+            # A topic its first tests have not reached yet.
+            if ! compgen -G "tests/integration/test_${topic}_*.py" > /dev/null; then
+              echo "::notice::integration $topic has no tests yet"
               continue
             fi
             echo "::group::integration $topic"
@@ -220,6 +275,61 @@ jobs:
             echo "::endgroup::"
           done
           exit "$status"
+
+      # The page's modules are plain ES modules with no build step, tested by node's own runner.
+      # Named by a glob: node 24 loads a directory given alone as one module, not its tests.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        with:
+          node-version: 24
+
+      - name: node --test tests/unit/web/js
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"js"')) }}
+        run: node --test 'tests/unit/web/js/*.test.mjs'
+
+  # The anchor's own program in crates/coganchor: held to rustfmt and clippy, and tested, on
+  # Linux, where its ptrace, seccomp and Landlock halves build, and on macOS, where the anchor
+  # and the broker do. On Linux also built static, as the wheel carries it.
+  coganchor:
+    name: coganchor (${{ matrix.os }})
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || contains(needs.changes.outputs.changes, '"coganchor"')) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: crates/coganchor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: crates/coganchor
+          # Restores what cache.yml saved on `main`, and writes nothing.
+          save-if: false
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --locked
+
+      - name: cargo build, static
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends musl-tools
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --locked --release --target x86_64-unknown-linux-musl
+          file target/x86_64-unknown-linux-musl/release/coganchor | grep -Eq 'static(ally|-pie) linked'
 
   # The macOS app in desktop/: its Rust held to rustfmt and clippy, its tests, and the app built
   # and its disk image as a release builds them, but unoptimised.
@@ -236,17 +346,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: 10
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: desktop/pnpm-lock.yaml
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
           # Restores what cache.yml saved on `main`, and writes nothing.
@@ -293,17 +403,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: 10
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: desktop/pnpm-lock.yaml
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri
           # Restores what cache.yml saved on `main`, and writes nothing.
@@ -329,12 +439,12 @@ jobs:
 
   ci-ok:
     if: always()
-    needs: [changes, static, tests, desktop, desktop-windows]
+    needs: [changes, static, tests, coganchor, desktop, desktop-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           # `changes` on a dispatch, and what the change left alone.
-          allowed-skips: changes, tests, desktop, desktop-windows
+          allowed-skips: changes, tests, coganchor, desktop, desktop-windows
           jobs: ${{ toJSON(needs) }}

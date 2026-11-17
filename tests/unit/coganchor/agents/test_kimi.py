@@ -6,6 +6,7 @@ import io
 import json
 import os
 import signal
+import subprocess
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,19 +15,24 @@ from typing import TYPE_CHECKING, Any, Self
 import pytest
 import websockets.sync.client
 
+from hmz.coganchor import fence
 from hmz.coganchor.agents import (
+    KEEPING,
+    UNSAID,
     Failed,
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
     KimiCodeCLISession,
     driver,
 )
-from hmz.coganchor.agents.hooks import Moment
+from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
 from hmz.coganchor.agents.kimi import LOG_LEVELS, READABLE
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 
+from .doubles_core import Run
+from .doubles_u4 import fenceable
 from .doubles_u5 import UNREAL_PID, Process, configured, gatewayed, heard, spawning
 
 if TYPE_CHECKING:
@@ -70,6 +76,8 @@ class _Daemon:
     )
     sent: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     headers: list[str] = field(default_factory=list[str])
+    #: The routes it refuses, as the daemon refuses one: inside a 200, with a code.
+    refused: set[str] = field(default_factory=set[str])
 
     def answer(self, method: str, path: str) -> Any:
         route = path.removeprefix("/api/v1")
@@ -84,6 +92,7 @@ class _Daemon:
             f"{at}/messages?after_id=u1": {"items": self.messages},
             f"{at}/questions?status=pending": {"items": self.questions},
             f"{at}/approvals?status=pending": {"items": self.approvals},
+            f"{at}/goal": {"status": "completed"},
         }
         return (posts if method == "POST" else gets).get(route, {})
 
@@ -96,7 +105,10 @@ class _Daemon:
         body = json.loads(data) if isinstance(data, bytes) else None
         method = request.get_method()
         path = url.removeprefix("http://127.0.0.1:5494")
-        self.calls.append((method, path.removeprefix("/api/v1"), body))
+        route = path.removeprefix("/api/v1")
+        self.calls.append((method, route, body))
+        if route in self.refused:
+            return io.BytesIO(json.dumps({"code": 40000, "msg": "refused"}).encode())
         return io.BytesIO(
             json.dumps({"code": 0, "data": self.answer(method, path)}).encode()
         )
@@ -371,6 +383,7 @@ def test_the_server_is_started_as_the_config_says(
             {"permission": "workspace-write"},
             {"permission_mode": "auto", "plan_mode": False},
         ),
+        ({"permission": "bypass"}, {"permission_mode": "auto", "plan_mode": False}),
     ],
 )
 def test_the_session_profile_carries_how_the_agent_is_configured(
@@ -390,17 +403,24 @@ def test_the_session_profile_carries_how_the_agent_is_configured(
 
 @pytest.mark.parametrize(
     ("said", "disabled"),
-    [({"web_search": False}, ["WebSearch", "FetchURL"]), ({"web_search": True}, [])],
+    [
+        ({"web_search": False}, ["WebSearch", "FetchURL"]),
+        ({"web_search": True}, []),
+        ({"fence": Fence(online=False)}, ["WebSearch", "FetchURL"]),
+        ({"fence": Fence(online=False), "web_search": True}, ["WebSearch", "FetchURL"]),
+    ],
 )
 def test_the_web_tools_are_said_on_the_prompt(
     made: Callable[..., KimiCodeCLIAgent],
     daemon: _Daemon,
     server: list[Process],
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     said: dict[str, Any],
     disabled: list[str],
 ) -> None:
     del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     _turn(made(**said).new(tmp_path))
 
     (prompt,) = daemon.posted(f"/sessions/{_SESSION}/prompts")
@@ -409,7 +429,13 @@ def test_the_web_tools_are_said_on_the_prompt(
 
 @pytest.mark.parametrize(
     ("permission", "decision"),
-    [("auto", "approved"), ("workspace-write", "approved"), ("read-only", "rejected")],
+    [
+        ("auto", "approved"),
+        ("workspace-write", "approved"),
+        ("bypass", "approved"),
+        ("read-only", "rejected"),
+        (UNSAID, "rejected"),
+    ],
 )
 def test_an_approval_the_server_holds_is_answered_by_the_rung(
     made: Callable[..., KimiCodeCLIAgent],
@@ -428,6 +454,52 @@ def test_an_approval_the_server_holds_is_answered_by_the_rung(
 
     (answer,) = daemon.posted(f"/sessions/{_SESSION}/approvals/ap1")
     assert answer["decision"] == decision
+
+
+@pytest.mark.parametrize("permission", ["auto", "workspace-write", "bypass"])
+def test_a_hook_refusing_an_approval_rejects_it_at_a_granting_rung(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    permission: str,
+) -> None:
+    del server
+    daemon.approvals = [
+        {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
+    ]
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that")
+
+    agent = made(permission=permission)
+    agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
+    _turn(agent.new(tmp_path))
+
+    assert daemon.posted(f"/sessions/{_SESSION}/approvals/ap1") == [
+        {"decision": "rejected", "feedback": "not that"}
+    ]
+    assert [(one.tool, one.about) for one in seen] == [("Shell", "rm -rf")]
+
+
+def test_a_hook_saying_nothing_leaves_a_read_only_approval_rejected(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+) -> None:
+    del server
+    daemon.approvals = [
+        {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
+    ]
+    agent = made(permission="read-only")
+    agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _occasion: Verdict())
+    _turn(agent.new(tmp_path))
+
+    (answer,) = daemon.posted(f"/sessions/{_SESSION}/approvals/ap1")
+    assert answer["decision"] == "rejected"
 
 
 @pytest.mark.parametrize(
@@ -490,6 +562,80 @@ def test_a_turn_the_server_says_failed_fails(
 
     assert failed.value.stderr == "the model fell over"
     assert failed.value.output == "done"
+
+
+def test_a_session_the_daemon_made_is_the_runs_though_it_is_refused_its_settings(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    del server
+    monkeypatch.setenv(KEEPING, "off")
+    daemon.refused = {f"/sessions/{_SESSION}/profile"}
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+
+    with pytest.raises(Failed):
+        _turn(agent.new(tmp_path))
+
+    # Named by the daemon before anything else was asked of it: the run's, and not opened.
+    assert run.said == [(_SESSION, "")]
+    assert agent.opened == []
+
+
+def test_a_fork_kimi_names_is_the_runs_though_the_fork_fails(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    del daemon, server
+    monkeypatch.setenv(KEEPING, "off")
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+    session = agent.new(tmp_path)
+    _turn(session)
+    child = session.fork()
+    assert isinstance(child, KimiCodeCLISession)
+
+    def forking(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(argv, 1, "Forked to k-2\n", "then fell over")
+
+    monkeypatch.setattr(subprocess, "run", forking)
+    with pytest.raises(Failed):
+        _turn(child)
+
+    # Named on the line the fork printed before it failed: the run's, and not opened.
+    assert run.said == [(_SESSION, ""), ("k-2", _SESSION)]
+    assert agent.opened == [_SESSION]
+    assert child.named == "k-2"
+
+
+def test_a_goal_that_fails_after_working_is_the_runs(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    del server
+    monkeypatch.setenv(KEEPING, "off")
+    daemon.ended = {"reason": "failed", "error": {"message": "the model fell over"}}
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+
+    with pytest.raises(Failed) as failed:
+        agent.new(tmp_path).pursue("work until it is done")
+
+    # It said something and spent on it before it fell over, and none of it went through a
+    # turn: what it spent is the run's session's all the same.
+    assert failed.value.output == "done"
+    assert agent.spent().output > 0
+    assert run.said == [(_SESSION, "")]
+    assert agent.opened == []
 
 
 def test_a_server_that_never_says_where_it_listens_fails_the_turn(

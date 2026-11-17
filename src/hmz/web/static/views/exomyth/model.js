@@ -1,4 +1,4 @@
-// Exomyth's data: an epic's timeline, as `GET /api/runs/<name>/timeline` lays it out, read into
+// Exomyth's data: an epic's timeline, as `runs.timeline` lays it out, read into
 // what the views draw from once, as it arrives -- its strings looked up, its columns typed, each
 // track's spans indexed by depth -- and read again while the epic goes.
 //

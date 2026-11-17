@@ -83,7 +83,7 @@ run, the machines a flow's environments go on, and what this directory remembers
 
 ::: info At a glance
 - **You will** change how Humanize behaves on this machine and in this directory, and manage
-  the accounts, machines and fallbacks your flows use.
+  the accounts, machines and nous your flows use.
 - **Use it when** you want to see the working, add an API key or a second account, put a
   flow on another machine, or keep a run going when a model fails.
 - **You need** `hmz` open. Nothing has to be running.
@@ -114,7 +114,7 @@ straight into the one named, and the word is offered as you type it:
 | [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
 | [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh or EasyTier, and how each stands |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
-| [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
+| [**Nous**](#nous) | `nous` | what agents think with, and where a turn goes when one cannot take it |
 | [**Runtimes**](#runtimes) | `runtimes` | the machines a flow's environments go on: ssh hosts, docker daemons, docker swarms, Apple containers and Slurm clusters |
 | [**Backup**](#backup) | `backup` | the repositories epics are backed up to, and which are defaults |
 | [**Workspace**](#workspace) | `workspace` | the flow this directory opens on, and forgetting it |
@@ -146,7 +146,7 @@ every value it can take under the row, the one in force ticked; <kbd>↑</kbd> <
 An on/off switch's list opens on the answer it is not, so <kbd>enter</kbd> twice turns it
 round. A row marked `▸` opens something.
 
-**A page that is a list** (Accounts, Runtimes, Fallback, Backup) is the list, under a
+**A page that is a list** (Accounts, Nous, Runtimes, Backup) is the list, under a
 heading per group where it has groups, and under it the buttons for what is done about the
 list: one `Add …` first, then anything else that brings one in, then `Search…`, and **Save** at the
 far end where the page holds anything until it is saved. Runtimes holds nothing, so it has no
@@ -192,7 +192,7 @@ change is held, and the transcript says it again once saved:
 
 | Change | Takes hold |
 | --- | --- |
-| error reports, details, fallback rules | at once |
+| error reports, details, nous | at once |
 | correcting an account, taking it away | from the next agent session: a session already running keeps the account it started with |
 | forget | from the next launch: the interface open now keeps what it opened with |
 
@@ -215,8 +215,8 @@ switch on [Details](#details), so every tool call and every line of thinking sho
    ◉  <b>Accounts</b>                                                0 accounts
      <span class="m">what agents sign in as, under each CLI</span>
    ────────────────────────────────────────────────────────────────────────
-   ↻  <b>Fallback</b>                                                   0 rules
-     <span class="m">where a turn goes when its agent fails</span>
+   ↻  <b>Nous</b>                                                        0 nous
+     <span class="m">what agents think with, and where a failed turn goes</span>
    ────────────────────────────────────────────────────────────────────────
    ▦  <b>Runtimes</b>                                                0 machines
      <span class="m">ssh hosts, docker daemons, swarms, Apple containers and Slurm</span>
@@ -374,38 +374,42 @@ directory's, while its log or the monitor is up -- is never told of.
 | Kinds | Chat turns | a chat waits for its next turn |
 | Shown | System | also ring the terminal's bell and show a system notification, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as your system's own |
 
-Every row is on until you turn it off. They are the
-[web interface's notification settings](/user/web#notifications) too, kept in
-`~/.hmz/settings.yaml` under `notifications`, so turning a kind off here turns it off there.
+Every row is on until you turn it off. They are kept in `~/.hmz/settings.yaml` under
+`notifications`; the [web page](/user/web#notifications) keeps its own, in your browser.
 
 ## Daemons
 
-Every other machine whose epics you want to read from here, each reached over ssh or over
-EasyTier: `Local`, this machine, is always first. A daemon is set up on one form, of a kind and
-a mode: **SSH › SSH Config**, a `Host` of your ssh config picked from a list; **SSH ›
-hmz-stored**, its host, user, port, identity file, proxy jump and ssh options typed in, or
-filled from a host of your ssh config with its `import` row; or **P2P › EasyTier**, the secret
-its [`hmz server`](/reference/cli#hmz-server) was started with -- at least 16 bytes, never shown, and kept
-when left blank on an edit -- and the shared EasyTier nodes it meets that server at, a comma
-apart. Editing one opens it in the mode it is in. Hosts of your ssh config can also be brought
-in with **Import…**, those added already left out. It is written at once, to the same list the
-[web page](/user/web#settings) keeps.
+Every other machine whose epics you want to read and run from here, each reached by its
+routes: `Local`, this machine, is always first. A daemon is added on one form, in a mode:
+**Pairing code**, the code `hmz daemon pair` printed on that machine, claimed at once, which
+gives its id and routes; **SSH Config**, a `Host` of your ssh config picked from a list;
+**Custom**, its host, user, port, identity file, proxy jump and ssh options typed in, or filled
+from a host of your ssh config with its `import` row; or **Routes**, typed in the order they
+are tried (`stdio:ssh://…`, `tcp://host:port`, …), a route other than ssh needing the id a
+pairing code gives. Editing one opens it in the mode its routes are in, and keeps its id. Hosts
+of your ssh config can also be brought in with **Import…**, those added already left out. It is
+written at once, to this machine's settings; the [web page](/user/web#adding-a-daemon) keeps
+a list of its own, in your browser.
 
-Each row says its mode, what reaches it and how it stands: `not connected` until it is asked for, then
-`connecting`, `installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`
-with why. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connect**, **edit…**,
-**remove** and **copy name**.
+Each row says its routes and how it stands: `idle` until it is asked for, then `connecting`,
+`installing` while this `hmz` is put there, `up, hmz <version>`, or `failed`, with what was
+said last. <kbd>m</kbd>, <kbd>enter</kbd> or a click on one is its menu: **connect**,
+**edit…**, **remove**, **copy name**, and while it is up **pair a device…**, which copies a
+code another device adds it from, and **devices…**, the devices paired with it, one revoked
+after you confirm. Local's menu has those last two.
 
 `/epics @<name>` lists that daemon's epics, and goes on listing them until you turn the list
 back with its **Daemon…** button, or with `/epics @local`. From another daemon's list an epic
 is exported here, backed up there, or has its name, task or workspace copied. <kbd>n</kbd>
 there starts a new epic on that machine -- a directory there, a flow, a task, and its agents
 where that directory has not run the flow before -- and follows it; **follow** on one going
-there does the same for it. You read what it says, answer what it asks or say a line to it,
-and <kbd>esc</kbd> leaves it going there.
+there does the same for it. It is followed on the interface's own screen, as an epic of this
+machine is, with `@<name>` on the status line: you read it, answer what it asks, say a line to
+it or stop it, and <kbd>esc</kbd> leaves it going there and comes back to
+the list.
 
 **Batch apply…** writes this machine's settings to other daemons: switch on the pages --
-general, fallback, runtimes, backup -- and the daemons, and each says whether they were
+general, nous, runtimes, backup -- and the daemons, and each says whether they were
 applied. Accounts stay where they are, since only a secret sets them, and a backup target
 whose URL signs in has to be added there by hand.
 
@@ -645,10 +649,10 @@ the model you want is missing, or when a failed turn says the list is out of dat
 
 ### When an account fails
 
-An account does not say where a failed turn goes. That is said on the [Fallback](#fallback)
-page, against a *place*: a CLI, an account and a model together. To carry on under another
-account of the same CLI, write a rule from `claude@subscription/claude-opus-5` to
-`claude@key/claude-opus-5`. A `fallback` key an older Humanize wrote into an account's
+An account does not say where a failed turn goes. That is said on the [Nous](#nous) page,
+against a nous: a CLI, an account, a model and an effort together. To carry on under another
+account of the same CLI, give `claude@subscription/claude-opus-5` a `then` of
+`claude@key/claude-opus-5`, or balance the two in a virtual nous. A `fallback` key an older Humanize wrote into an account's
 `provider.json` is ignored, and dropped the next time the account is saved.
 
 ### Good to know {#accounts-good-to-know}
@@ -679,154 +683,101 @@ accounts.copies(shared, "pi")               # pi/shared, holding the same key
 See [SDK › Accounts](/reference/sdk#accounts).
 :::
 
-## Fallback
+## Nous
 
-When a turn cannot run where it is (the model was retired, the CLI will not start, the whole
-account is rate-limited), the Fallback page sends it somewhere else: another CLI, another
-account, or another model. Each of those places is written `CLI[@ACCOUNT]/MODEL`, for example
-`claude@work/claude-opus-5-5`.
+A **nous** is what an agent thinks with. The plain kind, a **concrete nous**, is the four things
+an agent spec names after its role: `CLI[@ACCOUNT]/MODEL[:EFFORT]`, for example
+`claude@work/claude-opus-5-5:high`. A **virtual nous** is a name you make up, such as `smart`,
+that stands for a small graph of other nous. An agent takes either: `-a coder=smart` works just
+like `-a coder=claude/claude-opus-5-5:high`.
 
-A rule is written against one place, its **main** place, and names a **chain**: the places a
-turn moves to, in order, each tried when the one before it has failed too.
+Every nous, concrete or virtual, has the same three settings for when a turn fails, and one
+place to go after:
 
-| | Trying again | The chain |
+| | Set as | What it does |
 | --- | --- | --- |
-| **Set on** | the rule, as `tries`, `policy`, `for` | the rule, as `falls back to` and `then` |
-| **Answers** | a dropped connection, a busy store, a short rate limit | a model retired, a CLI missing, a whole account throttled or refused |
-| **The conversation** | carries on where it was | starts over, in a new session at the new place |
-| **Tried** | first | once the tries are spent |
+| **Trying again** | `tries`, `policy`, `timeout` | takes the failed turn again here, in the same conversation |
+| **Then** | a graph | where the turn goes once those tries are spent, in a new conversation |
+| **Graph** (virtual only) | a graph | what the nous *is*: the nous its turns are taken at |
 
-### Try it {#fallback-try-it}
+A nous with nothing written about it is tried once and fails as it always did.
 
-Here you make a turn that fails on Claude Opus try twice more, then carry on in Codex, and
-then in DeepSeek if Codex fails too.
+### Graphs
 
-1. Type `/settings fallback`. With no rules yet the focus is on **Add fallback rule**; press
-   <kbd>enter</kbd>. One form opens: the place that fails, the places it falls back to, and
-   how it is tried again first.
-2. <kbd>enter</kbd> on `fails on` opens every place there is in one list: each installed CLI, as
-   each of its accounts, at each model it runs. **Search…** under it, or <kbd>/</kbd>, narrows it by any of the
-   three (`opus`, `work`, `codex`). Choose one, and the cursor moves to `falls back to`.
-3. <kbd>enter</kbd> there and choose the first place that takes its turns. The place that
-   fails is not offered, and `nowhere` is, first.
-4. A `then` row now follows it, showing `+ add`. <kbd>enter</kbd> on it and choose the next
-   place. Add as many as you like; each is tried in turn.
-5. Pick `tries`, `policy` or `for` from the list each drops under it if you want a failed
-   turn tried again here first, then **Done**.
+A graph is a few **nodes** and the **edges** a failure follows between them. A walk starts at the
+**start** node; the first nous to answer ends it.
 
-To change the chain, <kbd>enter</kbd> on any of its rows. Choosing `nowhere` takes that place
-off; choosing a place already further along swaps the two, which is how you reorder it. A
-place can be on the chain only once.
+- A **use** node takes the turn at one nous. That nous may be virtual, so a graph can hold
+  another graph, and it brings its own tries and `then` with it.
+- A **balance** node picks one of several nous by a **strategy**, and if that one fails, picks
+  another it has not tried yet, up to `spread` of them (0 means all). Each member has a
+  **weight**.
+- An **edge** is named after a kind of failure (`throttled`, `refused`, `retired`… see
+  [What went wrong](#what-went-wrong)) or `*` for any. A node that fails follows the edge for
+  its failure, else its `*` edge; with neither, the graph fails.
 
-The form once `for` is picked, the last question, which moves the focus on to **Done**:
+| Strategy | Picks |
+| --- | --- |
+| `shuffle` <Badge type="tip" text="default" /> | at random, a member of weight 2 twice as often |
+| `round-robin` | each in turn, as often as its weight says |
+| `least-busy` | the one taking the fewest turns right now |
+| `latency` | the one whose turns have answered fastest lately |
+| `usage` | the one that spent the fewest tokens in the last minute |
+| `cost` | the one whose model is cheapest per token |
 
-<Term title="/settings › Fallback › Add fallback rule">
+A member that was rate-limited or out of quota in the last minute is picked only once nothing
+else is left. A balance node remembers, per conversation, which member answered, and tries it
+first next turn: changing nous loses the conversation, so a conversation stays where it is until
+it fails there.
 
-<pre>  <span class="m">hmz › /settings › Fallback ›</span> <span class="p b">Add fallback rule</span>          <span class="y">● unsaved changes</span>
-  <span class="m">What happens when an agent cannot take a turn: retry as configured, then
-  fall back to another agent in a new conversation.</span>
+The simplest graph is a list: `then: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]` tries each in
+turn, which is exactly the old fallback chain.
 
-  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
-   <b>fails on</b>                                       <span class="a">claude/claude-opus-5-5 ▸</span> <span class="n">1</span>
-     <span class="m">the agent whose turns cannot run</span>
-   ────────────────────────────────────────────────────────────────────────
-   <b>falls back to</b>                                       <span class="a">codex/gpt-5.6-sol ▸</span> <span class="n">2</span>
-     <span class="m">fallback agent for failed turns, in a new conversation</span>
-   ────────────────────────────────────────────────────────────────────────
-   <b>then</b>                                            <span class="a">dsh/deepseek-v4-flash ▸</span>
-     <span class="m">if that fails too, in a new conversation</span>
-   ────────────────────────────────────────────────────────────────────────
-   <b>then</b>                                                            <span class="a">+ add ▸</span>
-     <span class="m">add an agent to try after the ones above</span>
-   ────────────────────────────────────────────────────────────────────────
-   <b>tries</b>                                                               <span class="a">2 ▾</span> <span class="n">3</span>
-     <span class="m">how many times to retry a failed turn before falling back</span>
-   ────────────────────────────────────────────────────────────────────────
-   <b>policy</b>                                                         <span class="a">linear ▾</span>
-     <span class="m">one second longer each time: 1s, 2s, 3s</span>
-   ────────────────────────────────────────────────────────────────────────
-  <span class="hl"> <b>for</b>                                                          no limit ▾ </span>
-  <span class="hl">   maximum time to keep retrying                                         </span>
-  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
-   <span class="m">applies this fallback rule when /settings is saved</span>
+### Try it {#nous-try-it}
 
-                                                                     <span class="sel"> Done </span> <span class="n">4</span>
+1. Type `/settings nous` (or open **Nous** in the web page's settings).
+2. Add a nous. For a concrete one, pick the model and effort, set **tries** and **policy**, and
+   add the nous of its **then**, in order.
+3. For a virtual one, give it a name, then add its nodes: a balance node over two accounts of
+   the same model, and a use node for another CLI, with an edge from the balance node for
+   `spent` to it.
+4. Save. A graph that cannot be (an edge that comes round, a node nothing reaches, a nous that
+   names itself) is refused with the reason.
 
-  <b>enter</b> done   <b>←/→</b> move   <b>tab</b> list   <b>esc</b> back</pre>
+The same settings, written in `settings.yaml`:
 
-</Term>
-
-And the page once it is added, before it is saved:
-
-<Term title="/settings › Fallback">
-
-<pre>  <span class="m">hmz › /settings ›</span> <span class="p b">Fallback</span>                            <span class="y">● unsaved changes</span> <span class="n">5</span>
-  <span class="m">Where a turn falls back when an agent fails, tried in order. An agent
-  is a CLI, an account and a model. A chain starts only from the agent it is
-  written for. Saved rules apply from the next failed turn.</span>
-
-  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
-  <span class="sel"> <b>claude/claude-opus-5-5</b> ✔  2 retries, linear · falls back to codex/gpt-5.6-sol, then dsh/deepseek-v4-flash </span> <span class="n">6</span>
-  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
-
-     <span class="btn"> Add fallback rule </span>  <span class="btn"> Search… </span>                         <span class="btn"> Save </span>
-
-  <b>enter</b> edit   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
-
-</Term>
-
-What to look at, by number:
-
-1. **`fails on`** is written `CLI[@ACCOUNT]/MODEL`: one place a turn can run. With no `@`, it
-   is the CLI as you signed it in.
-2. **`falls back to`** and each **`then`** are the chain: where the turn goes next, in a new
-   conversation, in order. `nowhere` is the first choice, for a rule that only retries, and on
-   a row of the chain it takes that place off.
-3. **`tries`, `policy`, `for`** retry here before moving on. `none` moves on at once. See
-   [Trying again](#trying-again).
-4. **Done**, with the focus. The line under the list says when the rule applies: when
-   `/settings` is saved.
-5. **`● unsaved changes`.** The rule is held. <kbd>tab</kbd> to **Save**, or leave with
-   <kbd>esc</kbd> and choose **Save** when it asks.
-6. **The rule, on one line.** The place, marked `✔` as a rule in force, how it retries, and
-   where it goes.
-
-<kbd>enter</kbd> on a rule opens the same form for it, with a red **Remove** button before
-**Done**.
-
-**Check it worked.** Once saved, the transcript repeats the rule, and the next turn that fails
-reads it:
-
-```text
-claude/claude-opus-5-5 2 retries, linear · falls back to codex/gpt-5.6-sol, then dsh/deepseek-v4-flash
+```yaml
+nous:
+  claude@work/claude-opus-5-5:
+    tries: 2
+    policy: linear
+    then: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]
+  smart:
+    graph:
+      start: pool
+      nodes:
+        pool:
+          balance: least-busy
+          among: {claude@work/claude-opus-5-5:high: 1, claude@team/claude-opus-5-5:high: 2}
+          on: {spent: other, '*': cheap}
+        other: {use: codex/gpt-5.6-sol:high, next: cheap}
+        cheap: {use: dsh/deepseek-v4-flash}
 ```
 
-So a turn that fails at `claude/claude-opus-5-5` is tried twice more there, then moves to
-`codex/gpt-5.6-sol`, and if it fails there too, on to `dsh/deepseek-v4-flash`.
-
-**A chain starts only from its main place.** An agent configured at `codex/gpt-5.6-sol` that
-fails has no fallback from this rule: that place is only on somebody else's chain. And a
-place reached as a stand-in carries on along the chain it was reached by, never along its own:
-if `codex/gpt-5.6-sol` heads a rule of its own too, a turn that came to it from Claude still
-goes on to `dsh/deepseek-v4-flash`. Each place on the chain is tried again as its own rule
-says, if it has one; where the turn goes after it is always the main place's chain.
+A rule written against a concrete nous without an effort, like the first one, holds for every
+effort of it.
 
 ### Trying again
 
-`tries`, `policy` and `for`, on a rule's form, set how a failed turn is retried at this place
-before it moves on. They belong to the place, so they also apply when the place is reached as
-a stand-in on another rule's chain. <kbd>enter</kbd> or a click on each drops its values under it; pick
-one, then choose **Done**:
+`tries`, `policy` and `timeout` set how a failed turn is retried before `then`. On a concrete
+nous each try is the same turn again in the same conversation; on a virtual one it is the whole
+graph walked again, so it is 0 unless you set it.
 
 | Setting | Choices | What it is |
 | --- | --- | --- |
 | tries | none, 1, 2, 3, 5, 8, 13, 21 | how many more times a failed turn is taken here |
 | policy | the six below | how long to wait between tries |
 | timeout | no limit, 30s, 1m, 5m, 15m, 60m | the longest the retrying may go on |
-
-Nothing is retried unless you set **tries**: a prompt the model refused is refused every time,
-and only you know which of your places fail the other way. The exceptions are the failures in
-the next section where another go is the answer.
 
 | Policy | Waits before the 2nd, 3rd, 4th… try |
 | --- | --- |
@@ -838,7 +789,7 @@ the next section where another go is the answer.
 | `fibonacci` | 1s, 1s, 2s, 3s, 5s |
 
 No wait is ever longer than 60 seconds. The timeout is checked before each wait, so a retry
-never starts once its time is up.
+never starts once its time is up; a virtual nous's timeout also bounds every nous inside it.
 
 ### What went wrong
 
@@ -847,23 +798,22 @@ exited. Each kind gets its own answer:
 
 | What happened | Tried again here | Then goes to |
 | --- | --- | --- |
-| **Too many requests**: 429, a quota spent, `RESOURCE_EXHAUSTED`, `overloaded` | at least once, after 30 s or more | next place |
-| **Credentials refused**: 401, an expired login, a revoked key | never | next place |
-| **Model refused** for this account: `key not allowed to access model` | never | next place |
-| **No such model**: 404, a retired model | never | next place |
-| **CLI not installed** | never | next place |
-| **Sandbox would not start**: `bwrap: setting up uid map: Permission denied` | never | next place |
-| **Its own store was busy**: opencode's `database is locked` | at least 3 times, 1 s apart | next place |
-| **Lost the connection**: `ECONNRESET`, 502, 503, a timeout | at least once, in the same conversation | next place |
-| **Killed**: out of memory, `SIGKILL` | at least once, after 1 s | next place |
-| **Anything else** | as the rule says | next place |
+| **Too many requests**: 429, a quota spent, `RESOURCE_EXHAUSTED`, `overloaded` | at least once, after 30 s or more | its edge |
+| **Credentials refused**: 401, an expired login, a revoked key | never | its edge |
+| **Model refused** for this account: `key not allowed to access model` | never | its edge |
+| **No such model**: 404, a retired model | never | its edge |
+| **CLI not installed** | never | its edge |
+| **Sandbox would not start**: `bwrap: setting up uid map: Permission denied` | never | its edge |
+| **Its own store was busy**: opencode's `database is locked`, codex's `failed to initialize sqlite state runtime` | at least 3 times, 1 s apart | its edge |
+| **Lost the connection**: `ECONNRESET`, 502, 503, a timeout | at least once, in the same conversation | its edge |
+| **Killed**: out of memory, `SIGKILL` | at least once, after 1 s | its edge |
+| **Anything else** | as the nous says | its edge |
 
-"At least" because a rule that asks for more tries gets them; "never" holds whatever the
-rule asks. **next place** is the next place on the chain, in a new conversation. A later turn
-starts at the main place again, and one that fails there too carries on in the conversation the
-place it moved to already holds. If there is nowhere left, the turn fails as it
-would with no rule written. To carry on under another account of the same CLI, put that
-account's place on the chain.
+"At least" because a nous that asks for more tries gets them; "never" holds whatever the
+nous asks. **its edge** is where the nous's `then`, or the graph it is a node of, sends that kind
+of failure: the edge named after it, or else `*`. If there is nowhere left, the turn fails as it
+would with nothing written. A later turn starts at the top of the agent's nous again; a balance
+node picks first what answered last time, so a conversation stays where it landed.
 
 Each move shows in the transcript as it happens, even with [details](#details) off, so a run
 that is recovering does not look hung:
@@ -886,10 +836,10 @@ still treated as one. Look there yourself when an agy turn fails with no reason 
 
 ### What comes across the step
 
-The step decides three things: the CLI, the account and the model. Everything else about the
-agent comes along unchanged:
+A step to another concrete nous changes its CLI, account and model, and its effort where it
+names one. Everything else about the agent comes along unchanged:
 
-- its effort, on the nearest rung the new CLI has;
+- its effort, where the nous names none, on the nearest rung the new CLI has;
 - its permission level, and whether it may search the web;
 - the skills and callbacks the flow gave it;
 - the run's budget, which goes on counting.
@@ -897,39 +847,48 @@ agent comes along unchanged:
 Settings that only one CLI understands come along when the step stays on the same CLI, and
 are left behind when it moves to another.
 
-### What it will not do {#fallback-will-not}
+### What it will not do {#nous-will-not}
 
-- **Carry the conversation.** The next place starts a new conversation and reads the
-  repository, not the history. That conversation is then kept for the rest of the run, so a
-  loop that moved is one conversation there, not a new one every round.
-- **Go round in circles.** A chain is the list written on one rule, walked once: a place
-  cannot be on its own chain, nor on one chain twice, and reaching a place never splices its
-  own rule's chain onto this one.
-- **Start a chain from the middle.** A turn begun at a place that is only on somebody else's
-  chain has no fallback from that chain.
-- **Fork.** A place has one chain. Writing a new rule for it replaces the old one.
+- **Carry the conversation.** Another concrete nous starts a new conversation and reads the
+  repository, not the history. That conversation is then kept for the rest of the run.
+- **Go round in circles.** A graph's edges cannot come round, and nous cannot name one another
+  round through their graphs and `then`; either is refused where it is written.
+- **Remove a virtual nous in use.** One that another nous names cannot be removed; renaming one
+  renames it everywhere it is named.
 - **Drop a setting quietly.** If the next CLI cannot be told something this agent was told,
-  such as web search off, or cannot take the flow's callbacks, the turn fails where it is
-  rather than move.
+  such as web search off, or cannot take the flow's callbacks, that nous is skipped as if it
+  had failed.
 - **Retry what no retry can fix.** A prompt longer than the model's context window fails
-  once, whatever the chain says.
+  once, whatever the graph says.
+- **Share counts between processes.** What `least-busy`, `latency` and `usage` count is this
+  process's own turns.
+
+Settings an older Humanize wrote under `fallbacks` are read as each place's `then`, and moved
+under `nous` the next time a nous is saved.
 
 ::: details From Python
-The steps you save at the prompt are the ones `Hmz().fallbacks` reads and writes:
+The nous you save at the prompt are the ones `Hmz().nous` reads and writes:
 
 ```python
 from hmz.sdk import Hmz
 
-falls = Hmz().fallbacks
-falls.points("claude@work/claude-opus-5-5", ["codex/gpt-5.6-sol", "dsh/deepseek-v4-flash"])
-falls.retrying("claude@work/claude-opus-5-5", 2, "linear", 0)  # tries, policy, timeout in s
-falls.chain("claude@work/claude-opus-5-5")
-# ['claude@work/claude-opus-5-5', 'codex/gpt-5.6-sol', 'dsh/deepseek-v4-flash']
-falls.chain("codex/gpt-5.6-sol")  # ['codex/gpt-5.6-sol']: not a main place
-falls.clear("claude@work/claude-opus-5-5")
+book = Hmz().nous
+book.then("claude@work/claude-opus-5-5", ["codex/gpt-5.6-sol", "dsh/deepseek-v4-flash"])
+book.retrying("claude@work/claude-opus-5-5", 2, "linear", 0)  # tries, policy, timeout in s
+book.write("smart", graph={
+    "start": "pool",
+    "nodes": {
+        "pool": {"balance": "least-busy", "among": ["claude@work/m", "claude@team/m"],
+                 "on": {"spent": "other"}},
+        "other": {"use": "codex/gpt-5.6-sol"},
+    },
+})
+book.entry("smart")  # 'claude@work/m', where an agent at `smart` is built
+book.strategy("first", "always the first", lambda members: members[0].name)
+book.clear("smart")
 ```
 
-The rest is in the [SDK reference](/reference/sdk).
+The rest is in the [SDK reference](/reference/sdk#nousbook).
 :::
 
 ## Runtimes
@@ -1109,7 +1068,7 @@ node the cluster gives it.
 | account, qos | what `sbatch` is told as `--account` and `--qos` | your defaults |
 | time | how long a job may run, as `--time` takes it: `4:00:00` | the partition's |
 | constraint | the node features a job needs: `a100` | any node |
-| python | a Python 3.12 or newer on the nodes, `/abs/path` or `~/path`, for nodes whose own is older | the nodes' own |
+| python | nothing: it is kept so that runtimes saved before still load, and is not used | |
 | via | `srun`, a step of the job per connection, which every cluster allows; or `tcp`, a port the job serves, which needs this machine to reach the nodes | `srun` |
 | run args | anything else `sbatch` is told | nothing |
 | max jobs | how many jobs it may have at once, waiting or running | no limit |
@@ -1319,7 +1278,7 @@ reporting question again.
 ### `hmz: /settings has no page '…'`
 
 The word after `/settings` names none of the nine pages. The message lists the ones there are:
-`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`,
+`general`, `notifications`, `daemons`, `accounts`, `nous`, `runtimes`, `backup`,
 `workspace` and `usage`. Type
 `/settings ` with a space and pick one from the list offered.
 

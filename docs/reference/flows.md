@@ -60,7 +60,7 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` ([table](#what-each-harness-serves)) |
 | Fake tools and command lines | [`FakeTool`](#fake-tools), [`FakeCli`, `FakeCommand`](#fake-clis): `hmz.coganchor.faking`'s own, re-exported |
 | Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
-| Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
+| Permissions | [`Permission`](#permission), [`PRESETS`](#permission), [`Rule`, `Access`, `allow`, `read_only`, `deny`](#rule) |
 | Budgets | [`Budget`](#budget), [`Graceful`](#budget), [`Usage`](#usage) |
 | Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
 | Environment mixins | `ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin` ([table](#what-an-environment-can-do)); `GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin` ([table](#worktrees-copies-and-scratch-directories)); `RewindableEnvMixin`, `GitEnvMixin` ([table](#snapshots-and-rewinding)); `CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin` ([table](#what-a-machine-must-have)) |
@@ -158,7 +158,8 @@ class FlowFn[TAgents: AgentCollection, TEnvs: EnvCollection, TParams: FlowParams
 ```
 
 The decorated function. Its return value is the flow call's return value: what a calling flow
-receives, [`Run.result`](/reference/sdk#run), and what [`run_fake`](#run-fake) returns.
+receives, [`Run.result`](/reference/sdk#run) (as the JSON of the `ended` record), and what
+[`run_fake`](#run-fake) returns.
 
 | Argument | Value at run time |
 | --- | --- |
@@ -258,8 +259,8 @@ and `get(key, default=None)`.
 | --- | --- |
 | `state[key] = value` | `key` must be a `str`, else `StateNotSerializable` (`a state key is a string, not <key>`). `value` is serialized with `json.dumps(..., allow_nan=True)`; a value it cannot serialize (or a recursion error) raises `StateNotSerializable` (also a `TypeError`): `<type> cannot be kept in a flow's state: <error>`. What is stored is the JSON round-trip of the value (a tuple becomes a list, dict keys become strings), so a fresh run and a resumed run read identical values. The write is appended to the journal and flushed before `__setitem__` returns. |
 | `del state[key]` | Removes the key; `KeyError` if absent. Journaled and flushed. |
-| `state[key]` | `KeyError` if absent. A [session kept](#sessions-in-state) in the value is read back as a new session each time. |
-| Mutating a value in place | Not recorded. Assign the value again to record it. |
+| `state[key]` | `KeyError` if absent. Each read returns a copy. A [session kept](#sessions-in-state) in the value is read back as a new session each time. |
+| Mutating a value in place | Changes only the copy read, not the state. Assign the value again to keep the change. |
 
 A resumable flow run without a journal (a resumable flow called from a non-resumable run, or
 [`run_fake`](#run-fake) without `journal=`) gets a state held in memory only.
@@ -427,7 +428,7 @@ with it.
 
 ```python
 class Builder(Agent, GoalCommandAgentMixin, PermissionRequestHookAgentMixin):
-    _permission = Permission(system=PermissionKind.NONE)
+    _permission = Permission(granular=(deny("~/.ssh"),))
 ```
 
 | Mixin | Grants | Without it |
@@ -553,50 +554,112 @@ the [hooks](#hooks-in-a-flow) the flow hangs on it.
 ### `Permission` {#permission}
 
 ```python
+PRESETS = ("read-only", "workspace-write", "danger-full-access")
+
 @dataclass(frozen=True, slots=True)
 class Permission:
-    local: PermissionKind = PermissionKind.ALL
-    user: PermissionKind = PermissionKind.READ
-    system: PermissionKind = PermissionKind.READ
-    online: PermissionKind = PermissionKind.ALL
+    preset: str = "workspace-write"
+    network: bool = True
+    granular: tuple[Rule, ...] = ()
 
+    @property
+    def rules(self) -> tuple[Rule, ...]: ...
+    def access(self, path: str) -> Access: ...
     def covers(self, other: Permission) -> bool: ...
 ```
 
-| Field | Scope | Default | Allowed |
+| Field | Meaning | Default | Allowed |
 | --- | --- | --- | --- |
-| `local` | the workdir of the environment the turn works in | `ALL` | `NONE`, `READ`, `ALL` |
-| `user` | the rest of the home directory of the user the CLI runs as | `READ` | `NONE`, `READ`, `ALL`; ≤ `local` |
-| `system` | everything else on the machine | `READ` | `NONE`, `READ`, `ALL`; ≤ `user` |
-| `online` | the network, including the CLI's own web search and fetch | `ALL` | `NONE`, `ALL` |
+| `preset` | the rules the grant starts from | `"workspace-write"` | one of `PRESETS`; anything else raises `ValueError` |
+| `network` | the network, including the CLI's own web search and fetch | `True` | `True`, `False` |
+| `granular` | rules laid over the preset's, in order | `()` | [`Rule`](#rule)s |
 
-Construction coerces each field with `PermissionKind(value)` and raises `ValueError`:
+`rules` is the preset's rules followed by `granular`:
 
-| Condition | Message |
+| `preset` | Its rules |
 | --- | --- |
-| field not a permission kind | `<field>=<value> is not a permission kind` |
-| `local >= user >= system` fails | `a wider scope may not be granted more than a narrower one: local=<k>, user=<k>, system=<k>` |
-| `online` is `READ` | `online is all or nothing: NONE or ALL, not READ` |
+| `read-only` | `read_only("/")` |
+| `workspace-write` | `read_only("/")`, `allow(".")` |
+| `danger-full-access` | `allow("/")` |
 
-`covers(other)` returns `True` iff each of the four fields is `>=` the same field of `other`.
+A rule matches its own path and every path beneath it, component by component (`/a` matches
+`/a/b`, not `/ab`). `access(path)` is the access of the **last** rule in `rules` that matches
+`path`, and `Access.NONE` where none does; it reads `path` as a rule's path is read, and matches
+without resolving `~` and `.`, `/` alone matching every path. A later rule
+so overrides an earlier one, narrower or wider:
 
-### `PermissionKind` {#permissionkind}
+```python
+Permission(granular=(deny("~/.ssh"),))            # reads /, writes ., keeps out of ~/.ssh
+Permission(granular=(deny("./.env"), allow(".")))  # allow(".") is last: .env is writable
+Permission(preset="danger-full-access", network=False)  # writes /, reaches no host
+```
 
-`class PermissionKind(StrEnum)`: `NONE = "none"`, `READ = "read"`, `ALL = "all"`, totally
-ordered `NONE < READ < ALL` (`<`, `<=`, `>`, `>=` defined; comparing with anything but these
-three strings raises `TypeError`).
+`network` and the rules are independent: every preset may be paired with either value.
+
+`covers(other)` returns `True` iff `self.network >= other.network` and, wherever the home
+directory and the workdir lie, `self` gives every path at least the access `other` gives it,
+once `~` and `.` are resolved and the temporary directories added. It is decided from the rules
+alone: the two are compared at the path of every rule of either, at `/tmp` and `/var/tmp`, and
+at a fresh child of each, under every layout that puts each of `~` and `.` beneath none, or
+beneath any one, of those rule paths.
+
+`Permission()` is the default every role gets: it reads the machine, writes its workdir and
+reaches the network.
+
+### `Rule` {#rule}
+
+```python
+class Access(StrEnum):
+    NONE = "none"
+    READ = "read"
+    WRITE = "write"
+
+@dataclass(frozen=True, slots=True)
+class Rule:
+    path: str
+    access: Access
+
+def allow(path: str) -> Rule: ...      # Access.WRITE
+def read_only(path: str) -> Rule: ...  # Access.READ
+def deny(path: str) -> Rule: ...       # Access.NONE
+```
+
+`Access` is totally ordered, `NONE < READ < WRITE`: `READ` allows reading, listing and
+executing, `WRITE` reading and changing, `NONE` neither.
+
+`path` starts with an anchor, which is resolved when a session opens, on the machine it opens
+on:
+
+| Anchor | Resolves to |
+| --- | --- |
+| `/`, `/<path>` | that absolute path |
+| `~`, `~/<path>` | the home directory of the user the harness runs as |
+| `.`, `./<path>` | the workdir of the environment the turn works in, and the session's working directory where that is elsewhere |
+
+The path is stored normalised: empty and `.` components after the anchor, and a trailing `/`,
+are dropped, so `~/a//b/` is `~/a/b` and `./` is `.`. A path with any other start (`src`,
+`~other`, `$HOME`), a `..` component, or a `*`, `?`, `[` or NUL raises `ValueError` when the
+`Rule` is made, as does an `access` that is not an `Access`.
+
+`Permission` raises `ValueError` for a `preset` not in `PRESETS`, and `TypeError` for a
+`network` that is not a `bool` or a `granular` item that is not a `Rule`.
 
 ### Enforcement
 
 A permission reaches a session twice: as a **fence** around the CLI's process tree, and as a
 **rung** of the CLI's own approval ladder.
 
-**The fence.** `system` is `/`, `user` is the home directory, `local` is the workdir. `READ`
-allows reading a scope, `ALL` reading and writing, `NONE` neither. `local` `ALL` also writes
-`/tmp`, `/var/tmp` and an absolute `$TMPDIR`, as Codex's `workspace-write` does. `user` `ALL`
-writes whatever the user may change: all of `/`, held by the files' own permissions, except
-for root, which gets those temporary directories and `/run/user/0` and keeps the rest at
-`system`. Independently of the scopes, the CLI may:
+**The fence.** Each rule of `rules` is resolved to an absolute path and held at its access,
+the last rule that matches a path deciding it, so a `deny` or `read_only` beneath a wider grant
+carves that subtree out of it. Whenever the rules give the workdir `.` `WRITE`
+(`workspace-write`, `danger-full-access`, or `read-only` with `allow(".")`), `/tmp`, `/var/tmp`
+and an absolute `$TMPDIR` are writable too, as Codex's `workspace-write` does. They are held as
+the CLI's own always-granted paths below are: where one of them and a rule's path nest, the
+deeper of the two decides, and at the same path the more permissive wins. So `deny("/tmp")`
+does not take `/tmp` away, and `deny("/tmp/x")` does keep the agent out of `/tmp/x`. A rule
+that writes `~` also writes whatever the user may change: all of `/`, held by the files' own permissions,
+except for root, which gets those temporary directories and `/run/user/0` and keeps the rest
+as the other rules say. Independently of the rules, the CLI may:
 
 - read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
   (on macOS `/System` and `/private/var/select` instead of `/lib*` and `/sys`), its own
@@ -609,27 +672,37 @@ for root, which gets those temporary directories and `/run/user/0` and keeps the
   `PIP_CACHE_DIR` and `GOCACHE` are pointed into that directory where the fence would not let
   them be written.
 
-`online` `NONE` cuts the network except to the hosts the CLI's model and sign-in are at
+`network=False` cuts the network except to the hosts the CLI's model and sign-in are at
 (read under the session's account, so a gateway the account points at is included). The
 default permission is a real fence: the workdir, the temporary directories and the minimum
 above are writable, the rest readable.
 
 A CLI that can enforce part of the fence itself is configured to. The rest is enforced from
-outside by `hmz internal fence`: on Linux, Landlock for paths and TCP, a seccomp filter
+outside by `hmz internal fence`: on Linux, Landlock for paths and TCP (Landlock only grants,
+so a granted directory holding a carve-out is granted as its other entries instead, down to
+the carve-out, as the fence is put up), a seccomp filter
 refusing every other socket family and a second filter that lets a socket listen on loopback
-only; on macOS, a Seatbelt profile for paths and sockets; and on both, a loopback proxy passing
-only the listed hosts. A session is never run wider than its
+only -- or, where Landlock cannot hold the fence or `sandbox.backend` in `settings.yaml` says
+`bwrap`, bubblewrap, which mounts what is granted into a root of its own, mounts an empty
+directory or file over a carve-out, and cuts the network with a namespace of its own; on
+macOS, a Seatbelt profile for paths and sockets, whose carve-outs follow its grants and so
+win; and on all, a loopback proxy passing only the listed hosts. A machine whose
+`sandbox.native` names `codex` hands Codex's grant to Codex's own sandbox instead, which holds
+the commands it runs and not Codex itself, where that sandbox can say the grant. A session is never run wider than its
 permission. Where neither the CLI nor the machine can hold the fence, the session is refused
 with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
 
 | Cause | Refused where |
 | --- | --- |
-| no Landlock (Linux < 5.13), or macOS where Humanize already runs inside a sandbox | any fence other than all four scopes `ALL` with `online` `ALL` |
-| Linux < 6.7 | `online` `NONE` |
-| wrapper cannot trace its children (a container's default seccomp profile; Yama `ptrace_scope` 2 or 3) | `online` `NONE` |
+| no Landlock (Linux < 5.13) and no `bwrap` that starts, or macOS where Humanize already runs inside a sandbox | any permission but one that writes every path with `network=True` |
+| Linux < 6.7, and no `bwrap` that starts with a network namespace | `network=False` |
+| the backend `sandbox.backend` pins cannot start | any permission but one that fences nothing |
+| wrapper cannot trace its children (a container's default seccomp profile; Yama `ptrace_scope` 2 or 3) | `network=False` |
+| a carve-out (a `deny` or `read_only` beneath a wider grant) the machine's sandbox cannot hold -- under bubblewrap, one that is not there | a permission with that rule |
 
-`local`, `user`, `system` all `ALL` with `online` `ALL` fences nothing, and so does `user`
-`ALL` with `online` `ALL` for anyone but root.
+A permission that gives every path `WRITE`, with `network=True` (`danger-full-access` with
+no narrower rule after it), fences nothing. A rule that writes `~` writes whatever the user may
+change, so for anyone but root one with `network=True` and no carve-out fences nothing either.
 
 With the network cut on Linux, a program may listen on loopback only (`127.0.0.0/8`, `::1`,
 IPv4 loopback mapped into IPv6). A `bind` elsewhere, and a `listen` on a socket bound
@@ -646,36 +719,37 @@ address, and on macOS a program may listen on any address, as above.
 When the work is on another machine (a `docker` or `ssh` environment) the fence is held on
 both: the CLI here inside this machine's Landlock with the environment's mirror as its
 workdir, and every command on the target under `hmz internal fence` again, around the
-target's own workdir, `$HOME` and minimum. With `online` `NONE` a command on the target
+target's own workdir, `$HOME` and minimum, the rules redrawn there from their anchors. With
+`network=False` a command on the target
 reaches no host. A CLI's own sandbox rung is not used there. A target that cannot hold the
 fence refuses the session with `HarnessSandboxed` on its first turn; a container under
-docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
+docker's default seccomp profile can hold `network=True` but not `False`. See
 [Remote execution](/reference/remote-execution#a-fence-on-both-machines).
 
 | CLI | Filesystem | Network |
 | --- | --- | --- |
 | `claude` | external; its own sandbox covers only its Bash tool and is not used | external; `WebSearch`, `WebFetch` refused by rule |
-| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; at `local` `READ` with `online` `ALL` its `read-only` sandbox is told to leave commands the network |
-| `cursor-agent` | external; its own sandbox covers only shell commands and needs a user namespace | `NONE` refused: its web tools run on Cursor's servers |
-| `mcode` | external; no sandbox of its own | `NONE` refused: its web search runs on MiniMax's service |
+| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; at `read-only` with `network=True` its `read-only` sandbox is told to leave commands the network |
+| `cursor-agent` | external; its own sandbox covers only shell commands and needs a user namespace | `False` refused: its web tools run on Cursor's servers |
+| `mcode` | external; no sandbox of its own | `False` refused: its web search runs on MiniMax's service |
 | `opencode`, `mimo` | external; file tools also refuse outside the fence | external; web tools removed offline |
 | `qwen` | external | external; `web_search`, `web_fetch` withheld |
 | `kimi` | external | external; its daemon may bind its one port |
 | `grok` | external; its own sandbox writes `/tmp` | external; `--disable-web-search` offline |
 | `pi` | external | external; started `--offline`; gateways its `models.json` declares stay reachable |
 | `omp` | external | external; never started `--offline`; the `baseUrl` of the model's provider in its `models.yml` stays reachable |
-| `agy` | external; its `--sandbox` covers only commands | external; web tools removed offline (and always with `online` `NONE`) |
+| `agy` | external; its `--sandbox` covers only commands | external; web tools removed offline (and always with `network=False`) |
 | `dsh` | external | external |
-| `acp` | external, plus the `state` declared for it | external, to the `hosts` declared for it; `NONE` with none declared refused |
+| `acp` | external, plus the `state` declared for it | external, to the `hosts` declared for it; `False` with none declared refused |
 
 "External" is Landlock (Seatbelt on macOS) plus the loopback proxy.
 
 **The rung.**
 
-| `local` | every harness but `dsh`, `mcode`, `acp` | `dsh`, `mcode`, `acp` |
+| Permission | every harness but `dsh`, `mcode`, `acp` | `dsh`, `mcode`, `acp` |
 | --- | --- | --- |
-| `READ` or `NONE` | `read-only` (Claude Code `plan`, Codex read-only sandbox, a tool list without writers) | `bypass` |
-| `ALL` | `bypass` | `bypass` |
+| `preset="read-only"`, and `access(".")` is not `WRITE` | `read-only` (Claude Code `plan`, Codex read-only sandbox, a tool list without writers) | `bypass` |
+| anything else | `bypass` | `bypass` |
 
 - `bypass` is the CLI's no-approval mode: Codex `danger-full-access` with approval `never`;
   Claude Code `bypassPermissions`. Where a managed policy forbids that, the CLI runs at the
@@ -687,7 +761,7 @@ docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
   `default_mode_request_user_input` feature while `on_ask_user` is hung. Kimi Code runs at
   coganchor's `auto` rung (Kimi's `yolo`) while either is hung. Humanize answers yes unless the
   hook says no.
-- `online` also switches the CLI's own web tools (on for `ALL`, off for `NONE`) where the CLI
+- `network` also switches the CLI's own web tools (on for `True`, off for `False`) where the CLI
   can be told; where it cannot (`cursor-agent`, `mcode`, `pi`, `omp`, `agy`, `acp`) the cut
   network stops them.
 
@@ -707,7 +781,8 @@ def derive(self, *, permission: Permission | None = None,
 
 Returns a new view of the same driver with the narrower grant; the original is unchanged. The
 derived agent shares the original's hooks and its sessions (a session of either may be used by
-the other).
+the other). A session runs under the permission and skills of the agent that spawned or forked
+it, whichever of the two runs its first turn.
 
 | Condition | Raises |
 | --- | --- |
@@ -954,9 +1029,9 @@ The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.
   CLI is started, which apply from the next turn: `on_pre_tool_use` on a gating CLI, and
   `on_permission_request` or `on_ask_user` on Codex (whose app server is restarted between
   turns for it) and Kimi Code.
-- A session whose CLI starts (its first turn, or a turn that carries it elsewhere) on
-  another machine while `on_pre_tool_use` or `on_permission_request` is hung is refused where
-  its runtime's harness is `env`, the CLI there being one these hooks cannot gate; see
+- A session whose CLI runs on another machine is refused where its runtime's harness is `env`
+  while `on_pre_tool_use` or `on_permission_request` is hung, as it opens or from its next
+  turn, the CLI there being one these hooks cannot gate; see
   [Harness placement](#harness-placement).
 
 ### `HookKind` {#hookkind}
@@ -1017,7 +1092,7 @@ the run; naming it with `-a` is refused
 | `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |
 | `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. |
 | `fork` | `UnsupportedOperation`: `an outworlder's session cannot be forked`. |
-| `derive(skills=…)` | Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
+| `derive(permission=…, skills=…)` | Returns the same outworlder. A permission that the default `Permission()` does not cover raises `CapabilityNotGranted`: `<role>: <permission> is wider than the <granted> an outworlder is granted`. Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
 
 **While away**, `run` returns at once: `""` for text; the schema built from defaults where
 every field has one; otherwise `OutworlderAway`:
@@ -1301,6 +1376,9 @@ behave as anywhere.
 - Turns of one session are sequential; a second `run` while one is under way raises
   `SessionError`.
 - Cancelling a task in a turn interrupts that CLI.
+- A task the flow starts that calls a flow, or uses an agent or an environment, is cancelled as
+  the run ends, awaited or not, and waited for up to 30 s; other work it starts is not: see
+  [Stopping](#stopping).
 - A called flow's exception reaches `except*` with its own class.
 - Concurrent calls form a tree of contexts, each with its own usage.
 
@@ -1348,9 +1426,15 @@ declaration order), and the params serialized as JSON.
 
 | Role | Spec in the digest |
 | --- | --- |
-| agent | `<harness>@<provider>/<model>:<effort>\|<local>,<user>,<system>,<online>\|<skill,skill…>` |
+| agent | `<harness>@<provider>/<model>:<effort>\|<permission>\|<skill,skill…>`, `<permission>` being canonical JSON (below) |
 | outworlder | `outworlder`, or `outworlder:new` for one from `Outworlder.new()` |
 | environment | its derivation chain: `<backend>@<provider><workdir>` followed by `#subdir(<path>)`, `#worktree(<ref>,<dir>)`, `#temp_clone(<id>)`, `#scratch(<id>)` per derivation; never the path a copy landed at |
+
+An agent's `<permission>` is
+`json.dumps({"preset": preset, "network": network, "granular": [[path, access], ...]},
+separators=(",", ":"))`: `granular` in declared order, each rule's normalised path and access
+value, and the preset's expansion left out. `Permission(granular=(deny("~/.ssh"),))` is
+`{"preset":"workspace-write","network":true,"granular":[["~/.ssh","none"]]}`.
 
 `seq` counts earlier calls under the same parent with the same digest.
 
@@ -1498,8 +1582,10 @@ nothing was spent. Refusals for one kind of agent grant are computed once per ro
 | anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
 
 The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. Its hooks
-and sessions are its own; a session the caller opened cannot be used by the callee.
+mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. A
+*full view* callee such as `chat` is granted every mixin of each agent's harness in place of
+the role's, and the rest as above. Its hooks and sessions are its own; a session the caller
+opened cannot be used by the callee.
 
 `Hmz().flows.running()` lists every flow call currently running in this process (oldest
 first), each with its ref, name, depth, start time, journal id, parent, task and whether it is
@@ -1546,7 +1632,9 @@ my_loop/
         └── SKILL.md
 ```
 
-Names starting with `_`, and directories without `__init__.py`, are not flows.
+Names starting with `_`, and directories without `__init__.py`, are not flows. An `__init__.py`
+that is a symbolic link still makes its directory the flow, with its `skills/` and the files
+beside it, whatever the file it leads to is called.
 
 **Resolution of a bare `-f <name>` (and a bare `load` with no flow asking)**, first match
 wins:
@@ -1594,8 +1682,10 @@ already present in either shape is refused (`ValueError`); a failed copy leaves 
 
 ## Skills {#the-skills-a-flow-brings}
 
-A flow directory's `skills/` holds one directory per skill, each with a `SKILL.md`. A role
-names the skills its sessions carry in `_skills`.
+A flow directory's `skills/` holds one directory per skill, each with a `SKILL.md`. An entry
+that is a link out of the flow's directory -- or, for a fetched repository, out of the
+repository -- is skipped with a warning. A role names the skills its sessions carry in
+`_skills`.
 
 ```python
 class Reviewer(Agent):
@@ -1943,9 +2033,9 @@ value and nowhere else.
 | Work | Harness |
 | --- | --- |
 | here (env location `local`) | here (harness location `local`) |
-| elsewhere, harness `env` (the default; also a machine nobody saved) | on the environment's machine, natively. Refused where the CLI is not on that machine's `PATH`, where a fenced session's fence cannot be held there, where the machine cannot be asked, or where an `on_pre_tool_use`/`on_permission_request` hook is hung when the session opens (an `on_ask_user` hook is not) |
+| elsewhere, harness `env` (the default; also a machine nobody saved) | on the environment's machine, natively. Refused where the CLI is not on that machine's `PATH`, where a fenced session's fence cannot be held there, where the machine cannot be asked, or where an `on_pre_tool_use`/`on_permission_request` hook is hung (an `on_ask_user` hook is not) |
 | elsewhere, harness `local` | here, anchored to the machine, in a mirror of its work |
-| elsewhere, harness `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>` (harness location `standalone`) | on that runtime, in a mirror there, acting on the work through the anchor. Refused where it cannot be opened or reached, has no share left, or the role's permission is anything but every scope `ALL` |
+| elsewhere, harness `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>` (harness location `standalone`) | on that runtime, in a mirror there, acting on the work through the anchor. Refused where it cannot be opened or reached, has no share left, or the role's permission fences anything ([Enforcement](#enforcement)) |
 
 The setting is the one of the runtime actually opened for the work; a runtime a harness is
 put on is opened as an environment of its own (its workdir, else `~` over ssh, else
@@ -1966,9 +2056,10 @@ per kind of fence (network cut or not) in the anchor handshake.
 | a harness runtime, role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
 | a harness runtime that cannot be opened, reached or given a container | the runtime's `EnvUnavailable`, `EnvConnectionError` or `ResourceUnmet` |
 | `env`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>[@<provider>]: <install hint> there, or set the harness of the runtime it is on to local` |
-| `env`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or set the harness of the runtime it is on to local` |
+| `env`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local` |
 | `env`: machine did not answer | `HarnessUnrecoverable`: `<backend>[@<provider>] did not say within 300s whether <cli> is there`, or `could not be asked whether <cli> is there: <reason>` |
-| `env`: gating hook hung | `UnsupportedOperation`: `a pre_tool_use[ and a …] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local` |
+| `env`: gating hook hung | `UnsupportedOperation`: `a pre_tool_use[ and a …] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local`; a hook hung after the session opened is refused from its next turn |
+| `env` or a harness runtime: the role offers fake tools, on any CLI but `omp` | `UnsupportedOperation`: `<cli> cannot offer the flow's tools to a CLI on another machine; set the harness of the runtime it is on to local`, as the session opens (not prefixed) |
 
 Each refusal is raised, of its type, as `<backend>[@<provider>]: <cli>'s harness cannot run
 where its harness setting (<setting>) says: <refusal>`; the harness is never put anywhere
@@ -2008,6 +2099,17 @@ A stop cancels the flow at its current `await`: the turn under way is interrupte
 blocks run, `TaskGroup`s cancel their children. On the way out every session is closed and
 every copy and scratch directory removed (kept, with the journal, for a resumable run). The
 epic records `ended.how` = `stopped` for a stop from outside or a spent budget.
+
+However the run ends, every task still going that called a flow, or used an agent or an
+environment -- one a `gather` stopped waiting for as it unwound, or one the flow started and
+never awaited -- is cancelled and waited for, up to 30 s, before the journal closes, and every
+turn under way is interrupted. What such a task writes to `ctx.state` on its way out is kept,
+and a turn whose answer lands after the run ended raises `FlowCancelled` instead of answering.
+Other work the flow started -- a task that only waits and writes `ctx.state`, a thread -- is not
+the run's to end, nor is a task that will not end within those 30 s: they go on, and once the
+journal is closed, their writes to `ctx.state` raise `FlowCancelled`. A stop that arrives while
+the run is ending this way -- <kbd>ctrl+c</kbd>, a signal, `Run.stop()` -- waits for it to finish
+rather than cutting it short, and the run then ends as stopped.
 
 ## Errors {#when-something-goes-wrong}
 
@@ -2053,7 +2155,7 @@ FlowException
 | <code id="requirementerror">RequirementError</code> | `FlowRuntimeError` | what was given does not meet the declaration; nothing ran. Raised directly for a role the flow does not declare, a runtime-filled role given, or an object the run did not hand out |
 | <code id="missingrole">MissingRole</code> | `RequirementError` | a required role was not given |
 | <code id="capabilitymissing">CapabilityMissing</code> | `RequirementError` | an agent or environment lacks a declared mixin (including `GitEnvMixin` or `GitWorktreeEnvMixin` on a machine without git, `BashEnvMixin` on one without bash), a `LocalEnv` given another machine, an outworlder given for a role it cannot fill |
-| <code id="permissiontoonarrow">PermissionTooNarrow</code> | `RequirementError` | an agent's permission does not cover its role's |
+| <code id="permissiontoonarrow">PermissionTooNarrow</code> | `RequirementError` | an agent's permission does not cover its role's ([`covers`](#permission)) |
 | <code id="resourceunmet">ResourceUnmet</code> | `RequirementError` | a machine has fewer CPUs/GPUs or less memory than declared, or a docker runtime has not that much left |
 | <code id="harnessmismatch">HarnessMismatch</code> | `RequirementError` | a harness-protocol role got another harness |
 | <code id="capabilitynotgranted">CapabilityNotGranted</code> | `FlowRuntimeError` | an operation the role did not declare; widening a grant with `derive`; `on_outworlder_run` on an outworlder not from `new()` |
@@ -2128,7 +2230,6 @@ async def run_fake(
     local: EnvDriver | None = None,
     journal: Path | None = None,
     resume: bool = False,
-    recorder: Recorder | None = None,
 ) -> Any
 ```
 
@@ -2144,9 +2245,12 @@ async def run_fake(
 | `local` | `FakeEnvDriver(workdir="/here")` | Fills `LocalEnv` roles. |
 | `journal` | `None` | Path of a resumable flow's journal. |
 | `resume` | `False` | Pick up `journal`. |
-| `recorder` | `None` | <Badge type="info" text="internal" /> Receives `entered(call)`, `left(call, error)`, `spawned(call, role, session, driver)`, optionally `began`, `named`, `closed`. |
 
-Returns the flow's return value. A `NotRequired` role nobody gave is omitted. Fake turns report
+Returns the very object the flow returned, or raises the very exception it raised. The flow
+runs through a [private daemon](/reference/sdk#fakes) the test starts in its own process, with
+a temporary home of its own: this machine's daemon is never touched, and the epic it writes is
+removed when `run_fake` returns or raises, so `Hmz().epics` does not list it. A `NotRequired`
+role nobody gave is omitted. Fake turns report
 the spending they are told to, so budgets, usage and sticky exhaustion behave as in a real run.
 
 ### `FakeAgentDriver` {#fakeagentdriver}

@@ -21,21 +21,28 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 
 import hmz.coganchor.models
-import hmz.web.places
 from hmz.runtime.doing import hosting
-from tests.integration.doubles_core import install
-from tests.integration.doubles_web import backed_up_elsewhere, elsewhere, served
-from tests.system.web.doubles_browser import ENGINES, go, opened, stop
+from tests.integration.doubles_core import AGENT, hmz_exec, install
+from tests.integration.doubles_web import served
+from tests.system.web.doubles_browser import (
+    ENGINES,
+    Wire,
+    backed_up_elsewhere,
+    elsewhere,
+    go,
+    opened,
+    stop,
+)
 
 if TYPE_CHECKING:
-    from playwright.sync_api import FloatRect, Locator, Page, Route
+    from playwright.sync_api import FloatRect, Locator, Page
 
 #: Every settings page, by the word its address ends in.
 _PAGES = (
     "general",
     "themes",
     "accounts",
-    "fallback",
+    "nous",
     "runtimes",
     "backup",
     "workspace",
@@ -55,13 +62,42 @@ _WINDOWS_APP = (
     " humanize-desktop/0.0.0"
 )
 
-pytestmark = pytest.mark.parametrize("engine", ENGINES)
+#: Local is a daemon of this process: what a test patches of a host, its hosts take.
+pytestmark = [
+    pytest.mark.parametrize("engine", ENGINES),
+    pytest.mark.usefixtures("daemon"),
+]
+
+
+def _call(page: Page, method: str, params: dict[str, Any] | None = None) -> Any:
+    """Calls one method of the daemon shown, as the page's own script does."""
+    return page.evaluate(
+        """async ([method, params]) => (await import('/api.js')).call(method, params)""",
+        [method, params or {}],
+    )
+
+
+def _starts(page: Page, flow: str, task: str) -> dict[str, Any]:
+    """Starts an epic where `hmz web` started, as a new epic does, and answers where it went."""
+    return page.evaluate(
+        """async ([flow, task]) => {
+          const { started } = await import('/api.js')
+          const { ask } = await import('/held.js')
+          return ask(await started(), 'start', {flow, task,
+            budget: {cost: 5, duration: 600, output_tokens: 100000},
+            agents: {assistant: 'claude/claude-haiku-4-5'}})
+        }""",
+        [flow, task],
+    )
 
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """The stand-in `claude` alone on PATH, asked what it runs, and a project to serve."""
-    return install(tmp_path, monkeypatch)
+    project = install(tmp_path, monkeypatch)
+    # The home it gives the CLI is this machine's home, which the daemon's own settings are of.
+    (tmp_path / "home").mkdir(exist_ok=True)
+    return project
 
 
 def _start_chat(page: Page, task: str) -> None:
@@ -128,21 +164,8 @@ def talking(project: Path) -> None:
 
 def _start_talk(page: Page, task: str) -> None:
     """Starts the project's own `talk` from the API, as a page would, and opens its graph."""
-    started = page.evaluate(
-        """async (task) => {
-          const answer = await fetch('/api/held/start', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({flow: '@local/talk', task,
-              budget: {cost: 5, duration: 600, output_tokens: 100000},
-              agents: {assistant: 'claude/claude-haiku-4-5'}}),
-          })
-          return [answer.status, await answer.text()]
-        }""",
-        task,
-    )
-    assert started[0] == 200, started[1]
-    go(page, "/live")
+    started = _starts(page, "@local/talk", task)
+    go(page, f"/live?{urllib.parse.urlencode({'workspace': started['workspace']})}")
     page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
     expect(page.locator("[data-hmz=graph-session]").first).to_be_visible()
 
@@ -424,8 +447,43 @@ def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
         expect(page.get_by_role("link", name="Resume")).to_have_count(0)
 
 
-def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
+def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
+    project: Path, engine: str
+) -> None:
+    chasers = ["-a", f"first_chaser={AGENT}", "-a", f"second_chaser={AGENT}"]
+    ran = hmz_exec("-f", "flame_chase", *chasers, "-p", "budget.duration=2s", "work")
+    assert ran.returncode == 0, ran.stderr
+    (record,) = project.parent.glob("humanize-home/epics/*/*/epic.jsonl")
+    origin = record.parent.name
+    # As an earlier Humanize wrote a year down: in ISO 8601, in years.
+    began, *rest = record.read_text().splitlines()
+    year = {"duration": "P1Y", "cost": None, "output_tokens": None, "graceful": True}
+    record.write_text(
+        "\n".join([json.dumps(json.loads(began) | {"budget": year}), *rest]) + "\n"
+    )
     with served() as site, opened(site, engine=engine) as page:
+        go(page, f"/epics/{origin}")
+        page.get_by_role("link", name="Resume").first.click()
+        page.get_by_role("button", name="Options").click()
+        minutes = page.get_by_label("Longest it may take, in minutes")
+        expect(minutes).to_have_value("525600")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(rf".*#/epics/(?!{re.escape(origin)})[^/]+$"))
+        name = urllib.parse.unquote(page.url.split("#/epics/")[1].split("?")[0])
+        resumed = _call(page, "runs.get", {"name": name})
+        assert resumed["picked_up"] == origin
+        assert resumed["budget"]["duration"] == 365 * 86400
+        stop(page)
+
+        # Kept for the flow as settings says a year, and a new epic of it opens on it.
+        go(page, "/new?flow=flame_chase")
+        page.get_by_role("button", name="Options").click()
+        expect(minutes).to_have_value("525600")
+
+
+def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         _start_chat(page, "find me later")
         stop(page)
 
@@ -433,23 +491,14 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         search = page.get_by_role("searchbox", name="Find")
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
         # What is listed stays, marked old, until the search typed is answered.
-        held: list[Route] = []
-
-        def hold(route: Route) -> None:
-            # Playwright takes a function of Python's, not a bound builtin.
-            held.append(route)
-
-        page.route("**/api/runs?*", hold)
+        wire.holds("runs.list")
         search.fill("find")
         found = page.locator("[data-hmz=found]")
-        page.wait_for_timeout(500)
-        assert held
+        wire.waits(page)
         expect(found).to_have_attribute("aria-busy", "true")
         expect(found.locator(".result")).to_have_count(1)
         expect(search).to_have_value("find")
-        for one in held:
-            one.continue_()
-        page.unroute("**/api/runs?*")
+        wire.lets_through()
         expect(found).not_to_have_attribute("aria-busy", "true")
         search.fill("nothing like it")
         expect(page.locator("[data-hmz=found]")).to_contain_text(
@@ -515,22 +564,10 @@ def test_a_chat_asks_in_its_conversation_and_is_answered_there(
     flows.mkdir(parents=True)
     (flows / "__init__.py").write_text(_PICKING)
     with served() as site, opened(site, engine=engine) as page:
-        started = page.evaluate(
-            """async () => {
-              const answer = await fetch('/api/held/start', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({flow: 'chat', task: 'first',
-                  budget: {cost: 5, duration: 600, output_tokens: 100000},
-                  agents: {assistant: 'claude/claude-haiku-4-5'}}),
-              })
-              return [answer.status, await answer.text()]
-            }"""
-        )
-        assert started[0] == 200, started[1]
+        started = _starts(page, "chat", "first")
         # A chat of its own, followed on its own host.
-        slot = json.loads(started[1])["slot"]
-        go(page, f"/live?{urllib.parse.urlencode({'slot': slot})}")
+        where = {"workspace": started["workspace"], "slot": started["slot"]}
+        go(page, f"/live?{urllib.parse.urlencode(where)}")
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
 
         # What it asks is asked in the thread, its answers there to pick, never as a card.
@@ -992,14 +1029,10 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
 def test_a_start_says_it_is_starting_until_the_epic_opens(
     project: Path, engine: str
 ) -> None:
-    held: list[Route] = []
-
-    def hold(route: Route) -> None:
-        held.append(route)
-
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/new?flow=chat")
-        page.route("**/api/held/start", hold)
+        wire.holds("epic.start")
         page.get_by_role("button", name="Options").click()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
@@ -1010,30 +1043,28 @@ def test_a_start_says_it_is_starting_until_the_epic_opens(
         expect(box).to_have_attribute("aria-busy", "true")
         expect(box.get_by_role("status")).to_have_text("Starting…")
         expect(box.get_by_role("button", name="Starting…")).to_be_disabled()
-        held[0].continue_()
+        wire.waits(page)
+        wire.lets_through()
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
 
 
 def test_a_workspace_read_marks_the_flow_drawn_until_it_is_read(
     project: Path, engine: str
 ) -> None:
-    held: list[Route] = []
-
-    def hold(route: Route) -> None:
-        held.append(route)
-
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/new?flow=chat")
         expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
         expect(page.locator("[data-hmz=options]")).not_to_have_class(
             re.compile("stale")
         )
-        page.route(re.compile(r".*/api/flow\?name="), hold)
+        wire.holds("flows.get")
         page.locator("[data-hmz=flow-picker]").click()
         page.get_by_role("menuitem", name=re.compile("chat")).first.click()
         expect(page.locator(".greeting-about [role=status]")).to_have_text("Reading…")
         expect(page.locator("[data-hmz=options]")).to_have_class(re.compile("stale"))
-        held[0].continue_()
+        wire.waits(page)
+        wire.lets_through()
         expect(page.locator(".greeting-about [role=status]")).to_have_count(0)
         expect(page.locator("[data-hmz=options]")).not_to_have_class(
             re.compile("stale")
@@ -1043,7 +1074,8 @@ def test_a_workspace_read_marks_the_flow_drawn_until_it_is_read(
 def test_the_flow_and_its_environment_are_profiled_apart(
     project: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/new?flow=chat")
         page.get_by_role("button", name="Options").click()
         flow = page.get_by_label("Profile flow")
@@ -1065,14 +1097,11 @@ def test_the_flow_and_its_environment_are_profiled_apart(
         expect(environment).not_to_be_checked()
         environment.check()
 
-        with page.expect_request(
-            lambda asked: asked.url.endswith("/api/held/start")
-        ) as started:
-            page.locator("[data-hmz=composer-text]").fill("profile me")
-            page.locator("[data-hmz=composer-text]").press("Enter")
-        said = json.loads(started.value.post_data or "{}")
-        assert (said["profile_flow"], said["profile_environment"]) == (True, True)
+        page.locator("[data-hmz=composer-text]").fill("profile me")
+        page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+        (said,) = wire.params("epic.start")
+        assert (said["profile_flow"], said["profile_environment"]) == (True, True)
 
 
 @pytest.mark.usefixtures("talking")
@@ -1130,7 +1159,7 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         stop(page)
 
         with page.expect_download() as saving:
-            page.get_by_role("link", name="Export").click()
+            page.get_by_role("button", name="Export").click()
         saved = saving.value
         assert saved.suggested_filename.endswith(".hmzepic")
         assert Path(saved.path()).read_bytes()[:2] == b"\x1f\x8b"
@@ -1150,7 +1179,8 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
 
     bare = project.parent / "epics.git"
     subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/settings/backup")
         writing = page.locator("[data-hmz=write-backup]")
         writing.get_by_label("Name").fill("t")
@@ -1159,14 +1189,11 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         listed = page.locator("[data-hmz=backup-target][data-name=t]")
         expect(listed).to_contain_text("Manual")
         # Ticked, it is written down before a new epic reads it.
-        with page.expect_response(
-            lambda answer: (
-                answer.url.endswith("/api/settings") and answer.request.method == "POST"
-            )
-        ) as saved:
-            listed.locator("[data-hmz=backup-default]").check()
-        assert saved.value.ok
+        writes = len(wire.params("settings.set"))
+        listed.locator("[data-hmz=backup-default]").check()
         expect(listed.locator("[data-hmz=backup-default]")).to_be_checked()
+        assert len(wire.params("settings.set")) > writes
+        assert _call(page, "settings.get")["backup"]["defaults"] == ["t"]
         page.keyboard.press("Escape")
 
         go(page, "/new?flow=chat")
@@ -1318,12 +1345,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         expect(aside).to_contain_text("settings")
         # Refused before it opened: whom it asks is still to pick.
         expect(ask).to_be_visible()
-        named = page.evaluate(
-            """async () => (await fetch('/api/settings', {method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({btw: 'claude/claude-haiku-4-5'})})).status"""
-        )
-        assert named == 200
+        _call(page, "settings.set", {"btw": "claude/claude-haiku-4-5"})
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
         log = page.locator("[data-hmz=btw-log]")
@@ -1368,29 +1390,21 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
     project: Path, engine: str, talking: None
 ) -> None:
-    #: Each request held back until let through, so what is pressed is seen waiting on it.
-    waiting: list[Route] = []
-
-    def held(route: Route) -> None:
-        waiting.append(route)
-
-    def holding(path: str) -> None:
-        page.route(f"**{path}", held, times=1)
+    #: Each call held back until let through, so what is pressed is seen waiting on it.
+    wire = Wire()
+    holding = wire.holds
 
     def through() -> None:
-        deadline = time.monotonic() + 10
-        while not waiting:
-            assert time.monotonic() < deadline, "nothing was sent"
-            page.wait_for_timeout(100)
-        waiting.pop().continue_()
+        wire.waits(page)
+        wire.lets_through()
 
-    with served() as site, opened(site, engine=engine) as page:
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         _start_talk(page, "busy me")
 
         # The question's typed answer.
         card = page.locator("[data-hmz=question]")
         expect(card).to_be_visible()
-        holding("/api/held/answer")
+        holding("epic.answer")
         card.get_by_label("Answer").fill("go on")
         card.get_by_label("Answer").press("Enter")
         answering = card.get_by_role("button", name="Answering…")
@@ -1399,18 +1413,13 @@ def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
         expect(answering).to_have_count(0)
 
         # An aside's Close.
-        named = page.evaluate(
-            """async () => (await fetch('/api/settings', {method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({btw: 'claude/claude-haiku-4-5'})})).status"""
-        )
-        assert named == 200
+        _call(page, "settings.set", {"btw": "claude/claude-haiku-4-5"})
         page.get_by_role("tab", name="Aside").click()
         aside = page.locator("[data-hmz=btw]")
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
         expect(page.locator("[data-hmz=btw-log] .said.btw")).to_have_count(1)
-        holding("/api/btw/leave")
+        holding("btw.leave")
         page.locator("[data-hmz=btw-close]").click()
         closing = page.get_by_role("button", name="Closing…")
         expect(closing).to_be_disabled()
@@ -1419,7 +1428,7 @@ def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
         expect(closing).to_have_count(0)
 
         # Upload, from the bar: the button says it is busy, and nothing else says so too.
-        holding("/api/runs/*/backup")
+        holding("runs.backup")
         page.locator("[data-hmz=upload]").click()
         expect(page.locator("[data-hmz=upload]")).to_have_attribute("aria-busy", "true")
         expect(page.locator("[data-hmz=upload]")).to_be_disabled()
@@ -1431,7 +1440,7 @@ def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
         )
 
         # Stop, which stays stopping until the epic says it is.
-        holding("/api/held/stop")
+        holding("epic.stop")
         page.get_by_role("button", name="Stop", exact=True).click()
         page.get_by_role("button", name="Stop", exact=True).click()
         stopping = page.get_by_role("button", name="Stopping…")
@@ -1552,13 +1561,10 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
         assert found is not None
         name = found[1]
         with page.expect_download() as saving:
-            page.get_by_role("link", name="Export").click()
+            page.get_by_role("button", name="Export").click()
         archive = tmp_path / saving.value.suggested_filename
         saving.value.save_as(archive)
-        at = page.evaluate(
-            "async (name) => (await (await fetch(`/api/runs/${name}`)).json()).at",
-            name,
-        )
+        at = _call(page, "runs.get", {"name": name})["at"]
         opened_on = re.compile(rf".*#/epics/{re.escape(name)}$")
         # By its path, an epic opens on its Exomyth, as the desktop app opens a file.
         on_exomyth = re.compile(rf".*#/epics/{re.escape(name)}/exomyth$")
@@ -1644,7 +1650,7 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
 def _held(page: Page) -> dict[str, dict[str, object]]:
     """Each epic listed, by its task: whether a host holds it, how it stands, and which."""
     return page.evaluate(
-        """async () => Object.fromEntries((await (await fetch('/api/runs')).json()).runs
+        """async () => Object.fromEntries((await (await import('/api.js')).call('runs.list')).runs
           .map((one) => [one.task, {held: one.held, how: one.how, slot: one.slot,
             name: one.name}]))"""
     )
@@ -1655,8 +1661,6 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
     engine: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(hosting, "FOLD", 0.5)
-    monkeypatch.setattr(hmz.web.places, "_IDLE", 0.5)
-    monkeypatch.setattr(hmz.web.places, "_LOOKING", 0.2)
     with served() as site, opened(site, engine=engine) as page:
         _start_talk(page, "a flow beside")
         # Not looked at, as a page behind another window is not, while the chat answers.
@@ -1696,8 +1700,6 @@ def test_chats_go_beside_each_other_and_a_flow_and_one_folded_is_carried_on(
 ) -> None:
     # Nobody reading a chat between turns lets it go, and it folds, in a moment.
     monkeypatch.setattr(hosting, "FOLD", 0.5)
-    monkeypatch.setattr(hmz.web.places, "_IDLE", 0.5)
-    monkeypatch.setattr(hmz.web.places, "_LOOKING", 0.2)
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "remember teal")
         thread = page.locator("[data-hmz=thread]")
@@ -1708,7 +1710,7 @@ def test_chats_go_beside_each_other_and_a_flow_and_one_folded_is_carried_on(
         _start_chat(page, "another chat")
         expect(thread).to_contain_text("did: another chat")
         page.wait_for_function(
-            """async () => (await (await fetch('/api/runs')).json()).runs
+            """async () => (await (await import('/api.js')).call('runs.list')).runs
               .filter((one) => one.held).length === 3""",
             polling=200,
         )
@@ -1730,7 +1732,7 @@ def test_chats_go_beside_each_other_and_a_flow_and_one_folded_is_carried_on(
         # Looked away from, between turns, it folds: done, and held no more.
         page.locator("[data-hmz=epic]", has_text="a flow beside").click()
         page.wait_for_function(
-            """async () => (await (await fetch('/api/runs')).json()).runs
+            """async () => (await (await import('/api.js')).call('runs.list')).runs
               .some((one) => one.task === 'remember teal' && !one.held)""",
             polling=200,
             timeout=30000,
@@ -1750,7 +1752,7 @@ def test_chats_go_beside_each_other_and_a_flow_and_one_folded_is_carried_on(
         assert len(held) == 3
         assert held["remember teal"]["name"] == name
         page.wait_for_function(
-            """(name) => fetch('/api/runs').then((one) => one.json()).then((said) =>
+            """(name) => import('/api.js').then((api) => api.call('runs.list')).then((said) =>
               said.runs.some((one) => one.name === name && one.held))""",
             arg=name,
             polling=200,

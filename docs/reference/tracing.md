@@ -99,7 +99,13 @@ then over `<kept>/<cli>` for every `kept` directory. Homes are resolved as in
 | `acp` | | no logs Humanize can find | | | |
 
 Token counts are read as each CLI records them; where a CLI records cached input beside
-input (pi, omp, opencode, mimo, mcode, agy), both are counted.
+input (pi, omp, opencode, mimo, mcode, agy), both are counted. Codex says what a request to
+the model spent once the request is over, after its tool calls are answered: that usage goes
+on the request's first model call (`think`, else `generate`) with the model its turn ran on,
+or on its own message where the request wrote nothing else -- never on a message another
+agent sent the thread, which the request read -- and a usage said again unmoved is read
+once. A tool call left unanswered, as one cut off with its turn is, does not keep a later
+request from its own `generate`.
 
 ## The document {#document}
 
@@ -164,7 +170,7 @@ without the payloads, which are asked for one span at a time. Built by
 `hmz.runtime.tracing.timeline.build` from the sessions a [trace](#document) of the epic would
 be drawn from, the epic itself, the tree of flows it called, its `profile.jsonl` and its
 `flow-profile.jsonl`; served as
-[`GET /api/runs/<name>/timeline`](/reference/web#api-runs) and from Python as
+the daemon's `runs.timeline` `{name}`, which the [web page](/reference/web#page) calls, and from Python as
 [`Epics.timeline`](#epics-timeline). Unlike a Chrome trace, **every session is its own
 process**, under the session that started it.
 
@@ -247,7 +253,7 @@ with ids moved, is `409` rather than some other span.
 
 ### One span, whole {#timeline-span}
 
-`GET /api/runs/<name>/timeline/span/<id>?layout=<layout>` (`layout` optional), or
+`runs.span` `{name, id, layout}` (`layout` optional), or
 `Timeline.span(id)`:
 
 ```json
@@ -359,8 +365,8 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 
 | `event` | When | Fields |
 | --- | --- | --- |
-| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited; `graceful` a boolean, or `{duration, cost, output_tokens}` of booleans where the limits differ), `profile_flow`, `profile_environment` (`true`, only for a run [profiled](#profiling-a-run) that way), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
-| `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (the agent's own name, such as `NeiKos496`, never the role it fills), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<agent>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, or the `<backend>:<name>` of the runtime a harness setting named; only when its work was on another machine; `self` in an epic an earlier Humanize wrote is read as `env`) |
+| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `duration` in seconds, `null` for none, and in ISO 8601 (`PT1H`, `P1Y`) in an epic an earlier Humanize wrote; `cost: "Infinity"` for unlimited; `graceful` a boolean, or `{duration, cost, output_tokens}` of booleans where the limits differ), `profile_flow`, `profile_environment` (`true`, only for a run [profiled](#profiling-a-run) that way), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
+| `opened` | a session's CLI has given it an id (when it opens, or during its first turn, as the CLI says it rather than when that turn ends, and whether or not that turn then lands); a session whose CLI never started is not written | `agent` (the agent's own name, such as `NeiKos496`, never the role it fills), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<agent>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, or the `<backend>:<name>` of the runtime a harness setting named; only when its work was on another machine; `self` in an epic an earlier Humanize wrote is read as `env`) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |
 | `usage` | the run ends | `cost` (USD), `output_tokens`, `seconds`: the run's total as its budget counted it |

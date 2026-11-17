@@ -50,7 +50,7 @@ import threading
 import time
 import weakref
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, overload
 
 import pydantic
 
@@ -64,6 +64,7 @@ from hmz.flows import (
     FakeCli,
     FakeTool,
     FilesEnvMixin,
+    FlowCancelled,
     GitEnvMixin,
     GitWorktreeEnvMixin,
     GoalCommandAgentMixin,
@@ -101,7 +102,7 @@ from .journaling import SESSION
 from .spi import HookTable, Kept, Limits, TurnRequest, default_result
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Mapping
+    from collections.abc import Awaitable, Callable, Coroutine, Mapping
     from pathlib import PurePosixPath
     from types import FrameType
 
@@ -193,34 +194,36 @@ class _Sink:
 
 
 class _Naming(_Sink):
-    """A turn's sink for a session the run is still waiting on its CLI to name.
+    """A turn's sink for a session whose name the run is waiting on its CLI for.
 
     A CLI names a session as its first turn starts, and that turn may run for hours: the first
     thing the turn is reported to have spent after that has the session written down then,
     on the run's loop, rather than when the turn ends -- which a run killed mid-turn never
-    reaches.
+    reaches. And again for a name it goes by after that, which a try at opening it that
+    failed leaves to the next try to give: each is a conversation the CLI logged.
     """
 
     __slots__ = ("_session",)
 
     def __init__(self, node: Call, session: SessionView) -> None:
         super().__init__(node)
-        self._session: SessionView | None = session
+        self._session = session
 
     def add(self, *, cost: float, output_tokens: int, duration: float) -> None:
         super().add(cost=cost, output_tokens=output_tokens, duration=duration)
-        with self._lock:
-            session = self._session
-            if session is None or session._handle is None or session._handle.id is None:
-                return
-            self._session = None
+        session = self._session
+        handle = session._handle
+        if handle is None or (ident := handle.id) is None or ident == session._noted_as:
+            return
         run = self._node.run
         if threading.get_ident() == run.thread:
-            session._named()
+            session._named(ident)
             return
-        # A loop that is closed is a run that is over, which there is nothing left to tell.
+        # The name as it was seen, which a try that fails and the next one named may have
+        # moved on from by the time the loop gets to it. A loop that is closed is a run that
+        # is over, which there is nothing left to tell.
         with contextlib.suppress(RuntimeError):
-            run.loop.call_soon_threadsafe(session._named)
+            run.loop.call_soon_threadsafe(session._named, ident)
 
 
 class _Cut:
@@ -418,7 +421,9 @@ class AgentView:
         handle = session._handle
         if handle is not None:
             if await handle.move(placement):
-                session._unnamed = run.spawned(node, self._role, handle, self._driver)
+                waiting = run.spawned(node, self._role, handle, self._driver)
+                session._naming = waiting or session._naming
+                session._noted_as = handle.id
             return handle
         parent = session._parent
         if parent is not None:
@@ -442,10 +447,13 @@ class AgentView:
         clis = self._shelved()
         if clis:
             extra["clis"] = clis
+        # Under the permission and skills of the agent that spawned or forked it, whichever
+        # of it and the agents derived alongside it runs its first turn.
+        owner = cast("AgentView", session._agent)
         handle = await self._driver.open(
             placement,
-            permission=self._grant.permission,
-            skills=self._brought(),
+            permission=owner._grant.permission,
+            skills=owner._brought(),
             hooks=line.hooks,
             fork_of=None if parent is None else parent._handle,
             **extra,
@@ -462,7 +470,8 @@ class AgentView:
         opened = Opened(session, self, handle)
         line.sessions[id(handle)] = opened
         node.hold(opened)
-        session._unnamed = run.spawned(node, self._role, handle, self._driver)
+        session._naming = run.spawned(node, self._role, handle, self._driver)
+        session._noted_as = handle.id
         return handle
 
     def _fresh(self, session: SessionView, parent: SessionView) -> None:
@@ -542,11 +551,13 @@ class AgentView:
             raise
         taken._turns += 1
         node.turning(1)
+        turns = node.run.turns
+        turns[id(handle)] = (handle, asyncio.current_task())
         cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
             said = await handle.turn(
                 TurnRequest(prompt, output_schema, limits),
-                _Naming(node, taken) if taken._unnamed else _Sink(node),
+                _Naming(node, taken) if taken._naming else _Sink(node),
             )
         except asyncio.CancelledError:
             handle.interrupt()
@@ -562,11 +573,12 @@ class AgentView:
                 raise cut.exceeded(self._role) from error
             raise
         finally:
+            turns.pop(id(handle), None)
             taken._busy = False
             node.turning(-1)
             if cut is not None:
                 cut.stop()
-            if taken._unnamed and handle.id is not None:
+            if taken._naming and handle.id is not None:
                 # Named by its CLI as this turn went, and nothing it spent said so sooner.
                 taken._named()
         # A fork is cut by now, and the session it was cut from may go.
@@ -575,6 +587,9 @@ class AgentView:
         if failed is not None:
             taken._error = None
             raise failed
+        # An answer that lands once the call or the run is over reaches no flow code: the
+        # run interrupted the turn as it ended, and nothing journals what came of it.
+        node.check()
         if output_schema is not None and not isinstance(said, output_schema):
             raise OutputSchemaError(
                 f"{self._role} answered {type(said).__name__}, not {output_schema.__name__}"
@@ -798,9 +813,10 @@ class SessionView:
         "_forked_at",
         "_handle",
         "_line",
+        "_naming",
+        "_noted_as",
         "_parent",
         "_turns",
-        "_unnamed",
     )
 
     def __init__(
@@ -823,8 +839,10 @@ class SessionView:
         #: had been when it was forked -- which is where its first turn cuts it.
         self._turns = 0
         self._forked_at = 0
-        #: Whether the run's journal or recorder is still waiting on its CLI to name it.
-        self._unnamed = False
+        #: Whether the run's journal or recorder takes the names its CLI gives it, which it
+        #: was opened without, and the one written down last.
+        self._naming = False
+        self._noted_as: str | None = None
 
     def __repr__(self) -> str:
         return f"<session of {self._agent.role}>"
@@ -844,22 +862,29 @@ class SessionView:
         handle = self._handle
         return None if handle is None else handle.id
 
-    def _named(self) -> None:
-        """Its CLI has named it: written down and told, against the call that opened it.
+    def _named(self, ident: str | None = None) -> None:
+        """Its CLI has named it, or named it anew: written down and told, against the call.
 
-        Once, however many times it is asked, and never raising: a journal that cannot be
-        written to is a run that can no longer be picked up, not a turn that failed.
+        Once a name, however many times it is asked, and never raising: a journal that cannot
+        be written to is a run that can no longer be picked up, not a turn that failed. A name
+        it goes by after another is written down as well: the try that failed went by the
+        first, and spent under it.
+
+        Args:
+          ident: The name as it was seen, or None for the one it goes by now.
         """
-        if not self._unnamed:
+        handle = self._handle
+        if not self._naming or handle is None:
             return
-        self._unnamed = False
+        if ident is None:
+            ident = handle.id
+        if ident is None or ident == self._noted_as:
+            return
+        self._noted_as = ident
         opener: AgentView = self._agent  # pyright: ignore[reportAssignmentType]
         node = opener._node
-        handle = self._handle
-        if handle is None:
-            return
         try:
-            node.run.named(node, opener._role, handle, opener._driver)
+            node.run.named(node, opener._role, handle, opener._driver, ident)
         except Exception:
             log.exception("writing down the session of %s failed", opener._role)
 
@@ -1366,6 +1391,49 @@ class Source:
         return self.driver is None or self.driver.away_for(role)
 
 
+class _Asked:
+    """An outworlder's answer being waited for, which its run interrupts as it ends.
+
+    In a task of its own, cancelled however the task asking was cancelled before -- but not
+    again once it is being cancelled: one cancelled through the task asking is already on its
+    way out, and its way out -- a hook's cleanup, writing what came of it -- is not to be cut
+    short.
+    """
+
+    __slots__ = ("_waiting",)
+
+    def __init__(self, waiting: asyncio.Task[Any]) -> None:
+        self._waiting = waiting
+
+    def interrupt(self) -> None:
+        if not self._waiting.cancelling():
+            self._waiting.cancel()
+
+
+async def _asked[T](node: Call | None, asking: Coroutine[Any, Any, T]) -> T:
+    """Waits for an outworlder's answer, as a turn its call's run can interrupt as it ends.
+
+    In a task of its own, which the run cancels as it ends whatever became of the task
+    waiting on it (:attr:`Run.turns`); outside any call, waited for as it is.
+    """
+    if node is None:
+        return await asking
+    waiting = asyncio.get_running_loop().create_task(asking)
+    asked = _Asked(waiting)
+    turns = node.run.turns
+    me = asyncio.current_task()
+    turns[id(asked)] = (asked, me)
+    try:
+        return await waiting
+    except asyncio.CancelledError:
+        if waiting.cancelled() and (me is None or not me.cancelling()):
+            # Cut by the run as it ended, the task asking not cancelled itself.
+            raise FlowCancelled(f"{node.ref}: the run has ended") from None
+        raise
+    finally:
+        turns.pop(id(asked), None)
+
+
 class _Person:
     """The session handle of an outworlder, who has no CLI to hold one of."""
 
@@ -1477,16 +1545,32 @@ class OutworlderView:
         permission: Permission | None = None,
         skills: tuple[str, ...] | None = None,
     ) -> Self:
-        if permission is not None and not isinstance(permission, Permission):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(f"permission={permission!r} is not a Permission")
+        if permission is not None:
+            if not isinstance(permission, Permission):  # pyright: ignore[reportUnnecessaryIsInstance]
+                raise TypeError(f"permission={permission!r} is not a Permission")
+            if not self._permission.covers(permission):
+                raise CapabilityNotGranted(
+                    f"{self._role}: {permission} is wider than the {self._permission} "
+                    "an outworlder is granted"
+                )
         if skills:
             raise CapabilityNotGranted(f"{self._role}: an outworlder has no skills")
         return self
 
     async def spawn(self) -> SessionView:
-        if self._node is not None:
-            self._node.check()
+        node = self._asking()
+        if node is not None:
+            node.check()
         return SessionView(self, _Person(self._source))
+
+    def _asking(self) -> Call | None:
+        """The call whose turn this is, or None outside any.
+
+        The one the view was handed to, or, for one a flow made with `Outworlder.new()` and
+        uses itself, the call using it.
+        """
+        node = self._node
+        return node if node is not None else CALLING.get()
 
     async def fork(self, session: Session) -> SessionView:
         del session
@@ -1533,7 +1617,7 @@ class OutworlderView:
             raise SessionError(
                 f"{self._role}: {session!r} is not one of this outworlder's"
             )
-        node = self._node
+        node = self._asking()
         if node is not None:
             node.limits(budget)  # refuses a turn under a spent budget
         if source.made:
@@ -1543,23 +1627,34 @@ class OutworlderView:
             owner = source.node or node
             token = CALLING.set(owner)
             try:
-                answered = await hook(
-                    OutworlderRunHookParams(
-                        ctx=owner,  # pyright: ignore[reportArgumentType]
-                        session=session,
-                        prompt=prompt,
-                        output_schema=output_schema,
-                    )
+                answered = await _asked(
+                    node,
+                    hook(
+                        OutworlderRunHookParams(
+                            ctx=owner,  # pyright: ignore[reportArgumentType]
+                            session=session,
+                            prompt=prompt,
+                            output_schema=output_schema,
+                        )
+                    ),
                 )
             finally:
                 CALLING.reset(token)
+            if node is not None:
+                node.check()  # an answer once the call or the run is over reaches nobody
             return _answered(answered.output, output_schema, self._role or "outworlder")
         driver = source.driver
         if driver is None or driver.away_for(self._asker):
             return away_answer(output_schema)
+        away = False
         try:
-            said = await driver.run(prompt, output_schema, self._asker)
+            said = await _asked(node, driver.run(prompt, output_schema, self._asker))
         except OutworlderAway:
+            said, away = None, True
+        # An answer -- being away included -- once the call or the run is over reaches nobody.
+        if node is not None:
+            node.check()
+        if away:
             return away_answer(output_schema)
         return _answered(said, output_schema, self._role or "outworlder")
 

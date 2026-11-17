@@ -11,13 +11,15 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
+import os
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import psutil
 import pytest
 
-from hmz.coganchor import providers
+from hmz.coganchor import nous, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -29,9 +31,11 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.faking import FakeCli, FakeCommand
+from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
+    CODEX,
     Endpoint,
     Standins,
     kinds,
@@ -41,144 +45,8 @@ from tests.integration.doubles_agents import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 CONFIG = CodexAgentConfig(model="gpt-stand-in", effort="high")
-
-CODEX = r"""
-import itertools, threading, time
-
-note()
-threads = itertools.count(1)
-total = [0]
-writing = threading.Lock()
-
-
-def send(message):
-    with writing:
-        out(message)
-
-
-def notify(method, **params):
-    send({"method": method, "params": params})
-
-
-def item(state, thread, **said):
-    notify("item/" + state, threadId=thread, turnId="turn-1", item=said)
-
-
-def spend(thread, output):
-    total[0] += 10 + output
-    notify("thread/tokenUsage/updated", threadId=thread, turnId="turn-1", tokenUsage={
-        "last": {"inputTokens": 10, "outputTokens": output, "totalTokens": 10 + output},
-        "total": {"inputTokens": total[0] - output, "cachedInputTokens": 0,
-                  "outputTokens": output, "reasoningOutputTokens": 0,
-                  "totalTokens": total[0]}})
-
-
-def done(thread, status="completed", error=None):
-    turn = {"id": "turn-1", "status": status}
-    if error:
-        turn["error"] = error
-    notify("turn/completed", threadId=thread, turn=turn)
-    notify("thread/status/changed", threadId=thread, status={"type": "idle"})
-
-
-def turn(thread, said, asked):
-    notify("turn/started", threadId=thread, turnId="turn-1")
-    if said == "hang":
-        time.sleep(600)
-    if said == "crash":
-        print("codex: something broke", file=sys.stderr, flush=True)
-        os._exit(3)
-    if said == "unfinished":
-        done(thread, status="failed", error={"message": "it could not finish"})
-        return
-    drops = pathlib.Path(sys.argv[0]).with_name("drops")
-    if said == "drop" and drops.exists() and int(drops.read_text()):
-        # The response stream broken as codex reports it: retrying by itself, then giving up.
-        drops.write_text(str(int(drops.read_text()) - 1))
-        lost = {"responseStreamDisconnected": {"httpStatusCode": None}}
-        notify("error", threadId=thread, turnId="turn-1", willRetry=True,
-               error={"message": "Reconnecting... 5/5", "codexErrorInfo": lost})
-        done(thread, status="failed", error={
-            "message": "stream disconnected before completion: error decoding response body",
-            "codexErrorInfo": lost})
-        return
-    if said == "rules":
-        ruled = pathlib.Path(os.environ["CODEX_HOME"], "rules", "hmz.rules")
-        item("completed", thread, id="m-0", type="agentMessage",
-             text=json.dumps({"policy": asked.get("sandboxPolicy"),
-                              "rules": ruled.read_text() if ruled.exists() else None,
-                              "theirs": sorted(one.name for one in ruled.parent.iterdir())}))
-        done(thread)
-        return
-    if said == "log":
-        # Logged where the real one logs a thread: its rollout, under its home's `sessions`.
-        rollout = pathlib.Path(os.environ["CODEX_HOME"], "sessions", "rollout-" + thread + ".jsonl")
-        rollout.write_text(json.dumps({"thread": thread}) + "\n")
-    if said == "approve":
-        send({"id": "ok-1", "method": "item/commandExecution/requestApproval",
-              "params": {"itemId": "i-0", "threadId": thread, "turnId": "turn-1",
-                         "command": "rm -rf /"}})
-        return
-    if said == "ask":
-        send({"id": "ask-1", "method": "item/tool/requestUserInput", "params": {
-            "itemId": "i-0", "threadId": thread, "turnId": "turn-1",
-            "questions": [{"id": "which", "header": "Way", "question": "Which way?",
-                           "options": [{"label": "left"}, {"label": "right"}]}]}})
-        return
-    if said == "long":
-        item("completed", thread, id="m-0", type="agentMessage", text="busy")
-        return
-    item("started", thread, id="c-1", type="commandExecution", status="inProgress",
-         command="echo " + said)
-    item("completed", thread, id="c-1", type="commandExecution", status="completed",
-         command="echo " + said, exitCode=0)
-    item("completed", thread, id="r-1", type="reasoning", summary=[],
-         content=["thinking about " + said])
-    spend(thread, 7)
-    answer = json.dumps({"value": said}) if asked.get("outputSchema") else said
-    item("completed", thread, id="m-1", type="agentMessage", text=answer)
-    done(thread)
-    if said == "then-exit":
-        os._exit(0)
-
-
-for line in sys.stdin:
-    call = json.loads(line)
-    method = call.get("method")
-    if method is None:
-        # An answer to something this server asked: the turn it held goes on with it.
-        note("answered " + json.dumps(call.get("result")))
-        item("completed", "t-1", id="m-2", type="agentMessage",
-             text=json.dumps(call.get("result")))
-        done("t-1")
-        continue
-    params = call.get("params") or {}
-    if method == "turn/start":
-        note(params["input"][0]["text"])
-    elif method in ("thread/start", "thread/resume", "thread/fork", "turn/steer"):
-        note(method + " " + json.dumps(params, sort_keys=True))
-    if "id" not in call:
-        continue
-    result = {}
-    if method in ("thread/start", "thread/fork"):
-        result = {"thread": {"id": "t-%d" % next(threads)}}
-    elif method == "thread/resume":
-        result = {"thread": {"id": params["threadId"]}}
-    send({"jsonrpc": "2.0", "id": call["id"], "result": result})
-    if method in ("thread/start", "thread/fork"):
-        notify("thread/status/changed", threadId=result["thread"]["id"],
-               status={"type": "idle"})
-    if method == "turn/start":
-        threading.Thread(target=turn, args=(params["threadId"],
-                         params["input"][0]["text"], params), daemon=True).start()
-    if method == "turn/steer":
-        item("completed", params["threadId"], id="m-3", type="agentMessage",
-             text="heard " + params["input"][0]["text"])
-        done(params["threadId"])
-"""
 
 
 @pytest.fixture
@@ -320,6 +188,55 @@ def test_a_response_stream_that_keeps_breaking_fails_as_dropped(
     assert codex.said().count("drop") == 2
 
 
+def test_an_opening_turn_that_failed_is_taken_again_on_its_own_thread(
+    codex: Standins,
+) -> None:
+    (codex.bin / "drops").write_text("1")
+    session = CodexAgent(CONFIG).new()
+
+    assert session("drop") == "drop"
+
+    assert session.id == "t-1"
+    assert len(_told(codex, "thread/start")) == 1
+
+
+def test_an_opening_fork_that_failed_is_taken_again_on_its_own_child(
+    codex: Standins,
+) -> None:
+    parent = CodexAgent(CONFIG).new()
+    parent("one")
+    child = parent.fork()
+    (codex.bin / "drops").write_text("1")
+
+    assert child("drop") == "drop"
+
+    assert len(_told(codex, "thread/fork")) == 1
+
+
+def test_an_opening_turn_the_server_never_answered_is_taken_on_a_new_thread(
+    codex: Standins,
+) -> None:
+    agent = CodexAgent(CONFIG)
+    nous.retrying(agent.spec, 1, "constant", 0)
+    (codex.bin / "vanishes").write_text("1")
+
+    assert agent.new()("vanish") == "vanish"
+
+    assert len(_told(codex, "thread/start")) == 2
+    assert _told(codex, "thread/resume") == []
+
+
+def test_a_server_that_lost_the_race_to_create_its_state_is_started_again(
+    codex: Standins,
+) -> None:
+    (codex.bin / "busy").write_text("1")
+
+    assert CodexAgent(CONFIG).new()("one") == "one"
+
+    assert len({one.pid for one in codex.calls()}) == 2
+    assert codex.said().count("one") == 1
+
+
 def test_a_server_that_dies_mid_turn_fails_the_turn(codex: Standins) -> None:
     with pytest.raises(Failed):
         CodexAgent(CONFIG).new()("crash")
@@ -431,6 +348,8 @@ for line in sys.stdin:
     if method == "thread/start":
         threads["t-1"] = params.get("model")
         result = {"thread": {"id": "t-1"}}
+    elif method == "turn/start":
+        result = {"turn": {"id": "turn-1"}}
     out({"jsonrpc": "2.0", "id": call["id"], "result": result})
     if method == "thread/start":
         out({"method": "thread/status/changed",
@@ -541,3 +460,163 @@ def test_a_command_line_named_unsandboxed_is_ruled_out_of_the_sandbox(
     # The user's own rules are read beside Humanize's, and never written.
     assert "default.rules" in told["theirs"]
     assert sorted(one.name for one in theirs.iterdir()) == ["default.rules"]
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+@pytest.mark.parametrize(
+    ("permission", "local", "user", "online"),
+    [
+        ("read-only", READ, READ, True),
+        ("workspace-write", WRITE, READ, True),
+        # Wider than the rung: `bypass` stepped down by a Codex that forbids full access,
+        # under a fence that writes the home and cuts the network.
+        ("workspace-write", WRITE, WRITE, False),
+    ],
+)
+def test_a_fence_around_codex_holds_the_rung_in_place_of_codex(
+    codex: Standins,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    permission: str,
+    local: str,
+    user: str,
+    online: bool,
+) -> None:
+    """Codex's own sandbox cannot start inside the fence, on Linux as on a Mac.
+
+    Inside Landlock bubblewrap may not mount, and with `use_legacy_landlock` codex-cli 0.163.0
+    panics: every command of the turn would fail -- whether or not the fence is as narrow as
+    the rung. The fence itself is not put up here, only what Codex is told inside it.
+    """
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    monkeypatch.setattr("sys.platform", platform)
+    # Where the stand-in looks for rules beside Humanize's, for it to say what it was told.
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
+    fence = Fence.of(
+        rules=[("/", READ), ("~", user), (".", local)],
+        online=online,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(dataclasses.replace(CONFIG, permission=permission, fence=fence))
+    try:
+        said = list(agent.new(tmp_path).stream("rules"))
+    finally:
+        agent.stop()
+
+    told = json.loads(said[-1].text)
+    assert told["policy"] == {
+        "type": "externalSandbox",
+        "networkAccess": "enabled" if online else "restricted",
+    }
+
+
+@pytest.mark.parametrize(
+    ("local", "online", "policy"),
+    [
+        (WRITE, False, "workspaceWrite"),
+        (WRITE, True, "workspaceWrite"),
+        (READ, False, "readOnly"),
+    ],
+)
+def test_a_codex_named_in_sandbox_native_is_held_by_its_own_sandbox(
+    codex: Standins,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    local: str,
+    online: bool,
+    policy: str,
+) -> None:
+    """Nothing is put around Codex: each turn tells its sandbox what it can say of the fence."""
+    wrapped: list[Fence] = []
+
+    def wrapper(fence: Fence) -> list[str]:
+        wrapped.append(fence)
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
+    fence = Fence.of(
+        rules=[("/", READ), ("~", READ), (".", local)],
+        online=online,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(dataclasses.replace(CONFIG, permission="bypass", fence=fence))
+    try:
+        said = list(agent.new(tmp_path).stream("rules"))
+    finally:
+        agent.stop()
+
+    told = json.loads(said[-1].text)["policy"]
+    assert told["type"] == policy
+    assert told["networkAccess"] is online
+    if policy == "workspaceWrite":
+        # The workdir, or a root above it -- `/tmp`, where the tests' own directories are.
+        assert any(
+            tmp_path == Path(root) or tmp_path.is_relative_to(root)
+            for root in told["writableRoots"]
+        )
+        assert not any(one.startswith("/dev") for one in told["writableRoots"])
+    assert not wrapped
+
+
+def test_a_codex_named_in_sandbox_native_is_fenced_where_its_sandbox_cannot_carve(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`writableRoots` has no word for a carve-out: the fence is held from outside instead."""
+    wrapped: list[Fence] = []
+
+    def wrapper(fence: Fence) -> list[str]:
+        wrapped.append(fence)
+        return []
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
+    monkeypatch.setattr("sys.platform", "linux")
+
+    def unheld(fence: Fence) -> str | None:
+        del fence
+        return None
+
+    monkeypatch.setattr("hmz.coganchor.fence.unheld", unheld)
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
+    (tmp_path / "secret").mkdir()
+    fence = Fence.of(
+        rules=[("/", READ), (".", WRITE), ("./secret", "none")],
+        online=True,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(dataclasses.replace(CONFIG, permission="bypass", fence=fence))
+    try:
+        said = list(agent.new(tmp_path).stream("rules"))
+    finally:
+        agent.stop()
+
+    # At `bypass` a fence from outside leaves Codex told nothing of its sandbox.
+    assert json.loads(said[-1].text)["policy"] is None
+    assert wrapped

@@ -94,7 +94,7 @@ grep -rn "_permission" .hmz/flows/aot
 ```
 
 ```console
-.hmz/flows/aot/__init__.py:51:    _permission = Permission(local=PermissionKind.READ, online=PermissionKind.NONE)
+.hmz/flows/aot/__init__.py:51:    _permission = Permission(preset="read-only", network=False)
 ```
 
 What to look at, by number:
@@ -104,10 +104,10 @@ What to look at, by number:
 2. **`aot now points to it`**: `$aot` and `-f aot` in this directory run your copy, which is
    the code you just read.
 
-And in the search result: one role, the critic, declares `local=READ` and `online=NONE`. It
-reads the draft, never writes, and cannot reach the web. Every role that declares nothing, here
-all the others, runs at the default in the table below: it writes this directory and nothing
-else of yours.
+And in the search result: one role, the critic, declares `preset="read-only"` and
+`network=False`. It reads the draft, never writes, and cannot reach the web. Every role that
+declares nothing, here all the others, runs at the default in the table below: it writes this
+directory and nothing else of yours.
 
 ### Check it worked
 
@@ -120,19 +120,18 @@ else of yours.
 ## What a flow lets its agents touch
 
 A flow declares a permission on each role it drives. You don't choose it at the prompt, so
-read it in the flow before you run the flow. It has four scopes:
+read it in the flow before you run the flow. It has three settings:
 
-| Scope | What it covers | A role that says nothing gets |
+| Setting | What it covers | A role that says nothing gets |
 | --- | --- | --- |
-| `local` | the working directory of the session | `ALL`: read and write |
-| `user` | the rest of the home directory the agent runs as | `READ` |
-| `system` | everything else on the machine | `READ` |
-| `online` | the CLI's own web search and fetch | `ALL` |
+| `preset` | the files: `read-only`, `workspace-write` (read anything, write the working directory of the session) or `danger-full-access` | `workspace-write` |
+| `network` | the network, the CLI's own web search and fetch among it | `True` |
+| `granular` | rules laid over the preset, path by path: `allow` to write, `read_only`, `deny`; the last rule that holds a path decides it | none |
 
 What that comes to in practice:
 
-- **Every scope is enforced** on the agent and on every command it runs, by Landlock on
-  Linux and by Seatbelt on macOS. An agent at the default writes its working directory and nothing else of yours:
+- **Every setting is enforced** on the agent and on every command it runs, by Landlock on
+  Linux -- or bubblewrap, where Landlock cannot hold it -- and by Seatbelt on macOS. An agent at the default writes its working directory and nothing else of yours:
   its CLI's own settings, login and sessions, a temporary directory of its own, the
   shared `/tmp` and `/var/tmp`, the devices, and on Linux `/proc`. On macOS its login
   includes the login keychain, which is where Claude Code keeps it.
@@ -146,21 +145,36 @@ What that comes to in practice:
   adds there: Qwen Code's effort, hooks and tool server, a gateway account's model entry for
   Grok Build or provider for pi. Your system-wide settings and the project's own are read as
   the CLI always reads them.
-- **`user` of `ALL`** lets an agent change whatever your user account may change, anywhere
-  on the machine, the file permissions being what hold it; run as root, the rest of the
-  machine stays at `system`.
-- **A read-only role** (`local` of `READ` or `NONE`) also runs in its CLI's read-only mode.
-- **`online` of `NONE`** cuts the network, except the hosts the agent's model and login are
-  at. The CLI's web tools are switched off too, where it can be told.
+- **A rule that writes `~`** (`allow("~")`) lets an agent change whatever your user account
+  may change, anywhere on the machine, the file permissions being what hold it; run as root,
+  the rest of the machine stays as the other rules say.
+- **A `deny` can be undone by a later rule.** `deny("./.env")` followed by `allow(".")` leaves
+  `.env` writable, since the last rule that holds a path wins.
+- **A read-only role** (`preset="read-only"`, with no rule that writes its working directory)
+  also runs in its CLI's read-only mode.
+- **`network=False`** cuts the network, except the hosts the agent's model and login are
+  at. The CLI's web tools are switched off too, where it can be told. Those hosts are
+  reached through a proxy Humanize runs on loopback; where your own `HTTPS_PROXY`,
+  `HTTP_PROXY` or `ALL_PROXY` names an `http://` proxy, that loopback proxy goes on through
+  yours, except for the hosts your `NO_PROXY` names.
 - **Work in a container or on an ssh host is fenced there too.** Every command the agent
-  runs on that machine is held by that machine's own Landlock or Seatbelt, around its own
-  working directory and home.
+  runs on that machine is held by that machine's own Landlock, bubblewrap or Seatbelt, around
+  its own working directory and home.
 - **A grant that cannot be held is refused, not widened.** On a Linux kernel without
-  Landlock, on a Mac where Humanize already runs inside another sandbox, and for work on a
-  machine like either, a role runs only with `ALL` in every scope.
-- **Some ways out remain.** Neither Landlock nor Seatbelt governs Unix sockets, so an agent
-  can still talk to a socket another program listens on, a docker daemon's among them; on
-  macOS a system service reached over Mach is the same. With `online` of `NONE` on macOS, a
+  Landlock and with no bubblewrap that starts, on a Mac where Humanize already runs inside
+  another sandbox, and for work on a
+  machine like either, a role runs only at `danger-full-access` with `network=True` and no
+  rule that takes anything back. A role with a rule this machine's sandbox cannot carve out
+  is refused too.
+- **Unless you hand it to Codex.** A machine whose `sandbox.native` names `codex` lets Codex's
+  own sandbox hold its grant instead: what the commands it runs may write and reach, and not
+  Codex itself, its MCP servers or its hooks, nor what anything reads. The agent says so once.
+  See [Permissions](/user/permissions#choose-how-this-machine-holds-a-grant).
+- **Some ways out remain.** Neither Landlock nor Seatbelt governs a Unix socket reached by its
+  path, so an agent can still talk to a socket another program listens on, a docker daemon's
+  among them; on macOS a system service reached over Mach is the same. On a Linux kernel
+  older than 6.12 (Landlock ABI 6), an agent can also signal processes outside its fence and
+  reach their abstract Unix sockets. With `network=False` on macOS, a
   program the agent runs may serve on any address, not only loopback. And whatever an agent
   can write, a later run can read.
 
@@ -210,7 +224,9 @@ reference](/reference/providers).
   it first asked. A report carries more than a crash; [Reporting](/user/reporting) lists what
   is sent and what never is.
 - **A remote target served over TCP** is a shell on that machine for anyone who can reach the
-  port. Give it a real token, or prefer `ssh://` and `docker://`. See
+  port and holds its token. The session is encrypted and the token is never sent, but the
+  token is the whole of its protection: give it a real one, or prefer `ssh://` and
+  `docker://`. See
   [Remote execution](/user/remote-execution).
 - **`/afk` is about questions, not actions.** It decides whether a flow may ask you something.
   It never makes an agent ask before it acts.
@@ -227,10 +243,11 @@ reference](/reference/providers).
 
 ### A role is refused before the run starts
 
-Its grant cannot be held here: on a kernel without Landlock, on a Mac where Humanize runs
-inside another sandbox, or on a machine like either, only a role with `ALL` in every scope
-runs. And a `cursor-agent` role with `online` of `NONE` is refused on every machine, because
-Cursor's web tools cannot be switched off. Run the flow on Linux with Landlock or on macOS
+Its grant cannot be held here: on a kernel without Landlock and with no bubblewrap that starts, on a Mac where Humanize runs
+inside another sandbox, or on a machine like either, only a role at `danger-full-access`
+with `network=True` and no rule that takes anything back runs. And a `cursor-agent` role with
+`network=False` is refused on every machine, because
+Cursor's web tools cannot be switched off. Run the flow on Linux with Landlock or bubblewrap, or on macOS
 outside any other sandbox, or choose another CLI for the role. See
 [Permissions](/user/permissions).
 
@@ -238,8 +255,8 @@ outside any other sandbox, or choose another CLI for the role. See
 
 Read them all with `git diff start`, and take them back with `git reset --hard start`. Commits
 the agents made are undone too, since the tag is older. Files outside the repository are not
-in git: a role at the default grant cannot write there, but one granted `user` or `system` of
-`ALL` can.
+in git: a role at the default grant cannot write there, but one at `danger-full-access`, or
+with a rule such as `allow("~")`, can.
 
 ### A flow I read last week behaves differently
 

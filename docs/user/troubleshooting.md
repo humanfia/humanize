@@ -229,8 +229,9 @@ past the check.
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
 that is misspelled. The flows Humanize ships, such as `chat` and `ralph_loop`, never do.
 
-**Cause.** The flowverse's index has not been downloaded yet. `hmz` fetches every flowverse in
-the background each time it starts, and `hmz exec` never does.
+**Cause.** The flowverse's index has not been downloaded yet. `hmz` and this machine's daemon
+each fetch every flowverse in the background as they start; `hmz exec` never does itself, so a
+daemon that was already running when it was asked has not fetched it since it started.
 
 **Fix.** Open `hmz` once and let it fetch, or fetch now: type `/flow`, press <kbd>←</kbd>, open
 **Flowverses**, and press **Fetch** with the cursor on `official`. Then install the flow, as
@@ -585,7 +586,7 @@ Command 'claude' returned non-zero exit status 1. 429 rate limit exceeded
 (throttled: the service asks it to slow down, with no quota spent; a wait is what answers it)
 ```
 
-Humanize waits, retries, or moves to the next place of its [fallback](/user/settings#fallback) chain
+Humanize waits, retries, or moves on through its [nous](/user/settings#nous)
 by itself, depending on the kind. The entries below say what is left for you to do. A failure with
 no brackets is one Humanize did not recognise, and it is retried as that place says. Under
 `hmz exec`, a failure nothing recovers from ends the run with a traceback whose last line is
@@ -609,14 +610,14 @@ says. Then choose a model it runs.
 **Symptom.** A turn fails with this bracket, and the run pauses or moves to another place.
 
 **Cause.** The account hit its rate limit: the service is asking it to slow down, and has not
-said a quota is spent. Humanize waits, tries once more, then moves to the next place of the
-[fallback chain](/user/settings#fallback), if there is one.
+said a quota is spent. Humanize waits, tries once more, then moves on through its
+[nous](/user/settings#nous), if it has somewhere to go.
 
 **Fix.** Give it one to move to: add an account on [the Accounts page of
-`/settings`](/user/settings#accounts), and put a place under it (the same model under the new
-account, say) on the chain of the place that failed, on the Fallback page.
+`/settings`](/user/settings#accounts), and put a nous under it (the same model under the new
+account, say) in the `then` of the nous that failed, or balance the two, on the Nous page.
 
-**Verify.** The next time it happens, the transcript says `carrying on as` the other place.
+**Verify.** The next time it happens, the transcript says `carrying on as` the other nous.
 
 ### `(spent: this account has spent its quota; another one, or a wait, is what answers it)`
 
@@ -636,7 +637,7 @@ move to, as for a rate limit above.
 **Symptom.** A turn fails with this bracket.
 
 **Cause.** The credential was refused, or the login expired. Humanize moves straight on to the
-next place of the fallback chain.
+next nous of its walk.
 
 A login that renews itself (Codex with ChatGPT, Claude Code with a subscription) is also
 revoked, with `refresh token was revoked`, when two copies of it renewed apart: a copy of
@@ -661,11 +662,11 @@ another machine, sign its CLI in there instead.
 **Symptom.** A turn fails with this bracket, after the CLI said
 `hmz: <host>:<port> is not a host this run may reach`, often beside a `403 Forbidden`.
 
-**Cause.** The role has `online` of `NONE`, so its [fence](/user/permissions) lets it reach only
+**Cause.** The role has `network=False`, so its [fence](/user/permissions) lets it reach only
 the hosts its model and login are at, and the CLI reached for another. Nothing was wrong with
-the account. Humanize moves straight on to the next place of the fallback chain.
+the account. Humanize moves straight on to the next nous of its walk.
 
-**Fix.** Give the role `online` of `ALL`, or point it at a model whose host the fence knows.
+**Fix.** Give the role `network=True`, or point it at a model whose host the fence knows.
 
 **Verify.** The next turn goes through.
 
@@ -712,7 +713,7 @@ models to ask the CLI what this account runs now. Then choose one of those.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
-**Symptom.** A turn fails with this bracket, and goes straight to the next fallback.
+**Symptom.** A turn fails with this bracket, and goes straight to the next nous.
 
 **Cause.** The CLI says there is no such model. No account of that CLI has it.
 
@@ -762,9 +763,12 @@ setting the harness of the runtime the work is on to `env`. See [The path is tak
 
 ### `(contended: two turns of it are sharing one database)`
 
-**Symptom.** A turn of opencode or mimocode fails with this bracket.
+**Symptom.** A turn of opencode, mimocode or codex fails with this bracket.
 
 **Cause.** Two turns wrote to the CLI's one database at once and got `database is locked`.
+On codex, every app server of a run shares one state database, and servers started at the
+same moment on a new run race to create it: the ones that lose say `failed to initialize
+sqlite state runtime`, and a second later find it made.
 Humanize retries three times, a second apart, which nearly always clears it. A turn of any CLI
 whose account is a login that renews itself can end here too, when another turn holds it the
 other way round: see
@@ -846,13 +850,17 @@ says yes.
 **Symptom.** A role is refused before its first turn (`HarnessSandboxed`).
 
 **Cause.** The role's [permission](/user/permissions) is narrower than everything, and this
-machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock, or a Mac
-where Humanize itself runs inside another sandbox (an agent's own, say), which cannot start
-Seatbelt again. Cutting the network needs Linux 6.7 or later. A `cursor-agent` or `mcode` role whose `online`
+machine cannot hold it: a Linux kernel older than 5.13 or booted without Landlock with no
+bubblewrap that starts either, or a Mac where Humanize itself runs inside another sandbox (an
+agent's own, say), which cannot start Seatbelt again. Cutting the network needs Linux 6.7 or
+later, or bubblewrap with a network namespace of its own. Where `sandbox.backend` in
+`settings.yaml` pins `landlock` or `bwrap`, only that one is tried. Under bubblewrap a rule
+that takes back a path that is not there yet cannot be held either. A `cursor-agent` or `mcode` role whose `online`
 is `NONE` is refused on any machine, since its web search runs on its vendor's servers.
 
-**Fix.** Run Humanize on a Linux machine with Landlock, or on a Mac outside any other
-sandbox, or give that role a CLI and a permission this machine can hold. The message says
+**Fix.** Run Humanize on a Linux machine with Landlock, install bubblewrap (the `bubblewrap`
+package) where the kernel is older, set `sandbox.backend` back to `auto`, or run on a Mac
+outside any other sandbox, or give that role a CLI and a permission this machine can hold. The message says
 what is needed.
 
 **Verify.** The role's first turn starts.
@@ -982,19 +990,20 @@ the host with its harness `local`, to run the CLI here.
 **Verify.** `ssh build-box command -v claude` prints a path, and the transcript at the prompt
 says `builder's harness runs on its environment's machine`.
 
-### `… cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or set the harness of the runtime it is on to local`
+### `… cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local`
 
 **Symptom.** `hmz exec` refuses the run with this, after `… harness cannot run where its
 harness setting (env) says: …`, before the flow starts. `… cannot fence the commands the agent runs there: it needs
 Landlock …` is the same, for an agent whose CLI runs here.
 
 **Cause.** The role's permission is narrower than everything, and the machine the work lands on
-cannot hold it: a kernel older than 5.13 or without Landlock, or a container whose seccomp
-profile refuses Landlock. Cutting the network needs Linux 6.7 or later there. A Mac target
+cannot hold it: a kernel older than 5.13 or without Landlock and with no bubblewrap that
+starts, or a container whose seccomp profile refuses Landlock. Cutting the network (`ABI 4 and seccomp` in the message) needs Linux 6.7 or later there, with seccomp user notification. A Mac target
 fences with Seatbelt, but an agent supervised here (its CLI runs here, its work there) needs
 Landlock on this machine too.
 
-**Fix.** Set the runtime's harness to `local`, move the work to a machine with Landlock, or copy the flow and grant the role everything. Docker's default seccomp profile
+**Fix.** Set the runtime's harness to `local`, move the work to a machine with Landlock or
+bubblewrap, or copy the flow and grant the role everything. Docker's default seccomp profile
 allows Landlock.
 
 **Verify.** The role's first turn starts.
@@ -1005,8 +1014,9 @@ allows Landlock.
 harness setting (ssh:gpu-box) says: …`, before the flow starts, with exit status 2.
 
 **Cause.** The harness setting of the runtime the work is on puts the CLI on another runtime,
-where Humanize cannot hold a permission narrower than everything. Only a role granted `ALL` in
-every scope can run that way; any other is refused.
+where Humanize cannot hold a permission narrower than everything. Only a role at
+`danger-full-access` with `network=True`, and no rule that takes anything back, can run that
+way; any other is refused.
 
 **Fix.** Set the runtime's harness to `local` or `env`, or copy the flow and grant the role
 everything.
@@ -1017,7 +1027,8 @@ everything.
 
 **Symptom.** `hmz exec` refuses the run with this, after `… harness cannot run where its
 harness setting (env) says: …`, before the flow starts, with exit status 2. It may name a
-`permission_request` hook as well, or instead.
+`permission_request` hook as well, or instead. A flow that hangs the hook after a session has
+opened gets it raised from that session's next turn instead.
 
 **Cause.** The flow hangs a hook on the role that decides whether each tool runs. The CLI runs
 that hook as a program on this machine, so a CLI running on the host, as the runtime's harness
@@ -1027,17 +1038,20 @@ that hook as a program on this machine, so a CLI running on the host, as the run
 
 **Verify.** The run starts, and the transcript at the prompt says `<agent>'s harness runs here`.
 
-### `Humanize: no python 3.12 or newer on this machine; looked for: …`
+### `could not install Humanize on …: no coganchor is built for …`
 
-**Symptom.** The run fails when it first reaches the machine.
+**Symptom.** The run fails when it first reaches the machine. The message ends with what the
+machine's `uname -sm` said, such as `Linux riscv64` or `FreeBSD amd64`.
 
-**Cause.** The target needs Python 3.12 or newer, and it has none that Humanize can find. It
-does not have to be on the `PATH`: the message lists every place Humanize looked.
+**Cause.** Humanize copies one program of its own, `coganchor`, to a target before the agent
+starts, and carries it built for Linux and macOS on x86-64 and aarch64 only. This target is
+another operating system or another architecture.
 
-**Fix.** Install Python 3.12 or newer there.
+**Fix.** Work on a machine that is Linux or macOS on x86-64 or aarch64. For a container, use
+an image built for one of those architectures.
 
-**Verify.** One of the places the message lists now holds a `python3` that prints 3.12 or
-newer for `--version`.
+**Verify.** `uname -sm` on the target prints `Linux` or `Darwin`, then `x86_64`, `amd64`,
+`aarch64` or `arm64`.
 
 ### `could not install Humanize on docker://…: … is not running; the container said: …`
 
@@ -1045,12 +1059,13 @@ newer for `--version`.
 
 **Cause.** Humanize copies itself to a target before the agent starts, and this target refused.
 What it said follows the colon. A container that is `not running` stopped as soon as it
-started, which is what an image with no Python 3.12 or newer does: its last words say where it
-looked.
+started, which is what an image with no `/bin/sh`, or no `sleep`, does: its last words say
+what was missing.
 
-**Fix.** Use an image with Python 3.12 or newer.
+**Fix.** Use an image with `/bin/sh` and `sleep`, as any Debian, Ubuntu, Alpine or BusyBox
+image has.
 
-**Verify.** `docker run --rm <image> python3 --version` prints 3.12 or newer.
+**Verify.** `docker run --rm <image> /bin/sh -c 'command -v sleep'` prints a path.
 
 ### `Humanize: /tmp/humanize-… is not a directory this user owns`
 
@@ -1086,7 +1101,8 @@ somewhere else.
 **Cause.** An agent supervised here while its work lands elsewhere must run on an x86-64 or
 aarch64 Linux machine.
 
-**Fix.** Run it from one of those. The target can be any architecture, this machine included.
+**Fix.** Run it from one of those. The target can be Linux or macOS on either architecture, this
+machine included.
 
 **Verify.** The agent starts.
 

@@ -10,14 +10,12 @@ from unittest import mock
 import pydantic
 import pytest
 
-from hmz.daemon import where
+import hmz.daemon.link
 from hmz.daemon.link import Link, linked, reached, remote
-from hmz.daemon.proto import GONE, MESSAGE, frame, spoken
 from hmz.runtime import Refused
-from tests.unit.daemon.wire_u1 import Wire
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Mapping
 
 
 class _Asked:
@@ -244,164 +242,225 @@ def test_linked_attaches_to_runs_held_in_this_process() -> None:
     assert list(link) == [{"type": "x"}]
 
 
-def _host(
-    *, hello: Mapping[str, Any] | None = None, then: Iterable[bytes] = ()
-) -> Callable[[bytes, dict[str, Any]], list[bytes]]:
-    """A host answering `hello` with `hello`, and anything after with an ok, then `then`."""
-    pending = list(then)
+class _Pending:
+    def __init__(self, answer: Any) -> None:
+        self._answer = answer
+        self.cancelled = False
 
-    def answers(kind: bytes, said: dict[str, Any]) -> list[bytes]:
-        assert kind == MESSAGE
-        if said["do"] == "hello":
-            answer = dict(hello or {"ok": True, "client": "c1"})
-        else:
-            answer = {"ok": True, "did": said["do"]}
-        reply = spoken(MESSAGE, {"type": "reply", "to": said["id"], **answer})
-        out = [reply, *pending]
-        pending.clear()
-        return out
+    def result(self, timeout: float | None = None) -> Any:
+        if self._answer is TimeoutError:
+            raise TimeoutError
+        if isinstance(self._answer, BaseException):
+            raise self._answer
+        return self._answer
 
-    return answers
+    def cancel(self) -> None:
+        self.cancelled = True
+
+
+class _Daemon:
+    """A session with a daemon, as `dialed` gives one: answering each method as told."""
+
+    def __init__(self, answers: dict[str, Any]) -> None:
+        self.answers = answers
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.serve: Callable[[Any], None] | None = None
+        self.closed = threading.Event()
+
+    def dialed(
+        self, at: Path, name: str, kind: str, *, serve: Callable[[Any], None]
+    ) -> tuple[_Daemon, dict[str, Any]]:
+        self.calls.append(("session.hello", {"name": name, "kind": kind, "at": at}))
+        self.serve = serve
+        return self, {}
+
+    def request(self, method: str, params: dict[str, Any]) -> _Pending:
+        self.calls.append((method, params))
+        return _Pending(self.answers.get(method, {}))
+
+    def call(self, method: str, params: dict[str, Any], timeout: float) -> Any:
+        del timeout
+        return self.request(method, params).result()
+
+    def tells(self, sub: str, message: dict[str, Any]) -> None:
+        assert self.serve is not None
+        call = mock.Mock(method="epic.event", params={"sub": sub, "message": message})
+        self.serve(call)
+
+    def close(self) -> None:
+        self.closed.set()
+
+    def wait(self, timeout: float | None = None) -> bool:
+        return self.closed.wait(timeout)
 
 
 @pytest.fixture
-def wires(monkeypatch: pytest.MonkeyPatch) -> list[Wire]:
-    """Every connection made through `where.connects`, the next to be made first."""
-    made: list[Wire] = []
-
-    def connects(at: Path, seconds: float | None = None) -> Wire:
-        del at, seconds
-        return made.pop(0)
-
-    monkeypatch.setattr(where, "connects", connects)
-    return made
+def daemon_(monkeypatch: pytest.MonkeyPatch) -> _Daemon:
+    held = _Daemon({"epic.attach": {"sub": "s1", "client": "c3"}})
+    monkeypatch.setattr(hmz.daemon.link, "dialed", held.dialed)
+    return held
 
 
-def test_reached_says_hello_and_takes_its_client_id(
-    wires: list[Wire], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("HUMANIZE_NAME", "ada")
-    wire = Wire(_host())
-    wires.append(wire)
-    link = reached(tmp_path, "/w", kind="tui", replay=False)
-    assert link.client == "c1"
-    kind, hello = wire.sent[0]
-    assert kind == MESSAGE
-    assert {k: v for k, v in hello.items() if k != "id"} == {
-        "do": "hello",
-        "workspace": "/w",
-        "name": "ada@tui",
-        "kind": "tui",
-        "replay": False,
-    }
-    assert link.stop() == {"ok": True, "did": "stop"}
-    link.close()
-    assert wire.closed
+def test_reached_says_hello_and_attaches(daemon_: _Daemon, tmp_path: Path) -> None:
+    link = reached(tmp_path, "/w", "ana", "tui", replay=False, slot="chat:1")
 
-
-def test_reached_names_the_frontend_as_asked(wires: list[Wire], tmp_path: Path) -> None:
-    wire = Wire(_host())
-    wires.append(wire)
-    reached(tmp_path, "/w", "ci").close()
-    assert wire.sent[0][1]["name"] == "ci"
-
-
-def test_reached_turns_a_refused_hello_into_an_os_error(
-    wires: list[Wire], tmp_path: Path
-) -> None:
-    wire = Wire(_host(hello={"ok": False, "why": "no runs are held in /w"}))
-    wires.append(wire)
-    with pytest.raises(OSError, match="no runs are held"):
-        reached(tmp_path, "/w")
-    assert wire.closed
-
-
-def test_reached_passes_messages_on_and_ends_with_gone(
-    wires: list[Wire], tmp_path: Path
-) -> None:
-    told = spoken(MESSAGE, {"type": "said", "text": "hi"})
-    wire = Wire(
-        _host(then=[told, spoken(MESSAGE, {"type": "gone", "why": "done"}), b""])
+    assert link.client == "c3"
+    assert daemon_.calls[0] == (
+        "session.hello",
+        {"name": "ana", "kind": "tui", "at": tmp_path},
     )
-    wires.append(wire)
-    link = reached(tmp_path, "/w")
-    assert list(link) == [
-        {"type": "said", "text": "hi"},
-        {"type": "gone", "why": "done"},
-    ]
-    with pytest.raises(Refused, match="done"):
-        link.stop()
+    assert daemon_.calls[1] == (
+        "epic.attach",
+        {"workspace": "/w", "slot": "chat:1", "replay": False},
+    )
 
 
-def test_reached_reads_a_daemon_of_another_protocol_as_gone(
-    wires: list[Wire], tmp_path: Path
+def test_reached_names_a_frontend_nobody_named(
+    daemon_: _Daemon, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    wire = Wire(_host(then=[frame(GONE, b"held by a newer Humanize")]))
-    wires.append(wire)
-    link = reached(tmp_path, "/w")
-    assert list(link) == [{"type": "gone", "why": "held by a newer Humanize"}]
+    monkeypatch.setenv("HUMANIZE_NAME", "dana")
+    reached(tmp_path, "/w", kind="sdk")
+
+    assert daemon_.calls[0][1]["name"] == "dana@sdk"
 
 
-def test_reached_says_the_host_went_away_when_it_closes(
-    wires: list[Wire], tmp_path: Path
+def test_reached_turns_a_refused_attach_into_an_os_error(
+    daemon_: _Daemon, tmp_path: Path
 ) -> None:
-    wire = Wire(_host(then=[b""]))
-    wires.append(wire)
+    from hmz.rpc import RpcError
+
+    daemon_.answers["epic.attach"] = RpcError(409, "This chat has folded away.")
+    with pytest.raises(OSError, match="folded away"):
+        reached(tmp_path, "/w")
+    assert daemon_.closed.is_set()
+
+
+def test_reached_hands_on_the_messages_of_its_own_subscription(
+    daemon_: _Daemon, tmp_path: Path
+) -> None:
     link = reached(tmp_path, "/w")
+    daemon_.tells("s9", {"type": "printed", "text": "not mine"})
+    daemon_.tells("s1", {"type": "printed", "text": "mine"})
+    daemon_.tells("s1", {"type": "gone", "why": "let go"})
+
+    assert [one.get("text") or one.get("why") for one in link] == ["mine", "let go"]
+    with pytest.raises(Refused, match="let go"):
+        link.say("hi")
+
+
+def test_reached_calls_the_epic_with_its_sub_and_an_idem_for_a_write(
+    daemon_: _Daemon, tmp_path: Path
+) -> None:
+    daemon_.answers["epic.say"] = {}
+    daemon_.answers["epic.status"] = {"state": "idle"}
+    link = reached(tmp_path, "/w")
+
+    assert link.say("hi") == {"ok": True}
+    assert link.asked({"do": "status"}) == {"ok": True, "state": "idle"}
+    said = dict(daemon_.calls)
+    assert said["epic.say"]["sub"] == "s1"
+    assert said["epic.say"]["idem"]
+    assert "idem" not in said["epic.status"]
+
+
+def test_reached_raises_a_refusal_in_the_hosts_words(
+    daemon_: _Daemon, tmp_path: Path
+) -> None:
+    from hmz.rpc import RpcError
+
+    daemon_.answers["epic.say"] = RpcError(409, "no flow is running to say it to")
+    link = reached(tmp_path, "/w")
+    with pytest.raises(Refused, match="no flow is running"):
+        link.say("hi")
+
+
+def test_reached_gives_up_waiting_and_says_so(daemon_: _Daemon, tmp_path: Path) -> None:
+    daemon_.answers["epic.stop"] = TimeoutError
+    link = reached(tmp_path, "/w")
+    with pytest.raises(TimeoutError, match=r"no answer to 'stop' in 1s"):
+        link.asked({"do": "stop"}, seconds=1)
+
+
+def test_reached_says_the_host_went_away_when_its_session_ends(
+    daemon_: _Daemon, tmp_path: Path
+) -> None:
+    link = reached(tmp_path, "/w")
+    daemon_.close()
+
     assert list(link) == [{"type": "gone", "why": "the host went away"}]
 
 
-def test_reached_refuses_what_cannot_be_sent(wires: list[Wire], tmp_path: Path) -> None:
-    wire = Wire(_host())
-    wires.append(wire)
-    link = reached(tmp_path, "/w")
-    wire.closed = True
-    with pytest.raises(Refused, match="could not be reached"):
-        link.say("hi")
-    wire.say(b"")
-
-
-class _Afar:
-    """Another machine's interface, as `Remotes` reaches it: what it was asked, what it says."""
+class _Client:
+    """The client of a session to another machine's daemon, as `Remotes.client` hands it out."""
 
     def __init__(self) -> None:
-        self.asked: list[tuple[str, str, dict[str, Any] | None]] = []
+        self.calls: list[tuple[str, dict[str, Any], str | None]] = []
+        self.listener: Callable[[str, dict[str, Any]], None] | None = None
+        self.ended = threading.Event()
+        self.closed = False
 
-    def followed(
-        self, name: str, path: str, going: threading.Event
-    ) -> Iterable[tuple[str, Any]]:
-        del going
-        self.asked.append((name, path, None))
-        yield "hello", {"epoch": "e", "me": "c7"}
-        yield "record", {"type": "started", "seq": 1, "task": "hi"}
-        yield "standing", {"type": "run", "state": "running"}
-        yield "gone", {"why": "closing"}
+    def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None:
+        self.listener = listener
 
-    def asked_of(self, name: str, path: str, body: dict[str, Any] | None = None) -> Any:
-        self.asked.append((name, path, body))
-        if body and body.get("text") == "no":
-            from hmz.runtime.doing.daemons import Unreached
+    def call(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        idem: str | None = None,
+        seconds: float | None = None,
+    ) -> Any:
+        del seconds
+        self.calls.append((method, dict(params or {}), idem))
+        if method == "epic.attach":
+            assert self.listener is not None
+            # Told before the answer is read: kept until the link knows its `sub`.
+            self.listener("epic.event", {"sub": "s1", "message": {"type": "started"}})
+            self.listener("epic.event", {"sub": "s0", "message": {"type": "other"}})
+            return {"sub": "s1", "client": "c7"}
+        if params and params.get("text") == "no":
+            raise Refused("refused there")
+        return {"run": 3}
 
-            raise Unreached("refused there", status=409)
-        return {"ok": True, "run": 3}
+    def wait(self, timeout: float | None = None) -> bool:
+        return self.ended.wait(timeout)
+
+    def close(self) -> None:
+        self.closed = True
 
 
-def test_a_remote_link_asks_that_interface_and_is_told_its_stream() -> None:
-    afar = _Afar()
-    remotes = mock.Mock(followed=afar.followed, asked=afar.asked_of)
+def test_a_remote_link_attaches_over_that_daemon_s_session() -> None:
+    client = _Client()
+    remotes = mock.Mock(client=mock.Mock(return_value=client))
 
     link = remote(remotes, "box", "/w s")
-    told = list(link)
+    assert client.listener is not None
+    client.listener("epic.event", {"sub": "s1", "message": {"type": "run"}})
 
     assert link.client == "c7"
-    assert [one["type"] for one in told] == ["started", "run", "gone"]
-    assert told[-1]["why"] == "closing"
     assert link.say("hello")["run"] == 3
     with pytest.raises(Refused, match="refused there"):
         link.say("no")
-    assert afar.asked[0] == ("box", "/api/held/stream?workspace=/w%20s", None)
-    assert afar.asked[1] == (
-        "box",
-        "/api/held/say",
-        {"text": "hello", "to": "", "workspace": "/w s", "slot": ""},
+    assert client.calls[0] == (
+        "epic.attach",
+        {"workspace": "/w s", "slot": "", "replay": True},
+        None,
     )
+    method, params, idem = client.calls[1]
+    assert (method, params) == ("epic.say", {"text": "hello", "to": "", "sub": "s1"})
+    assert idem
+    remotes.client.assert_called_once_with("box")
+    client.ended.set()
+    assert [one["type"] for one in link] == ["started", "run", "gone"]
+    link.close()
+    assert client.calls[-1] == ("epic.detach", {"sub": "s1"}, None)
+    assert client.closed
+
+
+def test_a_remote_link_to_a_daemon_not_reached_is_refused() -> None:
+    from hmz.runtime.doing.daemons import Unreached
+
+    remotes = mock.Mock(client=mock.Mock(side_effect=Unreached("box is not reached")))
+
+    with pytest.raises(OSError, match="box is not reached"):
+        remote(remotes, "box", "/w")

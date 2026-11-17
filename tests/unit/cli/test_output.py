@@ -11,7 +11,6 @@ from unittest import mock
 import pytest
 
 import hmz.coganchor.prices
-import hmz.runtime.doing.hosting
 from hmz.cli.output import Out, Shown, colours, terminal
 
 if TYPE_CHECKING:
@@ -153,37 +152,25 @@ def test_no_clock_is_drawn_where_no_terminal_reads(
     assert capsys.readouterr() == ("", "")
 
 
-class _Agent:
-    def __init__(self, sessions: list[object] | None = None) -> None:
-        self.id = "alice"
-        self.sessions = sessions or []
+#: What every `event` record says but its kind and text, as a host writes it.
+_RECORD: dict[str, Any] = {
+    "at": "t",
+    "agent": "alice",
+    "cli": "claude",
+    "model": "m1",
+    "ident": "s-1",
+    "whose": "",
+    "tokens": {},
+    "spent": {},
+    "key": "alice/1",
+    "session": "alice/1",
+    "text": "",
+}
 
 
-@pytest.fixture
-def recorded(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """What the runtime's record says each event is: the next of these, in order."""
-    said: list[dict[str, Any]] = []
-
-    def record(
-        agent: object, session: object, event: object, *, key: str = "", run: int = 0
-    ) -> dict[str, Any]:
-        del agent, session, event, run
-        base: dict[str, Any] = {
-            "at": "t",
-            "agent": "alice",
-            "cli": "claude",
-            "model": "m1",
-            "ident": "s-1",
-            "whose": "",
-            "tokens": {},
-            "spent": {},
-            "key": key,
-            "text": "",
-        }
-        return base | said.pop(0)
-
-    monkeypatch.setattr(hmz.runtime.doing.hosting, "record", record)
-    return said
+def _opened(key: str) -> mock.Mock:
+    """One session opened, as `Run.opened` hands it on."""
+    return mock.Mock(key=key, agent="alice")
 
 
 @pytest.fixture
@@ -197,14 +184,10 @@ def prices(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     return held
 
 
-def _shown(
-    said: list[dict[str, Any]], *events: dict[str, Any], session: object = None
-) -> None:
-    agent = _Agent()
+def _shown(*events: dict[str, Any]) -> None:
     with Out() as out, Shown(out) as shown:
         for event in events:
-            said.append(event)
-            shown.heard(agent, session, mock.Mock())  # pyright: ignore[reportArgumentType]
+            shown.heard("alice", "alice/1", _RECORD | event)
 
 
 @pytest.mark.parametrize(
@@ -226,19 +209,18 @@ def _shown(
 )
 def test_each_kind_of_event_is_a_line_of_its_own(
     plain: None,
-    recorded: list[dict[str, Any]],
     capsys: pytest.CaptureFixture[str],
     event: dict[str, Any],
     lines: list[str],
 ) -> None:
-    _shown(recorded, event)
+    _shown(event)
     assert capsys.readouterr().err.splitlines() == lines
 
 
 def test_a_turn_is_timed_from_its_beginning_to_its_end(
-    plain: None, recorded: list[dict[str, Any]], capsys: pytest.CaptureFixture[str]
+    plain: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _shown(recorded, {"kind": "begins"}, {"kind": "ends"}, {"kind": "ends"})
+    _shown({"kind": "begins"}, {"kind": "ends"}, {"kind": "ends"})
     assert capsys.readouterr().err.splitlines() == [
         f"{_SAID} alice is working",
         "✻ Worked for 0s · alice",
@@ -247,14 +229,13 @@ def test_a_turn_is_timed_from_its_beginning_to_its_end(
 
 
 def test_a_turn_says_which_conversation_it_is_in_where_there_are_several(
-    plain: None, recorded: list[dict[str, Any]], capsys: pytest.CaptureFixture[str]
+    plain: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    sessions = [object(), object(), object()]
-    agent = _Agent(sessions)
     with Out() as out, Shown(out) as shown:
-        for session in (sessions[1], None, object()):
-            recorded.append({"kind": "begins"})
-            shown.heard(agent, session, mock.Mock())  # pyright: ignore[reportArgumentType]
+        for key in ("alice/1", "alice/2", "alice/3"):
+            shown.opened("agent", _opened(key))
+        for key in ("alice/2", None, "alice/9"):
+            shown.heard("alice", key, _RECORD | {"kind": "begins", "key": key or ""})
     assert capsys.readouterr().err.splitlines() == [
         f"{_SAID} alice is working · conversation 2 of 3",
         f"{_SAID} alice is working",
@@ -263,16 +244,10 @@ def test_a_turn_says_which_conversation_it_is_in_where_there_are_several(
 
 
 def test_a_result_is_priced_and_its_answer_put_on_stdout(
-    plain: None,
-    recorded: list[dict[str, Any]],
-    prices: mock.Mock,
-    capsys: pytest.CaptureFixture[str],
+    plain: None, prices: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
     spent = {"reasoning": 3, "zeta": 1, "output": 2_500_000, "input": 1500}
-    _shown(
-        recorded,
-        {"kind": "result", "text": "done", "spent": spent, "tokens": {"m2": spent}},
-    )
+    _shown({"kind": "result", "text": "done", "spent": spent, "tokens": {"m2": spent}})
     captured = capsys.readouterr()
     assert captured.err.splitlines() == [
         "✻ input 1.5k · output 2.50M · reasoning 3 · zeta 1 · $0.50 · m2 · alice"
@@ -283,16 +258,10 @@ def test_a_result_is_priced_and_its_answer_put_on_stdout(
 
 
 def test_a_result_on_a_model_nobody_prices_has_no_price(
-    plain: None,
-    recorded: list[dict[str, Any]],
-    prices: mock.Mock,
-    capsys: pytest.CaptureFixture[str],
+    plain: None, prices: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
     prices.cost.return_value = None
-    _shown(
-        recorded,
-        {"kind": "result", "text": "", "spent": {"input": 999}, "tokens": {}},
-    )
+    _shown({"kind": "result", "text": "", "spent": {"input": 999}, "tokens": {}})
     captured = capsys.readouterr()
     assert captured.err.splitlines() == ["✻ input 999 · m1 · alice"]
     assert captured.out == ""
@@ -300,34 +269,30 @@ def test_a_result_on_a_model_nobody_prices_has_no_price(
 
 
 def test_a_result_that_spent_nothing_has_no_footer(
-    plain: None,
-    recorded: list[dict[str, Any]],
-    prices: mock.Mock,
-    capsys: pytest.CaptureFixture[str],
+    plain: None, prices: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _shown(recorded, {"kind": "result", "text": "answer"})
+    _shown({"kind": "result", "text": "answer"})
     assert capsys.readouterr() == ("answer\n", "")
     prices.cost.assert_not_called()
 
 
 def test_the_answer_is_not_said_twice_on_one_terminal(
-    plain: None,
-    recorded: list[dict[str, Any]],
-    monkeypatch: pytest.MonkeyPatch,
+    plain: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     stdout, stderr = _Tty(), _Tty()
     monkeypatch.setattr(sys, "stdout", stdout)
     monkeypatch.setattr(sys, "stderr", stderr)
-    _shown(recorded, {"kind": "result", "text": "answer"})
+    _shown({"kind": "result", "text": "answer"})
     assert stdout.getvalue() == ""
 
 
 def test_json_puts_each_event_out_as_one_object(
-    plain: None, recorded: list[dict[str, Any]], capsys: pytest.CaptureFixture[str]
+    plain: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    recorded.append({"kind": "text", "text": "hi", "tokens": {"m": {}}, "spent": {}})
     with Out(as_json=True) as out, Shown(out) as shown:
-        shown.heard(_Agent(), None, mock.Mock())  # pyright: ignore[reportArgumentType]
+        shown.heard(
+            "alice", None, _RECORD | {"kind": "text", "text": "hi", "tokens": {"m": {}}}
+        )
     captured = capsys.readouterr()
     assert json.loads(captured.out) == {
         "at": "t",
@@ -344,8 +309,18 @@ def test_json_puts_each_event_out_as_one_object(
     assert captured.err == ""
 
 
+def test_what_the_host_printed_is_on_stdout_or_beside_the_objects(
+    plain: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with Out() as out:
+        out.printed("said")
+    with Out(as_json=True) as out:
+        out.printed("aside")
+    assert capsys.readouterr() == ("said\n", "aside\n")
+
+
 def test_the_clock_says_the_run_is_starting_until_its_first_turn_opens(
-    plain: None, recorded: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+    plain: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     clock: list[Callable[[], str] | None] = []
 
@@ -353,15 +328,12 @@ def test_the_clock_says_the_run_is_starting_until_its_first_turn_opens(
         clock.append(says)
 
     monkeypatch.setattr(Out, "spins", spins)
-    agent = _Agent()
     with Out() as out, Shown(out) as shown:
         says = clock[0]
         assert says is not None
         assert says() == "starting · 0s"
-        recorded.append({"kind": "begins"})
-        shown.heard(agent, None, mock.Mock())  # pyright: ignore[reportArgumentType]
+        shown.heard("alice", None, _RECORD | {"kind": "begins"})
         assert says() == "alice is working · 0s"
-        recorded.append({"kind": "ends"})
-        shown.heard(agent, None, mock.Mock())  # pyright: ignore[reportArgumentType]
+        shown.heard("alice", None, _RECORD | {"kind": "ends"})
         assert says() == ""
     assert clock[-1] is None

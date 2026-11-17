@@ -46,6 +46,7 @@ from hmz.coganchor.agents.hooks import Moment, Occasion, Verdict
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.anchor import AnchorConfig
 from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers.store import Provider
 from tests.unit.coganchor.agents.doubles_core import (
@@ -106,6 +107,23 @@ def test_a_meter_adds_what_was_spent_and_ignores_nothing() -> None:
     meter.spend(Usage(input=3, output=4))
     meter.spend(Usage(output=1, cache_read=2))
     assert dict(meter.spent()) == {"input": 3, "output": 5, "cache_read": 2}
+
+
+def test_a_meter_adds_long_context_tokens_beside_the_kinds() -> None:
+    meter = Meter()
+    meter.spend(Usage({"input": 10.0}, tiered={"input>5": 10.0}))
+    meter.spend(Usage({"input": 3.0}))
+    meter.spend(Usage({"input": 7.0}, tiered={"input>5": 7.0}))
+    assert dict(meter.spent()) == {"input": 20.0, "output": 0.0}
+    assert meter.spent().tiered == {"input>5": 17.0}
+
+
+def test_a_meter_adds_one_hour_cache_writes_beside_the_kinds() -> None:
+    meter = Meter()
+    meter.spend(Usage({"cache_write": 10.0}, hour=4.0))
+    meter.spend(Usage({"cache_write": 5.0}, hour=1.0))
+    assert dict(meter.spent()) == {"input": 0.0, "output": 0.0, "cache_write": 15.0}
+    assert meter.spent().hour == 5.0
 
 
 def test_a_meters_rate_is_over_the_window() -> None:
@@ -697,6 +715,55 @@ def test_a_cli_that_rewrites_its_home_is_started_in_a_virtual_one(
     assert Scripted(backend="dsh").homed() is None
 
 
+def _walled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Scripted:
+    """A fenced Claude reading and writing only its workdir, with a home of its own."""
+    monkeypatch.setenv("HOME", str(tmp_path / "user"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "user" / ".claude"))
+    (tmp_path / "user" / ".claude").mkdir(parents=True)
+    work = tmp_path / "work"
+    work.mkdir()
+    walls = Fence(read=(str(work),), write=(str(work),))
+    return Scripted(AgentConfig(model="m", effort="", fence=walls), backend="claude")
+
+
+def test_a_fenced_agent_may_not_write_humanizes_own_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fence = _walled(tmp_path, monkeypatch).fenced()
+
+    assert fence is not None
+    cache = tmp_path / "user" / ".cache" / "humanize"
+    assert not fence.allows(cache / "shadows" / "planted.json", write=True)
+    assert fence.allows(tmp_path / "user" / ".claude" / "x", write=True)
+
+
+def test_a_fenced_agents_home_follows_no_link_it_could_have_planted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _walled(tmp_path, monkeypatch)
+    real = tmp_path / "user" / ".claude"
+    secret = tmp_path / "secret"
+    secret.write_text("key\n")
+    (real / "settings.json").symlink_to(secret)
+    bashrc = tmp_path / "bashrc"
+    bashrc.write_text("theirs\n")
+    os.utime(bashrc, (1_000_000, 1_000_000))
+    (real / ".credentials.json").symlink_to(bashrc)
+    (real / "token").write_text("old\n")
+    os.utime(real / "token", (1_000_000, 1_000_000))
+
+    home = agent.homed()
+
+    assert home is not None
+    assert not (home.at / "settings.json").exists()
+    for name, said in ((".credentials.json", "payload\n"), ("token", "new\n")):
+        (home.at / name).unlink()
+        (home.at / name).write_text(said)
+    home.drop()
+    assert bashrc.read_text() == "theirs\n"
+    assert (real / "token").read_text() == "new\n"
+
+
 def test_a_harness_on_another_machine_has_its_virtual_home_built_there(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1151,7 +1218,8 @@ def test_an_agent_says_where_it_runs() -> None:
     assert dict(agent.environment()) == {}
     assert agent.hushed() == frozenset()
     assert agent.anchor is None
-    assert agent.stands_in() is None
+    assert agent.nous == "double/m1"
+    assert agent.stand_in("double/m1") is agent
     assert agent.fenced() is None
 
 
@@ -1166,6 +1234,28 @@ def test_a_fence_or_rung_or_tier_the_backend_cannot_carry_is_refused() -> None:
         Scripted(AgentConfig(model="m", effort="", service_tier="fast"))
     with pytest.raises(Unserved, match="search the web"):
         Scripted(AgentConfig(model="m", effort="", web_search=False))
+
+
+def test_a_carve_out_landlock_cannot_hold_is_refused_as_the_config_arrives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor import fence
+    from hmz.coganchor.agents.config import Unfenced
+
+    def unlisted(given: Fence) -> str | None:
+        return "[Errno 13] Permission denied: '/w/shut'" if given.deny else None
+
+    def enforceable(*, net: bool) -> bool:
+        return True
+
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setattr(fence, "enforceable", enforceable)
+    monkeypatch.setattr(fence, "unheld", unlisted)
+    carved = Fence(read=("/",), write=("/w",), deny=("/w/shut/secret",))
+
+    with pytest.raises(Unfenced, match="what it carves out cannot be held"):
+        Scripted(AgentConfig(model="m", effort="", fence=carved))
+    assert Scripted(AgentConfig(model="m", effort="", fence=Fence(write=("/w",))))
 
 
 def test_reconfigure_keeps_what_it_had_when_refused() -> None:
@@ -1344,6 +1434,81 @@ def test_a_journal_is_told_every_session_opened(tmp_path: Path) -> None:
     parent("one")
     parent.fork()("two")
     assert journal.said == [("s-1", ""), ("s-2", "s-1")]
+
+
+class _Naming(Turns):
+    """A conversation its backend names as a turn starts, as every driver here has it named."""
+
+    def calls(self, session: str) -> None:
+        """Has the backend name this conversation, as a driver does on the line saying so."""
+        self._tells(session)
+
+
+def test_a_session_is_written_into_its_run_as_soon_as_its_backend_names_it(
+    tmp_path: Path,
+) -> None:
+    said: list[tuple[str, str]] = []
+
+    class Journal:
+        @property
+        def keeps(self) -> Path:
+            return tmp_path
+
+        def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+            del agent
+            said.append((session, parent))
+
+    def script(session: Turns, prompt: str) -> Iterable[Event]:
+        del prompt
+        assert isinstance(session, _Naming)
+        assert session.named is None
+        session.calls("s-1")
+        yield Event(kind="text", text="working on it")
+        # Written down while the turn goes, which it never lands, and named so from then.
+        assert said == [("s-1", "")]
+        assert session.named == "s-1"
+        raise Failed(1, ["double"], "", "the turn fell over")
+
+    agent = Scripted(script=script, session=_Naming)
+    agent.epic = Journal()
+    session = agent.new()
+    with pytest.raises(Failed):
+        session("one")
+    assert said == [("s-1", "")]
+    assert agent.opened == []
+    # Still what the failed turn went by, so that what it spent is its own: it is not opened.
+    assert session.named == "s-1"
+
+
+def test_a_turn_whose_session_the_run_cannot_write_down_fails_unopened(
+    tmp_path: Path,
+) -> None:
+    class Full:
+        @property
+        def keeps(self) -> Path:
+            return tmp_path
+
+        def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+            del agent, session, parent
+            raise OSError(28, "No space left on device")
+
+    def script(session: Turns, prompt: str) -> Iterable[Event]:
+        del prompt
+        assert isinstance(session, _Naming)
+        # Named as the turn goes, on what may be a thread reading the backend: not raised
+        # there, but tried again as the turn lands.
+        session.calls("s-1")
+        session.names("s-1")
+        return [Event(kind="result", text="done")]
+
+    agent = Scripted(script=script, session=_Naming)
+    agent.epic = Full()
+    session = agent.new()
+    with pytest.raises(Unrecoverable, match="could not be written"):
+        session("one")
+    assert agent.opened == []
+    with pytest.raises(RuntimeError, match="has not run a turn"):
+        _ = session.id
 
 
 # -- asking the person -----------------------------------------------------------------

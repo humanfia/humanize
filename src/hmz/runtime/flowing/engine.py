@@ -340,6 +340,8 @@ class FlowImpl:
                     "has ended"
                 )
             above = above.parent
+        # The flow's from here on, whatever it waits for before the call starts.
+        parent.run.joined()
         depth = parent.depth + 1
         if depth > DEPTH:
             raise FlowDepthExceeded(
@@ -364,10 +366,10 @@ class FlowImpl:
             given = agents.get(name)
             if type(given) is AgentView and not role.auto and role.harness is None:
                 grant = given._grant
-                # A full view's tools and command lines are the callee's own, which only
-                # `_agent` grants it unless the caller's grant is the role's.
-                if grant is role.grant or (
-                    not full and role._seen.get(grant, _UNSEEN) is None
+                # A full view is granted its harness's every capability, which only `_agent`
+                # does.
+                if not full and (
+                    grant is role.grant or role._seen.get(grant, _UNSEEN) is None
                 ):
                     views[name] = AgentView(given._driver, role.grant, node, name)
                     continue
@@ -404,6 +406,8 @@ class FlowImpl:
             env_views[name] = _env(role, given, node, self)
         if self._skilled:
             await self._bring(run)
+            # The run may have ended while they were brought, and its journal with it.
+            parent.check()
         if run.journal is not None:
             self._journaled(node, parent, task, views, env_views, params)
         elif self.resumable:
@@ -558,12 +562,12 @@ def _agent(
             if refusal is not None:
                 raise refusal[0](f"{flow.ref}: {role.name!r} {refusal[1]}")
         if full:
-            # Everything the agent given holds, but the tools and command lines: those are
-            # the callee's own.
+            # Every capability of its harness, and the rest the callee role's own, as at the
+            # top of a run.
             grant = Grant.of(
-                grant.capabilities,
-                grant.permission,
-                grant.skills,
+                frozenset(driver.capabilities),
+                role.permission,
+                role.skills,
                 role.tools,
                 role.clis,
             )
@@ -1005,6 +1009,9 @@ class Call:
     def check(self) -> None:
         """Refuses anything more of a call whose caller -- or run -- is over.
 
+        What it lets go on goes on in a task the run counts among the flow's
+        (:meth:`Run.joined`).
+
         Raises:
           FlowCancelled: If it is.
         """
@@ -1016,6 +1023,7 @@ class Call:
                     "has ended"
                 )
             node = node.parent
+        self.run.joined()
 
     def limits(self, budget: Budget | None) -> tuple[Limits, float | None]:
         """What a turn of this call may spend now, every budget over it taken together.
@@ -1067,6 +1075,9 @@ class Call:
                     if hard and ends < cut:
                         cut = ends
             node = node.parent
+        # A turn of a session new or old, an agent's or an outworlder's: the task taking it is
+        # the flow's from here on (`Run.joined`).
+        self.run.joined()
         now = time.monotonic()
         deadline = self.deadline
         if now >= deadline:
@@ -1361,6 +1372,14 @@ class LiveCall:
     resumable: bool = False
 
 
+class Interruptible(Protocol):
+    """A turn under way, as its run sees it: something it can cut short as it ends."""
+
+    def interrupt(self) -> None:
+        """Cuts it short, from the run's loop. Idempotent."""
+        ...
+
+
 def running() -> tuple[LiveCall, ...]:
     """Every flow call going now, in every run of this process, oldest first."""
     calls = [node.record() for run in tuple(_RUNS) for node in tuple(run.live)]
@@ -1398,7 +1417,9 @@ class Run:
         "recorder",
         "skills",
         "specs",
+        "tasks",
         "thread",
+        "turns",
     )
 
     def __init__(
@@ -1444,6 +1465,25 @@ class Run:
         #: Where sessions kept in a flow's state are copied beside their CLI's, and
         #: whether it is a temporary directory of the run's own, once one has been.
         self.conversing: tuple[Path, bool] | None = None
+        #: Every task still going that has run a call of the flow, or a turn or an operation
+        #: of one of its agents or environments: the flow's, which the run ends before it
+        #: lets go of its journal.
+        self.tasks: set[asyncio.Task[Any]] = set()
+        #: Every turn under way, by the session taking it, with the task asking for it: what
+        #: the run interrupts as it ends, whatever has become of that task.
+        self.turns: dict[int, tuple[Interruptible, asyncio.Task[Any] | None]] = {}
+
+    def joined(self) -> None:
+        """Counts the task running now among the flow's, until it ends.
+
+        Asked by every call before it waits on anything, and by every operation of an agent
+        or an environment (:meth:`Call.check`): a task the flow started -- a `gather`'s, or one
+        it never waited for -- is one of the flow's from the first thing it does in the run.
+        """
+        task = asyncio.current_task()
+        if task is not None and task not in self.tasks:
+            self.tasks.add(task)
+            task.add_done_callback(self.tasks.discard)
 
     def sessions(self) -> Path:
         """Where a session a flow's state keeps is copied, beside the sessions of its CLI.
@@ -1497,10 +1537,21 @@ class Run:
         if said is None:
             driver, grant = key
             permission = grant.permission
+            # The permission as the role said it: its rules in the order said, and the
+            # preset by name rather than the rules it comes to.
+            granted = json.dumps(
+                {
+                    "preset": permission.preset,
+                    "network": permission.network,
+                    "granular": [
+                        [rule.path, rule.access] for rule in permission.granular
+                    ],
+                },
+                separators=(",", ":"),
+            )
             said = self.specs[key] = (
                 f"{driver.harness}@{driver.provider}/{driver.model}:{driver.effort}"
-                f"|{permission.local},{permission.user},{permission.system},"
-                f"{permission.online}|{','.join(grant.skills)}"
+                f"|{granted}|{','.join(grant.skills)}"
             )
         return said
 
@@ -1541,15 +1592,33 @@ class Run:
         return self.journal is not None or recorder is not None
 
     def named(
-        self, node: Call, role: str, handle: SessionHandle, driver: AgentDriver
+        self,
+        node: Call,
+        role: str,
+        handle: SessionHandle,
+        driver: AgentDriver,
+        ident: str | None = None,
     ) -> None:
-        """A session the call `node` opened has been named by its CLI: written down, and told."""
-        self._noted(node, role, handle, driver)
+        """A session the call `node` opened has been named by its CLI: written down, and told.
+
+        Args:
+          node: The call that opened it.
+          role: The role its agent fills.
+          handle: The session.
+          driver: Its agent's driver.
+          ident: The name to write down, as it was seen, or None for the one it has now.
+        """
+        self._noted(node, role, handle, driver, ident)
         if self.recorder is not None:
             self.recorder.named(node.record(), role, handle, driver)
 
     def _noted(
-        self, node: Call, role: str, handle: SessionHandle, driver: AgentDriver
+        self,
+        node: Call,
+        role: str,
+        handle: SessionHandle,
+        driver: AgentDriver,
+        ident: str | None = None,
     ) -> None:
         """Writes a named session into the journal, for a run that keeps one."""
         if self.journal is not None:
@@ -1560,15 +1629,21 @@ class Run:
                     "role": role,
                     "harness": str(driver.harness),
                     "model": driver.model,
-                    "session": handle.id,
+                    "session": handle.id if ident is None else ident,
                 }
             )
 
     async def close(self) -> None:
-        """Lets go of everything the run made, however it ended."""
+        """Lets go of everything the run made, however it ended.
+
+        The flow's own tasks first (:meth:`_settled`): none of them goes on once the journal
+        is closed -- but one that would not end in `REAP` -- and nothing one writes before
+        then goes unjournaled.
+        """
         from .loading import unpin
 
         try:
+            await self._settled()
             self.drain()
             if self.reapers:
                 await asyncio.wait(set(self.reapers), timeout=REAP)
@@ -1601,11 +1676,69 @@ class Run:
                     log.exception("closing an environment the run opened failed")
         finally:
             if self.journal is not None:
+                # Kept no more: a call still going past it writes nothing of its own down, and
+                # its flow writing its state is refused (:meth:`Journal.close`).
                 self.journal.close()
+                self.journal = None
             if self.conversing is not None and self.conversing[1]:
                 shutil.rmtree(self.conversing[0], ignore_errors=True)
             unpin(self)
             _RUNS.discard(self)
+            # A task outliving the run -- past `REAP`, or the one that ran it -- holds it no more.
+            for one in self.tasks:
+                one.remove_done_callback(self.tasks.discard)
+            self.tasks.clear()
+
+    async def _settled(self) -> None:
+        """Ends every task of the flow still going, and waits for each to end.
+
+        One the flow started and never waited for, and one a `gather` stopped waiting for as
+        it unwound: each is cancelled -- but for one being cancelled already, whose way out
+        is not to be cut short -- and waited for, up to `REAP`. Every turn under way is
+        interrupted besides, in a task cancelled before as much as in any other, and what it
+        answers reaches no flow code (:meth:`Call.check`). So what a task writes into the
+        flow's state on its way out is journaled, and no answer reaches flow code that the
+        journal never hears of.
+
+        Not a task of the engine's own -- a session being closed, what a call made being
+        let go of -- though a hook of the flow in it ran an operation of the flow's: that is
+        the engine's cleanup, which :meth:`close` waits out, and which cancelled would leave
+        a session half closed.
+        """
+        me = asyncio.current_task()
+        until = self.loop.time() + REAP
+        settled: set[asyncio.Task[Any]] = set()
+        # Again for any task that joined while the others ended, until none is left or the
+        # time is up: one that caught its cancel may have started another.
+        while True:
+            engines = self.closing | self.reapers
+            going = [
+                one
+                for one in self.tasks
+                if one is not me
+                and not one.done()
+                and one not in engines
+                and one not in settled
+            ]
+            left = until - self.loop.time()
+            if not going or left <= 0:
+                break
+            settled.update(going)
+            for one in going:
+                if not one.cancelling():
+                    one.cancel()
+            for handle, asking in list(self.turns.values()):
+                if asking not in engines:
+                    handle.interrupt()
+            await asyncio.wait(going, timeout=left)
+        late = [one for one in settled if not one.done()]
+        if late:
+            log.warning(
+                "%d task(s) of the flow had not ended %ss after it did; left to go on, with "
+                "nothing more journaled",
+                len(late),
+                REAP,
+            )
 
 
 # ------------------------------------------------------------------- the entry points
@@ -1885,7 +2018,34 @@ async def run_flow(
             if top.clock is not None:
                 top.clock.stop()
     finally:
-        await run.close()
+        await _closed(run)
+
+
+async def _closed(run: Run) -> None:
+    """Closes a run, in a task of its own waited for to its end, whatever cancels the waiting.
+
+    A stop arriving as the run settles -- a signal, :meth:`hmz.sdk.Run.stop` -- would
+    otherwise cut the settling short and close the journal under the flow's tasks still
+    ending, whose writes on their way out it is there to keep: the close goes on, and the stop
+    is raised once it is over. The task waiting is no task of the flow's to settle.
+
+    Raises:
+      asyncio.CancelledError: Once the run is closed, where the waiting was cancelled.
+    """
+    me = asyncio.current_task()
+    if me is not None:
+        run.tasks.discard(me)
+        me.remove_done_callback(run.tasks.discard)
+    closing = asyncio.ensure_future(run.close())
+    stopped = False
+    while not closing.done():
+        try:
+            await asyncio.shield(closing)
+        except asyncio.CancelledError:
+            stopped = True
+    closing.result()
+    if stopped:
+        raise asyncio.CancelledError
 
 
 def _given(

@@ -176,14 +176,14 @@ def test_alive_counts_a_process_somebody_else_owns(
     assert where.alive(12345) is expected
 
 
-@pytest.mark.parametrize("said", ["", None, "chat:0a1b", f"chat:{'f' * 32}"])
-def test_a_slot_is_the_workspaces_own_or_a_chats(said: str | None) -> None:
+@pytest.mark.parametrize("said", ["", None, "chat:0a1b", f"chat:{'f' * 32}", "exec:9"])
+def test_a_slot_is_the_workspaces_own_a_chats_or_an_execs(said: str | None) -> None:
     assert where.slot(said) == (said or "")
 
 
 @pytest.mark.parametrize("said", ["chat:", "chat:XYZ", "flow", 3, f"chat:{'f' * 33}"])
 def test_anything_else_is_no_slot(said: object) -> None:
-    with pytest.raises(ValueError, match="no such host"):
+    with pytest.raises(ValueError, match="is not a slot"):
         where.slot(said)
 
 

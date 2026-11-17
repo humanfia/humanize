@@ -969,11 +969,6 @@ class KimiCodeCLISession(SessionBase):
         #: `PERMISSION_REQUEST` at one firing per tool call rather than one per poll.
         self._answered: set[str] = set()
 
-    @property
-    def named(self) -> str | None:
-        """The session the daemon holds, which it names as the turn opens it."""
-        return self._id or self._running.session
-
     def interject(self, text: str) -> None:
         """Puts a word into the turn already running, rather than into the next one.
 
@@ -1352,11 +1347,21 @@ class KimiCodeCLISession(SessionBase):
                 timeout=_CALL_SECONDS,
             )
         except subprocess.TimeoutExpired as slow:
+            out = slow.stdout or ""
+            if found := _FORKED.search(
+                out.decode(errors="replace") if isinstance(out, bytes) else out
+            ):
+                # Named before it ran out of time: a session the daemon holds and logs,
+                # which is the run's whether or not the fork then finished.
+                self._tells(found.group(1))
             raise Failed(
                 1, argv, "", f"kimi fork took longer than {_CALL_SECONDS:.0f}s"
             ) from slow
         found = _FORKED.search(ran.stdout)
         if ran.returncode != 0 or found is None:
+            if found is not None:
+                # Named before it failed: the run's all the same, as one that works is.
+                self._tells(found.group(1))
             raise Failed(
                 ran.returncode or 1,
                 argv,
@@ -1456,6 +1461,10 @@ class KimiCodeCLISession(SessionBase):
                             {"metadata": {"cwd": self._workspace()}},
                         )["id"]
                     )
+                    # The run's from here, as the daemon names it: setting the session up,
+                    # prompting it and pursuing a goal in it may each fail yet, and what the
+                    # daemon holds and logs under this id is the run's whether or not they do.
+                    self._tells(session)
                     # A session of its own is a session set nothing yet.
                     self._profile, self._profiled = {}, None
                 # The settings are the session's rather than the turn's, which is the whole

@@ -30,7 +30,7 @@ class Humanize(App[None]):
 | `flow` | `""` | The flow to open on. `""`: the flow remembered for this directory, else `chat`. |
 | `agents` | `None` | What each agent role runs. `None`: what is remembered for the flow, with unremembered roles [filled by default](#default-fill). |
 | `params` | `None` | The flow's params. `None`: remembered, else the flow's defaults. |
-| `link` | `None` | The [link](/reference/daemon#link) to a host. `None`: a `Host` in this process, linked as `kind="tui"`. |
+| `link` | `None` | The [link](/reference/daemon#link) to a host. `None`: the workspace's host, attached through this machine's daemon as `kind="tui"` when it mounts. |
 
 `hmz` constructs `Humanize(link=…)` or `Humanize()` as described in
 [CLI › Where the runs are held](/reference/cli#where-runs-are-held); `app.return_code or 0` is
@@ -266,7 +266,7 @@ Each command's line in the completion list:
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
 | `/stop` | `Stop the flow without confirmation` | |
-| `/exit` | `Exit` | `Exit; a running flow can be left running` (daemon) or `Exit; asks before stopping the running flow` (in process) — a run but a [chat](#chat) is going |
+| `/exit` | `Exit` | `Exit; a running flow can be left running` — a run but a [chat](#chat) is going |
 
 The completion list shows the commands that are available in the view, not refused and not
 unlisted, alphabetically. Availability and about texts are re-evaluated whenever the view, the
@@ -364,13 +364,13 @@ stopping, the next `ctrl+c` [forces](#ctrl-c) it.
 
 ### `/exit` {#leaving-and-letting-go}
 
-Same as `ctrl+q`. In a [chat](#chat) it asks nothing: a chat held in process ends with the
-interface, and one a host holds is left to it.
+Same as `ctrl+q`. In a [chat](#chat) it asks nothing: the chat is left to the host that holds
+it.
 
 | State | Effect |
 | --- | --- |
 | no run going (and none stopping) | Leaves at once. |
-| a run stopping, host is a daemon | Leaves at once and sends `force` (closes the run's conversations). |
+| a run stopping | Leaves at once and sends `force` (closes the run's conversations). |
 | a run going | Opens the [box](#boxes) below. |
 
 ```text
@@ -386,13 +386,10 @@ interface, and one a host holds is left to it.
 ╰────────────────────────────────────────────────────────────────╯
 ```
 
-The second line only where a daemon holds the run.
-
 | Button | Tooltip | Effect |
 | --- | --- | --- |
-| `Stop the flow and exit` (focused) | `stop it for everybody reading it` | In process: closes the host. Daemon: sends `force` (waits up to 10 s), then leaves. Stops the run for every frontend. |
-| `Detach and exit` (daemon) | ``run `hmz` here to reattach`` | Closes btw and the link, and leaves. The run continues; claims are released; away settings remain. `hmz` here reads the run again from the top. |
-| `Cancel` (in process; replaces `Detach and exit`) | `keep the interface open` | Stays. |
+| `Stop the flow and exit` (focused) | `stop it for everybody reading it` | Sends `force` (waits up to 10 s), then leaves. Stops the run for every frontend. |
+| `Detach and exit` | ``run `hmz` here to reattach`` | Closes btw and the link, and leaves. The run continues; claims are released; away settings remain. `hmz` here reads the run again from the top. |
 | `esc` · click outside the box | | Stays. |
 
 ## Starting a flow outright (`$`) {#starting-a-flow-outright}
@@ -539,7 +536,7 @@ then `@tui`; a duplicate gets `#2`, `#3`, ….
 | every menu | <kbd>↑</kbd> <kbd>↓</kbd> | list focused | Previous / next row, wrapping, stepping over headings, rules and spacers. |
 | every menu | <kbd>enter</kbd> · click | list focused | On a `▾` row: drops its values (see dropdown). On a written row: begins writing it; again: keeps it. On a row that opens something: opens it. On a pick list: takes the row. |
 | every menu | <kbd>→</kbd> | list focused | Into what the row under the cursor opens, as `enter`: a card, a page or a listed thing of `/settings` and `/flow` (not a release, which `enter` installs), a `▸` row of a flow's roles, the agent sheet's `cli`, `account` and `model`, a form's `▸` row, a run of `/epics`. Nothing on other rows: no value is stepped with them. |
-| every menu | <span id="key-m"></span><kbd>m</kbd> | list focused, on a row with a menu | Opens the row's menu, as a click with the other button does on the web page: a pick list of what can be done to it, the row as its step across the top. A run of `/epics` opens its own sheet, as `enter`; an installed flow of `/flow` offers **open**, **update**, **uninstall**, **copy here** and **copy name**; a flowverse **open**, **fetch**, **remove** and **copy URL**; a daemon **connect**, **edit…**, **remove** and **copy name**; an epic of another daemon **export**, **upload**, **copy name**, **copy task** and **copy workspace**. Only what can be done now is offered. The row of keys says `m menu` where `enter` does not open the same menu. |
+| every menu | <span id="key-m"></span><kbd>m</kbd> | list focused, on a row with a menu | Opens the row's menu, as a click with the other button does on the web page: a pick list of what can be done to it, the row as its step across the top. A run of `/epics` opens its own sheet, as `enter`; an installed flow of `/flow` offers **open**, **update**, **uninstall**, **copy here** and **copy name**; a flowverse **open**, **fetch**, **remove** and **copy URL**; a daemon **connect**, **edit…**, **remove**, **copy name**, and while it is up **pair a device…** and **devices…**; an epic of another daemon **follow** where a host there holds it, **export**, **upload**, **copy name**, **copy task** and **copy workspace**. Only what can be done now is offered. The row of keys says `m menu` where `enter` does not open the same menu. |
 | every menu | <kbd>←</kbd> <kbd>backspace</kbd> | list focused | Up out of the menu to the one it was opened from, leaving it as `esc` would. Nothing on a menu opened from the prompt, nor on a written row, where they are the row's. |
 | every menu | <kbd>esc</kbd> | | Puts back the row being written; else clears and hides the search box; else leaves (asking [Save?](#save-box) if the menu holds changes). |
 | every menu | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: the search box (while shown), the list, each enabled button. |
@@ -705,7 +702,7 @@ form's `workdir` on this machine -- complete as they are written, as a shell doe
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
 | `/flow`, roles, agent sheet, params, budget, backup, environment form, unsaved host | the flow, its roles, params, budget, both profiling switches and backup targets | installing, updating, uninstalling; adding, fetching and removing a flowverse |
-| `/settings` General, Workspace, Fallback, Backup | everything | — |
+| `/settings` General, Workspace, Nous, Backup | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes; `/epics` | — | everything (an upload is queued, not waited on) |
 | Monitor board | — | everything |
@@ -1196,8 +1193,8 @@ anything else is the file. `esc` goes back to the run.
 
 ### Another daemon's epics {#remote-epics}
 
-On a daemon of another machine, `/epics` reads that machine's own web interface, reached over
-ssh or EasyTier as the [Daemons page](#daemons-page) reaches it, off the screen.
+On a daemon of another machine, `/epics` asks that daemon itself (`runs.list`), over the
+session the [Daemons page](#daemons-page) reaches it by, off the screen.
 
 | Element | Value |
 | --- | --- |
@@ -1209,32 +1206,34 @@ ssh or EasyTier as the [Daemons page](#daemons-page) reaches it, off the screen.
 | Empty | `reaching <daemon>…` while it is read; `no epic on <daemon> yet`; or why it was not reached, in red |
 
 `enter`, `m` or a click opens the epic's menu: **export** (not while it runs: the
-[Export epic](#the-runs-that-have-already-happened) form, the archive that daemon makes brought
-here, `<path> · <size>`), **upload** (backs it up there: `backing <name> up to <a>, <b>`),
-**copy name**, **copy task** and **copy workspace**; and first, on an epic a host there holds,
-**follow** (`read it as it goes, and say something to it`).
+[Export epic](#the-runs-that-have-already-happened) form, the archive that daemon makes
+(`runs.bundle`) brought here a chunk at a time (`files.read`), `<path> · <size>`), **upload**
+(backs it up there, `runs.backup`: `backing <name> up to <a>, <b>`), **copy name**, **copy
+task** (`runs.get`) and **copy workspace**; and first, on an epic a host there holds,
+**follow** (`read it as it goes, and steer it`).
 
-**New epic…** opens **New epic**: `workspace` (`a directory on <daemon>`, the directory that
-daemon's interface started in until a letter is typed), `flow` (`the flow, as -f names it`,
+**New epic…** opens **New epic**: `workspace` (`a directory on <daemon>`, the first workspace
+`workspaces.list` answers until a letter is typed), `flow` (`the flow, as -f names it`,
 `chat` until a letter is typed), `task` (`what it is to do`) and `agents` (`role=cli/model:effort,
 …; blank for what that directory last ran`); **Done** `starts the epic on <daemon>`. Errors:
 `<row> is required`, `agents: '<one>' is not role=agent`; under the list in red, why it did not
 start -- `<role> runs nothing there yet: say it as <role>=<cli>/<model>:<effort>`, or what that
-daemon refused. Set up otherwise as that directory last ran the flow there, the epic starts
-and is followed.
+daemon refused. Set up otherwise as that directory last ran the flow there (`flows.get`), the
+epic starts and is followed; a chat on a host of its own, as here.
 
 #### Following an epic there {#afar}
 
-`<workspace> · <daemon>` across the top, then `The epics of this directory on <daemon>, as its
-own web page reads them. A line typed is said to the epic, or answers what it asks.` The
-transcript: `— <flow> started —`, `❯ <task>` and each line said or answer given, `⏺ <words>`
-of each agent's turn, `⏺ <agent> is working` as one begins, `? <question>` (not what a flow
-waiting on its next line says back), `hmz: <failure>` in red, `— the flow is <how> —`; the whole
-run so far first. Under it how it stands: `waiting for you`, a chat's `running` or `done`, the
-run's state, `nothing running`, or why that daemon let it go, in red. Then the line: `enter`
-answers what the run asks of whoever this end answers as, else says it to the run; what is
-refused is said in red. `esc` comes back to the list, leaving the run going there. Keys `enter
-send   esc back`.
+The interface itself follows it, as it follows an epic of this machine: it attaches
+(`epic.attach`) to the host there over that daemon's session, reads the epic from the top, and
+offers everything it offers here -- the views, the monitor, the line said to the epic or
+answering what it asks, `/stop`, `/afk` and `/claim`, each carried there. A line that
+would start an epic here is refused, `start an epic on <daemon> with n on /epics @<daemon>; esc
+comes back here`: what is set up here is this machine's.
+`following <workspace> on <daemon>; esc comes back` is said first, and the status line starts
+with `@<daemon> · <workspace's directory name>` for as long as it is followed. Where the host there cannot be
+reached, why is said in red and the interface stays where it was. `esc`, with no offers open
+and out of btw mode, lets go of it, leaving it going there, comes back to this directory's
+host, and opens the list of that daemon's epics again.
 
 ### Exomyth {#exomyth}
 
@@ -1362,8 +1361,8 @@ Storage keys are in [Settings](/reference/settings).
   │ ◉  Accounts                                        3 accounts  ● unsaved │
   │    what agents sign in as, under each CLI                                │
   │──────────────────────────────────────────────────────────────────────────│
-  │ ↻  Fallback                                                      2 rules │
-  │    where a turn goes when its agent fails                                │
+  │ ↻  Nous                                                           2 nous │
+  │    what agents think with, and where a failed turn goes                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ▦  Runtimes                                                    1 machine │
   │    ssh hosts, docker daemons, swarms, Apple containers and Slurm         │
@@ -1389,7 +1388,7 @@ Storage keys are in [Settings](/reference/settings).
 | ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
 | ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
-| ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
+| ↻ Nous | `<n> nous` | nous differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
 | ⇪ Backup | `<n> target(s)` | targets differ from what is saved |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | forget on |
@@ -1423,7 +1422,7 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 | Daemons | Add daemon · Import… · Search… | name, row text |
 | Usage | — | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
-| Fallback | Add fallback rule · Search… · Save | place, rule text |
+| Nous | add nous · Search… · Save | name, row text |
 | Backup | Add target · Download… (a target saved) · Search… · Save | name, row text |
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 
@@ -1446,7 +1445,7 @@ in force.
 | /btw The Epic | next time btw mode is entered | `takes effect on next /btw` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
-| Fallback rules | next failed turn | — |
+| Nous | next failed turn | — |
 | Backup targets | the next backup | — |
 | Runtimes | at once | — |
 | Daemons | at once | — |
@@ -1494,7 +1493,7 @@ default on.
 | Shown | **System** ▾ `ring the terminal's bell and show a system notification too`: `on` (`ring the bell and notify the system`), `off` (`a card in hmz alone`) | `notifications.system` |
 
 Every epic on this machine is watched from the start of `hmz`, asking each host the daemon
-holds (and the runs held in this process) how it stands every 2 seconds, never attaching. A
+holds how it stands every 2 seconds, never attaching. A
 notice of a kind turned on is a toast at the bottom right, titled `Done`, `Failed`, `Stopped`,
 `Question` or `Chat turn`, reading `<flow> · <workspace directory> · <what it asked or said,
 else its task>`, `Failed` as an error; with **System** on, also the terminal bell and OSC 9
@@ -1504,46 +1503,54 @@ until opened there, for as long as `hmz` runs.
 
 ### Daemons page {#daemons-page}
 
-Intro: `This machine's daemon, and other machines' reached over ssh or EasyTier. /epics
-@<name> lists the epics of one; m on one is its menu.` Kept in this machine's
-[settings](/reference/settings) as `daemons`, the [web page](/user/web#settings) reading and
-writing the same list; every change is written at once.
+Intro: `This machine's daemon, and other machines' reached by their routes. /epics @<name>
+lists the epics of one; m on one is its menu.` Kept in this machine's
+[settings](/reference/settings) as `daemons`, each a name, the daemon id pinned and its routes
+in order; every change is written at once.
 
 | Row | About |
 | --- | --- |
-| `Local` | `this machine`; `enter` says `Local is this machine's daemon, always there` |
-| `<name>` | `<mode> · <reached at> · <not connected\|connecting\|installing\|up, hmz <version>\|failed>[: <detail>]`, drawn again as it changes: `SSH Config · <alias>`, `hmz-stored · <user@host:port>` or `P2P · EasyTier` |
+| `Local` | `this machine` |
+| `<name>` | `<route>, <route>, … · <idle\|connecting\|installing\|up, hmz <version>\|failed>[: <what was said last>]`, drawn again as it changes |
 
 `enter`, `m` or a click on a daemon opens its menu: **connect** (reaches it now, installing
-this `hmz` there where it is missing or another version, as the web page does), **edit…**,
-**remove** and **copy name**. **Add daemon** and **edit…** open one form, the web page's New
-daemon: `name` (new only; `what /epics @<name> calls it`), then `kind` (▾ `SSH` `P2P`) and
-`mode` (▾ `hmz-stored` `SSH Config` under SSH, `EasyTier` under P2P; a new one starts on
-`hmz-stored`, an edited one on the mode it is in, which follows from its fields and is never
-written), then what the mode asks:
+this `hmz` there over `stdio:ssh` where it is missing or another version), **edit…**,
+**remove**, **copy name**, and, while it is `up`, **pair a device…** and **devices…**. Local's
+menu is those last two alone. **pair a device…** asks the daemon for a pairing code
+(`pair.create`) and copies it: `copied: <code>`. **devices…** opens **Devices**, each device
+paired with it (`devices.list`): `added <when> · seen <when>|never seen · <n> session(s)`;
+`enter` on one asks `Revoke <device>?` (**revoke** / **keep**), and **revoke** revokes it
+(`devices.revoke`): `<device> revoked`.
+
+**Add daemon** and **edit…** open one form: `name` (new only; `what /epics @<name> calls it`),
+then `mode` (▾ `Pairing code` `SSH Config` `Custom` `Routes`; a new one starts on `Pairing
+code`, an edited one on the mode its routes are in), then what the mode asks:
 
 | Mode | Rows | Written |
 | --- | --- | --- |
-| `SSH Config` | `host` (▾ every host of your ssh config) | its `alias` alone |
-| `hmz-stored` | `import` (▾ every host of your ssh config: fills the rows under it as `ssh -G` resolves it, options cleared, `reading <host>…` meanwhile), `host`, `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options` (`KEYWORD=VALUE, …`) | those fields, not the `Host` |
-| `EasyTier` | `secret` (bullets, never shown; `leave blank to keep current value` on one written), `nodes` (`shared EasyTier nodes: tcp://host:port, …`) | `via: easytier`, the secret, and the nodes as `peers` |
+| `Pairing code` | `code` (`hmz-pair:…, as hmz daemon pair printed it there`) | claimed at once over the routes it carries (`pairing with <name>…` meanwhile), then the id and routes it gives |
+| `SSH Config` | `host` (▾ every host of your ssh config) | `stdio:ssh://<host>` |
+| `Custom` | `import` (▾ every host of your ssh config: fills the rows under it as `ssh -G` resolves it, options cleared, `reading <host>…` meanwhile), `host`, `user`, `port`, `identity file` (a [path](#path-completion)), `proxy jump`, `options` (`KEYWORD=VALUE, …`) | one `stdio:ssh` route of those |
+| `Routes` | `routes` (`in the order tried: stdio:ssh://host, tcp://host:port, …`) | those routes, in order |
 
-**Done** `saves this daemon`, always with its `via`; **remove** on one already written.
-Errors: `name is required`, `another daemon is named <name>`, `host is required`, `port is a
-number`, `options: '<one>' is not KEYWORD=VALUE`, `secret is required`, `A secret must be at
-least 16 bytes.` (in bytes of UTF-8), `nodes are required`; what the store refuses is said
-under the list in red. **Import…** opens **Import daemons**, a switch per host of your ssh
-config not added yet (`as <name>`), each added as `SSH Config`, or says `every host of your ssh
-config is added already`; **Done** `adds each host switched on as a daemon`. Each change is said
-under the list and, on close, in the transcript: `daemon <name> saved`, `daemon <name>
-removed`, `<n> daemon(s) imported`.
+An edit keeps the id pinned. **Done** `saves this daemon`; **remove** on one already written.
+Errors: `name is required`, `another daemon is named <name>`, `code is required`, `host is
+required`, `port is a number`, `options: '<one>' is not KEYWORD=VALUE`, `routes are required`,
+`<text> is not a route.`; what the claim or the store refuses -- a code that is none, a first
+route that is not trusted and no id -- is said under the list in red. **Import…** opens
+**Import daemons**, a switch per host of your ssh config not added yet (`as <name>`), each
+added as `stdio:ssh://<host>`, or says `every host of your ssh config is added already`;
+**Done** `adds each host switched on as a daemon`. Each change is said under the list and, on
+close, in the transcript: `daemon <name> saved`, `daemon <name> removed`, `<n> daemon(s)
+imported`, `device <device> revoked`.
 
 **Batch apply…** (with a daemon added) opens **Batch apply**: `This machine's settings, written
 to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them.`
-A switch per page carried -- `general`, `fallback`, `runtimes`, `backup`, each `carried`, on --
+A switch per page carried -- `general`, `nous`, `runtimes`, `backup`, each `carried`, on --
 then one per daemon, `written to`, off. **Done** `writes the pages switched on to each daemon
 switched on`; error `switch on a page and a daemon`. Each daemon is reached as **connect**
-reaches it and written as its web page's Settings saves each page, a backup target's URL with
+reaches it and written with the calls its own settings pages make (`settings.set`,
+`nous.set`, `runtimes.set`), a backup target's URL with
 nothing signed into it (so one that signs in is refused there). Said under the list and in the
 transcript: `<daemon>: applied` or `<daemon>: <why>`, for each, `·` between.
 
@@ -1573,7 +1580,7 @@ actions   esc back`.
 
 `as local` offers no rows and no button: `this is <cli> as local: Humanize keeps no
 credentials for it, so you cannot edit, sign in, or remove it`. Where a failing turn goes is the
-[Fallback page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
+[Nous page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
 
 On save the transcript says, per change: `<cli>/<name> and its credentials were removed`,
 `<cli>/<name> is updated` (and `<other>/<name> is updated with it`), then once `account
@@ -1653,42 +1660,35 @@ after the command's first word: `<name> added as a backend`; transcript ``<name>
 backend: `<command>` starts it``. Refusals: `command is required`, `<x> is already a backend
 Humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
 
-### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
+### Nous page {#where-a-turn-goes-when-it-cannot-be-taken}
 
-Intro: `Where a turn falls back when an agent fails, tried in order. An agent is a CLI, an
-account and a model. A chain starts only from the agent it is written for. Saved rules apply
-from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <a>[, then <b>…]` or `… · no fallback`. Empty: `no fallback rules configured yet`.
-Semantics: [Providers](/reference/providers) and [Falling back](/user/settings#fallback).
+Intro: `What agents think with. A concrete nous is HARNESS[@ACCOUNT]/MODEL[:EFFORT]; a virtual
+nous is a name for a graph of others. A failed turn is retried as the nous says, then goes to its
+then.` Rows:
+`<name>  virtual|concrete · no retries|<n> retries · <policy> · <limit>[ · graph <nodes>] · then <nodes>`,
+a graph's nodes in order from its start joined by `→`, a use node as its
+nous and a balance node as `<strategy>(<nous>×<weight>, …)`; `none` for no graph. Empty: `no nous
+written down yet`. Buttons: **add nous** (`a concrete nous, or a virtual one`), **Search…**,
+**Save**. Semantics: [Nous](/user/settings#nous).
 
-Rule form: title `Add fallback rule` (or the place when editing); intro `What happens when an
-agent cannot take a turn: retry as configured, then fall back to another agent in a new
-conversation.`
+Nous form: rows `name` (typed, or chosen from the concrete nous the accounts and installed
+harnesses run; a name with no `/` is a virtual nous, and on one already written renaming it renames
+it in every nous held), `effort` (concrete only; rewrites the `:EFFORT` of the name), `tries` ▾
+(`none`, `1`, `2`, `3`, `5`, `8`, `13`, `21`), `policy` ▾ (the six policies, each with what it
+does), `limit` ▾ (`no limit`, `30s`, `1m`, `5m`, `15m`, `60m`), `graph` (virtual only) and `then`,
+each opening the graph form. Buttons: **remove** (an existing nous; refused while another names
+it, saying `<other> still names <name>`), then **Done** (`applies this nous when /settings is
+saved`). Refused on **Done**, with the reason `Hmz().nous.check` gives: a name that is no nous, a
+virtual nous with no graph, a concrete one with neither retries nor a then (`<name> says nothing:
+give it retries or a then`), a graph that does not hold together, nous naming one another round.
 
-| Row | Kind | Values | Default |
-| --- | --- | --- | --- |
-| `fails on` (new only) | ▸ | a place (`—` empty) | — |
-| `falls back to` | ▸ | the first place of the chain, or `nowhere` | `nowhere` |
-| `then` (one per further place) | ▸ | the next place of the chain (`if that fails too, in a new conversation`) | — |
-| `then` (after the last, once the chain has one) | ▸ | `+ add` (`add an agent to try after the ones above`) | — |
-| `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
-| `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
-| `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
-
-Buttons: **Remove** (editing a rule only; red; `removes this fallback rule when saved`), then
-**Done** (`applies this fallback rule when /settings is saved`).
-
-Place picker: `Select the agent that fails` / `Select the fallback agent for <place>`; `Here an
-agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
-Button **Search…**. Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
-for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
-to query them` for an account not yet asked. On a row of the chain, `nowhere` takes that place
-off it, and a place already further along the chain swaps with the one there (how the chain is
-reordered).
-
-Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `an agent can
-be on the chain only once`, `choose a fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
-a fallback rule; done will update it`. Transcript on save: `<place> <rule>` or `<place> has no
-fallback`.
+Graph form: the `start` node ▾, one row per node (as the page shows it), **add node**; **remove**
+on a `then`. Node form: `id`, `kind` ▾ (`use`, `balance`); a use node's `nous` (typed or chosen,
+virtual nous first); a balance node's `strategy` ▾ (each with what it picks), `among`
+(`<nous> <weight>, …`, or **add** from the picker at weight 1) and `spread`; then one row per fault class
+and `*`, each ▾ another node or none. Removing a node takes the edges to it away; renaming one
+renames them. On save, renames are applied first, then each nous written and each removed one
+cleared; the transcript says what each came to.
 
 ### Runtimes page {#runtimes}
 
@@ -1841,7 +1841,7 @@ the cluster is the one this machine's `sbatch` submits to.
 | `qos` | `quality of service; blank for the default` |
 | `time` | `max run time per job, e.g. 4:00:00; blank for the partition's` |
 | `constraint` | `node features a job needs, e.g. a100` |
-| `python` | `Python 3.12+ on its nodes, /abs or ~/path; blank for theirs` |
+| `python` | `not used; the nodes need no Python` |
 | `via` | ▾ `srun` (`a step of the job per connection, which every cluster allows`) / `tcp` (`a port the job serves; needs this machine to reach its nodes`) |
 | `run args` | `extra arguments for sbatch` |
 | `max jobs` | `max concurrent jobs; blank for no limit` |
@@ -2225,7 +2225,6 @@ Textual.
 | Variable | Effect |
 | --- | --- |
 | `HUMANIZE_HOME` | Location of `settings.yaml`, `history.jsonl`, and everything else not this machine's alone ([Files › Roots](/reference/files#roots)). |
-| `HUMANIZE_DAEMON` | `off`/`0`/`no`: [runs held in process](/reference/cli#where-runs-are-held). |
 | `HUMANIZE_NAME` | This frontend's name before `@tui`. |
 | `HUMANIZE_SENTRY` | `on`/`1`/`true`/`yes` or `off`/`0`/`false`/`no`: answers reporting for this process. |
 | `HUMANIZE_PRICES` | Price source URL or path; `""`, `off`, `0`, `no`, `none`: none. |

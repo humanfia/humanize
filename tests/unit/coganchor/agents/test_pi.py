@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+import errno
 import json
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor.agents import Failed, PiAgent, PiAgentConfig, PiSession, driver
+from hmz.coganchor import fence
+from hmz.coganchor.agents import (
+    UNSAID,
+    Failed,
+    PiAgent,
+    PiAgentConfig,
+    PiSession,
+    driver,
+)
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 
+from .doubles_u4 import fenceable
 from .doubles_u5 import (
     configured,
     heard,
@@ -33,6 +43,7 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A home of the test's own, so that no `models.json` of whoever runs it is read."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("PI_CODING_AGENT_DIR", raising=False)
+    monkeypatch.delenv("NODE_COMPILE_CACHE", raising=False)
 
 
 def _agent(**said: Any) -> PiAgent:
@@ -199,6 +210,32 @@ def test_what_the_agent_is_configured_with_goes_on_the_command_line(
     assert argv[at : at + len(flags)] == flags
 
 
+@pytest.mark.parametrize("permission", ["workspace-write", "auto", "bypass", UNSAID])
+def test_only_read_only_takes_tools_away(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, permission: str
+) -> None:
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    agent = _agent(permission=permission)
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    assert "--exclude-tools" not in spawned[0].args
+
+
+def test_a_fence_that_cuts_the_network_runs_pi_offline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    agent = _agent(fence=Fence(online=False))
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    assert "--offline" in spawned[0].args
+
+
 def test_a_bare_agent_adds_nothing_to_the_command_line(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -230,6 +267,44 @@ def test_a_prompt_pi_refuses_fails_the_turn(
         _turn(agent.new(tmp_path))
 
     assert failed.value.output == "no model by that name"
+
+
+@pytest.mark.parametrize("refused", ["launch", "prompt", ""])
+def test_a_session_is_named_only_once_pi_has_taken_a_prompt_into_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, refused: str
+) -> None:
+    no = {"type": "response", "command": "prompt", "success": False, "error": "no"}
+    taken = {"type": "response", "command": "prompt", "success": True}
+    answers = (
+        _rpc(line(no))
+        if refused == "prompt"
+        else _rpc(line(taken), _ended(errorMessage="cut short"), _SETTLED)
+    )
+    spawned = spawning(monkeypatch, answers=answers)
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+    launching: list[str | None] = []
+    if refused == "launch":
+
+        def refuse(*_: object) -> list[str]:
+            launching.append(session.named)
+            raise FileNotFoundError(errno.ENOENT, "no pi here")
+
+        monkeypatch.setattr(agent, "spawned", refuse)
+
+    with pytest.raises(Failed):
+        _turn(session)
+
+    # The id a process is asked to open is no name of pi's until pi has taken a prompt into
+    # it: not while it is starting, and not once a turn it never took has failed. One it took
+    # is named, though the turn failed after it.
+    assert launching == ([None] if refused == "launch" else [])
+    if refused:
+        assert session.named is None
+    else:
+        (process,) = spawned
+        assert session.named == option(process.args, "--session-id")
 
 
 def test_a_turn_that_errs_without_saying_anything_fails(

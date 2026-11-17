@@ -11,7 +11,7 @@
 // beside it.
 
 import { asides, board, outworlders, question, saying } from '../acting.js'
-import { get, hash, scoped } from '../api.js'
+import { call, exported, hash } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { ask } from '../held.js'
@@ -20,7 +20,7 @@ import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, w
 import { graph } from '../graph.js'
 import { bar, dragged, keep, kept, sidePanel, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
-import { copy, menuOn } from '../ui.js'
+import { copy, menuOn, toast } from '../ui.js'
 import { saidTraced, sayer } from '../transcript.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
@@ -153,7 +153,7 @@ export function mount(root, { parts, query }) {
       else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
       if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
       if (!chat) actions.push(h('a', { class: 'icon-btn', href: hash(`/epics/${encodeURIComponent(detail.name)}/exomyth`), 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
-      if (!going) actions.push(h('a', { class: 'icon-btn', href: scoped(`/api/runs/${encodeURIComponent(detail.name)}/bundle`), download: '', 'aria-label': 'Export', title: 'Export' }, icon('download')))
+      if (!going) actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Export', title: 'Export', onclick: () => exported(detail.name).catch((error) => toast(error.message)) }, icon('download')))
       // How each target last took it, said on hover; read again as the epic is.
       actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Upload', title: backedSaid(detail.backed) || 'Upload', 'data-hmz': 'upload', onclick: uploading }, icon('up')))
       actions.push(copier('Copy link', () => location.href))
@@ -239,7 +239,7 @@ export function mount(root, { parts, query }) {
     traceError = null
     draw()
     try {
-      traced = (await get(`/api/runs/${encodeURIComponent(name)}/trace`)).sessions
+      traced = (await call('runs.trace', { name })).sessions
     } catch (error) {
       traceError = error
     }

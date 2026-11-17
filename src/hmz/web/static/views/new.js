@@ -5,13 +5,13 @@
 // ran that flow, the way `/flow` in the terminal interface sets one up. Picking a run up again is
 // the same box, on that run.
 
-import { address, get, hash, post } from '../api.js'
+import { call, given, hash } from '../api.js'
 import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
-import { workspacePicker, workspaces } from '../places.js'
+import { firstWorkspace, workspacePicker } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
@@ -99,15 +99,15 @@ export function mount(root, { query }) {
     fill(box.said)
     reading(true)
     try {
-      const ran = resume ? await get(`/api/runs/${encodeURIComponent(resume)}`) : null
+      const ran = resume ? await call('runs.get', { name: resume }) : null
       if (mine !== loading) return
       if (ran && !workspace) {
         scratch = false
         workspace = ran.workspace
         place.set(workspace)
       }
-      if (!workspace) workspace = (await workspaces()).here
-      const [found, installed, saved, settings] = await Promise.all([get(`/api/flows?workspace=${encodeURIComponent(workspace)}`), readBackends(workspace), get('/api/runtimes'), get('/api/settings').catch(() => null)])
+      if (!workspace) workspace = await firstWorkspace()
+      const [found, installed, saved, settings] = await Promise.all([call('flows.list', { workspace }), readBackends(workspace), call('runtimes.list'), call('settings.get').catch(() => null)])
       if (mine !== loading) return
       flows = found.flows
       backends = installed
@@ -139,7 +139,7 @@ export function mount(root, { query }) {
     reading(true)
     let read
     try {
-      read = await get(`/api/flow?name=${encodeURIComponent(name)}&workspace=${encodeURIComponent(workspace)}`)
+      read = await call('flows.get', { name, workspace })
     } catch (error) {
       if (choosing !== name) return
       reading(false)
@@ -228,7 +228,7 @@ export function mount(root, { query }) {
         targets.length ? h('section', { class: 'option-group', 'data-hmz': 'backup' }, h('h3', {}, 'Backup'), h('div', { class: 'row' }, targets)) : null,
         h('div', { class: 'row' }, h('label', { class: 'check' }, profileFlow, 'Profile flow'), h('label', { class: 'check' }, profileEnvironment, 'Profile environment')),
         // Set up without starting, as `/flow` saves it: what a new epic here opens on.
-        h('div', { class: 'row' }, acting('Save', () => post('/api/flows/setup', { workspace, flow: flow.name, ...readAll() }), { kind: 'btn small', busy: 'Saving…', done: 'Saved' })),
+        h('div', { class: 'row' }, acting('Save', () => call('flows.setup', { workspace, flow: flow.name, ...readAll() }), { kind: 'btn small', busy: 'Saving…', done: 'Saved' })),
       ),
     )
     return {
@@ -255,7 +255,7 @@ export function mount(root, { query }) {
     // A chat is a new chat's, on a host of its own beside every other epic here, as a chat app's
     // new chat leaves the last one going; the answer says which host, which the page follows.
     const started = await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false, ...(scratch ? { scratch } : {}) })
-    go(address('/live', { workspace: started.workspace, slot: started.slot }))
+    go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 
   // Back from making an account or a runtime, the pickers offer it.

@@ -3,7 +3,7 @@
 // what it spent and how long it took -- found by how it went, by flow and by its task, a page
 // at a time. The list `/epics` is in the terminal interface.
 
-import { address, hash, poll } from '../api.js'
+import { given, hash, poll } from '../api.js'
 import { shut, stays } from '../app.js'
 import { nameOf, workspaces } from '../places.js'
 import { epicMenu } from '../sidebar.js'
@@ -57,7 +57,7 @@ export function mount(root, { query }) {
     // What is listed stays, marked old, until what was asked for now is read.
     body.setAttribute('aria-busy', 'true')
     stays({ status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset || '' })
-    stop = poll(address('/api/runs', { status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset, limit: PAGE }), 5000, draw)
+    stop = poll('runs.list', given({ status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset, limit: PAGE }), 5000, draw)
   }
   const again = settled(() => {
     chosen.offset = 0

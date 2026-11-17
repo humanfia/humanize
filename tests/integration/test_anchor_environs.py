@@ -337,7 +337,7 @@ async def test_a_docker_environment_works_in_a_running_container_and_leaves_it_r
     assert execs
     for one in execs:
         assert one[:7] == ["exec", "-i", "-u", user, "-e", "HZ_PROBE=a b", "kept-box"]
-    assert list((far.root / "tmp" / f"humanize-{os.getuid()}").glob("humanize-*.pyz"))
+    assert list((far.root / "tmp" / f"humanize-{os.getuid()}").glob("coganchor-*"))
 
 
 async def test_a_running_container_a_runtime_names_that_is_not_is_unavailable(

@@ -74,7 +74,19 @@ class Refused(ValueError):  # noqa: N818 -- named for what happened, as the flow
     """A run refused before anything of it ran: a line, or a setup, to correct.
 
     The message says what, in words; the exception it was refused for is its cause.
+
+    Attributes:
+      code: The error code a daemon refused it with, 409 for a host's refusal, and 0 for one
+        made in this process.
+      data: The error's further fields, or nothing.
     """
+
+    def __init__(
+        self, message: str, *, code: int = 0, data: dict[str, Any] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.data: dict[str, Any] = dict(data or {})
 
 
 class Line(NamedTuple):
@@ -246,7 +258,7 @@ class Runner:
 
     def __init__(
         self,
-        flow: str | os.PathLike[str],
+        flow: str | os.PathLike[str] | FlowImpl,
         *,
         agents: Mapping[str, str | AgentDriver] | Iterable[AgentSpec] = (),
         envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
@@ -257,11 +269,13 @@ class Runner:
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
         backup: Iterable[str] | None = None,
+        local: EnvDriver | None = None,
+        journal: tuple[Path, bool] | None = None,
     ) -> None:
         """Loads the flow and checks what it is given against what it declares.
 
         Args:
-          flow: The flow, as `-f` names one.
+          flow: The flow, as `-f` names one, or the flow itself, loaded.
           agents: What each agent role runs: an `-a` spec after `<role>=` or a driver, by
             role, or the specs a line read. A role the runtime fills -- an `Outworlder` --
             is never given.
@@ -281,6 +295,9 @@ class Runner:
           workspace: Where the run happens, defaulting to this directory.
           backup: The backup targets in settings the epic goes to, by name, or None for
             the defaults settings names.
+          local: What fills every `LocalEnv` role, or None for the workspace: a test's fake.
+          journal: Where a resumable flow's journal is kept and whether to pick it up, or
+            None for its epic's: a test's own.
 
         Raises:
           Refused: For a flow that cannot be loaded; a role given that it does not declare,
@@ -291,14 +308,16 @@ class Runner:
             backup target settings has none of.
         """
         from hmz.flows import Budget, FlowException
-        from hmz.runtime.flowing import privileged, resolved
+        from hmz.runtime.flowing import FlowImpl, privileged, resolved
         from hmz.runtime.flowing.specs import EnvSpec as Spec
         from hmz.runtime.flowing.verses import spelled
 
-        self._named = spelled(flow)
+        self._named = flow.ref if isinstance(flow, FlowImpl) else spelled(flow)
         self._workspace = Path(workspace) if workspace is not None else Path.cwd()
+        self._local = local
+        self._journal = journal
         try:
-            impl = resolved(self._named)
+            impl = flow if isinstance(flow, FlowImpl) else resolved(self._named)
             declared = impl.describe()
         except FlowException as why:
             raise Refused(str(why)) from why
@@ -611,7 +630,9 @@ class Runner:
         cost = self._budget.cost
         return cost is not None and not math.isinf(cost)
 
-    def unreadable(self, stopped: Callable[[], bool] | None = None) -> str:
+    def unreadable(
+        self, stopped: Callable[[], bool] | None = None, *, fetch: bool = True
+    ) -> str:
         """Which cap of the run nothing it drives can read, in words, or "" for none.
 
         A cost cap over an agent whose model nobody prices is a cap that cannot bite: its
@@ -622,11 +643,13 @@ class Runner:
         Args:
           stopped: Asked while the list is waited for, so that a run stopped meanwhile is not
             held up by it.
+          fetch: Whether a stale or missing list is asked for first; False answers of the list
+            kept, reaching no other machine, as a check that starts nothing does.
 
         Raises:
           Refused: If the price list gives a price that is not a finite number.
         """
-        unpriced = self._prices(stopped)
+        unpriced = self._prices(stopped, fetch=fetch)
         if not self._capped:
             return ""
         cost = self._budget.cost or 0.0
@@ -637,7 +660,9 @@ class Runner:
             "stop what it spends"
         )
 
-    def _prices(self, stopped: Callable[[], bool] | None = None) -> list[str]:
+    def _prices(
+        self, stopped: Callable[[], bool] | None = None, *, fetch: bool = True
+    ) -> list[str]:
         """Brings the price list up to date for this run, once, whichever way it was started.
 
         A run is priced wherever it is started -- a command line, a tool, the interface -- so
@@ -653,6 +678,7 @@ class Runner:
 
         Args:
           stopped: Asked while the list is waited for.
+          fetch: Whether the list is brought up to date first, or only read as it is kept.
 
         Returns:
           The models of the run's agents that nobody lists a price for, in order.
@@ -664,7 +690,7 @@ class Runner:
 
         try:
             with self._pricing:
-                if not self._priced:
+                if fetch and not self._priced:
                     self._priced = True
                     if self._capped:
                         prices.ready(stopped=stopped)
@@ -744,7 +770,7 @@ class Runner:
         from hmz.runtime.flowing import local_env, open_outworlder, privileged, run_flow
 
         from .backing import Keeping
-        from .epic import Epic
+        from .epic import Epic, Uncarried
 
         local: EnvDriver | None = None
         try:
@@ -756,7 +782,7 @@ class Runner:
             finally:
                 given_up.set()
             await self._settled(noticed)
-            local = local_env(self._workspace)
+            local = self._local or local_env(self._workspace)
             await self._placeable(local)
         except BaseException as why:
             # Stopped, or refused, before the run began: what it was given goes either way.
@@ -765,29 +791,41 @@ class Runner:
                 raise Refused(str(why)) from why
             raise
         impl = self._impl
-        epic = Epic(
-            self._named,
-            task,
-            self._workspace,
-            ref=impl.ref,
-            agents=[
-                _drove(role, spec, self._agents[role].name)
-                for role, spec in self._specs.items()
-            ],
-            envs=[f"{role}={spec}" for role, spec in self._places.items()],
-            used=[f"{role}={spec}" for role, spec in self._used.items()],
-            # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
-            # float: `Budget(cost=inf)` is written as the string it reads back from.
-            params=json.loads(self._params.model_dump_json()),
-            budget=json.loads(self._budget.model_dump_json()),
-            resumable=impl.resumable,
-            picked_up=self._picked_up,
-            # A chat carried on is the same conversation, and so the same epic.
-            reopened=privileged(impl),
-            profile_flow=self._profile_flow,
-            profile_environment=self._profile_environment,
-            backup=self._backup,
-        )
+        try:
+            epic = Epic(
+                self._named,
+                task,
+                self._workspace,
+                ref=impl.ref,
+                agents=[
+                    _drove(role, spec, self._agents[role].name)
+                    for role, spec in self._specs.items()
+                ],
+                envs=[f"{role}={spec}" for role, spec in self._places.items()],
+                used=[f"{role}={spec}" for role, spec in self._used.items()],
+                # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
+                # float: `Budget(cost=inf)` is written as the string it reads back from. The
+                # record says a duration in seconds, where that JSON says it in ISO 8601.
+                params=json.loads(self._params.model_dump_json()),
+                budget=json.loads(self._budget.model_dump_json())
+                | {
+                    "duration": None
+                    if self._budget.duration is None
+                    else self._budget.duration.total_seconds()
+                },
+                resumable=impl.resumable,
+                picked_up=self._picked_up,
+                # A chat carried on is the same conversation, and so the same epic.
+                reopened=privileged(impl),
+                profile_flow=self._profile_flow,
+                profile_environment=self._profile_environment,
+                backup=self._backup,
+            )
+        except Uncarried as why:
+            # Nothing of it ran: what it was given goes, and the epic it would have picked
+            # up is there to be picked up again.
+            await asyncio.shield(self._closed(local))
+            raise Refused(str(why)) from why.__cause__
         # Backed up as its targets' policies say, each on a thread of its own: as a session
         # closes, every so often while it runs, and once it has ended.
         keeping = Keeping(epic.path, self._backup)
@@ -816,8 +854,13 @@ class Runner:
                         params=self._params,
                         budget=self._budget,
                         outworlder=outworlder,
-                        journal=epic.resume if impl.resumable else None,
-                        resume=self._picked_up is not None,
+                        journal=self._journal[0]
+                        if self._journal is not None
+                        else epic.resume
+                        if impl.resumable
+                        else None,
+                        resume=self._picked_up is not None
+                        or (self._journal is not None and self._journal[1]),
                         local=local,
                         recorder=recorder,
                     )
@@ -1131,12 +1174,15 @@ def _about() -> dict[str, object]:
     for runner in tuple(_GOING):
         for role, driver in runner.agents.items():
             declared = runner.declaration.agent(role)
+            # The preset, the network and how many rules narrow or widen it -- never the
+            # rules' paths, which may name somebody's files.
             may = (
                 ""
                 if declared is None
-                else " ".join(
-                    f"{scope}={getattr(declared.permission, scope)}"
-                    for scope in ("local", "user", "system", "online")
+                else (
+                    f"preset={declared.permission.preset} "
+                    f"network={str(declared.permission.network).lower()} "
+                    f"rules={len(declared.permission.granular)}"
                 )
             )
             agents.append(

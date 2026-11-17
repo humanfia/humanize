@@ -1,31 +1,35 @@
-"""`hmz.runtime.doing.daemons`: what a host says it has, and what reaching its interface carries."""
+"""`hmz.runtime.doing.daemons`: the daemons written down, and reaching them over their routes."""
 
 from __future__ import annotations
 
+import base64
 import copy
+import json
 import threading
 import time
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
 
+from hmz.runtime import Refused
 from hmz.runtime.doing.daemons import (
     CARRIED,
-    EASYTIER,
     FAILED,
     LOCAL,
-    SSH,
     UP,
     Daemons,
     Remotes,
+    Unreached,
     carried,
-    headers,
     said,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+#: Two daemon ids, 52 base32 characters each.
+_ID, _OTHER = "a" * 52, "b" * 52
 
 
 @pytest.fixture
@@ -63,14 +67,20 @@ def test_a_daemon_is_written_replaced_only_when_asked_and_removed(
 ) -> None:
     daemons = Daemons()
 
-    written = daemons.write("gpu", {"host": "a", "options": [["Compression", "yes"]]})
+    written = daemons.write("gpu", {"routes": ["stdio:ssh://gpu"]})
     with pytest.raises(FileExistsError):
-        daemons.write("gpu", {"host": "b"})
-    daemons.write("gpu", {"host": "b"}, replace=True)
+        daemons.write("gpu", {"routes": ["stdio:local"]})
+    daemons.write(
+        "gpu",
+        {"id": _ID, "routes": ["tcp://gpu:41817", "stdio:ssh://gpu"]},
+        replace=True,
+    )
 
-    assert written["options"] == [["Compression", "yes"]]
+    assert written == {"name": "gpu", "id": "", "routes": ["stdio:ssh://gpu"]}
     assert daemons.find("gpu") == daemons.all()[0]
-    assert daemons.all()[0]["host"] == "b"
+    assert held["daemons"] == [
+        {"name": "gpu", "id": _ID, "routes": ["tcp://gpu:41817", "stdio:ssh://gpu"]}
+    ]
     assert held["other"] == {"kept": True}
     with pytest.raises(ValueError, match="Local is always there"):
         daemons.remove(LOCAL)
@@ -81,13 +91,22 @@ def test_a_daemon_is_written_replaced_only_when_asked_and_removed(
 
 
 @pytest.mark.parametrize(
-    ("name", "fields"),
-    [("Local", {"host": "a"}), ("..", {"host": "a"}), ("gpu", {"workdir": "/w"})],
+    ("name", "fields", "says"),
+    [
+        ("Local", {"routes": ["stdio:local"]}, "cannot be called"),
+        ("..", {"routes": ["stdio:local"]}, "cannot be called"),
+        ("gpu", {"routes": ["stdio:local"], "host": "a"}, "takes no host"),
+        ("gpu", {"id": "nope", "routes": ["stdio:local"]}, "Say id"),
+        ("gpu", {"routes": []}, "Say routes"),
+        ("gpu", {"routes": "stdio:local"}, "Say routes"),
+        ("gpu", {"routes": ["stdio:local", "gopher://x"]}, "is not a route"),
+        ("gpu", {"routes": ["tcp://gpu:1", "stdio:local"]}, "needs the id"),
+    ],
 )
 def test_what_cannot_be_a_daemon_is_refused(
-    held: dict[str, Any], name: str, fields: dict[str, Any]
+    held: dict[str, Any], name: str, fields: dict[str, Any], says: str
 ) -> None:
-    with pytest.raises(ValueError, match="daemon"):
+    with pytest.raises(ValueError, match=says):
         Daemons().write(name, fields)
 
     assert "daemons" not in held
@@ -98,13 +117,68 @@ def test_hosts_of_the_ssh_config_are_offered_and_brought_in_once(
 ) -> None:
     daemons = Daemons()
 
-    assert list(daemons.offered()) == ["gpu", "box.one"]
+    assert daemons.offered() == {
+        "gpu": {"name": "gpu", "id": "", "routes": ["stdio:ssh://gpu"]},
+        "box.one": {"name": "box.one", "id": "", "routes": ["stdio:ssh://box.one"]},
+    }
     assert daemons.imported(["gpu", "gpu"]) == ["gpu"]
     assert list(daemons.offered()) == ["box.one"]
     with pytest.raises(LookupError):
         daemons.imported(["elsewhere"])
     with pytest.raises(ValueError, match="Say aliases"):
         daemons.imported([])
+
+
+def test_what_an_earlier_release_wrote_is_read_as_the_route_it_reached(
+    held: dict[str, Any],
+) -> None:
+    secret = "sixteen-bytes-ok"
+    held["daemons"] = [
+        {"name": "cfg", "via": "ssh", "alias": "gpu", "host": "", "options": []},
+        {
+            "name": "typed",
+            "via": "ssh",
+            "host": "box",
+            "user": "me",
+            "port": 2222,
+            "identity_file": "~/.ssh/id",
+            "proxy_jump": "",
+            "options": [["Compression", "yes"]],
+        },
+        {
+            "name": "far",
+            "via": "easytier",
+            "secret": secret,
+            "peers": ["tcp://node.example:11010"],
+        },
+        {
+            "name": "short",
+            "via": "easytier",
+            "secret": "short",
+            "peers": ["tcp://node.example:11010"],
+        },
+        {"name": "cfg", "routes": ["stdio:local"], "id": ""},
+        {"name": "mixed", "routes": ["stdio:local"], "host": "a"},
+    ]
+    daemons = Daemons()
+
+    assert daemons.all() == [
+        {"name": "cfg", "id": "", "routes": ["stdio:ssh://gpu"]},
+        {
+            "name": "typed",
+            "id": "",
+            "routes": [
+                "stdio:ssh://me@box:2222?identity=~%2F.ssh%2Fid&option=Compression=yes"
+            ],
+        },
+        {"name": "far", "id": "", "routes": ["easytier:far"]},
+    ]
+    daemons.remove("cfg")
+
+    assert held["daemons"] == daemons.all()
+    assert held["easytier"] == {
+        "far": {"secret": secret, "nodes": ["tcp://node.example:11010"]}
+    }
 
 
 def test_local_stands_up_and_nothing_else_is_reached_unasked() -> None:
@@ -129,21 +203,12 @@ def test_a_probe_is_read_by_what_each_line_says() -> None:
     assert said([]) == {}
 
 
-def test_a_request_there_is_its_own_page_s() -> None:
-    assert headers(8123, "k3y") == {
-        "Host": "127.0.0.1:8123",
-        "Origin": "http://127.0.0.1:8123",
-        "Sec-Fetch-Site": "same-origin",
-        "Cookie": "hmz-8123=k3y",
-    }
-
-
 def _plain(url: str) -> str:
     """A URL with nothing signed into it, as the flowverses strike one."""
     return url.replace("me:secret@", "***@")
 
 
-def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
+def test_a_batch_carries_the_pages_asked_for_as_settings_calls() -> None:
     target = SimpleNamespace(
         name="lab",
         url="https://me:secret@example.com/epics.git",
@@ -154,10 +219,40 @@ def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
     runtime = SimpleNamespace(
         held=lambda: {"backend": "ssh", "name": "gpu", "made": "typed", "host": "g"}
     )
-    step = SimpleNamespace(spec="claude", to=("codex",), tries=2, policy="p", timeout=5)
+
+    def _shown(graph: object) -> dict[str, object] | None:
+        return None if graph is None else {"start": graph}
+
+    def graph(*names: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            nodes=tuple(SimpleNamespace(use=name, among=()) for name in names)
+        )
+
+    # Written first, but naming `smart` in its `then`: carried after it.
+    concrete = SimpleNamespace(
+        name="claude/a",
+        virtual=False,
+        tries=2,
+        policy="p",
+        timeout=5,
+        graph=None,
+        then=graph("smart"),
+    )
+    virtual = SimpleNamespace(
+        name="smart",
+        virtual=True,
+        tries=0,
+        policy="q",
+        timeout=0,
+        graph=graph("codex/b"),
+        then=None,
+    )
     hmz = SimpleNamespace(
-        settings=SimpleNamespace(btw="", details=True, enable_sentry=None),
-        fallbacks=SimpleNamespace(all=lambda: [step]),
+        settings=SimpleNamespace(btw="", details=True, enable_sentry=False),
+        nous=SimpleNamespace(
+            all=lambda: [concrete, virtual],
+            shown=_shown,
+        ),
         runtimes=SimpleNamespace(all=lambda: [runtime]),
         backups=SimpleNamespace(targets=lambda: [target], defaults=lambda: ["lab"]),
         verses=SimpleNamespace(plain=_plain),
@@ -166,23 +261,35 @@ def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
     sent = carried(hmz, CARRIED)
 
     assert sent == [
-        ("/api/settings", {"btw": "", "details": True}),
+        ("settings.set", {"btw": "", "details": True, "reports": False}),
         (
-            "/api/fallbacks",
+            "nous.set",
             {
-                "spec": "claude",
-                "to": ["codex"],
-                "tries": 2,
-                "policy": "p",
-                "timeout": 5,
+                "name": "smart",
+                "tries": 0,
+                "policy": "q",
+                "timeout": 0,
+                "graph": {"start": virtual.graph},
+                "then": None,
             },
         ),
         (
-            "/api/runtimes",
+            "nous.set",
+            {
+                "name": "claude/a",
+                "tries": 2,
+                "policy": "p",
+                "timeout": 5,
+                "graph": None,
+                "then": {"start": concrete.then},
+            },
+        ),
+        (
+            "runtimes.set",
             {"backend": "ssh", "name": "gpu", "fields": {"host": "g"}, "replace": True},
         ),
         (
-            "/api/settings",
+            "settings.set",
             {
                 "backup": {
                     "targets": [
@@ -202,127 +309,69 @@ def test_a_batch_carries_the_pages_asked_for_as_each_page_saves_them() -> None:
     assert carried(hmz, ["general"]) == sent[:1]
 
 
-_SECRET = "sixteen-bytes-ok"
+class _Peer:
+    """`hmz.rpc.Peer` stood in for: each call answered as `ANSWERS` says."""
 
-#: The EasyTier nodes a P2P daemon meets its server through.
-_PEERS = ["tcp://node.example:11010", "wss://[::1]:11012/"]
+    ANSWERS: ClassVar[dict[str, Any]] = {}
+    made: ClassVar[list[_Peer]] = []
 
-#: A P2P daemon as it is written.
-_P2P = {"via": EASYTIER, "secret": _SECRET, "peers": _PEERS}
+    def __init__(self, pipe: object, serve: Any = None, **_: object) -> None:
+        self.pipe, self.serve = pipe, serve
+        self.calls: list[tuple[str, Any]] = []
+        self.ended = threading.Event()
+        self.told: list[Callable[[], None]] = []
+        _Peer.made.append(self)
 
+    @property
+    def closed(self) -> bool:
+        return self.ended.is_set()
 
-def test_an_easytier_daemon_holds_its_secret_and_its_nodes(
-    held: dict[str, Any],
-) -> None:
-    daemons = Daemons()
+    def closing(self, told: Callable[[], None]) -> None:
+        self.told.append(told)
 
-    written = daemons.write("et", _P2P)
+    def wait(self, timeout: float | None = None) -> bool:
+        return self.ended.wait(timeout)
 
-    assert written == {"name": "et", **_P2P}
-    assert daemons.find("et") == written
-    assert held["daemons"] == [written]
+    def call(self, method: str, params: Any = None, **_: object) -> Any:
+        self.calls.append((method, params))
+        answer = _Peer.ANSWERS.get(method, {})
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
 
-
-@pytest.mark.parametrize(
-    "fields",
-    [
-        _P2P | {"secret": "fifteen-bytes!!"},
-        {"via": EASYTIER, "peers": _PEERS},
-        _P2P | {"secret": 1234567890123456789},
-        _P2P | {"host": "a"},
-        {"via": SSH, "host": "a", "secret": _SECRET},
-        {"via": SSH, "host": "a", "peers": _PEERS},
-        {"via": "p2p", "secret": _SECRET},
-    ],
-)
-def test_what_cannot_be_an_easytier_daemon_is_refused_never_saying_its_secret(
-    held: dict[str, Any], fields: dict[str, Any]
-) -> None:
-    with pytest.raises(ValueError, match=r"secret|takes no|via") as refused:
-        Daemons().write("et", fields)
-
-    assert _SECRET not in str(refused.value)
-    assert "daemons" not in held
+    def close(self) -> None:
+        self.ended.set()
+        for one in self.told:
+            one()
 
 
-@pytest.mark.parametrize("peers", [None, [], "tcp://node.example:11010"])
-def test_an_easytier_daemon_needs_a_node(held: dict[str, Any], peers: object) -> None:
-    with pytest.raises(ValueError, match="at least one node"):
-        Daemons().write("et", _P2P | {"peers": peers})
+@pytest.fixture
+def reached(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Every route dialed, a session over each saying hello as the daemon `_ID`."""
+    import hmz.reach
+    import hmz.rpc
+    from hmz.trust import identity, tls
 
-    assert "daemons" not in held
+    dialed: list[str] = []
 
+    def dial(route: object, **_: object) -> object:
+        dialed.append(str(route))
+        return SimpleNamespace(close=lambda: None)
 
-@pytest.mark.parametrize(
-    "node",
-    [
-        "http://node.example:11010",
-        "tcp://node.example",
-        "tcp://:11010",
-        "tcp://node.example:99999",
-        "tcp://node.example:11010/path",
-        "tcp://me@node.example:11010",
-        "tcp://:pw@node.example:11010",
-        "tcp://node.example:0",
-        "tcp://node example:11010",
-        "node.example:11010",
-        11010,
-    ],
-)
-def test_a_node_that_is_not_one_is_refused_by_name(
-    held: dict[str, Any], node: object
-) -> None:
-    with pytest.raises(ValueError, match="is not an EasyTier node") as refused:
-        Daemons().write("et", _P2P | {"peers": [_PEERS[0], node]})
+    def hello(*_: object, **__: object) -> dict[str, str]:
+        return {"daemon_id": _ID, "version": "9.9.9", "device": "local"}
 
-    assert repr(node) in str(refused.value)
-    assert "daemons" not in held
+    def secured(pipe: object, *_: object) -> object:
+        return pipe
 
-
-def test_a_secret_is_counted_in_bytes(held: dict[str, Any]) -> None:
-    # Five characters of three bytes each are fifteen bytes; six are eighteen.
-    with pytest.raises(ValueError, match="at least 16 bytes"):
-        Daemons().write("et", _P2P | {"secret": "€" * 5})
-
-    assert Daemons().write("et", _P2P | {"secret": "€" * 6})["secret"]
-
-
-def test_a_replacement_saying_no_secret_keeps_the_one_written(
-    held: dict[str, Any],
-) -> None:
-    daemons = Daemons()
-    daemons.write("et", _P2P)
-    unsaid = {"via": EASYTIER, "peers": _PEERS[:1]}
-
-    daemons.write("et", unsaid, replace=True)
-    daemons.write("et", unsaid | {"secret": True}, replace=True)
-    daemons.write("et", unsaid | {"secret": ""}, replace=True)
-    assert daemons.find("et") == {"name": "et", **unsaid, "secret": _SECRET}
-    with pytest.raises(ValueError, match="16 bytes"):
-        daemons.write("et", unsaid | {"secret": False}, replace=True)
-    daemons.write("et", unsaid | {"secret": "another-sixteen!"}, replace=True)
-    assert held["daemons"][0]["secret"] == "another-sixteen!"
-    with pytest.raises(ValueError, match="16 bytes"):
-        daemons.write("new", unsaid, replace=True)
-
-
-def test_an_ssh_daemon_is_a_host_of_the_ssh_config_or_one_typed_in(
-    held: dict[str, Any],
-) -> None:
-    daemons = Daemons()
-    held["daemons"] = [
-        {"name": "old", "alias": "gpu", "host": "10.0.0.1"},
-        {"name": "hand", "via": "nope", "host": "a"},
-        {"name": "bare", "via": EASYTIER, "secret": _SECRET},
-    ]
-
-    alias = daemons.write("gpu", {"alias": "gpu", "config": "~/.ssh/other"})
-    typed = daemons.write("box", {"via": SSH, "host": "box", "user": "me"})
-
-    assert (alias["via"], alias["alias"], alias["host"]) == (SSH, "gpu", "")
-    assert (typed["via"], typed["alias"], typed["host"]) == (SSH, "", "box")
-    # Written before there were ways, with both: still there; written wrong: left out.
-    assert [one["name"] for one in daemons.all()] == ["old", "gpu", "box"]
+    _Peer.ANSWERS, _Peer.made = {}, []
+    monkeypatch.setattr(hmz.reach, "dial", dial)
+    monkeypatch.setattr(hmz.rpc, "Peer", _Peer)
+    monkeypatch.setattr(hmz.rpc, "hello", hello)
+    monkeypatch.setattr(identity, "host", lambda: "here")
+    monkeypatch.setattr(identity, "device", lambda: "me")
+    monkeypatch.setattr(tls, "dial", secured)
+    return dialed
 
 
 def _stands(remotes: Remotes, name: str, state: str) -> dict[str, str]:
@@ -334,8 +383,133 @@ def _stands(remotes: Remotes, name: str, state: str) -> dict[str, str]:
     return remotes.state(name)
 
 
+def test_a_daemon_is_reached_its_id_pinned_and_its_client_called(
+    held: dict[str, Any], reached: list[str]
+) -> None:
+    from hmz.rpc import RpcError
+
+    Daemons().write("box", {"routes": ["stdio:local"]})
+    _Peer.ANSWERS = {
+        "settings.set": {"btw": "x"},
+        "epic.stop": RpcError(404, "There is no epic e1.", {"epic": "e1"}),
+    }
+    remotes = Remotes(version="1.2.3")
+    try:
+        client = remotes.client("box")
+        assert remotes.state("box") == {"state": UP, "detail": "", "version": "9.9.9"}
+        assert (client.daemon_id, client.version, client.device) == (
+            _ID,
+            "9.9.9",
+            "local",
+        )
+        assert held["daemons"] == [
+            {"name": "box", "id": _ID, "routes": ["stdio:local"]}
+        ]
+        assert client.call("settings.set", {"btw": "x"}, idem="k") == {"btw": "x"}
+        assert _Peer.made[0].calls[-1] == ("settings.set", {"btw": "x", "idem": "k"})
+        with pytest.raises(Refused, match=r"There is no epic e1\.") as refused:
+            client.call("epic.stop", {})
+        assert getattr(refused.value, "code", None) == 404
+
+        heard: list[tuple[str, dict[str, Any]]] = []
+        client.heard(lambda method, params: heard.append((method, params)))
+        with pytest.raises(RuntimeError):
+            client.heard(print)
+        _Peer.made[0].serve(
+            SimpleNamespace(id=None, method="epic.event", params={"a": 1})
+        )
+        ending = time.monotonic() + 5
+        while not heard:
+            assert time.monotonic() < ending
+            time.sleep(0.01)
+        assert heard == [("epic.event", {"a": 1})]
+        client.close()
+        with pytest.raises(Refused, match="the daemon went away"):
+            client.call("settings.get")
+        # Another client of the same session goes on.
+        assert remotes.client("box").call("settings.set") == {"btw": "x"}
+        assert reached == ["stdio:local"]
+    finally:
+        remotes.close()
+    assert remotes.state("box")["state"] == "idle"
+    assert _Peer.made[0].closed
+
+
+def test_a_daemon_that_answers_as_another_fails(
+    held: dict[str, Any], reached: list[str]
+) -> None:
+    Daemons().write("box", {"id": _OTHER, "routes": ["stdio:local"]})
+    remotes = Remotes(version="1.2.3")
+    try:
+        with pytest.raises(
+            Unreached, match=r"box is not the daemon it was paired with\."
+        ):
+            remotes.client("box")
+        assert held["daemons"][0]["id"] == _OTHER
+    finally:
+        remotes.close()
+
+
+def test_an_easytier_daemon_never_paired_fails_before_anything_is_fetched(
+    held: dict[str, Any], reached: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.coganchor import easytier
+
+    def binary(*_: object) -> None:
+        raise AssertionError("EasyTier is fetched for a daemon that cannot be reached")
+
+    monkeypatch.setattr(easytier, "binary", binary)
+    held["daemons"] = [
+        {"name": "p2p", "via": "easytier", "secret": "s" * 16, "peers": ["tcp://n:1"]}
+    ]
+    remotes = Remotes(version="1.2.3")
+    try:
+        with pytest.raises(
+            Unreached, match=r"^easytier:p2p needs the id of the daemon it reaches\.$"
+        ):
+            remotes.client("p2p")
+        assert reached == []
+    finally:
+        remotes.close()
+
+
+def test_a_daemon_not_reached_fails_saying_why_and_waits_longer_each_time(
+    held: dict[str, Any], reached: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hmz.reach
+
+    waits: list[float] = []
+
+    class Backoff(hmz.reach.Backoff):
+        def next(self) -> float:
+            waits.append(super().next())
+            return 0.01
+
+    def dial(route: object, **_: object) -> object:
+        reached.append(str(route))
+        raise ConnectionRefusedError(f"{route} refused")
+
+    monkeypatch.setattr(hmz.reach, "Backoff", Backoff)
+    monkeypatch.setattr(hmz.reach, "dial", dial)
+    Daemons().write("box", {"id": _ID, "routes": ["tcp://box:1", "tcp://box:2"]})
+    remotes = Remotes(version="1.2.3")
+    try:
+        remotes.connect("box")
+        ending = time.monotonic() + 5
+        while len(waits) < 3:
+            assert time.monotonic() < ending
+            time.sleep(0.01)
+        assert remotes.state("box")["state"] in (FAILED, "connecting")
+        assert waits[:3] == [1.0, 2.0, 4.0]
+        with pytest.raises(Unreached, match=r"tcp://box:\d refused") as unreached:
+            remotes.client("box")
+        assert unreached.value.seen["state"] == FAILED
+    finally:
+        remotes.close()
+
+
 def test_an_easytier_daemon_is_installing_while_easytier_downloads(
-    held: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    held: dict[str, Any], reached: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from hmz.coganchor import easytier
 
@@ -348,8 +522,7 @@ def test_an_easytier_daemon_is_installing_while_easytier_downloads(
         raise OSError("cannot download EasyTier 9.9.9 for this machine")
 
     monkeypatch.setattr(easytier, "binary", binary)
-    monkeypatch.setattr(easytier, "joining", _never)
-    Daemons().write("et", _P2P)
+    Daemons().write("et", {"id": _ID, "routes": ["easytier:et"]})
     remotes = Remotes(version="1.2.3")
     try:
         remotes.connect("et")
@@ -361,12 +534,46 @@ def test_an_easytier_daemon_is_installing_while_easytier_downloads(
         downloaded.set()
         failed = _stands(remotes, "et", FAILED)
         assert failed["detail"] == "cannot download EasyTier 9.9.9 for this machine"
-        assert _SECRET not in str(failed)
     finally:
         remotes.close()
-    assert remotes.state("et")["state"] == "idle"
+    assert reached == []
 
 
-def _never(*_: object, **__: object) -> Any:
-    """`easytier.joining`, which nothing here may come to."""
-    raise AssertionError
+def _code(routes: list[str]) -> str:
+    """A pairing code of the daemon `_ID`, as `hmz daemon pair` prints one."""
+    said = {"v": 1, "id": _ID, "routes": routes, "token": "t0ken", "expires": 1}
+    return "hmz-pair:" + base64.urlsafe_b64encode(json.dumps(said).encode()).decode()
+
+
+def test_a_pairing_code_is_claimed_and_its_daemon_written_down(
+    held: dict[str, Any], reached: list[str]
+) -> None:
+    remotes = Remotes(version="1.2.3")
+    try:
+        written = remotes.pair("lab", _code(["tcp://lab:41817"]), device="laptop")
+    finally:
+        remotes.close()
+
+    assert written == {"name": "lab", "id": _ID, "routes": ["tcp://lab:41817"]}
+    assert held["daemons"] == [written]
+    assert _Peer.made[0].calls == [("pair.claim", {"token": "t0ken", "name": "laptop"})]
+    assert _Peer.made[0].closed
+
+
+def test_a_pairing_code_refused_or_not_one_is_said_so(
+    held: dict[str, Any], reached: list[str]
+) -> None:
+    from hmz.rpc import RpcError
+
+    _Peer.ANSWERS = {"pair.claim": RpcError(403, "That pairing code is not valid.")}
+    remotes = Remotes(version="1.2.3")
+    try:
+        with pytest.raises(Unreached, match="not valid") as unreached:
+            remotes.pair("lab", _code(["tcp://lab:41817"]))
+        assert unreached.value.status == 403
+        with pytest.raises(ValueError, match="not a pairing code"):
+            remotes.pair("lab", "hmz-pair:nope")
+    finally:
+        remotes.close()
+    assert "daemons" not in held
+    assert _Peer.made[0].calls == [("pair.claim", {"token": "t0ken", "name": "here"})]

@@ -1,5 +1,6 @@
-//! Every process the app starts -- uv, `hmz --version`, `hmz web` -- kept until it is done, so
-//! that quitting stops each one still going, wherever starting had got to, and starts no more.
+//! Every process the app starts -- a pipe's `hmz daemon connect --stdio`, `ssh`, `wsl.exe` or
+//! EasyTier, uv, `hmz --version` -- kept until it is done, so that quitting stops each one still
+//! going, wherever starting had got to, and starts no more (Section 3.10 of [DESKTOP]).
 
 use std::io;
 #[cfg(unix)]
@@ -55,7 +56,7 @@ impl Drop for Child {
 /// Starts a command, with the signals that stop it as they are by default, and keeps it until it
 /// is dropped; none once the app is quitting.
 pub fn spawn(command: &mut Command) -> io::Result<Child> {
-    // A signal ignored is ignored in a child too, and `hmz web` keeps one it was handed ignored --
+    // A signal ignored is ignored in a child too, and `hmz daemon connect` keeps one it was handed ignored --
     // so an app started where Ctrl+C is ignored, as from a script's background job, would have
     // Quit kill it rather than stop it.
     // SAFETY: `signal` is async-signal-safe, which is all that may run between fork and exec.
@@ -82,7 +83,7 @@ pub fn spawn(command: &mut Command) -> io::Result<Child> {
 }
 
 /// Interrupts a child, as Ctrl+C would -- on Windows, which has no Ctrl+C to send, closes its
-/// stdin, which ends `hmz web --attached` -- and kills it if it has not stopped in time. Reaped
+/// stdin, which ends `hmz daemon connect --stdio` -- and kills it if it has not stopped in time. Reaped
 /// either way.
 pub fn ended(child: &SharedChild) -> Option<ExitStatus> {
     #[cfg(unix)]
@@ -143,14 +144,14 @@ pub fn quit() {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::*;
     use std::process::Stdio;
     use std::time::Instant;
 
     /// Quitting is for the whole process, so a test of it runs apart, in a test process of its
     /// own: true where this is the one that ran it there, and is done.
-    pub fn apart(test: &str) -> bool {
+    fn apart(test: &str) -> bool {
         if std::env::var_os("HUMANIZE_QUIT_TEST").is_some() {
             return false;
         }
@@ -164,25 +165,8 @@ pub(crate) mod tests {
         true
     }
 
-    /// The pid a fake writes once it is going, waited for: a script run the first time is
-    /// checked by macOS first, which can take a while.
     #[cfg(unix)]
-    pub fn written(path: &std::path::Path) -> u32 {
-        let began = Instant::now();
-        loop {
-            if let Some(pid) = std::fs::read_to_string(path)
-                .ok()
-                .and_then(|pid| pid.trim().parse().ok())
-            {
-                return pid;
-            }
-            assert!(began.elapsed() < Duration::from_secs(10), "no pid");
-            std::thread::sleep(Duration::from_millis(20));
-        }
-    }
-
-    #[cfg(unix)]
-    pub fn gone(pid: u32) -> bool {
+    fn gone(pid: u32) -> bool {
         (unsafe { libc::kill(pid as libc::pid_t, 0) }) != 0
     }
 

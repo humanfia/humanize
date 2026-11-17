@@ -1,14 +1,15 @@
-"""Reaching a target: the bundle, the road to it, and the serving half answering on it.
+"""Reaching a target: `coganchor` shipped down the road to it, and answering on it.
 
 Every target here is this machine. `ssh`, `docker` and `container` are the fakes in
 `doubles_anchor`, which run what they are sent locally -- so a target reached through one is
-bootstrapped and served for real, and what is checked is what came back over the protocol.
+given `coganchor` and served for real, and what is checked is what came back over the protocol.
 """
 
 from __future__ import annotations
 
 import os
 import shlex
+import socket
 import stat
 import subprocess
 import sys
@@ -17,17 +18,21 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor import AnchorConfig, anchor
-from hmz.coganchor.rendezvous import Broker, Meeting, ticket
-from hmz.coganchor.transport import Road, Target, build_bundle
+from hmz.coganchor import AnchorConfig, anchor, binary
+from hmz.coganchor.proto import Frame, Op
+from hmz.coganchor.rendezvous import Meeting, ticket
+from hmz.coganchor.transport import Road, Target
 from tests.integration.doubles_anchor import Fakes, announced, fakes, stopped
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-#: The serving half, as a command line starts it.
+#: The serving half, as a command line starts it: `hmz`, which becomes `coganchor anchor`.
 SERVE = [sys.executable, "-Pm", "hmz", "internal", "anchor", "serve"]
+
+#: What a far side's shell is sent `coganchor` with: nothing else says this.
+SHIPPING = "coganchor did not arrive whole"
 
 
 @pytest.fixture
@@ -51,16 +56,14 @@ def _unique(tmp_path: Path) -> str:
     return f"box-{tmp_path.name}"
 
 
-def test_a_bundle_runs_the_serving_half_with_nothing_of_this_repo_on_its_path(
-    tmp_path: Path,
-) -> None:
-    bundle = build_bundle(tmp_path / "coganchor.pyz")
-
+def test_coganchor_runs_the_serving_half_with_nothing_of_this_repo_on_its_path() -> (
+    None
+):
     said = subprocess.run(
-        [sys.executable, str(bundle), "internal", "anchor", "serve", "--help"],
+        [str(binary.here()), "anchor", "--help"],
         capture_output=True,
         text=True,
-        env={"PATH": "/usr/bin:/bin", "PYTHONPATH": ""},
+        env={"PATH": "/usr/bin:/bin"},
         cwd="/",
         check=False,
     )
@@ -94,12 +97,13 @@ def test_a_target_over_ssh_is_bootstrapped_once_and_served(
     second = anchor.check(config)
 
     assert first["entries"] == second["entries"] == 2
-    archives = list((far.home / ".cache" / "humanize").glob("humanize-*.pyz"))
-    assert len(archives) == 1
-    # Install and serve, then serve alone: the bundle is pushed once per machine.
-    installs = [c for c in far.calls("ssh") if "HUMANIZE_BUNDLES" in c[-1]]
-    assert len(installs) == 1
-    assert len(far.calls("ssh")) == 3
+    shipped = list((far.home / ".cache" / "humanize").glob("coganchor-*"))
+    assert len(shipped) == 1
+    # Asked what it is, given the program and served, then served alone: `coganchor` is
+    # shipped once per machine.
+    ships = [c for c in far.calls("ssh") if SHIPPING in c[-1]]
+    assert len(ships) == 1
+    assert len(far.calls("ssh")) == 4
 
 
 def test_ssh_is_told_the_port_the_options_and_to_share_its_connection(
@@ -141,7 +145,7 @@ def test_a_docker_container_is_bootstrapped_in_its_own_temp_and_served(
     )
 
     assert found["entries"] == 2
-    assert list((far.root / "tmp" / "humanize").glob("humanize-*.pyz"))
+    assert list((far.root / "tmp" / "humanize").glob("coganchor-*"))
     assert all(argv[:3] == ["exec", "-i", name] for argv in far.calls("docker"))
 
 
@@ -165,11 +169,11 @@ def test_a_container_target_naming_a_user_runs_all_as_it_with_its_variables_wrap
 
     assert found["entries"] == 2
     cache = far.root / "tmp" / f"humanize-{os.getuid()}"
-    assert list(cache.glob("humanize-*.pyz"))
+    assert list(cache.glob("coganchor-*"))
     assert stat.S_IMODE(cache.lstat().st_mode) == 0o700
     assert not list((far.root / "tmp" / "humanize").glob("*"))
     calls = far.calls("docker")
-    assert len(calls) == 2  # install, then serve
+    assert len(calls) == 3  # asked what it is, shipped, then served
     for argv in calls:
         assert argv[:9] == [
             "exec",
@@ -221,11 +225,11 @@ def test_a_container_on_another_daemon_is_reached_there_whatever_the_environment
         assert "DOCKER_HOST" not in one["env"]
 
 
-def test_a_container_that_cannot_take_the_bundle_says_what_its_log_said(
+def test_a_container_that_cannot_take_coganchor_says_what_its_log_said(
     far: Fakes, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     far.fail(monkeypatch, "docker", "container is not running")
-    monkeypatch.setenv("FAKE_LOGS", "no python 3.12 or newer on this machine")
+    monkeypatch.setenv("FAKE_LOGS", "no space left on device")
 
     with pytest.raises(ConnectionError) as failed:
         anchor.check(
@@ -235,7 +239,7 @@ def test_a_container_that_cannot_take_the_bundle_says_what_its_log_said(
         )
 
     assert "container is not running" in str(failed.value)
-    assert "the container said: no python 3.12" in str(failed.value)
+    assert "the container said: no space left on device" in str(failed.value)
 
 
 def test_an_apple_container_is_reached_through_container_exec(
@@ -253,7 +257,7 @@ def test_an_apple_container_is_reached_through_container_exec(
     assert not far.calls("docker")
 
 
-def test_a_road_forgotten_pushes_the_bundle_again(
+def test_a_road_forgotten_ships_coganchor_again(
     far: Fakes, workspace: Path, tmp_path: Path
 ) -> None:
     target = f"docker://{_unique(tmp_path)}"
@@ -263,8 +267,8 @@ def test_a_road_forgotten_pushes_the_bundle_again(
     Road.to(Target.parse(target)).forget()
     anchor.check(config)
 
-    installs = [c for c in far.calls("docker") if "HUMANIZE_BUNDLES" in " ".join(c)]
-    assert len(installs) == 2
+    ships = [c for c in far.calls("docker") if SHIPPING in " ".join(c)]
+    assert len(ships) == 2
 
 
 @pytest.fixture
@@ -313,6 +317,63 @@ def test_a_listening_target_refuses_a_client_with_the_wrong_secret(
         )
 
 
+def test_a_listening_target_refuses_a_client_with_no_secret(
+    listening: tuple[str, int], workspace: Path
+) -> None:
+    host, port = listening
+
+    with pytest.raises(OSError, match="invalid token"):
+        anchor.check(
+            AnchorConfig(target=f"tcp://{host}:{port}", workspace=str(workspace))
+        )
+
+
+def test_a_listening_target_speaks_tls_and_nothing_else(
+    listening: tuple[str, int],
+) -> None:
+    # A frame in the clear, as a HELLO crossed before: no frame comes back, at most an alert.
+    with socket.create_connection(listening, timeout=30) as sock:
+        sock.sendall(Frame.request(1, Op.HELLO, version=1, token="s3cret").encode())
+        said = b""
+        while chunk := sock.recv(4096):
+            said += chunk
+
+    assert not said or said[0] == 0x15  # a TLS alert record
+
+
+def test_a_client_refuses_a_listener_that_cannot_prove_its_secret(
+    workspace: Path,
+) -> None:
+    # One that lets anybody in, never having been told the secret, as an impostor would.
+    process, host, port = announced(
+        [*SERVE, "--listen", "127.0.0.1:0", "--export", str(workspace)]
+    )
+    target = f"tcp://{host}:{port}"
+    try:
+        with pytest.raises(
+            ConnectionError,
+            match=f"^the serving half at {target} did not prove the token$",
+        ):
+            anchor.check(
+                AnchorConfig(target=target, workspace=str(workspace), token="s3cret")
+            )
+        # And through `coganchor cog`, which says so and exits 1.
+        said = subprocess.run(
+            [str(binary.here()), "cog", "--check", "--target", target],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "HUMANIZE_TOKEN": "s3cret"},
+            cwd=workspace,
+            check=False,
+        )
+    finally:
+        stopped(process)
+
+    assert said.returncode == 1, said.stderr
+    assert f"the serving half at {target} did not prove the token" in said.stderr
+
+
 def test_a_serving_half_will_not_listen_beyond_loopback_without_a_secret(
     workspace: Path,
 ) -> None:
@@ -328,32 +389,13 @@ def test_a_serving_half_will_not_listen_beyond_loopback_without_a_secret(
     assert "without --token" in said.stderr
 
 
-@pytest.fixture
-def broker() -> Iterator[Broker]:
-    """A broker on loopback that carries a pair at once rather than waiting on a punch."""
-    made = Broker("127.0.0.1", 0, punching=0.2)
-    made.start()
-    yield made
-    made.close()
-
-
-def test_two_halves_met_through_a_broker_serve_a_session(
-    broker: Broker, workspace: Path
+def test_a_meeting_is_not_met_from_this_process_but_by_coganchor_cog(
+    workspace: Path,
 ) -> None:
-    meeting = Meeting(ticket(), *broker.address)
-    serving = subprocess.Popen(
-        [*SERVE, "--peer", str(meeting), "--export", str(workspace)],
-        stdin=subprocess.DEVNULL,
-    )
-    try:
-        found = anchor.check(
-            AnchorConfig(target=f"peer://{meeting}", workspace=str(workspace))
-        )
-    finally:
-        stopped(serving)
+    meeting = Meeting(ticket(), "127.0.0.1", 9)
 
-    assert found["entries"] == 2
-    assert found["target"] == f"peer://{meeting}"
+    with pytest.raises(ConnectionError, match="a meeting for one session"):
+        anchor.check(AnchorConfig(target=f"peer://{meeting}", workspace=str(workspace)))
 
 
 def test_a_broker_run_as_a_command_line_introduces_two_halves(workspace: Path) -> None:
@@ -370,14 +412,24 @@ def test_a_broker_run_as_a_command_line_introduces_two_halves(workspace: Path) -
         stdin=subprocess.DEVNULL,
     )
     try:
-        found = anchor.check(
-            AnchorConfig(target=f"peer://{meeting}", workspace=str(workspace))
+        found = subprocess.run(
+            [
+                sys.executable,
+                *("-Pm", "hmz", "internal", "anchor", "--check"),
+                f"--target=peer://{meeting}",
+                f"--workspace={workspace}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
         )
     finally:
         stopped(serving)
         stopped(process)
 
-    assert found["entries"] == 2
+    assert found.returncode == 0, found.stderr
+    assert f"workspace   {workspace} (2 entries)" in found.stdout
 
 
 def test_many_sessions_reach_one_ssh_target_at_once(
@@ -396,4 +448,4 @@ def test_many_sessions_reach_one_ssh_target_at_once(
         each.join(timeout=60)
 
     assert said == [2, 2, 2, 2]
-    assert len(list((far.home / ".cache" / "humanize").glob("humanize-*.pyz"))) == 1
+    assert len(list((far.home / ".cache" / "humanize").glob("coganchor-*"))) == 1

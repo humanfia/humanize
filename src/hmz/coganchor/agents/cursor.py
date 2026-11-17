@@ -43,7 +43,7 @@ an internal one for Cursor's cloud workers: it also forces every shell command i
 `cursorsandbox`, which does not start where no user namespace can be opened, and it only
 rejects what the server asks the client about first. A turn at a permission granting no
 network would reach the web through Cursor all the same, so rather than run wider than it
-was told, the agent is refused and the permission is to grant online ALL.
+was told, the agent is refused and the permission is to grant network=True.
 """
 
 from __future__ import annotations
@@ -129,18 +129,16 @@ def _abroad(config: AgentConfig) -> bool:
       config: What the agent runs at.
 
     Returns:
-      True at `workspace-write` on another machine, under a fence that writes neither the
-      home nor the system; False wherever Cursor's own sandbox is still the rung.
+      True at `workspace-write` on another machine, under a fence drawn from rules that write
+      nothing but the workdir; False wherever Cursor's own sandbox is still the rung.
     """
-    from hmz.coganchor.fence import ALL
-
     fence = config.fence
     return (
         config.permission == "workspace-write"
         and config.machine is not None
         and fence is not None
-        and len(fence.scopes) == 3  # noqa: PLR2004
-        and ALL not in fence.scopes[1:]
+        and bool(fence.drawn)
+        and not fence.outward
     )
 
 
@@ -405,8 +403,10 @@ class CursorSession(CommandSessionBase):
         kind = str(said.get("type") or "")
         if kind == "system" and said.get("session_id"):
             # Noted, not taken: this is the first line out, said before anything can go
-            # wrong, and a chat is only opened by a turn that lands in it.
-            self._named = str(said["session_id"])
+            # wrong, and a chat is only opened by a turn that lands in it. But the run's from
+            # here, whose log this is from its first line whether or not the turn lands.
+            if self._id is None:
+                self._tells(str(said["session_id"]))
         elif kind == "assistant":
             message = cast("dict[str, Any]", said.get("message") or {})
             for raw in cast("list[Any]", message.get("content") or []):
@@ -653,7 +653,7 @@ class CursorAgent(AgentBase):
                 f"{_COMMAND}: this permission cuts the network, and {_COMMAND}'s web search "
                 "and web fetch run on Cursor's own servers, through the same hosts as its "
                 "model, where nothing here can tell them apart or switch them off; grant "
-                f"it online ALL to use {_COMMAND}"
+                f"it network=True to use {_COMMAND}"
             )
 
     def natively(self, fence: Fence) -> Fence:

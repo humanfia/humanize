@@ -43,8 +43,7 @@ if TYPE_CHECKING:
     from rich.console import Console, ConsoleOptions, RenderResult
     from rich.live import Live
 
-    from hmz.coganchor.agents import AgentBase, Event
-    from hmz.coganchor.agents.base import SessionBase
+    from hmz.sdk.running import Opened
 
 __all__ = ["Out", "Shown", "colours", "terminal"]
 
@@ -217,6 +216,20 @@ class Out:
             # is watched by whatever is tailing it.
             self._machine.flush()
 
+    def printed(self, said: str) -> None:
+        """A line the flow, or code it called, printed in the process holding the epic.
+
+        On stdout where a person is reading, as it would have been printed there; on stderr
+        under `--json`, where stdout is the objects alone.
+
+        Args:
+          said: The line.
+        """
+        with self._lock, contextlib.suppress(OSError):
+            stream = sys.stderr if self._json else self._machine
+            stream.write(said + "\n")
+            stream.flush()
+
     def aside(self, said: str) -> None:
         """Something about the run itself rather than about its answer, said on stderr.
 
@@ -334,16 +347,11 @@ class Out:
 
 
 class Shown:
-    """A run of a flow as it happens, laid out for whoever is reading it.
+    """An epic as it happens, laid out for whoever is reading it.
 
-    Handed to `Run.watch`, which hands it to every session of the run -- the same stream the
-    interface draws from -- so the two readings of one run say the same things in the same
-    order. Watching a session is also what stops its CLI teeing its own raw progress to
-    stderr, so this replaces that tee rather than being printed beside it.
-
-    Each event is written down through the runtime's own record, the one shape every
-    frontend of a held run is told it in, so that this and the interface say one thing the
-    same way.
+    Handed to `Run.watch`, which hands it every `event` record of the epic -- the one shape
+    every frontend of it is told it in -- so this and the interface say one thing the same
+    way, in the same order.
     """
 
     def __init__(self, out: Out) -> None:
@@ -364,6 +372,8 @@ class Shown:
         self._opened = False
         self._since = time.monotonic()
         self._lock = threading.Lock()
+        # The keys of every session each agent opened, in the order it opened them.
+        self._sessions: dict[str, list[str]] = {}
         # A run nobody watched used to tee its progress to stderr and put each turn's answer
         # on stdout, and a script reading one reads that stdout -- so it goes on going there.
         # Except where both streams are the one terminal, where the turn has already said it
@@ -385,31 +395,40 @@ class Shown:
         """Takes it down again, however the run ended."""
         self._out.spins(None)
 
-    def heard(
-        self, agent: AgentBase, session: SessionBase | None, event: Event
-    ) -> None:
-        """Shows one thing a turn said, in whichever language is being read.
-
-        Called from the turn's own thread, which is not the one the run was started on.
+    def opened(self, role: str, opened: Opened) -> None:
+        """Keeps one session the epic opened, which tells an agent's sessions apart.
 
         Args:
-          agent: Whose turn said it.
-          session: The conversation it was said in, or None for something the agent said
-            rather than one of them.
-          event: What was said.
+          role: The role its agent fills.
+          opened: The session.
         """
-        from hmz.runtime.doing.hosting import record
+        del role
+        with self._lock:
+            self._sessions.setdefault(opened.agent, []).append(opened.key)
 
-        # Keyed by the conversation itself, which is what tells two turns of one agent
-        # apart: nothing here numbers conversations, and nothing written shows the key.
-        key = agent.id if session is None else f"{agent.id}#{id(session)}"
-        self._shows(record(agent, session, event, key=key), _where(agent, session))
+    def heard(self, agent: str, key: str | None, said: dict[str, Any]) -> None:
+        """Shows one thing a turn said, in whichever language is being read.
 
-    def _shows(self, said: dict[str, Any], where: str) -> None:
+        Called from the thread the epic is followed on, which is not the one it was started on.
+
+        Args:
+          agent: Whose turn said it, by the agent's own name.
+          key: The session it was said in, or None for something the agent said rather than
+            one of them.
+          said: The `event` record.
+        """
         if self._out.as_json:
             self._object(said)
             return
-        self._row(said, where)
+        self._row(said, self._where(agent, key))
+
+    def _where(self, agent: str, key: str | None) -> str:
+        """Which of an agent's sessions a turn is taken in, where it opened several."""
+        with self._lock:
+            held = list(self._sessions.get(agent, ()))
+        if key is None or key not in held or len(held) < 2:  # noqa: PLR2004 -- one is none to tell apart
+            return ""
+        return f"{_DOT}conversation {held.index(key) + 1} of {len(held)}"
 
     def _object(self, said: dict[str, Any]) -> None:
         """Puts one event on the stream a program is reading, as one object."""
@@ -494,6 +513,9 @@ class Shown:
         ordinary case, the list being a few dozen models and Humanize driving whatever CLI is
         installed: `$0.00` beside a turn that cost something would be a claim about a bill,
         and a wrong one.
+
+        Args:
+          said: The turn's `result`, as recorded.
         """
         from hmz.coganchor.agents import KINDS
         from hmz.coganchor.prices import PriceError, cost, money
@@ -552,21 +574,3 @@ class Shown:
             whose, _ = next(iter(began))
             return f"{whose} is working{_DOT}{took:.0f}s"
         return f"{many(len(began), 'turn')} working{_DOT}{took:.0f}s"
-
-
-def _where(agent: AgentBase, session: SessionBase | None) -> str:
-    """Which of an agent's conversations a turn is being taken in, where it has several.
-
-    Args:
-      agent: Whose turn it is.
-      session: The conversation it is in, or None where the agent itself said it.
-
-    Returns:
-      Which one, counting from one, and nothing at all for an agent holding one -- there
-      being nothing to tell it apart from.
-    """
-    held = agent.sessions
-    if session is None or len(held) < 2:  # noqa: PLR2004 -- one is none to tell apart
-        return ""
-    at = next((one for one, other in enumerate(held) if other is session), None)
-    return "" if at is None else f"{_DOT}conversation {at + 1} of {len(held)}"

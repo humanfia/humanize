@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from hmz.coganchor import backends
+from hmz.coganchor import backends, prices
 from hmz.runtime.watching.tally import Seen, Tally, reported
 
 if TYPE_CHECKING:
@@ -44,6 +44,10 @@ class _Told:
         default_factory=dict[str, tuple[int, dict[str, float] | None]]
     )
     sources: set[str] = field(default_factory=set[str])
+    hours: dict[str, float] = field(default_factory=dict[str, float])
+    tiered: dict[str, dict[str, float]] = field(
+        default_factory=dict[str, dict[str, float]]
+    )
     landed: threading.Event = field(default_factory=threading.Event)
 
     def reporting(self, agent: str, kinds: Iterable[str]) -> None:
@@ -56,9 +60,13 @@ class _Told:
         total: int,
         now: float | None = None,
         kinds: Mapping[str, float] | None = None,
+        hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
     ) -> None:
         self.sources.add(source)
         self.totals[model] = (total, dict(kinds) if kinds is not None else None)
+        self.hours[model] = hour
+        self.tiered[model] = dict(tiered or {})
         self.landed.set()
 
 
@@ -95,7 +103,7 @@ def _write(path: Path, *rows: object, partial: str = "") -> None:
 
 def _claude(
     message: str | None,
-    usage: dict[str, int],
+    usage: dict[str, Any],
     model: str = "opus",
     at: str | None = None,
 ) -> dict[str, Any]:
@@ -191,6 +199,71 @@ def test_a_claude_message_said_on_several_rows_is_counted_once(
     tally.read()
 
     assert told.totals["opus"][0] == 15
+
+
+def test_claude_one_hour_cache_writes_are_counted_beside_the_kinds_once(
+    home: Path, told: _Told
+) -> None:
+    written = {"input_tokens": 6, "cache_creation_input_tokens": 100_000}
+    split = {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 100_000}
+    _write(
+        home / "s1.jsonl",
+        _claude("m1", {**written, "output_tokens": 1, "cache_creation": split}),
+        _claude("m1", {**written, "output_tokens": 1, "cache_creation": split}),
+        # What closes the message says its writes again and leaves the split out.
+        _claude("m1", {**written, "output_tokens": 500}),
+    )
+    tally = _tally(told, Seen("a", "claude", "opus", idents=frozenset({"s1"})))
+
+    tally.read()
+
+    assert told.totals["opus"] == (
+        100_506,
+        {"input": 6.0, "output": 500.0, "cache_write": 100_000.0},
+    )
+    assert told.hours["opus"] == 100_000
+
+
+def test_requests_past_a_long_context_line_are_counted_beside_the_kinds_once(
+    home: Path, told: _Told, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def tiered(
+        request: Mapping[str, float], model: str, *, hour: float = 0.0
+    ) -> dict[str, float]:
+        prompt = request.get("input", 0.0) + request.get("cache_read", 0.0)
+        if model != "opus" or prompt <= 1000:
+            return {}
+        marked = {f"{kind}>1000": tokens for kind, tokens in request.items()}
+        return marked | ({"cache_write_1h>1000": hour} if hour else {})
+
+    monkeypatch.setattr(prices, "tiered", tiered)
+    long = {
+        "input_tokens": 6,
+        "cache_read_input_tokens": 2000,
+        "cache_creation_input_tokens": 40,
+        "cache_creation": {"ephemeral_1h_input_tokens": 40},
+    }
+    _write(
+        home / "s1.jsonl",
+        _claude("m1", {**long, "output_tokens": 1}),
+        _claude("m1", {**long, "output_tokens": 500}),
+        _claude("m2", {"input_tokens": 10, "output_tokens": 5}),
+    )
+    tally = _tally(told, Seen("a", "claude", "opus", idents=frozenset({"s1"})))
+
+    tally.read()
+
+    assert told.totals["opus"] == (
+        2561,
+        {"input": 16.0, "output": 505.0, "cache_read": 2000.0, "cache_write": 40.0},
+    )
+    assert told.tiered["opus"] == {
+        "input>1000": 6.0,
+        "cache_read>1000": 2000.0,
+        "cache_write>1000": 40.0,
+        "cache_write_1h>1000": 40.0,
+        "output>1000": 500.0,
+    }
 
 
 def test_a_claude_message_said_again_with_more_adds_only_the_more(

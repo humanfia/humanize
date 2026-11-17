@@ -39,7 +39,7 @@ price, so Humanize keeps them apart rather than adding them into one total:
 | `input` | what the agent was sent, fresh |
 | `output` | what the model wrote, reasoning included unless the CLI counts it apart |
 | `cache_read` | input the provider had cached from an earlier request, usually the bulk of a long turn and the cheapest |
-| `cache_write` | input written into that cache, priced a little above `input` |
+| `cache_write` | input written into that cache, priced a little above `input`. Claude writes some of it to a cache kept for an hour, which the list prices higher; that part stays counted here and is priced at the list's one-hour price |
 | `reasoning` | thinking, where a CLI counts it apart from the output. Priced as output |
 
 The money is those tokens at list price, in US dollars, from a public price list. The rate is
@@ -141,7 +141,7 @@ Read the figure as what the work is worth at list price, not as your bill:
 | | |
 | --- | --- |
 | **List price** | not what a subscription or a negotiated rate charges |
-| **Standard tier** | a very long turn priced higher past some context length cost more than this says |
+| **Long context** | a request whose prompt is past the model's long-context line is priced at the list's higher tier for that request. Only a CLI that says what each request cost shows which those were: `claude` and `codex`, and the running cost read from the logs of `dsh`, `kimi` and `mcode`. Elsewhere the standard price is a floor |
 | **A floor** | a kind of token the list has no price for adds nothing |
 
 ## Variations

@@ -2,8 +2,8 @@
 
     from hmz.runtime import Hmz
 
-    hmz = Hmz()
-    hmz.run("chat", "say hello", agents={"assistant": "claude/claude-haiku-4-5:low"}).run()
+    for epic in Hmz().epics.all():
+        print(epic.name)
 
 The layer between what a flow says and the agents that do it. It finds the flow, hands it
 a driver for every role it declared, opens the epic a run is written into as it happens,
@@ -11,9 +11,10 @@ remembers what this workspace was set up with, and reads the whole of it back ag
 trace, or as one archive to send somewhere.
 
 :class:`Hmz` is the front door: one workspace and everything that can be done in it, composed
-out of the modules beside it in :mod:`hmz.runtime.doing`. A command line names it, and so does
-the daemon that holds a run apart from any terminal -- what Humanize can do is one list rather
-than one per way in, and a thing that can be done one way can be done every way.
+out of the modules beside it in :mod:`hmz.runtime.doing`; :class:`Holding` is the same
+workspace with its epics run in this process, which is what a daemon's host holds -- what
+Humanize can do is one list rather than one per way in, and a thing that can be done one way
+can be done every way.
 
 Nothing here drives a coding agent. That is :mod:`hmz.coganchor`, which this is written
 against and which names nothing here.
@@ -29,11 +30,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hmz.runtime.doing.accounts import Accounts
-    from hmz.runtime.doing.core import Hmz
+    from hmz.runtime.doing.core import Hmz, Holding
     from hmz.runtime.doing.epics import Epics
-    from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
     from hmz.runtime.doing.hosting import Host
+    from hmz.runtime.doing.nous import NousBook
     from hmz.runtime.doing.running import Run
     from hmz.runtime.doing.runtimes import Runtimes
     from hmz.runtime.runner import Refused
@@ -41,11 +42,12 @@ if TYPE_CHECKING:
 __all__ = [
     "Accounts",
     "Epics",
-    "Fallbacks",
     "Flows",
     "Flowverses",
     "Hmz",
+    "Holding",
     "Host",
+    "NousBook",
     "Refused",
     "Run",
     "Runtimes",
@@ -56,11 +58,12 @@ __all__ = [
 _WRITTEN = {
     "Accounts": "hmz.runtime.doing.accounts",
     "Epics": "hmz.runtime.doing.epics",
-    "Fallbacks": "hmz.runtime.doing.fallbacks",
     "Flows": "hmz.runtime.doing.flows",
     "Flowverses": "hmz.runtime.doing.flows",
     "Hmz": "hmz.runtime.doing.core",
+    "Holding": "hmz.runtime.doing.core",
     "Host": "hmz.runtime.doing.hosting",
+    "NousBook": "hmz.runtime.doing.nous",
     "Refused": "hmz.runtime.runner",
     "Run": "hmz.runtime.doing.running",
     "Runtimes": "hmz.runtime.doing.runtimes",

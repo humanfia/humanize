@@ -30,8 +30,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
+import hmz.coganchor.backends
 import hmz.coganchor.models
-import hmz.coganchor.transport
 import hmz.runtime.flowing.verses
 from hmz.runtime import telemetry
 
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from hmz.coganchor.backends import Model
+    from hmz.daemon.private import Private
 
 #: Asking a backend what it runs, kept so that `asking` can give it back.
 _ASKS = hmz.coganchor.models.ask
@@ -46,13 +47,20 @@ _ASKS = hmz.coganchor.models.ask
 
 @pytest.fixture(autouse=True)
 def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A home of the test's own; no crash reports, no daemon, no price or release fetch."""
+    """A home of the test's own; no crash reports, no price, release or flowverse fetch.
+
+    A daemon a test starts fetches every flowverse's index as it starts, in a process this
+    one cannot patch: `git` there is told that GitHub is a directory that is not there, so
+    that its clone fails at once, as `_clones_nothing_elsewhere` fails one here.
+    """
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize-home"))
     monkeypatch.setenv("HUMANIZE_SENTRY", "off")
     monkeypatch.setenv("HUMANIZE_SHADOWS", str(tmp_path / "shadows"))
-    monkeypatch.setenv("HUMANIZE_DAEMON", "off")
     monkeypatch.setenv("HUMANIZE_PRICES", "off")
     monkeypatch.setenv("HUMANIZE_RELEASES", "off")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{tmp_path / 'no-github'}/.insteadOf")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "https://github.com/")
     telemetry.again()
 
 
@@ -65,8 +73,9 @@ def _no_real_agents(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Hides every coding agent installed here, so a test that forgot its stand-in fails.
 
-    Humanize looks for a CLI on `PATH` and in `~/.local/bin`; both are narrowed to the
-    system's own directories and this Python's.
+    Humanize looks for a CLI on `PATH`, then where an installer puts one: `PATH` is narrowed
+    to the system's own directories and this Python's, and where an installer puts one to
+    those under the home, which is the test's own.
     """
     monkeypatch.setenv("HOME", tempfile.mkdtemp(prefix="home-", dir=temporary))
     searched = [
@@ -77,6 +86,12 @@ def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "/sbin",
     ]
     monkeypatch.setenv("PATH", os.pathsep.join(searched))
+    installed = hmz.coganchor.backends._INSTALLED_AT  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(
+        hmz.coganchor.backends,
+        "_INSTALLED_AT",
+        tuple(one for one in installed if one.startswith("~")),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -99,7 +114,6 @@ def _machine_temp(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     held.mkdir()
     monkeypatch.setenv("TMPDIR", str(held))
     monkeypatch.setattr(tempfile, "tempdir", str(held))
-    monkeypatch.setattr(hmz.coganchor.transport, "_bundle_held", None)
 
 
 def _handlers() -> dict[int, Any]:
@@ -263,3 +277,43 @@ def _asks_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
 def asking(_asks_nothing: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """Gives a test about the asking the real `hmz.coganchor.models.ask` back."""
     monkeypatch.setattr(hmz.coganchor.models, "ask", _ASKS)
+
+
+@pytest.fixture
+def daemon(_machine_temp: None, _humanize_home: None) -> Iterator[Private]:
+    """This machine's daemon, stood in for one test by a daemon of this process.
+
+    It listens on the test's own socket (`_machine_temp`) as this machine's daemon would, so
+    every frontend and `hmz exec` the test starts finds it there; its hosts are held on
+    threads of this process, with the test's own home, so nothing forks and nothing outlives
+    the test.
+    """
+    import socket
+
+    from hmz.daemon import where
+    from hmz.daemon.private import Private
+    from hmz.rpc import PROTOCOL
+    from hmz.runtime import Holding
+
+    at = where.at()
+    holding = where.holds(at)
+    listening = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    with where.reached(at) as reaching:
+        listening.bind(reaching)
+    listening.listen(64)
+    where.wrote(
+        at,
+        {
+            "pid": os.getpid(),
+            "started": where.now(),
+            "kind": "daemon",
+            "protocol": PROTOCOL,
+        },
+    )
+    held = Private(at, listening, Holding)
+    held.start()
+    try:
+        yield held
+    finally:
+        held.close()
+        os.close(holding)

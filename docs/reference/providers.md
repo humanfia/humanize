@@ -25,7 +25,7 @@ provider's directory. Two agents of one CLI can therefore run as two accounts at
 | a bad name | `'a/b' is not a valid account name: letters, digits, dot, dash and underscore, starting with a letter or a digit` |
 | an agent whose `provider` names no account (raised the first time a turn needs it; a run given one in an `-a` spec is [refused](/reference/cli#what-is-refused-before-anything-runs) before it starts instead) | `<agent id>: no <cli> provider called '<name>'` |
 
-<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py), [`specs/features/accounts.md`](https://github.com/humanfia/humanize/blob/main/specs/features/accounts.md).</small>
+<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py), [`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#5-accounts).</small>
 
 ## Storage
 
@@ -352,10 +352,10 @@ console account, which lives in the same SQLite database as its sessions; any pa
 A turn under a provider whose `swaps()` is non-empty is spawned as:
 
 ```text
-python -Pm hmz internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- CLI ARGS…
+coganchor internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- CLI ARGS…
 ```
 
-`hmz internal cred` runs the CLI under a seccomp-filtered ptrace supervisor that stops only
+`coganchor internal cred` (`hmz internal cred`) runs the CLI under a seccomp-filtered ptrace supervisor that stops only
 path-naming syscalls: the same set an anchored supervisor stops, less `execve`, `execveat` and
 `connect` ([Remote execution › Interception](/reference/remote-execution#interception)). A
 path is matched after `.`, `..` and doubled `/` are resolved and `/proc/<pid>/fd/<n>`, `cwd`,
@@ -395,7 +395,7 @@ which is how a token is rotated by rename).
   pairs as `redirects` and its own supervisor answers them
   ([Remote execution › Where the account lives](/reference/remote-execution#where-the-account-lives)).
 
-<small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`_trace.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_trace.py), [`_staging.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_staging.py), [`src/hmz/coganchor/pathcalls.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/pathcalls.py).</small>
+<small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`crates/coganchor/src/cred/tracer.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cred/tracer.rs), [`crates/coganchor/src/cred/staging.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cred/staging.rs), [`crates/coganchor/src/cog/pathcalls.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/pathcalls.rs).</small>
 
 ### A sign-in that refreshes itself {#a-sign-in-that-refreshes-itself}
 
@@ -429,7 +429,7 @@ If a login was revoked anyway (`refresh token was revoked`, `(refused: that acco
 in again)`), sign it in again: `codex login` or `claude auth login` for this machine's own, or
 **sign in again** on the account under `/settings accounts`. Nothing else restores it.
 
-<small>Defined in [`src/hmz/coganchor/anchor.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/anchor.py) (`_lending`, `_brought_back`), [`src/hmz/coganchor/_lending.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/_lending.py).</small>
+<small>Defined in [`crates/coganchor/src/cog/lending.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/lending.rs), [`crates/coganchor/src/cog/drive/remote.rs`](https://github.com/humanfia/humanize/blob/main/crates/coganchor/src/cog/drive/remote.rs), [`src/hmz/coganchor/_lending.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/_lending.py).</small>
 
 ## Where sessions are kept {#where-sessions-are-kept}
 
@@ -743,7 +743,7 @@ added, and the turn gets `--provider <name>`; the user's own `models.json` is ne
 
 ### Hosts reachable under a cut network
 
-A flow role whose `online` is `NONE` is fenced to the hosts `backends.reachable(profile,
+A flow role whose `network` is `False` is fenced to the hosts `backends.reachable(profile,
 environ)` returns, `environ` being the environment a turn under the account runs with,
 `providers.composed(provider, profile)`: this process's own, less every variable the account
 hushes and plus the ones it sets. The flow's fence and the agent's own widening of it both read
@@ -839,8 +839,8 @@ The TUI's account form offers an `also for <cli>` row per backend in `serves()`.
 ## When an account fails
 
 An account does not name another to carry on under. Where a failed turn goes is a
-[fallback chain](/user/settings#fallback) written against a *place* (`CLI[@ACCOUNT]/MODEL`), so
-moving to another account of the same CLI is a place on that chain, taken in a new
+[nous](/user/settings#nous) (`CLI[@ACCOUNT]/MODEL[:EFFORT]`, or a virtual one), so moving to
+another account of the same CLI is a nous in its `then` or a balance node, taken in a new
 conversation. See [Agents › When a turn fails](/reference/agents#retries).
 
 ## Placement of the account

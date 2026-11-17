@@ -4,7 +4,7 @@
 // epics, as an import would, opening it. What the target holds is fetched afresh as it opens,
 // which can take a while.
 
-import { get, hash, post, refresh } from '../api.js'
+import { call, hash, refresh } from '../api.js'
 import { go, shut, stays } from '../app.js'
 import { ago, badge, empty, fill, flowName, h, headline, icon, iconButton, problem, when } from '../dom.js'
 import { nameOf } from '../places.js'
@@ -19,7 +19,7 @@ export function mount(root, { query }) {
   let asking = ''
   let gone = false
 
-  get('/api/settings').then((settings) => {
+  call('settings.get').then((settings) => {
     const names = settings.backup.targets.map((one) => one.name)
     if (!names.length) {
       fill(body, empty('No backup target.', ' Add one, and the epics it holds are downloaded from here.', h('a', { class: 'btn primary', href: hash('/settings/backup') }, 'Backup')))
@@ -39,7 +39,7 @@ export function mount(root, { query }) {
     fill(body, h('p', { class: 'loading', role: 'status' }, `Fetching ${target}…`))
     let answer
     try {
-      answer = await get(`/api/backups/${encodeURIComponent(target)}/epics`)
+      answer = await call('backups.epics', { target })
     } catch (error) {
       if (!gone && asking === target) fill(body, problem(error))
       return
@@ -95,9 +95,9 @@ export function mount(root, { query }) {
     const row = button.closest('[data-hmz=stored-epic]')
     row.querySelector('.error')?.remove()
     try {
-      const answer = await post(`/api/backups/${encodeURIComponent(target)}/pull`, { key: one.key })
-      refresh('/api/runs')
-      refresh('/api/workspaces')
+      const answer = await call('backups.pull', { target, key: one.key })
+      refresh('runs.list')
+      refresh('workspaces.list')
       // Opened unless the dialog was left while it came.
       if (!gone) go(`/epics/${encodeURIComponent(answer.name)}`)
     } catch (error) {

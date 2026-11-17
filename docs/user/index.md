@@ -75,7 +75,7 @@ step:
 - [Settings (/settings)](/user/settings)
 - [Accounts](/user/settings#accounts)
 - [Efforts](/user/efforts)
-- [Falling back](/user/settings#fallback)
+- [Nous](/user/settings#nous)
 - [Cost and rate](/user/tally)
 - [Permissions](/user/permissions)
 - [Skills](/user/skills)

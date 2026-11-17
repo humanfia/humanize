@@ -12,7 +12,7 @@ writes and reads it, and when a change takes effect. The screen that edits them 
 | settings | `H/settings.yaml` | this machine, and per workspace | General, Workspace (and `/flow`) | this page |
 | accounts | `H/providers/<cli>/<name>/provider.json`; CLIs added by hand under [`clis`](#clis) in `H/settings.yaml` | this machine | Accounts | [Providers](/reference/providers), [Files](/reference/files#h-providers-cli-name) |
 | runtimes | [`runtimes`](#runtimes) in `H/settings.yaml` | this machine | Runtimes | [Machines](/reference/machines#runtimes) |
-| fallbacks | [`fallbacks`](#fallbacks) in `H/settings.yaml` | this machine | Fallback | this page |
+| nous | [`nous`](#nous) in `H/settings.yaml` | this machine | Nous | this page |
 | backups | [`backup`](#backup) in `H/settings.yaml`; clones cached under `hmz.machine()/backup/<name>/` | this machine | none yet: `settings.yaml` | this page |
 | flowverses | `H/flowverses/<name>/index/` (index clones), `H/flowverses/<name>/installed/[<user>/]<flow>/` (installed flows) | this machine | none: `/flow` › Flowverses | [Flows](/reference/flows#flowverses) |
 
@@ -47,31 +47,38 @@ enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
 every_epic: true                   # this machine
-daemons:                           # this machine; Settings › Daemons in the web interface
+sandbox:                           # this machine; written by hand
+  backend: auto                    # auto, landlock or bwrap: what holds a grant on Linux
+  native: [codex]                  # CLIs whose own sandbox holds their grant instead
+daemons:                           # this machine; /settings daemons
 - name: gpu
-  via: ssh                         # the default; or easytier, with a secret of at least 16 bytes
-  host: gpu.example
-  user: me
-  port: 22
-  identity_file: ~/.ssh/id_ed25519
-  proxy_jump: ""
-  options: [[ServerAliveInterval, "30"]]
+  id: ""                           # pinned the first time it answers over a trusted route
+  routes: ["stdio:ssh://me@gpu.example:22?identity=~%2F.ssh%2Fid_ed25519"]
 - name: lab                        # an ssh config host, resolved each time
-  alias: lab
-- name: home                       # over EasyTier; see hmz server
-  via: easytier
-  secret: correct-horse-battery-staple
-  peers: [tcp://node.example:11010]  # the EasyTier nodes its network meets through
-notifications:                     # this machine; /settings notifications, and Settings › Notifications on the web
+  id: ""
+  routes: ["stdio:ssh://lab"]
+- name: home                       # paired from its code: `hmz daemon pair` there
+  id: j2quawebkb3tzy5kzz4gv3xx6qcjzyia7jsjzfh3xxnzmdy5vfba
+  routes: ["tcp://home.example:41817", "easytier:home"]
+notifications:                     # this machine; /settings notifications
   kinds: {done: true, failed: true, stopped: true, asked: true, listening: true}
   system: true
 spelling: 2                        # how envs are spelled; written with every change
-fallbacks:                         # this machine; the Fallback page
-- spec: claude@work/claude-opus-5
-  to: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]
-  tries: 3
-  policy: exponential
-  timeout: 600.0
+nous:                              # this machine; the Nous page
+  claude@work/claude-opus-5:
+    tries: 3
+    policy: exponential
+    timeout: 600.0
+    then: [codex/gpt-5.6-sol, dsh/deepseek-v4-flash]
+  smart:
+    tries: 0
+    policy: exponential-jitter
+    timeout: 0.0
+    graph:
+      start: pool
+      nodes:
+        pool: {balance: least-busy, among: {claude@work/claude-opus-5: 1, claude@team/claude-opus-5: 2}, next: cheap}
+        cheap: {use: dsh/deepseek-v4-flash}
 clis:                              # this machine; added on the Accounts page
   my-agent: [my-agent, --acp]
 runtimes:                          # this machine; the Runtimes page
@@ -95,8 +102,9 @@ backup:                            # this machine
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | `btw` | `str`: `cli[@account]/model:effort` | `""`: nobody answers The Epic | `/settings` › General › **/btw The Epic**; web **Settings › General › The Epic** | the TUI, the web page | the next side conversation of The Epic opened; the one agent that answers The Epic, for every epic: no epic keeps one of its own, and no agent of a run stands in |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
-| `daemons` | list of `{name, via, ...}`: `via` is `ssh` (the default, where it is missing) or `easytier`. Over ssh, `{alias, config}` for a `Host` of your ssh config, or `{host, user, port, identity_file, proxy_jump, options: [[keyword, value]]}` typed in or imported (an older entry with both still works); over EasyTier, `{secret, peers}` alone: a secret of at least 16 bytes in UTF-8, and at least one EasyTier node its network meets through, each `tcp`, `udp`, `ws`, `wss`, `quic` or `wg` `://host:port` | `[]`: Local alone | the web interface's Settings › Daemons, [`POST /api/daemons`](/reference/web#api-settings) and its `import` | `hmz web` | at once: a daemon added is reached the first time the page asks for it, one removed is let go of |
-| `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page), the web interface's Settings › Notifications, [`POST /api/notifications/settings`](/reference/web#api-notifications) | `hmz`, `hmz web` | immediately: the next notice of a kind is told or not |
+| `daemons` | list of `{name, id, routes}`: `id` the daemon id pinned, 52 base32 characters, or `""` until it first answers over a trusted route, which pins it; `routes` the routes it is reached by (Section 3.3 of `protocol/wire.md`), in the order they are raced, the first a trusted one (`stdio:ssh://…`, `stdio:local`, `stdio:wsl`) where `id` is `""`. An entry an earlier release wrote, `{via, host, user, port, identity_file, proxy_jump, options, alias}` or `{via: easytier, secret, peers}`, is read as the `stdio:ssh` or `easytier:<name>` route it reached, and written so at the next write, an EasyTier one's secret and nodes moving to `easytier` | `[]`: Local alone | `Remotes.pair` from a pairing code, the terminal interface's [Daemons](/user/settings#daemons) page and its **Import…** | the terminal interface, `hmz exec`, the SDK; never the web page, which keeps [its own](/reference/web#kept) | at once: a daemon added is reached the first time it is asked for, one removed is let go of |
+| `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page) | `hmz`; never the web page, which keeps [its own](/reference/web#kept) | immediately: the next notice of a kind is told or not |
+| <span id="sandbox"></span>`sandbox` | `{backend: str, native: [str]}` | `backend`: `auto` (any value but `landlock` and `bwrap` reads as it); `native`: `[]` (an entry that is not a string is ignored) | nobody: written by hand | every process that fences an agent: `backend` where the fence is put up, on that machine; `native` by the Codex driver | at the next turn fenced. `backend` picks Landlock or bubblewrap on Linux, `auto` being Landlock where it can hold the grant and bubblewrap otherwise; `native` names CLIs whose own sandbox holds their grant around the commands they run alone, of which only `codex` is honoured. See [Permissions](/user/permissions#choose-how-this-machine-holds-a-grant) |
 | <span id="spelling"></span>`spelling` | `int` | absent: written before `-e` wrote `@` only before a provider | every write of the file, as `2` | every process, as it reads the file | absent, `envs` are read as their old spelling meant and rewritten once; `2`, as written |
 
 What error reports contain and exclude is listed on `/settings` › General › **What is sent**.
@@ -145,28 +153,36 @@ opens to ask. `profile_flow` and `profile_environment` go with the rest. `hmz ex
 use only their own arguments (`--profile-flow`, `--profile-environment`, `profile_flow=True`,
 `profile_environment=True`).
 
-### `fallbacks`
+### `nous`
 
-[Fallback](/user/settings#fallback) chains, written by `/settings` › Fallback and
-`Hmz().fallbacks`. A list, one entry per place:
+[Nous](/user/settings#nous), written by `/settings` › Nous and `Hmz().nous`. A mapping from
+each nous's name -- a concrete nous `CLI[@ACCOUNT]/MODEL[:EFFORT]`, or a virtual nous's name,
+`[A-Za-z][A-Za-z0-9_.-]*` and no CLI's -- to:
 
 | Field | Type | |
 | --- | --- | --- |
-| `spec` | `str` | `CLI[@ACCOUNT]/MODEL` the entry applies to |
-| `to` | `[str]` | the chain: where the turn goes next, in order |
-| `tries` | `int` | retries before falling |
+| `tries` | `int` | retries before `then` |
 | `policy` | `str` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci` |
-| `timeout` | `float` | seconds |
+| `timeout` | `float` | seconds, `0` for no limit |
+| `graph` | graph | a virtual nous's graph; never on a concrete one |
+| `then` | graph | where a turn goes once the tries are spent |
 
-Invalid entries are dropped on read, and so are places in `to` that cannot be read, name the
-entry's own `spec`, or repeat an earlier one.
+A graph is one nous, a list of nous tried in turn, or `{start, nodes}`, `nodes` mapping each
+node's id to `{use: <nous>}` or `{balance: <strategy>, among: {<nous>: <weight>}, spread: <n>}`,
+with `on: {<fault class or *>: <node id>}` or `next: <node id>` (the same as `on: {'*': …}`).
+A chain is written back as a list. Invalid entries are dropped on read; a write that would name a
+virtual nous nobody wrote, or let nous name one another round, is refused. A `fallbacks` list an
+older Humanize wrote is read as each `spec`'s `then: <to>`, and dropped at the next write.
 
 ### `clis`
 
 CLIs added on the Accounts page, driven over ACP. A mapping from name to either an argv list
 or `{command: [...], hosts: [...], state: [...]}` (`hosts`, `state` are set by hand: the hosts
-it may reach with `online` `NONE`, and extra paths it may write). Removing the key forgets
-every added CLI.
+it may reach with `network=False`, and extra paths it may write). A host is `name`,
+`name:port`, `*.suffix` or an IP address; one written as a URL is read as its host and port
+(`https://api.example.com/v1` is `api.example.com`), and one that names no host is dropped
+with a warning, so a list of nothing else counts as no hosts. Removing the key forgets every
+added CLI.
 
 ### `runtimes`
 
@@ -225,7 +241,7 @@ entry that does not validate is skipped. A runtime an earlier Humanize wrote wit
 | --- | --- |
 | `partition`, `account`, `qos`, `constraint`, `workdir` | `str` |
 | `time` | `str`: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED` or `INFINITE` |
-| `python` | `str`: absolute, or under `~/` |
+| `python` | `str`: absolute, or under `~/`; accepted and not used |
 | `via` | `"srun"` or `"tcp"` |
 | `run_args`, `fallback` | `[str]` |
 | `harness` | `str`, as for `ssh` |
@@ -240,7 +256,6 @@ runtimes:
       partition: batch
       account: myteam
       time: '04:00:00'
-      python: ~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12
       via: tcp
       max_jobs: 8
       max_wait: 600
@@ -273,9 +288,9 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | --- | --- |
 | Missing, unreadable, invalid YAML, not a mapping | read as empty; never prevents a start |
 | Unknown keys | kept at the top level and in a workspace entry; a flow's entry is replaced whole when `/flow` is saved |
-| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `fallbacks`, `clis`, `backup` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
+| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace removed, or the whole of `nous`, `clis`, `backup` or one runtime); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is never written over: it is left for whoever is editing it to correct. |
 | Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `backup` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
-| Write failure, or a file that does not read as a mapping | a `Settings` holds the change in memory and writes nothing; a fallback, added CLI or runtime is refused with `OSError` |
+| Write failure, or a file that does not read as a mapping | a `Settings` holds the change in memory and writes nothing; a nous, added CLI or runtime is refused with `OSError` |
 
 ## `/settings` rows
 
@@ -290,7 +305,7 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 
 Changes are held until saved (the save button, or the question asked on leaving). The pages
 Accounts, Runtimes and Fallback edit the other [stores](#stores); the flowverses are edited
-on `/flow`. `/settings <page>` opens a page by name: `general`, `accounts`, `fallback`,
+on `/flow`. `/settings <page>` opens a page by name: `general`, `accounts`, `nous`,
 `runtimes`, `workspace` (also `settings` and `everywhere` for `general`, `directory` for
 `workspace`, `environments` for `runtimes`; `flowverses` opens `/flow` on its Flowverses
 page). The Workspace page names its directory across its top rather than as a row.

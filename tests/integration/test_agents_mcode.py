@@ -8,20 +8,28 @@ that failed says `turn.failed`, and exits non-zero. A session is carried on by `
 
 from __future__ import annotations
 
+import contextlib
+import json
+import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import psutil
 import pytest
 
 from hmz.coganchor import providers
 from hmz.coganchor.agents import (
     SUBAGENTS,
+    Budget,
     Failed,
     MiniMaxCodeAgent,
     MiniMaxCodeAgentConfig,
     Moment,
     Occasion,
+    base,
 )
+from hmz.coganchor.agents.watchdog import WATCHDOG
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
@@ -34,6 +42,8 @@ from tests.integration.doubles_agents import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from hmz.coganchor.agents import Event
 
 MODEL = "custom_provider:gateway/minimax-stand-in"
 CONFIG = MiniMaxCodeAgentConfig(model=MODEL, effort="", permission="bypass")
@@ -141,6 +151,235 @@ def test_a_failed_turn_is_a_failure_with_what_it_said(mcode: Standins) -> None:
     assert failed.value.returncode == 4
     with pytest.raises(RuntimeError):
         _ = session.id
+
+
+#: An `mcode exec` that says one thing and goes on without ever reading its input, with a child
+#: of its own holding the same pipes, as a tool or a server a CLI starts does.
+LINGERING = r"""
+import subprocess, time
+
+note()
+subprocess.Popen([sys.executable, "-c", "import time; time.sleep(600)"])
+out({"type": "item.completed", "item": {"type": "agent_message", "content": "partial"}})
+time.sleep(600)
+"""
+
+
+def _running(process: psutil.Process) -> bool:
+    try:
+        return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+
+
+def test_a_turn_let_go_of_mid_stream_leaves_nothing_running(mcode: Standins) -> None:
+    mcode.install("mcode", LINGERING)
+    session = MiniMaxCodeAgent(CONFIG).new()
+    threads = set(threading.enumerate())
+    ours = psutil.Process()
+    already = {one.pid for one in ours.children(recursive=True)}
+    seen: list[Event] = []
+    tree: list[psutil.Process] = []
+
+    def reads() -> None:
+        # Both readers are blocked in the command's pipes when the turn is let go of.
+        for event in session.stream("x"):
+            seen.append(event)
+            # Named while all of it is still ours: a child outliving its parent is not.
+            tree.extend(
+                one for one in ours.children(recursive=True) if one.pid not in already
+            )
+            break  # and the turn is closed as the loop lets go of it
+
+    reader = threading.Thread(target=reads, daemon=True)
+    try:
+        reader.start()
+        reader.join(timeout=15)
+
+        assert not reader.is_alive(), "letting go of the turn waited on its command"
+        assert [one.text for one in seen] == ["partial"]
+        assert len(tree) >= 2  # the command and the child it started
+        assert [one for one in tree if _running(one)] == []
+        assert set(threading.enumerate()) - threads == set()
+    finally:
+        for one in tree:
+            with contextlib.suppress(psutil.Error):
+                one.kill()
+        reader.join(timeout=15)
+
+
+#: What an `mcode exec` asked `first` does instead of answering: leaves a daemon of its own, out
+#: of its tree and holding its stdout, which says more -- an answer and a failure -- only once the
+#: next turn's command lets it, and then waits for the test to have heard it all said; says one
+#: thing itself and goes on. Asked `second`, it lets the daemon speak and waits for that first.
+ESCAPING = r"""
+import time
+
+def waited(name):
+    at = pathlib.Path(sys.argv[0]).with_name(name)
+    given = time.monotonic() + 60
+    while not at.exists() and time.monotonic() < given:
+        time.sleep(0.01)
+
+if prompt == "first":
+    if os.fork() == 0:
+        os.setsid()
+        if os.fork() != 0:
+            os._exit(0)
+        note(json.dumps({"daemon": os.getpid()}))
+        waited("let")
+        out({"type": "item.completed", "item": {"type": "agent_message", "content": "stale"}})
+        out({"type": "turn.failed", "error": {"message": "abandoned command failure"}})
+        os._exit(0)
+    os.wait()
+    out({"type": "item.completed", "item": {"type": "agent_message", "content": "partial"}})
+    time.sleep(600)
+if prompt == "second":
+    pathlib.Path(sys.argv[0]).with_name("let").touch()
+    waited("heard")
+"""
+
+
+def test_what_a_turn_let_go_of_leaves_saying_is_not_the_next_turns(
+    mcode: Standins, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Not waited on longer than it takes to see the turn's pumps are still sitting in its pipes.
+    monkeypatch.setattr(base, "DRAIN_SECONDS", 0.5)
+    read = "prompt = sys.stdin.read()\nnote(prompt)\n"
+    mcode.install("mcode", MCODE.replace(read, read + ESCAPING, 1))
+    session = MiniMaxCodeAgent(CONFIG).new()
+    before = set(threading.enumerate())
+    said: list[str] = []
+
+    def first() -> None:
+        for event in session.stream("first"):
+            said.append(event.text)
+            break  # and the turn is closed as the loop lets go of it
+
+    try:
+        first()
+        assert said == ["partial"]
+        # What still reads the first turn's pipes, which the daemon holds open past it.
+        left = set(threading.enumerate()) - before
+        assert left
+
+        def heard() -> None:
+            # Once the second turn has let the daemon say its piece, and the first turn's
+            # pumps have read every word of it.
+            given = time.monotonic() + 60
+            while any(one.is_alive() for one in left) and time.monotonic() < given:
+                time.sleep(0.01)
+            (mcode.bin / "heard").touch()
+
+        hearing = threading.Thread(target=heard, daemon=True)
+        hearing.start()
+        # Said to a session whose last turn's leftovers spoke while this one ran: not heard.
+        assert session("second") == "second"
+        hearing.join(timeout=60)
+        assert not any(one.is_alive() for one in left)
+    finally:
+        for one in mcode.said():
+            if '"daemon"' in one:
+                with contextlib.suppress(psutil.Error):
+                    psutil.Process(json.loads(one)["daemon"]).kill()
+
+
+#: What an `mcode exec` asked `first` does instead of answering: says one thing and then nothing,
+#: which is what a watchdog and a budget's clock cut off; and once the one cutting it off has
+#: begun telling whoever watches, one thing more to let go of the turn at. Asked `second`, it
+#: says it is running and answers only once the test lets it.
+STALLING = r"""
+import time
+
+def waited(name):
+    at = pathlib.Path(sys.argv[0]).with_name(name)
+    given = time.monotonic() + 60
+    while not at.exists() and time.monotonic() < given:
+        time.sleep(0.01)
+
+if prompt == "first":
+    out({"type": "item.completed", "item": {"type": "agent_message", "content": "partial"}})
+    waited("told")
+    out({"type": "item.completed", "item": {"type": "agent_message", "content": "closing"}})
+    time.sleep(600)
+if prompt == "second":
+    pathlib.Path(sys.argv[0]).with_name("running").touch()
+    waited("go")
+"""
+
+
+@pytest.mark.parametrize("by", ["watchdog", "budget"])
+def test_a_cut_off_held_up_past_its_turn_does_not_reach_the_next(
+    mcode: Standins, monkeypatch: pytest.MonkeyPatch, by: str
+) -> None:
+    # A cut-off raised from a thread of its own -- the watchdog's, a budget's clock -- tells
+    # whoever watches the agent before it ends anything; one told who takes their time can
+    # hold it until its turn is over and the next is running. It ends nothing of the next.
+    read = "prompt = sys.stdin.read()\nnote(prompt)\n"
+    mcode.install("mcode", MCODE.replace(read, read + STALLING, 1))
+    monkeypatch.setenv(WATCHDOG, "0.05" if by == "watchdog" else "0")
+    agent = MiniMaxCodeAgent(CONFIG)
+    told, holding, spoke = threading.Event(), threading.Event(), threading.Event()
+
+    def listener(_: object, __: object, event: Event) -> None:
+        if event.text.startswith("cutting the turn off") and not told.is_set():
+            told.set()
+            (mcode.bin / "told").touch()
+            holding.wait(60)
+
+    agent.watch(listener)
+    session = agent.new()
+    if by == "budget":
+        session.budget = Budget(seconds=0.2, when="immediately")
+
+        class Clock(threading.Timer):
+            # The budget's clock, counting from the turn's first word rather than from its
+            # start: a command slow to start would spend the budget before saying anything.
+            def run(self) -> None:
+                spoke.wait(60)
+                super().run()
+
+        monkeypatch.setattr(threading, "Timer", Clock)
+    before = set(threading.enumerate())
+    said: list[str] = []
+    started = len(mcode.calls())
+
+    def first() -> None:
+        for event in session.stream("first"):
+            said.append(event.text)
+            spoke.set()
+            if event.text == "closing":
+                break  # and the turn is closed as the loop lets go of it
+
+    try:
+        first()
+        assert said == ["partial", "closing"]
+        assert told.is_set()
+        # Still telling the watcher, its turn closed under it.
+        held = set(threading.enumerate()) - before
+        assert held
+        monkeypatch.setenv(WATCHDOG, "0")
+        session.budget = Budget()
+
+        def lets_it_go() -> None:
+            # Once the next turn's command is running: the held cut-off goes on, and is done
+            # with before that command answers.
+            given = time.monotonic() + 60
+            while not (mcode.bin / "running").exists() and time.monotonic() < given:
+                time.sleep(0.01)
+            holding.set()
+            for one in held:
+                one.join(timeout=60)
+            (mcode.bin / "go").touch()
+
+        letting = threading.Thread(target=lets_it_go, daemon=True)
+        letting.start()
+        assert session("second") == "second"
+        letting.join(timeout=60)
+        # One command for each turn: none cut off and tried again.
+        assert len(mcode.calls()) - started == 2
+    finally:
+        holding.set()
 
 
 #: An `mcode` keeping the providers added to it in its home, as `provider add` and `provider

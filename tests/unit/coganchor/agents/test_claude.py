@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import pytest
 from pydantic import BaseModel
 
-from hmz.coganchor import AnchorConfig, gateway, models, providers
+from hmz.coganchor import AnchorConfig, gateway, models, prices, providers
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
@@ -28,14 +28,14 @@ from hmz.coganchor.agents import (
     Unserved,
     Verdict,
 )
-from hmz.coganchor.agents.base import KEEPING
+from hmz.coganchor.agents.base import KEEPING, AgentBase
 from hmz.coganchor.fence import Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
 from tests.unit.coganchor.agents.doubles_u4 import Process, Spawner, offering
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
     from hmz.coganchor.agents import Occasion
@@ -50,6 +50,11 @@ def _flag(argv: list[str], name: str) -> str:
     return argv[argv.index(name) + 1]
 
 
+def _text(said: Any) -> str:
+    """The words of a user message written to Claude."""
+    return str(said["message"]["content"][0]["text"])
+
+
 class _Claude:
     """What the scripted `claude` says: an answer per message, from a queue of answers."""
 
@@ -60,7 +65,7 @@ class _Claude:
         spawner.replying(self._heard)
 
     def _heard(self, proc: Process, said: Any) -> None:
-        if said.get("type") != "user" or "uuid" in said:
+        if said.get("type") != "user" or _text(said) == "also this":
             return
         session = (
             _flag(proc.args, "--session-id")
@@ -185,6 +190,19 @@ def test_a_session_is_one_process_started_as_print_over_stream_json(
     assert session.id == _flag(argv, "--session-id")
 
 
+def test_a_turn_never_lets_claude_fall_back_to_another_model(
+    spawner: Spawner,
+    claude: _Claude,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("CLAUDE_CODE_NO_MODEL_FALLBACK", "0")
+
+    _agent().new(tmp_path)("hi")
+
+    assert spawner.last.environ["CLAUDE_CODE_NO_MODEL_FALLBACK"] == "1"
+
+
 @pytest.mark.parametrize(
     ("permission", "mode"),
     [
@@ -201,7 +219,10 @@ def test_each_rung_is_a_permission_mode(
     _agent(permission=permission).new(tmp_path)("go")
     argv = spawner.last.args
     assert _flag(argv, "--permission-mode") == mode
-    assert ("--permission-prompt-tool" in argv) is (permission == "bypass")
+    routed = permission in ("read-only", "bypass")
+    assert ("--permission-prompt-tool" in argv) is routed
+    if routed:
+        assert _flag(argv, "--permission-prompt-tool") == "stdio"
 
 
 def test_what_the_config_says_reaches_the_command_line(
@@ -376,6 +397,143 @@ def test_what_each_message_cost_is_counted_as_it_lands(
     assert dict(session.spent()) == {"input": 40, "output": 9}
 
 
+def _hourly(split: bool) -> dict[str, Any]:
+    """A turn total of 100,000 cache writes, all to the one-hour cache where it says so."""
+    usage: dict[str, int] = {
+        "inputTokens": 6,
+        "outputTokens": 500,
+        "cacheCreationInputTokens": 100_000,
+    }
+    if split:
+        usage["cacheCreationEphemeral5mInputTokens"] = 0
+        usage["cacheCreationEphemeral1hInputTokens"] = 100_000
+    return {"modelUsage": {"claude-x": usage}}
+
+
+@pytest.mark.parametrize("split", [True, False])
+def test_one_hour_cache_writes_are_counted_beside_the_kinds_once(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, split: bool
+) -> None:
+    message = _assistant({"type": "text", "text": "x"})
+    message["message"]["usage"] = {
+        "input_tokens": 6,
+        "output_tokens": 1,
+        "cache_creation_input_tokens": 100_000,
+        "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 100_000,
+        },
+    }
+
+    def partial(event: dict[str, Any]) -> dict[str, Any]:
+        return {"type": "stream_event", "event": event}
+
+    claude.answers = [
+        _says(
+            partial({"type": "message_start", "message": {"id": "m1"}}),
+            message,
+            # What closes the message repeats the writes and leaves the split out.
+            partial(
+                {
+                    "type": "message_delta",
+                    "usage": {
+                        "output_tokens": 500,
+                        "cache_creation_input_tokens": 100_000,
+                    },
+                }
+            ),
+            _result("x", **_hourly(split)),
+        )
+    ]
+    session = _agent().new(tmp_path)
+    result = list(session.stream("go"))[-1]
+    spent = session.spent()
+    assert dict(spent) == {"input": 6, "output": 500, "cache_write": 100_000}
+    assert spent.hour == 100_000
+    assert dict(result.spent) == dict(spent)
+    assert result.spent.hour == (100_000 if split else 0)
+
+
+def test_a_message_past_a_long_context_line_is_counted_beside_the_kinds_once(
+    spawner: Spawner,
+    claude: _Claude,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def tiered(
+        request: Mapping[str, float], model: str, *, hour: float = 0.0
+    ) -> dict[str, float]:
+        prompt = request.get("input", 0.0) + request.get("cache_read", 0.0)
+        if model != "claude-long" or prompt <= 1000:
+            return {}
+        marked = {f"{kind}>1000": tokens for kind, tokens in request.items()}
+        return marked | ({"cache_write_1h>1000": hour} if hour else {})
+
+    monkeypatch.setattr(prices, "tiered", tiered)
+    message = _assistant(
+        {"type": "text", "text": "x"},
+        input_tokens=6,
+        cache_read_input_tokens=2000,
+        cache_creation_input_tokens=40,
+    )
+    message["message"]["model"] = "claude-long"
+    message["message"]["usage"]["cache_creation"] = {"ephemeral_1h_input_tokens": 40}
+
+    def partial(event: dict[str, Any]) -> dict[str, Any]:
+        return {"type": "stream_event", "event": event}
+
+    used = {
+        "inputTokens": 6,
+        "outputTokens": 500,
+        "cacheReadInputTokens": 2000,
+        "cacheCreationInputTokens": 40,
+    }
+    claude.answers = [
+        _says(
+            partial(
+                {
+                    "type": "message_start",
+                    "message": {"id": "m1", "model": "claude-long"},
+                }
+            ),
+            message,
+            message,
+            # What closes the message names neither it nor the model that wrote it.
+            partial({"type": "message_delta", "usage": {"output_tokens": 500}}),
+            _result("x", modelUsage={"claude-long": used}),
+        )
+    ]
+    session = _agent().new(tmp_path)
+    result = list(session.stream("go"))[-1]
+    spent = session.spent()
+    marked = {
+        "input>1000": 6,
+        "cache_read>1000": 2000,
+        "cache_write>1000": 40,
+        "cache_write_1h>1000": 40,
+        "output>1000": 500,
+    }
+    assert dict(spent) == {
+        "input": 6,
+        "output": 500,
+        "cache_read": 2000,
+        "cache_write": 40,
+    }
+    assert spent.tiered == marked
+    assert dict(result.spent) == dict(spent)
+    assert result.spent.tiered == marked
+
+
+def test_one_hour_cache_writes_only_the_turn_total_names_are_counted(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.answers = [_says(_result("x", **_hourly(split=True)))]
+    session = _agent().new(tmp_path)
+    list(session.stream("go"))
+    assert session.spent()["cache_write"] == 100_000
+    assert session.spent().hour == 100_000
+
+
 @pytest.mark.parametrize(
     ("ending", "match"),
     [
@@ -427,6 +585,36 @@ def test_a_process_that_goes_away_fails_the_turn_with_what_it_said(
     assert failed.value.returncode == 2
 
 
+def test_a_session_claude_names_is_the_runs_even_where_the_process_goes_away(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    said: list[str] = []
+
+    class Run:
+        @property
+        def keeps(self) -> Path:
+            return tmp_path
+
+        def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+            del agent, parent
+            said.append(session)
+
+    def leaves(proc: Process, session: str) -> None:
+        del session
+        proc.exit(2)
+
+    claude.answers = [leaves]
+    agent = _agent()
+    agent.epic = Run()
+    session = agent.new(tmp_path)
+    with pytest.raises(Failed):
+        session("go")
+    # Named on its first line, which is all it said: written down, and not opened.
+    (named,) = said
+    assert session.named == named
+    assert agent.opened == []
+
+
 def test_a_model_it_does_not_know_is_said_once(
     spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
@@ -449,8 +637,21 @@ def test_the_model_it_was_told_under_another_spelling_is_no_news(
 
 
 def _asking(request: dict[str, Any]) -> Callable[[Process, str], None]:
-    """An answer that first asks for something over the control protocol."""
-    return _says({"type": "control_request", "request_id": "r1", "request": request})
+    """An answer that first asks for something over the control protocol.
+
+    As the CLI does: only a process told `--permission-prompt-tool stdio` routes the request
+    to its reader. Any other denies the tool by itself and names it in the result.
+    """
+
+    def answer(proc: Process, session: str) -> None:
+        if "--permission-prompt-tool" in proc.args:
+            asked = {"type": "control_request", "request_id": "r1", "request": request}
+            _says(asked)(proc, session)
+        else:
+            denied = [{"tool_name": request["tool_name"]}]
+            _says(_result(permission_denials=denied))(proc, session)
+
+    return answer
 
 
 def _replied(proc: Process) -> dict[str, Any]:
@@ -467,14 +668,23 @@ def test_a_permission_is_granted_unless_the_rung_changes_nothing(
     spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str, behavior: str
 ) -> None:
     claude.mode = "bypassPermissions" if permission == "bypass" else "plan"
+    seen: list[Occasion] = []
+
+    def watch(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict()
+
+    agent = _agent(permission=permission)
+    agent.hooks.on(Moment.PERMISSION_REQUEST, watch)
     claude.answers = [
         _asking(
             {"subtype": "can_use_tool", "tool_name": "Bash", "input": {"command": "ls"}}
         )
     ]
-    _agent(permission=permission).new(tmp_path)("go")
+    agent.new(tmp_path)("go")
     replied = _replied(spawner.last)
     assert replied["behavior"] == behavior
+    assert [(one.tool, one.about) for one in seen] == [("Bash", "ls")]
     if behavior == "allow":
         assert replied["updatedInput"] == {"command": "ls"}
 
@@ -502,11 +712,13 @@ def test_a_hook_on_permission_request_asks_and_may_refuse(
     assert [(one.tool, one.about) for one in seen] == [("Bash", "rm")]
 
 
+@pytest.mark.parametrize("permission", ["read-only", "bypass"])
 @pytest.mark.parametrize(("answer", "behavior"), [("blue", "allow"), (None, "deny")])
 def test_a_question_for_its_user_is_put_to_whoever_is_driving(
     spawner: Spawner,
     claude: _Claude,
     tmp_path: Path,
+    permission: str,
     answer: str | None,
     behavior: str,
 ) -> None:
@@ -516,7 +728,8 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
         asked.append(question)
         return answer
 
-    agent = _agent()
+    claude.mode = "plan" if permission == "read-only" else "bypassPermissions"
+    agent = _agent(permission=permission)
     agent.ask = ask
     question = {"question": "Which?", "options": [{"label": "blue"}, {"label": "red"}]}
     claude.answers = [
@@ -534,6 +747,44 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
     assert replied["behavior"] == behavior
     if answer is not None:
         assert replied["updatedInput"]["answers"] == {"Which?": "blue"}
+
+
+@pytest.mark.parametrize("permission", ["", "workspace-write", "auto"])
+def test_a_rung_humanize_does_not_answer_for_routes_nothing(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str
+) -> None:
+    asked: list[Question] = []
+
+    def ask(question: Question) -> str | None:
+        asked.append(question)
+        return "blue"
+
+    agent = _agent(permission=permission)
+    agent.ask = ask
+    question = {"question": "Which?", "options": [{"label": "blue"}]}
+    claude.answers = [
+        _asking(
+            {
+                "subtype": "can_use_tool",
+                "tool_name": "AskUserQuestion",
+                "input": {"questions": [question]},
+            }
+        )
+    ]
+    agent.new(tmp_path)("go")
+    assert "--permission-prompt-tool" not in spawner.last.args
+    assert asked == []
+
+
+@pytest.mark.parametrize("web_search", [True, None])
+def test_web_search_not_switched_off_leaves_the_web_tools_alone(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, web_search: bool | None
+) -> None:
+    _agent(permission="read-only", web_search=web_search).new(tmp_path)("go")
+    argv = spawner.last.args
+    if "--disallowedTools" in argv:
+        denied = set(_flag(argv, "--disallowedTools").split(","))
+        assert not {"WebSearch", "WebFetch"} & denied
 
 
 def test_an_account_that_forbids_bypass_is_moved_and_remembered(
@@ -577,7 +828,7 @@ def test_a_word_put_in_mid_turn_is_heard_and_answered_with_the_turn(
     spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
     def steered(proc: Process, said: Any) -> None:
-        if said.get("type") == "user" and "uuid" in said:
+        if said.get("type") == "user" and _text(said) == "also this":
             proc.say(
                 {
                     "type": "command_lifecycle",

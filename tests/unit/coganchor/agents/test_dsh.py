@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pytest
 import yaml
 
+from hmz.coganchor import fence
 from hmz.coganchor.agents import (
     AgentBase,
     DshAgent,
@@ -23,8 +24,11 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.dsh import native_ready
 from hmz.coganchor.agents.event import Unrecoverable
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.providers import Provider
 
+from .doubles_core import Run
+from .doubles_u4 import fenceable
 from .doubles_u5 import configured, gatewayed, heard
 
 if TYPE_CHECKING:
@@ -486,6 +490,41 @@ def test_a_turn_that_does_not_complete_fails_saying_why(
     ]
 
 
+@pytest.mark.parametrize("goal", [False, True])
+@pytest.mark.parametrize("taken", [False, True])
+def test_a_session_is_the_runs_once_its_runtime_has_taken_the_prompt_and_not_before(
+    made: Callable[..., DshAgent],
+    runtime: _Runtime,
+    tmp_path: Path,
+    goal: bool,
+    taken: bool,
+) -> None:
+    if taken:
+        runtime.turn = lambda session: [
+            _event(session, "turn/end", reason={"kind": "failed"})
+        ]
+    else:
+        runtime.refuses = RuntimeError("the runtime would not take it")
+    agent = made()
+    agent.epic = run = Run(tmp_path)
+    session = agent.new(tmp_path)
+    asked = (
+        (lambda: session.pursue("the objective"))
+        if goal
+        else (lambda: session("the prompt"))
+    )
+
+    for _ in range(2):
+        with pytest.raises(Failed):
+            asked()
+
+    # Each session a runtime took a prompt into is the run's, though no turn landed in it, and
+    # none that a runtime never took is: there is no such session to be anybody's.
+    assert run.said == [(one, "") for one, _ in runtime.prompts]
+    assert len(run.said) == (2 if taken else 0)
+    assert agent.opened == []
+
+
 def test_a_runtime_that_refuses_the_prompt_fails_the_turn(
     made: Callable[..., DshAgent], runtime: _Runtime, tmp_path: Path
 ) -> None:
@@ -595,6 +634,57 @@ def test_the_base_url_settings_name_reaches_the_runtime(
 
     env = runtime.harnesses[0].made["env"]
     assert env["DEEPSEEK_BASE_URL"] == "https://api.example/v1"
+
+
+@pytest.mark.parametrize(
+    ("settings", "dotenv", "host"),
+    [
+        ("llm-deepseek:\n  baseURL: https://proxy.example:8443/v1\n", None, None),
+        (None, "DEEPSEEK_BASE_URL=https://dotenv.example/v1\n", "dotenv.example"),
+        (
+            "llm-deepseek:\n  baseURL: https://proxy.example:8443/v1\n",
+            "DEEPSEEK_BASE_URL=https://dotenv.example/v1\n",
+            None,
+        ),
+        (None, "DEEPSEEK_BASE_URL=http://[::1]:8080/v1\n", "[::1]:8080"),
+    ],
+)
+def test_a_fence_lets_through_the_endpoint_an_installed_dsh_is_pointed_at(
+    made: Callable[..., DshAgent],
+    monkeypatch: pytest.MonkeyPatch,
+    dsh_home: Path,
+    settings: str | None,
+    dotenv: str | None,
+    host: str | None,
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    if settings is not None:
+        (dsh_home / "settings.yaml").write_text(settings)
+    if dotenv is not None:
+        (dsh_home / ".env").write_text(dotenv)
+
+    held = made(fence=Fence(online=False)).fenced()
+
+    assert held is not None
+    # The settings' endpoint is the one dsh uses, ahead of its home's `.env`.
+    assert (host or "proxy.example:8443") in held.hosts
+    if settings is not None and dotenv is not None:
+        assert "dotenv.example" not in held.hosts
+
+
+def test_a_fence_under_an_account_is_left_to_the_account(
+    made: Callable[..., DshAgent], monkeypatch: pytest.MonkeyPatch, dsh_home: Path
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    (dsh_home / "settings.yaml").write_text(
+        "llm-deepseek:\n  baseURL: https://proxy.example/v1\n"
+    )
+    gatewayed(monkeypatch, Provider(cli="dsh", name="gw", way="litellm-openai-key"))
+
+    held = made(provider="gw", fence=Fence(online=False)).fenced()
+
+    assert held is not None
+    assert "proxy.example" not in held.hosts
 
 
 def test_a_turn_through_a_gateway_runs_on_the_route_it_is_pointed_at_it_by(

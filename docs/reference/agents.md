@@ -343,15 +343,15 @@ refused: `Unserved`):
 | `mimo`, `opencode` | `edit`, `bash` denied | web tools denied | nothing denied | — |
 | `omp` | `always-ask`, every approval answered no | `yolo` | — | — |
 | `pi` | four tools withheld | nothing withheld | — | — |
-| `qwen` | five tools withheld | `web_fetch` withheld | nothing withheld | — |
-| an ACP CLI | refused | refused | refused | every request granted |
+| `qwen` | six tools withheld | `web_fetch` withheld | nothing withheld | — |
+| an ACP CLI | refused | refused | refused | every request granted, `allow_once` before `allow_always` |
 
 How it is sent:
 
 | Backend | Flags or protocol |
 | --- | --- |
 | `agy` | `--mode plan --agent hmz-read-only`; `--mode accept-edits`; `--dangerously-skip-permissions` |
-| `claude` | `--permission-mode <mode>`; at `bypass` also `--permission-prompt-tool stdio`, each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses |
+| `claude` | `--permission-mode <mode>`; at `read-only` and `bypass` also `--permission-prompt-tool stdio`: at `bypass` each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses, at `read-only` each answered `deny`; at both a question goes to the ask-user hook |
 | `codex` | `sandbox` and `approvalPolicy` on `thread/start`, `thread/resume` and `turn/start`; approval `never` at every rung but `auto` |
 | `cursor-agent` | `--mode plan`; `--force --sandbox enabled`; `--auto-review`; `--force --sandbox disabled` |
 | `grok` | `--always-approve`, plus `--tools read_file,grep,list_dir` at `read-only` and `--disable-web-search` at `workspace-write` |
@@ -360,17 +360,18 @@ How it is sent:
 | `mimo`, `opencode` | the `MIMOCODE_PERMISSION` / `OPENCODE_PERMISSION` table, plus `--dangerously-skip-permissions` / `--auto` |
 | `omp` | `--approval-mode always-ask` at `read-only`; `--approval-mode yolo` at `workspace-write`, `auto` and `bypass` |
 | `pi` | `--exclude-tools bash,edit,write,powershell` at `read-only` |
-| `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
+| `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,save_memory,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
 
 Per-backend rules:
 
 - **agy**: `--mode plan` alone does not stop writes (agy 1.2 writes in it), so `read-only`
   also starts the turn as `--agent hmz-read-only`, an agent file Humanize writes into the
   `agents/` of the turn's [virtual home](#virtual-homes) whose only tools are `view_file`, `grep_search`,
-  `find_by_name` and `list_dir`. That file exists only on this machine, so `read-only` or
-  `web_search=False` on another machine is `Unserved: agy cannot run at read-only or off the
-  web on another machine: what holds it there is an agent of Humanize's that is a file on this
-  one`. At `workspace-write` edits pass and commands are soft-denied (named in
+  `find_by_name` and `list_dir`. That home is built wherever the CLI runs, so the agent is
+  there under a harness on another machine too; a native turn runs in the target's own home,
+  so `read-only` or `web_search=False` there is refused before the first turn with
+  `Unserved: agy cannot run at read-only or off the web natively on another machine: ...`.
+  At `workspace-write` edits pass and commands are soft-denied (named in
   `denied_actions`).
 - **claude**: `bypass` is `bypassPermissions`. An account whose managed settings carry
   `"disableBypassPermissionsMode": "disable"` starts that turn at `default` and says so in
@@ -384,11 +385,16 @@ Per-backend rules:
   `bypass` runs at `manual` instead, so that every tool that would change something reaches a
   `PERMISSION_REQUEST` hook. Whatever is asked at `bypass` is
   answered `allow` unless such a hook refuses. The CLI still enforces an organisation's `deny`
-  list.
+  list. `read-only` is routed too, so that an `AskUserQuestion` asked in plan mode reaches the
+  ask-user hook (no hook: denied, nobody to ask); every other request there is denied after
+  `PERMISSION_REQUEST` hooks are told of it. At `workspace-write`, `auto` and with no rung
+  nothing is routed, and Claude decides by itself.
 - **codex**: the approval policy is `never` at every rung but `auto`. On a machine whose
-  requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once:
+  requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once per agent,
+  as a `notice` event to whatever watches it (on stderr where nothing does):
   `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks
-  for is granted`. `CodexAgentConfig.approvals` replaces the rung's approval policy.
+  for is granted`. `CodexAgentConfig.approvals` replaces the rung's approval policy, and is
+  kept when the rung is stepped down.
 - **kimi**: Kimi's modes are, loosest last, `manual`, `yolo`, `auto`. At `read-only` plan mode
   vetoes `Write`, `Edit`, `TaskStop` and the cron tools, and `manual` turns everything else,
   `Bash` included, into an approval the driver answers no; `ExitPlanMode` is an approval too.
@@ -416,18 +422,19 @@ Per-backend rules:
 Under a flow the rung is derived from the role's `Permission` by
 `hmz.runtime.flowing.harnessing.rung()`, and nothing is put to anybody for approval:
 
-1. `local` of `READ` or `NONE` gives `read-only`; `local` of `ALL` gives `bypass`.
+1. `preset` of `read-only` whose rules do not give the workdir `write` (`access(".")` is not
+   `WRITE`) gives `read-only`; anything else gives `bypass`.
 2. If that is not `read-only` and the harness is in `ASKS` and a hook in its `ASKS` set is
    hung, it becomes `auto`. `ASKS` is `{kimi: {PERMISSION_REQUEST, ASK_USER}}`.
 3. A rung the backend does not take becomes `bypass` (`dsh`, `mcode`, ACP CLIs).
 
-| `local` | every harness but `dsh`, `mcode`, ACP | `dsh`, `mcode`, ACP |
+| `Permission` | every harness but `dsh`, `mcode`, ACP | `dsh`, `mcode`, ACP |
 | --- | --- | --- |
-| `NONE`, `READ` | `read-only` | `bypass` |
-| `ALL` | `bypass` (`auto` for `kimi` with a `PermissionRequest` or `AskUser` hook hung) | `bypass` |
+| `read-only`, `access(".")` not `WRITE` | `read-only` | `bypass` |
+| anything else | `bypass` (`auto` for `kimi` with a `PermissionRequest` or `AskUser` hook hung) | `bypass` |
 
-- `user`, `system` and `online` are held by the [fence](#the-fence), not the rung; so is `local`
-  on `dsh`, `mcode` and ACP CLIs.
+- Every other rule, and `network`, is held by the [fence](#the-fence), not the rung; so is
+  the whole permission on `dsh`, `mcode` and ACP CLIs.
 - **Claude Code** with a `PermissionRequest` hook hung is given `asks=True`
   (`harnessing.prompting`), so `bypass` runs at `manual` and every tool that would change
   something reaches the hook. It takes hold from the session's next turn (the process is
@@ -442,8 +449,10 @@ Under a flow the rung is derived from the role's `Permission` by
   sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`. On macOS, where Codex's
   own Seatbelt sandbox cannot start inside the fence's, each `read-only` or `workspace-write`
   turn under a fence is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
-  "enabled"|"restricted"}` instead, the fence holding the rung.
-- `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
+  "enabled"|"restricted"}` instead, the fence holding the rung. So is each such turn on Linux,
+  where Codex's own sandbox cannot start inside Landlock either, whether or not the fence is as
+  narrow as the rung (`bypass` stepped down to `auto` under a fence that writes the home).
+- `network` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
 <small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
 
@@ -463,12 +472,11 @@ Under a flow the rung is derived from the role's `Permission` by
 | `grok` | `--disable-web-search` when off, or when the fence cuts the network |
 | `kimi` | `disabled_tools` on each prompt: `WebSearch`, `FetchURL` when off, or when the fence cuts the network |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network |
-| `opencode` | `webfetch: deny`, `websearch: deny` in the permission table |
-| `mimo` | the same, and `codesearch: deny` |
+| `mimo`, `opencode` | `webfetch: deny`, `websearch: deny`, `codesearch: deny` in the permission table |
 | `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; at `read-only`, `hmz-read-only-web` when on |
 | `cursor-agent`, `mcode`, `omp`, `pi`, an ACP CLI | cannot be told: `False` is refused |
 
-Under a flow, `online` of `ALL` (the default) is `True` and `NONE` is `False`, on a backend that
+Under a flow, it is the role's `network` (`True` by default), on a backend that
 can be told; elsewhere `None`. A command the agent runs reaches the network regardless of this
 setting; only the [fence](#the-fence) stops that.
 
@@ -476,7 +484,8 @@ setting; only the [fence](#the-fence) stops that.
 
 `AgentConfig.fence` is what the agent's processes may reach: the CLI's own process and every
 command it runs. A flow sets one on every session from the role's `Permission`
-(`harnessing.fenced`).
+(`harnessing.fenced`): `Fence.of(rules=[(r.path, r.access) for r in permission.rules],
+online=permission.network, …)`, the rules in their last-wins order.
 
 `hmz.coganchor.fence.Fence` (frozen):
 
@@ -484,24 +493,33 @@ command it runs. A flow sets one on every session from the role's `Permission`
 | --- | --- | --- |
 | `read` | `tuple[str, ...]` | absolute paths that may be read, listed and executed |
 | `write` | `tuple[str, ...]` | absolute paths that may be read and changed; a path in both is written |
+| `keep` | `tuple[str, ...]` | absolute paths beneath a `write` grant that may only be read |
+| `deny` | `tuple[str, ...]` | absolute paths beneath a grant that may not be reached at all |
 | `online` | `bool` | `True`: the network is unrestricted. `False`: cut, except through a proxy to `hosts` |
 | `hosts` | `tuple[str, ...]` | what the proxy passes while `online` is False: `host`, `*.suffix`, or `host:port` |
 | `tmp` | `str` | the scratch directory, exported as `TMPDIR`, `TMP`, `TEMP`; `""` for one made per run |
-| `scopes` | `tuple[str, ...]` | `(local, user, system)` levels it was drawn from, or `()` for one drawn path by path |
+| `drawn` | `tuple[tuple[str, str], ...]` | the anchored `(path, level)` rules it was drawn from, in last-wins order, or `()` for one drawn path by path |
 | `listen` | `tuple[int, ...]` | TCP ports that may be bound while `online` is False, on loopback |
 
-`Fence.open` is true when `/` is in `write` and `online` is true: nothing is put around the CLI.
+A path's level is that of the longest of `read`, `write`, `keep` and `deny` that holds it.
+`Fence.open` is true when `/` is in `write`, nothing is in `keep` or `deny`, and `online` is
+true: nothing is put around the CLI.
 
-`Fence.of(*, local, user, system, online, workdir, home, cwd="", hosts=(), read=(), write=())`:
+`Fence.of(*, rules, online, workdir, home, cwd="", hosts=(), read=(), write=())`:
 
-- Each scope is a root (`system` is `/`, `user` is `home`, `local` is `workdir` and `cwd`) and
-  a level: `read` puts the root in `read`, `all` in `write`, `none` leaves it out.
-- `local="all"` also writes `TEMPORARY` (`/tmp`, `/var/tmp`) and `$TMPDIR` where it is
-  absolute. `user="all"` also writes `/` for any user but root, the files' permissions holding
-  it; for root, `TEMPORARY`, `$TMPDIR` and `/run/user/0`.
-- The levels must nest, `local >= user >= system`: `ValueError: scopes must nest, local >= user
-  >= system; got local=read, user=all, system=none`. A level outside `none`/`read`/`all`:
-  `ValueError: a scope is one of none, read, all, not 'x'`.
+- Each rule is an anchored path (`/…`, `~…`, `.…`; `~` is `home`, `.` is `workdir` and `cwd`)
+  and a level, one of `none`, `read`, `write` (`LEVELS`). The rules are read in order, the
+  last that holds a path deciding it: a later rule removes every earlier entry at or beneath
+  its own path, and is then put in `write`, `read` (`keep` beneath a `write`) or `deny`
+  (beneath a grant; left out otherwise).
+- Whenever the rules give the workdir `write`, `TEMPORARY` (`/tmp`, `/var/tmp`) and
+  `$TMPDIR` where it is absolute are written too. They are held as the minimum below is: where
+  one of them and a rule's path nest, the deeper decides, and at the same path the more
+  permissive wins, so `("/tmp", "none")` leaves `/tmp` written and `("/tmp/x", "none")` denies
+  `/tmp/x`. Where `home` is written, `/` is written for any user but root, the files'
+  permissions holding it; for root, `TEMPORARY`, `$TMPDIR` and `/run/user/0`.
+- `read` and `write` widen the fence; being more specific, they beat a carve-out they sit
+  beneath.
 - Always added to `read`: `/usr`, `/bin`, `/sbin`, `/lib`, `/lib32`, `/lib64`, `/libx32`,
   `/etc/ssl`, `/etc/ca-certificates`, `/etc/pki`, `/etc/resolv.conf`, `/etc/hosts`,
   `/etc/host.conf`, `/etc/gai.conf`, `/etc/nsswitch.conf`, `/etc/passwd`, `/etc/group`,
@@ -516,7 +534,9 @@ The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's 
 sign-in directories and its session directory to write, and on macOS `~/Library/Keychains`,
 where Claude Code keeps its sign-in and rewrites it as it refreshes; the account's directory;
 the hosts its model and sign-in are at under the account ([Network hosts](#network-hosts)); the
-skills it carries; its programs and their install trees to read.
+skills it carries; its programs and their install trees to read. Never Humanize's own home
+(`~/.hmz`) or cache (`~/.cache/humanize`, which holds the mirror records), beyond a CLI's own
+state directory under it (`litellm`'s `~/.cache/humanize/litellm`).
 
 Both a flow's fence and the agent's widening read the hosts from the same environment,
 `providers.composed(provider, profile)`: this process's own, less the variables the account
@@ -527,24 +547,43 @@ host.
 ### Enforcement
 
 `agent.natively(fence)` returns what the CLI does not enforce itself. That remainder is held
-from outside by putting `python -Pm hmz internal fence --policy=<Fence JSON> --` outermost around
+from outside by putting `coganchor internal fence --policy=<Fence JSON> --` outermost around
 the turn:
 
 | Mechanism | Holds |
 | --- | --- |
-| Landlock (Linux) | paths, and TCP `connect`/`bind` by port (ABI >= 4 where the network is cut) |
+| Landlock (Linux) | paths; TCP `connect`/`bind` by port (ABI >= 4 where the network is cut); signals and connections to abstract Unix sockets kept inside the fenced process tree (ABI >= 6) |
 | seccomp filter (Linux) | every non-TCP socket family refused |
 | seccomp user notification + `pidfd_getfd` (Linux) | with `online=False`, every `bind` and `listen` stops for the wrapper, which allows loopback only (`EACCES` otherwise) |
-| Seatbelt (macOS) | paths (as given and as resolved, `/tmp` being `/private/tmp`); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
+| Seatbelt (macOS) | paths (read as given and as resolved, `/tmp` being `/private/tmp`; written as reached, none of them made a symbolic link nor, where a directory, removed); with `online=False`, outgoing TCP to the proxy's port on `localhost` only, every other outgoing connection and the system resolver's socket refused, and listening allowed on `localhost`, which Seatbelt also matches for every address and every port |
 | proxy on loopback | with `online=False`, the only way out: handed to the CLI as `HTTPS_PROXY` and related variables, passing only `hosts` (ports 443 and 80 for a host without a port) |
 
-The minimum granted whatever the scopes is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
+What a fence writes (`write`) and its scratch (`tmp`) are reached where the fence is put up
+(`Fence.ready`), by `hmz internal fence` and by an anchor's supervisor as it forks the agent:
+each from `/` one name at a time (`Fence.reach`), the scratch made `0700` where it is missing,
+and a symbolic link followed only in a directory that the fence does not write, that is not
+beneath one it writes, and that is not `/tmp`, `/var/tmp`, `$TMPDIR` or the scratch -- told by
+device and inode, however it is spelled. Landlock grants what was reached as the descriptors
+opened; Seatbelt, the paths they were reached at. So `~/.claude` kept elsewhere through a link
+in a home the fence does not write is followed, while a link where a fenced program could have
+put one (a scratch, or a state directory, that an earlier turn replaced with a link out of the
+wall) refuses the turn, exit 126: `hmz internal fence: <path>: it is a link where a fenced
+program could have made one, which no fence follows to write` (or `it leads through <link>, a
+link ...`). A fence that writes `/` follows every link -- but where it carves something out,
+one that leads into a carve-out refuses the turn the same way (`<path>: it leads to <where>,
+which is carved out of this fence`). A path that cannot be reached (missing,
+past a file, not searchable) is granted nothing, as before; on a Mac, a path not there yet
+is granted by the path it would be reached at. The agent makes the directories its CLI keeps
+its state in the same way before the turn, through no such link.
+
+The minimum granted whatever the rules is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
 `DARWIN_SYSTEM` (`/usr`, `/bin`, `/sbin`, `/System`, `/private/var/select`,
 `/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
 `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
 pseudo-terminals `/dev/ttys*` writable. Seatbelt also lets the current user's `mds`
-directory under `DARWIN_USER_CACHE_DIR` be written: the Security framework locks its module
-database there to initialize TLS, and a CLI refused it fails before its model starts.
+directory under `DARWIN_USER_CACHE_DIR` be written, reached as the fence's own paths are and
+granted nothing where it is a link: the Security framework locks its module database there to
+initialize TLS, and a CLI refused it fails before its model starts.
 
 No built-in CLI enforces any part natively: every driver's `natively` returns the whole fence,
 for the reasons below. `litellm` returns none of it: a turn is one request from this process
@@ -553,14 +592,14 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | Backend | Why its own confinement is not used |
 | --- | --- |
 | `agy` | `--sandbox` confines commands only (its file tools run outside it), cannot start without unprivileged user namespaces, and its network lists are desktop-app settings |
-| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"`, `--disable apps`, and `--disable respect_system_proxy` where `codex features list` names it |
+| `codex` | its sandbox holds the commands its agent runs, not Codex's own process, MCP servers or hooks; `online=False` also sends `-c web_search="disabled"`, `--disable apps`, and `--disable respect_system_proxy` where this machine's `codex features list` names it (never for a native Codex, whose features are the target's) |
 | `cursor-agent` | `cursorsandbox` wraps shell commands only and needs a user namespace; `$XDG_CONFIG_HOME/cursor` (else `~/.config/cursor`) is granted to write |
 | `dsh` | the bundle has no confining shell executor; the runtime the SDK launches is wrapped, its composition file and native module cache (`PKG_NATIVE_CACHE_PATH`) put in the fence's `tmp` |
 | `grok` | its sandbox profiles write `/tmp` and `/var/tmp`, block only commands' network, and fail without user namespaces on 1.0.24 |
 | `kimi` | 0.42 has no sandbox; the daemon is fenced once, when it starts |
-| `mimo`, `opencode` | neither confines its shell; the permission table additionally denies `edit` outside writable paths, `read`/`external_directory` outside readable ones (only where `system` is `NONE`), and web tools where `online` is `NONE` |
-| `omp` | no sandbox; no `--offline` under `online` `NONE` |
-| `pi` | no gate and no sandbox; `--offline` under `online` `NONE` |
+| `mimo`, `opencode` | neither confines its shell; the permission table additionally denies `edit` outside writable paths, `read`/`external_directory` outside readable ones (only where `/` is not readable), and web tools where `online` is False |
+| `omp` | no sandbox; no `--offline` under `online=False` |
+| `pi` | no gate and no sandbox; `--offline` under `online=False` |
 | `qwen` | `--sandbox` is a container or Seatbelt; its rules hold its own tools only |
 | an ACP CLI | nothing is known of it; declared `hosts` and `state` under `clis` in `settings.yaml` are granted |
 
@@ -576,18 +615,24 @@ and the model has no tool to reach anything with, so nothing is put around it.
 | a fence drawn path by path on an agent whose `machine` is set | `<Agent>: a fence drawn path by path cannot be held on another machine` |
 | a harness on another machine | `<Agent>: a fence cannot hold a harness that runs on another machine` |
 | `online=False` with the anchor's `net="remote"` | `<Agent>: an agent whose own connections are sent to the target cannot have its network cut here` |
-| `cursor-agent` with `online=False` | `cursor-agent: this permission cuts the network, and cursor-agent's web search and web fetch run on Cursor's own servers, through the same hosts as its model, where nothing here can tell them apart or switch them off; grant it online ALL to use cursor-agent` |
-| `mcode` with `online=False` | `mcode: this permission cuts the network, and mcode's web search runs on MiniMax's own service, through the same hosts as its model, where nothing here can take it away; grant it online ALL to use mcode` |
+| `cursor-agent` with `online=False` | `cursor-agent: this permission cuts the network, and cursor-agent's web search and web fetch run on Cursor's own servers, through the same hosts as its model, where nothing here can tell them apart or switch them off; grant it network=True to use cursor-agent` |
+| `mcode` with `online=False` | `mcode: this permission cuts the network, and mcode's web search runs on MiniMax's own service, through the same hosts as its model, where nothing here can take it away; grant it network=True to use mcode` |
 | `grok` with `leader=True` and a non-open fence | `GrokBuildAgent: a fenced conversation cannot join the leader, which runs its tools outside the fence; set leader to False or None` |
 
-Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `online` `NONE` and no
+A carve-out (`keep` or `deny`) that this machine's Landlock or Seatbelt cannot hold is refused
+the same way: the fence is never run wider than drawn.
+
+Under a flow, `Unfenced` becomes `HarnessSandboxed`. An ACP CLI with `network=False` and no
 declared hosts is refused `HarnessSandboxed`, naming what to declare. For anchored agents, what
 each machine holds is in [Remote execution › A fence on both machines](/reference/remote-execution#a-fence-on-both-machines).
 
-Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket (on
-macOS, nor asking a system service over Mach); on Linux with the network cut the proxy's port
-is reachable on any address, by number; and on macOS with the network cut a program may listen
-on any address and port, Seatbelt telling neither apart.
+Gaps are the kernel's: neither Landlock nor Seatbelt governs connecting to a Unix socket by its
+path (on macOS, nor asking a system service over Mach); on Linux before Landlock ABI 6, signals
+and abstract Unix sockets reach outside the fence too; on Linux with the network cut the proxy's port
+is reachable on any address, by number; on macOS with the network cut a program may listen
+on any address and port, Seatbelt telling neither apart; and on macOS a file the fence writes
+by name (such as `~/.claude.json`) may be swapped (`renamex_np`) for a link, which Seatbelt
+cannot tell from the atomic save it must allow there.
 
 ### Network hosts {#network-hosts}
 
@@ -601,13 +646,13 @@ network](/reference/providers#hosts-reachable-under-a-cut-network)).
 | `claude` | `api.anthropic.com`, `platform.claude.com`, `claude.ai` |
 | `codex` | `chatgpt.com`, `auth.openai.com`, `api.openai.com` |
 | `cursor-agent` | `*.cursor.sh` (a cut network is refused anyway) |
-| `dsh` | `api.deepseek.com` |
+| `dsh` | `api.deepseek.com`; with no account, plus the host dsh's own configuration points it at: `llm-deepseek.baseURL` in its `settings.yaml`, else `DEEPSEEK_BASE_URL` in the environment or its home's `.env` (not a project's `.env`) |
 | `grok` | `cli-chat-proxy.grok.com`, `auth.x.ai`, `api.x.ai` |
 | `kimi` | `api.kimi.com`, `auth.kimi.com`, `api.kimi.ai`, `auth.kimi.ai`, `api.moonshot.ai`, `api.moonshot.cn` |
 | `mcode` | `agent.minimax.io`, `agent.minimaxi.com`, `agent.minimax.cn`, `api.minimax.io`, `api.minimaxi.com`, `account.minimax.io`, `account.minimax.cn` (a cut network is refused anyway) |
-| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` of the provider `mimocode/mimocode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `mimo` | `api.xiaomimimo.com`, `token-plan-cn.xiaomimimo.com`, `token-plan-sgp.xiaomimimo.com`, `token-plan-ams.xiaomimimo.com`, and for its vendor-key ways `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`; plus the `options.baseURL` the model's provider has, read as mimocode reads it: `config.json`, `mimocode.json` and `mimocode.jsonc` in `$XDG_CONFIG_HOME/mimocode`, the file `MIMOCODE_CONFIG` names, then `MIMOCODE_CONFIG_CONTENT`, the last that declares it winning (not a project's config) |
 | `omp` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider omp's own `models.yml` (or `models.yaml`) declares for the model |
-| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` of the provider `opencode/opencode.json` (under `$XDG_CONFIG_HOME`) declares for the model |
+| `opencode` | `opencode.ai`, `chatgpt.com`, `auth.openai.com`, `api.githubcopilot.com`, `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.x.ai`, `openrouter.ai`, `api.deepseek.com`, `api.mistral.ai`; plus the `options.baseURL` the model's provider has, read as opencode reads it: `config.json`, `opencode.json` and `opencode.jsonc` in `$XDG_CONFIG_HOME/opencode`, the file `OPENCODE_CONFIG` names, then `OPENCODE_CONFIG_CONTENT`, the last that declares it winning (not a project's config) |
 | `pi` | `api.anthropic.com`, `platform.claude.com`, `chatgpt.com`, `auth.openai.com`, `api.openai.com`, `api.github.com`, `api.individual.githubcopilot.com`, `api.x.ai`, `auth.x.ai`, `api.kimi.com`, `auth.kimi.com`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`; plus the `baseUrl` of each provider pi's own `models.json` declares for the model |
 | `qwen` | `dashscope.aliyuncs.com`, `dashscope-intl.aliyuncs.com`, `coding.dashscope.aliyuncs.com`, `coding-intl.dashscope.aliyuncs.com`, `token-plan.cn-beijing.maas.aliyuncs.com`, `token-plan.ap-southeast-1.maas.aliyuncs.com`, `generativelanguage.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` |
 | an ACP CLI | its declared `hosts` |
@@ -624,18 +669,30 @@ session(prompt)                     # opens the conversation, then resumes it
 
 - Both calls return the answer, stripped (or the schema model, with `schema=`).
 - `session.id` raises `RuntimeError: session has not run a turn yet` until a turn has landed;
-  `session.named` is `None` instead. On `claude`, `codex`, `dsh`, `kimi`, `omp` and `pi` it is
-  set as soon as the backend names the session, during the first turn; elsewhere when that turn
-  lands.
+  `session.named` is `None` instead until the backend names the session. From then it is the
+  id the run's `opened` event was written with, on every backend: most name the session as
+  the first turn starts, and `litellm` as that turn lands. A first turn that fails keeps its
+  name until the next turn starts, which opens a session of its own.
 - A session runs one turn at a time; concurrent callers of one session are serialised.
 - An agent holds its sessions weakly; dropping a session closes it.
 - `session.close()` ends whatever holds the conversation open.
+- `claude` and `codex` also run turns nobody asked for (a wakeup, a task finishing, a turn
+  queued by the CLI). A turn's answer, events and `tokens` are only its own: `claude` names each
+  prompt with a command uuid, `codex` takes the turn `turn/start` answers with. What a turn of
+  the CLI's own spends still counts against the session's meter and budget; what it says is
+  dropped. A `claude` prompt taken into such a turn fails as `contended` and is retried.
+  `codex` puts an approval or a question to hooks and `agent.ask` only for the turn under way on
+  its thread, or the goal being pursued there, and refuses the rest with an RPC error.
 
 ### Failures {#failures}
 
 A failed turn raises `Failed` (a `subprocess.CalledProcessError`) and leaves the session
-unopened, so the next call retries rather than resuming something that may not exist. The
-message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
+unopened, so the next call retries rather than resuming something that may not exist. Codex
+keeps the thread it opened for a failed opening turn, a fork's child included, and the next
+attempt takes the turn again on it; a thread whose `turn/start` the app server refused or never
+answered, or that cannot be picked back up, is let go, and the next attempt opens another. A
+Codex app server that stops carries the last lines of its stderr in the failure. The message ends with what the CLI said and, where
+classified, `(<fault>: <fix>)`.
 
 | Attribute | Meaning |
 | --- | --- |
@@ -644,7 +701,7 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 
 | Fault | Meaning |
 | --- | --- |
-| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`) |
+| `contended` | two turns at one local store (`database is locked`, `SQLITE_BUSY`, and Codex's `failed to initialize sqlite state runtime` from an app server that lost the race to create the state database a run's servers share), or at one [sign-in that refreshes itself](/reference/providers#a-sign-in-that-refreshes-itself) the other way round (`signs in with a token that refreshes itself`), or a `claude` prompt taken into a turn of the CLI's own |
 | `spent` | a quota or balance used up, said in so many words (`quota`, `insufficient balance`, `credit balance is too low`, `billing`); read ahead of `throttled`, since it comes as the same `429` |
 | `throttled` | too many requests (`429`, `529`, `rate limit`, `resource exhausted`, `overloaded`, `usage limit`, …) |
 | `refused` | the credential (`401`, `403`, `unauthorized`, `invalid api key`, `not logged in`, `token expired`, `token was revoked`, `forbidden`, …) |
@@ -659,7 +716,8 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 
 Classification (`backends.trouble`) reads the last 4096 characters of each stream, the
 backend's own `Profile.signs` first, then the shared `backends.SIGNS` in order; the first match
-wins. Backend-specific signs: `dsh` `needs a DeepSeek API key` → `refused`; `grok`
+wins. Backend-specific signs: `codex` `failed to initialize sqlite state runtime` → `contended`;
+`dsh` `needs a DeepSeek API key` → `refused`; `grok`
 `couldn't set model.*unknown model id` → `throttled`; `mcode` `sign in to minimax` and `oauth
 bearer is not synced` → `refused`. For `agy`, whose streams say nothing useful, the newest of
 `cli.log` / `log/cli-*.log` written within the turn's duration (at most 300 s, last 64 KiB) is
@@ -786,14 +844,27 @@ sessions without running a turn.
 | `codex` | `outputSchema` on the turn |
 | every other | the schema is put in the prompt; the answer is validated after |
 
-`grok` and `mcode` close every object (`additionalProperties: false`, every property required,
-no defaults), as Codex requires. An answer that does not validate raises `ValueError`;
+`codex`, `grok` and `mcode` get the schema as Codex requires it: every model's object closed
+(`additionalProperties: false`, every property required), no defaults, and no keyword beside a
+`$ref`. A `dict[str, …]` field stays open. Where a field with a description has an enum or model
+type, that type's definition is written out at the field with the field's description; a field
+inside its own type's definition, where writing it out would never end, keeps a bare `$ref` and
+loses its description. Examples and other values in the schema are left as written. Each
+described field of model type carries a copy of its type, so nesting them multiplies the
+schema's size: keep answer models shallow. An answer that does not validate raises `ValueError`;
 `suppress=True` returns `None`.
 
 ### Events {#watching-a-turn-as-it-happens}
 
 `session.stream(prompt, *, schema=None)` yields `Event(kind, text, whose="", tokens={},
-spent=Usage())`.
+spent=Usage())`. Closing it before its `result` ends the turn there: `close()` does, and so does
+the last reference to it going, as on a `break` out of `for event in session.stream(...)`. A
+caller that keeps the iterator calls `close()` itself. On a backend that runs a command per
+turn, the close ends the command and every process it has started, where it is still running,
+as a cut-off does, then waits at most `DRAIN_SECONDS` (5 s, in `hmz.coganchor.agents.base`) for
+the turn's output to be let go of: a process that left the command's tree, or one started by a
+command that had already exited, is not ended. What such a process says after the close is
+drained but not heard: it reaches neither the closed turn nor the session's next one.
 
 | `kind` | Meaning |
 | --- | --- |
@@ -925,7 +996,7 @@ A refusal reaches the agent only on a backend that waits for the answer:
 
 | Backend | When it asks | Default answer with no refusing hook |
 | --- | --- | --- |
-| `claude` | at `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes; a request at `read-only` is answered no; with no rung nothing is routed |
+| `claude` | at `read-only` and `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes at `bypass`; no at `read-only`; at the other rungs and with no rung nothing is routed |
 | `codex` | through the app server, at `auto` (`on-request`) and at any rung given `approvals` | yes at every rung; no with no rung |
 | `grok` | `session/request_permission`, on the held-open transport only | yes at every rung; no with no rung |
 | `kimi` | each approval on the daemon's `/approvals`: at `auto`, and at `read-only` or no rung | yes at `auto`; no at `read-only` and with no rung |
@@ -1088,8 +1159,13 @@ for under a spent allowance raises `Stopped`. Clones and stand-ins spend the sam
   (`agents.WINDOW == 300`); a younger run is measured over its life.
 - `juice(over=WINDOW)`: output tokens per model request; `0.0` for a window with none.
 - The `result` event's `spent` is the turn's usage and `tokens` its per-model totals.
-- `hmz.coganchor.prices.cost(usage, model)` prices a `Usage` kind by kind; `price(model)`
-  returns the `Price`. Both read `$TMPDIR/humanize-<uid>/prices.json` (fetched from
+- `hmz.coganchor.prices.cost(usage, model, hour=, tiered=)` prices a `Usage` kind by kind;
+  `price(model)` returns the `Price`. `tiered(request, model, hour=)` names the tokens of one request
+  whose prompt (`input` + `cache_read` + `cache_write`) is past the model's long-context line,
+  as `<kind>><line>` (e.g. `input>272000`; its one-hour cache writes as `cache_write_1h><line>`), and `cost(..., tiered=)` adds what the tier
+  charges for them beyond the standard price. A `Usage` carries them as `.tiered` beside its
+  kinds, never as a kind: the `claude` and `codex` drivers and the logs the TUI reads mark
+  each request; a backend that states only turn totals stays at the standard price. Both read `$TMPDIR/humanize-<uid>/prices.json` (fetched from
   `https://openllmprices.com/data/prices.json`, refreshed after 24 h; `HUMANIZE_PRICES`
   points elsewhere or turns fetching off with `off`) and return `None` for an unlisted model.
 - The TUI's running cost reads the CLIs' own logs as they are written, for `claude`, `codex`,
@@ -1180,6 +1256,18 @@ right after the program's name).
   Never over a file as new or newer, which another process of the same account saved since:
   the last to save wins. So a refreshed token (`.credentials.json`, `auth.json`, `credentials`)
   and a session file a CLI replaces are kept; the copies of `Profile.rewrites` still go.
+- Building and removing the home happens outside the agent's fence, so for a fenced agent
+  (`AgentBase.homed` passes `homes.build` its `readable` and `writable` tests, drawn from
+  `agent.fenced()`) every link is followed to where it leads and checked there, against the
+  fence's roots as given and as the fence reaches them: a `Profile.rewrites` file is copied in
+  only where the agent may read what it leads to, and a replaced link is written back (and a
+  `Profile.records` database respelled) only where the agent may write what it leads to and
+  read the replacement. Otherwise it is left out, with a warning (`not copying <path>: the
+  agent may not read it`, `not writing <file> back to <path>: the agent may not reach it`). So
+  a link the agent put in its own state directory, such as `~/.claude/.credentials.json ->
+  ~/.bashrc`, is never read or written through. Without a fence, everything is followed. A
+  file the CLI made under a name of a glob is moved out only where nothing, not even a link,
+  has that name yet, fenced or not.
 - A path of its home a CLI writes down to read back later (`Profile.records`) names the
   virtual home, which is gone once the process is. As the home is removed (`Home.drop`), each
   such path whose file is there is rewritten with the home's links followed, to where the file
@@ -1209,7 +1297,7 @@ right after the program's name).
 - A harness on another machine (`AnchorConfig.harness`, `hmz.coganchor.elsewhere.afar`) is
   started in one built on that machine: `AgentBase.homed` builds none here, and the anchor's
   options carry what it is made of (`AnchorConfig.home`, the session's skills and merges) to
-  the `hmz internal anchor` there, which builds it from that machine's user's own
+  the `coganchor cog` there, which builds it from that machine's user's own
   configuration around the CLI it supervises, keeps it on that machine, and removes it when
   the CLI exits. The brought skills are carried there first
   ([Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs)).
@@ -1248,7 +1336,7 @@ runs `call` in this process; `offers(None)` withdraws them. `FakeTool` is one ty
   virtual home's copy of `settings.json`; the user's `mcp.allowed`/`mcp.excluded` and folder
   trust still apply), `opencode` and `mimo` (`mcp.humanize` merged into
   `OPENCODE_CONFIG_CONTENT` / `MIMOCODE_CONFIG_CONTENT`), `agy` (a plugin,
-  `--add-dir <temp>/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
+  `--add-dir <temp>/~humanize-agy-…/~humanize-agy-…` holding `.agents/plugins/humanize/mcp_config.json`),
   `grok` and an ACP CLI (a `humanize` stdio server in the `mcpServers` of the call that opens
   the conversation), `pi` (`--extension <hmz>/coganchor/agents/pi_tools.cjs`, loaded under
   `--no-extensions` too; tools named `humanize_<name>`), `omp` (RPC `set_host_tools`; tools named
@@ -1345,14 +1433,18 @@ missing account; it never falls back to the machine's own.
 
 ## When a turn fails {#retries}
 
-Before a failure reaches the caller, two things are tried in order: retries at the same
-place, in the same conversation, and then each place of the fallback chain, in order.
+A turn is walked through the agent's **nous** (`agent.nous`): its virtual nous where
+`AgentConfig.nous` names one, else its own concrete nous `CLI[@ACCOUNT]/MODEL[:EFFORT]`
+(`agent.spec`). Before a failure reaches the caller, the walk tries, in order: retries at the
+concrete nous, in the same conversation; then its `then` graph; and for a virtual nous, its
+graph, walked again as its own retries say. Nous are written in `nous` in
+`$HUMANIZE_HOME/settings.yaml`, by `Hmz().nous` or the Nous page of `/settings`
+([Nous](/user/settings#nous)). Nothing is retried or walked on by default.
 
 ### Retries
 
-A place is `CLI[@ACCOUNT]/MODEL` (`agent.spec`). Retries are set per place in
-`fallbacks` in `$HUMANIZE_HOME/settings.yaml`, by `Hmz().fallbacks.retrying(place, tries, policy, timeout)` or
-the Fallback page of `/settings`. Nothing is retried by default.
+Retries are set per nous (`tries`, `policy`, `timeout`); a concrete nous with an effort and
+nothing written against it takes what is written against it without the effort.
 
 | Policy | Waits (base 1 s, each capped at 60 s) |
 | --- | --- |
@@ -1363,7 +1455,7 @@ the Fallback page of `/settings`. Nothing is retried by default.
 | `exponential-jitter` (default) | uniformly random up to the exponential wait |
 | `fibonacci` | 1, 1, 2, 3, 5, … |
 
-Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
+Each fault adjusts a concrete nous's retries (`nous.ANSWERS`):
 
 | Fault | Tries (floor) | Wait | Transport reopened | Fix |
 | --- | --- | --- | --- | --- |
@@ -1371,40 +1463,54 @@ Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 | `spent` | 1 | at least 30 s | no | this account has spent its quota; another one, or a wait, is what answers it |
 | `refused` | none | — | no | that account needs signing in again |
 | `unlisted` | none | — | no | that model is not this account's to name; ask it what it runs and name one of those |
-| `retired` | none | — | no | the model is gone or was never this account's; another place is what answers it |
+| `retired` | none | — | no | the model is gone or was never this account's; another nous is what answers it |
 | `contended` | 3 | constant | no | two turns of it are sharing one database |
-| `dropped` | 1 | the place's | yes | |
+| `dropped` | 1 | the nous's | yes | |
 | `fenced` | none | — | no | the run's network fence keeps it off that host, which no sign-in answers; give the role online of ALL to let it through |
 | `killed` | 1 | constant | yes | the machine it runs on may be out of memory |
 | `missing` | none | — | no | |
 | `sandboxed` | none | — | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |
 | `unmirrored` | none | — | no | that path cannot be made here; use a workdir whose path you can create here, or set the harness of the runtime the work is on to env |
-| unclassified | the place's | the place's | no | |
+| unclassified | the nous's | the nous's | no | |
 
-`Unrecoverable` is never retried or carried.
+`Unrecoverable` is never retried or carried. A virtual nous walked again gets no floor: only its
+own `tries`, never for a fault marked none, and at least the 30 s wait after `throttled` or
+`spent`.
 
-| Refused by `fallbacks` | `ValueError` |
+| Refused by `nous.put` | `ValueError` |
 | --- | --- |
-| a place that does not parse | `'<text>' is not a place: expected CLI[@ACCOUNT]/MODEL` |
+| a name that does not parse | `'<text>' is not a nous: expected HARNESS[@ACCOUNT]/MODEL[:EFFORT] or a name` |
+| a concrete nous with a graph, a virtual one without | `<name> is a concrete nous, and has no graph` / `<name> is a virtual nous, and needs a graph` |
 | an unknown policy | `'<p>' is not a retry policy: none, constant, linear, exponential, exponential-jitter, fibonacci` |
 | negative or infinite numbers | `tries and seconds are counts, not debts or infinities` |
-| a place falling back to itself | `<place> cannot fall back to itself` |
-| a place named twice on one chain | `<place> is already one of the places <spec> falls back to` |
+| a graph that does not hold together | `<name>: the edges come round at node <id>`, `… cannot be reached from the start`, `… is no fault class`, `… is no strategy: …`, `… names <nous> twice` |
+| a virtual nous nobody wrote | `<name> names <nous>, which is no nous written down` |
+| nous naming one another round | `<a> -> <b> -> <a> comes round` |
 
-### Fallback chain {#when-the-place-has-nowhere-left-to-run}
+### Nous graphs {#when-the-place-has-nowhere-left-to-run}
 
-`Hmz().fallbacks.points(place, [other, another])` writes the places a place's turns go to once
-its retries are spent, in order. `fallbacks.chain(place)` is `[place, *to]` for a place a rule is
-written against, and `[place]` for any other, including one that is only on somebody else's
-chain. `agent.stands_in()` returns the stand-in at the next place, built once and kept; a
-stand-in holds the rest of the chain it was reached by and carries on along it, never along a
-rule of its own place. Each stand-in is retried as its own place's rule says. The turn is taken
-in a new session at the other place, by an agent configured as this one (effort, rung, skills);
-settings that were measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are
-dropped when the model changes. An account names no fallback of its own: another account of the
-same CLI is a place on the chain.
+A graph is a start node and nodes: a **use** node walks one nous, its own retries and `then`
+included; a **balance** node picks one of `among` by its strategy (`shuffle`, `round-robin`,
+`least-busy`, `latency`, `usage`, `cost`, or one added with `Hmz().nous.strategy`), and while
+that fails another not yet walked, up to `spread`. A failed node follows its edge for the fault
+class, else its `*` edge, else fails the graph. The first concrete nous to answer ends the walk.
+A balance node first picks, per session, the member that answered last; a member that was
+`throttled` or `spent` in the last 60 s is picked last. What `least-busy`, `latency` and `usage`
+count is this process's turns.
 
-<small>Defined in [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py), [`src/hmz/coganchor/standin.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/standin.py).</small>
+`agent.stand_in(nous)` returns the agent at a concrete nous: the agent itself at its own nous
+(with or without the effort), else a stand-in built once and kept. The turn is taken in a new
+session there, by an agent configured as this one (rung, skills, fake tools), at the nous's
+effort where it names one and this agent's carried down the ladder otherwise; settings that were
+measurements of the old model (`of_model` fields, e.g. Codex `overrides`) are dropped when the
+model changes. A nous whose CLI is not here, or cannot be told what this agent was, fails as the
+failure before it. An agent configured at a virtual nous is built at `Hmz().nous.entry(name)`,
+the first nous of its start node. An account names no fallback of its own: another account of
+the same CLI is a nous of a graph. A turn taken at another nous is interrupted and cut there:
+`interrupt` reaches the stand-in's turn, and `cut` also puts the stand-in's transport down. A cut
+turn that lands goes on in the stand-in's conversation, as far as it got.
+
+<small>Defined in [`src/hmz/coganchor/nous.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/nous.py), `_falling_back` in [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py).</small>
 
 ## Watchdog {#when-a-cli-stops-answering}
 
@@ -1492,11 +1598,13 @@ or flow resources restart the process; an anchored turn always ends it.
   written. An account whose arguments carry `--app_data_dir` of their own runs in that home
   as before, without the flow's skills; there `read-only` or `web_search=False` is
   `Unserved: agy cannot run at read-only or off the web under an account naming its own
-  --app_data_dir: ...`. agy replaces `jetbox_summaries_proto.pb` (its conversation
+  --app_data_dir: ...`, said where the agent is made or reconfigured, and again at a turn
+  whose account a stand-in changed to one. agy replaces `jetbox_summaries_proto.pb` (its conversation
   summaries index) rather than writing through it, so that index keeps what Humanize's turns
   wrote to it only for their process.
 - [Fake tools](#callbacks-as-tools) are a plugin `humanize` in a temporary directory added
-  with `--add-dir` (the session directory is then always added too); a change in the offered
+  with `--add-dir` (the session directory is then always added too), under one directory of
+  the agent's (`<temp>/~humanize-agy-…/~humanize-agy-…`) that its fence grants to read; a change in the offered
   names restarts the process. agy runs commands in the first workspace directory by path, so
   the plugin's must sort after the session's: where it would sort before (a session under
   `/workspace` with `TMPDIR=/tmp`) the turn is refused with `Unserved: agy cannot be offered
@@ -1525,6 +1633,9 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 
 - Every turn runs with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, so background subagents and
   commands finish inside the turn.
+- Every turn runs with `CLAUDE_CODE_NO_MODEL_FALLBACK=1`, overriding an inherited value, so
+  the provider cannot silently answer a refused turn on another model; the refusal follows
+  the normal failure and retry policy for the requested model.
 - `--settings` carries `fastMode` (fast tier) and the `PreToolUse` hook table only when needed.
 - `--json-schema`, a hook table change, an effort change, a change of `asks`, or a change of
   offered tools restarts the process and resumes the conversation.
@@ -1555,7 +1666,7 @@ fall `idle` first, which ends nothing.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `overrides` | `()` | `-c` pairs; only `model_context_window` and `model_auto_compact_token_limit`, positive integers, the second below the first. Dropped when a fallback changes the model. |
+| `overrides` | `()` | `-c` pairs; only `model_context_window` and `model_auto_compact_token_limit`, positive integers, the second below the first. Dropped when a stand-in changes the model. |
 | `features` | `()` | `--enable`/`--disable` pairs by `codex features list` names; `goals` and names beginning `browser_use`, `computer_use`, `standalone_web_search`, `web_search` are refused |
 | `strict_config` | `False` | `--strict-config` |
 | `approvals` | `""` | approval policy replacing the rung's: `untrusted`, `on-request`, `on-failure`, `never` |
@@ -1573,6 +1684,14 @@ fall `idle` first, which ends nothing.
 - The server reads `overrides`, `features`, `strict_config`, `web_search`, the account and the
   fence once at start; a change starts a new server for the next turn and each conversation is
   resumed there by id. Model, effort, rung and `approvals` are per call.
+- The agent owns every app server it starts until that server is down, including one still
+  being introduced to, one an account or callback change let go of while a turn runs on it,
+  and one retiring that is still writing its home back. Stopping the agent, a cut and the
+  watchdog putting the server down reach all of them and wait for each; a server whose start
+  finishes after the agent stopped is reaped and refused. A refused introduction reaps the
+  process before its home is dropped. A stop that cuts a message off partway still ends the
+  turns reading that server, and a cut or interrupt that lands before a turn has a server ends
+  that turn before anything of it is sent.
 - `-p/--profile` and `--add-dir` are not offered; `codex app-server` does not take them.
 - Each app server runs in a [virtual home](#virtual-homes) (`CODEX_HOME`), so the trust Codex
   writes into `config.toml` for each workspace it opens a writing thread in is dropped with it.
@@ -1790,6 +1909,8 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   (`agentInvoked: false`), also ends the turn.
 - At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
   `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
+- `reconfigure` to another `--approval-mode`, or another fence, ends the held process before
+  the next turn, which starts one at the new one and resumes the conversation.
 - Offered [fake tools](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
   the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
   is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
@@ -1797,7 +1918,7 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
   so `PRE_TOOL_USE` is read off the turn only.
 - The fence also lets through the `baseUrl` of the model's provider in `models.yml` (else
   `models.yaml`) in omp's home, and of that provider's models; for a model named without a
-  provider, of every provider declared there. Nothing is sent to omp under `online` `NONE`.
+  provider, of every provider declared there. Nothing is sent to omp under `network=False`.
 - No credential files: omp keeps its sign-ins in `agent.db`, beside its settings, which an
   account does not copy. An agent with no account runs as this machine's omp sign-in.
 
@@ -1847,7 +1968,7 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `compiled` | `True` | `NODE_COMPILE_CACHE` at `$TMPDIR/humanize-<uid>/compiled/pi` unless already set; not for anchored turns |
 | `context_files` | `True` | `False` is `--no-context-files` |
 | `extensions` | `True` | `False` is `--no-extensions` |
-| `offline` | `False` | `--offline`; forced under `online` `NONE` |
+| `offline` | `False` | `--offline`; forced under `network=False` |
 | `append_system_prompt` | `()` | `--append-system-prompt` per entry (text or path) |
 | `skill_paths` | `()` | `--skill` per entry |
 
@@ -1911,8 +2032,8 @@ clis:
 | Key | Meaning |
 | --- | --- |
 | `command` | argv that starts it |
-| `hosts` | hosts reachable under `online` `NONE`, spelled as `Profile.hosts` spells them; none: a network-cutting permission is refused (`HarnessSandboxed`) naming what to declare |
-| `state` | paths it writes its state to, granted whatever `user` says; none: nothing of the home is writable |
+| `hosts` | hosts reachable under `network=False`, spelled as `Profile.hosts` spells them; none: a network-cutting permission is refused (`HarnessSandboxed`) naming what to declare |
+| `state` | paths it writes its state to, granted whatever the permission's rules say; none: nothing of the home is writable but what the rules give |
 
 `backends.declared(name)` returns `(hosts, state)`; `backends.forget(name)` removes one. An
 unreadable settings file reads as no added CLIs.
@@ -2025,6 +2146,7 @@ Set by drivers on a turn:
 | Variable | Backend | Value |
 | --- | --- | --- |
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | `claude` | `1` |
+| `CLAUDE_CODE_NO_MODEL_FALLBACK` | `claude` | `1`, overriding an inherited value |
 | `NODE_OPTIONS`, `HMZ_PRELOAD_AT`, `HMZ_PRELOAD_IN` | `kimi`, `pi`, `qwen`, `mimo` | the runtime-report preload, only while a `PRE_TOOL_USE` hook is hung |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` | `$TMPDIR/humanize-<uid>/compiled/<cli>`, unless already set |
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`, `mimo` | the permission table |
@@ -2066,7 +2188,8 @@ class AgentBase:
     def disable_goals(); def stop()
     def watch(listener: Callable[[AgentBase, SessionBase | None, Event], None])
     def asked(question) -> str | None; def prompted() -> str | None
-    def stands_in() -> AgentBase | None
+    nous: str  # property
+    def stand_in(nous: str) -> AgentBase | None
     def node() -> Provider
     def environment() -> Mapping[str, str]; def hushed() -> frozenset[str]
     def fenced() -> Fence | None; def natively(fence: Fence) -> Fence
@@ -2099,4 +2222,4 @@ class Unhooked(ValueError): ...
 
 `CommandSessionBase` (one command per turn) and `StreamSessionBase` (one long-lived process fed
 a line at a time) are the two shapes a driver subclasses; the contract is
-[`specs/features/agents.md`](https://github.com/humanfia/humanize/blob/main/specs/features/agents.md).
+[`protocol/core.md`](https://github.com/humanfia/humanize/blob/main/protocol/core.md#4-agents).

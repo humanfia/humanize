@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import dataclasses
 import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import pydantic
@@ -29,17 +31,20 @@ from hmz.flows import (
     HarnessDropped,
     HarnessKind,
     HarnessNotInstalled,
+    HarnessSandboxed,
     HarnessUnrecoverable,
     HookKind,
     OutputTokensExceeded,
     OutworlderAway,
     Permission,
-    PermissionKind,
     SessionError,
     SessionStartHookResult,
     StopHookResult,
     UnsupportedOperation,
     UserPromptSubmitHookResult,
+    allow,
+    deny,
+    read_only,
 )
 from hmz.runtime.flowing import harnessing
 from hmz.runtime.flowing.harnesses import (
@@ -64,7 +69,7 @@ from hmz.runtime.flowing.spi import (
 from tests.unit.runtime.flowing.doubles_u11 import returning
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterator, Mapping
 
 # ------------------------------------------------------------------------- coganchor, stood in
 
@@ -80,6 +85,7 @@ class Config:
     web_search: bool | None = None
     machine: Any = None
     fence: Any = None
+    nous: str = ""
 
 
 @dataclass
@@ -172,6 +178,7 @@ class CLI:
     """coganchor's agent for one CLI."""
 
     rungs = ("read-only", "workspace-write", "auto", "bypass")
+    pipes_tools = False
     built: list[CLI] = []  # noqa: RUF012 -- emptied per test
     reply: Callable[[str], str] = staticmethod(_echo)
 
@@ -230,6 +237,13 @@ def _cli(session: HarnessSession) -> CLI:
     agent: Any = session.agent
     assert isinstance(agent, CLI)
     return agent
+
+
+def _talk(session: HarnessSession) -> Conversation:
+    """The conversation a session has, which here is always a :class:`Conversation`."""
+    conversation: Any = session.coganchor
+    assert isinstance(conversation, Conversation)
+    return conversation
 
 
 def _config(config: Config) -> Any:
@@ -335,7 +349,7 @@ async def test_a_session_opens_in_its_workdir_with_its_skills(
 
     session = await driver.open(
         _placed(tmp_path),
-        permission=Permission(local=PermissionKind.READ),
+        permission=Permission(preset="read-only"),
         skills=(Skill("review", tmp_path / "review"),),
         hooks=HookTable(),
     )
@@ -515,6 +529,179 @@ async def test_a_harness_runtime_that_cannot_be_reached_refuses_with_no_fallback
         "harness cannot run where its harness setting (docker:gpu) says: unreachable"
     )
     assert harbors.asked == ["docker:gpu"]
+
+
+#: The harness runtime a `docker:gpu` setting names, reached at `ssh://gpu`.
+GPU = AnchoredConfig(anchor=AnchorConfig(target="ssh://gpu"))
+#: What :data:`SHADOW` is once its harness is put on :data:`GPU`.
+PUT = AnchoredConfig(
+    anchor=AnchorConfig(target="ssh://box", workspace="/w", harness="ssh://gpu")
+)
+
+
+@dataclass
+class Runtime:
+    """The run's harness runtimes, every one set to `docker:gpu`, which is :data:`GPU`."""
+
+    said: str = "docker:gpu"
+
+    def setting(self, placement: Placement) -> str:
+        del placement
+        return self.said
+
+    async def machine(self, entry: str) -> Any:
+        del entry
+        return self
+
+    def placement(self) -> Placement:
+        return _on(GPU)
+
+
+class Asked:
+    """A machine asked whether it has the CLI, which says it has."""
+
+    pid = 0
+    returncode = 0
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        return b"", b""
+
+
+@pytest.fixture
+def answering(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every machine asked whether it has the CLI says it has, and is not started."""
+
+    async def ask(*argv: Any, **_: Any) -> Asked:
+        del argv
+        return Asked()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", ask)
+
+
+def _gate(hooks: HookTable, kind: HookKind) -> None:
+    async def hook(handle: SessionHandle, fields: dict[str, Any]) -> Any:
+        del handle, fields
+
+    hooks.set(kind, hook)
+
+
+@pytest.mark.parametrize(
+    ("harness", "harbors", "machine"),
+    [
+        (HarnessKind.CLAUDE, Runtime(), PUT),
+        (HarnessKind.CLAUDE, Runtime("local"), SHADOW),
+        (HarnessKind.LITELLM, Runtime(), None),
+    ],
+    ids=["standalone", "local", "nowhere"],
+)
+async def test_a_hook_hung_after_a_session_opened_leaves_its_harness_where_it_was_put(
+    coganchor: type[CLI], harness: HarnessKind, harbors: Any, machine: Any
+) -> None:
+    hooks = HookTable()
+    session = await open_agent(_spec(harness), harbors).open(
+        _on(SHADOW), permission=Permission(), skills=(), hooks=hooks
+    )
+    assert _cli(session).config.machine == machine
+
+    _gate(hooks, HookKind.ASK_USER)
+    await session.turn(TurnRequest("go"), Sink())
+    assert _cli(session).config.machine == machine
+    hooks.set(HookKind.ASK_USER, None)
+    await session.turn(TurnRequest("again"), Sink())
+
+    assert _cli(session).config.machine == machine
+
+
+@pytest.mark.parametrize("kind", [HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST])
+async def test_a_hook_that_gates_tools_hung_on_a_native_cli_after_it_opened_is_refused(
+    coganchor: type[CLI], kind: HookKind
+) -> None:
+    hooks = HookTable()
+    session = await _driven().open(
+        _on(IN_PLACE), permission=Permission(), skills=(), hooks=hooks
+    )
+    _cli(session).config = Config(machine=NATIVE)
+    _gate(hooks, kind)
+
+    with pytest.raises(UnsupportedOperation) as refused:
+        await session.turn(TurnRequest("go"), Sink())
+
+    said = str(refused.value)
+    assert "harness cannot run where its harness setting (env) says" in said
+    assert f"a {kind} hook cannot gate the tools of a CLI on another machine" in said
+    assert _cli(session).config.machine == NATIVE
+    assert _talk(session).prompts == []
+
+
+async def _tooled(harness: HarnessKind, harbors: Any) -> HarnessSession:
+    async def note() -> str:
+        return "noted"
+
+    return await open_agent(_spec(harness), harbors).open(
+        _on(SHADOW),
+        permission=Permission(),
+        skills=(),
+        hooks=HookTable(),
+        tools=(FakeTool("note", "Notes.", note),),
+    )
+
+
+@pytest.mark.parametrize(
+    "harbors", [Runtime(), Runtime("env")], ids=["standalone", "env"]
+)
+async def test_a_flows_tools_are_refused_to_a_cli_on_another_machine(
+    coganchor: type[CLI], answering: None, harbors: Any
+) -> None:
+    with pytest.raises(UnsupportedOperation, match="cannot offer the flow's tools"):
+        await _tooled(HarnessKind.CLAUDE, harbors)
+
+
+async def test_a_flows_tools_are_offered_to_a_cli_that_pipes_them_from_another_machine(
+    coganchor: type[CLI], answering: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(CLI, "pipes_tools", True)
+
+    session = await _tooled(HarnessKind.OMP, Runtime("env"))
+
+    assert _cli(session).config.machine.anchor.native
+    assert [one.name for one in _talk(session).offered] == ["note"]
+
+
+async def test_a_flows_tools_are_offered_to_a_cli_run_here_for_another_machine(
+    coganchor: type[CLI],
+) -> None:
+    session = await _tooled(HarnessKind.CLAUDE, Runtime("local"))
+
+    assert [one.name for one in _talk(session).offered] == ["note"]
+
+
+@pytest.mark.parametrize(
+    ("online", "needs"),
+    [(True, "it needs Landlock;"), (False, "it needs Landlock ABI 4 and seccomp;")],
+)
+async def test_an_env_machine_that_cannot_fence_names_what_it_needs(
+    coganchor: type[CLI],
+    answering: None,
+    monkeypatch: pytest.MonkeyPatch,
+    online: bool,
+    needs: str,
+) -> None:
+    from hmz import coganchor as package
+    from hmz.coganchor import proto
+
+    fence = SimpleNamespace(open=False, online=online)
+    monkeypatch.setattr(harnessing, "fenced", returning(fence))
+    monkeypatch.setattr(package, "check", returning({}))
+    monkeypatch.setattr(proto, "hello_fences", returning(False))
+
+    harbors: Any = Runtime("env")
+
+    with pytest.raises(HarnessSandboxed) as refused:
+        await open_agent(_spec(), harbors).open(
+            _on(IN_PLACE), permission=Permission(), skills=(), hooks=HookTable()
+        )
+
+    assert needs in str(refused.value)
 
 
 async def _carrying(
@@ -851,6 +1038,21 @@ async def test_closing_the_driver_closes_its_sessions_and_opens_no_more(
         await _session(driver, tmp_path)
 
 
+async def test_a_session_closed_as_its_loop_is_torn_down_still_stops_its_cli(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    session = await _session(open_agent(_spec()), tmp_path)
+    # The loop's threads already gone, as an interrupted run leaves them once its main task
+    # has ended: a close then reaches no thread to stop the CLI on.
+    gone = concurrent.futures.ThreadPoolExecutor()
+    gone.shutdown()
+    asyncio.get_running_loop().set_default_executor(gone)
+
+    await session.close()
+
+    assert _cli(session).stopped == 1
+
+
 # --------------------------------------------------------------------------------- a turn
 
 
@@ -989,7 +1191,7 @@ async def test_a_turn_with_nothing_left_to_spend_is_refused(
 async def test_a_price_that_is_not_a_number_is_a_cost_no_cap_affords(
     coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def cost(usage: object, model: str) -> float:
+    def cost(usage: object, model: str, **_: float) -> float:
         raise prices.PriceError("prices it at nan dollars")
 
     def spent(self: Conversation) -> dict[str, float]:
@@ -1005,6 +1207,102 @@ async def test_a_price_that_is_not_a_number_is_a_cost_no_cap_affords(
             TurnRequest("x", limits=Limits(cost=1.0, cost_graceful=False)), sink
         )
     assert sink.added[0][0] == float("inf")
+
+
+async def test_one_hour_cache_writes_are_priced_as_such(
+    coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[tuple[dict[str, float], float]] = []
+
+    def cost(
+        usage: Mapping[str, float],
+        model: str,
+        *,
+        hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
+    ) -> float:
+        asked.append((dict(usage), hour))
+        return 1.0
+
+    def spent(self: Conversation) -> coganchor_agents.Usage:
+        return coganchor_agents.Usage({"cache_write": 100.0}, hour=40.0)
+
+    monkeypatch.setattr(prices, "cost", cost)
+    monkeypatch.setattr(Conversation, "spent", spent)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    await session.turn(TurnRequest("x", limits=Limits(cost=10.0)), Sink())
+
+    assert asked == [({"cache_write": 100.0}, 40.0)]
+
+
+async def test_one_hour_cache_writes_said_after_their_writes_are_priced_as_such(
+    coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[tuple[dict[str, float], float]] = []
+    held = [
+        coganchor_agents.Usage({"cache_write": 100.0}),
+        coganchor_agents.Usage({"cache_write": 100.0}, hour=40.0),
+    ]
+
+    def cost(
+        usage: Mapping[str, float],
+        model: str,
+        *,
+        hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
+    ) -> float:
+        asked.append((dict(usage), hour))
+        return 1.0
+
+    def spent(self: Conversation) -> coganchor_agents.Usage:
+        return held[0]
+
+    monkeypatch.setattr(prices, "cost", cost)
+    monkeypatch.setattr(Conversation, "spent", spent)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    await session.turn(TurnRequest("x", limits=Limits(cost=10.0)), Sink())
+    held.pop(0)
+    await session.turn(TurnRequest("y", limits=Limits(cost=10.0)), Sink())
+
+    # The writes priced when they were counted, and what they cost as one-hour writes when
+    # that was said, with no cache write of its own to hold it to.
+    assert asked == [({"cache_write": 100.0}, 0.0), ({}, 40.0)]
+
+
+async def test_long_context_requests_are_priced_at_their_tier_as_they_rise(
+    coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[tuple[dict[str, float], dict[str, float]]] = []
+    held = [
+        coganchor_agents.Usage({"input": 100.0}),
+        coganchor_agents.Usage({"input": 400.0}, tiered={"input>200": 300.0}),
+    ]
+
+    def cost(
+        usage: Mapping[str, float],
+        model: str,
+        *,
+        hour: float = 0.0,
+        tiered: Mapping[str, float] | None = None,
+    ) -> float:
+        asked.append((dict(usage), dict(tiered or {})))
+        return 1.0
+
+    def spent(self: Conversation) -> coganchor_agents.Usage:
+        return held[0]
+
+    monkeypatch.setattr(prices, "cost", cost)
+    monkeypatch.setattr(Conversation, "spent", spent)
+    session = await _session(open_agent(_spec()), tmp_path)
+
+    await session.turn(TurnRequest("x", limits=Limits(cost=10.0)), Sink())
+    held.pop(0)
+    await session.turn(TurnRequest("y", limits=Limits(cost=10.0)), Sink())
+
+    # Beside the kinds rather than among them, and only what rose of them.
+    assert asked == [({"input": 100.0}, {}), ({"input": 300.0}, {"input>200": 300.0})]
 
 
 async def test_a_turn_with_time_to_spare_is_taken(
@@ -1116,6 +1414,45 @@ async def test_a_flows_tools_are_offered_and_called_on_the_engines_loop(
     assert isinstance(noting, FakeTool)
 
 
+@pytest.mark.parametrize(
+    ("harness", "permission", "refused"),
+    [
+        (HarnessKind.GROK, Permission(granular=(read_only("."),)), True),
+        (HarnessKind.GROK, Permission(preset="read-only"), True),
+        (
+            HarnessKind.GROK,
+            Permission(preset="read-only", granular=(allow("."),)),
+            False,
+        ),
+        (HarnessKind.GROK, Permission(granular=(read_only("./docs"),)), False),
+        (HarnessKind.CLAUDE, Permission(granular=(read_only("."),)), False),
+    ],
+)
+async def test_grok_offering_a_flows_tools_takes_no_turn_that_may_not_write_its_workdir(
+    coganchor: type[CLI],
+    tmp_path: Path,
+    harness: HarnessKind,
+    permission: Permission,
+    refused: bool,
+) -> None:
+    async def note() -> str:
+        return "noted"
+
+    session = await open_agent(_spec(harness)).open(
+        _placed(tmp_path),
+        permission=permission,
+        skills=(),
+        hooks=HookTable(),
+        tools=(FakeTool("note", "Notes.", note),),
+    )
+
+    if refused:
+        with pytest.raises(HarnessUnrecoverable, match="may not write its workdir"):
+            await session.turn(TurnRequest("hi"), Sink())
+    else:
+        assert await session.turn(TurnRequest("hi"), Sink())
+
+
 async def test_a_flows_command_lines_are_shelved_and_run_on_the_engines_loop(
     coganchor: type[CLI], tmp_path: Path
 ) -> None:
@@ -1186,11 +1523,7 @@ def test_a_sessions_config_is_settled_for_its_permission_and_hooks(
         _config(config),
         HarnessKind.KIMI,
         CLI,  # pyright: ignore[reportArgumentType]
-        Permission(
-            online=PermissionKind.NONE,
-            user=PermissionKind.NONE,
-            system=PermissionKind.NONE,
-        ),
+        Permission(network=False, granular=(deny("/"), allow("."))),
         frozenset({HookKind.ASK_USER}),
         tellable=True,
         workdir="/w",
@@ -1199,6 +1532,42 @@ def test_a_sessions_config_is_settled_for_its_permission_and_hooks(
     assert said == dataclasses.replace(
         config, permission=harnessing.ASKING, web_search=False
     )
+
+
+@pytest.mark.parametrize(
+    ("machine", "drawn"),
+    [
+        (SHADOW, "/mirrors/w"),
+        (IN_PLACE, "/w/desk"),
+        (NATIVE, "/w/desk"),
+        (None, "/w/desk"),
+    ],
+    ids=["mirror", "in-place", "native", "here"],
+)
+def test_a_fence_is_drawn_around_the_work_where_the_cli_has_it(
+    coganchor: type[CLI], monkeypatch: pytest.MonkeyPatch, machine: Any, drawn: str
+) -> None:
+    """A CLI run here in a mirror of the work has the mirror, and nothing at the work's path."""
+    around: list[str] = []
+
+    def fenced(permission: Any, *, workdir: str, **_: Any) -> Any:
+        del permission
+        around.append(workdir)
+
+    monkeypatch.setattr(harnessing, "fenced", fenced)
+
+    settled(
+        _config(Config()),
+        HarnessKind.CLAUDE,
+        CLI,  # pyright: ignore[reportArgumentType]
+        Permission(),
+        frozenset(),
+        tellable=False,
+        machine=machine,
+        workdir="/w/desk",
+    )
+
+    assert around == [drawn]
 
 
 def test_a_fence_the_cli_cannot_be_held_to_is_unrecoverable(

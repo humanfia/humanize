@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -14,7 +15,7 @@ import pytest
 from hmz.flows import Budget, BudgetExceeded, FlowNotFound, Usage
 from hmz.runtime import Host, Refused, flowing
 from hmz.runtime.doing import hosting
-from hmz.runtime.doing.hosting import PROTOCOL, record
+from hmz.runtime.doing.hosting import record
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -257,11 +258,18 @@ class Outworlders:
 class Told:
     """One frontend's end: everything it has been told, in the order it was told."""
 
-    def __init__(self, host: Host, name: str = "", *, replay: bool = True) -> None:
+    def __init__(
+        self,
+        host: Host,
+        name: str = "",
+        *,
+        replay: bool = True,
+        since: tuple[str, int] | None = None,
+    ) -> None:
         self.seen: list[dict[str, Any]] = []
         self._landed = threading.Condition()
         self.host = host
-        self.client = host.attach(name, "sdk", self._told, replay=replay)
+        self.client = host.attach(name, "sdk", self._told, replay=replay, since=since)
 
     def _told(self, message: dict[str, Any]) -> None:
         with self._landed:
@@ -348,7 +356,8 @@ def test_a_frontend_is_told_who_it_is_then_the_run_then_how_things_stand(
     assert welcome["client"] == alice.client
     assert welcome["kind"] == "sdk"
     assert welcome["workspace"] == str(where.workspace)
-    assert welcome["protocol"] == PROTOCOL
+    assert welcome["protocol"] == "3.0.0"
+    assert welcome["epoch"] == host.epoch
     assert kinds[1] == "printed"
     assert seen[1]["text"] == "before anybody"
     assert kinds[-1] == "live"
@@ -374,6 +383,32 @@ def test_a_frontend_that_wants_no_replay_is_told_only_from_here(host: Host) -> N
     late.told("printed", text="after")
 
     assert [one["text"] for one in late.seen if one["type"] == "printed"] == ["after"]
+
+
+def test_a_frontend_attaching_again_since_a_record_is_told_only_those_after_it(
+    host: Host,
+) -> None:
+    host.printed("one")
+    host.printed("two")
+    first = Told(host, "first")
+    seq = first.told("printed", text="two")["seq"]
+    host.printed("three")
+
+    again = Told(host, "again", replay=False, since=(host.epoch, seq))
+    again.told("live")
+
+    assert [one["text"] for one in again.seen if one["type"] == "printed"] == ["three"]
+
+
+def test_a_frontend_attaching_again_to_another_life_of_its_host_is_told_everything(
+    host: Host,
+) -> None:
+    host.printed("one")
+
+    again = Told(host, "again", since=("another", 1))
+    again.told("live")
+
+    assert [one["text"] for one in again.seen if one["type"] == "printed"] == ["one"]
 
 
 def test_the_same_name_twice_is_told_apart(
@@ -1340,6 +1375,31 @@ def test_a_question_waiting_is_withdrawn_when_its_role_goes_away(
     alice.told("asked", run=1)
 
     alice.asks("afk", on=True)
+
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is None
+    assert alice.told("withdrawn", run=1)["why"] == "away"
+    run.released.set()
+
+
+def test_a_question_waiting_is_withdrawn_when_its_role_goes_away_and_back(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("still there?", ("y",)))
+    alice.told("asked", run=1)
+
+    # Back before the asking thread can look: it is woken, and only runs when this one lets
+    # it, which it does not until both have been said.
+    switching = sys.getswitchinterval()
+    sys.setswitchinterval(PATIENCE)
+    try:
+        alice.asks("afk", on=True)
+        alice.asks("afk", on=False)
+    finally:
+        sys.setswitchinterval(switching)
 
     assert asking.done.wait(PATIENCE)
     assert asking.answer is None

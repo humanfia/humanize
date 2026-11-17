@@ -105,6 +105,16 @@ def test_a_flow_brings_its_own_skills_in_order(tmp_path: Path) -> None:
     ]
 
 
+def test_a_skill_linked_from_out_of_the_flow_is_not_brought(tmp_path: Path) -> None:
+    flow = tmp_path / "flow"
+    outside = skill(tmp_path / "elsewhere", "secret")
+    inside = skill(flow / "kept", "shared")
+    (flow / SKILLS).mkdir()
+    (flow / SKILLS / "secret").symlink_to(outside)
+    (flow / SKILLS / "shared").symlink_to(inside)
+    assert [one.name for one in brought(flow)] == ["shared"]
+
+
 def test_a_flow_with_no_directory_brings_nothing_of_its_own(git: Git) -> None:
     del git
     assert brought("") == []

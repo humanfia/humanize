@@ -81,9 +81,8 @@ ends:
 - **`ssh build-box` works from here without a password prompt.** Humanize uses your own ssh
   config, agent and keys, and adds nothing. `ssh -o BatchMode=yes build-box true` is the test:
   it must exit 0.
-- **On the host:** Linux or macOS on any architecture, Python 3.12 or newer, and the project
-  already at the path you will name. You install nothing else there: Humanize brings what it
-  needs.
+- **On the host:** Linux or macOS on x86-64 or aarch64, and the project already at the path
+  you will name. You install nothing there, not even Python: Humanize brings what it needs.
 - **This machine is Linux** on x86-64 or aarch64.
 - **A flow with a role for another machine.** The flows Humanize ships and the official
   flowverse lists all work in the directory you start in, so none of them takes an `-e`. This page uses
@@ -409,7 +408,7 @@ account and the rest, open `/settings`, **Runtimes**, choose **Add a runtime…*
 | --- | --- |
 | `partition` | where the jobs go; blank for the cluster's default. The name follows it until you type one |
 | `account`, `qos`, `time`, `constraint` | what `sbatch` is told as `--account`, `--qos`, `--time` (`4:00:00`) and `--constraint`; each blank for the cluster's own |
-| `python` | a Python 3.12 or newer the nodes can run, where theirs is older (see below) |
+| `python` | leave it blank: it is kept so that runtimes saved before still load, and is not used |
 | `via` | `srun` or `tcp`: how the node is reached once the job runs (see below) |
 | `max jobs`, `cpus`, `memory` | what this runtime's jobs may hold at once, all told, across every run on this machine; blank for no limit |
 | `max wait` | seconds a job may wait in the queue for a node; past it the role [falls back](/reference/machines#falling-back), or the run stops saying why Slurm kept it waiting |
@@ -421,10 +420,9 @@ What to know before the first run:
 
 - **The workdir must be on a shared filesystem**, at the same path here and on every node a
   job may land on: nothing is copied. `~/…` is your home.
-- **The nodes need Python 3.12 or newer.** A cluster's nodes often have only an old system
-  Python (3.8 on the cluster this was tested on). Put one on the shared filesystem, for example
-  with `uv python install 3.12`, and name it in `python`:
-  `~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/bin/python3.12`.
+- **The nodes need no Python.** Humanize puts one program of its own on the node, built for
+  Linux on x86-64 or aarch64, whatever Python the cluster has. A runtime saved with a `python`
+  from before still loads; the value is not used.
 - **`via: srun` works on any cluster, but holds ports.** Each connection is an
   `srun --overlap` step of the job, and each live `srun` holds listening ports on this machine
   from the cluster's `SrunPortRange` (`scontrol show config | grep SrunPortRange`). A cluster
@@ -433,7 +431,7 @@ What to know before the first run:
 - **`via: tcp` holds none.** The job itself runs Humanize's serving half on its node, on a free
   port, and each connection presents a secret only this run knows; `srun` is used just to put
   Humanize on the node and read the port. It needs this machine to reach the nodes' ports, and
-  its traffic, authenticated but not encrypted, stays within the cluster's network.
+  its traffic is encrypted, and the secret is proved inside it rather than sent.
 - **A job waiting in the queue keeps no one else waiting.** Every role's environment is brought
   up at once, and other runs on this machine can submit while yours waits.
 
@@ -458,7 +456,7 @@ else is tried:
 | **The CLI runs** | on the host | here | on that runtime |
 | **Signed in as** | the host's CLI, or the `@account` sent there | this machine's CLI, or the `@account` | that machine's CLI |
 | **Sessions kept** | on the host | here, with the run | on that machine |
-| **Needs on the host** | Python 3.12, the CLI, and Landlock for a fenced role | Python 3.12 | Python 3.12 |
+| **Needs on the host** | the CLI, and Landlock for a fenced role | nothing | nothing |
 | **Refused when** | the CLI is not on the host, it cannot hold the role's fence, or a hook decides whether each tool runs | never | it cannot be reached, has no share left, or the role is fenced |
 
 Each role is settled once per machine, as its first turn there starts, and before the flow
@@ -568,11 +566,8 @@ Its other caveats:
 | Where | What it needs |
 | --- | --- |
 | **This machine** | Linux on x86-64 or aarch64, and the agent's CLI installed and signed in, unless the harness runs elsewhere |
-| **The host** | Linux or macOS on any architecture, Python 3.12 or newer, `ssh` access, and the project already at that path. The CLI too, for `env`, the default. |
+| **The host** | Linux or macOS on x86-64 or aarch64, `ssh` access, and the project already at that path. The CLI too, for `env`, the default. |
 | **The flow** | a role for the host, besides its workspace |
-
-A Mac gives a remote command no `python3` on its `PATH`, so Humanize also looks where Homebrew
-and the python.org installer put one, and says what it looked for if it finds none.
 
 ## Variations
 
@@ -605,7 +600,7 @@ status 2.
 | `onbox: 'workspace' is the workspace the run started in and cannot be set with -e` | Start `hmz` in that directory instead. |
 | `there is no ssh host build-box: …` | Nothing resolves the name. Check your ssh config. |
 | `could not reach build-box over ssh: …` | Run `ssh build-box` yourself and fix what it says. |
-| `could not reach build-box over ssh: … no python 3.12 or newer on this machine; …` | The host has no Python 3.12 or newer that Humanize can find. Install one there. |
+| `could not install Humanize on ssh://build-box: no coganchor is built for …` | The host is not Linux or macOS on x86-64 or aarch64. Pick another host. |
 | `the workdir /home/me/build/myproject is not there` | Put the project on the host at that path. |
 | `… 'box' needs 8 GPUs, and the environment given has 0` | The flow asks more of the host than it has. Pick another host. |
 | `… already contains files and is not a Humanize mirror …` | The same path here holds other files. See [the path is taken here too](#the-path-is-taken-here-too). |

@@ -8,17 +8,18 @@ For implementation:
 
 For tests:
 
-- MUST put a test in exactly one of `tests/unit/`, `tests/integration/`, `tests/system/`.
+- MUST put a Python test in exactly one of `tests/unit/`, `tests/integration/`, `tests/system/`.
+- The Rust crate's own tests live in `crates/coganchor`, in-file `#[cfg(test)]` modules and `crates/coganchor/tests/`, and run with `cargo test`; the three directories above are for Python tests.
 - `tests/unit/<package>/`, one directory per `src/hmz` top-level package: MUST test only that package's public names (no `_private` names or modules), MUST mock other `hmz` packages, MUST NOT start a subprocess or open a socket.
-- `tests/integration/test_<topic>_*.py`, flat: packages wired together against fakes this repo writes; CI runs each topic alone (`core`, `agents`, `tui`, `daemon`, `anchor`, `web`).
+- `tests/integration/test_<topic>_*.py`, flat: packages wired together against fakes this repo writes; CI runs each topic alone (`core`, `agents`, `tui`, `daemon`, `anchor`, `web`, `reach`, `relay`).
 - `uv run pytest` runs unit and integration, which is what CI runs.
 - `tests/system/` is OPTIONAL: real agents on real tasks, 5–30 minutes and real tokens per test, and in `tests/system/web/` the web page driven in real browsers (Playwright), never in CI. Unit and integration tests MUST NOT drive a browser. Do NOT run it on every change; run only the file that covers an end-to-end path you changed, e.g. `uv run pytest tests/system/test_flows_ralph.py`.
 
-For `specs/**/*.md`:
+For `protocol/*.md`:
 
-- MUST strictly adhere to specs at `specs/`.
-- MUST NOT modify any SPEC UNLESS explicitly instructed to do so.
-- MUST ensure code is minimal and any further simplification will lead to dissatisfaction of the spec.
+- MUST strictly adhere to the protocol at `protocol/`.
+- MUST NOT modify any protocol document UNLESS explicitly instructed to do so.
+- MUST ensure code is minimal and any further simplification will lead to dissatisfaction of the protocol.
 
 For version control:
 

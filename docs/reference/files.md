@@ -43,11 +43,10 @@ collide, e.g. `/a/b.c` and `/a/b-c`). Timestamps written into files are UTC,
 
 ```
 H/
-├── settings.yaml                       everything /settings sets: workspaces, machine settings, fallbacks, added CLIs, runtimes
+├── settings.yaml                       everything /settings sets: workspaces, machine settings, nous, added CLIs, runtimes
 ├── .settings.yaml.lock                 held by each writer of settings.yaml
 ├── history.jsonl                       lines typed at the TUI prompt
-├── server.json                         the running hmz server: pid, mode, port, version
-├── easytier/<version>/                 easytier-core, downloaded and checked once
+├── web-port                            the port the last hmz web listened on, its --port default
 ├── providers/<cli>/<name>/             accounts
 │   ├── provider.json
 │   └── home/ user/ config/             credential files the CLI writes
@@ -82,7 +81,7 @@ M/
 ### `H/settings.yaml`
 
 [Settings](/reference/settings) is the schema. Written through `hmz.coganchor.settings`: by
-`hmz.runtime.settings.Settings`, and by the fallbacks, added CLIs and runtimes.
+`hmz.runtime.settings.Settings`, and by the nous, added CLIs and runtimes.
 
 | Property | Value |
 | --- | --- |
@@ -93,20 +92,11 @@ M/
 | Write failure, or unreadable at a write | not written over; ignored by `Settings`, `OSError` for a fallback, added CLI or runtime |
 | Removed | never; `forget` removes one workspace's entry |
 
-### `H/server.json` {#h-server-json}
-
-| Property | Value |
-| --- | --- |
-| Writer | [`hmz server start`](/reference/cli#hmz-server), once the server is up; removed by `hmz server stop` |
-| Content | `{"pid": <int>, "mode": "p2p", "port": <int>, "version": "<hmz version>"}`, mode `0600`, written by atomic replacement; never the secret |
-| Stale | a `pid` not running reads as no server |
-| Safe to delete | while no server runs |
-
 ### `H/easytier/<version>/` {#h-easytier}
 
 | Property | Value |
 | --- | --- |
-| Writer | `hmz server`, and `hmz web` reaching a P2P daemon, when `easytier-core` is not there yet: the official GitHub release for this OS and architecture (macOS arm64 and x86_64, Linux x86_64 and aarch64, Windows x86_64), checked against the SHA-256 Humanize pins |
+| Writer | a daemon listening on `easytier:<name>`, and every client reaching a P2P daemon, when `easytier-core` is not there yet: the official GitHub release for this OS and architecture (macOS arm64 and x86_64, Linux x86_64 and aarch64, Windows x86_64), checked against the SHA-256 Humanize pins |
 | Read | every later start; [`HUMANIZE_EASYTIER`](/reference/environment#humanize-easytier) names one to use instead |
 | Safe to delete | while nothing uses EasyTier; downloaded again when next needed |
 
@@ -125,7 +115,8 @@ M/
 ```json
 {"source": "https://openllmprices.com/data/prices.json", "etag": "…", "fetched": 1790000000.0,
  "date": "…", "models": {"<id>": {"provider": "…", "name": "…",
-   "per_million": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}}}}
+   "per_million": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75},
+   "tiers": {"200000": {"input": 6.0, "output": 22.5, "cache_read": 0.6, "cache_write": 7.5}}}}}
 ```
 
 Refreshed when older than 24 h, with a conditional GET (a `304` only touches the mtime), from
@@ -137,6 +128,15 @@ renamed. Each fetch first deletes any `.prices.json.*.new` or `prices.json.*` (t
 naming) more than 10 min old, left by a process that exited mid-write. A list that gives any
 price that is not a finite number is never written, and while it is what the source says, or
 what is kept, every run is refused before its first turn (`hmz exec` exits 2).
+`per_million` is US dollars: a price the list gives in yuan is converted at the list's own
+`exchangeRate`, and one in a currency with no usable rate is left out. Where the list sells a
+model two cache writes, `cache_write` is the five-minute one and `per_million` also has
+`cache_write_1h`, the one-hour one, whichever order the list gives them in. `per_million` is
+the standard price; where the list prices a model higher past a context length
+(`contextRange` `input > 272k tokens`, `32k < input <= 128k tokens`, `input >= 32k tokens`,
+…), `tiers` maps each line, in tokens a request's prompt must exceed (`>= 32k` is `31999`), to
+that tier's prices in the same shape. A model with no such tier has no `tiers` key, and a list
+kept before tiers were read has none until the source changes.
 
 ### `M/releases.json` {#h-releases-json}
 
@@ -146,8 +146,8 @@ what is kept, every run is refused before its first turn (`hmz exec` exits 2).
 
 The newest release of `hmz` PyPI lists, from
 [`HUMANIZE_RELEASES`](/reference/environment#humanize-releases), 10 s timeout. Asked again
-by the TUI and `hmz web` as they open, in the background, when older than 24 h, and by every
-[`hmz update`](/reference/cli#hmz-update). Written whole and renamed. Safe to delete.
+by the TUI as it opens and by the daemon as it starts and every 24 h it runs, in the
+background, when older than 24 h, and by every [`hmz update`](/reference/cli#hmz-update). Written whole and renamed. Safe to delete.
 
 ### Model catalogues
 
@@ -306,7 +306,7 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | --- | --- | --- |
 | `epic.jsonl` | appended per event, open/write/close under a thread lock; no fsync | [events](/reference/tracing#epic-jsonl) |
 | `epic.<flow>_<hex6>.jsonl` | one per flow call | [records](/reference/tracing#records-of-called-flows) |
-| `resume.jsonl` | resumable runs only; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
+| `resume.jsonl` | resumable runs only; a run picked up starts from a copy of its origin's, made before its `began` is written -- a copy that fails leaves no epic, and the origin to be picked up again; compacted via `.resume.jsonl.<random>.new` + fsync + rename, then appended `O_APPEND` | [journal](/reference/flows#journal) |
 | `profile.jsonl` | runs whose environment was profiled | [profile](/reference/tracing#profile-jsonl) |
 | `flow-profile.jsonl` | runs whose flow was profiled | [flow profile](/reference/tracing#flow-profile-jsonl) |
 | `host.log` | runs held by a [host process](/reference/daemon#files) only; appended (`0600`), never rotated | that process's descriptors 1 and 2 while the run is the one it holds: output of the CLIs the run started, and the carrier's failures |
@@ -337,7 +337,6 @@ Every path in this section is safe to delete while Humanize is not running.
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock`, `humanize-clis-*/cli.sock` (under `/tmp` instead where `$TMPDIR` is too long for the socket's path to fit in 103 bytes) | sockets a CLI reports hooks, tool calls and preload events on, and a flow's command lines are run through | with the session |
 | `$TMPDIR/hmz-dsh-*/humanize.patch.yml` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>/` | checkouts of [`git+` refs](/reference/flows#refs), and of the releases [installed](/reference/flows#installing): a full clone with `--no-checkout` into `.<uuid>`, checked out detached at `<sha>`, renamed into place; one per commit | never; cloned again when missing |
-| `$TMPDIR/humanize-<uid>/` (`0700`, refused if anyone else can write it): `humanize-<digest>.pyz` (`0700`), `<stamp>.digest` (`0600`) | the Humanize bundle copied to other machines, one per source tree it was built from, and which tree built which | any `humanize-*` or `*.digest` in it untouched for 14 days, when another bundle is built; a run touches the one it uses at least hourly |
 | `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>/` | clones of skill repositories a role of a flow that was never installed names by URL ([Skills](/reference/flows#the-skills-a-flow-brings)), fetched again each run that names them | kept |
 | `$TMPDIR/humanize-<uid>/daemon.sock`, `daemon.json` (`0600`) | the [daemon](/reference/daemon#files) of this machine and user, which every workspace's runs are reached through: its socket, and `{"pid": int, "started": "%Y-%m-%dT%H:%M:%SZ", "kind": "daemon", "protocol": int}` via `.daemon.json.<random>.new` (`mkstemp`), fsync and rename | when the daemon closes |
 | `$TMPDIR/humanize-<uid>/daemon.lock` (`0600`) | `flock(LOCK_EX\|LOCK_NB)` for the daemon's life; released by the kernel on exit. Deleting it under a running daemon allows a second daemon | kept |
@@ -352,7 +351,7 @@ Every path in this section is safe to delete while Humanize is not running.
 
 | Path | Is |
 | --- | --- |
-| `$HOME/.cache/humanize/humanize-<digest>.pyz` | the Humanize bundle on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container, `/tmp/humanize-<UID>/…`, `0700`, for a docker target naming `user=UID`); checked against `<digest>` on arrival and when already there, written to `f.<pid>` and moved into place; every run line touches the one it runs; other `humanize-*.pyz*` untouched for 14 days are removed by the next install |
+| `$HOME/.cache/humanize/coganchor-<digest16>` (`0700`) | [`coganchor`](/reference/remote-execution#bootstrapping-the-serving-half), built for the machine's `uname -sm`, on an `ssh` machine or a Slurm job's node (`/tmp/humanize/…` in a container, `/tmp/humanize-<UID>/…`, `0700`, for a docker target naming `user=UID`); `<digest16>` the first 16 hex digits of its SHA-256; kept when already there, else written to `f.<pid>` and moved into place; every run line touches the one it runs; other `coganchor-*`, and `humanize-*.pyz` an earlier Humanize left, untouched for 14 days are removed by the next install |
 | `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container; `/tmp/humanize-mirrors-<UID>/<sha256[:16]>/` for a docker target naming `user=UID` | a remote harness's mirror of the workspace |
 | `${HUMANIZE_HOME:-$HOME/.hmz}/envs/` | as [above](#state-envs) |
 | `/tmp/humanize-slurm-<job>.out` on a Slurm job's node | what a `via: tcp` job's serving half says on its way up, which its port is read from; left to the node |
@@ -376,5 +375,7 @@ your own; `~/.gemini/antigravity-cli/agents/` is never written.
 Nothing prunes `epics/`, worktrees under
 `envs/`, snapshot refs, `M/compiled/`, `M/docker-ssh/` or `history.jsonl`.
 Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
-Bundles, here and on other machines, go once nothing has used them for 14 days, and so do the
-`$TMPDIR/humanize-<uid>.pyz` and `.stamp` an earlier Humanize shared between checkouts.
+`coganchor` on other machines goes once nothing has used it for 14 days. Nothing of it is kept
+here: the builds are in the installed package, under `hmz/coganchor/bin/<os>-<arch>/`. The
+`humanize-*.pyz` and `*.digest` an earlier Humanize left in `$TMPDIR/humanize-<uid>/` can be
+deleted by hand.

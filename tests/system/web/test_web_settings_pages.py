@@ -1,15 +1,13 @@
-"""`hmz web`'s Daemons and Notifications settings pages, driven in a browser.
+"""`hmz web`'s Daemons, Notifications, Usage and Accounts settings pages, driven in a browser.
 
-The page is the real one, served in the test's own process; what it asks of the daemons and the
-notification settings is answered by fakes routed in the browser, which keep what is written to
-them, so that what the page sent is what is checked. Each test runs in Chromium and in WebKit.
+The page is the real one, served in the test's own process. The daemons and the notification
+settings are this browser's own, kept in its IndexedDB, and read back from there; what the page
+asks of Local goes over `/rpc`, where a test holds a call back, or answers it itself, to see
+what the page shows meanwhile. Each test runs in Chromium and in WebKit.
 """
 
 from __future__ import annotations
 
-import json
-import re
-import urllib.parse
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -17,177 +15,95 @@ from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
 from tests.integration.doubles_web import served
-from tests.system.web.doubles_browser import ENGINES, go, opened
+from tests.system.web.doubles_browser import ENGINES, Wire, go, kept, opened
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from playwright.sync_api import Page, Request, Route
+    from playwright.sync_api import Page
 
-pytestmark = pytest.mark.parametrize("engine", ENGINES)
+pytestmark = [
+    pytest.mark.parametrize("engine", ENGINES),
+    pytest.mark.usefixtures("daemon"),
+]
+
+#: A daemon kept, pinned, that nothing answers where it is reached.
+_BOX = {"name": "box", "id": "a" * 52, "routes": ["tcp://127.0.0.1:9"]}
 
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """The stand-in `claude` alone on PATH, and a project to serve."""
-    return install(tmp_path, monkeypatch)
+    project = install(tmp_path, monkeypatch)
+    # The home it gives the CLI is this machine's home, which the daemon's own settings are of.
+    (tmp_path / "home").mkdir(exist_ok=True)
+    return project
 
 
-class _Daemons:
-    """The daemon registry, as the page asks it: kept in a list, and every write recorded."""
-
-    def __init__(self) -> None:
-        self.daemons: list[dict[str, Any]] = [
-            {
-                "name": "box",
-                "host": "box.example",
-                "user": "me",
-                "port": 22,
-                "state": "up",
-            }
-        ]
-        self.hosts = [{"alias": "gpu", "host": "gpu.example"}, {"alias": "cpu"}]
-        self.writes: list[tuple[str, Any]] = []
-
-    def listed(self) -> dict[str, Any]:
-        return {"daemons": [{"name": "local", "state": "up"}, *self.daemons]}
-
-    def answer(self, route: Route) -> None:
-        path = urllib.parse.urlsplit(route.request.url).path
-        body = json.loads(route.request.post_data or "{}")
-        if route.request.method == "POST":
-            self.writes.append((path, body))
-        if path == "/api/daemons/hosts":
-            said: Any = {"hosts": self.hosts}
-        elif path == "/api/daemons/import":
-            self.daemons += [
-                {"name": one, "via": "ssh", "alias": one, "host": ""}
-                for one in body["aliases"]
-            ]
-            self.hosts = [
-                one for one in self.hosts if one["alias"] not in body["aliases"]
-            ]
-            said = self.listed()
-        elif path == "/api/daemons/remove":
-            self.daemons = [one for one in self.daemons if one["name"] != body["name"]]
-            said = self.listed()
-        elif path.endswith("/connect"):
-            route.fulfill(status=409, json={"error": "it did not answer"})
-            return
-        elif route.request.method == "POST":
-            self.daemons = [one for one in self.daemons if one["name"] != body["name"]]
-            self.daemons.append({"name": body["name"], **body["fields"]})
-            said = self.listed()
-        else:
-            said = self.listed()
-        route.fulfill(json=said)
-
-
-def _daemons(page: Page) -> _Daemons:
-    fake = _Daemons()
-    page.route("**/api/daemons**", fake.answer)
-    return fake
+def _kept(page: Page) -> list[dict[str, Any]]:
+    """Every remote daemon this browser keeps."""
+    return page.evaluate("async () => (await import('/api.js')).daemons.list()")
 
 
 def test_a_daemon_is_added_a_part_at_a_time(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        fake = _daemons(page)
         go(page, "/settings/daemons")
         rows = page.locator("[data-hmz=daemon]")
-        expect(rows).to_have_count(2)
+        expect(rows).to_have_count(1)
         expect(rows.first).to_contain_text("Local")
-        expect(rows.first.get_by_role("button")).to_have_count(0)
+        expect(rows.first.get_by_role("button", name="Remove")).to_have_count(0)
         form = page.locator("[data-hmz=write-daemon]")
         form.get_by_label("Name").fill("lab")
-        form.get_by_role("button", name="hmz-stored").click()
-        form.get_by_label("Host").fill("lab.example")
-        form.get_by_label("User").fill("ann")
-        form.get_by_label("Port", exact=True).fill("2222")
+        form.locator("[data-hmz=daemon-kind]").get_by_role("button", name="SSH").click()
+        form.get_by_role("button", name="Custom").click()
+        form.locator("#daemon-host").fill("lab.example")
+        form.locator("#daemon-user").fill("ann")
+        form.locator("#daemon-port").fill("2222")
         form.locator("#daemon-identity").fill("~/.ssh/lab")
-        form.get_by_label("Proxy jump").fill("me@jump")
-        form.get_by_role("button", name="Add", exact=True).first.click()
-        form.locator(".pair-key").fill("ServerAliveInterval")
-        form.locator(".pair-value").fill("30")
+        form.locator("#daemon-jump").fill("me@jump")
+        options = form.locator(".list-editor", has=page.locator("#daemon-options"))
+        options.get_by_role("button", name="Add", exact=True).click()
+        options.locator(".pair-key").fill("ServerAliveInterval")
+        options.locator(".pair-value").fill("30")
         form.get_by_role("button", name="Add", exact=True).last.click()
-        expect(rows).to_have_count(3)
-        expect(page.locator("[data-hmz=daemon][data-name=lab]")).to_contain_text(
-            "ann@lab.example:2222"
-        )
-        assert fake.writes[-1] == (
-            "/api/daemons",
-            {
-                "name": "lab",
-                "fields": {
-                    "via": "ssh",
-                    "host": "lab.example",
-                    "user": "ann",
-                    "port": 2222,
-                    "identity_file": "~/.ssh/lab",
-                    "proxy_jump": "me@jump",
-                    "options": [["ServerAliveInterval", "30"]],
-                },
-                "replace": False,
-            },
-        )
-
-
-def test_hosts_are_imported_from_the_ssh_config(project: Path, engine: str) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        fake = _daemons(page)
-        go(page, "/settings/daemons")
-        importing = page.locator("[data-hmz=import-daemons]")
-        importing.get_by_role("button", name="Read SSH config").click()
-        importing.locator("[data-alias=gpu]").check()
-        importing.get_by_role("button", name="Import").click()
-        expect(page.locator("[data-hmz=daemon][data-name=gpu]")).to_be_visible()
-        assert fake.writes[-1] == ("/api/daemons/import", {"aliases": ["gpu"]})
+        expect(rows).to_have_count(2)
+        row = page.locator("[data-hmz=daemon][data-name=lab]")
+        expect(row).to_contain_text("ann@lab.example:2222")
+        ((saved),) = _kept(page)
+        assert saved["name"] == "lab"
+        assert saved["routes"] == [
+            (
+                "stdio:ssh://ann@lab.example:2222?identity=~%2F.ssh%2Flab&jump=me%40jump"
+                "&option=ServerAliveInterval%3D30"
+            )
+        ]
 
 
 def test_a_daemon_is_removed_once_confirmed(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        fake = _daemons(page)
+        kept(page, _BOX)
         go(page, "/settings/daemons")
         row = page.locator("[data-hmz=daemon][data-name=box]")
         row.get_by_role("button", name="Remove").click()
-        assert not fake.writes
+        assert _kept(page) == [_BOX]
         row.get_by_role("button", name="Cancel").click()
         row.get_by_role("button", name="Remove").click()
         row.get_by_role("button", name="Remove").click()
         expect(row).to_have_count(0)
-        assert fake.writes == [("/api/daemons/remove", {"name": "box"})]
+        assert _kept(page) == []
 
 
 def test_a_refused_connection_is_said_where_it_happened(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _daemons(page)
+        kept(page, _BOX)
         go(page, "/settings/daemons")
         row = page.locator("[data-hmz=daemon][data-name=box]")
         row.get_by_role("button", name="Connect").click()
-        expect(row.locator(".error")).to_have_text("it did not answer")
-
-
-def test_without_the_endpoints_the_pages_say_unavailable(
-    project: Path, engine: str
-) -> None:
-    def older(page: Page) -> None:
-        # A server of an older Humanize, which has neither.
-        page.route(
-            re.compile(r".*/api/(daemons|notifications)(/.*|\?.*)?$"),
-            lambda route: route.fulfill(status=404, json={"error": "Not found."}),
-        )
-
-    with served() as site, opened(site, engine=engine, routed=older) as page:
-        for name in ("daemons", "notifications"):
-            go(page, f"/settings/{name}")
-            body = page.locator(f"[data-hmz=settings-{name}]")
-            expect(body.locator(".empty")).to_contain_text("Unavailable")
-            expect(body.locator(".error")).to_have_count(0)
-
-
-def _posted(request: Request) -> bool:
-    return request.method == "POST"
+        state = row.locator("[data-hmz=daemon-state]")
+        expect(state).to_contain_text("failed")
+        expect(state.locator(".daemon-detail")).to_contain_text("refused")
 
 
 #: The browser's notifications, as a page that was never asked sees them, granting when asked.
@@ -202,61 +118,44 @@ window.Notification.requestPermission = async () => {
 """
 
 
+def _preferences(page: Page) -> Any:
+    """The notification settings this browser keeps."""
+    return page.evaluate(
+        "async () => (await import('/notifications.js')).kept.preferences()"
+    )
+
+
 def test_notification_kinds_are_saved_as_they_are_toggled(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine, init=_NOTIFICATION) as page:
-        saved: list[Any] = []
-        settings = {"kinds": {"done": True, "failed": False}, "system": True}
-
-        def answer(route: Route) -> None:
-            if route.request.method == "POST":
-                saved.append(json.loads(route.request.post_data or "{}"))
-                settings.update(saved[-1])
-            route.fulfill(json=settings)
-
-        page.route("**/api/notifications/settings", answer)
+        page.evaluate(
+            """async () => (await import('/notifications.js')).kept.prefer(
+                {kinds: {done: true, failed: false}, system: true})"""
+        )
         go(page, "/settings/notifications")
         expect(page.locator("[data-hmz=notify-failed]")).not_to_be_checked()
         expect(page.locator("[data-hmz=notify-asked]")).to_be_checked()
         for label in ("Done", "Failed", "Stopped", "Questions", "Chat turns"):
             expect(page.get_by_label(label, exact=True)).to_be_visible()
-        with page.expect_request(_posted):
-            page.get_by_label("Questions", exact=True).uncheck()
-        expect(page.locator("[data-hmz=notifications-said]")).to_have_text("Saved")
-        with page.expect_request(_posted):
-            page.locator("[data-hmz=notify-system]").uncheck()
-        expect(page.locator("[data-hmz=notifications-said]")).to_have_text("Saved")
-        assert saved == [
-            {
-                "kinds": {
-                    "done": True,
-                    "failed": False,
-                    "stopped": True,
-                    "asked": False,
-                    "listening": True,
-                },
-                "system": True,
-            },
-            {
-                "kinds": {
-                    "done": True,
-                    "failed": False,
-                    "stopped": True,
-                    "asked": False,
-                    "listening": True,
-                },
-                "system": False,
-            },
-        ]
+        page.get_by_label("Questions", exact=True).uncheck()
+        said = page.locator("[data-hmz=notifications-said]")
+        expect(said).to_have_text("Saved")
+        kinds = {
+            "done": True,
+            "failed": False,
+            "stopped": True,
+            "asked": False,
+            "listening": True,
+        }
+        assert _preferences(page) == {"kinds": kinds, "system": True}
+        page.locator("[data-hmz=notify-system]").uncheck()
+        expect(said).to_have_text("Saved")
+        assert _preferences(page) == {"kinds": kinds, "system": False}
 
 
 def test_notifications_are_allowed_from_a_click(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine, init=_NOTIFICATION) as page:
-        page.route(
-            "**/api/notifications/settings",
-            lambda route: route.fulfill(json={"kinds": {}, "system": True}),
-        )
         go(page, "/settings/notifications")
         state = page.locator("[data-hmz=permission-state]")
         expect(state).to_have_text("Not asked")
@@ -266,52 +165,31 @@ def test_notifications_are_allowed_from_a_click(project: Path, engine: str) -> N
         assert page.evaluate("window.__asked") == 1
 
 
-class _Held:
-    """Requests kept from their answer until let go, so what the page shows meanwhile is seen."""
-
-    def __init__(self, page: Page) -> None:
-        self.page = page
-        self.routes: list[Route] = []
-
-    def __call__(self, route: Route) -> None:
-        self.routes.append(route)
-
-    def go(self) -> None:
-        for _ in range(200):
-            if self.routes:
-                break
-            self.page.wait_for_timeout(50)
-        assert self.routes, "the page asked for nothing"
-        self.routes.pop(0).fallback()
-
-
 def test_what_is_being_read_says_so_until_it_is_answered(
     project: Path, engine: str
 ) -> None:
     (project.parent / "home" / "keys").mkdir(parents=True)
-    with served() as site, opened(site, engine=engine) as page:
-        _daemons(page)
-        held = _Held(page)
-        page.route("**/api/daemons", held)
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/settings/daemons")
-        listing = page.locator("[data-hmz=daemons]")
-        expect(listing.locator(".loading")).to_have_text("Reading the daemons…")
-        held.go()
-        expect(page.locator("[data-hmz=daemon]")).to_have_count(2)
-        page.unroute("**/api/daemons", held)
+        expect(page.locator("[data-hmz=daemon]")).to_have_count(1)
 
-        page.route("**/api/files?**", held)
+        wire.holds("paths.list")
         form = page.locator("[data-hmz=write-daemon]")
-        form.get_by_role("button", name="hmz-stored").click()
+        form.locator("[data-hmz=daemon-kind]").get_by_role("button", name="SSH").click()
+        form.get_by_role("button", name="Custom").click()
         form.locator("[data-hmz=path-browse]").click()
         panel = page.get_by_role("dialog", name="Choose Identity file")
         expect(panel.locator(".loading")).to_have_text("Reading…")
-        held.go()
+        wire.waits(page)
+        wire.lets_through()
         expect(panel.locator(".path-list")).to_be_visible()
+        wire.holds("paths.list")
         panel.locator(".path-entry", has_text="keys").click()
         expect(panel).to_have_attribute("aria-busy", "true")
         expect(panel.locator(".crumb").last).to_have_text("~")
-        held.go()
+        wire.waits(page)
+        wire.lets_through()
         expect(panel).not_to_have_attribute("aria-busy", "true")
         expect(panel.locator(".crumb").last).to_have_text("keys")
 
@@ -319,16 +197,18 @@ def test_what_is_being_read_says_so_until_it_is_answered(
 def test_a_range_shown_stays_busy_until_the_next_is_read(
     project: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/settings/usage")
         usage = page.locator("[data-hmz=usage]")
         expect(usage.locator(".panel").first).to_be_visible()
-        held = _Held(page)
-        page.route(re.compile(r".*/api/usage\?days=7\b.*"), held)
+        wire.holds("runs.usage")
         page.get_by_role("button", name="7d").click()
         expect(usage).to_have_attribute("aria-busy", "true")
         expect(usage.locator(".panel").first).to_be_visible()
-        held.go()
+        wire.waits(page)
+        assert wire.params("runs.usage")[-1]["days"] == 7
+        wire.lets_through()
         expect(usage).not_to_have_attribute("aria-busy", "true")
 
 
@@ -356,27 +236,15 @@ def test_an_account_saved_or_made_says_so_until_it_is_answered(
         "backends": [{"cli": "claude", "ways": [way], "wants": ""}],
         "gateway": "LiteLLM",
     }
-    waiting: list[Route] = []
-
-    def answer(route: Route) -> None:
-        # What is saved or made is held; what the page reads beside it is answered at once.
-        if re.search(r"/api/accounts(/correct)?$", route.request.url) and (
-            route.request.method == "POST"
-        ):
-            waiting.append(route)
-        else:
-            route.fulfill(json=accounts)
-
-    def through() -> None:
-        for _ in range(200):
-            if waiting:
-                break
-            page.wait_for_timeout(50)
-        assert waiting, "the page asked for nothing"
-        waiting.pop(0).fulfill(json=accounts)
-
-    with served() as site, opened(site, engine=engine) as page:
-        page.route("**/api/accounts**", answer)
+    # What is saved or made is held; what the page reads beside it is answered at once.
+    wire = Wire(
+        faked={
+            "accounts.list": lambda _: {"result": accounts},
+            "accounts.correct": lambda _: None,
+            "accounts.create": lambda _: None,
+        }
+    )
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/settings/accounts")
         page.locator("[data-hmz=account]").get_by_role("button", name="Edit").click()
         correct = page.locator("[data-hmz=correct-account]")
@@ -384,7 +252,7 @@ def test_an_account_saved_or_made_says_so_until_it_is_answered(
         correct.get_by_role("button", name="Save").click()
         saving = correct.get_by_role("button", name="Saving…")
         expect(saving).to_be_disabled()
-        through()
+        wire.answer(page, "accounts.correct", accounts)
         expect(saving).to_have_count(0)
 
         made = page.locator("[data-hmz=make-account]")
@@ -394,5 +262,5 @@ def test_an_account_saved_or_made_says_so_until_it_is_answered(
         made.get_by_role("button", name="Create").click()
         creating = made.get_by_role("button", name="Creating…")
         expect(creating).to_be_disabled()
-        through()
+        wire.answer(page, "accounts.create", accounts)
         expect(made.get_by_role("button", name="Create")).to_be_enabled()

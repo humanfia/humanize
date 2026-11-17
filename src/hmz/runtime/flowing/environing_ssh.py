@@ -1,8 +1,9 @@
 """A machine reached over ssh, as an environment driver does its work on it.
 
 Over coganchor's own road rather than one of its own: :func:`hmz.coganchor.transport.connect`
-ships coganchor's serving half to the host -- a zipapp, cached there by its digest, run by
-whatever Python 3.12 or newer the host has -- and starts it with `ssh`, and a
+ships coganchor's serving half to the host -- `coganchor`, built for the host's OS and
+architecture and cached there by its digest, which needs no Python there -- and starts it with
+`ssh`, and a
 :class:`~hmz.coganchor.remote.RemoteClient` speaks to it. That half runs each command in a
 process group of its own and sends its stdout and stderr apart, kills the group when asked,
 and reads and writes files -- a write atomically, making the directories above it -- which
@@ -204,7 +205,7 @@ def _opened(
     from hmz.coganchor.remote import RemoteClient
 
     try:
-        link = transport.connect(transport.Target.parse(target), ["/"])
+        link = transport.connect(transport.Target.parse(target), ["/"], token)
     except ValueError as error:
         raise EnvUnavailable(f"{provider!r} is not an ssh host: {error}") from error
     except OSError as error:

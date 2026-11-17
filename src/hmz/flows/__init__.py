@@ -46,6 +46,8 @@ from hmz.coganchor.faking import FakeCli, FakeCommand, FakeTool
 
 from .agents import (
     HARNESS_AGENTS,
+    PRESETS,
+    Access,
     Agent,
     AgentCollection,
     AntigravityAgent,
@@ -69,15 +71,18 @@ from .agents import (
     OpenCodeAgent,
     Outworlder,
     Permission,
-    PermissionKind,
     PermissionRequestHookAgentMixin,
     PiAgent,
     QwenCodeAgent,
+    Rule,
     Session,
     SteeringAgentMixin,
     SubagentStartHookAgentMixin,
     SubagentStopHookAgentMixin,
     Usage,
+    allow,
+    deny,
+    read_only,
 )
 from .defining import Flow, FlowContext, FlowFn, FlowParams, FlowState, flow, load
 from .envs import (
@@ -180,6 +185,8 @@ from .hooks import (
 __all__ = [
     "HARNESS_AGENTS",
     "HOOK_TYPES",
+    "PRESETS",
+    "Access",
     "Agent",
     "AgentCollection",
     "AntigravityAgent",
@@ -269,7 +276,6 @@ __all__ = [
     "OutworlderRunHookResult",
     "ParamsError",
     "Permission",
-    "PermissionKind",
     "PermissionRequestHookAgentMixin",
     "PermissionRequestHookParams",
     "PermissionRequestHookResult",
@@ -282,6 +288,7 @@ __all__ = [
     "ResourceUnmet",
     "RewindError",
     "RewindableEnvMixin",
+    "Rule",
     "ScratchDirEnvMixin",
     "ScratchError",
     "SequenceNotStr",
@@ -309,6 +316,9 @@ __all__ = [
     "UserPromptSubmitHookParams",
     "UserPromptSubmitHookResult",
     "WorktreeError",
+    "allow",
+    "deny",
     "flow",
     "load",
+    "read_only",
 ]

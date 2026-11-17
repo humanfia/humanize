@@ -8,7 +8,7 @@
 // `<agent>/<n>`, the n-th its agent opened; a run written down names its sessions the same
 // way, in the order they were opened, so an address to a session stays one as its run ends.
 
-import { daemon, get, poll } from './api.js'
+import { call, daemon, poll } from './api.js'
 import { flowName, lane, lasting } from './dom.js'
 import { current, follow, placed } from './held.js'
 import { keep, kept } from './shell.js'
@@ -54,7 +54,7 @@ export function watch(name, where, told) {
     // Named by the host once it writes one: the epic going there.
     if (!name && run && run.live && standing.epic && standing.epic !== named) {
       named = standing.epic
-      get(`/api/runs/${encodeURIComponent(named)}`).then((found) => {
+      call('runs.get', { name: named }).then((found) => {
         if (named !== found.name) return
         seen.detail = found
         tell()
@@ -68,7 +68,7 @@ export function watch(name, where, told) {
     told(seen)
   }
   const stop = name
-    ? poll(`/api/runs/${encodeURIComponent(name)}`, 4000, (data, error) => {
+    ? poll('runs.get', { name }, 4000, (data, error) => {
         seen.error = error
         if (data) seen.detail = data
         tell()

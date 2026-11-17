@@ -17,6 +17,7 @@ from hmz.coganchor.agents.event import Event
 if TYPE_CHECKING:
     import os
     from collections.abc import Callable, Iterable, Iterator
+    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -116,3 +117,19 @@ def heard(agent: AgentBase) -> list[Event]:
     said: list[Event] = []
     agent.watch(lambda _agent, _session, event: said.append(event))
     return said
+
+
+class Run:
+    """What a run is to an agent it drives: where it keeps sessions, and what it writes down."""
+
+    def __init__(self, keeps: Path) -> None:
+        self.at = keeps
+        self.said: list[tuple[str, str]] = []
+
+    @property
+    def keeps(self) -> Path:
+        return self.at
+
+    def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
+        del agent
+        self.said.append((session, parent))

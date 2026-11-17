@@ -79,8 +79,8 @@ const MOVED_AGAIN: Record<string, string> = {
   'user/status': 'user/monitor',
   'guide/providers': 'user/settings#accounts',
   'user/providers': 'user/settings#accounts',
-  'guide/fallback': 'user/settings#fallback',
-  'user/fallback': 'user/settings#fallback',
+  'guide/fallback': 'user/settings#nous',
+  'user/fallback': 'user/settings#nous',
   'guide/details': 'user/settings#details',
   'user/details': 'user/settings#details',
   // The two app pages are one, Humanize Desktop, and how to install it is on Installation.
@@ -297,7 +297,7 @@ export default defineConfig({
             { text: 'Settings (/settings)', link: '/user/settings' },
             { text: 'Accounts', link: '/user/settings#accounts' },
             { text: 'Efforts', link: '/user/efforts' },
-            { text: 'Falling back', link: '/user/settings#fallback' },
+            { text: 'Nous', link: '/user/settings#nous' },
             { text: 'Cost and rate', link: '/user/tally' },
             { text: 'Permissions', link: '/user/permissions' },
             { text: 'Skills', link: '/user/skills' },
@@ -311,6 +311,7 @@ export default defineConfig({
             { text: 'Remote execution', link: '/user/remote-execution' },
             { text: 'Where the agent runs (harness setting)', link: '/user/remote-execution#where-the-agent-runs' },
             { text: 'Containers', link: '/user/containers' },
+            { text: 'Running a relay', link: '/user/relay' },
           ],
         },
         {

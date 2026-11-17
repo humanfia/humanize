@@ -1,12 +1,12 @@
 // `#/epics/import?path=<file>`: an epic read back in from a `.hmzepic` already on this machine,
 // by its path, and its Exomyth opened in place of this address -- what Humanize Desktop opens a
-// file with.
+// file with, the page reading it from the app and sending it to the daemon shown.
 // In a browser it is asked first: any page elsewhere can link here, and the page would carry
 // its key.
 
-import { hash, post, refresh } from '../api.js'
+import { call, hash, imported, refresh } from '../api.js'
 import { fill, h } from '../dom.js'
-import { refusal } from '../importing.js'
+import { opened, refusal } from '../importing.js'
 import { bar, inApp } from '../shell.js'
 
 export function mount(root, { query }) {
@@ -16,10 +16,13 @@ export function mount(root, { query }) {
   let left = false
   const go = () => {
     fill(body, h('p', { class: 'loading', role: 'status' }, 'Importing…'))
-    post('/api/runs/import', { path }).then(
+    // In the app, read from it with `file_read` (Section 3.8.2 of protocol/desktop.md); in a
+    // browser, by Local from its own disk.
+    const importing = globalThis.__TAURI_INTERNALS__ ? opened(path).then((file) => imported(file)) : call('runs.import', { path })
+    importing.then(
       (answer) => {
         if (left) return
-        refresh('/api/runs')
+        refresh('runs.list')
         // In place of this address, so that going back never imports it again.
         location.replace(hash(`/epics/${encodeURIComponent(answer.name)}/exomyth`))
       },

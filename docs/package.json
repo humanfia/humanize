@@ -4,9 +4,9 @@
   "type": "module",
   "packageManager": "pnpm@10.18.0",
   "devDependencies": {
-    "asciinema-player": "^3.17.0",
-    "gsap": "^3.15.0",
-    "playwright": "^1.63.0",
+    "asciinema-player": "^3.18.0",
+    "gsap": "^3.15.1",
+    "playwright": "^1.65.0",
     "vitepress": "^1.6.4"
   },
   "scripts": {

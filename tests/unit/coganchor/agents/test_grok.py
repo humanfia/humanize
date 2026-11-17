@@ -202,11 +202,48 @@ def test_the_leader_is_joined_only_where_the_config_says(
     assert ("--leader" in argv) == bool(leader)
 
 
+@pytest.mark.parametrize("permission", ["auto", "bypass"])
+def test_a_rung_that_approves_is_held_open_with_the_approval(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, permission: str
+) -> None:
+    spawned = spawning(monkeypatch, answers=_acp())
+    agent = _agent(permission=permission)
+    heard(agent)
+
+    _turn(agent.new(tmp_path))
+
+    (process,) = spawned
+    assert process.args[:2] == ["grok", "agent"]
+    assert "--always-approve" in process.args
+    assert process.args[-1] == "stdio"
+
+
+_EVERY = [
+    {"kind": "allow_always", "optionId": "always"},
+    {"kind": "allow_once", "optionId": "allow"},
+    {"kind": "reject_always", "optionId": "never"},
+    {"kind": "reject_once", "optionId": "reject"},
+]
+
+
 @pytest.mark.parametrize(
-    ("permission", "chosen"), [("auto", "allow"), ("bypass", "allow"), ("", "reject")]
+    ("permission", "options", "chosen"),
+    [
+        ("auto", _EVERY, "allow"),
+        ("bypass", _EVERY, "allow"),
+        ("", _EVERY, "reject"),
+        ("bypass", _EVERY[:1], "always"),
+        ("bypass", [_EVERY[2], {"kind": "other", "optionId": "other"}], "other"),
+        ("bypass", _EVERY[2:3], None),
+        ("", _EVERY[:3], None),
+    ],
 )
 def test_a_permission_asked_mid_turn_is_answered_by_the_rung(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, permission: str, chosen: str
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    permission: str,
+    options: list[dict[str, str]],
+    chosen: str | None,
 ) -> None:
     asked = line(
         {
@@ -216,10 +253,7 @@ def test_a_permission_asked_mid_turn_is_answered_by_the_rung(
             "params": {
                 "sessionId": "g-1",
                 "toolCall": {"title": "rm -rf build"},
-                "options": [
-                    {"kind": "allow_once", "optionId": "allow"},
-                    {"kind": "reject_once", "optionId": "reject"},
-                ],
+                "options": options,
             },
         }
     )
@@ -230,7 +264,11 @@ def test_a_permission_asked_mid_turn_is_answered_by_the_rung(
     _turn(agent.new(tmp_path))
 
     (answer,) = [one for one in _told(spawned[0].told) if one.get("id") == 99]
-    assert answer["result"]["outcome"] == {"outcome": "selected", "optionId": chosen}
+    assert answer["result"]["outcome"] == (
+        {"outcome": "cancelled"}
+        if chosen is None
+        else {"outcome": "selected", "optionId": chosen}
+    )
 
 
 def test_a_turn_ended_on_anything_but_its_end_fails(
@@ -289,6 +327,15 @@ _SINGLE = (
             ["--always-approve", "--disable-web-search"],
         ),
         ({"web_search": False}, ["--disable-web-search"]),
+        (
+            {"permission": "read-only", "web_search": False},
+            [
+                "--always-approve",
+                "--tools",
+                "read_file,grep,list_dir",
+                "--disable-web-search",
+            ],
+        ),
         ({"sandbox": "strict"}, ["--sandbox", "strict"]),
         ({"max_turns": 3}, ["--max-turns", "3"]),
         ({"subagents": False}, ["--no-subagents"]),

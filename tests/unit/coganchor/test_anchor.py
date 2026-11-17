@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import errno
 import subprocess
-import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor import anchor, elsewhere, remote, transport
+from hmz.coganchor import binary, elsewhere, remote, transport
 from hmz.coganchor.anchor import (
     UNMIRRORED,
     AnchorConfig,
@@ -56,8 +55,8 @@ def test_a_session_says_how_it_is_reached(
 
 
 PATH_BY_PATH = Fence(write=("/w",))
-LEVELLED = Fence(write=("/w",), scopes=("all", "read", "read"))
-CUT = Fence(write=("/w",), scopes=("all", "read", "read"), online=False)
+LEVELLED = Fence(write=("/w",), drawn=(("/", "read"), (".", "write")))
+CUT = Fence(write=("/w",), drawn=(("/", "read"), (".", "write")), online=False)
 
 
 @pytest.mark.parametrize(
@@ -108,9 +107,16 @@ def test_what_is_well_written_is_taken(settings: dict[str, Any]) -> None:
 # ------------------------------------------------------------------------ the command
 
 
-def test_the_command_is_humanize_anchoring_the_agent() -> None:
+@pytest.fixture
+def built(monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The `coganchor` this machine runs."""
+    monkeypatch.setattr(binary, "here", lambda: Path("/opt/coganchor"))
+    return Path("/opt/coganchor")
+
+
+def test_the_command_is_coganchor_anchoring_the_agent(built: Path) -> None:
     line = AnchorConfig(target="ssh://box").command(["claude", "-p"])
-    assert line[:5] == [sys.executable, "-Pm", "hmz", "internal", "anchor"]
+    assert line[:2] == [str(built), "cog"]
     assert "--target=ssh://box" in line
     assert line[-2:] == ["claude", "-p"]
 
@@ -144,10 +150,10 @@ def test_a_swap_that_is_not_two_paths_is_refused() -> None:
 def test_a_harness_elsewhere_is_spawned_through_the_machine_it_runs_on(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def installed(road: transport.Road) -> str:
-        return "/cache/h.pyz"
+    def shipped(road: transport.Road) -> str:
+        return "/cache/coganchor-0123456789abcdef"
 
-    monkeypatch.setattr(transport.Road, "installed", installed)
+    monkeypatch.setattr(transport.Road, "shipped", shipped)
     line = AnchorConfig(harness="same", target="ssh://box").command(["claude"])
     assert line[0] == "ssh"
     assert line[-2] == "box"
@@ -300,74 +306,84 @@ def test_driving_nothing_is_refused(
     assert link.asked is None
 
 
-def test_driving_from_outside_the_workspace_is_refused(
-    reached: Callable[[Callable[[Exec], None]], tuple[Client, Link]],
+class Spawned:
+    """`subprocess.Popen` for a line that ends at once, with `status`, having been waited for."""
+
+    lines: list[list[str]] = []  # noqa: RUF012 -- a record shared by every one started
+    status = 0
+
+    def __init__(self, argv: list[str]) -> None:
+        Spawned.lines.append(argv)
+
+    def wait(self) -> int:
+        return Spawned.status
+
+    def send_signal(self, signum: int) -> None:
+        raise AssertionError(f"signal {signum} sent to a line that was never signalled")
+
+
+@pytest.fixture
+def spawned(monkeypatch: pytest.MonkeyPatch) -> type[Spawned]:
+    """Every line spawned here, ending at once with `Spawned.status`."""
+    Spawned.lines, Spawned.status = [], 0
+    monkeypatch.setattr(subprocess, "Popen", Spawned)
+    return Spawned
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_a_session_is_coganchor_cog_carrying_this_processs_streams(
+    spawned: type[Spawned], built: Path, native: bool
 ) -> None:
-    _, link = reached(nothing_there)
-    config = AnchorConfig(native=True, target="ssh://box", workspace="/w", chdir="/w2")
-    with pytest.raises(ValueError, match="is not inside"):
-        drive(["claude"], config)
-    assert link.asked is None
+    spawned.status = 5
+    config = AnchorConfig(native=native, target="ssh://box", workspace="/w")
+
+    assert connect(["claude", "-p"], config) == 5
+    ((program, cog, *rest),) = spawned.lines
+    assert (program, cog) == (str(built), "cog")
+    assert ("--native" in rest) is native
+    assert spawned.lines == [config.command(["claude", "-p"])]
+
+
+def test_driving_is_connecting_natively(spawned: type[Spawned], built: Path) -> None:
+    spawned.status = 3
+    config = AnchorConfig(target="ssh://box", workspace="/w")
+
+    assert drive(["claude"], config) == 3
+    assert spawned.lines == [replace(config, native=True).command(["claude"])]
+
+
+def test_a_line_a_signal_ended_says_so_as_a_shell_does(
+    spawned: type[Spawned], built: Path
+) -> None:
+    spawned.status = -15
+
+    assert connect(["claude"], AnchorConfig(target="ssh://box")) == 128 + 15
 
 
 def test_a_cli_the_target_has_not_got_is_not_installed_and_says_how_to_fix_it(
-    reached: Callable[[Callable[[Exec], None]], tuple[Client, Link]],
+    spawned: type[Spawned], built: Path
 ) -> None:
-    client, link = reached(nothing_there)
+    spawned.status = 127
     config = AnchorConfig(
         native=True, target="ssh://box", workspace="/w", installs="npm i -g claude"
     )
+
     with pytest.raises(NotInstalled) as raised:
-        drive(["/opt/bin/claude", "-p"], config)
+        connect(["claude", "-p"], config)
+
     assert raised.value.errno == errno.ENOENT
-    assert "is not installed on ssh://box" in str(raised.value)
+    assert "claude is not installed on ssh://box" in str(raised.value)
     assert "npm i -g claude" in str(raised.value)
-    # Looked for as named, then by its last component, from the workspace.
-    assert [one.argv[-1] for one in client.ran] == ["/opt/bin/claude", "claude"]
-    assert {one.cwd for one in client.ran} == {"/w"}
-    assert all(one.closed for one in client.ran)
-    assert client.closed
-    assert link.closed
-
-
-def test_a_target_that_cannot_be_asked_fails_the_turn(
-    reached: Callable[[Callable[[Exec], None]], tuple[Client, Link]],
-) -> None:
-    def torn(held: Exec) -> None:
-        held.answer(error=ConnectionResetError(errno.EPIPE, "gone"))
-
-    reached(torn)
-    config = AnchorConfig(native=True, target="ssh://box", workspace="/w")
-    with pytest.raises(ConnectionResetError):
-        drive(["claude"], config)
-
-
-def test_a_native_session_is_driven(monkeypatch: pytest.MonkeyPatch) -> None:
-    driven: list[tuple[list[str], AnchorConfig]] = []
-
-    def drives(command: list[str], config: AnchorConfig) -> int:
-        driven.append((command, config))
-        return 5
-
-    monkeypatch.setattr(anchor, "drive", drives)
-    config = AnchorConfig(native=True, target="ssh://box")
-    assert connect(["claude"], config) == 5
-    assert driven == [(["claude"], config)]
 
 
 def test_a_harness_elsewhere_is_one_process_carrying_its_streams(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, spawned: type[Spawned]
 ) -> None:
-    called: list[list[str]] = []
-
-    def call(argv: list[str]) -> int:
-        called.append(argv)
-        return 3
-
     def afar(config: AnchorConfig, argv: list[str]) -> list[str]:
         return ["far", *argv]
 
     monkeypatch.setattr(elsewhere, "afar", afar)
-    monkeypatch.setattr(subprocess, "call", call)
+    spawned.status = 3
+
     assert connect(["claude"], AnchorConfig(harness="ssh://box")) == 3
-    assert called == [["far", "claude"]]
+    assert spawned.lines == [["far", "claude"]]

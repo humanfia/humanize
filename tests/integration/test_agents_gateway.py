@@ -22,7 +22,7 @@ from hmz.coganchor import providers
 from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.coganchor.gateway import Gateway, gatewayable
 from hmz.coganchor.providers import Provider
-from tests.integration.doubles_agents import Endpoint, serving, standins
+from tests.integration.doubles_agents import Endpoint, children, serving, standins
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -113,11 +113,7 @@ def test_a_gateway_answers_in_claudes_protocol_from_the_accounts_endpoint(
 def _proxy(held: Gateway) -> psutil.Process:
     """The process a gateway is, found as this process's child listening where it is."""
     port = f"--port {held.port}"
-    return next(
-        one
-        for one in psutil.Process().children(recursive=True)
-        if port in " ".join(one.cmdline())
-    )
+    return next(one for one, argv in children() if port in argv)
 
 
 def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:

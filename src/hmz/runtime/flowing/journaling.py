@@ -46,6 +46,7 @@ of it -- in this run, or one picking it up -- makes a new session carrying the c
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import itertools
 import json
@@ -56,7 +57,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import pydantic_core
 
-from hmz.flows import StateNotSerializable
+from hmz.flows import FlowCancelled, StateNotSerializable
 
 if TYPE_CHECKING:
     import asyncio
@@ -312,19 +313,17 @@ class Journal:
 
     def set(self, jid: int, key: str, value: bytes) -> None:
         """Writes down a state write, now. `value` is already JSON."""
-        self._buffer.append(
+        self._kept(
             b'{"t":"set","id":%d,"key":%s,"value":%s}\n'
             % (jid, pydantic_core.to_json(key), value)
         )
-        self.records += 1
         self.flush()
 
     def delete(self, jid: int, key: str) -> None:
         """Writes down a state key forgotten, now."""
-        self._buffer.append(
+        self._kept(
             b'{"t":"del","id":%d,"key":%s}\n' % (jid, pydantic_core.to_json(key))
         )
-        self.records += 1
         self.flush()
 
     def note(self, record: dict[str, Any]) -> None:
@@ -332,18 +331,30 @@ class Journal:
         self._batched(pydantic_core.to_json(record) + b"\n")
 
     def _batched(self, line: bytes) -> None:
-        buffer = self._buffer
-        buffer.append(line)
-        self.records += 1
+        self._kept(line)
         if self._timer is None:
             self._timer = self._loop.call_later(BATCH, self.flush)
+
+    def _kept(self, line: bytes) -> None:
+        """Takes one record to write -- once the journal is closed, none.
+
+        Raises:
+          FlowCancelled: If it is closed: the run is over, and a record taken now would be
+            lost without anybody hearing of it.
+        """
+        if self._fd < 0:
+            raise FlowCancelled(
+                f"the run has ended, and its journal {self.path} with it"
+            )
+        self._buffer.append(line)
+        self.records += 1
 
     def flush(self) -> None:
         """Writes whatever is waiting, in the order it was written down."""
         if self._timer is not None:
             self._timer.cancel()
             self._timer = None
-        if not self._buffer or self._fd < 0:
+        if not self._buffer:
             return
         data = memoryview(b"".join(self._buffer))
         self._buffer.clear()
@@ -357,7 +368,10 @@ class Journal:
             log.exception("the journal at %s could not be written", self.path)
 
     def close(self) -> None:
-        """Writes what is waiting, syncs the file, and closes it. Idempotent."""
+        """Writes what is waiting, syncs the file, and closes it. Idempotent.
+
+        Every record asked for afterwards is refused, raising rather than being lost.
+        """
         self.flush()
         if self._fd < 0:
             return
@@ -404,7 +418,8 @@ class FlowStateImpl:
 
     A value is kept as JSON would give it back -- a tuple as a list, a key of a dict as a
     string -- so a flow reads the same thing from a fresh run as from a resumed one; and
-    what is kept is a copy, so changing the value written afterwards changes nothing kept.
+    what is kept is a copy, as is what is read, so changing the value written or read
+    afterwards changes nothing kept.
     Without a journal -- a resumable flow in a run that is not -- it is kept in memory only.
 
     A session in a value is kept the same way, by `conversations`: its conversation as it
@@ -434,26 +449,29 @@ class FlowStateImpl:
         value = self._held[key]
         conversations = self._conversations
         if key not in self._carrying or conversations is None:
-            return value
+            return copy.deepcopy(value)
         return _carried(value, conversations)
 
     def __setitem__(self, key: str, value: Any) -> None:
         if not isinstance(key, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise StateNotSerializable(f"a state key is a string, not {key!r}")
         said = _dumped(value, self._conversations)
+        # Written down before it is held: a write the journal refuses changes nothing.
+        if self._journal is not None:
+            self._journal.set(self._jid, key, said)
         self._held[key] = json.loads(said)
         if _SAID in said:
             self._carrying.add(key)
         else:
             self._carrying.discard(key)
-        if self._journal is not None:
-            self._journal.set(self._jid, key, said)
 
     def __delitem__(self, key: str) -> None:
-        del self._held[key]
-        self._carrying.discard(key)
+        if key not in self._held:
+            raise KeyError(key)
         if self._journal is not None:
             self._journal.delete(self._jid, key)
+        del self._held[key]
+        self._carrying.discard(key)
 
     def __contains__(self, key: object) -> bool:
         return key in self._held

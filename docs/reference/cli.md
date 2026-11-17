@@ -20,8 +20,8 @@ hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz web [<options>]                    serve every workspace's runs to a browser
-hmz server start --mode p2p --secret <s> --peer <url>...  keep this machine reachable
-hmz server stop                        stop that server
+hmz daemon serve|connect --stdio|pair|devices|install|uninstall  this machine's daemon
+hmz relay serve [--listen <host>:<port>]  relay daemons and the devices that reach them
 hmz update                             update hmz to its newest release
 hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
 hmz internal <command> [<args>...]     processes Humanize spawns for itself
@@ -32,7 +32,8 @@ hmz internal <command> [<args>...]     processes Humanize spawns for itself
 | *(none)* | `opens` | Opens the [terminal interface](/reference/tui). |
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
-| [`server`](#hmz-server) | `_server` | `keep this machine's daemon reachable from others until stopped` |
+| [`daemon`](#hmz-daemon) | `_daemon` | `run, reach, pair and install this machine's daemon` |
+| [`relay`](#hmz-relay) | `_relay` | `relay daemons and the devices that reach them` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
 | [`backup`](#hmz-backup) | `_backup` | `back epics up to git repositories, or download them` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by Humanize; do not run directly` |
@@ -50,14 +51,14 @@ thirty words. This page is the full account of each.
 | --- | --- | --- |
 | empty | [Opens the interface](#hmz). | `0`, or `1` (see below) |
 | exactly `["--version"]` | Prints `hmz <version>` (from the installed distribution's metadata) to stdout. | `0` |
-| first word is `exec`, `web`, `server`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
+| first word is `exec`, `web`, `daemon`, `relay`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
 | `-h` or `--help` first | Prints the top-level help. | `0` |
 | anything else | argparse usage error on stderr (below). | `2` |
 
 ```console
 $ hmz bogus
 usage: hmz [-h] COMMAND ...
-hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, server, update, backup, internal)
+hmz: error: argument COMMAND: invalid choice: 'bogus' (choose from exec, web, daemon, relay, update, backup, internal)
 ```
 
 `hmz --version <anything>` is not the version form and fails the same way.
@@ -73,24 +74,19 @@ the current directory, as it was [last left](/reference/tui#what-it-remembers). 
 
 ### Where the runs are held {#where-runs-are-held}
 
-The interface is one frontend of a [host](/reference/daemon#hosting). Which host is decided
-once, at start, in this order:
+The interface is always one frontend of a [host](/reference/daemon#hosting) of this
+machine's daemon, reached over its unix socket, whatever the terminal. The runs are never held
+in the interface's process. Which host is decided once, at start, in this order:
 
 | # | Condition | The interface |
 | --- | --- | --- |
-| 1 | `HUMANIZE_DAEMON` stripped and lower-cased is `off`, `0` or `no` | holds the runs in this process. Nothing is said. |
-| 2 | stdin or stdout is not a TTY | holds the runs in this process. Nothing is said. |
-| 3 | this machine's daemon is found and its `protocol` is not `2`, or a host an older Humanize left holds this directory | is not opened. See [Errors](#hmz-errors). |
-| 4 | a host for this directory is found through the daemon | links to it as `kind="tui"`. |
-| 5 | no host is found | starts one, and the daemon where none is, with [`hmz.daemon.host()`](/reference/daemon#discovery), and links to it. |
+| 1 | this machine's daemon is found and its `protocol` is not `2`, or a host an older Humanize left holds this directory | is not opened. See [Errors](#hmz-errors). |
+| 2 | a host for this directory is found through the daemon | links to it as `kind="tui"`. |
+| 3 | no host is found | starts one, and the daemon where none is, with [`hmz.daemon.host()`](/reference/daemon#discovery), and links to it. |
 
-Steps 3–5 are tried up to **3** times, **0.5 s** apart, while linking raises `OSError`
-(a host found on its way out). After the third failure the interface holds the runs in this
-process and prints the last `OSError` (below).
-
-Holding the runs in this process changes one thing a person sees: `/exit` with a flow running
-offers **Cancel** instead of **Detach and exit**. See
-[TUI › `/exit`](/reference/tui#leaving-and-letting-go).
+Steps 1–3 are tried up to **3** times, **0.5 s** apart, while linking raises `OSError`
+(a host found on its way out). After the third failure the interface is not opened and the
+last `OSError` is printed (below).
 
 ### Terminal preparation
 
@@ -105,12 +101,19 @@ Before Textual is imported, `hmz` sets `TEXTUAL_DISABLE_KITTY_KEY=1` in its own 
 | The interface closed normally | — | `0` |
 | This machine's runs are held by an older Humanize (daemon `protocol` not `2`), or this directory's by a host one left | `hmz: the runs on this machine are held by an older Humanize (pid <n>); stop it with that version`, or `the runs in <dir> …` | `1` |
 | The host let go of the interface ([`gone`](/reference/daemon#gone)) | `hmz: <why>` (or `hmz: disconnected from the epics`), printed as the interface closes | `1` |
-| No host could be linked in 3 tries | `hmz: runs cannot be detached from the terminal (<OSError>), so they will run in this process instead` | the interface's |
+| No host could be linked in 3 tries | `hmz: the daemon cannot be reached: <OSError>` | `1` |
 
 ## `hmz exec` {#hmz-exec}
 
 Runs one [flow](/reference/flows) in the current directory (the *workspace*) to its return,
 with no interface. The run's [outworlder](#nobody-is-at-the-prompt) is always away.
+
+The flow does not run in `hmz exec`'s process. `hmz exec` attaches to a new exec slot
+(`exec:<hex>`, see [Daemon › Slots](/reference/daemon#slots)) of the workspace on this machine's
+daemon, starting the daemon where none runs, sets every role away, starts the epic there
+(`epic.start`), and follows its messages until `ended`, drawing them as below. Killing
+`hmz exec` (`SIGKILL`, or the terminal closing under it) does not stop the epic: the daemon's
+host runs it to its end. Only the [signals](#signals) it handles stop it.
 
 ```text
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
@@ -132,7 +135,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | `--profile-environment` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
-| <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. Once the run has said how it went, `hmz exec` waits up to 60 s for the epic's backups, saying `hmz exec: backing the epic up` on stderr, and says where it left one. |
+| <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. The host holding the epic backs it up. Once the epic has ended with a backup not done, as `backed` of `runs.get` says, `hmz exec` says `hmz exec: backing the epic up` on stderr and stays attached, so that the host waits too, for at most 60 s; one still not done then is left, saying ``hmz exec: a backup took longer than 60s and was left; `hmz backup EPIC` sends it again``, and the exit is the epic's. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | <span id="exec-task"></span>`task` | positional string | exactly 1 (**required**) | — | What the flow is to do. Put `--` before a task that starts with `-`. |
 
@@ -210,7 +213,12 @@ the several-flows-per-module rule are specified in
 
 ```text
 <role>=<cli>[@<provider>]/<model>[:<effort>]
+<role>=<nous>
 ```
+
+The rest after `=` is a concrete [nous](/user/settings#nous); one with no `/` is the name of a
+virtual nous written on the Nous page, and the agent is built at the concrete nous its graph
+starts at and walks the graph each turn.
 
 | Part | Rule |
 | --- | --- |
@@ -368,6 +376,7 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | --- | --- |
 | the flow is not resumable | `<flow> does not support resuming, so there is no run to resume` |
 | no epic of it here has a journal entry | `<flow> has no run to resume here: none saved any progress` |
+| its `resume.jsonl` cannot be copied into the new epic (no epic is left of the request, and the one picked up is left to pick up again) | `<epic> cannot be resumed: its saved progress could not be copied (<reason>)` |
 
 ### Processing order {#processing-order}
 
@@ -375,8 +384,8 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | --- | --- | --- |
 | 1. argparse | Options, `-f` and `task` present. | Usage on stderr, `hmz exec: error: <why>`, exit `2`. |
 | 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p` against its grammar, and every `-e` provider against the runtimes saved; duplicate roles and keys. | Same as 1. |
-| 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
-| 4. Opening (`Run.run`, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
+| 3. Loading (`Hmz.run` → `Runner`, the daemon's `flows.check`) | The daemon reached (else `hmz: the daemon cannot be reached: <why>`, exit `1`); flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
+| 4. Opening (`epic.start`, in the host, before the flow is called) | Environments reached and measured; each agent's harness settled where its runtime's harness setting puts it, and the runtimes it goes to reached; skills fetched; with `--resume`, the journal picked up copied into the new epic. | `hmz exec: error: <why>`, exit `2`. |
 | 5. The flow | — | See [Exit statuses](#exit-statuses). |
 
 Nothing of an agent has started before stage 5. What a flow module does when imported (stage
@@ -391,11 +400,12 @@ Stage 1–2 messages are preceded by the usage block.
 | --- | --- |
 | no `-f`, no task | `the following arguments are required: -f/--flow` / `…: task` |
 | unknown option | `unrecognized arguments: <args>` |
-| an `-a` item without `role=` | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
+| an `-a` item without `role=` | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>] or <role>=<nous>` |
 | an `-a` role that is not an identifier | ``-a '<item>': '<role>' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier`` |
 | an `-a` with an empty CLI (`a=/m`) | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
 | an `-a` with an unknown CLI | `-a '<item>': unknown CLI '<cli>'; see the CLI reference for supported names` |
 | an `-a` with a known CLI but no `/` or no model | `-a '<item>': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
+| an `-a` naming a virtual nous nobody wrote | `-a '<item>': '<name>' is no nous written down` |
 | `@` with no account | `-a '<item>': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
 | a role twice in `-a` | `-a: the role '<role>' is given twice` |
 | an `-e` that does not match | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
@@ -464,7 +474,7 @@ One line (or block) per event, in order. `●` is `⏺` on macOS.
 
 Cost footer: `✻ <kind> <count>[ · <kind> <count>…] · [<money> · ]<model> · <agent>`, drawn
 only for a `result` carrying `spent`. `<model>` is the one model the result's `tokens` names,
-where it names exactly one (the model a [fallback](/user/settings#fallback) carried the turn
+where it names exactly one (the model a [nous](/user/settings#nous) carried the turn
 to, or the one an alias resolved to), else the agent's configured model; it is also what the
 money is priced at. Kinds in the order `input`, `output`, `cache_read`,
 `cache_write`, `reasoning`, then any other alphabetically. Counts: `< 1000` as an integer,
@@ -509,6 +519,9 @@ key:
 
 Lines that are not events (`hmz exec: …` notes, the flow's own prints) go to stderr.
 
+What the flow prints in the host arrives as `printed` records: written to stdout without
+`--json`, to stderr with it.
+
 ```console
 $ hmz exec -f chat -a assistant=claude/claude-opus-5:high --json "say hello" | jq -c 'select(.kind == "result")'
 {"at":1789026740.6,"agent":"NeiKos496","cli":"claude","model":"claude-opus-5","session":"1d1ff959","kind":"result","text":"Hello.","whose":"","tokens":{"claude-opus-5":2080},"spent":{"input":2000,"output":80}}
@@ -541,9 +554,10 @@ nobody. `asks` events still appear in the output.
 
 | Signal | Effect | Exit |
 | --- | --- | --- |
-| `SIGINT`, `SIGTERM`, `SIGHUP` | The run is stopped as by `Run.stop()` (from a helper thread). The process waits until the run has let go of what it made — sessions closed, containers removed. `hmz exec` prints no traceback of its own. A signal already set to `SIG_IGN` (a hangup under `nohup`, an interrupt to a background job of a non-interactive shell) stays ignored. | `128 + signum` of the first: `130`, `143`, `129` |
-| a second `SIGTERM` or `SIGHUP` | Ignored while the run lets go. | as the first |
-| a second `SIGINT` | Ends the process at once, by `SIGINT` itself, without waiting for the run to let go: what it made may be left behind. | `130` (killed by `SIGINT`) |
+| `SIGINT`, `SIGTERM`, `SIGHUP` | The epic is stopped (`epic.stop`, as by `Run.stop()`, from a helper thread). The process waits for its `ended` record, once it has let go of what it made — sessions closed, containers removed. `hmz exec` prints no traceback of its own. A signal already set to `SIG_IGN` (a hangup under `nohup`, an interrupt to a background job of a non-interactive shell) stays ignored. | `128 + signum` of the first: `130`, `143`, `129` |
+| a second `SIGTERM` or `SIGHUP` | Ignored while the epic lets go. | as the first |
+| a second `SIGINT` | Forces the epic (`epic.force`: every session with a turn open closed), then ends the process at once, by `SIGINT` itself, without waiting for the epic to end. | `130` (killed by `SIGINT`) |
+| `SIGKILL`, or anything else that ends the process | The epic is not stopped: the daemon's host runs it to its end. | — |
 
 An interrupt that arrives while the flow is still being loaded, or after the run has ended,
 also exits `130` without a traceback.
@@ -559,58 +573,76 @@ hmz web [--port <port>] [--no-open] [--attached]
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--port <port>` | `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1`; `0` picks any free one on both. |
+| `--port <port>` | the port the last `hmz web` of this home listened on (`~/.hmz/web-port`), else `0` | The port to listen on, on `127.0.0.1` and, where this machine has IPv6, on `::1`; `0` picks any free one on both, as does a kept port that is taken now. |
 | `--no-open` | off | Print the address and open no browser. |
 | `--attached` | off | Stop once standard input closes. |
 
-Serves this directory's runs to a browser on this machine until `SIGINT`, `SIGTERM` or
-`SIGHUP` -- or, with `--attached`, until standard input closes, which is how a program that
-started it takes it down even when that program crashes or is killed -- as one more frontend
-of them, named `browser`, of `kind` `web`. Once listening it prints
+Serves the page to a browser on this machine until `SIGINT`, `SIGTERM` or `SIGHUP` -- or,
+with `--attached`, until standard input closes, which is how a program that started it takes it
+down even when that program crashes or is killed. The page is one more frontend of every
+daemon it reaches, of `kind` `web`, speaking JSON-RPC to this machine's daemon -- reached, and
+started where none runs, before `hmz web` listens -- and to any other the user adds; `hmz web`
+holds no epic itself, and this directory is only the one a new epic is offered first. Once
+listening it writes the port to `~/.hmz/web-port`, prints
 `hmz web: http://127.0.0.1:<port>/?key=<key>` to stdout and opens that address in a browser.
-The runs are held as `hmz` holds them, but for the terminal: in this process where
-`HUMANIZE_DAEMON` is `off`, `0` or `no`, by this directory's host process otherwise. What it
-serves, refuses and answers is the [Web reference](/reference/web).
+What it serves, refuses and answers is the [Web reference](/reference/web).
 
 | Condition | stderr | Exit |
 | --- | --- | --- |
 | Interrupted, terminated or hung up on, or, attached, standard input closed | — | `0` |
-| An older Humanize holds the runs | `hmz: the runs in <dir> are held by an older Humanize (pid <n>); stop it with that version` | `1` |
-| The runs could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
+| This machine's daemon is an older Humanize's | `hmz: <why>` | `1` |
+| The daemon could not be reached, or the port listened on | `hmz: the web interface cannot be served: <OSError>` | `1` |
 
-## `hmz server` {#hmz-server}
+## `hmz daemon` {#hmz-daemon}
 
 ```text
-hmz server start --mode p2p --secret <secret> --peer <url> [--peer <url>]...
-hmz server stop
+hmz daemon serve [--listen <spec>]...
+hmz daemon connect --stdio
+hmz daemon pair [--route <route>]... [--seconds <seconds>]
+hmz daemon devices [revoke <name>]
+hmz daemon install
+hmz daemon uninstall
+```
+
+| Subcommand | Does |
+| --- | --- |
+| `serve` | Runs this machine's [daemon](/reference/daemon#sessions) in the foreground until `SIGINT` or `SIGTERM`, listening on its socket, on every listener of the setting `listen` and on every `--listen` (`tcp://<address>:<port>`, `ws://<address>:<port>`, `relay:<ws-url>`, `webrtc:<ws-url>`, `easytier:<name>`). Prints `hmz daemon: listening on <route>` as each listener opens. It never goes for want of hosts or sessions. With no controlling terminal -- as the service runs it -- it first takes the [login shell's environment](/reference/daemon#process), which every host it starts runs in. |
+| `connect --stdio` | Carries standard input to the daemon's socket and the socket to standard output, starting the daemon where none runs, until either ends; what a `stdio:ssh` or `stdio:wsl` route runs on the far machine. Once it reaches the daemon it first prints the line `hmz-stdio/1`: the client drops everything up to and including it, so whatever a shell profile there printed before is never read as part of the session. A client that sees 64 KiB without that line gives the route up. |
+| `pair` | Calls `pair.create` (`--route` any number of times; `--seconds` 60 to 86400, default 600), prints the `hmz-pair:…` code, and on stderr `hmz daemon pair: claim this code on the device to pair before <time>`. |
+| `devices` | One line per paired device, oldest first: name, fingerprint, added, last seen, tab-separated. `devices revoke <name>` calls `devices.revoke` and prints `hmz daemon devices: revoked <name>; <n> sessions closed`. |
+| `install`, `uninstall` | Writes, enables and starts -- or stops, disables and removes -- the service running `<hmz> daemon serve` at login: the launchd agent `~/Library/LaunchAgents/ai.humanfia.hmz.daemon.plist` (`launchctl bootstrap gui/<uid>`) or the systemd user unit `~/.config/systemd/user/hmz-daemon.service` (`systemctl --user enable --now`). Prints `hmz daemon: installed <path>` or `uninstalled <path>`. |
+
+| Condition | stderr | Exit |
+| --- | --- | --- |
+| `serve` interrupted or terminated | — | `0` |
+| `serve` with a daemon already running | `hmz: a daemon is already running (pid <pid>)` | `1` |
+| The daemon cannot be reached or started | `hmz: the daemon cannot be reached: <why>` | `1` |
+| The daemon speaks another protocol | `hmz: the runs on this machine are held by an older Humanize (pid <pid>); stop it with that version` | `1` |
+| `pair.create` or `devices.revoke` refused | `hmz: <message>` | `1` |
+| `install` on another system than macOS or Linux | `hmz: hmz daemon install runs on macOS and Linux alone` | `1` |
+| `launchctl` or `systemctl` fails, or `uninstall` with nothing installed | `hmz: <why>` | `1` |
+| Another subcommand, `connect` without `--stdio`, a `--listen` that is not a listener spec | argparse usage error (`<spec> is not a listener.`) | `2` |
+
+## `hmz relay` {#hmz-relay}
+
+```text
+hmz relay serve [--listen <host>:<port>]
 ```
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--mode p2p` | **required** | How the server is reached. `p2p`, over [EasyTier](/user/web#over-easytier), is the only one. |
-| `--secret <secret>` | **required** | At least 16 bytes in UTF-8. The same secret goes into the P2P daemon added on the other machine. |
-| `--peer <url>` | **required**, repeatable | An EasyTier node both machines meet through: `<scheme>://<host>:<port>`, the scheme one of `tcp`, `udp`, `ws`, `wss`, `quic`, `wg`. |
+| `--listen <host>:<port>` | `127.0.0.1:8765` | Where the relay listens. The port is `0` to `65535`, `0` for any free one; an IPv6 host goes in brackets, `[::1]:8765`. |
 
-`start` starts a server apart from the terminal and returns: an `hmz web` on this machine's
-loopback alone, at a fixed port, holding the runs through the [daemon](/reference/daemon), its
-key derived from the secret, and `easytier-core` making that port reachable on the EasyTier
-network the secret names, through the nodes `--peer` names; `easytier-core` is started again a
-second after it goes. The secret is never put on a command line, nor is the key derived from it:
-the server, `python -m hmz.cli.server`, reads the secret from its standard input. EasyTier is
-downloaded first, saying `hmz: Downloading EasyTier <version>`, where it is not in
-`~/.hmz/easytier/<version>/` yet. Once up, it prints `hmz server: started (pid <n>)` and
-records itself in `~/.hmz/server.json`. It runs until `hmz server stop`, which sends it
-`SIGTERM`, waits, removes the record and prints `hmz server: stopped`. Stopping it stops its
-`hmz web` and EasyTier, never an epic.
+`serve` serves the [relay](/user/relay) on plain WebSockets, on any path, until `SIGINT` or
+`SIGTERM`. Once listening it prints `hmz relay: listening on ws://<host>:<port>`, the port the
+one it was given, or the one it got for `0`. It reads no settings, no home and no identity, and
+starts or reaches no daemon. TLS, for a `wss://` URL, is a proxy's in front of it.
 
 | Condition | stderr | Exit |
 | --- | --- | --- |
-| Started, or stopped | — | `0` |
-| `start` while a server runs | `hmz: a server is already running (pid <n>)` | `1` |
-| `start` could not start it, or download EasyTier | `hmz: the server cannot be started: <reason>` | `1` |
-| `stop` with no server | `hmz: no server is running` | `1` |
-| `stop` waited 30 seconds and the server is still there | `hmz: the server did not stop in 30 seconds (pid <n>)` | `1` |
-| `--mode`, `--secret` or `--peer` missing, another mode, a node that is not a URL as above, or a secret under 16 bytes | argparse usage error; `A secret must be at least 16 bytes.` for the last | `2` |
+| Interrupted or terminated | — | `0` |
+| The address could not be listened on | `hmz: the relay cannot listen: <OSError>` | `1` |
+| No subcommand or another, or a `--listen` that is not `<host>:<port>` as above | argparse usage error | `2` |
 
 ## `hmz update` {#hmz-update}
 
@@ -704,8 +736,8 @@ hmz internal anchor rendezvous …
 
 Runs a coding agent here whose work lands on another machine. A first word of `serve` or
 `rendezvous` selects the subcommand; otherwise every word after the options is the agent and
-its own arguments. Loads `coganchor` and nothing else of Humanize. Semantics:
-[Remote execution](/reference/remote-execution).
+its own arguments. Each runs the program [`coganchor`](#coganchor), which does the work, and
+exits with its status. Semantics: [Remote execution](/reference/remote-execution).
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -722,7 +754,7 @@ its own arguments. Loads `coganchor` and nothing else of Humanize. Semantics:
 | `--private NAME` | — | Keep this variable out of the agent's commands on the target. Repeatable. |
 | `--net {local,remote}` | `local` | Where the agent's own TCP connections go. Commands always use the target's network. |
 | `--net-allow HOST[:PORT]` | — | With `--net remote`, keep connections to this host local. Repeatable. |
-| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret a `tcp://` target expects. |
+| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret a `tcp://` target expects, proved inside TLS rather than sent; a `peer://` target's ticket is its secret and this is unused. |
 | `--token-file FILE` | — | Read that secret from `FILE` instead. What Humanize itself spawns is always given this, never `--token`: a command line is in every user's `ps`. The file is under `hmz.machine()/tokens/`, mode `0600`, named by the secret's SHA-256. |
 | `--force` | off | Use the mirror directory even if it holds unrelated files. |
 | `--native` | off | Run the CLI installed on the target instead of supervising one here. |
@@ -735,7 +767,7 @@ its own arguments. Loads `coganchor` and nothing else of Humanize. Semantics:
 | `--check` | off | Connect, print what was found, exit. |
 | `--log-level {debug,info,warning,error}` | `$HUMANIZE_LOG`, else `warning` | Logging to stderr. |
 
-`--check` prints, on stdout, lines `target`, `hostname`, `python … (pid …)`, one `export <virtual> -> <real>` per export, and `workspace <path> (<n> entries)`.
+`--check` prints, on stdout, lines `target`, `hostname`, `python coganchor <version> (pid …)`, one `export <virtual> -> <real>` per export, and `workspace <path> (<n> entries)`.
 
 | Exit | When |
 | --- | --- |
@@ -751,7 +783,7 @@ its own arguments. Loads `coganchor` and nothing else of Humanize. Semantics:
 ```text
 hmz internal anchor serve --export VIRTUAL[:REAL] [--export …]
     (--stdio | --listen [HOST:]PORT | --peer TICKET@HOST:PORT)
-    [--token TOKEN] [--log-level {debug,info,warning,error}]
+    [--token TOKEN | --token-file FILE] [--log-level {debug,info,warning,error}]
 ```
 
 | Option | Default | Meaning |
@@ -760,16 +792,19 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export …]
 | `--stdio` | | Serve one session over stdin/stdout. |
 | `--listen [HOST:]PORT` | host `127.0.0.1` | Serve TCP connections. |
 | `--peer TICKET@HOST:PORT` | | Serve one session through a rendezvous broker. |
-| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret required from clients. |
+| `--token TOKEN` | `$HUMANIZE_TOKEN`, but not with `--peer` | Shared secret required from clients. |
+| `--token-file FILE` | | A file holding that secret, read verbatim. |
 | `--log-level` | `$HUMANIZE_LOG`, else `warning` | |
 
-Exactly one of `--stdio`, `--listen`, `--peer`.
+Exactly one of `--stdio`, `--listen`, `--peer`. `--listen` and `--peer` speak only TLS, inside
+which a client proves the token, or with `--peer` the ticket, rather than sending it
+([Remote execution › The link over a network](/reference/remote-execution#the-link-over-a-network)).
 
 | Exit | When |
 | --- | --- |
 | `0` | served until the session or the process ended |
 | `1` | cannot listen (`hmz: cannot listen on <host>:<port>: <why>`), or cannot dial the peer |
-| `2` | a bad `--export`; a malformed address (`hmz: malformed listen address '<a>'; expected [HOST:]PORT`); a non-loopback `--listen` without a token (`hmz: cannot listen on a non-loopback address without --token`). Loopback is `127.0.0.1`, `::1`, `localhost`. |
+| `2` | a bad `--export`; a malformed address (`hmz: malformed listen address '<a>'; expected [HOST:]PORT`); a non-loopback `--listen` without a token (`hmz: cannot listen on a non-loopback address without --token`); `--token` or `--token-file` with `--peer` (`hmz: --token cannot be given with --peer, whose ticket is the secret`). Loopback is `127.0.0.1`, `::1`, `localhost`. |
 
 ::: danger
 A listener reachable from other machines runs commands for whoever holds its token. See
@@ -821,24 +856,62 @@ killed, and stays supervised until it exits
 ### `hmz internal fence` {#hmz-internal-fence}
 
 ```text
-hmz internal fence --policy JSON [--] COMMAND [ARGS...]
+hmz internal fence (--policy JSON [--sandbox BACKEND] | --relay DIR) [--] COMMAND [ARGS...]
 ```
 
 Runs `COMMAND` inside a [fence](/reference/agents#the-fence): on Linux, Landlock for paths and,
-where the network is cut, a seccomp filter admitting only TCP and Unix sockets; on macOS, the
-whole fence as one Seatbelt profile applied by `/usr/bin/sandbox-exec`. Where the network is
+where the network is cut, a seccomp filter admitting only TCP and Unix sockets -- or, where
+Landlock cannot hold it or `--sandbox bwrap` says so, `bwrap` mounting what the fence grants
+into a root of its own and, where the network is cut, giving it a network namespace of its own;
+on macOS, the whole fence as one Seatbelt profile applied by `/usr/bin/sandbox-exec`, whose
+carve-outs (`keep`, `deny`) follow its grants, deepest last. Landlock only grants, so on Linux a
+granted directory holding a carve-out is granted as its entries as they stand, down to the
+carve-out; an entry made there later is out of reach. Under bubblewrap a carve-out is an empty
+directory or file mounted over it. Where the network is
 cut, a loopback proxy (`HTTPS_PROXY` and related, `NO_PROXY` emptied) passing only the fence's
 hosts; `TMPDIR` set to the fence's scratch directory.
 
 | Option | Meaning |
 | --- | --- |
-| `--policy JSON` | **Required.** The fence as JSON, or `@PATH` for a file holding it. |
+| `--policy JSON` | The fence as JSON, or `@PATH` for a file holding it. |
+| `--sandbox BACKEND` | On Linux, what puts the fence up: `landlock`, `bwrap`, or `auto` (the default, and any other value): Landlock where it can hold the fence and `bwrap` otherwise. Humanize passes `sandbox.backend` from [`settings.yaml`](/reference/settings#sandbox); a machine reached as a target is passed nothing, and chooses for itself. |
+| `--relay DIR` | Instead of `--policy`: run as the program `bwrap` starts in a network namespace of its own, carrying loopback across its edge through the Unix sockets in `DIR` -- each `out-PORT.sock` to the proxy at `PORT`, and `PORT` here for each `in-PORT` -- then run `COMMAND`. |
 
 | Exit | When |
 | --- | --- |
 | the program's | it ran |
-| `2` | no `--policy`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
-| `126` | the fence cannot be put up here (no Landlock, or no way to cut TCP; on macOS, a process already inside a sandbox); the program never ran (`hmz internal fence: <why>`) |
+| `2` | neither or both of `--policy` and `--relay`; no program (`no program given; try `hmz internal fence --policy=... -- claude``) |
+| `126` | the fence cannot be put up here (no Landlock and no `bwrap` that starts, or no way to cut TCP; on macOS, a process already inside a sandbox; a path it writes leads through a link a fenced program could have made; on Linux, a carve-out beneath a directory that cannot be listed, or beneath a grant that is not a directory, or under `bwrap` one that is not there); the program never ran (`hmz internal fence: <why>`) |
+
+### `coganchor` {#coganchor}
+
+```text
+coganchor cog [options] AGENT [ARGS...]           # hmz internal anchor
+coganchor anchor --export VIRTUAL[:REAL] …        # hmz internal anchor serve
+coganchor broker [--listen [HOST:]PORT] …         # hmz internal anchor rendezvous
+coganchor internal fence --policy JSON [--sandbox BACKEND] [--] …  # hmz internal fence
+coganchor internal cred --map FROM=TO … [--] …    # hmz internal cred
+coganchor internal able [--policy JSON] [--sandbox BACKEND]
+coganchor --version
+```
+
+`coganchor internal able` writes what this machine can fence with the backend `--sandbox`
+chooses, `{"fs": bool, "net": bool}`, and with `--policy` also `"unheld"`: why that backend
+cannot hold what that fence carves out of its grants, or `null` where it can (always `null` on
+macOS). Humanize asks it before a session is
+opened.
+
+The anchor, as one static program in Rust, built from `crates/coganchor/`. The package
+carries a build for Linux (static, against musl) and macOS on x86-64 and aarch64, at
+`hmz/coganchor/bin/<os>-<arch>/coganchor`, and copies the right one to each machine a session
+reaches. Each mode takes the options, defaults, variables, messages and exit statuses of the
+`hmz internal` command beside it above, which runs it; `anchor` also takes `--token-file`.
+Its messages begin `hmz: ` as theirs do, and `coganchor anchor --listen` prints `hmz internal
+anchor serve listening HOST PORT`. `--version` prints `coganchor <version>`. `internal` is
+left out of its help. [`HUMANIZE_COGANCHOR`](/reference/environment#humanize-coganchor) names a
+`coganchor` for `hmz` to run here instead of the packaged one. Where there is neither, nor a
+build in a checkout's `crates/coganchor/target/{release,debug}`, the `hmz internal` command
+exits `127` saying `hmz: no coganchor is built for this machine (<system> <machine>)`.
 
 ### `hmz internal hook` {#hmz-internal-hook}
 
@@ -892,17 +965,18 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | Status | Command | Meaning |
 | --- | --- | --- |
 | `0` | all | Success. For `hmz exec`, including a run its budget stopped. |
-| `1` | `hmz` | Runs held by an older Humanize; or the host let go of the interface. |
-| `1` | `hmz web` | Runs held by an older Humanize; or the runs or the port could not be had. |
-| `1` | `hmz server` | A server already running on `start`, none on `stop`, or it could not be started. |
+| `1` | `hmz` | Runs held by an older Humanize; the daemon could not be reached; or the host let go of the interface. |
+| `1` | `hmz web` | This machine's daemon is an older Humanize's; or the daemon or the port could not be had. |
+| `1` | `hmz daemon` | A daemon already running on `serve`; the daemon unreachable, of another protocol, or refusing; the service could not be installed. |
+| `1` | `hmz relay` | The address could not be listened on. |
 | `1` | `hmz update` | Installed from a source, or no installer, PyPI or install that worked. |
-| `1` | `hmz exec` | The flow raised (traceback on stderr; the crash is reported where reporting is on). |
+| `1` | `hmz exec` | The daemon could not be reached (`hmz: the daemon cannot be reached: <why>`); or the flow failed (the `why` of its `ended` record, the exception or traceback, on stderr; the host reports the crash where reporting is on). |
 | `1` | `internal …` | Could not connect, listen, supervise, or reach a socket. |
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
 | `126` | `internal fence` | The fence could not be put up; the program never ran. |
 | `127` | `internal anchor --native` | The target has no such CLI. |
-| `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the run has let go of what it made. |
-| `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the run has let go of what it made. |
+| `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made. |
+| `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the epic has let go of what it made. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
 | *flow's* | `internal cli` | What the flow answered the run with. |
 
@@ -914,15 +988,15 @@ Variables these commands read. The complete list, with every layer's, is
 | Variable | Read by | Values | Effect |
 | --- | --- | --- | --- |
 | `HUMANIZE_HOME` | all | a path | Where Humanize keeps what outlives a run. Default `~/.hmz`, which a `~/.humanize` is moved to. Empty is unset. Not created until written. |
-| `HUMANIZE_DAEMON` | `hmz`, `hmz web` | `off`, `0`, `no` (case-insensitive, stripped) | Hold runs in the interface's process. Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
-| `HUMANIZE_RELEASES` | `hmz`, `hmz web`, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
-| `HUMANIZE_EASYTIER` | `hmz server`, `hmz web` | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
+| `HUMANIZE_RELEASES` | `hmz`, the daemon, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
+| `HUMANIZE_EASYTIER` | the daemon, and every command that reaches a P2P daemon | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
 | `HUMANIZE_EASYTIER_NODES` | `hmz web` | a URL | The Uptime Kuma server whose status page `easytier` lists the community's shared EasyTier nodes. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |
 | `TEXTUAL_THEME` | `hmz` | a Textual theme name | The interface's theme; unknown names are ignored. |
 | `TMUX`, `TERM_PROGRAM`, `LC_TERMINAL` | `hmz` | | Decide `TEXTUAL_DISABLE_KITTY_KEY` ([Terminal preparation](#terminal-preparation)). |
+| `HUMANIZE_COGANCHOR` | `internal anchor`, `cred`, `fence` | a path | The [`coganchor`](#coganchor) to run here in place of the packaged build; ignored where it does not exist. |
 | `HUMANIZE_TARGET` | `internal anchor` | a target URL | Default `--target`. |
 | `HUMANIZE_HARNESS` | `internal anchor` | a harness spelling | Default `--harness`. |
 | `HUMANIZE_SHADOW` | `internal anchor` | a path | Default `--shadow`. |
@@ -941,13 +1015,13 @@ is [Files](/reference/files).
 | Path | Command | Access |
 | --- | --- | --- |
 | `epics/<workspace>/<datetime>-<hex>/` | `hmz exec`, runs started from `hmz` | written: one [epic](/reference/tracing#epics) per run |
-| `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers); its `runtimes`, `fallbacks` and `clis` are read by all when an agent or environment is opened |
+| `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers); its `runtimes`, `nous` and `clis` are read by all when an agent or environment is opened |
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
-| `releases.json` (in the machine's directory) | `hmz`, `hmz web`, `hmz update` | the newest release, refreshed when older than a day by the interfaces as they open and by `hmz update` |
-| `server.json` | `hmz server` | written by `start`, removed by `stop`: the server's `pid`, `mode`, `port` and `version`, never the secret |
-| `easytier/<version>/` | `hmz server`, `hmz web` | written once: the `easytier-core` downloaded and checked, reused after |
+| `releases.json` (in the machine's directory) | `hmz`, the daemon, `hmz update` | the newest release, refreshed when older than a day by the terminal interface as it opens, by the daemon as it starts and each day it runs, and by `hmz update` |
+| `web-port` | `hmz web` | read as it starts, for `--port`'s default; written, replaced whole, when the port it listens on changes |
+| `easytier/<version>/` | the daemon, and every command that reaches a P2P daemon | written once: the `easytier-core` downloaded and checked, reused after |
 | `settings.yaml`, `providers/` | all | read when an agent or environment is opened |
 | `flowverses/`; `~/.hmz/flows/` and `./.hmz/flows/` (fixed paths, not moved by `HUMANIZE_HOME`) | all | read when `-f` is resolved |
 
@@ -962,5 +1036,5 @@ Every command is a shell around [`hmz.sdk.Hmz`](/reference/sdk#hmz):
 | `hmz exec` without the line | [`Hmz().run(flow, task, agents=…, envs=…, params=…, budget=…, profile_flow=…, profile_environment=…, resume=…)`](/reference/sdk#hmz-run) |
 | `hmz` (as a frontend of held runs) | [`Daemons().host().link()`](/reference/sdk#daemons) |
 
-`hmz web` is a frontend of held runs as `hmz` is; in Python it is `hmz.web.serve()`, which is
-not part of the SDK. See [Web › Module](/reference/web#module).
+`hmz web` serves a page that is a client of the daemons as `hmz` is; in Python it is
+`hmz.web.serve()`, which is not part of the SDK. See [Web › Module](/reference/web#module).

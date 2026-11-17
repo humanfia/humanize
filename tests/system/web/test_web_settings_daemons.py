@@ -3,20 +3,17 @@
 The app's own pages apart from a daemon's, which daemon those read and write, and what a page
 holds copied to several daemons at once.
 
-The daemons are the browser's to fake: the list of them is answered in the page's browser, and
-so is everything sent to the remote ones -- `gpu` mirrors what Local reads and takes whatever
-is written to it, and `lab` refuses everything, as a daemon that is not up does.
+`gpu` is another machine's daemon, real and paired with this browser, reached through `/dial`;
+`lab` is kept, but nothing answers where it is reached, as a daemon that is not up.
 
-Then the New daemon form, in each kind and mode: SSH Config and hmz-stored against the real
-daemons, with an ssh config in the test's home; EasyTier against a registry and a community
-node list faked in the browser.
+Then the New daemon form, in each kind and mode: Code against `gpu`'s pairing code; SSH Config
+against the real ssh config of the test's home; Custom and EasyTier with what Local answers of
+the ssh config, the community's nodes and the EasyTier entries faked on its wire.
 """
 
 from __future__ import annotations
 
-import json
-import re
-import urllib.parse
+import socket
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -24,24 +21,25 @@ from playwright.sync_api import expect
 
 from tests.integration.doubles_core import install
 from tests.integration.doubles_web import served
-from tests.system.web.doubles_browser import ENGINES, go, opened
+from tests.system.web.doubles_browser import (
+    ENGINES,
+    Wire,
+    another,
+    go,
+    kept,
+    opened,
+    paired,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
-    from playwright.sync_api import Locator, Page, Request, Route
+    from playwright.sync_api import Locator, Page
 
 pytestmark = pytest.mark.parametrize("engine", ENGINES)
 
-#: Every daemon the page is told of: Local, one that is up and one that is not.
-_DAEMONS = {
-    "daemons": [
-        {"name": "local", "state": "up"},
-        {"name": "gpu", "host": "gpu.example", "state": "up"},
-        {"name": "lab", "host": "lab.example", "state": "failed"},
-    ]
-}
+#: A daemon kept, pinned, whose route nothing listens on.
+_LAB = {"name": "lab", "id": "a" * 52, "routes": ["tcp://127.0.0.1:9"]}
 
 
 @pytest.fixture
@@ -50,34 +48,16 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Pa
     return install(tmp_path, monkeypatch)
 
 
-def _daemons(page: Page) -> list[tuple[str, str, Any]]:
-    """Fakes every daemon but Local, keeping what each was asked: its name, method and body."""
-    asked: list[tuple[str, str, Any]] = []
+def _settings(page: Page, on: str) -> dict[str, Any]:
+    """What a daemon's settings are now, as the page reads them."""
+    return page.evaluate(
+        "async (on) => (await import('/api.js')).call('settings.get', {}, { on })", on
+    )
 
-    def listed(route: Route) -> None:
-        route.fulfill(json=_DAEMONS)
 
-    def remote(route: Route) -> None:
-        request = route.request
-        found = re.match(r".*/d/([^/]+)(/api/.*)", request.url)
-        assert found
-        name, path = found.groups()
-        if name == "local":
-            # The page's own daemon, which it asks as it asks everything: no fake of it.
-            route.fallback()
-            return
-        body = json.loads(request.post_data) if request.post_data else None
-        asked.append((name, f"{request.method} {path.split('?')[0]}", body))
-        if name == "lab":
-            route.fulfill(status=409, json={"error": "lab is not up."})
-        elif request.method == "POST":
-            route.fulfill(json={})
-        else:
-            route.fulfill(response=route.fetch(url=request.url.replace("/d/gpu", "")))
-
-    page.route(re.compile(r".*/api/daemons$"), listed)
-    page.route(re.compile(r".*/d/[^/]+/api/.*"), remote)
-    return asked
+def _kept(page: Page) -> list[dict[str, Any]]:
+    """Every remote daemon this browser keeps."""
+    return page.evaluate("async () => (await import('/api.js')).daemons.list()")
 
 
 def test_the_app_and_the_daemon_are_set_apart(project: Path, engine: str) -> None:
@@ -87,7 +67,7 @@ def test_the_app_and_the_daemon_are_set_apart(project: Path, engine: str) -> Non
         expect(nav.locator(".settings-group")).to_have_text(["App", "Daemon"])
         expect(nav.locator("a:visible").first).to_have_text("Themes")
         expect(nav.locator("a:visible")).to_contain_text(
-            ["Themes", "General", "Accounts", "Fallback", "Runtimes", "Backup"]
+            ["Themes", "General", "Accounts", "Nous", "Runtimes", "Backup"]
         )
         picker = page.locator("[data-hmz=settings-daemon]")
         expect(picker.locator("option")).to_have_text(["Local"])
@@ -96,42 +76,55 @@ def test_the_app_and_the_daemon_are_set_apart(project: Path, engine: str) -> Non
 
 
 def test_the_daemon_picked_is_the_one_read_and_written(
-    project: Path, engine: str
+    project: Path, tmp_path: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        asked = _daemons(page)
+    with (
+        another(tmp_path) as gpu,
+        served() as site,
+        opened(site, engine=engine) as page,
+    ):
+        paired(page, "gpu", gpu.code())
+        kept(page, _LAB)
         go(page, "/settings/general")
         picker = page.locator("[data-hmz=settings-daemon]")
         expect(picker.locator("option")).to_have_text(["Local", "gpu", "lab"])
         expect(picker).to_have_value("local")
-        assert not asked
 
         picker.select_option("gpu")
         expect(page.locator("[data-hmz=btw-whom]")).to_be_visible()
-        assert ("gpu", "GET /api/settings", None) in asked
-        assert ("gpu", "GET /api/backends", None) in asked
         assert "daemon=gpu" in page.url
         expect(page.locator(".settings-nav a", has_text="Backup")).to_have_attribute(
             "href", "#/settings/backup?daemon=gpu"
         )
 
+        page.locator("[data-hmz=settings-general] input[type=checkbox]").check()
         page.get_by_role("button", name="Save").click()
         expect(page.get_by_role("button", name="Saved")).to_be_visible()
-        assert any(one[:2] == ("gpu", "POST /api/settings") for one in asked)
+        assert _settings(page, "gpu")["details"] is True
+        assert _settings(page, "local")["details"] is False
 
         # Kept in the address, the daemon is the one the page opens on again.
-        asked.clear()
         go(page, "/settings/backup?daemon=gpu")
         expect(page.locator("[data-hmz=backups] h2")).to_have_text("Targets")
         expect(page.locator("[data-hmz=settings-daemon]")).to_have_value("gpu")
-        assert ("gpu", "GET /api/settings", None) in asked
+
+        # One that is not up is said to be unavailable, with its state.
+        picker.select_option("lab")
+        expect(page.locator("[data-hmz=settings-backup] .error")).to_contain_text(
+            "lab is unavailable, failed"
+        )
 
 
 def test_batch_apply_sends_the_page_to_each_daemon_ticked(
-    project: Path, engine: str
+    project: Path, tmp_path: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        asked = _daemons(page)
+    with (
+        another(tmp_path) as gpu,
+        served() as site,
+        opened(site, engine=engine) as page,
+    ):
+        paired(page, "gpu", gpu.code())
+        kept(page, _LAB)
         go(page, "/settings/general")
         page.locator("[data-hmz=settings-general] input[type=checkbox]").check()
         page.locator("[data-hmz=batch-apply]").click()
@@ -145,23 +138,21 @@ def test_batch_apply_sends_the_page_to_each_daemon_ticked(
             "Applied"
         )
         expect(results.and_(page.locator("[data-daemon=lab]"))).to_contain_text(
-            "lab is not up."
+            "lab is unavailable"
         )
-        sent = [one for one in asked if one[1] == "POST /api/settings"]
-        assert sorted(one[0] for one in sent) == ["gpu", "lab"]
-        assert all(one[2]["details"] is True for one in sent)
+        assert _settings(page, "gpu")["details"] is True
 
         # Closed, it leaves Settings open; nothing was written on Local.
         page.keyboard.press("Escape")
         expect(dialog).to_have_count(0)
         expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        assert _settings(page, "local")["details"] is False
 
 
 def test_accounts_keep_their_secrets_on_their_daemon(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _daemons(page)
         go(page, "/settings/accounts")
         expect(page.locator("[data-hmz=batch-apply]")).to_be_disabled()
         expect(page.locator("[data-hmz=batch-off]")).to_have_text("Secrets stay put")
@@ -172,7 +163,7 @@ def test_accounts_keep_their_secrets_on_their_daemon(
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine, width=390, height=800) as page:
-        _daemons(page)
+        kept(page, _LAB)
         go(page, "/settings/runtimes")
         expect(page.locator("[data-hmz=settings-daemon]")).to_be_visible()
         page.locator("[data-hmz=batch-apply]").click()
@@ -182,6 +173,57 @@ def test_settings_fit_a_phone(project: Path, engine: str) -> None:
         assert box
         assert box["x"] >= 0
         assert box["x"] + box["width"] <= 390
+
+
+def _pressed(form: Locator, group: str) -> Locator:
+    return form.locator(f"[data-hmz={group}] button[aria-pressed=true]")
+
+
+def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
+    project: Path, tmp_path: Path, engine: str
+) -> None:
+    with (
+        another(tmp_path) as gpu,
+        served() as site,
+        opened(site, engine=engine) as page,
+    ):
+        go(page, "/settings/daemons")
+        form = page.locator("[data-hmz=write-daemon]")
+        expect(_pressed(form, "daemon-kind")).to_have_text("Code")
+        form.get_by_label("Name").fill("gpu")
+        form.locator("#daemon-code").fill("hmz-pair:nope")
+        add = form.get_by_role("button", name="Add", exact=True)
+        add.click()
+        expect(form.locator(".error")).to_have_text("That is not a pairing code.")
+        assert _kept(page) == []
+
+        form.locator("#daemon-code").fill(gpu.code())
+        add.click()
+        row = page.locator("[data-hmz=daemon][data-name=gpu]")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("Paired")
+        expect(row).to_contain_text(f"tcp://127.0.0.1:{gpu.port}")
+        [entry] = _kept(page)
+        assert entry["routes"] == [f"tcp://127.0.0.1:{gpu.port}"]
+        assert len(entry["id"]) == 52
+
+        # Reached, it lists this machine among its devices, paired as it is called.
+        row.get_by_role("button", name="Connect").click()
+        expect(row.locator("[data-hmz=daemon-state]")).to_contain_text("up")
+        devices = page.locator("[data-hmz=daemon-devices][data-name=gpu]")
+        expect(devices.locator("[data-hmz=device] b")).to_contain_text(
+            [socket.gethostname().split(".")[0]]
+        )
+        devices.get_by_role("button", name="Pair a device").click()
+        expect(devices.locator("[data-hmz=pairing-code] code")).to_contain_text(
+            "hmz-pair:"
+        )
+
+        # Local listens nowhere: no code can be made of it, and the page says why.
+        local = page.locator("[data-hmz=daemon-devices][data-name=local]")
+        local.get_by_role("button", name="Pair a device").click()
+        expect(local.locator(".error")).to_contain_text(
+            "There is no route to pair over"
+        )
 
 
 #: A host of the ssh config, as `ssh -G` resolves it.
@@ -201,33 +243,19 @@ def _ssh_config(project: Path) -> None:
     (ssh / "config").write_text(_SSH_CONFIG)
 
 
-def _pressed(form: Locator, group: str) -> Locator:
-    return form.locator(f"[data-hmz={group}] button[aria-pressed=true]")
-
-
-def _written(request: Request) -> bool:
-    return request.method == "POST" and request.url.endswith("/api/daemons")
-
-
-def _fields(request: Request) -> dict[str, Any]:
-    """What a write of a daemon said it is reached by."""
-    return json.loads(request.post_data or "{}")["fields"]
-
-
 def test_a_host_of_the_ssh_config_is_picked(project: Path, engine: str) -> None:
     _ssh_config(project)
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
-        expect(_pressed(form, "daemon-kind")).to_have_text("SSH")
+        form.locator("[data-hmz=daemon-kind]").get_by_role("button", name="SSH").click()
         expect(_pressed(form, "daemon-mode")).to_have_text("SSH Config")
         form.locator("#daemon-alias").select_option("gpu")
         expect(form.get_by_label("Name")).to_have_value("gpu")
-        with page.expect_request(_written) as sent:
-            form.get_by_role("button", name="Add", exact=True).click()
-        assert _fields(sent.value) == {"via": "ssh", "alias": "gpu"}
+        form.get_by_role("button", name="Add", exact=True).click()
         row = page.locator("[data-hmz=daemon][data-name=gpu]")
         expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH · SSH Config")
+        assert _kept(page) == [{"name": "gpu", "id": "", "routes": ["stdio:ssh://gpu"]}]
 
         # Edited, it opens in its own mode, its host picked.
         row.get_by_role("button", name="Edit").click()
@@ -235,28 +263,31 @@ def test_a_host_of_the_ssh_config_is_picked(project: Path, engine: str) -> None:
         expect(form.locator("#daemon-alias")).to_have_value("gpu")
 
 
-def _resolved(route: Route) -> None:
-    """The hosts of the ssh config, as `ssh -G` resolves them, which reads the real home's."""
-    host = {
-        "alias": "gpu",
-        "name": "gpu",
-        "host": "gpu.example",
-        "user": "ann",
-        "port": 2200,
-        "identity_files": ["~/.ssh/gpu"],
-        "proxy_jump": "",
-    }
-    route.fulfill(json={"hosts": [host]})
+#: The hosts of the ssh config, as `ssh -G` resolves them, which reads the real home's.
+_HOSTS = {
+    "hosts": [
+        {
+            "alias": "gpu",
+            "host": "gpu.example",
+            "user": "ann",
+            "port": 2200,
+            "identity_files": ["~/.ssh/gpu"],
+            "proxy_jump": "",
+            "saved": False,
+        }
+    ]
+}
 
 
-def test_a_stored_daemon_is_filled_from_the_ssh_config(
+def test_a_custom_daemon_is_filled_from_the_ssh_config(
     project: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        page.route("**/api/daemons/hosts", _resolved)
+    wire = Wire(faked={"runtimes.hosts": lambda _: {"result": _HOSTS}})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
-        form.get_by_role("button", name="hmz-stored").click()
+        form.locator("[data-hmz=daemon-kind]").get_by_role("button", name="SSH").click()
+        form.get_by_role("button", name="Custom").click()
         form.locator("#daemon-import").select_option("gpu")
         form.locator("[data-hmz=daemon-import]").click()
         expect(form.get_by_label("Name")).to_have_value("gpu")
@@ -265,18 +296,17 @@ def test_a_stored_daemon_is_filled_from_the_ssh_config(
         expect(form.locator("#daemon-port")).to_have_value("2200")
         expect(form.locator("#daemon-identity")).to_have_value("~/.ssh/gpu")
         form.get_by_label("Name").fill("box")
-        with page.expect_request(_written) as sent:
-            form.get_by_role("button", name="Add", exact=True).last.click()
-        fields = _fields(sent.value)
-        assert fields["via"] == "ssh"
-        assert "alias" not in fields
+        form.get_by_role("button", name="Add", exact=True).last.click()
         row = page.locator("[data-hmz=daemon][data-name=box]")
-        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH · hmz-stored")
-        expect(row).to_contain_text("ann@gpu.example:2200")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("SSH · Custom")
+        route = "stdio:ssh://ann@gpu.example:2200?identity=~%2F.ssh%2Fgpu"
+        expect(row).to_contain_text(route)
+        assert _kept(page) == [{"name": "box", "id": "", "routes": [route]}]
 
         row.get_by_role("button", name="Edit").click()
-        expect(_pressed(form, "daemon-mode")).to_have_text("hmz-stored")
+        expect(_pressed(form, "daemon-mode")).to_have_text("Custom")
         expect(form.locator("#daemon-host")).to_have_value("gpu.example")
+        expect(form.locator("#daemon-identity")).to_have_value("~/.ssh/gpu")
 
 
 #: The community's shared nodes, as the list of them is answered.
@@ -300,56 +330,38 @@ _NODES = {
 }
 
 
-class _Registry:
-    """The daemons, as the page asks them, a P2P one written already; each write kept."""
+class _EasyTier:
+    """Local's EasyTier entries, `far` among them, as its wire answers them; each write kept."""
 
-    def __init__(self) -> None:
-        self.daemons: list[dict[str, Any]] = [
-            {
-                "name": "far",
-                "label": "far",
-                "via": "easytier",
-                "secret": True,
-                "peers": ["tcp://mine.example:11010"],
-                "state": "idle",
-            }
+    def __init__(self, nodes: dict[str, Any]) -> None:
+        self.networks = [
+            {"name": "far", "nodes": ["tcp://mine.example:11010"], "secret": True}
         ]
         self.writes: list[dict[str, Any]] = []
+        self.wire = Wire(
+            faked={
+                "easytier.nodes": lambda _: nodes,
+                "easytier.list": lambda _: {"result": {"networks": self.networks}},
+                "easytier.set": self._set,
+            }
+        )
 
-    def answer(self, route: Route) -> None:
-        path = urllib.parse.urlsplit(route.request.url).path
-        if path == "/api/daemons/hosts":
-            route.fulfill(json={"hosts": []})
-            return
-        if route.request.method == "POST":
-            body = json.loads(route.request.post_data or "{}")
-            self.writes.append(body)
-            kept = {k: v for k, v in body["fields"].items() if k != "secret"}
-            self.daemons = [one for one in self.daemons if one["name"] != body["name"]]
-            self.daemons.append({"name": body["name"], **kept, "secret": True})
-        listed = [{"name": "local", "state": "up"}, *self.daemons]
-        route.fulfill(json={"daemons": listed})
-
-
-def _registry(page: Page, nodes: Callable[[Route], None]) -> _Registry:
-    fake = _Registry()
-    page.route("**/api/daemons**", fake.answer)
-    page.route("**/api/daemons/easytier/nodes", nodes)
-    return fake
-
-
-def _listing(route: Route) -> None:
-    route.fulfill(json=_NODES)
+    def _set(self, params: dict[str, Any]) -> dict[str, Any]:
+        said = {key: value for key, value in params.items() if key != "idem"}
+        self.writes.append(said)
+        self.networks = [one for one in self.networks if one["name"] != said["name"]]
+        self.networks.append(
+            {"name": said["name"], "nodes": said["nodes"], "secret": True}
+        )
+        return {"result": {"networks": self.networks}}
 
 
 def test_an_easytier_daemon_takes_a_secret_and_nodes(
     project: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        fake = _registry(page, _listing)
+    fake = _EasyTier({"result": _NODES})
+    with served() as site, opened(site, engine=engine, routed=fake.wire.routes) as page:
         go(page, "/settings/daemons")
-        far = page.locator("[data-hmz=daemon][data-name=far]")
-        expect(far.locator("[data-hmz=daemon-via]")).to_have_text("P2P · EasyTier")
         form = page.locator("[data-hmz=write-daemon]")
         kinds = form.locator("[data-hmz=daemon-kind]")
         kinds.get_by_role("button", name="P2P").click()
@@ -382,29 +394,25 @@ def test_an_easytier_daemon_takes_a_secret_and_nodes(
         assert not fake.writes
         form.locator("#daemon-secret").fill("ü" * 8)
         add.click()
-        expect(page.locator("[data-hmz=daemon][data-name=edge]")).to_be_visible()
+        row = page.locator("[data-hmz=daemon][data-name=edge]")
+        expect(row.locator("[data-hmz=daemon-via]")).to_have_text("P2P · EasyTier")
         assert fake.writes == [
             {
                 "name": "edge",
-                "fields": {
-                    "via": "easytier",
-                    "secret": "ü" * 8,
-                    "peers": [
-                        "tcp://public.easytier.example:11010",
-                        "wss://relay.example:443",
-                    ],
-                },
-                "replace": False,
+                "secret": "ü" * 8,
+                "nodes": [
+                    "tcp://public.easytier.example:11010",
+                    "wss://relay.example:443",
+                ],
             }
         ]
+        assert _kept(page) == [{"name": "edge", "id": "", "routes": ["easytier:edge"]}]
 
 
 def test_without_the_community_list_nodes_are_typed(project: Path, engine: str) -> None:
-    def unreachable(route: Route) -> None:
-        route.fulfill(status=503, json={"error": "The node list could not be read."})
-
-    with served() as site, opened(site, engine=engine) as page:
-        fake = _registry(page, unreachable)
+    unreadable = {"error": {"code": 503, "message": "The node list could not be read."}}
+    fake = _EasyTier(unreadable)
+    with served() as site, opened(site, engine=engine, routed=fake.wire.routes) as page:
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
         form.get_by_role("button", name="P2P").click()
@@ -416,20 +424,22 @@ def test_without_the_community_list_nodes_are_typed(project: Path, engine: str) 
         add = form.get_by_role("button", name="Add", exact=True)
         add.click()
         expect(form.locator(".error").last).to_have_text(
-            "Pick or add at least one node."
+            "An EasyTier daemon needs at least one node."
         )
         form.locator("#daemon-node").fill("tcp://mine.example:11010")
         form.get_by_role("button", name="Add node").click()
         add.click()
         expect(page.locator("[data-hmz=daemon][data-name=edge]")).to_be_visible()
-        assert fake.writes[-1]["fields"]["peers"] == ["tcp://mine.example:11010"]
+        assert fake.writes[-1]["nodes"] == ["tcp://mine.example:11010"]
 
 
 def test_an_easytier_daemon_edited_keeps_its_secret(project: Path, engine: str) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        fake = _registry(page, _listing)
+    fake = _EasyTier({"result": _NODES})
+    with served() as site, opened(site, engine=engine, routed=fake.wire.routes) as page:
+        kept(page, {"name": "far", "id": "b" * 52, "routes": ["easytier:far"]})
         go(page, "/settings/daemons")
         far = page.locator("[data-hmz=daemon][data-name=far]")
+        expect(far.locator("[data-hmz=daemon-via]")).to_have_text("P2P · EasyTier")
         far.get_by_role("button", name="Edit").click()
         form = page.locator("[data-hmz=write-daemon]")
         expect(form.locator("h2")).to_have_text("Edit far")
@@ -443,10 +453,8 @@ def test_an_easytier_daemon_edited_keeps_its_secret(project: Path, engine: str) 
         expect(mine).to_be_checked()
         form.get_by_role("button", name="Save").click()
         expect(form.locator("h2")).to_have_text("New daemon")
-        assert fake.writes == [
-            {
-                "name": "far",
-                "fields": {"via": "easytier", "peers": ["tcp://mine.example:11010"]},
-                "replace": True,
-            }
+        assert fake.writes == [{"name": "far", "nodes": ["tcp://mine.example:11010"]}]
+        # Its id stays pinned, its route as it was.
+        assert _kept(page) == [
+            {"name": "far", "id": "b" * 52, "routes": ["easytier:far"]}
         ]

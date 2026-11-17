@@ -19,6 +19,8 @@ purpose does: driving in :mod:`hmz.coganchor.agents`, reading back in :mod:`hmz.
 from __future__ import annotations
 
 import base64
+import ipaddress
+import logging
 import os
 import re
 import shutil
@@ -30,6 +32,8 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+log = logging.getLogger(__name__)
 
 __all__ = [
     "ALIKE",
@@ -146,7 +150,9 @@ class Way:
 #: What each of them means:
 #:
 #: - `contended`: two turns at one local store. opencode's SQLite is shared across workspaces,
-#:   and the loser of a race says `database is locked` before it has spoken to any provider.
+#:   and the loser of a race says `database is locked` before it has spoken to any provider;
+#:   codex's app servers of one run share a state database, and one that lost the race to
+#:   create it says `failed to initialize sqlite state runtime` and exits.
 #: - `throttled`: too many requests. The whole account rather than the one call, but for a
 #:   while rather than for good: the service is limiting how fast it is asked, and waiting is
 #:   what answers it, with another account after that.
@@ -232,8 +238,8 @@ SIGNS: tuple[Sign, ...] = (
     Sign("unmirrored", r"cannot keep the local copy of the work at"),
     # The run's own fence rather than the provider, and in front of the credentials for the
     # same reason: the proxy that holds a fenced turn to the hosts its role may reach refuses
-    # any other with `403 Forbidden` and says so in these words
-    # (`hmz.coganchor.fence.proxy`), and nobody's sign-in was refused at all.
+    # any other with `403 Forbidden` and says so in these words (`coganchor internal fence`),
+    # and nobody's sign-in was refused at all.
     Sign("fenced", r"is not a host this run may reach"),
     # Two turns at one store rather than anything to do with an account: opencode keeps its
     # sessions in a SQLite database shared across workspaces, and the loser of that race is
@@ -1820,6 +1826,12 @@ PROFILES = (
         # written under the home it was started in: `thread/resume` and `thread/fork` read
         # nothing else, and a thread of a virtual home is one neither finds once it is gone.
         records=(("state_*.sqlite", "threads", "rollout_path"),),
+        # Every app server of a run that keeps its sessions shares one state database, and
+        # codex creates it as a server starts: of servers started together on a new run, those
+        # that lose the race to create it exit before answering anything, and codex-cli 0.166
+        # says only this. A store busy for the moment another process holds it, which a
+        # server started a second later finds made.
+        signs=(Sign("contended", r"failed to initialize (sqlite )?state runtime"),),
         # One file, whichever way it was signed into: the subscription's tokens and an API
         # key land in the same place, under the mode that says which of them is in force.
         creds=("auth.json",),
@@ -4524,6 +4536,27 @@ def _strings(said: object) -> tuple[str, ...]:
     return tuple(str(one) for one in cast("list[object]", said) if str(one).strip())
 
 
+def _hosts(said: object, name: str) -> tuple[str, ...]:
+    """The hosts a CLI was declared to reach, each as :attr:`Profile.hosts` spells one.
+
+    Written as a URL or as a host, the way an endpoint's variable is read (see
+    :func:`_place`): `https://api.example.com/v1` is the host `api.example.com`, which is
+    what the fence's proxy compares. One that names no host is dropped, and said so, rather
+    than kept as an entry that matches nothing while still counting as a host declared.
+    """
+    kept: list[str] = []
+    for one in _strings(said):
+        try:
+            host = str(ipaddress.ip_address(one.strip()))
+        except ValueError:
+            host = _place(one)
+        if host:
+            kept.append(host)
+        else:
+            log.warning("clis.%s.hosts: %r names no host; ignored", name, one)
+    return tuple(dict.fromkeys(kept))
+
+
 def speaking() -> dict[str, tuple[str, ...]]:
     """Every CLI somebody has added, and the command that starts each one.
 
@@ -4567,7 +4600,7 @@ def speaking() -> dict[str, tuple[str, ...]]:
         if given:
             found[str(name)] = given
             declared[str(name)] = (
-                _strings(said.get("hosts")),
+                _hosts(said.get("hosts"), str(name)),
                 _strings(said.get("state")),
             )
     _added, _added_at, _declared = found, stamp, declared
@@ -4916,10 +4949,10 @@ _ROUTING = ("_URL", "_BASE", "_HOST", "_ENDPOINT", "_ORIGIN", "_ISSUER")
 def reachable(profile: Profile, environ: Mapping[str, str]) -> tuple[str, ...]:
     """The hosts a turn of this backend may still reach when a flow grants it no network.
 
-    This is the one hole `online=NONE` leaves, and it is left on purpose. A coding agent CLI
+    This is the one hole `network=False` leaves, and it is left on purpose. A coding agent CLI
     thinks on somebody else's machine: with its model API cut it is not an agent working
-    offline but a process that cannot take a turn at all, and a scope that made every turn
-    fail would be a scope nobody could use. So the fence lets through exactly what the CLI
+    offline but a process that cannot take a turn at all, and a permission that made every turn
+    fail would be a permission nobody could use. So the fence lets through exactly what the CLI
     cannot run without -- its model API, and where its sign-in is refreshed -- and nothing
     else: not the web its agent would search, not a package index, not a host a command it
     runs names.

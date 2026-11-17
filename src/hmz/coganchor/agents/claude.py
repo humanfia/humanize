@@ -11,13 +11,15 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from .base import AgentBase, StreamSessionBase
+from hmz.coganchor import prices
+
+from .base import DRAIN_SECONDS, AgentBase, StreamSessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
     from pathlib import Path
 
     from pydantic import BaseModel
@@ -73,8 +75,13 @@ _FLEET = ("Task", "Agent")
 #: background when it likes and ends the turn at once, saying it will wait for them -- and the
 #: `result` that ends it is the turn Humanize is holding over, so what the agent went on to
 #: find would land after its flow had read the answer and moved on. Set, the same subagents
-#: run, several to one message as before, and the turn ends when they have.
-_FOREGROUND = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
+#: run, several to one message as before, and the turn ends when they have. And a turn the
+#: provider refuses stays refused on the model asked for, rather than Claude answering it
+#: quietly on another: Humanize falls back only where `agent.spec` says a turn may move to.
+_TURN_ENV = {
+    "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1",
+    "CLAUDE_CODE_NO_MODEL_FALLBACK": "1",
+}
 
 #: The models Claude Code reaches for on its own, beside the one a turn names: the small one
 #: it summarises a page or names a session with, and whichever a subagent asks for by family.
@@ -211,6 +218,27 @@ _AS_IT_GOES = {
     "cache_read": "cache_read_input_tokens",
     "cache_write": "cache_creation_input_tokens",
 }
+#: Where the part of the cache writes Claude says went to a cache kept for an hour is kept
+#: among what a message or a model is counted at here: beside the kinds, and never one of
+#: them, since it is part of `cache_write` and differs from the rest only in its price.
+_HOUR = "1h"
+
+
+def _usage(counts: Mapping[str, float]) -> Usage:
+    """What has been counted here, as the kinds with the one-hour cache writes beside them.
+
+    And with the tokens of requests past a long-context line beside them too, which are
+    counted here under the names `hmz.coganchor.prices.tiered` gives them.
+    """
+    return Usage(
+        {
+            kind: tokens
+            for kind, tokens in counts.items()
+            if kind != _HOUR and ">" not in kind
+        },
+        hour=counts.get(_HOUR, 0.0),
+        tiered={kind: tokens for kind, tokens in counts.items() if ">" in kind},
+    )
 
 
 @dataclass(slots=True)
@@ -374,9 +402,10 @@ class ClaudeCodeSession(StreamSessionBase):
         #: and what each of those messages last said it had cost.
         self._fed: Counter[str] = Counter()
         self._seen: dict[str, Counter[str]] = {}
-        #: The message each agent on the stream is writing now, by the call it was started
-        #: under ("" for this one's own), since what closes one names no message.
-        self._messages: dict[str, str] = {}
+        #: The message each agent on the stream is writing now, and the model writing it, by
+        #: the call it was started under ("" for this one's own), since what closes one names
+        #: neither.
+        self._messages: dict[str, tuple[str, str]] = {}
         #: What the process now up was started to think at, so that a flow moving the effort
         #: mid-session is answered by starting one that thinks at the new one.
         self._at: str | None = None
@@ -389,6 +418,17 @@ class ClaudeCodeSession(StreamSessionBase):
         #: `result` opens an answer of its own. Read off the order of those three, rather
         #: than off the `system init` an answer may or may not open with.
         self._answering = False
+        #: The uuid the turn's own prompt was sent under, whether Claude names what it takes
+        #: up at all (`command_lifecycle`), and whether the answer being read now is one of
+        #: ours (True), a turn Claude started by itself (False) or nobody's yet (None).
+        #: Claude starts turns of its own -- a wakeup, a task finishing, something it queued
+        #: -- and what one of those says and ends on is no prompt's answer.
+        self._ticket = ""
+        self._lifecycle = False
+        self._ours: bool | None = None
+        #: Whether the turn's prompt was taken into a turn Claude started by itself, whose
+        #: `result` is then the only answer it gets and is not its own.
+        self._merged = False
         #: Whether it has been said that Claude is running another model than it was told.
         self._substituted = False
         #: The agents this turn has started of its own, by the id of the call that started
@@ -424,11 +464,6 @@ class ClaudeCodeSession(StreamSessionBase):
         #: whole of one arriving a moment later as part of a message is not a second row.
         self._announced: set[str] = set()
 
-    @property
-    def named(self) -> str | None:
-        """What Claude called this session, which it says on the first line it writes."""
-        return self._id or self._named
-
     def _holding(self) -> list[str]:
         """Which conversation this process is to be holding: this one, or a fork of another.
 
@@ -451,12 +486,12 @@ class ClaudeCodeSession(StreamSessionBase):
         return ["--session-id", str(uuid.uuid4())]
 
     def _environment(self) -> dict[str, str]:
-        """What the turn runs with, plus :data:`_FOREGROUND`, which nothing else outranks.
+        """What the turn runs with, plus :data:`_TURN_ENV`, which nothing else outranks.
 
         And, through a LiteLLM gateway, every model of :data:`_FAMILIES` as the one this agent
         runs.
         """
-        held = {**super()._environment(), **_FOREGROUND}
+        held = {**super()._environment(), **_TURN_ENV}
         if self._agent.gateway is not None:
             held |= dict.fromkeys(_FAMILIES, self._agent.config.model)
         return held
@@ -509,14 +544,20 @@ class ClaudeCodeSession(StreamSessionBase):
                 # nobody is at a prompt to answer for it -- and what is still asked, Humanize
                 # answers: whatever Claude asks at `bypassPermissions` regardless (a question
                 # for its user), everything the account's own mode asks where it forbids that
-                # one, and everything while a hook is hung on `PERMISSION_REQUEST`. An agent
-                # at no rung at all is not that agent: what it stops to ask about is between
-                # it and the account it runs on, and taking the deciding for one would be
-                # Humanize answering a question nobody put to it.
+                # one, and everything while a hook is hung on `PERMISSION_REQUEST`.
+                # `read-only` is routed too, for its questions: plan mode is where Claude
+                # stops to ask its user one, and a question the CLI answered by itself would
+                # never reach the hook hung for it. Every other request there is answered no,
+                # after a `PERMISSION_REQUEST` hook has been told of it. The rungs between
+                # are Claude's own to decide, and an agent at no rung at all is not that
+                # agent either: what it stops to ask about is between it and the account it
+                # runs on, and taking the deciding for one would be Humanize answering a
+                # question nobody put to it.
                 #
                 # `stdio` routes every request to us: each one is read as a
-                # `control_request` and answered `allow`, yes to whatever the account leaves
-                # decidable, with its own hard `deny` list still the CLI's to enforce.
+                # `control_request` and answered -- `allow` at `bypass`, yes to whatever the
+                # account leaves decidable, with its own hard `deny` list still the CLI's to
+                # enforce.
                 #
                 # Not in `claude --help` any more. What 2.1.272 documents is
                 # `--permission-prompts <host|none>`, "who answers permission prompts with
@@ -529,10 +570,11 @@ class ClaudeCodeSession(StreamSessionBase):
                 # asked for something and changed nothing. The host it means is one that
                 # announced itself over the control protocol, and a reader of the stream is
                 # not that. So the flag stays: without it `bypass` would be a rung that
-                # decides nothing and a flow's `PERMISSION_REQUEST` hooks would see none of
-                # what they are hung for.
+                # decides nothing, a flow's `PERMISSION_REQUEST` hooks would see none of
+                # what they are hung for, and a question asked at `read-only` would be
+                # declined before any `ASK_USER` hook heard it.
                 ["--permission-prompt-tool", "stdio"]
-                if self._agent.config.permission == "bypass"
+                if self._agent.config.permission in ("read-only", "bypass")
                 else []
             ),
             "--settings",
@@ -699,7 +741,9 @@ class ClaudeCodeSession(StreamSessionBase):
         if ticket:
             said["uuid"] = ticket
         else:
-            # A turn's own prompt, which is an answer owed from here.
+            # A turn's own prompt, which is an answer owed from here: named too, so that its
+            # answer is told apart from that of a turn Claude starts by itself.
+            self._ticket = said["uuid"] = str(uuid.uuid4())
             self._answering = True
         return json.dumps(said) + "\n"
 
@@ -710,6 +754,7 @@ class ClaudeCodeSession(StreamSessionBase):
         self._fleet = {}
         self._reaching, self._announced = {}, set()
         self._answering = False
+        self._ticket, self._lifecycle, self._ours, self._merged = "", False, None, False
         self._at = self.effort
         self._offering = self._telling
         self._gated = self._gating
@@ -808,6 +853,8 @@ class ClaudeCodeSession(StreamSessionBase):
                     if usage.get(named)
                 }
             )
+            if hour := int(usage.get("cacheCreationEphemeral1hInputTokens") or 0):
+                counted[_HOUR] = hour
             before = self._counted.get(model) or Counter()
             moved = Counter(
                 {
@@ -816,11 +863,11 @@ class ClaudeCodeSession(StreamSessionBase):
                     if (tokens := counted[kind] - before[kind]) > 0
                 }
             )
-            if total := sum(moved.values()):
+            if total := sum(tokens for kind, tokens in moved.items() if kind != _HOUR):
                 spent[model] = total
             risen.update(moved)
             self._counted[model] = counted
-        return spent, Usage(risen)
+        return spent, _usage(risen)
 
     def _live(self, said: dict[str, Any]) -> None:
         """Takes what one request to the model came to, as its answer arrives.
@@ -834,9 +881,13 @@ class ClaudeCodeSession(StreamSessionBase):
           said: The `assistant` event, as read.
         """
         message: dict[str, Any] = said.get("message") or {}
-        self._rose(str(message.get("id") or ""), message.get("usage") or {})
+        self._rose(
+            str(message.get("id") or ""),
+            message.get("usage") or {},
+            str(message.get("model") or ""),
+        )
 
-    def _rose(self, named: str, usage: dict[str, Any]) -> None:
+    def _rose(self, named: str, usage: dict[str, Any], model: str) -> None:
         """Counts what one message now says it has cost, beyond what it said before.
 
         Claude says the same message several times -- once for the thinking in it, once for
@@ -845,9 +896,14 @@ class ClaudeCodeSession(StreamSessionBase):
         on it. Its output only as it stood when the message began, which is a handful of
         tokens: what it came to is on the `message_delta` that closes it, read here too.
 
+        A message is one request, so it is also where a prompt past the model's long-context
+        line is seen: its tokens are counted again beside the kinds, under the tier's names,
+        and rise the way the kinds do.
+
         Args:
           named: Claude's id for the message.
           usage: What it says the message has cost, as Anthropic spells each kind.
+          model: The model that wrote it, or "" for the one this session was told.
         """
         counted: Counter[str] = Counter(
             {
@@ -856,14 +912,31 @@ class ClaudeCodeSession(StreamSessionBase):
                 if usage.get(spelled)
             }
         )
+        # The one-hour part of the writes, which the `message_delta` closing a message leaves
+        # out while repeating their total: the most any copy of the message said is kept, so
+        # one that is silent about it has not moved those writes back to five minutes.
+        written: object = usage.get("cache_creation")
+        if isinstance(written, dict) and (
+            hour := int(
+                cast("dict[str, Any]", written).get("ephemeral_1h_input_tokens") or 0
+            )
+        ):
+            counted[_HOUR] = hour
         before = self._seen.get(named) or Counter()
-        risen = Usage(
-            {
-                kind: tokens
-                for kind in set(counted) | set(before)
-                if (tokens := counted[kind] - before[kind]) > 0
-            }
+        whole = before | counted  # the request, as the most any copy of it has said
+        counted.update(
+            prices.tiered(
+                {kind: whole[kind] for kind in _AS_IT_GOES},
+                model or self._agent.config.model,
+                hour=whole[_HOUR],
+            )
         )
+        rises = {
+            kind: tokens
+            for kind in set(counted) | set(before)
+            if (tokens := counted[kind] - before[kind]) > 0
+        }
+        risen = _usage(rises)
         # A request the first time its message is told of, and the same request after: what
         # the rest add is what it came to, not another turn of the model in the average.
         asked = named not in self._seen
@@ -871,27 +944,34 @@ class ClaudeCodeSession(StreamSessionBase):
         # not others: one it left out has not gone back to nothing.
         self._seen[named] = before | counted
         if risen.total:
-            self._fed.update(risen)
+            self._fed.update(rises)
             self._spends(risen, turn=asked)
 
-    def _settle(self, risen: Usage) -> None:
+    def _settle(self, risen: Usage) -> Usage:
         """Adds whatever the turn's own total says was spent beyond what was counted live.
 
         Args:
           risen: What the turn cost, by kind, as the `result` states it.
+
+        Returns:
+          The same, with what its requests past a long-context line were counted live at
+          beside it: the total names no request, and says nothing of how long any one was.
         """
-        owed = Usage(
+        said = {**risen, _HOUR: risen.hour}
+        owed = _usage(
             {
                 kind: tokens
-                for kind in set(risen) | set(self._fed)
-                if (tokens := risen.get(kind, 0.0) - self._fed[kind]) > 0
+                for kind in set(said) | set(self._fed)
+                if (tokens := said.get(kind, 0.0) - self._fed[kind]) > 0
             }
         )
+        tiered = {kind: tokens for kind, tokens in self._fed.items() if ">" in kind}
         self._fed, self._seen = Counter(), {}
         # Not a turn of the model: the requests it is settling up for have each been counted
         # already, and counting this as one more would put a turn in the average that never
         # happened.
         self._spends(owed, turn=False)
+        return Usage(risen, hour=risen.hour, tiered=tiered)
 
     def _running(self, running: str) -> str:
         """What to say where Claude is running another model than the one it was told.
@@ -1042,7 +1122,7 @@ class ClaudeCodeSession(StreamSessionBase):
                 yield event
         except Failed as failed:
             if self._draining is not None:
-                self._draining.join(timeout=5)
+                self._draining.join(timeout=DRAIN_SECONDS)
             said = f"{failed.stderr or ''}{''.join(self._complaints)}"
             if began or self._launching != _PERMITTED["bypass"] or _ROOT not in said:
                 raise
@@ -1075,11 +1155,35 @@ class ClaudeCodeSession(StreamSessionBase):
             said: dict[str, Any] = json.loads(line)
         except json.JSONDecodeError:
             return  # not ours: Claude prints the odd plain line among the JSON
+        if said.get("type") in ("stream_event", "assistant", "user") and (
+            self._ours is False or (self._lifecycle and self._ours is None)
+        ):
+            # A turn Claude started by itself: an answer of ours begins only once Claude says
+            # it has taken our prompt up. What it says is not ours to show; what it costs is
+            # still this session's, as it goes.
+            self._ours = False
+            if said.get("type") == "assistant":
+                self._live(said)
+            elif said.get("type") == "stream_event":
+                event: dict[str, Any] = said.get("event") or {}
+                if event.get("type") in ("message_start", "message_delta"):
+                    for _ in self._streaming(
+                        event, str(said.get("parent_tool_use_id") or "")
+                    ):
+                        pass  # those two say what a message cost, and nothing to show
+            return
         if said.get("type") == "stream_event":
             yield from self._streaming(
                 cast("dict[str, Any]", said.get("event") or {}),
                 str(said.get("parent_tool_use_id") or ""),
             )
+        elif (
+            said.get("type") == "system" and said.get("subtype") == "task_notification"
+        ):
+            # A task of an earlier turn has ended. Read into whatever turn is open, and
+            # otherwise the start of one of Claude's own.
+            if self._lifecycle and self._ours is None:
+                self._ours = False
         elif said.get("type") == "control_request":
             # Claude waits on the answer, so one left unanswered is a turn that never ends.
             self._answer(said)
@@ -1088,9 +1192,28 @@ class ClaudeCodeSession(StreamSessionBase):
             # with: `queued` the moment it has been read off stdin, `started` once it is in
             # front of the model, `completed` when its answer is done. Only `started` is the
             # agent having heard -- the other two are the pipe and the answer.
-            if said.get("state") == "started":
-                words = self.took(str(said.get("command_uuid") or ""))
-                if words is not None:
+            self._lifecycle = True
+            named = str(said.get("command_uuid") or "")
+            if said.get("state") == "started" and named and named == self._ticket:
+                if self._ours is False:
+                    # Taken into a turn Claude is running by itself, whose `result` then
+                    # answers it: an answer that is not the prompt's own.
+                    self._merged = True
+                else:
+                    self._ours = True
+            elif said.get("state") == "started":
+                words = self.took(named)
+                if words is None and named and self._ours is None:
+                    # Taken up under a name hmz never gave: a turn Claude queued for itself.
+                    self._ours = False
+                elif words is not None and self._ours is False:
+                    # A word put in, taken into a turn of Claude's own and answered there,
+                    # by a `result` that is no answer of ours: none is owed for it.
+                    with self._writing:
+                        self._owed -= 1
+                    yield Event(kind="took", text=words)
+                elif words is not None:
+                    self._ours = True
                     if self._answering:
                         # Taken into the answer under way, which the `result` ending it is
                         # the answer to as well: no answer of its own is coming.
@@ -1102,8 +1225,11 @@ class ClaudeCodeSession(StreamSessionBase):
                     yield Event(kind="took", text=words)
         elif said.get("type") == "system" and said.get("session_id"):
             # Noted, not taken: this is the first line out, said before anything can go
-            # wrong, and a session is only opened by a turn that lands in it.
+            # wrong, and a session is only opened by a turn that lands in it. But the run's
+            # from here, whose log this is from its first line whether or not the turn lands.
             self._named = str(said["session_id"])
+            if self._id is None:
+                self._tells(self._named)
             if said.get("subtype") == "init" and (
                 instead := self._running(str(said.get("model") or ""))
             ):
@@ -1113,13 +1239,33 @@ class ClaudeCodeSession(StreamSessionBase):
             ):
                 yield Event(kind="notice", text=instead)
         elif said.get("type") == "result":
+            if self._lifecycle and not self._ours:
+                # The end of a turn Claude started by itself: what it cost is this session's,
+                # and what it said is nobody's answer.
+                self._settle(self._spent(said)[1])
+                self._ours, merged, self._merged = None, self._merged, False
+                if merged:
+                    # The prompt it took in is owed an answer that is not coming, and a turn
+                    # sent again is one Claude is not busy with.
+                    self._answering = False
+                    with self._writing:
+                        self._owed, self._folded = 0, 0
+                    raise Failed(
+                        1,
+                        ["claude"],
+                        "",
+                        "claude took the prompt into a turn of its own",
+                        fault="contended",
+                    )
+                return
+            self._ours = None
             self._answering = False
             if failure := _result_failure(said):
                 # Claude has emitted `subtype: success` with `is_error: true`, so neither
                 # field is sufficient alone. The remaining reasons also guard a malformed
                 # success result that arrives while Claude is still asking to use a tool.
                 tokens, risen = self._spent(said)
-                self._settle(risen)
+                risen = self._settle(risen)
                 yield Event(
                     kind="failed",
                     text=failure,
@@ -1130,7 +1276,7 @@ class ClaudeCodeSession(StreamSessionBase):
             if self._named is not None:
                 self._adopt(self._named)  # a turn has landed, so the session is open
             tokens, risen = self._spent(said)
-            self._settle(risen)
+            risen = self._settle(risen)
             # The turn is over, so what it reached for is nothing the next one has to know
             # about: a session takes thousands of turns, and these would grow with all of them.
             self._reaching, self._announced = {}, set()
@@ -1244,16 +1390,19 @@ class ClaudeCodeSession(StreamSessionBase):
                 )
             case "message_start":
                 message = cast("dict[str, Any]", event.get("message") or {})
-                self._messages[under] = str(message.get("id") or "")
+                self._messages[under] = (
+                    str(message.get("id") or ""),
+                    str(message.get("model") or ""),
+                )
             case "message_delta":
                 # What the message came to, which the messages carrying its parts never say:
                 # each states the output as it stood when the message began. Read as it
                 # lands, a turn writing a hundred thousand tokens is a turn the budget and
                 # the rate see writing them, rather than a few hundred and then the rest at
                 # the end -- past a cap that was meant to stop it on the way.
+                named, model = self._messages.get(under, ("", ""))
                 self._rose(
-                    self._messages.get(under, ""),
-                    cast("dict[str, Any]", event.get("usage") or {}),
+                    named, cast("dict[str, Any]", event.get("usage") or {}), model
                 )
             case _:  # the fragments of words
                 pass

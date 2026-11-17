@@ -9,20 +9,23 @@ removes the index, as somebody would from the Flows page.
 from __future__ import annotations
 
 import subprocess
-from typing import TYPE_CHECKING
+import uuid
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import yaml
 from playwright.sync_api import expect
 
+from hmz.rpc import RpcError
 from tests.integration.doubles_core import install
-from tests.integration.doubles_web import Browser, served
-from tests.system.web.doubles_browser import ENGINES, opened
+from tests.integration.doubles_web import Browser, Session, served
+from tests.system.web.doubles_browser import ENGINES, Wire, opened
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from playwright.sync_api import Route
+#: Local is a daemon of this process, which the page reaches over `/rpc` as any other.
+pytestmark = pytest.mark.usefixtures("daemon")
 
 #: The flow the index lists: one agent, one turn.
 _FLOW = '''
@@ -68,6 +71,8 @@ def _git(at: Path, *argv: str) -> str:
 def index(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
     """An index on this machine listing `solo` 1.0.0 and 1.1.0, in a project of its own."""
     install(tmp_path, monkeypatch)
+    # The home it gives the CLI is this machine's home, whose flowverses these are.
+    (tmp_path / "home").mkdir(exist_ok=True)
     flow = tmp_path / "solo"
     flow.mkdir()
     (flow / "__init__.py").write_text(_FLOW)
@@ -96,52 +101,53 @@ def index(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path
     return listing
 
 
+def _writes(page: Session, method: str, **params: Any) -> Any:
+    """Calls a write, as the page does: with an `idem` of its own."""
+    return page.call(method, **params, idem=uuid.uuid4().hex)
+
+
 def test_a_flow_is_installed_updated_and_uninstalled_out_of_a_flowverse(
     index: Path,
 ) -> None:
     with served() as site:
         browser = Browser(site)
         browser.signs_in()
+        with browser.session() as page:
+            added = _writes(page, "flowverses.add", url=str(index), name="theirs")
+            named = [one["name"] for one in added["verses"]]
+            assert "theirs" in named
+            assert "local" not in named
+            assert "user" not in named
+            listed = page.call("flowverses.get", name="theirs")
+            (solo,) = listed["flows"]
+            assert (solo["flow"], solo["installed"]) == ("@theirs/solo", "")
+            assert [one["version"] for one in solo["releases"]] == ["1.1.0", "1.0.0"]
 
-        added = browser.post("/api/flowverses", {"url": str(index), "name": "theirs"})
-        assert added.status == 200, added.body
-        named = [one["name"] for one in added.json()["verses"]]
-        assert "theirs" in named
-        assert "local" not in named
-        assert "user" not in named
-        listed = browser.get("/api/flowverses/theirs").json()
-        (solo,) = listed["flows"]
-        assert (solo["flow"], solo["installed"]) == ("@theirs/solo", "")
-        assert [one["version"] for one in solo["releases"]] == ["1.1.0", "1.0.0"]
+            done = _writes(
+                page, "flowverses.install", flow="@theirs/solo", version="1.0.0"
+            )
+            assert done["updates"] == [
+                {"flow": "@theirs/solo", "from": "1.0.0", "to": "1.1.0"}
+            ]
+            offered = page.call("flows.list", workspace=str(site.here))["flows"]
+            assert "@theirs/solo" in [one["name"] for one in offered]
 
-        done = browser.post(
-            "/api/flowverses/install", {"flow": "@theirs/solo", "version": "1.0.0"}
-        )
-        assert done.status == 200, done.body
-        assert done.json()["updates"] == [
-            {"flow": "@theirs/solo", "from": "1.0.0", "to": "1.1.0"}
-        ]
-        offered = browser.get("/api/flows").json()["flows"]
-        assert "@theirs/solo" in [one["name"] for one in offered]
-
-        browser.post(
-            "/api/flowverses/install", {"flow": "@theirs/solo", "version": "1.1.0"}
-        )
-        assert browser.get("/api/flowverses").json()["updates"] == []
-        assert (
-            browser.post("/api/flowverses/uninstall", {"flow": "@theirs/solo"}).status
-            == 200
-        )
-        gone = browser.post("/api/flowverses/remove", {"name": "theirs"}).json()
-        assert "theirs" not in [one["name"] for one in gone["verses"]]
-        assert browser.get("/api/flowverses/theirs").status == 404
+            _writes(page, "flowverses.install", flow="@theirs/solo", version="1.1.0")
+            assert page.call("flowverses.list")["updates"] == []
+            _writes(page, "flowverses.uninstall", flow="@theirs/solo")
+            gone = _writes(page, "flowverses.remove", name="theirs")
+            assert "theirs" not in [one["name"] for one in gone["verses"]]
+            with pytest.raises(RpcError) as missing:
+                page.call("flowverses.get", name="theirs")
+            assert missing.value.code == 404
 
 
 @pytest.mark.parametrize("engine", ENGINES)
 def test_the_flows_page_installs_out_of_a_flowverse_and_says_what_is_newer(
     index: Path, engine: str
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         page.get_by_role("link", name="Flows").click()
         page.get_by_role("tab", name="Flowverses").click()
         expect(page.locator(".card[data-verse=official]")).to_be_visible()
@@ -169,26 +175,22 @@ def test_the_flows_page_installs_out_of_a_flowverse_and_says_what_is_newer(
         )
         expect(page.locator("[data-hmz=sidebar] [data-hmz=updates]")).to_have_text("1")
 
-        # Fetched out of a card's menu, it says so until the server answers.
-        held: list[Route] = []
-
-        def hold(route: Route) -> None:
-            # Playwright takes a function of Python's, not a bound builtin.
-            held.append(route)
-
-        page.route("**/api/flowverses/fetch", hold)
+        # Fetched out of a card's menu, it says so until the daemon answers.
+        wire.holds("flowverses.fetch")
         page.locator(".card[data-verse=theirs]").click(button="right")
         page.get_by_role("menuitem", name="Fetch").click()
         expect(page.locator("[data-hmz=busy]")).to_have_text("Fetching theirs…")
-        held.pop().continue_()
+        wire.waits(page)
+        wire.lets_through()
         expect(page.locator("[data-hmz=busy]")).to_have_count(0)
         expect(page.locator(".flows-said .note")).to_be_visible()
 
         page.get_by_role("tab", name="Installed").click()
-        page.route("**/api/flowverses/install", hold)
+        wire.holds("flowverses.install")
         page.locator(".card[data-flow='@theirs/solo']").click(button="right")
         page.get_by_role("menuitem", name="Update to 1.1.0").click()
         expect(page.locator("[data-hmz=busy]")).to_have_text("Updating @theirs/solo…")
-        held.pop().continue_()
+        wire.waits(page)
+        wire.lets_through()
         expect(page.locator("[data-hmz=busy]")).to_have_count(0)
         expect(page.locator("[data-hmz=update-banner]")).to_have_count(0)

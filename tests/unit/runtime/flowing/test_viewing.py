@@ -34,7 +34,6 @@ from hmz.flows import (
     OutworlderAway,
     OutworlderRunHookResult,
     Permission,
-    PermissionKind,
     ScratchDirEnvMixin,
     SessionError,
     ShellEnvMixin,
@@ -42,6 +41,7 @@ from hmz.flows import (
     TemporaryClonedDirEnvMixin,
     UnsupportedOperation,
     Usage,
+    allow,
     flow,
 )
 from hmz.runtime.flowing.declaring import Grant
@@ -274,10 +274,10 @@ def test_an_agent_view_says_what_its_driver_is() -> None:
 def test_derive_narrows_and_never_widens() -> None:
     view, _, _ = _agent(
         frozenset({SteeringAgentMixin}),
-        Permission(local=PermissionKind.ALL),
+        Permission(),
         ("a", "b"),
     )
-    reading = Permission(local=PermissionKind.READ)
+    reading = Permission(preset="read-only")
 
     narrowed = view.derive(permission=reading, skills=("a",))
     same = view.derive()
@@ -422,6 +422,35 @@ async def test_a_role_granted_what_it_declared_runs_forks_and_answers_its_schema
     )
 
 
+READING = Permission(preset="read-only", network=False)
+
+
+@flow(agents=Plain, envs=NoEnvs, params=Prompt)
+async def shared(
+    task: str, *, agents: Plain, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> None:
+    coder = agents["coder"]
+    looker = coder.derive(permission=READING)
+    narrow = await looker.spawn()
+    await coder.run("x", session=narrow)
+    await looker.run("y", session=narrow)
+    wide = await coder.spawn()
+    await looker.run("z", session=wide)
+
+
+async def test_a_session_runs_under_the_agent_it_was_spawned_by_whichever_runs_it() -> (
+    None
+):
+    coder = FakeAgentDriver()
+
+    await run_fake(shared, agents={"coder": coder})
+
+    assert [session.permission for session in coder.sessions] == [
+        READING,
+        Permission(),
+    ]
+
+
 async def test_a_model_called_directly_works_in_no_environment() -> None:
     with pytest.raises(UnsupportedOperation, match="litellm"):
         await run_fake(model_in_env)
@@ -561,6 +590,31 @@ async def test_a_flow_handed_an_agent_offers_its_own_roles_tools_every_call() ->
     assert await run_fake(handing, agents={"coder": coder}) == "ValueError: no ink"
 
 
+class Wide(Agent, FakeToolAgentMixin):
+    _permission = Permission(preset="danger-full-access")
+
+
+class Wides(AgentCollection):
+    coder: Wide
+
+
+@flow(agents=Wides, envs=NoEnvs, params=Prompt)
+async def widely(
+    task: str, *, agents: Wides, envs: NoEnvs, params: Prompt, ctx: FlowContext
+) -> str:
+    return await fully(task, agents={"scribe": agents["coder"]}, envs={}, params=params)
+
+
+async def test_a_full_flow_called_runs_under_its_roles_permission_not_the_callers() -> (
+    None
+):
+    coder = FakeAgentDriver()
+
+    await run_fake(widely, agents={"coder": coder})
+
+    assert [session.permission for session in coder.sessions] == [Permission()]
+
+
 class Ticket(pydantic.BaseModel):
     title: str = pydantic.Field(description="What the ticket says.")
 
@@ -673,6 +727,11 @@ async def test_the_runs_outworlder_answers_as_the_role_it_was_filled_for() -> No
     assert await view.run("ok?", session=session) == "yes"
     assert await view.run("why?", session=session, output_schema=Away) == Away(note="n")
     assert view.derive() is view
+    assert view.derive(permission=Permission(preset="read-only")) is view
+    with pytest.raises(CapabilityNotGranted, match="wider"):
+        view.derive(permission=Permission(granular=(allow("~"),)))
+    with pytest.raises(TypeError, match="not a Permission"):
+        view.derive(permission="all")  # pyright: ignore[reportArgumentType]
     with pytest.raises(CapabilityNotGranted, match="no skills"):
         view.derive(skills=("x",))
     with pytest.raises(UnsupportedOperation):

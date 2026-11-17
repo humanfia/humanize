@@ -31,11 +31,10 @@ effort, a gateway's entry in Grok Build's `config.toml` -- is merged into those 
 home is built (:attr:`Virtual.merges`), each by a function its driver names (:func:`merger`):
 said as data, so that a home built on another machine has them merged there too.
 
-Two builders, one for each place a CLI can be: :func:`build`, wherever Humanize runs it -- here
-for a CLI this machine starts, and on a harness's own machine for one supervised there
-(:mod:`hmz.coganchor.elsewhere`) -- and :data:`SCRIPT`, a POSIX shell script that does the same
-on a target whose own CLI a native anchor drives (:func:`hmz.coganchor.anchor.drive`), where
-nothing of Humanize runs and nothing is merged.
+Two builders, one for each place a CLI can be: :func:`build`, for a CLI this machine starts,
+and `coganchor`'s own, for one it supervises on a harness's machine
+(:mod:`hmz.coganchor.elsewhere`) or drives on a target whose own CLI a native anchor runs
+(:func:`hmz.coganchor.anchor.drive`) -- both from the same :class:`Virtual`.
 """
 
 from __future__ import annotations
@@ -61,15 +60,12 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Profile
 
 __all__ = [
-    "BACK",
-    "SCRIPT",
     "Home",
     "Virtual",
     "build",
     "merged",
     "merger",
     "virtual",
-    "words",
 ]
 
 log = logging.getLogger(__name__)
@@ -352,6 +348,9 @@ class Home:
         :attr:`Virtual.keeps`; None for the user's home.
       held: The names of :attr:`linked` that were links into :attr:`keeps`: what is written
         back there rather than to the user's home.
+      readable: Whether the agent this home is for may read a path, as :func:`build` took it.
+      writable: Whether it may write one, as :func:`build` took it: what is written back goes
+        only where it may, however the links lead there.
     """
 
     at: Path
@@ -367,6 +366,12 @@ class Home:
     records: tuple[tuple[str, str, str], ...] = ()
     keeps: Path | None = None
     held: tuple[str, ...] = ()
+    readable: Callable[[str], bool] = field(
+        default=lambda _path: True, compare=False, repr=False
+    )
+    writable: Callable[[str], bool] = field(
+        default=lambda _path: True, compare=False, repr=False
+    )
 
     def environ(self, environ: Mapping[str, str] | None) -> dict[str, str]:
         """The whole environment a process of the CLI is started in, given the one it had.
@@ -416,7 +421,10 @@ class Home:
         over it -- is written back first to what it stood for, or to what a supervisor answers
         that with: a file whole and atomically, with the mode the one there had; a directory a
         file at a time, each that is new or changed. Never over one that is newer, which is
-        another process of the same account having saved since: the last to save wins.
+        another process of the same account having saved since: the last to save wins. And
+        never where the links lead somewhere the agent may not write, nor from a file it may
+        not read: this runs outside its fence, and a link in its own state directory is one it
+        could have put there.
 
         What the CLI made here that is the user's to keep (:attr:`kept`) and that the user's
         home -- or :attr:`keeps`, for a home keeping its conversations there -- has none of yet
@@ -424,7 +432,12 @@ class Home:
         down to read back (:attr:`records`) is said again with its links followed, while they
         are still here to follow: what it names is where they lead.
         """
-        _respelled(self.at, self.records, self.kept if self.keeps is not None else ())
+        _respelled(
+            self.at,
+            self.records,
+            self.kept if self.keeps is not None else (),
+            self.writable,
+        )
         for name in self.linked:
             whence = (
                 self.keeps
@@ -442,13 +455,9 @@ class Home:
                     continue
                 for one in held:
                     if one.is_file() and not one.is_symlink():
-                        _back(
-                            one,
-                            whence / name / one.relative_to(entry),
-                            self.answered,
-                        )
+                        _back(one, whence / name / one.relative_to(entry), self)
             else:
-                _back(entry, whence / name, self.answered)
+                _back(entry, whence / name, self)
         into = self.real if self.keeps is None else self.keeps
         with contextlib.suppress(OSError):
             for entry in self.at.iterdir() if self.kept else ():
@@ -456,7 +465,8 @@ class Home:
                 if (
                     not entry.is_symlink()
                     and any(fnmatch.fnmatchcase(entry.name, one) for one in self.kept)
-                    and not there.exists()
+                    # Nor over a link, which a move across devices would write through.
+                    and not os.path.lexists(there)
                 ):
                     shutil.move(entry, there)
         shutil.rmtree(self.at, ignore_errors=True)
@@ -468,6 +478,8 @@ def build(
     *,
     under: Path | None = None,
     answered: Callable[[str], str | None] = lambda _path: None,
+    readable: Callable[[str], bool] = lambda _path: True,
+    writable: Callable[[str], bool] = lambda _path: True,
 ) -> Home:
     """Builds one virtual home on this machine, for one process of the CLI about to start.
 
@@ -479,6 +491,11 @@ def build(
       answered: What a supervisor would answer a path of the user's home with, or None for a
         path it leaves alone: a provider's own copy of a credential, which is what the CLI
         would have read where this home copies the file instead.
+      readable: Whether the agent the home is for may read a path, every link in it followed:
+        a file it may not is never copied into the home, which it may read, however the
+        user's home links to it.
+      writable: Whether it may write one, every link in it followed: where the home is
+        written back to as it is dropped (:meth:`Home.drop`).
 
     Returns:
       The home, to be dropped once the process is over.
@@ -493,7 +510,7 @@ def build(
     real = spec.real(said)
     at = Path(os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-", dir=under)))
     try:
-        linked, held = _built(spec, said, real, at, answered)
+        linked, held = _built(spec, said, real, at, answered, readable)
         for name, argument in spec.merges:
             _merging(name)(at, json.loads(argument))
     except BaseException:
@@ -526,17 +543,23 @@ def build(
         records=spec.records,
         keeps=Path(spec.keeps) if spec.keeps else None,
         held=held,
+        readable=readable,
+        writable=writable,
     )
 
 
 def _respelled(
-    at: Path, records: Iterable[tuple[str, str, str]], moved: Iterable[str] = ()
+    at: Path,
+    records: Iterable[tuple[str, str, str]],
+    moved: Iterable[str] = (),
+    writable: Callable[[str], bool] = lambda _path: True,
 ) -> None:
     """Says each path of a virtual home a CLI's databases hold with that home's links followed.
 
     Only through a database that is a link, which is the user's, or one of the home's own that
     is moved out of it as it is dropped (`moved`, globs of its names): any other goes with it.
-    A path whose file is not there to follow to is left as it was.
+    And only one the agent may write (`writable`) where its links lead. A path whose file is
+    not there to follow to is left as it was.
     """
     moved = tuple(moved)
     import sqlite3
@@ -547,6 +570,9 @@ def _respelled(
             if not database.is_symlink() and not any(
                 fnmatch.fnmatchcase(database.name, one) for one in moved
             ):
+                continue
+            if not writable(os.path.realpath(database)):
+                log.warning("not respelling %s: the agent may not write it", database)
                 continue
             try:
                 connection = sqlite3.connect(database, timeout=10)
@@ -580,8 +606,13 @@ def _built(
     real: Path,
     at: Path,
     answered: Callable[[str], str | None],
+    readable: Callable[[str], bool],
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Fills a virtual home in; :func:`build`'s, which takes it away again if this fails.
+
+    A file it copies it copies only where the agent may read what the links lead to
+    (`readable`): the copy is the agent's to read, and a link in its state directory is one it
+    could have put there. One it may not is left out, as one that is not there is.
 
     Returns:
       The names directly in it that it linked to the user's home or to where its
@@ -605,7 +636,10 @@ def _built(
             # empty: what it holds is the user's, and none of it is read back.
             into.mkdir(exist_ok=True)
         elif source.is_file():
-            shutil.copy2(source, into)
+            if readable(os.path.realpath(source)):
+                shutil.copy2(source, into)
+            else:
+                log.warning("not copying %s: the agent may not read it", source)
     copied = {one.split("/")[0] for one in spec.rewrites}
     for name in spec.made:
         if name in copied or name == spec.lodges:
@@ -669,19 +703,27 @@ def _link(at: Path, to: Path) -> bool:
     return True
 
 
-def _back(entry: Path, whence: Path, answered: Callable[[str], str | None]) -> None:
+def _back(entry: Path, whence: Path, home: Home) -> None:
     """Writes one file the CLI saved in place of a link back to where the link pointed.
 
-    Never raises: this runs as a home is dropped, which is the end of a turn.
+    Only where the agent may write what the links lead to, and from a file it may read
+    (:attr:`Home.writable`, :attr:`Home.readable`): this runs outside its fence. Never raises:
+    this runs as a home is dropped, which is the end of a turn.
 
     Args:
       entry: The file the CLI saved.
       whence: Where it stands for in the user's home.
-      answered: What a supervisor answers that with, as :func:`build` took it.
+      home: The home it is in, for what a supervisor answers that with and what the agent may
+        reach.
     """
     there = whence
     try:
-        there = Path(os.path.realpath(answered(str(whence)) or whence))
+        there = Path(os.path.realpath(home.answered(str(whence)) or whence))
+        if not home.readable(os.path.realpath(entry)) or not home.writable(str(there)):
+            log.warning(
+                "not writing %s back to %s: the agent may not reach it", entry, there
+            )
+            return
         now = entry.stat()
         try:
             was: os.stat_result | None = there.stat()
@@ -701,156 +743,3 @@ def _back(entry: Path, whence: Path, answered: Callable[[str], str | None]) -> N
         os.utime(there, ns=(now.st_atime_ns, now.st_mtime_ns))
     except OSError as why:
         log.warning("could not write %s back to %s: %s", entry, there, why)
-
-
-#: The same as :func:`build`, as a POSIX shell script for a target where nothing of Humanize
-#: runs. Run as `sh -c SCRIPT Humanize AT VARIABLE DEFAULT LODGES [WORD...]`, after anything
-#: projected into `AT` has landed there, which this leaves as it is. Each word is one of
-#: `copy=PATH=OUTSIDE` (a rewrite, and where it is under `~` while the variable is unset, or
-#: nothing), `keep=GLOB` (private), `make=NAME` (made) and `skill=NAME` (a flow's own skill,
-#: which the caller writes into `AT/LODGES/NAME` afterwards). It prints the user's own value
-#: of the variable, which is what `secures` is set to. What it links directly in `AT` it lists,
-#: a target per line, in `AT.links` beside it, for :data:`BACK`.
-SCRIPT = r"""
-set -e
-at=$1 var=$2 default=$3 lodges=$4
-shift 4
-eval "moved=\${$var:-}"
-real=${moved:-$HOME/$default}
-umask 077
-mkdir -p "$at"
-: > "$at.links"
-nl='
-'
-link() {
-  if [ -e "$at/$1" ] || [ -h "$at/$1" ]; then return 0; fi
-  ln -s -- "$real/$1" "$at/$1"
-  case $real/$1 in *"$nl"*) ;; *) printf '%s\n' "$real/$1" >> "$at.links" ;; esac
-}
-skipped() {
-  for word in "$@"; do
-    case $word in
-    copy=*) spec=${word#copy=}; rel=${spec%%=*}; [ "$name" = "${rel%%/*}" ] && return 0 ;;
-    keep=*) case $name in ${word#keep=}) return 0 ;; esac ;;
-    esac
-  done
-  [ "$name" = "$lodges" ]
-}
-for word in "$@"; do
-  case $word in
-  copy=*)
-    spec=${word#copy=}; rel=${spec%%=*}; alt=${spec#*=}; src=$real/$rel
-    if [ -z "$moved" ] && [ -n "$alt" ]; then src=$HOME/$alt; fi
-    if [ -d "$src" ]; then mkdir -p "$at/$rel"
-    elif [ ! -e "$at/$rel" ] && [ -e "$src" ]; then
-      mkdir -p "$(dirname -- "$at/$rel")"; cp -p -- "$src" "$at/$rel"
-    fi ;;
-  esac
-done
-for word in "$@"; do
-  case $word in
-  make=*)
-    name=${word#make=}
-    skipped "$@" && continue
-    case $name in *.*) mkdir -p "$real" ;; *) mkdir -p "$real/$name" ;; esac
-    link "$name" ;;
-  esac
-done
-for f in "$real"/* "$real"/.[!.]* "$real"/..?*; do
-  [ -e "$f" ] || [ -h "$f" ] || continue
-  name=${f##*/}
-  skipped "$@" && continue
-  link "$name"
-done
-if [ -n "$lodges" ]; then
-  mkdir -p "$at/$lodges"
-  for f in "$real/$lodges"/* "$real/$lodges"/.[!.]* "$real/$lodges"/..?*; do
-    [ -e "$f" ] || [ -h "$f" ] || continue
-    name=${f##*/}
-    ours=
-    for word in "$@"; do [ "$word" = "skill=$name" ] && ours=1; done
-    [ -n "$ours" ] || [ -e "$at/$lodges/$name" ] || ln -s -- "$f" "$at/$lodges/$name"
-  done
-fi
-printf '%s\n' "$moved"
-"""
-
-
-#: :meth:`Home.drop`'s writing back, for a home :data:`SCRIPT` built: run as
-#: `sh -c BACK Humanize AT` once the CLI is done, before `AT` is taken away. Each link listed in
-#: `AT.links` that the CLI replaced is written back to the file it pointed at -- a directory a
-#: file at a time -- by a copy renamed over it, with the mode the one there had, and never over
-#: one that is as new or newer.
-BACK = r"""
-at=$1
-shift
-[ -f "$at.links" ] || exit 0
-put='
-src=$1 dst=$2
-shift 2
-for g in "$@"; do
-  [ -f "$g" ] && [ ! -h "$g" ] || continue
-  t=$dst${g#"$src"} n=0
-  while [ -h "$t" ] && [ $n -lt 8 ]; do
-    l=$(readlink -- "$t") || break
-    case $l in /*) t=$l ;; *) t=$(dirname -- "$t")/$l ;; esac
-    n=$((n + 1))
-  done
-  if [ -e "$t" ]; then
-    [ -f "$t" ] || continue
-    # Where times are only to the second, the same second and other bytes is newer.
-    [ "$g" -nt "$t" ] || { ! [ "$t" -nt "$g" ] && ! cmp -s -- "$g" "$t"; } || continue
-  fi
-  d=$(dirname -- "$t")
-  mkdir -p -- "$d" 2>/dev/null || continue
-  tmp=$d/.hmz-back.$$
-  rm -f -- "$tmp"
-  if [ -e "$t" ] && cp -p -- "$t" "$tmp" 2>/dev/null && cat -- "$g" > "$tmp" 2>/dev/null &&
-    touch -r "$g" "$tmp"; then :
-  else rm -f -- "$tmp"; cp -p -- "$g" "$tmp" || { rm -f -- "$tmp"; continue; }
-  fi
-  mv -f -- "$tmp" "$t" || rm -f -- "$tmp"
-done
-'
-while IFS= read -r f; do
-  p=$at/${f##*/}
-  if [ -h "$p" ]; then continue; fi
-  if [ -d "$p" ]; then find "$p" -type f -exec sh -c "$put" sh "$p" "$f" {} +
-  elif [ -f "$p" ]; then sh -c "$put" sh "$p" "$f" "$p"
-  fi
-done < "$at.links"
-command -v sqlite3 >/dev/null 2>&1 || exit 0
-q() { printf '%s' "$1" | sed "s/'/''/g"; }
-for word in "$@"; do
-  case $word in record=*) ;; *) continue ;; esac
-  spec=${word#record=}; glob=${spec%%=*}; rest=${spec#*=}
-  table=${rest%%=*}; column=${rest#*=}
-  for db in "$at"/$glob; do
-    [ -h "$db" ] || continue
-    while IFS= read -r f; do
-      from=$(q "$at/${f##*/}/"); to=$(q "$f/")
-      sqlite3 -cmd '.timeout 10000' "$db" "UPDATE \"$table\" SET \"$column\" = '$to' ||
-        substr(\"$column\", length('$from') + 1)
-        WHERE substr(\"$column\", 1, length('$from')) = '$from';" 2>/dev/null || :
-    done < "$at.links"
-  done
-done
-exit 0
-"""
-
-
-def words(spec: Virtual) -> list[str]:
-    """What :data:`SCRIPT` is told after its first four arguments, for one virtual home.
-
-    And :data:`BACK` after its first: the paths its databases hold of the home
-    (:attr:`Virtual.records`), said again with the home's links followed where the target has
-    `sqlite3` to say them with, which `SCRIPT` passes over.
-    """
-    outside = dict(spec.outside)
-    return [
-        *(f"copy={one}={outside.get(one, '')}" for one in spec.rewrites),
-        *(f"keep={one}" for one in spec.private),
-        *(f"make={one}" for one in spec.made),
-        *(f"skill={name}" for name, _ in spec.skills),
-        *(f"record={one}={table}={column}" for one, table, column in spec.records),
-    ]

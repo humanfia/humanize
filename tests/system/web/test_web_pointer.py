@@ -22,7 +22,10 @@ if TYPE_CHECKING:
 
     from playwright.sync_api import Locator, Page
 
-pytestmark = pytest.mark.parametrize("engine", ENGINES)
+pytestmark = [
+    pytest.mark.parametrize("engine", ENGINES),
+    pytest.mark.usefixtures("daemon"),
+]
 
 
 @pytest.fixture
@@ -145,26 +148,25 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
 
         browser = Browser(site)
         browser.signs_in()
-        (saved,) = browser.get("/api/runtimes").json()["runtimes"]
+        with browser.session() as asked:
+            (saved,) = asked.call("runtimes.list")["runtimes"]
         assert saved["identity_file"] == "~/.ssh/id_ed25519"
         assert saved["options"] == {"ServerAliveInterval": "30"}
         assert saved["harness"] == "local"
 
 
-def test_a_fallback_and_the_btw_agent_are_picked_not_spelled(
+def test_a_nous_and_the_btw_agent_are_picked_not_spelled(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        go(page, "/settings/fallback")
-        place = page.locator("[data-hmz=fallback-spec]")
-        expect(place.locator("[data-hmz=pick-model] option").first).to_have_text(
-            "claude-haiku-4-5"
+        go(page, "/settings/nous")
+        page.locator("[data-hmz=nous-spec]").select_option("claude/claude-opus-4-1")
+        page.locator("[data-hmz=nous-then] [data-hmz=graph-add-use]").click()
+        page.locator("[data-hmz=nous-then] [data-hmz=graph-nous]").fill(
+            "claude/claude-haiku-4-5"
         )
-        place.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
-        then = page.locator("[data-hmz=fallback-place]").first
-        expect(then.locator("[data-hmz=pick-model]")).to_have_value("claude-haiku-4-5")
         page.get_by_role("button", name="Save").click()
-        expect(page.locator("[data-hmz=step]")).to_have_count(1)
+        expect(page.locator("[data-hmz=nous-row]")).to_have_count(1)
 
         go(page, "/settings/general")
         page.locator("[data-hmz=btw-whom]").select_option("chosen")
@@ -178,14 +180,14 @@ def test_a_fallback_and_the_btw_agent_are_picked_not_spelled(
 
         browser = Browser(site)
         browser.signs_in()
-        (step,) = browser.get("/api/fallbacks").json()["steps"]
-        assert (step["spec"], step["to"]) == (
-            "claude/claude-opus-4-1",
-            ["claude/claude-haiku-4-5"],
-        )
-        assert (
-            browser.get("/api/settings").json()["btw"] == "claude/claude-haiku-4-5:high"
-        )
+        with browser.session() as asked:
+            (nous,) = asked.call("nous.list")["nous"]
+            btw = asked.call("settings.get")["btw"]
+        assert nous["name"] == "claude/claude-opus-4-1"
+        assert [one["use"] for one in nous["then"]["nodes"]] == [
+            "claude/claude-haiku-4-5"
+        ]
+        assert btw == "claude/claude-haiku-4-5:high"
 
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:

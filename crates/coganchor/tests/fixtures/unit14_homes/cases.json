@@ -1,0 +1,340 @@
+[
+  {
+    "name": "claude",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "CLAUDE_CONFIG_DIR",
+      "default": ".claude",
+      "rewrites": [".claude.json", "settings.json", "backups"],
+      "outside": [[".claude.json", ".claude.json"]],
+      "lodges": "skills",
+      "secures": "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+      "made": ["projects", "history.jsonl", "todos"],
+      "skills": [["review", "{root}/flow/review"], ["fresh", "{root}/flow//fresh/"]]
+    },
+    "user": [
+      {"path": "user/.claude/skills/mine/SKILL.md", "text": "theirs\n"},
+      {"path": "user/.claude/skills/review/SKILL.md", "text": "their review\n"},
+      {"path": "user/.claude/settings.json", "text": "{\"theirs\": true}\n", "mode": 416},
+      {"path": "user/.claude/.credentials.json", "text": "token\n", "mode": 384},
+      {"path": "user/.claude/.claude.json", "text": "{\"inside\": true}\n"},
+      {"path": "user/.claude.json", "text": "{\"outside\": true}\n"},
+      {"path": "user/.claude/backups/old.json", "text": "theirs\n"},
+      {"path": "user/.claude/projects/old.jsonl", "text": "theirs\n"},
+      {"path": "user/.claude/projects/newer.jsonl", "text": "newer\n", "mtime": 1800000000},
+      {"path": "user/.claude/plans/a.md", "text": "plan\n"},
+      {"path": "user/.claude/dangling", "link": "{root}/nowhere"},
+      {"path": "flow/review/SKILL.md", "text": "the flow's review\n"},
+      {"path": "flow/fresh/SKILL.md", "text": "fresh\n"}
+    ],
+    "session": [
+      {"op": "rename_over", "path": "{at}/.credentials.json", "text": "refreshed\n"},
+      {"op": "rename_over", "path": "{at}/settings.json", "text": "{\"rewritten\": true}\n"},
+      {"op": "write", "path": "{at}/history.jsonl", "text": "said\n"},
+      {"op": "replace_dir", "path": "{at}/projects", "files": {
+        "old.jsonl": {"text": "changed\n"},
+        "made.jsonl": {"text": "made\n"},
+        "newer.jsonl": {"text": "stale\n", "mtime": 1000000},
+        "deep/x.jsonl": {"text": "deep\n"}
+      }},
+      {"op": "write", "path": "{at}/scratch.txt", "text": "the CLI's own\n"}
+    ]
+  },
+  {
+    "name": "claude-moved",
+    "env": {"HOME": "{root}/user", "CLAUDE_CONFIG_DIR": "{root}/user/conf/"},
+    "virtual": {
+      "variable": "CLAUDE_CONFIG_DIR",
+      "default": ".claude",
+      "rewrites": [".claude.json"],
+      "outside": [[".claude.json", ".claude.json"]],
+      "secures": "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+      "private": ["sess*", "*.lock"],
+      "kept": ["state_*.sqlite*"]
+    },
+    "user": [
+      {"path": "user/conf/.claude.json", "text": "{\"inside\": true}\n"},
+      {"path": "user/.claude.json", "text": "{\"outside\": true}\n"},
+      {"path": "user/conf/sessions/x", "text": "private\n"},
+      {"path": "user/conf/a.lock", "text": "lock\n"},
+      {"path": "user/conf/state_1.sqlite", "text": "theirs\n"},
+      {"path": "user/conf/keep.txt", "text": "theirs\n"}
+    ],
+    "session": [
+      {"op": "write", "path": "{at}/state_2.sqlite", "text": "new\n"},
+      {"op": "rename_over", "path": "{at}/keep.txt", "text": "older\n", "mtime": 1000000}
+    ]
+  },
+  {
+    "name": "codex-records",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "CODEX_HOME",
+      "default": ".codex",
+      "rewrites": ["config.toml"],
+      "outside": [["config.toml", ".codex.toml"]],
+      "lodges": "skills",
+      "made": ["sessions"],
+      "records": [["state_*.sqlite", "threads", "rollout_path"]],
+      "merges": [["hmz.coganchor.agents.codex:_ruled", ["hmz-git", "café \"q\""]]]
+    },
+    "user": [
+      {"path": "user/.codex/config.toml", "text": "model = \"gpt-5\"\n"},
+      {"path": "user/.codex.toml", "text": "model = \"outside\"\n"},
+      {"path": "user/.codex/rules/default.rules", "text": "theirs\n"},
+      {"path": "user/.codex/rules/hmz.rules", "text": "an old one\n"},
+      {"path": "user/.codex/state_5.sqlite", "sql": ["create table threads (id text, rollout_path text)", "insert into threads values ('before', '{root}/user/.codex/sessions/z.jsonl')"]},
+      {"path": "user/.codex/skills/mine/SKILL.md", "text": "mine\n"}
+    ],
+    "session": [
+      {"op": "write", "path": "{at}/sessions/a.jsonl", "text": "{}\n"},
+      {"op": "sql", "path": "{at}/state_5.sqlite", "sql": [
+        "insert into threads values ('kept', '{at}/sessions/a.jsonl')",
+        "insert into threads values ('gone', '{at}/sessions/b.jsonl')",
+        "insert into threads values ('other', '{root}/user/.codex/sessions/c.jsonl')"
+      ]}
+    ]
+  },
+  {
+    "name": "codex-keeping",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "CODEX_HOME",
+      "default": ".codex",
+      "rewrites": ["config.toml"],
+      "made": ["sessions", "session_index.jsonl"],
+      "kept": ["state_*.sqlite*"],
+      "records": [["state_*.sqlite", "threads", "rollout_path"]],
+      "keeps": "{root}/epic/codex"
+    },
+    "user": [
+      {"path": "user/.codex/auth.json", "text": "token\n"},
+      {"path": "user/.codex/state_4.sqlite", "text": "theirs\n"},
+      {"path": "epic/codex/state_6.sqlite", "sql": ["create table threads (id text, rollout_path text)"]}
+    ],
+    "session": [
+      {"op": "write", "path": "{at}/sessions/a.jsonl", "text": "{}\n"},
+      {"op": "rename_over", "path": "{at}/session_index.jsonl", "text": "renamed over\n"},
+      {"op": "sql", "path": "{at}/state_5.sqlite", "sql": [
+        "create table threads (id text, rollout_path text)",
+        "insert into threads values ('a', '{at}/sessions/a.jsonl')"
+      ]},
+      {"op": "sql", "path": "{at}/state_6.sqlite", "sql": [
+        "insert into threads values ('b', '{at}/sessions/a.jsonl')"
+      ]}
+    ]
+  },
+  {
+    "name": "agy",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "",
+      "default": ".gemini/antigravity-cli",
+      "lodges": "skills",
+      "flag": "--app_data_dir",
+      "merges": [["hmz.coganchor.agents.agy:_agents", null]]
+    },
+    "user": [
+      {"path": "user/.gemini/antigravity-cli/agents/mine.md", "text": "the user's own\n"},
+      {"path": "user/.gemini/antigravity-cli/agents/hmz-offline.md", "text": "an old one\n"},
+      {"path": "user/.gemini/antigravity-cli/conversations/c.pb", "text": "c\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "agy-bare",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "",
+      "default": ".gemini/antigravity-cli",
+      "flag": "--app_data_dir",
+      "merges": [["hmz.coganchor.agents.agy:_agents", null]]
+    },
+    "user": [],
+    "session": []
+  },
+  {
+    "name": "grok",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "GROK_HOME",
+      "default": ".grok",
+      "rewrites": ["config.toml"],
+      "lodges": "skills",
+      "merges": [["hmz.coganchor.agents.grok:_entered", {"named": "hmz-0123456789ab/grok-4", "entry": {"model": "grok-4", "base_url": "http://gw.example/v1", "api_backend": "responses", "env_key": "XAI_API_KEY", "hidden": true}}]]
+    },
+    "user": [
+      {"path": "user/.grok/config.toml", "text": "# theirs\ntheme = \"dark\" # a comment\n\n[model.\"mine\"]\nmodel = \"m\"\nlist = [\n  1, # one\n  2,\n]\n\n[ui]\nwrap = true\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "grok-bare",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "GROK_HOME",
+      "default": ".grok",
+      "rewrites": ["config.toml"],
+      "merges": [["hmz.coganchor.agents.grok:_entered", {"named": "hmz-x/mé", "entry": {"model": "mé\n", "hidden": true}}]]
+    },
+    "user": [],
+    "session": []
+  },
+  {
+    "name": "grok-flat",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "GROK_HOME",
+      "default": ".grok",
+      "rewrites": ["config.toml"],
+      "merges": [["hmz.coganchor.agents.grok:_entered", {"named": "plain", "entry": {"model": "x"}}]]
+    },
+    "user": [
+      {"path": "user/.grok/config.toml", "text": "theme = 'dark'\ntext = \"\"\"\n[model.not]\n\"\"\"\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "grok-not-toml",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "GROK_HOME",
+      "default": ".grok",
+      "rewrites": ["config.toml"],
+      "merges": [["hmz.coganchor.agents.grok:_entered", {"named": "plain", "entry": {"model": "x"}}]]
+    },
+    "user": [
+      {"path": "user/.grok/config.toml", "text": "[ui\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "grok-crlf-dotted",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "GROK_HOME",
+      "default": ".grok",
+      "rewrites": ["config.toml"],
+      "merges": [["hmz.coganchor.agents.grok:_entered", {"named": "k", "entry": {"model": "x", "hidden": true}}]]
+    },
+    "user": [
+      {"path": "user/.grok/config.toml", "text": "a = 1\r\nmodel.foo.x = 1 # theirs\r\n# c\r\n[ui]\rz = 1\r\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "grok-replaced",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "GROK_HOME",
+      "default": ".grok",
+      "rewrites": ["config.toml"],
+      "merges": [["hmz.coganchor.agents.grok:_entered", {"named": "k", "entry": {"model": "x", "hidden": true}}]]
+    },
+    "user": [
+      {"path": "user/.grok/config.toml", "text": "[model.a]\nx = 1\n\n[model.k]\nmodel = \"old\"\n\n[model.k.sub]\ny = 2\n\n[ui]\nz = 1\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "grok-twice",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "GROK_HOME",
+      "default": ".grok",
+      "rewrites": ["config.toml"],
+      "merges": [["hmz.coganchor.agents.grok:_entered", {"named": "k", "entry": {"model": "x"}}]]
+    },
+    "user": [
+      {"path": "user/.grok/config.toml", "text": "[ui]\nz = 1\nz = 2\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "pi",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "PI_CODING_AGENT_DIR",
+      "default": ".pi/agent",
+      "rewrites": ["models.json", "settings.json"],
+      "lodges": "skills",
+      "merges": [["hmz.coganchor.agents.pi:_declare", {"named": "humanize-0123456789ab", "declared": {"baseUrl": "http://127.0.0.1:4321/v1", "api": "openai-completions", "apiKey": "$PI_GATEWAY_KEY", "models": [{"id": "openai/gpt-5"}]}}]]
+    },
+    "user": [
+      {"path": "user/.pi/agent/models.json", "text": "{\"providers\": {\"mine\": {\"baseUrl\": \"https://gw.example\", \"cost\": 1.5e-7, \"n\": 10, \"big\": 1e16, \"name\": \"café 😀\"}}, \"extra\": [], \"empty\": {}}"},
+      {"path": "user/.pi/agent/settings.json", "text": "{}\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "pi-bare",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "PI_CODING_AGENT_DIR",
+      "default": ".pi/agent",
+      "rewrites": ["models.json"],
+      "merges": [["hmz.coganchor.agents.pi:_declare", {"named": "humanize-x", "declared": {"baseUrl": "http://x", "models": []}}]]
+    },
+    "user": [],
+    "session": []
+  },
+  {
+    "name": "pi-not-json",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "PI_CODING_AGENT_DIR",
+      "default": ".pi/agent",
+      "rewrites": ["models.json"],
+      "merges": [["hmz.coganchor.agents.pi:_declare", {"named": "humanize-x", "declared": {"baseUrl": "http://x", "models": []}}]]
+    },
+    "user": [
+      {"path": "user/.pi/agent/models.json", "text": "{\n  // a comment\n}\n"}
+    ],
+    "session": []
+  },
+  {
+    "name": "qwen",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "QWEN_HOME",
+      "default": ".qwen",
+      "rewrites": ["settings.json"],
+      "lodges": "skills",
+      "merges": [["hmz.coganchor.agents.qwen:_merged", {"managed": {
+        "model": {"reasoningEffort": "high"},
+        "hooks": {"PreToolUse": [{"matcher": "", "hooks": [{"type": "command", "command": "hmz gate", "timeout": 600000}]}], "Stop": [{"hooks": []}]},
+        "disableAllHooks": false,
+        "mcpServers": {"humanize": {"command": "hmz", "args": ["toolbox"], "trust": true}}
+      }, "headless": true}]]
+    },
+    "user": [
+      {"path": "user/.qwen/settings.json", "text": "{\"$version\": 3, \"general\": {\"enableAutoUpdate\": true, \"vimMode\": true}, \"model\": {\"name\": \"theirs\", \"reasoningEffort\": \"low\"}, \"hooks\": {\"PreToolUse\": [{\"matcher\": \"x\"}], \"Other\": 1}, \"disableAllHooks\": true, \"mcpServers\": {\"theirs\": {\"command\": \"t\"}}}"}
+    ],
+    "session": []
+  },
+  {
+    "name": "qwen-bare",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "QWEN_HOME",
+      "default": ".qwen",
+      "rewrites": ["settings.json"],
+      "merges": [["hmz.coganchor.agents.qwen:_merged", {"managed": {"model": {"reasoningEffort": "medium"}}, "headless": false}]]
+    },
+    "user": [],
+    "session": []
+  },
+  {
+    "name": "no-merger",
+    "env": {"HOME": "{root}/user"},
+    "virtual": {
+      "variable": "CLAUDE_CONFIG_DIR",
+      "default": ".claude",
+      "merges": [["hmz.nowhere:_merge", null]]
+    },
+    "user": [
+      {"path": "user/.claude/settings.json", "text": "{}\n"}
+    ],
+    "session": []
+  }
+]

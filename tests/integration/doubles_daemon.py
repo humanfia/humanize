@@ -135,12 +135,34 @@ def written(workspace: Path, name: str, source: str) -> None:
 def project(
     under: Path, monkeypatch: pytest.MonkeyPatch, name: str = "project"
 ) -> Path:
-    """A workspace of the test's own, stood in, with runs allowed apart from the terminal."""
+    """A workspace of the test's own, stood in."""
     at = under / name
     at.mkdir()
     monkeypatch.chdir(at)
-    monkeypatch.delenv("HUMANIZE_DAEMON", raising=False)
     return at
+
+
+def folds(seconds: float, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Has every host from here on fold a chat nobody reads `seconds` after its turn.
+
+    One held in this process is told here. A host process is a fresh interpreter, which
+    inherits no attribute set here: it is told through a `sitecustomize` on `PYTHONPATH`, which
+    every process started from here inherits and which sets the fold in a host process alone.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from hmz.runtime.doing import hosting
+
+    monkeypatch.setattr(hosting, "FOLD", seconds)
+    at = Path(tempfile.mkdtemp(prefix="folds-"))
+    (at / "sitecustomize.py").write_text(
+        "import sys\n"
+        "if 'hmz.daemon.detached' in sys.orig_argv:\n"
+        "    from hmz.runtime.doing import hosting\n"
+        f"    hosting.FOLD = {seconds!r}\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(at))
 
 
 def _ends(pid: int) -> None:

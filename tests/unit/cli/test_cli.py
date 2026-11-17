@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-import io
 import os
 import sys
 import types
 from importlib.metadata import version
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, NoReturn
 from unittest import mock
 
 import pytest
 
-import hmz.coganchor.fence.wrap
-import hmz.coganchor.providers.redirect
+import hmz.coganchor.binary
 import hmz.daemon
-from hmz.cli import APART, COMMANDS, INTERNAL, main, many, opens, output
+from hmz.cli import COMMANDS, INTERNAL, main, many, opens, output
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -37,13 +36,21 @@ def test_many_says_a_count_as_english_does(
     assert many(count, thing) == said
 
 
-def test_the_commands_are_exec_web_server_update_backup_and_the_internal_door() -> None:
-    assert list(COMMANDS) == ["exec", "web", "server", "update", "backup", "internal"]
+def test_the_commands_are_these_and_the_internal_door() -> None:
+    commands = [
+        "exec",
+        "web",
+        "daemon",
+        "relay",
+        "update",
+        "backup",
+        "internal",
+    ]
+    assert list(COMMANDS) == commands
     assert set(INTERNAL) == {"anchor", "cli", "cred", "fence", "hook", "tools"}
     for run, summary in (*COMMANDS.values(), *INTERNAL.values()):
         assert callable(run)
         assert summary
-    assert APART == "HUMANIZE_DAEMON"
 
 
 def test_version_is_the_installed_one(capsys: pytest.CaptureFixture[str]) -> None:
@@ -101,7 +108,11 @@ def test_internal_help_lists_all_six(capsys: pytest.CaptureFixture[str]) -> None
         assert summary in out
 
 
-@pytest.mark.parametrize("name", sorted(INTERNAL))
+#: The three of them `coganchor` carries out, which this process becomes.
+COGANCHOR = ("anchor", "cred", "fence")
+
+
+@pytest.mark.parametrize("name", sorted(set(INTERNAL) - set(COGANCHOR)))
 def test_each_internal_command_answers_its_own_help(
     name: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -111,24 +122,55 @@ def test_each_internal_command_answers_its_own_help(
     assert f"hmz internal {name}" in capsys.readouterr().out
 
 
-def test_internal_hands_the_rest_of_the_line_on(
-    monkeypatch: pytest.MonkeyPatch,
+class _Became(Exception):  # noqa: N818 -- what happened, not what went wrong
+    """What a stand-in for `os.execv` raises in place of becoming the program."""
+
+
+@pytest.mark.parametrize(
+    ("argv", "line"),
+    [
+        (["anchor", "--target=local", "claude"], ["cog", "--target=local", "claude"]),
+        (["anchor", "serve", "--stdio"], ["anchor", "--stdio"]),
+        (["anchor", "rendezvous", "--listen", "0"], ["broker", "--listen", "0"]),
+        (["cred", "--map", "/a=/b", "--", "claude"],
+         ["internal", "cred", "--map", "/a=/b", "--", "claude"]),
+        (["fence", "--policy", "{}", "--", "claude"],
+         ["internal", "fence", "--policy", "{}", "--", "claude"]),
+    ],
+)  # fmt: skip
+def test_the_anchors_internal_commands_become_coganchor(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], line: list[str]
 ) -> None:
-    redirect = mock.Mock()
-    redirect.read.return_value = ["swap"]
-    redirect.run.return_value = 7
-    monkeypatch.setattr(hmz.coganchor.providers.redirect, "read", redirect.read)
-    monkeypatch.setattr(hmz.coganchor.providers.redirect, "run", redirect.run)
-    assert main(["internal", "cred", "--map", "/a=/b", "--", "claude", "-p"]) == 7
-    redirect.read.assert_called_once_with(["/a=/b"], [])
-    redirect.run.assert_called_once_with(["swap"], ["claude", "-p"])
+    became: list[tuple[Path, list[str]]] = []
+
+    def execv(program: Path, args: list[str]) -> NoReturn:
+        became.append((program, args))
+        raise _Became
+
+    monkeypatch.setattr(hmz.coganchor.binary, "found", lambda: Path("/opt/coganchor"))
+    monkeypatch.setattr(os, "execv", execv)
+    # Set, so that what is set is taken off again after.
+    monkeypatch.setenv(hmz.coganchor.binary.BINARIES, "")
+    monkeypatch.delenv(hmz.coganchor.binary.BINARIES)
+
+    with pytest.raises(_Became):
+        main(["internal", *argv])
+
+    assert became == [(Path("/opt/coganchor"), ["/opt/coganchor", *line])]
+    # Told where the builds for other machines are, to ship the one a target needs.
+    assert os.environ[hmz.coganchor.binary.BINARIES] == str(
+        hmz.coganchor.binary.shelf()
+    )
 
 
-def test_internal_fence_reaches_the_fence(monkeypatch: pytest.MonkeyPatch) -> None:
-    wrapping = mock.Mock(return_value=3)
-    monkeypatch.setattr(hmz.coganchor.fence.wrap, "main", wrapping)
-    assert main(["internal", "fence", "--policy", "{}", "--", "claude"]) == 3
-    wrapping.assert_called_once_with("{}", ["claude"])
+@pytest.mark.parametrize("name", COGANCHOR)
+def test_with_no_coganchor_built_here_an_anchor_command_is_not_found(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], name: str
+) -> None:
+    monkeypatch.setattr(hmz.coganchor.binary, "found", lambda: None)
+
+    assert main(["internal", name, "--help"]) == 127
+    assert "hmz: no coganchor is built for this machine (" in capsys.readouterr().err
 
 
 class _App:
@@ -164,13 +206,22 @@ def app(monkeypatch: pytest.MonkeyPatch) -> type[_App]:
     return App
 
 
+@pytest.fixture
+def attach(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
+    """Attaching to the runs this machine's daemon holds, mocked."""
+    held = mock.Mock()
+    monkeypatch.setattr(hmz.daemon, "attach", held)
+    return held
+
+
 @pytest.mark.parametrize(("code", "status"), [(None, 0), (0, 0), (3, 3)])
-def test_no_command_opens_the_interface_here(
-    app: type[_App], code: int | None, status: int
+def test_no_command_opens_the_interface_on_the_runs_held_here(
+    app: type[_App], attach: mock.Mock, code: int | None, status: int
 ) -> None:
     app.return_code = code
     assert main([]) == status
-    assert app.made == [{}]
+    attach.assert_called_once_with("tui")
+    assert app.made == [{"link": attach.return_value}]
 
 
 @pytest.mark.parametrize(
@@ -184,6 +235,7 @@ def test_no_command_opens_the_interface_here(
 )
 def test_opening_keeps_extended_keys_off_a_direct_iterm(
     app: type[_App],
+    attach: mock.Mock,
     monkeypatch: pytest.MonkeyPatch,
     environ: dict[str, str],
     set_: bool,
@@ -192,99 +244,39 @@ def test_opening_keeps_extended_keys_off_a_direct_iterm(
         monkeypatch.setenv(name, value)
     main([])
     assert (os.environ.get("TEXTUAL_DISABLE_KITTY_KEY") == "1") is set_
-    assert app.made == [{}]
+    assert app.made == [{"link": attach.return_value}]
 
 
 def test_opening_leaves_an_explicit_extended_keys_setting_alone(
-    app: type[_App], monkeypatch: pytest.MonkeyPatch
+    app: type[_App], attach: mock.Mock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
     monkeypatch.setenv("TEXTUAL_DISABLE_KITTY_KEY", "0")
     main([])
     assert os.environ["TEXTUAL_DISABLE_KITTY_KEY"] == "0"
-    del app
-
-
-class _Tty(io.StringIO):
-    def isatty(self) -> bool:
-        return True
-
-
-def _opened(
-    monkeypatch: pytest.MonkeyPatch, *, stdout: io.StringIO | None = None
-) -> int:
-    """Opens the interface with a terminal on both ends, or on stdin and `stdout`.
-
-    Set here rather than in a fixture: pytest puts its own capture back before each test runs.
-    """
-    monkeypatch.setattr(sys, "stdin", _Tty())
-    monkeypatch.setattr(sys, "stdout", _Tty() if stdout is None else stdout)
-    return opens()
-
-
-@pytest.fixture
-def terminal(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
-    """A terminal on both ends, runs wanted apart, and attaching to them mocked."""
-    monkeypatch.setenv(APART, "on")
-    attach = mock.Mock()
-    monkeypatch.setattr(hmz.daemon, "attach", attach)
-    return attach
-
-
-@pytest.mark.parametrize("value", ["off", "0", "no", " OFF "])
-def test_runs_are_held_here_where_the_machine_says_so(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch, value: str
-) -> None:
-    monkeypatch.setenv(APART, value)
-    assert _opened(monkeypatch) == 0
-    assert app.made == [{}]
-    terminal.assert_not_called()
-
-
-def test_runs_are_held_here_where_there_is_no_terminal(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert _opened(monkeypatch, stdout=io.StringIO()) == 0
-    assert app.made == [{}]
-    terminal.assert_not_called()
-
-
-def test_the_interface_opens_on_the_runs_held_here(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert _opened(monkeypatch) == 0
-    terminal.assert_called_once_with("tui")
-    assert app.made == [{"link": terminal.return_value}]
+    del app, attach
 
 
 def test_a_daemon_of_an_older_humanize_is_said_and_not_opened(
-    app: type[_App],
-    terminal: mock.Mock,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    app: type[_App], attach: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    terminal.side_effect = hmz.daemon.Older("held by an older Humanize")
-    assert _opened(monkeypatch) == 1
+    attach.side_effect = hmz.daemon.Older("held by an older Humanize")
+    assert opens() == 1
     assert capsys.readouterr().err == "hmz: held by an older Humanize\n"
     assert app.made == []
 
 
-def test_runs_that_cannot_be_held_apart_are_held_here(
-    app: type[_App],
-    terminal: mock.Mock,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+def test_a_daemon_that_cannot_be_reached_is_said_and_not_opened(
+    app: type[_App], attach: mock.Mock, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    terminal.side_effect = OSError("no fork")
-    assert _opened(monkeypatch) == 0
-    assert "runs cannot be detached from the terminal (no fork)" in (
-        capsys.readouterr().err
-    )
-    assert app.made == [{}]
+    attach.side_effect = OSError("no fork")
+    assert opens() == 1
+    assert capsys.readouterr().err == "hmz: the daemon cannot be reached: no fork\n"
+    assert app.made == []
 
 
 def test_a_clock_is_up_while_the_runs_are_reached_and_down_before_the_interface(
-    app: type[_App], terminal: mock.Mock, monkeypatch: pytest.MonkeyPatch
+    app: type[_App], attach: mock.Mock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     said: list[str | None] = []
 
@@ -292,7 +284,7 @@ def test_a_clock_is_up_while_the_runs_are_reached_and_down_before_the_interface(
         said.append(says and says())
 
     monkeypatch.setattr(output.Out, "spins", spins)
-    terminal.side_effect = lambda _: said.append("attached")  # pyright: ignore[reportUnknownLambdaType]
-    assert _opened(monkeypatch) == 0
+    attach.side_effect = lambda _: said.append("attached")  # pyright: ignore[reportUnknownLambdaType]
+    assert opens() == 0
     assert said == ["connecting to the runs held here", "attached", None]
     assert len(app.made) == 1

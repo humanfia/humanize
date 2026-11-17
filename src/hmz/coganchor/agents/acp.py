@@ -88,8 +88,15 @@ _CAPABILITIES: dict[str, Any] = {
 
 #: How a tool call is permitted, best first. The kind rather than the id: an id is the agent's
 #: own word -- one calls it `proceed_once`, another `allow-once` -- and a client that matched
-#: on those would work with the agent it was written against and no other.
-_GRANTS = ("allow_always", "allow_once")
+#: on those would work with the agent it was written against and no other. `allow_once`
+#: first, for the reason `_REFUSES` gives: an `always` is the agent asked to write a rule
+#: down for the next time, which outlives the flow on somebody's machine, and the grant one
+#: turn needs is the grant of that one call. `allow_always` only where it is the one grant.
+_GRANTS = ("allow_once", "allow_always")
+
+#: The suffix of the kinds that ask the agent to remember the answer, which an answer chosen
+#: for want of any kind this client knows is never one of.
+_ALWAYS = "_always"
 
 #: How a tool call reaching past the fence is refused: the one kind that refuses without the
 #: agent writing a rule down for the next time, which is what `reject_always` does in the one
@@ -916,11 +923,14 @@ class AcpSession(SessionBase):
             return None
         from hmz.coganchor.fence import Fence
 
-        # With its scratch, which the wall lets be written beside the paths it names.
+        # With its scratch, which the wall lets be written beside the paths it names; and what
+        # it carves out, as named and as it lies, which can only keep the agent from more.
         writes = (*fence.write, fence.tmp) if fence.tmp else fence.write
         return Fence(
             read=tuple(os.path.realpath(one) for one in fence.read),
             write=tuple(os.path.realpath(one) for one in writes),
+            keep=(*fence.keep, *(os.path.realpath(one) for one in fence.keep)),
+            deny=(*fence.deny, *(os.path.realpath(one) for one in fence.deny)),
         )
 
     def _outside(self, path: str | os.PathLike[str], *, write: bool) -> bool:
@@ -1036,9 +1046,11 @@ class AcpSession(SessionBase):
                 if one.get("kind") == kind:
                     return {"outcome": "selected", "optionId": str(one.get("optionId"))}
         # Nothing that grants it: the turn is not ours to hang, so it is answered rather than
-        # left, and the agent decides what a refusal means to it.
-        if offered:
-            return {"outcome": "selected", "optionId": str(offered[0].get("optionId"))}
+        # left, and the agent decides what a refusal means to it -- with the first option it
+        # offered that leaves nothing written down, or by cancelling where every one would.
+        for one in offered:
+            if not str(one.get("kind", "")).endswith(_ALWAYS):
+                return {"outcome": "selected", "optionId": str(one.get("optionId"))}
         return {"outcome": "cancelled"}
 
     def _told(self, update: dict[str, Any]) -> Iterator[Event]:
@@ -1407,5 +1419,5 @@ class AcpAgent(AgentBase):
             f"model is at to leave it; declare them where it was added, under clis in "
             f"{settings.where()}, as "
             f"{cli}: {{command: [...], hosts: [api.example.com], "
-            f"state: [~/.{cli}]}} -- or grant it online ALL"
+            f"state: [~/.{cli}]}} -- or grant it network=True"
         )

@@ -1,7 +1,7 @@
 //! A notification as the system posts one for an app -- on macOS through
-//! `UNUserNotificationCenter`, on Windows a toast: what `hmz web`'s page asks for when an epic
+//! `UNUserNotificationCenter`, on Windows a toast: what the page asks for when an epic
 //! ends, a flow asks, or a chat turn is done while the window is not looked at. Clicking one
-//! brings the window forward, and opens on `hmz web`'s page the address it was given -- a hash
+//! brings the window forward, and opens on the page the address it was given -- a hash
 //! of that page, and never anywhere else.
 
 use std::sync::OnceLock;
@@ -196,17 +196,15 @@ fn logo(app: &AppHandle) -> Option<PathBuf> {
     Some(path)
 }
 
-/// Brings the window forward, on `hmz web`'s page at the address clicked where it is one: on
-/// the page it shows, by its hash alone; or, where it shows none yet -- a click that launched
-/// the app -- on the page it opens once there is one.
+/// Brings the window forward, on the page at the address clicked where it is one: on the page
+/// it shows, by its hash alone, so that it is not loaded again; or, where it shows none yet --
+/// a click that launched the app -- on the page once it is shown.
 fn clicked(address: String) {
     let Some(app) = APP.get() else { return };
     on_main(app, move |app, shell| {
         let page = lock(&shell.page).clone();
         match page {
-            Some(mut page) => {
-                // Signed in already: the hash changes, and the page is not loaded again.
-                page.set_query(None);
+            Some(page) => {
                 if let Some(url) = target(&page, &address) {
                     show(app, url);
                 }
@@ -262,9 +260,8 @@ fn hash(address: &str) -> Option<&str> {
     })
 }
 
-/// Where a notification clicked opens: the hash it was given, `#/…`, at the root of `hmz web`'s
-/// page -- its origin, and its key where it is given one -- and nowhere else; nothing for
-/// anything but such a hash.
+/// Where a notification clicked opens: the hash it was given, `#/…`, at the root of the page the
+/// app carries, and nowhere else; nothing for anything but such a hash.
 pub fn target(page: &Url, address: &str) -> Option<Url> {
     let hash = hash(address)?;
     let mut url = page.clone();
@@ -278,19 +275,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn opens_a_hash_of_the_servers_page_alone() {
-        let server = Url::parse("http://127.0.0.1:8765/").unwrap();
-        let at = |address: &str| target(&server, address).map(String::from);
+    fn opens_a_hash_of_the_page_alone() {
+        // As Windows serves the page the app carries.
+        let page = Url::parse("http://tauri.localhost/").unwrap();
+        let at = |address: &str| target(&page, address).map(String::from);
         assert_eq!(
             at("#/@gpu/live?workspace=%2Fhome%2Fme").as_deref(),
-            Some("http://127.0.0.1:8765/#/@gpu/live?workspace=%2Fhome%2Fme")
+            Some("http://tauri.localhost/#/@gpu/live?workspace=%2Fhome%2Fme")
         );
-        assert_eq!(at("#/").as_deref(), Some("http://127.0.0.1:8765/#/"));
-        // From the address with the key, as the window first opens on, keeping it to sign in.
-        let first = Url::parse("http://127.0.0.1:8765/?key=secret#/epics").unwrap();
+        assert_eq!(at("#/").as_deref(), Some("http://tauri.localhost/#/"));
+        // From wherever the page is.
+        let there = Url::parse("http://tauri.localhost/index.html#/epics").unwrap();
         assert_eq!(
-            target(&first, "#/@local/live").map(String::from).as_deref(),
-            Some("http://127.0.0.1:8765/?key=secret#/@local/live")
+            target(&there, "#/@local/live").map(String::from).as_deref(),
+            Some("http://tauri.localhost/#/@local/live")
         );
         // Never another origin, path or scheme.
         for address in [
@@ -308,9 +306,9 @@ mod tests {
             assert_eq!(at(address), None, "{address:?}");
         }
         assert_eq!(at(&format!("#/{}", "a".repeat(LONGEST))), None);
-        // Whatever the hash says, the origin stays the server's.
-        let odd = target(&server, "#/x#@evil.example:80/ y").unwrap();
-        assert_eq!(odd.origin(), server.origin());
+        // Whatever the hash says, the origin stays the page's.
+        let odd = target(&page, "#/x#@evil.example:80/ y").unwrap();
+        assert_eq!(odd.origin(), page.origin());
         assert_eq!(odd.path(), "/");
         assert_eq!(odd.query(), None);
     }

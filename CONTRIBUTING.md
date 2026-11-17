@@ -30,8 +30,8 @@ Say so on an issue before you start on it, so that two people do not do the same
 - **Anything larger** (a feature, a backend, a new flag, a change to the flow API, anything
   that breaks what works today): open an issue first, and agree the approach with a maintainer
   before you build it. A large pull request nobody asked for may be closed, however good it is.
-- **`specs/` is the contract.** Change the code to match a spec. A pull request that changes a
-  spec links the issue where a maintainer asked for that change.
+- **`protocol/` is the contract.** Change the code to match it. A pull request that changes a
+  protocol document links the issue where a maintainer asked for that change.
 
 ## Pull requests
 

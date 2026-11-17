@@ -124,7 +124,7 @@ small budget, and on the fake kit.
 ## The writing rules
 
 **1. Match the code.** Check every command, flag, key, slash command, path, name and error
-string you write against `src/hmz`. Where the code and `specs/` disagree, the docs follow the
+string you write against `src/hmz`. Where the code and `protocol/` disagree, the docs follow the
 code, and the pull request says so.
 
 **2. Stay at the reader's altitude.** Outside Reference:
@@ -306,7 +306,7 @@ has the rest.
 
 - **`README.md`** follows [standard-readme](https://github.com/RichardLitt/standard-readme),
   says what Humanize does and how to use it, and links here.
-- **`specs/`** holds the contract of everything Humanize shows to the outside. Do not edit a SPEC unless you were asked to.
+- **`protocol/`** holds the contract of everything Humanize shows to the outside. Do not edit a protocol document unless you were asked to.
 - **Docstrings** are Google style, and `ruff` checks them.
 
 The site deploys to [docs.humanfia.ai/humanize](https://docs.humanfia.ai/humanize/) from

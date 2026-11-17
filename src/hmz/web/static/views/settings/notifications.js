@@ -1,10 +1,10 @@
 // Which notifications may appear, of every daemon at once: an epic done, failed or stopped, a
 // question to you, a chat turn over -- and whether they are shown by the system as well as on
-// the page. This app's own, kept on this machine, never a daemon's. A browser shows them only
+// the page. This browser's own, kept in its storage, never a daemon's. A browser shows them only
 // once you allow it, from a click here; Humanize Desktop needs nothing more.
 
-import { get, post } from '../../api.js'
-import { empty, fill, h, problem } from '../../dom.js'
+import { fill, h, problem } from '../../dom.js'
+import { kept } from '../../notifications.js'
 import { inApp, shell } from '../../shell.js'
 
 /** Every kind, by its word in the settings, and what the page calls it. */
@@ -27,7 +27,7 @@ export function draw(holder) {
     const save = async () => {
       said.replaceChildren()
       try {
-        await post('/api/notifications/settings', { kinds, system })
+        await kept.prefer({ kinds, system })
         said.textContent = 'Saved'
       } catch (error) {
         said.replaceChildren(problem(error))
@@ -103,7 +103,8 @@ export function draw(holder) {
       ),
     )
   }
-  get('/api/notifications/settings')
+  kept
+    .preferences()
     .then(shown)
-    .catch((error) => fill(holder, error.status === 404 ? empty('Unavailable', 'This Humanize does not keep notifications.') : problem(error)))
+    .catch((error) => fill(holder, problem(error)))
 }

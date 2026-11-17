@@ -2,14 +2,14 @@
 // the disk, or dropped anywhere on the window, and opened once it is in. One already on this
 // machine, named by its path -- as Humanize Desktop opens a file -- is `#/epics/import?path=`.
 
-import { daemon, hash, refresh, send } from './api.js'
+import { daemon, hash, imported, refresh } from './api.js'
 import { h, iconButton, problem } from './dom.js'
+import { fromBase64 } from './rpc/pipe.js'
 
-/** What an epic's archive is named with, and sent as. */
+/** What an epic's archive is named with. */
 const SUFFIX = '.hmzepic'
-const KIND = 'application/vnd.hmz.epic+gzip'
 
-/** The most the server takes of one, which is told before any of it is sent. */
+/** The most a daemon takes of one, which is told before any of it is sent. */
 const LARGEST = 2 * 1024 ** 3
 
 /** What is said of the import going, or of how it failed, until the next or until closed. */
@@ -26,23 +26,42 @@ function failed(...why) {
   say(why, iconButton('close', 'Close', { onclick: () => say() }))
 }
 
-/** How an import refused is said: the server's sentence, and the epic it names where that is here already. */
+/** How an import refused is said: the daemon's sentence, and the epic it names where that is here already. */
 export function refusal(error) {
   const name = error.said && error.said.name
   return [problem(error), name ? h('a', { href: hash(`/epics/${encodeURIComponent(name)}`), 'data-hmz': 'imported-already', onclick: () => say() }, 'Open') : null]
 }
 
-/** Sends one archive, saying so as it goes, and opens the epic it was once it is in. */
+/** The most the desktop application reads of an opened archive at once (Section 3.12.7 of protocol/desktop.md). */
+const READ = 1024 ** 2
+
+/**
+ * An archive opened with the desktop application, read whole from it by its path with `file_read`
+ * (Section 3.8.2 of protocol/desktop.md), to be sent as one picked is.
+ */
+export async function opened(path) {
+  const parts = []
+  for (let offset = 0, eof = false; !eof; ) {
+    const read = await globalThis.__TAURI_INTERNALS__.invoke('file_read', { path, offset, length: READ })
+    const bytes = fromBase64(read.data)
+    parts.push(bytes)
+    offset += bytes.length
+    eof = read.eof || !bytes.length
+  }
+  return new File(parts, path.split(/[\\/]/).pop() || 'epic.hmzepic')
+}
+
+/** Sends one archive in chunks, saying so as it goes, and opens the epic it was once it is in. */
 export async function importFile(file) {
-  if (file.size > LARGEST) return failed(problem('That is more than a request here may send.'))
+  if (file.size > LARGEST) return failed(problem('That is more than a daemon takes.'))
   say(h('span', {}, `Importing ${file.name}…`))
   const into = daemon()
   try {
-    const answer = await send('/api/runs/import', file, KIND)
+    const answer = await imported(file, { on: into })
     say()
     // Opened on the daemon it went into, unless the page has since gone to another.
     if (into !== daemon()) return
-    refresh('/api/runs')
+    refresh('runs.list')
     location.hash = hash(`/epics/${encodeURIComponent(answer.name)}`)
   } catch (error) {
     failed(refusal(error))
