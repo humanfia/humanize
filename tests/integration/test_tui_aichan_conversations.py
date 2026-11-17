@@ -1,9 +1,9 @@
 """`/ai`: Ai-chan's conversations, made, followed as a chat, carried on and forgotten.
 
 `aichan.*` is answered here by a daemon of the test's own, which makes a conversation as the
-daemon does -- a host of its own slot, `ai:<hex>`, its task the first message -- but runs the
-stand-in's chat on that host in place of the flow `ai_chan`: what is under test is the
-interface, which reads her conversation as it reads any chat.
+daemon does -- a host of its own slot, `ai:<hex>`, its task the first message -- but runs a
+flow of the stand-in talking to the person on that host in place of the flow `ai_chan`: what is
+under test is the interface, which reads her conversation as it reads any chat.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from hmz.tui.pick import Acts, AiChanNew, AiChans, AiForgets
 from tests.integration.doubles_tui import (
     RUNS,
     SIZE,
+    TALKS,
     heard,
     on,
     onto,
@@ -72,7 +73,12 @@ class _Conversations:
         workspace = str(said.get("workspace") or self._scratch)
         slot = f"ai:{uuid.uuid4().hex[:12]}"
         with daemons.attach("sdk", workspace=workspace, slot=slot) as link:
-            link.start("chat", said["task"], agents={"assistant": RUNS})
+            link.start(
+                TALKS,
+                said["task"],
+                agents={"assistant": RUNS},
+                budget={"cost": 100.0},
+            )
         one = {
             "id": next(self._ids),
             "title": said["task"][:80],
