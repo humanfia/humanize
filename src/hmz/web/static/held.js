@@ -122,7 +122,7 @@ async function starts(workspace, slot, { scratch = false, ...said }) {
 
 /**
  * Asks a chat one thing: `start`, `say`, `commands`, `set` -- the call `chat.<what>` (Section
- * 4.24 of protocol/daemon.md), which names the chat by its workspace and slot rather than by a
+ * 4.25 of protocol/daemon.md), which names the chat by its workspace and slot rather than by a
  * subscription. A chat started at a workspace alone is a new chat's, on a host of its own beside
  * every other epic there, which the answer names; one started with `scratch` is started in a
  * directory made for it alone.

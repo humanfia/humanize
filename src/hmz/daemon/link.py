@@ -4,7 +4,7 @@ A frontend -- an interface or a program -- reaches the runs of a workspace throu
 machine's daemon: a session of `protocol/wire.md` over its socket, saying `session.hello` and
 then `epic.attach`, whose `epic.event` notifications are the messages and whose calls to the
 epic are the requests (Section 4.18 of python.md). What is said to a chat is said by `chat.*`
-(Section 4.24 of daemon.md) of the workspace and slot attached to, rather than to the epic. A
+(Section 4.25 of daemon.md) of the workspace and slot attached to, rather than to the epic. A
 frontend still holding runs in its own process (:func:`linked`) is handed the same
 :class:`Link`, so that it is written once.
 

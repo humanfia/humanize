@@ -4,7 +4,8 @@ Each is a handler of `hmz.rpc`, given the call and answering its result or raisi
 :class:`hmz.rpc.RpcError` (Section 4 of daemon.md). The other families -- settings, epics
 written down, flows and the rest -- are each a module of :mod:`hmz.daemon.api`, which names its
 own in `METHODS`; every one is found here and served beside these. A method the OpenRPC
-document lists that nothing serves is answered -32601, as `hmz.rpc` answers it.
+document lists that nothing serves is answered -32601, as `hmz.rpc` answers it. The calls to an
+epic's environments are each carried to the host, as the calls to an epic are.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from hmz.daemon.routing import Router
     from hmz.rpc import Call, Handler
 
-__all__ = ["EPIC", "families", "methods"]
+__all__ = ["ENV", "EPIC", "families", "methods"]
 
 _log = logging.getLogger(__name__)
 
@@ -50,8 +51,41 @@ EPIC = (
     "quit",
 )
 
+#: Every call to an epic's environments (Section 4.24 of daemon.md), by what follows `env.`.
+ENV = (
+    "list",
+    "stat",
+    "read",
+    "find",
+    "search",
+    "write",
+    "mkdir",
+    "rename",
+    "remove",
+    "term.open",
+    "term.input",
+    "term.resize",
+    "term.ack",
+    "term.close",
+    "term.list",
+    "git.status",
+    "git.diff",
+    "git.log",
+    "git.stage",
+    "git.unstage",
+    "git.discard",
+    "git.commit",
+    "git.snapshots",
+    "git.rewind",
+)
 
-#: Why a chat whose host folded it away takes nothing more (Section 4.24.2.4).
+#: The calls a session over an untrusted carrier makes only where `envs.paired_terminals` is on,
+#: and what they are refused with otherwise (Section 4.24.4.10).
+_TERMINAL = ("env.term.open", "env.term.input")
+_NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_terminals."
+
+
+#: Why a chat whose host folded it away takes nothing more (Section 4.25.2.4).
 _FOLDED = "this chat has folded away; carry it on from its epic"
 
 
@@ -349,7 +383,7 @@ class _Methods:
         return {k: v for k, v in answer.items() if k not in ("ok", "why", "code")}
 
     def _chat_held(self, call: Call) -> Hosted:
-        """The host of the chat a call names (Section 4.24.2.4).
+        """The host of the chat a call names (Section 4.25.2.4).
 
         Raises:
           RpcError: 400 for a slot that is not a chat's, 404 where no host holds it, and
@@ -367,7 +401,7 @@ class _Methods:
         return hosted
 
     def chat_start(self, call: Call) -> dict[str, Any]:
-        """Starts a chat on a chat host, or carries one on there (Section 4.24.1).
+        """Starts a chat on a chat host, or carries one on there (Section 4.25.1).
 
         What the host would refuse it for before it starts anything is refused here first, so
         that no host is started for a chat that cannot be.
@@ -400,7 +434,7 @@ class _Methods:
         return {"slot": hosted.slot, "epic": str(started.get("epic") or "")}
 
     def chat_say(self, call: Call) -> dict[str, Any]:
-        """Says one line to a chat (Section 4.24.2)."""
+        """Says one line to a chat (Section 4.25.2)."""
         text = call.params.get("text")
         if not isinstance(text, str):
             raise _refused(-32602, "chat.say takes text.")
@@ -408,11 +442,11 @@ class _Methods:
         return {}
 
     def chat_commands(self, call: Call) -> dict[str, Any]:
-        """What a line of a chat can start with, and its preference (Section 4.24.3)."""
+        """What a line of a chat can start with, and its preference (Section 4.25.3)."""
         return self._chatted(call, self._chat_held(call), {"do": "commands"})
 
     def chat_set(self, call: Call) -> dict[str, Any]:
-        """Sets a chat's own preference (Section 4.24.4)."""
+        """Sets a chat's own preference (Section 4.25.4)."""
         prefer = call.params.get("prefer")
         if prefer not in ("native", "flow"):
             raise _refused(400, "prefer is native or flow")
@@ -440,6 +474,27 @@ class _Methods:
             if do == "start":
                 result |= {"slot": sub.hosted.slot, "workspace": sub.hosted.workspace}
             return result
+
+        return asks
+
+    def env(self, do: str) -> Handler:
+        """The handler of one call to an environment, which the host attached carries out.
+
+        The host is asked `do`, the method's whole name (Section 4.24.1.2). A session over an
+        untrusted carrier opens a terminal, or types into one, only where `envs.paired_terminals`
+        is on (Section 4.24.4.10).
+        """
+        gated = do in _TERMINAL
+
+        def asks(call: Call) -> dict[str, Any]:
+            sub = self.subscription(call)
+            if gated and not sub.session.trusted and not _paired_terminals():
+                raise _refused(409, _NO_TERMINALS)
+            said = {k: v for k, v in call.params.items() if k not in ("sub", "idem")}
+            answer = sub.hosted.ask(sub.client, {"do": do, **said})
+            if not answer.get("ok"):
+                raise _refused(409, str(answer.get("why") or "refused"))
+            return {k: v for k, v in answer.items() if k != "ok"}
 
         return asks
 
@@ -517,6 +572,7 @@ class _Methods:
             "hosts.stop": self.hosts_stop,
             "epic.attach": self.attach,
             **{f"epic.{do}": self.epic(do) for do in EPIC},
+            **{f"env.{do}": self.env(f"env.{do}") for do in ENV},
             "btw.list": asides.listed,
             "btw.ask": asides.ask,
             "btw.leave": asides.leave,
@@ -551,6 +607,16 @@ def families() -> dict[str, Handler]:
         named = cast("Mapping[str, Handler]", getattr(module, "METHODS", {}))
         found.update(named)
     return found
+
+
+def _paired_terminals() -> bool:
+    """Whether the setting `envs.paired_terminals` is on (Section 3.4.12 of files.md)."""
+    from hmz.coganchor import settings
+
+    envs: object = settings.read().get("envs")
+    if not isinstance(envs, dict):
+        return False
+    return cast("dict[str, object]", envs).get("paired_terminals") is True
 
 
 def _version() -> str:

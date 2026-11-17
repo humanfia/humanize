@@ -254,16 +254,24 @@ def test_calls_naming_one_sub_are_carried_out_in_order(pipes: Pipes) -> None:
         return "ok"
 
     dispatcher = greeting()
-    for method in ("epic.status", "epic.detach", "epic.aside"):
+    for method in ("epic.status", "epic.detach", "epic.aside", "env.git.status"):
         dispatcher.register(method, held)
     peer = served(pipes, dispatcher)
     first = peer.request("epic.status", {"sub": "a"})
     assert first_in.wait(5)
     second = peer.request("epic.detach", {"sub": "a"})
-    # Another subscription, and `epic.aside` on this one, wait on none of it.
+    # Another subscription, and `epic.aside` and a call to an environment on this one, wait on
+    # none of it.
     assert peer.call("epic.status", {"sub": "b"}, timeout=5) == "ok"
     assert peer.call("epic.aside", {"sub": "a"}, timeout=5) == "ok"
+    assert peer.call("env.git.status", {"sub": "a", "env": "1:w"}, timeout=5) == "ok"
     assert "epic.detach a" not in done
     release.set()
     assert first.result(5) == second.result(5) == "ok"
-    assert done == ["epic.status b", "epic.aside a", "epic.status a", "epic.detach a"]
+    assert done == [
+        "epic.status b",
+        "epic.aside a",
+        "env.git.status a",
+        "epic.status a",
+        "epic.detach a",
+    ]

@@ -366,9 +366,19 @@ an absent value or any other MUST be read as `auto`.
 (Section 4.6.4.19 of [CORE]); an absent value MUST be read as an empty list, and an entry that is
 not a kind name MUST be ignored.
 
-#### 3.4.12. `chat`
+#### 3.4.12. `envs`
 
-**3.4.12.1** `chat.prefer` MUST be `native` or `flow`, the preference of every chat of this machine
+**3.4.12.1** `envs` MUST be a mapping with the key `paired_terminals`, which says how the daemon of
+this machine lets frontends reach environments (Section 7.13 of [CORE]); hmz MUST NOT write it.
+
+**3.4.12.2** `envs.paired_terminals` MUST be a boolean: `true` lets a session over an untrusted
+carrier -- a paired device's, or one over EasyTier -- open a terminal in an environment and type into
+it (Section 4.24.4.10 of [DAEMON]); an absent value, or any value but `true`, MUST be read as
+`false`.
+
+#### 3.4.13. `chat`
+
+**3.4.13.1** `chat.prefer` MUST be `native` or `flow`, the preference of every chat of this machine
 whose own is not overridden (Section 8.9.10 of [CORE]); an absent value or any other MUST be read as
 `native`.
 

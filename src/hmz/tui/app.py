@@ -318,7 +318,7 @@ def _old_chat(flow: str) -> bool:
 def _chats(
     afar: tuple[str, str] | None, method: str, params: dict[str, Any]
 ) -> dict[str, Any]:
-    """Makes one call of the chats a daemon holds (Section 4.24 of [DAEMON]), and answers it.
+    """Makes one call of the chats a daemon holds (Section 4.25 of [DAEMON]), and answers it.
 
     Over a session of its own rather than the link: a chat is reached by its workspace and
     slot, as `chat.*` takes it, where the link's calls are those of the one epic it attached
@@ -5635,7 +5635,7 @@ class Humanize(App[None]):
         next turn of the one left going on a host of its own while a flow was on the screen,
         or the turn that carries it on where it has folded away since; and as the first
         message of a new one otherwise. Every line of a chat goes through `chat.say`
-        (Section 4.24 of [DAEMON]), a question it asked mid-turn being answered by the next
+        (Section 4.25 of [DAEMON]), a question it asked mid-turn being answered by the next
         line said in it.
 
         Args:
@@ -5700,7 +5700,7 @@ class Humanize(App[None]):
             refused=self._not_started,
             slot=self._slot,
             # The chat's own where one is carried on, which is the agent it was had with: ""
-            # says so (Section 4.24.1 of daemon.md).
+            # says so (Section 4.25.1 of daemon.md).
             agent=written(self._chat_runs)
             if resume is None and self._chat_runs is not None
             else "",

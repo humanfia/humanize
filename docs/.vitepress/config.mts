@@ -210,6 +210,7 @@ export default defineConfig({
             { text: 'When a flow asks you', link: '/features/human' },
             { text: 'A budget on every run', link: '/features/allowances' },
             { text: 'Close the terminal, keep the run', link: '/features/daemon' },
+            { text: 'Into its environments', link: '/features/environments' },
           ],
         },
         {

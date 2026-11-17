@@ -1270,7 +1270,7 @@ hmz chat [-a <agent>] [--resume <epic>] [--] <message>
 
 **15.1.1** `hmz chat` MUST take one turn of a chat (Section 8 of [CORE]) in the current directory as
 its workspace, with nobody at a prompt: it MUST start the chat on a new chat slot of that workspace
-on this machine's daemon (`chat.start` with `slot` `chat:`, Section 4.24 of [DAEMON]), starting the
+on this machine's daemon (`chat.start` with `slot` `chat:`, Section 4.25 of [DAEMON]), starting the
 daemon where none runs, follow its messages (`epic.attach`) until the turn is done, and then end the
 chat with an empty next message (Section 8.4.8 of [CORE]).
 

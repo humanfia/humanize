@@ -79,6 +79,7 @@ normative. It is cited by the tag [CORE].
   - [7.10. `slurm`](#710-slurm)
   - [7.11. Falling back](#711-falling-back)
   - [7.12. Leftovers](#712-leftovers)
+  - [7.13. Users in an env](#713-users-in-an-env)
 - [8. Chat](#8-chat)
   - [8.1. Scope](#81-scope)
   - [8.2. Terminology](#82-terminology)
@@ -2835,7 +2836,8 @@ This section specifies the kinds of **env** hmz gives a **flow**'s env roles —
 `docker`, `swarm`, `apple-container` and `slurm` — and the **runtimes** that name a machine an env
 is put on: what each kind is, where its workdir is, how the resources a role declares are checked or
 handed out, the names and labels hmz gives what it starts, the lifecycle of starting, closing and
-cleaning up, falling back from one runtime to another, and the errors raised.
+cleaning up, falling back from one runtime to another, the errors raised, and what the **user** can
+do in an env from a **frontend**.
 
 Out of scope:
 
@@ -2846,6 +2848,10 @@ Out of scope:
 - The env protocol and mixins a flow writes against: Section 3 of [PYTHON].
 - The files hmz writes under the **home** and on a target machine: Section 4 of [FILES], Section 9
   of [FILES].
+- The methods a frontend reaches an env through, their parameters, results and refusals: Section
+  4.24 of [DAEMON].
+- How the page and the terminal interface draw an env: Section 3.17 of [WEB] and Section 7.20 of
+  [TUI].
 
 ### 7.2. Terminology
 
@@ -2921,7 +2927,7 @@ program where `git` is the cause.
 #### 7.3.3. Commands
 
 **7.3.3.1** Every command an env runs MUST run in a process group of its own with standard input
-closed.
+closed, but a terminal (Section 7.13.4).
 
 **7.3.3.2** A command that passes its timeout MUST be killed with its whole process group and MUST
 raise `EnvCommandTimeout: <command> ran past its timeout of <n>s in <workdir>, and was killed`.
@@ -3296,6 +3302,46 @@ host.
 
 **7.12.3** hmz MUST NOT remove a running container that a docker runtime names, nor the mirrors of
 an epic that worked in it and was killed.
+
+### 7.13. Users in an env
+
+**7.13.1** A **terminal** is a process the user runs in an env from a frontend, under a
+pseudo-terminal.
+
+**7.13.2** A frontend MUST let the user reach every env of the epic going, or of the last one, of
+the host it is attached to -- every root env of its roles, the workspace of a chat, and every
+derived env, until its flow destroys it -- while that env is open: browse, read and write its files,
+open terminals in it, and see and work its git repository, through the calls of Section 4.24 of
+[DAEMON].
+
+**7.13.3** What the user can do in an env MUST be what the env serves (Section 7.3.2.3 and Section
+7.3.2.4), whatever its role declares: its files where it serves `FilesEnvMixin`, terminals where it
+serves `ShellEnvMixin`, its changes where it serves `GitEnvMixin` or `GitWorktreeEnvMixin`, and its
+snapshots where it serves `RewindableEnvMixin` (Section 3.11 of [PYTHON]). What the role declares
+MUST only choose what a frontend shows first: the first of files, terminals, changes and snapshots
+whose mixin the role declares, else files.
+
+**7.13.4** A terminal MUST run in the env's workdir, in a process group of its own, with the
+pseudo-terminal as its standard input, output and error, and MUST run the env machine's login
+shell: `$SHELL -l` where `SHELL` is set there, else `bash -l` where `bash` is on the `PATH`, else
+`/bin/sh -l`.
+
+**7.13.5** A terminal MUST NOT have a timeout. It MUST be killed, with its whole process group,
+when a frontend closes it, when its env closes, and once no frontend has viewed it for 10 minutes;
+a frontend leaving MUST NOT kill it otherwise.
+
+**7.13.6** A terminal MUST keep the last 256 KiB of what it printed, which a frontend attaching to it
+again is given first.
+
+**7.13.7** What the user does in an env MUST NOT grant anything to a flow, a session or an agent,
+and the means of Section 7.13 MUST NOT be offered to a flow.
+
+**7.13.8** hmz MUST record each change the user makes to an env, and each terminal opened, in the
+epic's history, naming the frontend (Section 4.24.1.8 of [DAEMON]); what is typed into a terminal and
+what it prints MUST NOT be recorded.
+
+**7.13.9** Rewinding an env from a frontend MUST be refused while a session working in that env has
+a turn open.
 
 ## 8. Chat
 
