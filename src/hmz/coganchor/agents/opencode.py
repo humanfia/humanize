@@ -8,6 +8,18 @@ line, which is where the session it opened, what it reached for and what it spen
 
 mimocode is the same program under another name, and is driven from here: what differs is what
 the command is called and which of its own variables it takes.
+
+In a chat, a `/` command and an `@` file are what a run can carry, and each is a flag of
+``opencode run`` rather than words for it to read: a run sends its message to the server as
+plain text, and it is the interactive prompt that turns `/review` into a command and `@a.py`
+into a file. So `/<name> args` is ``--command <name>`` with the arguments as the message, the
+server expanding the command as its own prompt would -- an `@path` among the arguments
+included -- and an `@path` in a line that is not a command is ``--file <path>`` beside the line,
+both served as `call` (:meth:`OpencodeSession.natives`). The commands are its built-ins and the
+ones ``opencode debug config`` and ``opencode debug skill`` list: the commands it is configured
+with, its command files among them, and its skills. Its MCP servers' prompts are commands too,
+but only a running server lists them, so a run cannot be asked for them beforehand. `!` is not
+reachable at all: its shell mode is the interactive prompt's, and a run has no flag for it.
 """
 
 from __future__ import annotations
@@ -15,6 +27,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import threading
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +37,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from .base import AgentBase, CommandSessionBase
 from .config import AgentConfig, Unserved
 from .event import Event, Failed, Usage
+from .native import NativeCommand
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -230,6 +245,19 @@ def _flagged(config: AgentConfig) -> bool:
     return config.fence is not None
 
 
+#: How long listing what a run is configured with may take, in seconds: a run starting up,
+#: which a catalog nobody can wait for is better off without.
+_LISTING = 30
+
+#: An `@` mention as opencode reads one out of a command's template: not inside a word or a
+#: code span, and without the comma or the full stop a sentence puts after it.
+_MENTION = re.compile(r"(?<![\w`])@(\.?[^\s`,.]*(?:\.[^\s`,.]+)*)")
+
+#: What else a sentence closes a mention on, which a person's line has where a template would
+#: not: taken off one whose path is not there with it.
+_CLOSING = ")]}>'\"?!:;"
+
+
 class OpencodeSession(CommandSessionBase):
     """An opencode conversation, resumed by the id the first turn's events name it with.
 
@@ -260,6 +288,13 @@ class OpencodeSession(CommandSessionBase):
     #: web, and a switch that took only the first away would be one that lies.
     reaches: ClassVar[tuple[str, ...]] = ("webfetch", "websearch", "codesearch")
 
+    #: The commands it serves of its own, which no configuration lists, with what it says of
+    #: each: what ``opencode debug config`` leaves out of a run's catalog.
+    builtins: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("init", "guided AGENTS.md setup"),
+        ("review", "review changes [commit|branch|pr], defaults to uncommitted"),
+    )
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
@@ -280,6 +315,136 @@ class OpencodeSession(CommandSessionBase):
         self._spent = 0
         self._costing = Usage()
         self._shown: set[str] = set()
+        #: The catalog, listed the first time it is asked for, under a lock of its own: a chat
+        #: asking for it while a turn runs is not to wait for the turn.
+        self._natives: list[NativeCommand] | None = None
+        self._listing = threading.Lock()
+
+    def natives(self) -> list[NativeCommand]:
+        """What a chat's line may open with here: a command of the CLI's, or `@`.
+
+        Listed once per session, by asking the CLI what it is configured with -- two runs of
+        it, so not on every line -- in the environment and the directory a turn has.
+
+        Returns:
+          A `/` entry per command, built in, configured or a skill, then `@`; both served by
+          a flag of the turn's run (see the module).
+        """
+        with self._listing:
+            if self._natives is not None:
+                return list(self._natives)
+            listed, whole = self._listed()
+            if whole:
+                # Kept only once both listings answered: a catalog of the built-ins alone
+                # would have the chat refuse every configured command for good.
+                self._natives = listed
+            return listed
+
+    def _listed(self) -> tuple[list[NativeCommand], bool]:
+        """Asks the CLI which commands a run of it serves.
+
+        Returns:
+          The catalog -- where the CLI cannot be asked, its built-ins and `@` alone -- and
+          whether both listings answered.
+        """
+        named = dict(type(self).builtins)
+        configured = self._debug("config")
+        if isinstance(configured, dict):
+            listed = cast("dict[str, Any]", configured).get("command")
+            if isinstance(listed, dict):
+                for name, said in cast("dict[str, Any]", listed).items():
+                    # A configured command takes the place of a built-in of its name, as
+                    # it does in the CLI.
+                    named[name] = _about(said)
+        skills = self._debug("skill")
+        if isinstance(skills, list):
+            for said in cast("list[object]", skills):
+                if not isinstance(said, dict):
+                    continue
+                skill = cast("dict[str, Any]", said)
+                if name := skill.get("name"):
+                    # And a skill never does: a command of its name is that command.
+                    named.setdefault(str(name), _about(skill))
+        command = type(self).command
+        return [
+            *(
+                NativeCommand("/", name, about or f"{command}'s /{name}", "call")
+                for name, about in named.items()
+            ),
+            NativeCommand("@", "", "A file or directory, attached to the turn", "call"),
+        ], configured is not None and skills is not None
+
+    def _debug(self, what: str) -> object:
+        """What one of the CLI's `debug` listings says, as the JSON it prints.
+
+        Run as a turn's own process is, in its environment and its directory: a command file of
+        the workspace's, or one a run's config content names, is only seen from there.
+
+        Args:
+          what: Which listing: `config` or `skill`.
+
+        Returns:
+          What it printed, read as JSON, or None where it could not be run or said nothing
+          readable.
+        """
+        try:
+            argv, environ, home = self._spawning([type(self).command, "debug", what])
+        except (OSError, ValueError):
+            return None
+        try:
+            done = subprocess.run(
+                argv,
+                # As a turn's own process is: an anchored one is put there by the anchor.
+                cwd=None if self._agent.anchor is not None else self._workspace(),
+                env=environ,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=_LISTING,
+                check=False,
+            )
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return None
+        finally:
+            if home is not None:
+                home.drop()
+        if done.returncode != 0:
+            return None
+        try:
+            return json.loads(done.stdout)
+        except ValueError:
+            return None
+
+    def _native(self, argv: list[str], prompt: str) -> tuple[list[str], str]:
+        """A chat's line as the flags a run carries it by, and the message left to send.
+
+        Args:
+          argv: The run's command line, as a turn of text would have it.
+          prompt: The line.
+
+        Returns:
+          The command line and the message. A `/` line naming a command of the catalog is
+          that command and its arguments; any other is sent as it is, with every `@path` in it
+          that is there attached.
+        """
+        word, *rest = prompt.split(maxsplit=1) or [""]
+        if word.startswith("/") and word[1:] in {
+            one.name for one in self.natives() if one.sigil == "/"
+        }:
+            return [*argv, "--command", word[1:]], rest[0] if rest else ""
+        where = self._workspace()
+        attached: list[str] = []
+        for named in dict.fromkeys(_MENTION.findall(prompt)):
+            # A run resolves a path against its directory and nothing else, so a `~` the
+            # interactive prompt would have read as the home is read so here; and a path
+            # that is not there is tried again without what a sentence closed it on.
+            for one in dict.fromkeys((named, named.rstrip(_CLOSING))):
+                path = str(Path(one).expanduser()) if one.startswith("~/") else one
+                if path and (Path(where) / path).exists():
+                    attached += ["--file", path]
+                    break
+        return [*argv, *attached], prompt
 
     def _turn(self, prompt: str) -> tuple[list[str], str | None]:
         """Builds the ``opencode run`` one turn is, and hands it the prompt on stdin.
@@ -331,6 +496,8 @@ class OpencodeSession(CommandSessionBase):
             argv += ["--session", self._forked_from, "--fork"]
         if _flagged(config):
             argv += self._unattended()
+        if self.native_turn:
+            return self._native(argv, prompt)
         return argv, prompt
 
     def _unattended(self) -> list[str]:
@@ -678,6 +845,14 @@ class OpencodeSession(CommandSessionBase):
             if named := cast("dict[str, Any]", said).get("sessionID"):
                 return str(named)
         raise ValueError(f"{type(self).command} named no session")
+
+
+def _about(said: object) -> str:
+    """What a command or a skill the CLI listed says of itself, on one line."""
+    if not isinstance(said, dict):
+        return ""
+    about = cast("dict[str, Any]", said).get("description")
+    return " ".join(str(about).split()) if about else ""
 
 
 @dataclass(frozen=True, kw_only=True)

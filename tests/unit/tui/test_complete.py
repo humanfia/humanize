@@ -9,8 +9,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 import hmz.runtime.flowing
+from hmz.coganchor.agents.native import NativeCommand
 from hmz.tui import complete
-from hmz.tui.complete import VIEWS, Command, hinted, offered, paths
+from hmz.tui.complete import VIEWS, Command, hinted, offered, paths, tagged
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -207,3 +208,83 @@ def test_a_home_is_kept_as_a_tilde(tree: Path, monkeypatch: pytest.MonkeyPatch) 
 )
 def test_what_cannot_be_read_is_offered_nothing(tree: Path, typed: str) -> None:
     assert paths(typed) == []
+
+
+#: A chat's catalogue, as its harness's driver exposes it.
+NATIVES = (
+    NativeCommand("/", "compact", "Compact the conversation", "pass"),
+    NativeCommand("/", "config", "Open the settings", "refuse"),
+    NativeCommand("/", "stop", "A harness's own stop", "pass"),
+    NativeCommand("$", "review", "Review the change", "call"),
+    NativeCommand("$", "rlar", "A skill of the flow's name", "call"),
+    NativeCommand("!", "", "Run a shell command", "emulate"),
+    NativeCommand("@", "", "Mention a file", "pass"),
+)
+
+
+def test_in_a_chat_the_harness_commands_follow_humanizes_own() -> None:
+    assert offered("/", COMMANDS, natives=NATIVES) == [
+        "/flow",
+        "/flowverses",
+        "/settings",
+        "/stop",
+        "/compact",
+    ]
+
+
+def test_in_a_chat_a_command_only_the_harness_serves_is_not_offered() -> None:
+    assert offered("/con", COMMANDS, natives=NATIVES) == []
+
+
+def test_in_a_chat_the_skills_come_ahead_of_the_flows_a_name_that_is_both_once() -> (
+    None
+):
+    assert offered("$", COMMANDS, natives=NATIVES) == [
+        "$review",
+        "$rlar",
+        "$chat",
+        "$rlar2",
+    ]
+
+
+def test_in_a_chat_the_skills_are_offered_while_no_flow_can_be_chosen() -> None:
+    assert offered("$r", COMMANDS, flows=False, natives=NATIVES) == [
+        "$review",
+        "$rlar",
+    ]
+
+
+def test_in_a_chat_an_at_offers_files(tree: Path) -> None:
+    assert offered("@s", COMMANDS, natives=NATIVES) == [
+        "@setup.py",
+        f"@specs{os.sep}",
+        f"@src{os.sep}",
+    ]
+
+
+def test_outside_a_chat_an_at_is_prose(tree: Path) -> None:
+    assert offered("@s", COMMANDS) == []
+
+
+@pytest.mark.parametrize(
+    ("offer", "prefer", "said"),
+    [
+        ("$review", "native", "skill · Review the change"),
+        ("$chat", "native", "flow"),
+        (
+            "$rlar",
+            "native",
+            "skill and flow: runs the skill; /flow rlar starts the flow",
+        ),
+        (
+            "$rlar",
+            "flow",
+            "skill and flow: runs the flow; /flow rlar starts the flow",
+        ),
+        ("/compact", "native", "Compact the conversation"),
+        ("@src/", "native", "Mention a file"),
+        ("$nothing", "native", ""),
+    ],
+)
+def test_a_chats_offer_says_whose_it_is(offer: str, prefer: str, said: str) -> None:
+    assert tagged(offer, NATIVES, ["chat", "rlar", "rlar2"], prefer) == said

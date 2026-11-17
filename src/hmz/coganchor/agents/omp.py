@@ -3,7 +3,7 @@
 `omp --mode rpc` is pi's RPC mode carried on: one process for the session, a turn a `prompt`
 written to its stdin, a word put in mid-turn a `steer`, and what the agent did the same
 `message_update`s pi says it with. So what drives it is pi's driver, and what is here is where
-the two part company -- most of a command line, and three things about the protocol:
+the two part company -- most of a command line, and four things about the protocol:
 
 - A turn ends on the `agent_end` that is terminal. There is no `agent_settled`: omp's own
   reference says so, and a reader waiting for one waits for ever.
@@ -11,6 +11,10 @@ the two part company -- most of a command line, and three things about the proto
   for, as `get_state`, ahead of the first prompt, and `--resume` takes it back after that.
 - A `toolcall_start` names neither the call nor the tool. Both are on the message so far that
   comes with it, which pi stopped sending at 0.84.0 and omp still sends.
+- What a chat may type at it is said unasked: omp has no `get_commands`, and says its slash
+  commands -- its own built-ins that its RPC `prompt` runs among them -- as an
+  `available_commands_update` as it comes up and whenever they change. A native `!`, `!!` and
+  `/compact` are served by the same `bash` and `compact` commands as pi's.
 
 Here rather than as a second dialect in :mod:`hmz.coganchor.agents.pi` because it is a second
 backend: it has its own home, its own models and its own place at a prompt, and a reader
@@ -26,7 +30,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .config import AgentConfig
 from .event import Event
-from .pi import PiAgent, PiSession
+from .pi import PiAgent, PiSession, listed
 from .tools import serve
 
 if TYPE_CHECKING:
@@ -72,6 +76,9 @@ class OhMyPiSession(PiSession):
     back over the same pipe -- so a callback runs here with no bridge and no socket, and a
     flow offering others between two turns is told to the process already up.
     """
+
+    #: Not asked: omp says its commands as it comes up (`available_commands_update`).
+    _LIST: ClassVar[str] = ""
 
     def __init__(
         self, agent: PiAgent, cwd: str | os.PathLike[str] | None = None
@@ -248,6 +255,8 @@ class OhMyPiSession(PiSession):
                 yield Event(
                     kind="failed", text=str(said.get("error") or "no host tools")
                 )
+            case "available_commands_update":
+                self._commands = listed(said.get("commands"))
             case "host_tool_call":
                 threading.Thread(
                     target=self._hosts,

@@ -264,7 +264,6 @@ class Flowing:
     """Everything a runner asks of the engine and its drivers, answered here."""
 
     impl: Impl
-    privileged: bool = False
     refuses: BaseException | None = None
     opened_agents: list[AgentSpec] = field(default_factory=list[AgentSpec])
     opened_envs: list[EnvSpec] = field(default_factory=list[EnvSpec])
@@ -307,9 +306,6 @@ class Flowing:
             return "returned"
         return self.flow(said)
 
-    def is_privileged(self, impl: Impl) -> bool:
-        return self.privileged
-
     def local_env(self, at: Path) -> Env:
         return self.local
 
@@ -342,7 +338,6 @@ def declared() -> Declaration:
 def engine_(declared: Declaration, monkeypatch: pytest.MonkeyPatch) -> Flowing:
     made = Flowing(Impl(declared))
     monkeypatch.setattr(flowing, "resolved", made.resolved, raising=False)
-    monkeypatch.setattr(flowing, "privileged", made.is_privileged, raising=False)
     monkeypatch.setattr(flowing, "run_flow", made.run_flow, raising=False)
     monkeypatch.setattr(flowing, "probe", made.probe, raising=False)
     monkeypatch.setattr(flowing, "local_env", made.local_env, raising=False)
@@ -573,12 +568,11 @@ def test_params_left_out_are_the_flows_defaults(engine_: Flowing) -> None:
     assert _runner(params=Params(rounds=7)).params == Params(rounds=7)
 
 
-def test_a_run_with_no_budget_is_refused_unless_it_is_chat(engine_: Flowing) -> None:
-    with pytest.raises(Refused, match="requires a budget"):
-        _runner(budget=None)
-
-    engine_.privileged = True
-    assert _runner(budget=None).budget == Budget(cost=math.inf)
+def test_a_run_of_any_flow_with_no_budget_is_refused(engine_: Flowing) -> None:
+    del engine_
+    for flow in ("ralph", "chat"):
+        with pytest.raises(Refused, match=f"{flow} requires a budget"):
+            Runner(flow, agents=cast("Any", {"builder": Agent()}), budget=None)
 
 
 def test_a_budget_is_read_off_json_or_refused(engine_: Flowing) -> None:
@@ -949,17 +943,16 @@ def test_a_report_made_during_a_run_says_what_was_running_and_on_what(
     assert cast("dict[str, Any]", telemetry.held()["flow"])["agents"] == []
 
 
-def test_a_run_of_chat_writes_down_a_cost_that_reads_back(
+def test_a_run_with_no_limit_on_cost_writes_down_a_cost_that_reads_back(
     engine_: Flowing, tmp_path: Path
 ) -> None:
-    engine_.privileged = True
-    runner = Runner(
-        "chat", agents=cast("Any", {"builder": Agent()}), workspace=tmp_path
-    )
+    del engine_
+    runner = _runner(budget=Budget(cost=math.inf), workspace=tmp_path)
 
     runner.run("hello")
 
     assert _ran(runner)["budget"]["cost"] == "Infinity"
+    assert _ran(runner)["kind"] == "flow"
 
 
 def test_a_resumable_flow_keeps_its_journal_in_the_epic(

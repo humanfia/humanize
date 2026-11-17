@@ -501,7 +501,8 @@ def _recalled(epic: str) -> tuple[FlowSnapshot, Callable[[str], dict[str, Any]]]
 
     began, ended = _moment(ran.began), _moment(ran.ended)
     about = FlowSnapshot(
-        flow=ran.flow,
+        # A chat has no flow to name, and says what it is instead (Section 9.4.2 of core).
+        flow="chat" if ran.chat else ran.flow,
         task=ran.task,
         workspace=ran.workspace,
         elapsed=max(0.0, ended - began) if began and ended else 0.0,

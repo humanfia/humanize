@@ -123,9 +123,9 @@ def test_bad_and_iffy_colour_a_line_and_leave_nothing_blank(
 @pytest.mark.parametrize(
     ("ref", "said"),
     [
-        ("chat:chat", "chat"),
+        ("ralph_loop:ralph_loop", "ralph_loop"),
         ("loop:review", "loop:review"),
-        ("chat", "chat"),
+        ("ralph_loop", "ralph_loop"),
         ("pkg.mod:mod", "pkg.mod:mod"),
     ],
 )
@@ -207,7 +207,7 @@ def test_spent_says_each_cap_shortest_first(budget: Budget, said: str) -> None:
 
 
 def test_chosen_defaults_to_no_envs_params_budget_or_profiling() -> None:
-    chosen = pick.Chosen("chat", {"you": Runs("claude/opus:high")})
+    chosen = pick.Chosen("ralph_loop", {"coder": Runs("claude/opus:high")})
 
     assert (
         chosen.envs,

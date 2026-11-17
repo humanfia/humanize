@@ -121,6 +121,7 @@ if TYPE_CHECKING:
         SessionBase,
         Verdict,
     )
+    from hmz.coganchor.agents.native import NativeCommand
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import AnchoredConfig, MachineConfig
@@ -1209,6 +1210,7 @@ class HarnessSession:
         "_limits",
         "_lock",
         "_loop",
+        "_native",
         "_over",
         "_permission",
         "_placement",
@@ -1292,6 +1294,7 @@ class HarnessSession:
         self._rose: dict[str, float] = {}
         # The turn in flight, if one is.
         self._flying = False
+        self._native = False
         self._sink: UsageSink | None = None
         self._limits: Limits | None = None
         self._last = 0.0
@@ -1562,6 +1565,7 @@ class HarnessSession:
             and GoalCommandAgentMixin in self._driver.capabilities
         )
         body = request.prompt.removeprefix(_GOAL) if goal else request.prompt
+        self._native = request.native and not goal
         # Asked again before every turn and not only as the session opened: the CLI reads its
         # project's settings as each turn starts it, and a turn before may have written some.
         await asyncio.to_thread(
@@ -1748,7 +1752,9 @@ class HarnessSession:
         if goal:
             return self._session.pursue(body)
         said = ""
-        for event in self._session.stream(body, schema=schema):
+        # Said only where it is so, so that a session written before chats were is still one.
+        natively = {"native": True} if self._native else {}
+        for event in self._session.stream(body, schema=schema, **natively):
             if event.kind == "result":
                 said = event.text
         return said.strip()
@@ -2026,6 +2032,10 @@ class HarnessSession:
                     self._steers.append(prompt)
                     return
             raise SessionError("the turn ended before it could be steered") from missed
+
+    def natives(self) -> list[NativeCommand]:
+        """The native input its harness takes in a chat; see :meth:`SessionHandle.natives`."""
+        return self._session.natives()
 
     def interrupt(self) -> None:
         """Stops the turn in flight, if any, from any thread. Idempotent."""

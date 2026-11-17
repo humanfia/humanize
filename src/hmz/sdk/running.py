@@ -274,7 +274,7 @@ class Hmz(Workspace):
             driver -- or the specs a line read.
           envs: What each environment role is, likewise with `-e`.
           params: The flow's params, or None for its defaults.
-          budget: What the epic may spend; only `chat` runs without one.
+          budget: What the epic may spend, which every flow must be given.
           profile_flow: Whether to sample the flow's own Python while it runs.
           profile_environment: Whether to profile the programs its agents start, as well as
             trace them.
@@ -328,7 +328,7 @@ class Hmz(Workspace):
           agents: What each agent role runs; see :meth:`runner`.
           envs: What each environment role is; see :meth:`runner`.
           params: The flow's params, or None for its defaults.
-          budget: What the epic may spend; only `chat` runs without one.
+          budget: What the epic may spend, which every flow must be given.
           profile_flow: Whether to sample the flow's own Python while it runs.
           profile_environment: Whether to profile the programs its agents start, as well as
             trace them.
@@ -434,11 +434,6 @@ class Run:
     def ref(self) -> str:
         """The flow's canonical ref, as the daemon's check answered it."""
         return str(self._runner.checked.get("ref") or "")
-
-    @property
-    def chats(self) -> bool:
-        """Whether the flow is the built-in `chat`, as the daemon's check answered it."""
-        return bool(self._runner.checked.get("chats"))
 
     @property
     def task(self) -> str:

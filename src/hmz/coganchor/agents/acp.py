@@ -34,6 +34,14 @@ the network from a CLI nobody declared a host for is refused rather than run int
 cannot reach its own model. What this client does itself for the agent is held to the same
 fence: a file it reads or writes, and a tool call it permits, that the fence would not let the
 agent reach is refused, and a command it holds as a terminal is run inside the fence too.
+
+In a chat such a CLI has no catalog of native input, and every line is said to it as text: a
+`session/prompt` carries a text block, and what the agent does with one opening on `/`, `!` or
+`@` is its own business, unknown here. The protocol lets an agent advertise slash commands, in
+`available_commands_update` notifications on a session already open, but nothing says what an
+added CLI does with the line once it is sent, and this client offers no terminal of the
+person's for a `!`, so none is promised: the line goes as typed and the agent answers it as it
+answers any.
 """
 
 # The teardown every driver shares is base's, and reaching for it is what grok, agy, qwen

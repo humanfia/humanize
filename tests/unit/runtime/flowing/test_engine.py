@@ -17,6 +17,7 @@ from hmz.flows import (
     Agent,
     AgentCollection,
     Budget,
+    BudgetExceeded,
     CapabilityMissing,
     ClaudeCodeAgent,
     CostExceeded,
@@ -59,7 +60,6 @@ from hmz.runtime.flowing.engine import (
     LiveCall,
     current,
     define_flow,
-    full_view,
     load_flow,
     new_outworlder,
     run_flow,
@@ -156,6 +156,22 @@ async def held(
     coder = agents["coder"]
     said = await coder.run(task, session=await coder.spawn(), budget=own)
     return said, ctx.budget
+
+
+@flow(agents=Solo, envs=NoEnvs, params=Nothing)
+async def quota(
+    task: str, *, agents: Solo, envs: NoEnvs, params: Nothing, ctx: FlowContext
+) -> tuple[str, bool]:
+    """Takes one turn under a hard quota of a dollar, and says which budget stopped it."""
+    del envs, params, ctx
+    coder = agents["coder"]
+    try:
+        await coder.run(
+            task, session=await coder.spawn(), budget=Budget(cost=1.0, graceful=False)
+        )
+    except BudgetExceeded as error:
+        return type(error).__name__, error.own
+    return "", False
 
 
 @flow(agents=Solo, envs=NoEnvs, params=Nothing)
@@ -557,6 +573,21 @@ async def test_a_flow_is_told_which_limits_over_it_are_graceful() -> None:
     assert unset.graceful is True
 
 
+@pytest.mark.parametrize(
+    ("budget", "own"),
+    [(Budget(cost=10.0), True), (Budget(cost=1.0, graceful=False), False)],
+    ids=["the-turn's", "the-flow's"],
+)
+async def test_a_turn_stopped_by_its_own_budget_says_so(
+    budget: Budget, *, own: bool
+) -> None:
+    coder = FakeAgentDriver(reply="ok", cost=1.5)
+
+    said = await run_fake(quota, agents={"coder": coder}, budget=budget)
+
+    assert said == ("CostExceeded", own)
+
+
 async def test_a_budget_with_room_lets_every_turn_spend() -> None:
     coder = FakeAgentDriver(reply="ok", cost=1.0)
     said = await run_fake(twice, agents={"coder": coder}, budget=Budget(cost=2.0))
@@ -730,13 +761,6 @@ def test_define_flow_refuses_what_is_not_a_flow() -> None:
             caller_globals={},
             caller_locals={},
         )
-
-
-def test_full_view_takes_only_a_flow_the_engine_made() -> None:
-    assert isinstance(stateless, FlowImpl)
-    assert full_view(stateless) is stateless
-    with pytest.raises(TypeError, match="not a flow the engine made"):
-        full_view(object())  # pyright: ignore[reportArgumentType]
 
 
 async def test_load_flow_is_looked_up_once_inside_a_run(

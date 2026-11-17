@@ -85,7 +85,7 @@ export function bar({ title = '', sub = null, actions = [], lead = null } = {}) 
       iconButton('sidebar', 'Show sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
       lead,
       h('div', { class: 'bar-title' }, title ? h('h1', {}, title) : null, sub ? h('div', { class: 'bar-sub' }, sub) : null),
-      h('div', { class: 'bar-actions' }, actions),
+      h('div', { class: 'bar-actions' }, actions, aiChanButton()),
     ),
   )
 }
@@ -267,22 +267,50 @@ export function section(label) {
 
 /**
  * The panel a view keeps beside it, as Claude keeps an artifact or ChatGPT a canvas: open or
- * shut as this browser last left it, and over the view on a narrow screen.
+ * shut as this browser last left it, and over the view on a narrow screen. A panel of its own
+ * -- Ai-chan's drawer -- is kept by its own `key`, shut where never left open, and told each
+ * time it opens or shuts.
+ *
+ * @param {string} label
+ * @param {{key?: string, open?: boolean, hmz?: string, kind?: string, told?: (open: boolean) => void}} [how]
  */
-export function sidePanel(label) {
+export function sidePanel(label, { key = 'hmz-panel', open: first = true, hmz = 'inspector', kind = '', told = () => {} } = {}) {
   const body = h('div', { class: 'panel-body' })
   const shut = iconButton('close', 'Close panel', { class: 'panel-close' })
-  const node = h('aside', { class: 'inspector', 'aria-label': label, 'data-hmz': 'inspector' }, shut, body)
+  const node = h('aside', { class: ['inspector', kind], 'aria-label': label, 'data-hmz': hmz }, shut, body)
   const toggle = iconButton('panel', 'Toggle panel', { class: 'panel-toggle' })
   const set = (open) => {
     node.hidden = !open
     toggle.setAttribute('aria-pressed', String(open))
-    if (!narrow.matches) keep('hmz-panel', open ? null : 'shut')
+    if (!narrow.matches) keep(key, open === first ? null : open ? 'open' : 'shut')
+    told(open)
   }
-  set(!narrow.matches && kept('hmz-panel', 'open') !== 'shut')
+  set(!narrow.matches && kept(key, first ? 'open' : 'shut') === 'open')
   toggle.addEventListener('click', () => set(node.hidden))
   shut.addEventListener('click', () => set(false))
-  return { node, body, toggle, open: () => set(true) }
+  return { node, body, toggle, set, open: () => set(true) }
+}
+
+/**
+ * The button, drawn as Ai-chan's avatar, that opens and closes her drawer (Section 3.16 of
+ * protocol/web.md): on every view's bar, saying whether the drawer is open.
+ */
+export function aiChanButton() {
+  const open = Boolean(app()?.classList.contains('aichan-open'))
+  return h(
+    'button',
+    {
+      class: 'icon-btn aichan-btn',
+      type: 'button',
+      'aria-label': 'Ai-chan',
+      title: 'Ai-chan',
+      'aria-controls': 'aichan',
+      'aria-pressed': String(open),
+      'data-hmz': 'aichan-toggle',
+      onclick: () => dispatchEvent(new CustomEvent('hmz:aichan')),
+    },
+    h('img', { class: 'aichan-avatar', src: '/ai-chan/avatar.png', alt: '', width: '24', height: '24' }),
+  )
 }
 
 /** Tabs over what a panel holds, each drawn when picked. */

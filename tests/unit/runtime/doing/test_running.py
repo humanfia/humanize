@@ -12,6 +12,8 @@ import pytest
 
 from hmz.flows import Budget, Usage
 from hmz.runtime import Run
+from hmz.runtime.chatting import ChatEnd, ChatSpec
+from hmz.runtime.doing.running import Chatting
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -316,3 +318,129 @@ def test_watching_a_run_watches_every_session_of_it() -> None:
     _run(runner).watch(print)
 
     assert runner.watched == [print]
+
+
+def test_a_run_is_an_epic_of_a_flow() -> None:
+    assert _run(Runner()).kind == "flow"
+
+
+# ------------------------------------------------------------------ a chat held as a run
+
+
+@dataclass(eq=False)
+class Chat:
+    """A chat, as holding it reads one: what it was started with, what it tells, how it ends."""
+
+    spec: ChatSpec
+    ended: ChatEnd | None = None
+    raises: BaseException | None = None
+    going: threading.Event = field(default_factory=threading.Event)
+    holds: bool = False
+    epic: Path | None = None
+    usage: Usage = field(default_factory=Usage)
+    agents: tuple[Agent, ...] = ()
+    told: dict[str, Any] = field(default_factory=dict[str, Any])
+
+    def watch(self, listener: Any) -> None:
+        self.told["watch"] = listener
+
+    def opened(self, callback: Any) -> None:
+        self.told["opened"] = callback
+
+    async def run(self) -> ChatEnd:
+        self.going.set()
+        if self.holds:
+            await asyncio.Event().wait()
+        if self.raises is not None:
+            raise self.raises
+        assert self.ended is not None
+        return self.ended
+
+
+def _spec(resume: Path | None = None) -> ChatSpec:
+    return ChatSpec(Path("/w"), "claude/opus:high", "hello", resume=resume)
+
+
+def test_a_chat_is_held_as_a_run_is_with_no_flow_and_no_budget() -> None:
+    held = Chatting(cast("Any", Chat(_spec())))
+
+    assert (held.kind, held.flow, held.ref, held.budget) == ("chat", "", "", None)
+    assert (held.task, held.agent) == ("hello", "claude/opus:high")
+    assert (held.usage, held.agents, held.unreadable()) == (Usage(), (), "")
+    # Its epic is named once it has one, which is not before it has begun.
+    assert (held.epic, held.names_epic) == (None, True)
+
+
+def test_a_chat_carried_on_is_written_into_the_epic_it_carries_on() -> None:
+    held = Chatting(cast("Any", Chat(_spec(resume=Path("/epics/e1")))))
+
+    assert (held.epic, held.names_epic) == (Path("/epics/e1"), True)
+
+
+def test_what_a_chat_tells_of_itself_is_handed_through() -> None:
+    chat = Chat(
+        _spec(), epic=Path("/epics/e2"), usage=Usage(cost=0.25), agents=(Agent(),)
+    )
+    held = Chatting(cast("Any", chat))
+
+    def opened(*said: Any) -> None:
+        del said
+
+    def noticed(said: str) -> None:
+        del said
+
+    held.watch(print)
+    held.opened(opened)
+    # A chat is never moved off where it works, so there is nothing to notice.
+    held.noticed(noticed)
+
+    assert chat.told == {"watch": print, "opened": opened}
+    assert (held.epic, held.names_epic) == (Path("/epics/e2"), True)
+    assert (held.usage, held.agents) == (Usage(cost=0.25), chat.agents)
+
+
+def test_a_chat_had_here_says_how_it_ended_and_where() -> None:
+    chat = Chat(_spec(), ended=ChatEnd(Path("/epics/e3"), "stopped"))
+    held = Chatting(cast("Any", chat))
+
+    assert held.run() == ChatEnd(Path("/epics/e3"), "stopped")
+    assert held.epic == Path("/epics/e3")
+
+
+def test_a_chat_whose_first_turn_failed_raises_it() -> None:
+    held = Chatting(cast("Any", Chat(_spec(), raises=RuntimeError("no account"))))
+
+    with pytest.raises(RuntimeError, match="no account"):
+        held.run()
+
+
+def test_a_chat_going_is_ended_from_another_thread_and_its_agents_stopped() -> None:
+    chat = Chat(_spec(), holds=True, agents=(Agent(),))
+    held = Chatting(cast("Any", chat))
+    raised: list[BaseException] = []
+
+    def has() -> None:
+        try:
+            held.run()
+        except BaseException as why:  # noqa: BLE001 -- kept, to be looked at
+            raised.append(why)
+
+    thread = threading.Thread(target=has)
+    thread.start()
+    assert chat.going.wait(PATIENCE)
+    held.close()
+    thread.join(PATIENCE)
+
+    assert [type(one) for one in raised] == [asyncio.CancelledError]
+    assert chat.agents[0].stopped == 1
+
+
+def test_a_chat_ended_before_it_began_has_nothing() -> None:
+    chat = Chat(_spec(), ended=ChatEnd(Path("/epics/e4"), "stopped"))
+    held = Chatting(cast("Any", chat))
+
+    held.stop()
+
+    with pytest.raises(asyncio.CancelledError):
+        held.run()
+    assert not chat.going.is_set()

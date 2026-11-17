@@ -5,6 +5,21 @@ the thinking level once a session is going. ``pi --mode rpc`` is the same binary
 session stands, turns are commands written to its stdin, and what it says comes back as the
 same events its print mode writes. Steering a running turn, changing the effort mid-session
 and asking what the session has spent are all commands there, and none of them is a flag.
+
+The same commands are what a person's own input at pi's prompt is served by in a chat
+(:mod:`hmz.coganchor.agents.native`), and only those: what the RPC mode takes is what a chat
+here can do, and pi's own interactive interface -- its settings, its login, its hotkeys -- is
+not on the pipe at all. Read off pi's RPC reference (`docs/rpc-commands.md` in
+`@earendil-works/pi-coding-agent`):
+
+- `/<name>` for every command `get_commands` lists -- an extension's command, a prompt
+  template, a skill as `/skill:<name>` -- is passed: the `prompt` command expands it as the
+  prompt does. pi's own built-in commands are not listed, because a `prompt` would not run
+  them.
+- `!<command>` is pi's `bash` command, whose output pi carries into the next prompt as it
+  does at its own prompt, and `!!<command>` the same with `excludeFromContext`, which runs it
+  without the model ever being shown it.
+- `/compact [instructions]` is pi's `compact` command.
 """
 
 from __future__ import annotations
@@ -27,6 +42,7 @@ from .base import AgentBase, StreamSessionBase
 from .config import AgentConfig
 from .event import Event, Question, Usage
 from .hooks import arriving
+from .native import NativeCommand
 from .preload import preloaded
 
 if TYPE_CHECKING:
@@ -135,6 +151,56 @@ _ABORTING = 5.0
 
 #: What every provider Humanize declares in pi's `models.json` is called, before its hash.
 _DECLARED = "humanize-"
+
+#: What the command asking a new process for its commands is sent under, so that its answer
+#: is told from an answer to anything else.
+_LISTING = "hmz-commands"
+
+#: What the command a native turn is served by -- a `bash`, a `compact` -- is sent under. Its
+#: answer is the whole of that turn: neither starts a run, so no `agent_settled` follows it.
+_NATIVE = "hmz-native"
+
+#: The native input pi's RPC mode serves with a command of its own whatever else the process
+#: says it has. `!` and `!!` are typed after the one sigil, so `!!` is the `!` entry named `!`.
+_CALLED = (
+    NativeCommand(
+        "!", "", "run a shell command; its output goes into the next prompt", "call"
+    ),
+    NativeCommand("!", "!", "run a shell command without telling the model", "call"),
+)
+_COMPACT = NativeCommand(
+    "/", "compact", "compact the conversation, with optional instructions", "call"
+)
+
+
+def listed(commands: object) -> list[NativeCommand]:
+    """The commands a pi lists, as the native entries a chat passes to it.
+
+    Read off what `get_commands` answers with, and off what omp says in its
+    `available_commands_update`: a list of objects, each with a `name` and a `description`,
+    omp's adding `aliases` that run the same command. Each is passed, since a `prompt` is
+    what runs it.
+
+    Args:
+      commands: The list, as read; anything that is not one says nothing.
+
+    Returns:
+      The entries, `/compact` left out: it is served by a command of its own.
+    """
+    entries: list[NativeCommand] = []
+    for one in cast("list[Any]", commands) if isinstance(commands, list) else []:
+        if not isinstance(one, dict):
+            continue
+        said = cast("dict[str, Any]", one)
+        about = str(said.get("description") or said.get("source") or "")
+        aliases = said.get("aliases")
+        aliases = cast("list[Any]", aliases) if isinstance(aliases, list) else []
+        entries.extend(
+            NativeCommand("/", name, about, "pass")
+            for name in (said.get("name"), *aliases)
+            if isinstance(name, str) and name and name != _COMPACT.name
+        )
+    return entries
 
 
 def _gateway(said: Mapping[str, str]) -> tuple[str, dict[str, Any]] | None:
@@ -410,6 +476,14 @@ class PiSession(StreamSessionBase):
         #: The provider an account on a gateway is declared as for the process about to
         #: start, as :func:`_gateway` names it, or None for an account on none.
         self._declaring: tuple[str, dict[str, Any]] | None = None
+        #: The commands the last process up said it has, as native entries; whether anybody
+        #: has asked for the catalog, which is what a process is asked for them for; and
+        #: whether the process now up has been. Kept across a restart until the new process
+        #: answers, since what a pi has is the same pi's. Only once asked for: a flow never
+        #: reads a catalog, and an anchored one starts a process a turn.
+        self._commands: list[NativeCommand] = []
+        self._wanted = False
+        self._listed = False
 
     def _command(self) -> list[str]:
         """Builds the ``pi --mode rpc`` that reads commands on stdin and says events on stdout.
@@ -559,8 +633,52 @@ class PiSession(StreamSessionBase):
         named, declared = self._declaring
         return (merged(_declare, {"named": named, "declared": declared}),)
 
+    #: The command a process is asked for its commands with, or "" for a fork that says them
+    #: unasked.
+    _LIST: ClassVar[str] = "get_commands"
+
+    def natives(self) -> list[NativeCommand]:
+        """`!`, `!!` and `/compact`, and the commands pi lists once a process has listed them.
+
+        Asking is what has the next process asked for its commands, ahead of its first turn.
+
+        Returns:
+          The catalog, as far as pi has said it.
+        """
+        self._wanted = True
+        return [*_CALLED, _COMPACT, *self._commands]
+
+    def _called(self, text: str) -> dict[str, Any] | None:
+        """The command of pi's own a native line is served by, or None for a prompt.
+
+        Args:
+          text: The line, as typed.
+
+        Returns:
+          A `bash` for `!` and `!!`, a `compact` for `/compact`, and None for anything else,
+          which a `prompt` carries -- pi expanding it where it is a command it listed.
+        """
+        line = text.strip()
+        if line.startswith("!"):
+            quiet = line.startswith("!!")
+            command = line[2 if quiet else 1 :].strip()
+            if not command:
+                return None
+            ran: dict[str, Any] = {"type": "bash", "command": command}
+            return ran | ({"excludeFromContext": True} if quiet else {})
+        name, _, rest = line.partition(" ")
+        if name == f"/{_COMPACT.name}":
+            told: dict[str, Any] = {"type": "compact"}
+            rest = rest.strip()
+            return told | ({"customInstructions": rest} if rest else {})
+        return None
+
     def _write(self, text: str, ticket: str = "") -> str:
         """Renders one thing to say as the `prompt` command pi reads it as.
+
+        A native turn's `!`, `!!` and `/compact` are the commands of pi's own that serve
+        them instead (:meth:`_called`). A turn's own line, on a process not yet asked, asks
+        it for its commands first, where somebody has asked for the catalog.
 
         Args:
           text: What to say.
@@ -571,10 +689,18 @@ class PiSession(StreamSessionBase):
         Returns:
           The line, newline included.
         """
-        said: dict[str, Any] = {"type": "prompt", "message": text}
+        called = self._called(text) if not ticket and self.native_turn else None
+        said: dict[str, Any] = (
+            {"type": "prompt", "message": text}
+            if called is None
+            else called | {"id": _NATIVE}
+        )
         if ticket:
             said["id"] = ticket
         line = json.dumps(said) + "\n"
+        if not ticket and self._wanted and not self._listed and self._LIST:
+            self._listed = True
+            line = json.dumps({"type": self._LIST, "id": _LISTING}) + "\n" + line
         if self._at is not None and self._at != self.effort and self.effort:
             # How hard to think is a command here rather than a flag to restart under: pi
             # takes it on the session it is already holding, so a flow that moves the effort
@@ -660,6 +786,7 @@ class PiSession(StreamSessionBase):
         self._said, self._failed, self._spent, self._costing = "", None, 0, Usage()
         self._reaching, self._calling = set(), {}
         self._at = self.effort
+        self._listed = False
 
     def _read(self, line: str) -> Iterator[Event]:
         """Reads one line pi wrote, as the things it says the agent did.
@@ -693,6 +820,12 @@ class PiSession(StreamSessionBase):
           command nobody is waiting on.
         """
         match said.get("type"):
+            case "response" if said.get("id") == _LISTING:
+                if said.get("success") is not False:
+                    data = cast("dict[str, Any]", said.get("data") or {})
+                    self._commands = listed(data.get("commands"))
+            case "response" if said.get("id") == _NATIVE:
+                yield self._served(said)
             case "response" if said.get("command") == "abort":
                 self._aborted.set()
             case "response" if said.get("success") is False:
@@ -710,6 +843,11 @@ class PiSession(StreamSessionBase):
                     self._named = self._asked
                 if self._id is None and self._named is not None:
                     self._tells(self._named)
+                data = cast("dict[str, Any]", said.get("data") or {})
+                if data.get("disposition") == "handled":
+                    # Consumed where it was said -- an extension's command, an input hook --
+                    # with no run started, so no `agent_settled` is coming for it.
+                    yield self._answered()
             case "extension_ui_request":
                 self._answer(said)
             case "message_update":
@@ -892,6 +1030,59 @@ class PiSession(StreamSessionBase):
         if self._named is not None:
             self._adopt(self._named)  # a turn has landed, so the session is open
         return Event(kind="result", text=said.strip(), tokens=tokens, spent=turn)
+
+    def _served(self, said: dict[str, Any]) -> Event:
+        """The answer to a native turn a command of pi's own served, which is the whole turn.
+
+        Args:
+          said: The `response` to the `bash` or the `compact`, as read.
+
+        Returns:
+          A `result` saying what it came to -- a command's output, with how it ended where it
+          did not end well; what a compaction started from, and what it cost -- or the
+          `failed` pi refused it with.
+        """
+        if said.get("success") is False:
+            return Event(kind="failed", text=str(said.get("error") or "pi refused it"))
+        data = cast("dict[str, Any]", said.get("data") or {})
+        spent = Usage()
+        if said.get("command") == "bash":
+            notes = [
+                *([f"exit code {data['exitCode']}"] if data.get("exitCode") else []),
+                *(["cancelled"] if data.get("cancelled") else []),
+                *(
+                    [f"truncated, the whole of it in {data.get('fullOutputPath')}"]
+                    if data.get("truncated")
+                    else []
+                ),
+            ]
+            text = str(data.get("output") or "").rstrip()
+            if notes:
+                text = f"{text}\n({'; '.join(notes)})".lstrip()
+        else:
+            usage = cast("dict[str, Any]", data.get("usage") or {})
+            spent = Usage(
+                {
+                    kind: float(usage.get(named) or 0)
+                    for kind, named in _KINDS.items()
+                    if usage.get(named)
+                }
+            )
+            self._spends(spent)
+            before = data.get("tokensBefore")
+            text = "compacted" + (
+                f" from {before} tokens" if before is not None else ""
+            )
+        # Taken into the session pi was started under, as a prompt is: what it ran is in
+        # that conversation now, and the next turn has to rejoin it to be shown it.
+        if self._named is None:
+            self._named = self._asked
+        if self._id is None and self._named is not None:
+            self._tells(self._named)
+        if self._named is not None:
+            self._adopt(self._named)  # a turn has landed, so the session is open
+        tokens = {self._agent.config.model: int(spent.total)} if spent.total > 0 else {}
+        return Event(kind="result", text=text, tokens=tokens, spent=spent)
 
     def _answer(self, said: dict[str, Any]) -> None:
         """Answers something an extension of pi's stopped the turn to ask.

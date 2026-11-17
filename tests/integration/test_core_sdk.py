@@ -51,24 +51,6 @@ def _agent(
     return fakes.FakeAgentDriver(HarnessKind.CLAUDE, reply=reply, cost=cost)
 
 
-def test_chat_talks_until_the_person_says_nothing(project: Path) -> None:
-    def heard(prompt: str, **_: object) -> str:
-        return f"heard {prompt}"
-
-    assistant = _agent(heard, cost=0.0)
-    person = fakes.FakeOutworlder(["and then?", ""])
-    hmz = Hmz(project)
-
-    hmz.run("chat", "hello", agents={"assistant": assistant}, outworlder=person).run()
-
-    assert assistant.prompts == ["hello", "and then?"]
-    assert person.asked == ["heard hello", "heard and then?"]
-    # One conversation: the second turn is said in the session of the first.
-    assert len(assistant.sessions) == 1
-    # Written in the private daemon's home, which went with it.
-    assert hmz.epics.all() == []
-
-
 def test_goal_sets_the_task_as_the_agents_goal(project: Path) -> None:
     worker = _agent(cost=0.0)
 
@@ -206,9 +188,14 @@ def test_every_budget_exceeded_is_a_budget_exceeded(project: Path) -> None:
         ).run()
 
 
-def test_a_loop_is_refused_without_a_budget(project: Path) -> None:
-    with pytest.raises(Refused, match="budget"):
-        Hmz(project).run("ralph_loop", "the task", agents={"agent": _agent()})
+@pytest.mark.parametrize(
+    ("flow", "role"), [("ralph_loop", "agent"), ("goal", "worker")]
+)
+def test_every_flow_is_refused_without_a_budget(
+    project: Path, flow: str, role: str
+) -> None:
+    with pytest.raises(Refused, match=r"budget|spend"):
+        Hmz(project).run(flow, "the task", agents={role: _agent()})
 
 
 def test_a_role_the_flow_does_not_declare_is_refused(project: Path) -> None:

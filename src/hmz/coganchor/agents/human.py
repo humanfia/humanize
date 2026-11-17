@@ -177,7 +177,11 @@ class HumanSession(SessionBase):
     takes_clis: ClassVar[bool] = False
 
     def stream(
-        self, prompt: str, *, schema: type[BaseModel] | None = None
+        self,
+        prompt: str,
+        *,
+        schema: type[BaseModel] | None = None,
+        native: bool = False,
     ) -> Iterator[Event]:
         """Says something to the person and waits for what they say back.
 
@@ -195,12 +199,14 @@ class HumanSession(SessionBase):
           schema: The shape to fill in, or None to take whatever they type. A person is never
             shown a schema: they are asked a question per field and it is built out of the
             answers, which is :meth:`_filled`.
+          native: Ignored: a person has no harness to read their words natively.
 
         Yields:
           One `result`: what they said back, the shape they filled in as its own JSON, or ""
           once there will be nothing more -- which is how a flow that is a conversation learns
           the conversation is over, and how one that asked for a shape learns nobody answered.
         """
+        del native
         if schema is None:
             yield Event(kind="result", text=self._agent.prompted() or "")
             return

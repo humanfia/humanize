@@ -56,6 +56,12 @@ fence, reached over a Unix socket the fence does not govern -- so a fenced conve
 joined it would run its tools unfenced. Grok Build's own sandbox refuses the leader for the
 same reason; a fenced conversation here is always started with `--no-leader`, and one told to
 join the leader is refused (:meth:`GrokBuildAgent._serves`).
+
+In a chat every line is said as text, there being no catalog of native input: Grok Build is
+driven over the Agent Client Protocol, a turn being a text block of `session/prompt` (or the
+prompt of a `grok -p` for a turn that needs a flag), and a harness spoken to that way has none.
+Its own `/` commands, `@` file picker and `!` shell mode are its terminal interface's, which
+neither transport goes through.
 """
 
 # pyright: reportPrivateUsage=false

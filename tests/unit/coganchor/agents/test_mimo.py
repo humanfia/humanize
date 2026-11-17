@@ -8,6 +8,7 @@ Claude Code's settings left alone under a fence -- each through a turn of a scri
 from __future__ import annotations
 
 import json
+import subprocess
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -257,3 +258,34 @@ def test_an_error_line_fails_the_turn(spawner: Spawner, tmp_path: Path) -> None:
     )
     with pytest.raises(Failed, match="the model refused"):
         _mimo().new(tmp_path)("go")
+
+
+def test_the_catalog_is_mimo_s_built_ins_listed_by_mimo_itself(
+    monkeypatch: pytest.MonkeyPatch, spawner: Spawner, tmp_path: Path
+) -> None:
+    del spawner
+    asked: list[list[str]] = []
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        asked.append(list(argv))
+        said = {"command": {"ship": {"description": "ship it"}}}
+        return subprocess.CompletedProcess(argv, 0, json.dumps(said), "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    catalog = _mimo().new(tmp_path).natives()
+
+    assert [one.name for one in catalog if one.sigil == "/"] == [
+        "init",
+        "review",
+        "dream",
+        "distill",
+        "goal",
+        "rebuild",
+        "ship",
+    ]
+    assert [one[-3:] for one in asked] == [
+        ["mimo", "debug", "config"],
+        ["mimo", "debug", "skill"],
+    ]

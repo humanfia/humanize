@@ -71,6 +71,7 @@ if TYPE_CHECKING:
 
     from .allowance import Ledger
     from .config import AgentConfig, Budget
+    from .native import NativeCommand
     from .skills import Loaded
 
 
@@ -616,6 +617,9 @@ class SessionBase(ABC):
     #: all; one that cannot is told about it in the prompt, which is the same question put
     #: where the model is still free to answer around it.
     shapes: ClassVar[bool] = False
+
+    #: Whether the turn being taken is a person's native input; see :meth:`stream`.
+    _native_turn: bool = False
 
     #: Whether this backend can be given a tool it was not shipped with, for the length of a
     #: session and without writing anything of the person at this machine's. False for one
@@ -1522,7 +1526,11 @@ class SessionBase(ABC):
         )
 
     def stream(
-        self, prompt: str, *, schema: type[BaseModel] | None = None
+        self,
+        prompt: str,
+        *,
+        schema: type[BaseModel] | None = None,
+        native: bool = False,
     ) -> Iterator[Event]:
         """Sends one turn, saying what the agent says as it says it.
 
@@ -1545,6 +1553,9 @@ class SessionBase(ABC):
             since a turn that has to be read as an object has to be asked somehow -- under
             the flow's own words rather than in place of them, and not in what the hooks and
             the transcript are shown, which is what the flow said.
+          native: Whether the prompt is a line a person typed in a chat, to be read as the
+            harness's own prompt would read it (:mod:`hmz.coganchor.agents.native`) rather
+            than as text. A driver reads it as :attr:`native_turn` while the turn is taken.
 
         Yields:
           What the agent said, in the order it said it.
@@ -1557,7 +1568,28 @@ class SessionBase(ABC):
         # as much as the process is, and two threads calling one session are two turns one
         # after the other. A conversation is a sequence, however many are driving it.
         with self._lock, self._taking():
-            yield from self._turning(prompt, schema=schema)
+            self._native_turn = native
+            try:
+                yield from self._turning(prompt, schema=schema)
+            finally:
+                self._native_turn = False
+
+    @property
+    def native_turn(self) -> bool:
+        """Whether the turn being taken is a person's native input (see :meth:`stream`)."""
+        return self._native_turn
+
+    def natives(self) -> list[NativeCommand]:
+        """The native input this session's harness takes, as hmz drives it.
+
+        Empty unless a driver says otherwise: a harness with no catalog takes every line of a
+        chat as text. A driver whose harness only says its catalog once a conversation is open
+        answers with what it knows so far.
+
+        Returns:
+          The catalog, one entry per command, skill or sigil.
+        """
+        return []
 
     @contextlib.contextmanager
     def _taking(self) -> Generator[None]:

@@ -227,8 +227,9 @@ def test_official_lists_the_package_and_what_was_installed_once(project: Path) -
     official = named(OFFICIAL)
     assert official is not None
     builtin = flows(official)
-    assert "chat" in builtin
-    flow_dir(kept(OFFICIAL), "chat")
+    assert "goal" in builtin
+    assert "chat" not in builtin
+    flow_dir(kept(OFFICIAL), "goal")
     flow_dir(kept(OFFICIAL), "zz_extra")
     assert flows(official) == sorted([*builtin, "zz_extra"])
 

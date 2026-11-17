@@ -45,7 +45,6 @@ from hmz.flows import (
     flow,
 )
 from hmz.runtime.flowing.declaring import Grant
-from hmz.runtime.flowing.engine import full_view
 from hmz.runtime.flowing.fakes import (
     FakeAgentDriver,
     FakeEnvDriver,
@@ -589,7 +588,6 @@ async def test_a_sessions_tools_run_as_its_flow_and_answer_the_agent() -> None:
         await coder.sessions[0].use("count")
 
 
-@full_view
 @flow(agents=Scribes, envs=NoEnvs, params=Prompt)
 async def fully(
     task: str, *, agents: Scribes, envs: NoEnvs, params: Prompt, ctx: FlowContext
@@ -630,9 +628,7 @@ async def widely(
     return await fully(task, agents={"scribe": agents["coder"]}, envs={}, params=params)
 
 
-async def test_a_full_flow_called_runs_under_its_roles_permission_not_the_callers() -> (
-    None
-):
+async def test_a_flow_called_runs_under_its_roles_permission_not_the_callers() -> None:
     coder = FakeAgentDriver()
 
     await run_fake(widely, agents={"coder": coder})

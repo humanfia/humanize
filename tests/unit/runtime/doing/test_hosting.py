@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 
@@ -15,12 +16,12 @@ import pytest
 
 from hmz.flows import Budget, BudgetExceeded, FlowNotFound, Usage
 from hmz.runtime import Host, Refused, flowing
+from hmz.runtime.chatting import ChatEnd
 from hmz.runtime.doing import hosting
 from hmz.runtime.doing.hosting import record
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from pathlib import Path
 
 #: How long a test waits for something another thread is doing.
 PATIENCE = 10.0
@@ -155,7 +156,7 @@ class FakeRun:
 
     flow: str = "ralph"
     ref: str = "official/ralph"
-    chats: bool = False
+    kind: str = "flow"
     declaration: Declaration = field(default_factory=Declaration)
     budget: Budget = field(default_factory=lambda: Budget(cost=2.0))
     usage: Usage = field(default_factory=lambda: Usage(cost=0.5))
@@ -209,10 +210,118 @@ class FakeRun:
         self.released.set()
 
 
+@dataclass(frozen=True)
+class Native:
+    """One entry of a harness's native catalogue, as far as a chat's host reads one."""
+
+    sigil: str
+    name: str
+    about: str
+    how: str
+
+
+@dataclass(frozen=True)
+class Offered:
+    """One flow on offer, as far as a chat's host reads one."""
+
+    name: str
+    about: str = ""
+
+
+@dataclass(eq=False)
+class FakeChat:
+    """The chat a host has, as far as the host reads one: its preference and catalogue."""
+
+    prefer: str | None = None
+    catalog: list[Native] = field(default_factory=list[Native])
+    listed: bool = True
+
+    def prefers(self, prefer: str) -> None:
+        self.prefer = prefer
+
+    def natives(self) -> list[Native]:
+        return list(self.catalog)
+
+
+@dataclass(eq=False)
+class FakeChatting:
+    """A chat held as a run is, talking to its person: each line said answered by an echo.
+
+    Before a turn it asks what `asks` holds, one question a turn; it ends on an empty line,
+    or fails as `fails` says before it has an epic.
+    """
+
+    agent: str
+    task: str
+    person: Any
+    resume: Path | None = None
+    prefer: str | None = None
+    kind: str = "chat"
+    flow: str = ""
+    ref: str = ""
+    budget: None = None
+    usage: Usage = field(default_factory=Usage)
+    profile_flow: bool = False
+    profile_environment: bool = False
+    backup: tuple[str, ...] = ()
+    agents: list[Agent] = field(default_factory=list[Agent])
+    epic: Path | None = None
+    names_epic: bool = True
+    chat: FakeChat = field(default_factory=FakeChat)
+    asks: list[tuple[str, tuple[str, ...]]] = field(
+        default_factory=list[tuple[str, tuple[str, ...]]]
+    )
+    answers: list[str | None] = field(default_factory=list[str | None])
+    lines: list[str] = field(default_factory=list[str])
+    fails: BaseException | None = None
+    going: threading.Event = field(default_factory=threading.Event)
+    stopped: bool = False
+
+    def watch(self, listener: Callable[..., None]) -> None:
+        del listener
+
+    def opened(self, callback: Callable[..., None]) -> None:
+        del callback
+
+    def noticed(self, callback: Callable[[str], None]) -> None:
+        del callback
+
+    def unreadable(self) -> str:
+        return ""
+
+    def run(self) -> ChatEnd:
+        self.going.set()
+        if self.fails is not None:
+            raise self.fails
+        self.epic = self.epic or Path("/epics/20260101-chat")
+        return asyncio.run(self._talks())
+
+    async def _talks(self) -> ChatEnd:
+        said = self.task
+        while said:
+            if self.asks:
+                question, options = self.asks.pop(0)
+                self.answers.append(await self.person.ask(question, options))
+            said = await self.person.next(f"you said {said}")
+            self.lines.append(said)
+        assert self.epic is not None
+        return ChatEnd(self.epic, "stopped")
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def close(self) -> None:
+        self.stopped = True
+
+
 @dataclass
 class Flows:
     calls: tuple[Any, ...] = ()
     broken: bool = False
+    offered: tuple[Offered, ...] = ()
+
+    def all(self) -> tuple[Offered, ...]:
+        return self.offered
 
     def running(self) -> tuple[Any, ...]:
         if self.broken:
@@ -221,15 +330,59 @@ class Flows:
 
 
 @dataclass
+class Epics:
+    """The epics of a workspace, as far as starting a chat reads them: its chats, by name."""
+
+    kept: dict[str, Path] = field(default_factory=dict[str, Path])
+
+    def chat(self, said: str) -> Path | None:
+        return self.kept.get(said)
+
+    def read(self, epic: Path) -> Any:
+        from types import SimpleNamespace
+
+        del epic
+        return SimpleNamespace(agents=[SimpleNamespace(spec="claude/opus:high")])
+
+
+@dataclass
 class Workspace:
     """The `Hmz` a host is made for, as far as the host reads one."""
 
     workspace: Path
     flows: Flows = field(default_factory=Flows)
+    epics: Epics = field(default_factory=Epics)
     runs: list[FakeRun] = field(default_factory=list[FakeRun])
     asked: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     refuses: BaseException | None = None
     next_run: FakeRun | None = None
+    chats: list[FakeChatting] = field(default_factory=list[FakeChatting])
+    asked_chats: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    failing: BaseException | None = None
+
+    def chat(
+        self,
+        agent: str,
+        task: str,
+        *,
+        person: Any,
+        resume: str | None = None,
+        prefer: str | None = None,
+    ) -> FakeChatting:
+        self.asked_chats.append(
+            {"agent": agent, "task": task, "resume": resume, "prefer": prefer}
+        )
+        made = FakeChatting(
+            agent,
+            task,
+            person,
+            resume=Path(resume) if resume else None,
+            prefer=prefer,
+            epic=Path(resume) if resume else None,
+            fails=self.failing,
+        )
+        self.chats.append(made)
+        return made
 
     def run(self, flow: str, task: str, **said: Any) -> FakeRun:
         if self.refuses is not None:
@@ -1163,70 +1316,376 @@ def test_the_status_says_the_questions_waited_on_and_how_the_last_run_ended(
     assert ended["at"] > 0
 
 
-def test_a_chats_turn_is_running_until_it_asks_what_to_say_next(
-    host: Host, where: Workspace, outworlders: Outworlders
+@pytest.fixture
+def chatting(where: Workspace) -> Iterator[tuple[Host, Told]]:
+    """A chat's host, with one frontend attached to it."""
+    made = Host(cast("Any", where), "chat:1")
+    try:
+        yield made, Told(made, "alice")
+    finally:
+        made.close()
+
+
+def _chatted(host: Host, alice: Told, where: Workspace, **said: Any) -> FakeChatting:
+    """A chat started on its host, which has asked for its second message."""
+    answer = alice.asks("chat.start", agent="claude/opus:high", task="hello", **said)
+    assert answer == {"ok": True, "run": 1, "epic": "20260101-chat", "slot": "chat:1"}
+    chat = where.chats[-1]
+    alice.told("asked", run=1, mode="listen", text="you said hello")
+    return chat
+
+
+def test_a_chat_starts_on_its_own_host_and_says_it_is_a_chat(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where, prefer="flow")
+
+    started = alice.told("started", run=1)
+    assert (started["kind"], started["flow"], started["ref"]) == ("chat", "", "")
+    assert (started["task"], started["agents"]) == (
+        "hello",
+        {"assistant": "claude/opus:high"},
+    )
+    assert (started["params"], started["budget"]) == (None, None)
+    assert where.asked_chats == [
+        {
+            "agent": "claude/opus:high",
+            "task": "hello",
+            "resume": None,
+            "prefer": "flow",
+        }
+    ]
+    status = host.status()
+    assert (status["epic_kind"], status["flow"], status["epic"]) == (
+        "chat",
+        "",
+        "20260101-chat",
+    )
+    assert (status["turn"], status["budget"]) == ("done", None)
+    assert chat.person is not None
+
+
+def test_a_chat_is_started_on_a_chat_host_alone_and_once(
+    host: Host, chatting: tuple[Host, Told], where: Workspace
 ) -> None:
     alice = Told(host, "alice")
-    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
-    run = _started(alice, where)
-    assert outworlders.ask is not None
-    assert host.status()["turn"] == "running"
+    refused = alice.asks("chat.start", agent="claude/opus", task="hi")
+    assert (refused["ok"], refused["code"]) == (False, 400)
+    assert refused["why"] == "the workspace is not a chat slot."
 
-    # What the agent asks its user mid-turn is not the end of it.
-    asking = Asking()(outworlders.ask, Question("which?", ("red", "blue")))
+    on, bob = chatting
+    _chatted(on, bob, where)
+    assert bob.asks("chat.start", agent="claude/opus", task="again") == {
+        "ok": False,
+        "why": "a chat is already going on chat:1",
+        "code": 409,
+    }
+    assert bob.asks("start", flow="ralph", task="fix it") == {
+        "ok": False,
+        "why": "a chat is started with chat.start",
+    }
+
+
+@pytest.mark.parametrize(
+    ("said", "why"),
+    [
+        ({"agent": "claude/opus"}, "a chat starts with something said"),
+        ({"task": "hi"}, "an agent for the chat is named"),
+        (
+            {"agent": "claude/opus", "task": "hi", "prefer": "both"},
+            "prefer is native or flow",
+        ),
+    ],
+)
+def test_a_chat_start_missing_what_it_takes_is_refused(
+    said: dict[str, Any], why: str, chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, _ = chatting
+
+    assert host.chatted({"do": "start", **said}) == {
+        "ok": False,
+        "why": why,
+        "code": 400,
+    }
+    assert where.chats == []
+
+
+def test_a_chat_that_fails_before_its_epic_is_refused_with_why(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    _, alice = chatting
+    where.failing = RuntimeError("no runtime named gpu is saved")
+
+    refused = alice.asks("chat.start", agent="claude/opus", task="hi")
+
+    assert refused == {
+        "ok": False,
+        "why": "RuntimeError: no runtime named gpu is saved",
+        "code": 400,
+    }
+    alice.told("ended", run=1, how="crashed")
+
+
+def test_what_is_said_to_a_chat_is_its_next_message_and_its_turn_runs_until_answered(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    assert host.status()["turn"] == "done"
+
+    assert host.chatted({"do": "say", "text": "and more", "by": "bob"}) == {"ok": True}
+
+    answered = alice.told("answered", run=1, text="and more")
+    assert answered["by"] == "bob"
+    alice.told("asked", run=1, mode="listen", text="you said and more")
+    assert chat.lines == ["and more"]
+
+
+def test_what_a_chats_assistant_asks_mid_turn_is_answered_by_the_next_line(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    chat.asks.append(("which?", ("red", "blue")))
+    alice.asks("chat.say", text="go on")
+
+    asked = alice.told("asked", run=1, text="which?")
+    assert (asked["mode"], asked["options"], asked["role"]) == (
+        "ask",
+        ["red", "blue"],
+        "human",
+    )
+    assert host.status()["turn"] == "running"
+    alice.asks("chat.say", text="2")
+
+    alice.told("asked", run=1, mode="listen", text="you said go on")
+    assert chat.answers == ["blue"]
+
+
+def test_an_empty_line_ends_a_chat_stopped(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+
+    assert alice.asks("chat.say", text="  ") == {"ok": True}
+
+    ended = alice.told("ended", run=1)
+    assert (ended["how"], ended["why"], ended["result"]) == ("stopped", "", None)
+    assert chat.lines == [""]
+    assert host.status()["ended"]["kind"] == "chat"
+    assert alice.asks("chat.say", text="hello?") == {
+        "ok": False,
+        "why": "this chat has ended; carry it on from its epic",
+        "code": 409,
+    }
+
+
+def test_an_empty_line_said_mid_turn_ends_the_chat_once_the_turn_is_done(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    chat.asks.append(("which?", ("red", "blue")))
+    alice.asks("chat.say", text="go on")
+    alice.told("asked", run=1, text="which?")
+
+    assert alice.asks("chat.say", text="") == {"ok": True}
+    alice.asks("chat.say", text="red")
+
+    alice.told("ended", run=1, how="stopped")
+    assert (chat.lines, chat.answers) == (["go on", ""], ["red"])
+
+
+def test_a_chat_started_to_be_remembered_is_the_workspaces_chat_from_then_on(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    from hmz.runtime.settings import Settings
+
+    host, alice = chatting
+    _chatted(host, alice, where, remember=True)
+
+    remembered = Settings(where.workspace).chat_agent
+    assert remembered is not None
+    assert remembered.spec == "claude/opus:high"
+
+
+def test_a_chat_is_not_said_to_by_epic_say_nor_answered_by_epic_answer(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    _chatted(host, alice, where)
     asked = alice.told("asked", run=1)
-    assert host.status()["turn"] == "running"
-    alice.asks("answer", question=asked["question"], text="1")
-    assert asking.done.wait(PATIENCE)
 
-    asking = Asking()(outworlders.ask, Question("what next?"))
-    asked = alice.told("asked", run=1, mode="listen")
-    assert host.status()["turn"] == "done"
-    alice.told("run", turn="done")
-    alice.asks("answer", question=asked["question"], text="more")
-    assert asking.done.wait(PATIENCE)
-    assert host.status()["turn"] == "running"
-
-    run.released.set()
-    alice.told("ended", run=1)
-    assert host.status()["turn"] == "done"
+    to_chat = {"ok": False, "why": "say it to the chat with chat.say"}
+    assert alice.asks("say", text="hello") == to_chat
+    assert alice.asks("answer", question=asked["question"], text="hello") == to_chat
 
 
-def test_a_chat_of_its_own_nobody_reads_between_turns_folds_away(
-    where: Workspace, outworlders: Outworlders, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("line", "why"),
+    [
+        ("/clear", "/clear is served by the frontend, not said to the chat"),
+        ("$ralph fix it", "$ralph names a flow, which the frontend starts"),
+        ("/config", "/config cannot be said here: /config is served only"),
+        ("/nothing", "/nothing cannot be said here: no such command: /nothing"),
+    ],
+)
+def test_a_line_the_frontend_serves_or_the_harness_cannot_is_refused(
+    line: str, why: str, chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    where.flows.offered = (Offered("ralph", "loops"),)
+    chat = _chatted(host, alice, where)
+    chat.chat.catalog = [
+        Native("/", "compact", "compacts", "call"),
+        Native("/", "config", "settings", "refuse"),
+    ]
+
+    refused = alice.asks("chat.say", text=line)
+
+    assert (refused["ok"], refused["code"]) == (False, 400)
+    assert refused["why"].startswith(why)
+    assert chat.lines == []
+
+
+def test_a_native_line_is_held_for_a_turn_of_its_own(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    chat.chat.catalog = [Native("/", "compact", "compacts", "call")]
+
+    alice.asks("chat.say", text="/compact")
+
+    alice.told("asked", run=1, mode="listen", text="you said /compact")
+    assert chat.lines == ["/compact"]
+
+
+def test_a_skill_that_is_a_flow_too_goes_by_the_chats_preference(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    where.flows.offered = (Offered("review", "reviews"),)
+    chat = _chatted(host, alice, where)
+    chat.chat.catalog = [Native("$", "review", "a skill", "call")]
+
+    assert alice.asks("chat.set", prefer="flow") == {"ok": True}
+    assert alice.asks("chat.say", text="$review it")["code"] == 400
+    assert alice.asks("chat.set", prefer="native") == {"ok": True}
+    assert alice.asks("chat.say", text="$review it") == {"ok": True}
+
+    alice.told("asked", run=1, mode="listen", text="you said $review it")
+
+
+def test_a_chats_commands_are_its_catalogue_then_hmzs_then_the_flows(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    where.flows.offered = (Offered("ralph", "loops"),)
+    chat = _chatted(host, alice, where)
+    chat.chat.catalog = [Native("!", "", "runs a command", "emulate")]
+
+    said = alice.asks("chat.commands")
+
+    entries = said["entries"]
+    assert entries[0] == {
+        "sigil": "!",
+        "name": "",
+        "about": "runs a command",
+        "how": "emulate",
+        "source": "native",
+    }
+    kept = [one["name"] for one in entries if one["source"] == "hmz"]
+    assert kept == sorted(kept)
+    assert {"clear", "prefer", "resume", "btw"} <= set(kept)
+    assert all(one["sigil"] == "/" and one["how"] == "" for one in entries[1:-1])
+    assert entries[-1] == {
+        "sigil": "$",
+        "name": "ralph",
+        "about": "loops",
+        "how": "",
+        "source": "flow",
+    }
+    assert (said["prefer"], said["prefer_from"]) == ("native", "settings")
+
+    alice.asks("chat.set", prefer="flow")
+    said = alice.asks("chat.commands")
+    assert (said["prefer"], said["prefer_from"]) == ("flow", "chat")
+    assert chat.chat.prefer == "flow"
+    assert alice.asks("chat.set", prefer="both")["code"] == 400
+
+
+def test_a_command_run_for_a_chat_is_told_to_every_frontend(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+
+    chat.person.shell("ls", "a\nb\n", "", 0)
+
+    shell = alice.told("shell", run=1)
+    assert (shell["command"], shell["out"], shell["err"], shell["status"]) == (
+        "ls",
+        "a\nb\n",
+        "",
+        0,
+    )
+
+
+def test_a_chat_nobody_reads_between_turns_folds_away(
+    chatting: tuple[Host, Told], where: Workspace, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(hosting, "FOLD", 0.0)
-    host = Host(cast("Any", where), "chat:1")
-    alice = Told(host, "alice")
-    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
-    run = _started(alice, where)
-    try:
-        assert outworlders.ask is not None
-        assert alice.told("welcome")["slot"] == "chat:1"
-        asking = Asking()(outworlders.ask, Question("what next?"))
-        alice.told("asked", run=1, mode="listen")
-        # Read by somebody, it waits for them however long they take.
-        assert not asking.done.wait(1.0)
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    # Read by somebody, it waits for them however long they take.
+    time.sleep(1.0)
+    assert chat.lines == []
 
-        host.detach(alice.client)
+    host.detach(alice.client)
 
-        # Nobody there, between turns: the question is answered with nothing, which ends it.
-        assert asking.done.wait(PATIENCE)
-        assert asking.answer is None
-        run.released.set()
-        assert _waited(lambda: host.idle)
-        bob = Told(host, "bob")
-        refused = bob.asks("start", flow="chat", task="again")
-        assert refused == {
-            "ok": False,
-            "why": "this chat has folded away; carry it on from its epic",
-        }
-    finally:
-        run.released.set()
-        host.close()
+    # Nobody there, between turns: the wait is answered with nothing, which ends it.
+    assert _waited(lambda: chat.lines == [""])
+    assert _waited(lambda: host.idle)
+    assert host.status()["ended"]["how"] == "stopped"
+    folded = {
+        "ok": False,
+        "why": "this chat has folded away; carry it on from its epic",
+    }
+    assert host.chatted({"do": "say", "text": "again"}) == folded | {"code": 409}
+    assert host.chatted(
+        {"do": "start", "agent": "claude/opus", "task": "again"}
+    ) == folded | {"code": 409}
 
 
-def test_a_flow_on_the_workspaces_own_host_never_folds(
+def test_a_chat_carried_on_names_the_epic_it_carries_on_in(
+    chatting: tuple[Host, Told], where: Workspace, tmp_path: Path
+) -> None:
+    _, alice = chatting
+    epic = tmp_path / "20250101-chat"
+    where.epics.kept[epic.name] = epic
+
+    answer = alice.asks("chat.start", task="more", resume=epic.name)
+
+    assert answer == {"ok": True, "run": 1, "epic": "20250101-chat", "slot": "chat:1"}
+    # Its own agent, as its epic says, where none is named.
+    assert where.asked_chats[-1] == {
+        "agent": "claude/opus:high",
+        "task": "more",
+        "resume": str(epic),
+        "prefer": None,
+    }
+    assert alice.told("started", run=1)["resume"] == str(epic)
+    refused = alice.asks("chat.start", task="more", resume="20200101-nothing")
+    assert (refused["why"], refused["code"]) == (
+        f"20200101-nothing is not a chat of {where.workspace}.",
+        404,
+    )
+
+
+def test_a_flow_listening_on_the_workspaces_own_host_never_folds(
     host: Host,
     where: Workspace,
     outworlders: Outworlders,
@@ -1234,7 +1693,6 @@ def test_a_flow_on_the_workspaces_own_host_never_folds(
 ) -> None:
     monkeypatch.setattr(hosting, "FOLD", 0.0)
     alice = Told(host, "alice")
-    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
     _started(alice, where)
     assert outworlders.ask is not None
     asking = Asking()(outworlders.ask, Question("what next?"))
@@ -1244,6 +1702,7 @@ def test_a_flow_on_the_workspaces_own_host_never_folds(
 
     assert not asking.done.wait(1.0)
     assert host.status()["state"] == "running"
+    assert host.status()["epic_kind"] == "flow"
 
 
 def _waited(what: Callable[[], bool]) -> bool:
@@ -1300,29 +1759,6 @@ def test_what_to_say_next_is_answered_by_the_oldest_line_waiting(
     assert asking.done.wait(PATIENCE)
     assert asking.answer == "carry on"
     assert alice.told("asked", run=1)["mode"] == "listen"
-    run.released.set()
-
-
-@pytest.mark.parametrize("to", ["NeiKos496", "NeiKos496/1"])
-def test_a_line_said_to_a_conversation_between_turns_answers_what_to_say_next(
-    to: str, host: Host, where: Workspace, outworlders: Outworlders
-) -> None:
-    alice = Told(host, "alice")
-    where.next_run = FakeRun(flow="chat", ref="official/chat", chats=True)
-    run = _started(alice, where)
-    agent, session = Agent(), Session()
-    _opened(run, agent, session)
-    assert outworlders.ask is not None
-    asking = Asking()(outworlders.ask, Question("what next?"))
-    asked = alice.told("asked", run=1)
-    assert (asked["mode"], asked["key"]) == ("listen", "")
-
-    alice.asks("say", text="tell me more", to=to)
-
-    assert asking.done.wait(PATIENCE)
-    assert asking.answer == "tell me more"
-    # The turn it starts is about it already, and takes it no second time.
-    assert cast("Callable[[], list[str]]", agent.waiting)() == []
     run.released.set()
 
 

@@ -21,7 +21,7 @@ Ask an agent to write one file in its workdir and one outside it:
 
 ```sh
 mkdir -p /tmp/perm-demo && cd /tmp/perm-demo
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Use the Bash tool to run exactly these two commands, one call each, then report each one's result in one line: 1) echo hi > inside.txt   2) echo hi > ~/outside.txt"
 ```
 
@@ -133,13 +133,13 @@ A flow's own page says what its roles are granted.
 
 ## Example: watch the default grant hold
 
-This is the run from [Try it](#try-it), in full. [`chat`](https://humanfia.ai/flows/chat) declares nothing, so its
-one role runs at the default, `workspace-write`: `.` is the directory you started in, the one
+This is the run from [Try it](#try-it), in full. A [chat](/user/chat) declares nothing, so its
+one agent runs at the default, `workspace-write`: `.` is the directory you started in, the one
 place it writes, and your home directory beyond it is only read.
 
 ```sh
 mkdir -p /tmp/perm-demo && cd /tmp/perm-demo                 # ①
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Use the Bash tool to run exactly these two commands, one call each, then report each one's result in one line: 1) echo hi > inside.txt   2) echo hi > ~/outside.txt"
 ```
 

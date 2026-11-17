@@ -455,9 +455,8 @@ class Budget(pydantic.BaseModel):
     remains of its caller's: `duration` is a deadline shared by everything under it, while
     cost and tokens spent anywhere under a flow count against every flow above it.
 
-    `Budget(cost=math.inf)` is what "unlimited" is written as -- the `chat` flow runs under
-    it -- and survives `model_dump_json` and `model_validate_json`, infinity being written as
-    the string `"Infinity"`.
+    `Budget(cost=math.inf)` is what "unlimited" is written as, and survives `model_dump_json`
+    and `model_validate_json`, infinity being written as the string `"Infinity"`.
 
     Attributes:
       duration: How long it may take, counted from when it started.

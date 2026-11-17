@@ -27,6 +27,16 @@ across every turn of a conversation -- so a cap set on the agent would be spent 
 before the one it was meant for, and the tenth round would be cut off for what the first
 round did. Which is the very thing :class:`~hmz.coganchor.agents.config.Budget` is held off
 the meter to avoid, so nothing here is routed through them.
+
+In a chat, a line goes down the same stream-json input as any other turn's, and that input is
+read as Qwen Code's own prompt reads it: each user message is a run of its non-interactive loop,
+which dispatches a `/` command before the model sees anything and reads every `@path` into the
+turn. So both are passed (:meth:`QwenCodeSession.natives`), the `/` commands being the ones the
+`system` record opening each turn lists as its `slash_commands` -- its built-ins allowed
+headless, its file commands, its skills and its MCP prompts -- and hence known once a turn has
+been taken. `!` is not: its shell mode is a key of the interactive prompt, and the
+non-interactive loop sends a line opening with it to the model as words. Nor is anything a
+built-in would answer with a dialog; those are not among the commands listed headless.
 """
 
 # pyright: reportPrivateUsage=false
@@ -50,6 +60,7 @@ from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Unrecoverable, Usage
 from .hooks import WAITING, Gate, Moment
+from .native import NativeCommand
 from .preload import preloaded
 
 if TYPE_CHECKING:
@@ -427,6 +438,27 @@ class QwenCodeSession(StreamSessionBase):
         #: table has to go on saying the moment itself rather than leaving it to a CLI that
         #: was never told to ask.
         self._tabled = False
+        #: The `/` commands the CLI said it serves headless, as the last `system` record
+        #: opening a turn listed them: none until a turn has been taken.
+        self._commands: tuple[str, ...] = ()
+
+    def natives(self) -> list[NativeCommand]:
+        """What a chat's line may open with here: the CLI's own `/` commands, and `@`.
+
+        Both passed: the stream-json input runs each message through the same dispatch the
+        CLI's own prompt does (see the module). The commands are the ones the `system` record
+        opening the last turn listed, so a session that has taken no turn yet has only `@`.
+
+        Returns:
+          A `/` entry per command the CLI listed, then `@`.
+        """
+        return [
+            *(
+                NativeCommand("/", name, f"Qwen Code's /{name}", "pass")
+                for name in self._commands
+            ),
+            NativeCommand("@", "", "A file or directory, read into the turn", "pass"),
+        ]
 
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -777,7 +809,17 @@ class QwenCodeSession(StreamSessionBase):
             # is whether or not the turn lands.
             self._tells(str(named))
         kind = str(said.get("type") or "")
-        if kind == "assistant":
+        if kind == "system" and said.get("subtype") == "init":
+            listed = said.get("slash_commands")
+            if isinstance(listed, list):
+                # Replaced whole rather than added to: what a turn opens on is what the CLI
+                # serves now, a command file removed since being one it no longer does.
+                self._commands = tuple(
+                    one
+                    for one in cast("list[object]", listed)
+                    if isinstance(one, str) and one
+                )
+        elif kind == "assistant":
             yield from self._message(cast("dict[str, Any]", said.get("message") or {}))
         elif kind == "stream_event":
             yield from self._fragment(cast("dict[str, Any]", said.get("event") or {}))

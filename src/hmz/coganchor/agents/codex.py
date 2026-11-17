@@ -66,6 +66,13 @@ start inside it.
 What the app server is started with -- the web search, the fence, the features, the overrides
 -- it reads once, so an agent set up as something else there runs its next turn on a server
 started again, as :meth:`CodexAgent._knowing` says.
+
+A chat's native input (:mod:`hmz.coganchor.agents.native`) is the app server's too, which has
+a call for most of what Codex's own prompt does with a line: a `$` skill and an `@` file go
+into the turn as input items of their own, `!` is `thread/shellCommand`, and `/compact`,
+`/review` and `/rename` are `thread/compact/start`, `review/start` and `thread/name/set`
+(:meth:`CodexSession.natives`). What it has no call for is a dialog of Codex's interactive
+interface, and is refused.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -76,11 +83,13 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import dataclasses
 import functools
 import itertools
 import json
 import os
 import queue
+import re
 import signal
 import subprocess
 import sys
@@ -88,6 +97,7 @@ import threading
 import weakref
 from collections import Counter, deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor import prices
@@ -97,6 +107,7 @@ from .base import AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, SUBAGENTS, Moment, Occasion
+from .native import NativeCommand
 from .watchdog import Watchdog
 
 if TYPE_CHECKING:
@@ -108,7 +119,6 @@ if TYPE_CHECKING:
         Mapping,
         Sequence,
     )
-    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -1283,7 +1293,12 @@ class _AppServer:
                 text=f"{_CALLED.get(kind, kind)} {about}".strip()[:120],
             )
 
-    def turn(self, params: dict[str, Any], running: _Running) -> Iterator[Event]:
+    def turn(
+        self,
+        params: dict[str, Any],
+        running: _Running,
+        method: str = "turn/start",
+    ) -> Iterator[Event]:
         """Runs one turn on a thread and says what the agent says as it says it.
 
         The turn is the one `turn/start` answers with, and nothing else on the thread is: a
@@ -1296,6 +1311,8 @@ class _AppServer:
           running: Told the turn's own id as the start answers with it, and told again when
             the turn is over -- which is what lets a word put in mid-turn say which turn it is
             for.
+          method: What starts it: `turn/start`, or `review/start`, which answers with the turn
+            its review runs as on the same thread and is read exactly as a turn is.
 
         Yields:
           What the agent said, and the answer it ended on.
@@ -1311,7 +1328,7 @@ class _AppServer:
                 {
                     "jsonrpc": "2.0",
                     "id": ident,
-                    "method": "turn/start",
+                    "method": method,
                     "params": params,
                 }
             )
@@ -1327,7 +1344,7 @@ class _AppServer:
                         if not _turn_id(message.get("result")):
                             # Nothing on the stream could then be told apart as this turn's.
                             raise Unrecoverable(
-                                1, self._argv, "", "codex: turn/start named no turn"
+                                1, self._argv, "", f"codex: {method} named no turn"
                             )
                         continue
                     # Whose a message is was settled where it was read: one that names a
@@ -1338,6 +1355,11 @@ class _AppServer:
                     told: dict[str, Any] = message.get("params") or {}
                     match message.get("method"):
                         case "item/started" | "item/completed":
+                            reviewed: dict[str, Any] = told.get("item") or {}
+                            if reviewed.get("type") == "exitedReviewMode":
+                                # A review's findings, which the message after it repeats
+                                # on codex-cli 0.163.0 and which are the answer without one.
+                                said = str(reviewed.get("review") or said)
                             for event in self._shown(
                                 message["method"], told, started, running.took
                             ):
@@ -1405,6 +1427,96 @@ class _AppServer:
                 else {},
                 spent=costing,
             )
+
+    def operate(
+        self,
+        method: str,
+        params: dict[str, Any],
+        spends: Callable[[Usage], None] | None = None,
+    ) -> Iterator[Event]:
+        """Asks the server for one operation of a thread that it runs as a turn of its own.
+
+        `thread/shellCommand` and `thread/compact/start` are answered at once, with nothing,
+        and what they do arrives afterwards as a turn the server starts on the thread: the
+        command as a `commandExecution` item whose `source` is `userShell`, the compaction as
+        a `contextCompaction` item, each ended by `turn/completed` (codex-cli 0.163.0). No
+        answer names that turn, so it is read as a goal's turns are -- everything of the
+        thread -- and the first turn to end on it is this one.
+
+        Args:
+          method: The operation.
+          params: What to ask it with, naming the thread.
+          spends: Told what each request of it cost as the server says it, or None to tell
+            nobody: a compaction is a request of the model like any other.
+
+        Yields:
+          What the turn showed, as a turn shows it, and one `result`: the output of a shell
+          command -- with the status it exited on, where that was not 0 -- or what Codex's own
+          interface says of a compaction.
+
+        Raises:
+          subprocess.CalledProcessError: If the server refused the operation, the turn it ran
+            as failed, or the server stopped.
+        """
+        thread = str(params["threadId"])
+        ident = next(self._pending)
+        with self._mailbox(ident=ident, thread=thread) as mailbox:
+            self._write(
+                {"jsonrpc": "2.0", "id": ident, "method": method, "params": params}
+            )
+            said = ""
+            started: set[Any] = set()
+            answered = False
+            #: The turn it runs as: the first to start on the thread once it is answered.
+            mine = ""
+            while (message := self._take(mailbox)) is not None:
+                if message.get("id") == ident and "method" not in message:
+                    self._answer(message, said)
+                    answered = True
+                    continue
+                told: dict[str, Any] = message.get("params") or {}
+                named: dict[str, Any] = told.get("turn") or {}
+                turn = str(told.get("turnId") or named.get("id") or "")
+                if message.get("method") == "turn/started" and answered and not mine:
+                    mine = turn
+                if not mine or (turn and turn != mine):
+                    # Before it began, or of another turn: one Codex started by itself, or
+                    # what is said late of one already over, is not this operation's.
+                    continue
+                match message.get("method"):
+                    case "item/started" | "item/completed":
+                        yield from self._shown(message["method"], told, started, None)
+                        item: dict[str, Any] = told.get("item") or {}
+                        if (
+                            message["method"] == "item/completed"
+                            and item.get("type") == "commandExecution"
+                        ):
+                            said = str(item.get("aggregatedOutput") or "")
+                            if (code := item.get("exitCode")) not in (None, 0):
+                                said = f"{said.rstrip()}\n(exit {code})".lstrip()
+                    case "thread/tokenUsage/updated" if spends is not None:
+                        if (risen := self._rose(thread, told)) is not None:
+                            spends(risen)
+                    case "turn/completed":
+                        ended: dict[str, Any] = told.get("turn") or {}
+                        if ended.get("error") is not None or ended.get(
+                            "status"
+                        ) not in (
+                            None,
+                            "completed",
+                        ):
+                            raise Failed(
+                                1,
+                                self._argv,
+                                said,
+                                json.dumps(ended.get("error") or ended.get("status")),
+                            )
+                        break
+                    case _:  # the rest of the stream is not this operation's to show
+                        pass
+            with self._routing:  # remembered as over, as a turn is
+                self._ended.setdefault(thread, deque(maxlen=_RECENT_TURNS)).append(mine)
+            yield Event(kind="result", text=said or _DONE.get(method, ""))
 
     def _rose(self, thread: str, told: Mapping[str, Any]) -> Usage | None:
         """What one `thread/tokenUsage/updated` says the thread has spent since the last.
@@ -2118,6 +2230,117 @@ class CodexAgentConfig(AgentConfig):
         object.__setattr__(self, "features", _features(self.features))
 
 
+#: What an operation that prints nothing is answered with, in the words Codex's own interface
+#: says it in.
+_DONE = {"thread/compact/start": "Context compacted"}
+
+#: The `/` commands of Codex's own prompt that hmz serves by calling the app server, with what
+#: each does, in the words of Codex's own list where it has one (codex-cli 0.163.0).
+_CALLED_COMMANDS = (
+    ("compact", "summarize conversation to prevent hitting the context limit"),
+    ("review", "review my current changes and find issues"),
+    ("rename", "rename the current thread"),
+    ("model", "choose what model to use from the next turn on"),
+    ("effort", "choose what reasoning effort to use from the next turn on"),
+)
+
+#: The `/` commands of Codex's own prompt that are a dialog, a picker or a setting of its own
+#: interactive interface, which the app server has no call for (codex-cli 0.163.0). The ones a
+#: frontend keeps for hmz -- `/clear`, `/resume`, `/exit`, `/quit`, `/btw` and the rest of
+#: `protocol/core.md` 8.9.7 -- and the ones that are a conversation of their own rather than a
+#: turn of this one -- `/new`, `/fork`, `/archive` -- are no entry of the catalogue at all.
+_INTERACTIVE = (
+    "permissions",
+    "approvals",
+    "mcp",
+    "apps",
+    "plugins",
+    "hooks",
+    "memories",
+    "skills",
+    "experimental",
+    "status",
+    "diff",
+    "theme",
+    "statusline",
+    "title",
+    "keymap",
+    "vim",
+    "logout",
+    "feedback",
+)
+
+#: What a refused command is said to be.
+_REFUSED = "served only by Codex's own interactive interface"
+
+#: The files an `@` names that go as an image rather than as a mention, by suffix.
+_IMAGES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"})
+
+#: A `/` command as typed: its name, and whatever follows it. A first word with another `/` in
+#: it is a path rather than a command, and is not matched.
+_SLASH = re.compile(r"/([A-Za-z0-9_-]+)(?:\s+(.*))?", re.DOTALL)
+
+#: A `$` skill and an `@` path, each at the start of a word.
+_DOLLAR = re.compile(r"(?<!\S)\$([A-Za-z0-9_.:-]+)")
+_AT = re.compile(r"(?<!\S)@(\S+)")
+
+
+@dataclass(frozen=True)
+class _Skill:
+    """One skill of Codex's own, as `skills/list` says it."""
+
+    name: str
+    path: str
+    about: str
+
+
+@dataclass(frozen=True)
+class _Served:
+    """How one native line is served.
+
+    Attributes:
+      method: The app server's call that serves it -- `turn/start`, `review/start`,
+        `thread/shellCommand`, `thread/compact/start` or `thread/name/set` -- or "" for a line
+        answered with :attr:`said` and nothing called.
+      params: What that call is made with, besides the thread.
+      said: What a line nothing is called for is answered with.
+      line: What a turn of the model is given.
+      native: Whether that turn is a native line, whose skills and files go beside it as
+        items of their own.
+    """
+
+    method: str
+    params: dict[str, Any] = field(default_factory=dict[str, Any])
+    said: str = ""
+    line: str = ""
+    native: bool = False
+
+
+def _target(args: str) -> dict[str, Any]:
+    """What `/review` is to review, out of what was typed after it.
+
+    Codex's own `/review` offers four targets in a picker, and typed they are its entries'
+    words: nothing for the working tree's uncommitted changes, `base <branch>` for the changes
+    against a base branch, `commit <sha>` for one commit, and anything else as the review's
+    own instructions.
+
+    Args:
+      args: What followed `/review`.
+
+    Returns:
+      The `target` of `review/start`.
+    """
+    words = args.split()
+    if not words:
+        return {"type": "uncommittedChanges"}
+    head = words[0].lower().lstrip("-")
+    if len(words) == 2 and head in ("base", "branch"):  # noqa: PLR2004
+        return {"type": "baseBranch", "branch": words[1]}
+    if len(words) == 2 and head == "commit":  # noqa: PLR2004
+        return {"type": "commit", "sha": words[1]}
+    return {"type": "custom", "instructions": args.strip()}
+
+
 class CodexSession(SessionBase):
     """A Codex conversation, held as a thread by the app server the agent runs.
 
@@ -2163,6 +2386,252 @@ class CodexSession(SessionBase):
         #: Where this conversation was last picked up, asked for again by name when the next
         #: turn wants a server: a thread taken to another one is read back off the disk there.
         self._on: _AppServer | None = None
+        #: The model this conversation was moved to by a `/model` of a chat, or None for the
+        #: agent's own.
+        self._model: str | None = None
+        #: Codex's own skills for this conversation's workspace, by name, as `skills/list`
+        #: last said them; None until asked, and again whenever a conversation opens.
+        self._listed: dict[str, _Skill] | None = None
+        #: Where this conversation's last turn of the model was sent, and the sandbox policy
+        #: it was sent, which the thread keeps for the turns after -- a review's included.
+        self._policed: tuple[_AppServer, str, str] | None = None
+
+    @property
+    def model(self) -> str:
+        """The model the next turn of this conversation runs on.
+
+        The agent's, unless a `/model` said in a chat has moved this conversation to another.
+        """
+        return self._model or self._agent.config.model
+
+    def fork(
+        self,
+        *,
+        into: AgentBase | None = None,
+        cwd: str | os.PathLike[str] | None = None,
+    ) -> SessionBase:
+        """A second conversation carrying this one's history, on the model this one is on.
+
+        As :meth:`SessionBase.fork`, which carries the effort a conversation has got to: the
+        model a `/model` moved it to goes with it too.
+        """
+        made = super().fork(into=into, cwd=cwd)
+        if isinstance(made, CodexSession):
+            made._model = self._model
+        return made
+
+    def natives(self) -> list[NativeCommand]:
+        """Codex's native input, as its app server can be asked for it.
+
+        Its skills for this conversation's workspace as `$`, each sent as a skill input item;
+        `@` for a file, sent as a mention or, for an image, as the image; `!` for a command,
+        run by the app server's own `thread/shellCommand` -- unless Codex's own sandbox is what
+        holds this agent's fence (:meth:`CodexAgent.holds`), where nothing around Codex holds
+        a command that call runs unsandboxed, and `!` is left to the chat to emulate inside
+        the fence; the `/` commands the app server has a call for; and its interactive
+        interface's own `/` commands, refused.
+
+        Returns:
+          The catalogue. The skills are listed once and again after a conversation opens; a
+          Codex that cannot be asked for them yet has none listed.
+        """
+        fence = self._agent.config.fence
+        held = fence is not None and self._agent.holds(fence)
+        return [
+            *(
+                NativeCommand(sigil="$", name=one.name, about=one.about, how="call")
+                for one in self._listing().values()
+            ),
+            NativeCommand(sigil="@", name="", about="mention a file", how="call"),
+            NativeCommand(
+                sigil="!",
+                name="",
+                about="run a shell command",
+                how="emulate" if held else "call",
+            ),
+            *(
+                NativeCommand(sigil="/", name=name, about=about, how="call")
+                for name, about in _CALLED_COMMANDS
+            ),
+            *(
+                NativeCommand(sigil="/", name=name, about=_REFUSED, how="refuse")
+                for name in _INTERACTIVE
+            ),
+        ]
+
+    def _listing(self) -> dict[str, _Skill]:
+        """Codex's own skills for this conversation's workspace, by name.
+
+        Asked of the server this conversation is on, or of any of the agent's where it is on
+        none yet; and asked again once a conversation opens (:meth:`_thread`), which is where
+        Codex reads a workspace's skills afresh.
+
+        Returns:
+          Every enabled skill, the first of a name where two scopes have one; none where the
+          server cannot be asked, which is not remembered.
+        """
+        if self._listed is not None:
+            return self._listed
+        try:
+            server = self._on or self._agent.server
+            answered: dict[str, Any] = (
+                server.call("skills/list", {"cwds": [self._workspace()]}) or {}
+            )
+        except (Failed, OSError, ValueError):
+            return {}
+        listed: dict[str, _Skill] = {}
+        entries: list[dict[str, Any]] = answered.get("data") or []
+        for entry in entries:
+            skills: list[dict[str, Any]] = entry.get("skills") or []
+            for one in skills:
+                name = str(one.get("name") or "")
+                if not name or one.get("enabled") is False or name in listed:
+                    continue
+                interface: dict[str, Any] = one.get("interface") or {}
+                about = str(
+                    interface.get("shortDescription")
+                    or one.get("shortDescription")
+                    or one.get("description")
+                    or ""
+                )
+                listed[name] = _Skill(name, str(one.get("path") or ""), about)
+        self._listed = listed
+        return listed
+
+    def _served(self, prompt: str) -> _Served:
+        """How a turn's prompt is served: as text, or -- in a native turn -- as Codex would.
+
+        A native line is read as Codex's own prompt reads it. `!<command>` is the app server's
+        shell command, run on the thread with no turn of the model; `/compact`, `/review`,
+        `/rename`, `/model` and `/effort` are the server's own calls or this conversation's
+        settings; a `/` command only Codex's interactive interface serves is refused, and one
+        Codex has never heard of is answered as Codex answers it. Anything else is a turn whose
+        input carries, beside the line itself, a skill item for every `$<skill>` in it and a
+        mention -- or an image -- for every `@<path>` that names a file.
+
+        What a command reads is the line's first paragraph: whatever the turn was handed after
+        it -- words put in while nobody was working, or what a hook added -- is not a command,
+        and is not run as one.
+
+        Args:
+          prompt: What the turn was given.
+
+        Returns:
+          How to serve it.
+        """
+        if not self.native_turn:
+            return _Served("turn/start", line=prompt)
+        line = prompt.split("\n\n", 1)[0].strip()
+        fence = self._agent.config.fence
+        if line.startswith("!") and line[1:].strip():
+            if fence is None or not self._agent.holds(fence):
+                return _Served("thread/shellCommand", {"command": line[1:].strip()})
+        elif (slash := _SLASH.fullmatch(line)) is not None:
+            return self._commanded(slash[1], (slash[2] or "").strip())
+        return _Served("turn/start", line=prompt, native=True)
+
+    def _commanded(self, name: str, args: str) -> _Served:
+        """How one `/` command of a native line is served.
+
+        Args:
+          name: The command, without its `/`.
+          args: What followed it.
+
+        Returns:
+          How to serve it.
+        """
+        match name:
+            case "compact":
+                return _Served("thread/compact/start")
+            case "review":
+                return _Served(
+                    "review/start", {"target": _target(args), "delivery": "inline"}
+                )
+            case "rename" if args:
+                return _Served("thread/name/set", {"name": args})
+            case "rename":
+                return _Served("", said="/rename needs the thread's new name")
+            case "model":
+                return self._shifted(*args.split(maxsplit=1))
+            case "effort":
+                return self._shifted(self.model, args) if args else self._shifted()
+            case _ if name in _INTERACTIVE:
+                return _Served("", said=f"/{name} is {_REFUSED}")
+            case _:
+                # What Codex's own prompt answers a command it has no entry for with, rather
+                # than sending it to the model.
+                return _Served(
+                    "",
+                    said=f"Unrecognized command '/{name}'. "
+                    'Type "/" for a list of supported commands.',
+                )
+
+    def _shifted(self, model: str = "", effort: str = "") -> _Served:
+        """Moves this conversation to another model or effort, from the next turn on.
+
+        Args:
+          model: The model, or "" to say what it is now rather than move it.
+          effort: The effort, in Codex's own words, or "" to leave it.
+
+        Returns:
+          What the line is answered with: what the conversation now runs at.
+        """
+        if model:
+            if effort:
+                try:
+                    self.effort = effort
+                except ValueError as refused:
+                    return _Served("", said=str(refused))
+            self._model = None if model == self._agent.config.model else model
+        said = f"model {self.model}, effort {self.effort or 'Codex default'}"
+        return _Served("", said=f"{said}, from the next turn on" if model else said)
+
+    def _inputs(self, prompt: str, text: dict[str, Any]) -> list[dict[str, Any]]:
+        """The input of a native turn: the line, and an item for each skill and file it names.
+
+        Ordered as Codex's own prompt orders them: the images, the text, the skills, the
+        mentions. The text is the line whole, `$` and `@` included, as Codex's own prompt
+        sends it beside the items it names.
+
+        Only the line's own first paragraph is read for them: what the turn was handed after
+        it -- words put in while nobody was working, or what a hook added -- names nothing on
+        the person's behalf.
+
+        Args:
+          prompt: The line, and whatever the turn was handed after it.
+          text: The text item of it.
+
+        Returns:
+          The `input` of `turn/start`.
+        """
+        images: list[dict[str, Any]] = []
+        mentions: list[dict[str, Any]] = []
+        named: set[str] = set()
+        line = prompt.split("\n\n", 1)[0]
+        for word in _AT.findall(line):
+            raw = str(word).rstrip(",.;:!?)]}'\"")
+            given = local = Path(raw)
+            try:
+                given = Path(raw).expanduser()
+                local = given if given.is_absolute() else Path(self.cwd, given)
+                there = bool(raw) and local.exists()
+            except (OSError, RuntimeError):  # `~nobody`, or a name no file could have
+                there = False
+            if not there or raw in named:
+                continue  # not a file: an `@` that names none is text
+            named.add(raw)
+            sent = str(local if given.is_absolute() else Path(self._workspace(), given))
+            if local.suffix.lower() in _IMAGES:
+                images.append({"type": "localImage", "path": sent})
+            else:
+                mentions.append({"type": "mention", "name": local.name, "path": sent})
+        listed = self._listing() if _DOLLAR.search(line) is not None else {}
+        skills = [
+            {"type": "skill", "name": skill.name, "path": skill.path}
+            for name in dict.fromkeys(_DOLLAR.findall(line))
+            if (skill := listed.get(str(name))) is not None
+        ]
+        return [*images, text, *skills, *mentions]
 
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -2180,6 +2649,11 @@ class CodexSession(SessionBase):
         Raises:
           subprocess.CalledProcessError: If the turn was refused, or the server stopped.
         """
+        served = self._served(prompt)
+        if not served.method:
+            # Answered here: a setting of this conversation, or a command Codex would not run.
+            yield Event(kind="result", text=served.said)
+            return
         with self._lock:  # a conversation is a sequence: one turn at a time
             # Taken once and held for the whole turn: asking the agent for a server again may
             # be starting another one, and the thread this turn is on is the first one's.
@@ -2221,21 +2695,7 @@ class CodexSession(SessionBase):
                 # says this one is shared, so the watchdog puts it down through `_lets_go`
                 # rather than signalling it out from under the agent's other conversations.
                 with Watchdog(self, riding=lambda: server._proc) as watch:
-                    for event in server.turn(
-                        {
-                            "threadId": thread,
-                            "input": [{"type": "text", "text": prompt}],
-                            "model": self._agent.config.model,
-                            **_thinking(self.effort),
-                            **(
-                                {"outputSchema": strict(schema.model_json_schema())}
-                                if schema is not None
-                                else {}
-                            ),
-                            **self._turned(server),
-                        },
-                        self._running,
-                    ):
+                    for event in self._served_on(server, thread, served, schema):
                         watch.saw()
                         if event.kind == "result":
                             said, spent, costing = event.text, event.tokens, event.spent
@@ -2267,6 +2727,77 @@ class CodexSession(SessionBase):
                 say(said, sys.stdout)
             self._adopt(thread)  # a turn has landed, so the session is open
             yield Event(kind="result", text=said, tokens=spent, spent=costing)
+
+    def _served_on(
+        self,
+        server: _AppServer,
+        thread: str,
+        served: _Served,
+        schema: type[BaseModel] | None,
+    ) -> Iterator[Event]:
+        """Makes the call a turn is served by, saying what it says.
+
+        Args:
+          server: The server the turn is taken on.
+          thread: The thread it is on.
+          served: How it is served.
+          schema: The shape to answer in, which only a turn of the model is asked for.
+
+        Yields:
+          What the call said, ending on its `result`.
+        """
+        params = {"threadId": thread, **served.params}
+        turned = self._turned(server)
+        policy = json.dumps(turned.get("sandboxPolicy"), sort_keys=True)
+        match served.method:
+            case "turn/start":
+                text = {"type": "text", "text": served.line}
+                yield from server.turn(
+                    params
+                    | {
+                        "input": self._inputs(served.line, text)
+                        if served.native
+                        else [text],
+                        "model": self.model,
+                        **_thinking(self.effort),
+                    }
+                    | (
+                        {"outputSchema": strict(schema.model_json_schema())}
+                        if schema is not None
+                        else {}
+                    )
+                    | turned,
+                    self._running,
+                )
+                # Kept by the thread for every turn after, a review's among them.
+                self._policed = (server, thread, policy)
+            case "review/start" if "sandboxPolicy" in turned and self._policed != (
+                server,
+                thread,
+                policy,
+            ):
+                # `review/start` takes no sandbox of its own: it runs at what the thread's
+                # last turn was sent. A thread no turn has yet been held to the fence on
+                # would run it at the bare rung, which is wider than the fence.
+                yield Event(
+                    kind="result",
+                    text="/review runs at what this conversation's last turn was held to, "
+                    "and no turn of it here has been held to its fence yet: say something "
+                    "first, then review",
+                )
+            case "review/start":
+                # A review is a turn of the thread's own, on what the thread last ran on.
+                for event in server.turn(params, self._running, served.method):
+                    if event.kind == "result" and event.tokens:
+                        event = dataclasses.replace(  # noqa: PLW2901
+                            event, tokens={self.model: sum(event.tokens.values())}
+                        )
+                    yield event
+            case "thread/name/set":
+                server.call(served.method, params)
+                yield Event(kind="result", text=f"renamed to {served.params['name']}")
+            case _:
+                yield from server.operate(served.method, params, self._spends)
 
     def interject(self, text: str) -> None:
         """Steers the turn under way, which the server takes into the turn it is running.
@@ -2382,7 +2913,7 @@ class CodexSession(SessionBase):
         if (thread := self._id or self._running.thread) is None:
             opened = {
                 "cwd": self._workspace(),
-                "model": self._agent.config.model,
+                "model": self.model,
                 **settings,
             }
             started = str(
@@ -2397,6 +2928,7 @@ class CodexSession(SessionBase):
                 else server.call("thread/start", opened)["thread"]["id"]
             )
             server.holding(started, settings, self)
+            self._listed = None  # a conversation opens: its skills are asked for afresh
             return started
         if server.holds(thread, settings):
             # Already open here, under exactly what this turn asks for -- which is the whole
@@ -2408,6 +2940,7 @@ class CodexSession(SessionBase):
         # was left with, and this session's are what its agent's fence says now.
         server.call("thread/resume", {"threadId": thread, **settings})
         server.holding(thread, settings, self)
+        self._listed = None
         return thread
 
     def _steps(self, server: _AppServer) -> None:
@@ -2456,7 +2989,6 @@ class CodexSession(SessionBase):
             server = self._agent._taken(self._on)
             try:
                 self._on = server
-                config = self._agent.config
                 thread = self._thread(server)
                 self._steps(server)
                 if self._id is None:
@@ -2475,7 +3007,7 @@ class CodexSession(SessionBase):
                         {
                             "threadId": thread,
                             "input": [{"type": "text", "text": objective}],
-                            "model": config.model,
+                            "model": self.model,
                             **_thinking(self.effort),
                             **self._turned(server),
                         },

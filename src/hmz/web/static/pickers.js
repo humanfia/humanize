@@ -59,6 +59,22 @@ function ask(cli, account) {
   return asking.get(key)
 }
 
+/**
+ * A nous, typed or picked from those there are: every virtual one by its name, then every
+ * concrete one, as `nous.list` answers them.
+ *
+ * @param {string} value What it holds to begin with.
+ * @param {{nous: {name: string, virtual: boolean}[], concrete: string[]} | null} nous
+ * @param {{label: string, hmz: string, placeholder?: string}} how
+ */
+export function nousField(value, nous, { label, hmz, placeholder = 'A nous' }) {
+  const id = `nous-${Math.random().toString(36).slice(2, 10)}`
+  const named = nous ? [...nous.nous.filter((one) => one.virtual).map((one) => one.name), ...nous.concrete] : []
+  const offered = h('datalist', { id }, named.map((one) => h('option', { value: one })))
+  const input = h('input', { type: 'text', value, list: id, placeholder, 'aria-label': label, 'data-hmz': hmz, spellcheck: 'false', autocomplete: 'off' })
+  return { node: h('span', { class: 'nous-field' }, input, offered), input }
+}
+
 /** An agent as `-a` spells it, taken apart: `cli[@account]/model[:effort]`. */
 export function parted(spec) {
   const said = /^([^@/]+)(?:@([^/]*))?\/(.*)$/.exec(spec || '')

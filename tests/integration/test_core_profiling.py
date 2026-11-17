@@ -1,7 +1,7 @@
 """A run profiled: the flow's own Python, the programs its agents start, or both.
 
-Each run is a real `python -m hmz exec` of `chat` driving the stand-in `claude`; what it wrote
-down is read back, and laid out, through `hmz.sdk.Hmz.epics`.
+Each run is a real `python -m hmz exec` of `ralph_loop`, for one round, driving the stand-in
+`claude`; what it wrote down is read back, and laid out, through `hmz.sdk.Hmz.epics`.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import pytest
 
 from hmz.runtime.tracing.profile import FLOW_PROFILE, PROFILE
 from hmz.sdk import Hmz
-from tests.integration.doubles_core import AGENT, hmz_exec, install
+from tests.integration.doubles_core import AGENT, TOKENS, hmz_exec, install
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -40,7 +40,17 @@ def test_what_a_run_was_asked_to_profile_is_written_and_laid_out(
     # A program the agent runs for longer than the environment's sampler takes to see it,
     # with room for a machine busy running the rest of the suite beside it.
     task = 'run: [["sleep", "2"]]'
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", *flags, task)
+    # One round: the first turn spends every token the run may.
+    ran = hmz_exec(
+        "-f",
+        "ralph_loop",
+        "-a",
+        f"agent={AGENT}",
+        "-p",
+        f"budget.output_tokens={TOKENS}",
+        *flags,
+        task,
+    )
     assert ran.returncode == 0, ran.stderr
 
     epics = Hmz(project).epics
@@ -60,7 +70,7 @@ def test_what_a_run_was_asked_to_profile_is_written_and_laid_out(
         if one["kind"] == "flow" and strings[one["name"]] == "python"
     ]
     if flow:
-        # Under the epic, a lane of frames nested in what called them: the chat flow's own
+        # Under the epic, a lane of frames nested in what called them: the loop's own
         # code, among them, inside whatever ran it.
         (lane,) = python
         assert lane["parent"] == 0
@@ -69,7 +79,7 @@ def test_what_a_run_was_asked_to_profile_is_written_and_laid_out(
         assert strings[held["name"]] == "flow"
         assert held["depths"] > 1
         names = {strings[one] for one in held["spans"]["name"]}
-        assert any("chat" in one for one in names)
+        assert any("ralph_loop" in one for one in names)
     else:
         assert python == []
     assert ("os" in kinds) is environment
