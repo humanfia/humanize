@@ -361,16 +361,14 @@ is closed on `unaside`, when its frontend detaches, when a run starts, and when 
 No message announces asides. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused:
 `<harness> cannot answer a side question: it has no read-only rung`.
 
-The Epic's aside (`runs` with `asks: true`) carries the `ask-conversation` skill, a pre-tool-use
-and a stop hook, and the fake command line `hmz-ask` (`ask --to <agent>/<n> --question <q>`,
-`list`). A run of it, caught by the hook or by the command, answers the turn's `aside` with
-`ask`; the frontend carries it out and sends `answered`, and the turn goes on. The answer
-reaches the agent as the hook's refusal on `claude` and `qwen`, as the command's output where it
-ran, and otherwise as what the stop hook sends the agent on with. One question asked twice in a
-turn is asked once. On `codex`, whose `read-only` sandbox refuses the socket `hmz-ask` reaches
-the host on, `hmz-ask` alone runs outside the sandbox, by `prefix_rule(pattern=["hmz-ask"],
-decision="allow")` in `rules/hmz.rules` of its virtual home; every other command stays in the
-sandbox, network cut.
+The daemon's `btw.*` asks each side question of a session through a frontend of its own, of
+kind `btw`, on the host holding that session: the workspace's own host for the epic in view
+there, a chat's own slot for that chat. An epic no host holds any longer is asked on the
+workspace's own host with `runs`, `recall`, `kept` and `cwd`; an epic starting there does not
+end such an aside, whose next question opens its side copy again. The daemon reads the epic
+replayed to it on attaching as the epic going, not as one starting, and lets go of a host a
+minute after the last aside on it closed or its last question was asked. An aside whose first
+question fails is not kept.
 
 ## Messages {#messages}
 
