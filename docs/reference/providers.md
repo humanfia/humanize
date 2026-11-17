@@ -839,8 +839,8 @@ The TUI's account form offers an `also for <cli>` row per backend in `serves()`.
 ## When an account fails
 
 An account does not name another to carry on under. Where a failed turn goes is a
-[fallback chain](/user/settings#fallback) written against a *place* (`CLI[@ACCOUNT]/MODEL`), so
-moving to another account of the same CLI is a place on that chain, taken in a new
+[nous](/user/settings#nous) (`CLI[@ACCOUNT]/MODEL[:EFFORT]`, or a virtual one), so moving to
+another account of the same CLI is a nous in its `then` or a balance node, taken in a new
 conversation. See [Agents › When a turn fails](/reference/agents#retries).
 
 ## Placement of the account

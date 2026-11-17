@@ -606,7 +606,7 @@ by words of their task.
 **3.11.1.2** `App` MUST hold `Themes`, `Daemons` and `Notifications`, and MUST be the same whichever
 daemon is shown.
 
-**3.11.1.3** `Daemon` MUST hold `General`, `Accounts`, `Fallback`, `Runtimes`, `Backup`, `Workspace`
+**3.11.1.3** `Daemon` MUST hold `General`, `Accounts`, `Nous`, `Runtimes`, `Backup`, `Workspace`
 and `Usage`, each of the daemon picked above them.
 
 **3.11.1.4** The daemon picked for the `Daemon` pages MUST be the daemon shown until the user picks
@@ -631,8 +631,10 @@ MUST NOT be run from the page.
 **3.11.2.5** The ways in through the local LiteLLM gateway MUST be grouped as the terminal interface
 groups them, with the command that adds the `litellm` extra where it is missing.
 
-**3.11.2.6** `Fallback` MUST let the user set, for each step, where a turn goes when a place cannot
-take it and how it is tried again, and MUST let the user clear a step, as Section 6 of [CORE]
+**3.11.2.6** `Nous` MUST list every nous as Section 19.8.1 of [TUI] lists it, and MUST let the
+user make, change, rename and remove one -- its name, tries, wait policy and limit, a virtual nous's
+graph and every nous's `then` -- editing a graph's nodes, start node and edges as Section 19.8.3 of
+[TUI] states, and refusing as Section 19.8.4 of [TUI] refuses, as Section 4.11.4 of [CORE]
 specifies.
 
 **3.11.2.7** `Runtimes` MUST list every runtime, and MUST let the user add one from its backend's
@@ -657,7 +659,7 @@ it from the sidebar.
 **3.11.2.12** `Usage` MUST show what the epics spent by day and by flow, of every workspace or of
 one, looking back 7, 30, 90 or 365 days.
 
-**3.11.2.13** `General`, `Fallback`, `Runtimes` and `Backup` MUST each offer `Batch apply`, which
+**3.11.2.13** `General`, `Nous`, `Runtimes` and `Backup` MUST each offer `Batch apply`, which
 writes what that page holds to every daemon the user ticks, and MUST say of each daemon whether it
 applied or why it refused.
 

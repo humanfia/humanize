@@ -22,7 +22,7 @@ It is normative. It is cited by the tag [FILES].
   - [3.3. The file](#33-the-file)
   - [3.4. Machine keys](#34-machine-keys)
   - [3.5. `workspaces`](#35-workspaces)
-  - [3.6. `fallbacks`](#36-fallbacks)
+  - [3.6. `nous`](#36-nous)
   - [3.7. `clis`](#37-clis)
   - [3.8. `runtimes`](#38-runtimes)
   - [3.9. `backup`](#39-backup)
@@ -135,7 +135,7 @@ Out of scope:
 - What a runtime does once an env is put on it, and how fallback between runtimes proceeds (Section
   7 of [CORE]).
 - Where a harness runs under a runtime's harness setting (Section 6 of [CORE]).
-- What the fallback of a turn between places does at run time (Section 4 of [CORE]).
+- What a walk of a turn through its nous does at run time (Section 4 of [CORE]).
 - Backups as a feature (Section 11 of [CORE]), notifications (Section 10 of [CORE]), side questions
   (Section 9 of [CORE]), error reports (Section 12 of [CORE]), and the daemons of other machines
   (Section 3 of [DAEMON]).
@@ -157,7 +157,7 @@ or does not hold a mapping at its top level.
 
 **3.2.6** A **writer** is any hmz process that changes the settings file.
 
-**3.2.7** A place MUST be written as Section 4.2.3 of [CORE] defines it.
+**3.2.7** A concrete nous MUST be written as Section 4.2.3 of [CORE] defines it.
 
 **3.2.8** An agent spec MUST be written as Section 4.2.2 of [CORE] defines it, which is the text of
 an `-a` item after `<role>=` (Section 7.4 of [CLI]).
@@ -194,7 +194,7 @@ workspace entry, across every write.
 
 **3.3.3.1** Every write other than that of Section 3.4.7.2 MUST change exactly one thing: one
 machine key, one workspace's `flow` key together with one flow entry, one workspace entry removed,
-the whole value of `fallbacks`, of `clis`, of `backup`, of `daemons`, of `notifications`, of
+the whole value of `nous`, of `clis`, of `backup`, of `daemons`, of `notifications`, of
 `listen`, of `ice_servers` or of `easytier`, or one runtime.
 
 **3.3.3.2** A writer MUST guard, read and replace the settings file as Section 4.5 states for
@@ -214,7 +214,7 @@ MUST keep its mode.
 workspace entry fails, or the file is unreadable, the process MUST keep the change in effect for
 itself for as long as it runs and MUST NOT report an error.
 
-**3.3.3.8** Where a write of `fallbacks`, `clis`, `daemons`, `notifications`, `listen`,
+**3.3.3.8** Where a write of `nous`, `clis`, `daemons`, `notifications`, `listen`,
 `ice_servers`, `easytier` or a runtime fails, or the file is unreadable, hmz MUST refuse the change
 with an error that names the file.
 
@@ -454,41 +454,65 @@ epic they start.
 its agent roles equal the flow's declared agent roles, every required env role has an env spec, its
 params validate, and a budget is present for every flow that requires one.
 
-### 3.6. `fallbacks`
+### 3.6. `nous`
 
 #### 3.6.1. Entries
 
-**3.6.1.1** `fallbacks` MUST be a list of mappings, each saying where a turn at one place goes when
-that place cannot take it (Section 4 of [CORE]).
+**3.6.1.1** `nous` MUST be a mapping from the name of a nous, a concrete nous or the name of a virtual
+nous (Section 4.11.4 of [CORE]), to a mapping saying how a turn at it is retried, what a virtual one
+is, and where a turn goes once its retries are spent.
 
-**3.6.1.2** `spec` MUST be a string naming the place the entry is written against.
+**3.6.1.2** A virtual nous's name MUST match `[A-Za-z][A-Za-z0-9_.-]*` and MUST NOT name a harness.
 
-**3.6.1.3** `to` MUST be a list of places, tried in order once the place of `spec` has failed.
+**3.6.1.3** `tries` MUST be a non-negative integer, the number of times a failed turn is tried again
+at the nous before its `then`, defaulting to 0.
 
-**3.6.1.4** `tries` MUST be a non-negative integer, the number of times a failed turn is tried again
-at the place of `spec` before the next place is taken, defaulting to 0.
-
-**3.6.1.5** `policy` MUST be one of `none`, `constant`, `linear`, `exponential`,
+**3.6.1.4** `policy` MUST be one of `none`, `constant`, `linear`, `exponential`,
 `exponential-jitter` and `fibonacci`, the wait between those tries, defaulting to
 `exponential-jitter`.
 
-**3.6.1.6** `timeout` MUST be a non-negative number of seconds for which trying again MAY go on, 0
+**3.6.1.5** `timeout` MUST be a non-negative number of seconds for which trying again MAY go on, 0
 meaning no limit, and defaulting to 0.
+
+**3.6.1.6** `graph` MUST be a nous graph, present for a virtual nous and absent for a concrete one.
+
+**3.6.1.7** `then` MUST be a nous graph, the graph a turn is walked through once the nous's tries are
+spent, absent for none.
+
+**3.6.1.8** A nous graph MUST be written as one nous, as a list of nous each tried once the one before
+it has failed, or as a mapping of `start`, the id of the node a walk begins at, and `nodes`, a
+mapping from each node's id, matching `[A-Za-z][A-Za-z0-9_.-]*`, to its node.
+
+**3.6.1.9** A node MUST be either a use node, holding `use`, a nous, or a balance node, holding
+`balance`, a strategy (Section 4.11.4.7 of [CORE]), `among`, a mapping from each nous it picks out
+of to its weight, a positive integer, and `spread`, a non-negative integer defaulting to 0.
+
+**3.6.1.10** A node's edges MUST be `on`, a mapping from a fault class (Section 4.2.13 of [CORE]) or
+`*` to the id of a node, and `next`, which MUST mean the same as `on` with `*` alone.
+
+**3.6.1.11** A writer MUST write a graph that is a list of use nodes each with only a `*` edge to the
+next as that list, and as one nous where it holds one node.
 
 #### 3.6.2. Reading and writing
 
-**3.6.2.1** An entry that is not a mapping, whose `spec` does not name a place of an existing
-harness, whose `spec` an earlier entry has, or that has an empty `to` and `tries` of 0 MUST be
-ignored when read.
+**3.6.2.1** An entry whose name does not name a nous of an existing harness or a virtual nous, whose
+graph or `then` is not a nous graph Section 4.11.4.9 of [CORE] allows, that is concrete with a
+`graph` or virtual without one, or that is concrete with `tries` of 0 and no `then`,
+MUST be ignored when read.
 
-**3.6.2.2** A place in `to` that cannot be read as a place, equals `spec`, or repeats an earlier
-place MUST be ignored when read.
+**3.6.2.2** A `tries` or `timeout` that is not a finite number MUST be read as 0, and a negative one
+as 0; a `policy` that names none MUST be read as `exponential-jitter`.
 
-**3.6.2.3** A `tries` or `timeout` that is not a finite number MUST be read as 0, and a negative one
-as 0.
+**3.6.2.3** A write of a nous MUST be refused where the nous could not be read, where its graph or
+`then` names a virtual nous no entry has, or where nous would name one another round.
 
-**3.6.2.4** A write of a fallback MUST be refused where a place cannot be read, where `to` contains
-`spec`, or where `to` names one place twice.
+**3.6.2.4** A virtual nous that another entry's graph or `then` names MUST NOT be removed, and
+renaming a virtual nous MUST rename it in every graph and `then` that names it.
+
+**3.6.2.5** Where the settings file holds the key `fallbacks`, a list of mappings each of `spec`, a
+concrete nous, `to`, a list of concrete nous, and `tries`, `policy` and `timeout`, hmz MUST read each
+as the entry of `spec` with `then` the list `to`, where `nous` holds no entry of that name, and the
+next write of `nous` MUST remove the key `fallbacks`.
 
 ### 3.7. `clis`
 
@@ -711,7 +735,7 @@ two targets share a name, or a default names no target.
 **3.10.1.1** The settings file MUST NOT hold the credentials of any account.
 
 **3.10.1.2** An account MUST be referred to in the settings file only by its name after an `@` in an
-agent spec or a place, in `workspaces.<path>.flows.<flow>.agents`, `btw` and `fallbacks`.
+agent spec or a concrete nous, in `workspaces.<path>.flows.<flow>.agents`, `btw` and `nous`.
 
 **3.10.1.3** A reference to an account that does not exist MUST be refused when an epic is started
 with it (Section 7.7.7 of [CLI]), and MUST NOT make the settings file unreadable.

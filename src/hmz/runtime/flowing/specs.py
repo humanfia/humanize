@@ -84,6 +84,8 @@ class AgentSpec:
       effort: The effort in the CLI's own words, or "" for the CLI's default.
       cli: The name the CLI is known by: the harness's own, or the name one added by hand
         was added under.
+      nous: The virtual nous it was named by, or "" for one named by its concrete nous. The
+        rest is then the concrete nous that virtual one starts at.
     """
 
     role: str
@@ -92,11 +94,14 @@ class AgentSpec:
     model: str
     effort: str
     cli: str
+    nous: str = ""
 
     def __str__(self) -> str:
         """The spec written back as `-a` takes it."""
         from hmz.coganchor.backends import AUTO
 
+        if self.nous:
+            return f"{self.role}={self.nous}"
         account = f"@{self.provider}" if self.provider else ""
         return f"{self.role}={self.cli}{account}/{self.model}:{self.effort or AUTO}"
 
@@ -195,7 +200,7 @@ def parse_agents(values: Sequence[str]) -> list[AgentSpec]:
       AgentSpecError: For an item that is not an agent, names no harness, or has no role,
         and for a role given twice.
     """
-    from hmz.coganchor import backends
+    from hmz.coganchor import backends, nous
 
     harnesses = {kind.value for kind in HarnessKind} - {HarnessKind.ACP.value}
     specs: list[AgentSpec] = []
@@ -205,10 +210,15 @@ def parse_agents(values: Sequence[str]) -> list[AgentSpec]:
         role, written, _ = said.partition("=")
         if not written or not role.strip():
             raise AgentSpecError(
-                f"-a {said!r}: expected <role>=<harness>[@<provider>]/<model>[:<effort>]"
+                f"-a {said!r}: expected <role>=<harness>[@<provider>]/<model>[:<effort>] "
+                "or <role>=<nous>"
             )
+        named = said.partition("=")[2].strip()
+        virtual = "/" not in named and nous.virtual(named)
         try:
-            role, profile, model, effort, provider = backends.read(said)
+            role, profile, model, effort, provider = backends.read(
+                f"{role.strip()}={nous.entry(named)}" if virtual else said
+            )
         except ValueError as error:
             raise AgentSpecError(f"-a {said!r}: {error}") from error
         if role in roles:
@@ -217,7 +227,17 @@ def parse_agents(values: Sequence[str]) -> list[AgentSpec]:
         harness = (
             HarnessKind(profile.name) if profile.name in harnesses else HarnessKind.ACP
         )
-        specs.append(AgentSpec(role, harness, provider, model, effort, profile.name))
+        specs.append(
+            AgentSpec(
+                role,
+                harness,
+                provider,
+                model,
+                effort,
+                profile.name,
+                named if virtual else "",
+            )
+        )
     return specs
 
 

@@ -294,7 +294,7 @@ daemon:
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
 | **General** | Whether a turn's working is shown, the [`/btw` agent](/user/btw), and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
-| **Fallback** | Each [step](/user/settings#fallback): where a turn goes when a place cannot take it, and how it is tried again |
+| **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
@@ -310,8 +310,8 @@ kept and opened again. Picking one changes nothing else on screen.
 holds to other daemons at once. Tick the daemons, or **All**, then **Apply**. Each daemon then
 says **Applied** or why it refused. **General** sends the form as it stands, saved or not.
 **Backup** sends every target and default, in place of the daemon's own. A target signed into its URL
-is refused there, since the URL is never shown whole. **Fallback** and
-**Runtimes** send each step or runtime, written over the one of the same name there, or added.
+is refused there, since the URL is never shown whole. **Nous** and
+**Runtimes** send each nous or runtime, written over the one of the same name there, or added.
 Nothing a daemon already has is taken away. **Accounts** cannot be copied, since their secrets
 are never shown (**Secrets stay put**). **Workspace** and **Usage** are of one daemon's
 directories, and have no **Batch apply**.

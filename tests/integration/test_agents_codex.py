@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 import psutil
 import pytest
 
-from hmz.coganchor import fallbacks, providers
+from hmz.coganchor import nous, providers
 from hmz.coganchor.agents import (
     CodexAgent,
     CodexAgentConfig,
@@ -217,7 +217,7 @@ def test_an_opening_turn_the_server_never_answered_is_taken_on_a_new_thread(
     codex: Standins,
 ) -> None:
     agent = CodexAgent(CONFIG)
-    fallbacks.retrying(agent.spec, 1, "constant", 0)
+    nous.retrying(agent.spec, 1, "constant", 0)
     (codex.bin / "vanishes").write_text("1")
 
     assert agent.new()("vanish") == "vanish"

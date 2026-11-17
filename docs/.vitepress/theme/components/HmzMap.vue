@@ -37,7 +37,7 @@ const AREAS: Area[] = [
       { name: 'Any coding agent', link: '/user/settings#accounts' },
       { name: 'Model and effort', link: '/user/efforts' },
       { name: 'Two accounts of one CLI', link: '/user/settings#accounts' },
-      { name: 'Fall back', link: '/user/settings#fallback' },
+      { name: 'Nous', link: '/user/settings#nous' },
       { name: 'Skills', link: '/user/skills' },
       { name: 'From a script', link: '/user/unattended' },
       { name: 'In CI', link: '/user/ci' },

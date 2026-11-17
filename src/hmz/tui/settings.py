@@ -1,7 +1,7 @@
 """`/settings`: every setting Humanize has, on a screen of its own, one level at a time.
 
 What opens is the eight places settings are kept -- this machine's own, its notifications, the
-daemons, the accounts, the fallbacks, the runtimes, the backups and this workspace's -- and
+daemons, the accounts, the nous, the runtimes, the backups and this workspace's -- and
 what the epics spent, each a card saying what is in it, as a phone's settings or VS Code's open
 on their categories. They stand from the broadest to the nearest: what is true wherever
 Humanize runs and which of its epics it tells of, which machines it reaches, who its agents are
@@ -54,10 +54,10 @@ from .pick import (
     _DOT,
     _DROPS,
     _EVERYWHERE,
-    _FALLBACK,
     _MACHINES,
     _NO,
     _NOTIFICATIONS,
+    _NOUS,
     _OPENS,
     _YES,
     Action,
@@ -66,9 +66,9 @@ from .pick import (
     Backups,
     Daemons,
     Drop,
-    Fallbacks,
     Key,
     Machines,
+    NousPage,
     Providers,
     _chip,
     _hmz,
@@ -99,7 +99,7 @@ PAGES = (
     "notifications",
     "daemons",
     "accounts",
-    "fallback",
+    "nous",
     "runtimes",
     "backup",
     "workspace",
@@ -159,7 +159,7 @@ _PAGES = (
     _Page("Notifications", "♪", "which epics on this machine you are told of"),
     _Page("Daemons", "⇄", "this machine's and other machines', over ssh or EasyTier"),
     _Page("Accounts", "◉", "what agents sign in as, under each CLI"),
-    _Page("Fallback", "↻", "where a turn goes when its agent fails"),
+    _Page("Nous", "↻", "what agents think with, and where a failed turn goes"),
     _Page(
         "Runtimes", "▦", "ssh hosts, docker daemons, swarms, Apple containers and Slurm"
     ),
@@ -241,13 +241,13 @@ _MEANS = {
 }
 
 
-class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
+class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
     """Every setting Humanize has: `/settings`, nine pages opened from one screen of them.
 
     General is what is true of this machine however many projects are driven from it, and the
     notifications which of its epics it tells of; the
-    daemons are this machine's and the others reached from it; the accounts, the fallbacks
-    and the runtimes are what agents run as, where turns go when they cannot, and the
+    daemons are this machine's and the others reached from it; the accounts, the nous
+    and the runtimes are what agents run as, what they think with and where turns go, and the
     machines their work goes on; the backups are where epics are copied to;
     the workspace is one directory's; the usage is what the epics spent. One menu because they
     are one question -- what does Humanize remember -- and a command apiece was nine things to
@@ -294,7 +294,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
 
         Args:
           agents: The backends offered here, and what each of them says it runs, which is
-            what the fallback page chooses a place out of.
+            what the nous page chooses a concrete nous out of.
           page: Which page to open inside, or None for the screen of them all.
           unavailable: The optional backends that still need installing, which the btw agent
             is offered as it is anywhere else an agent is set up.
@@ -320,9 +320,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
         self._flows = len(settings.flows())
         self._forget = False
         self._offered = dict(agents)
-        self._steps = list(_hmz().fallbacks.all())
-        #: The steps as they were read, so the card can say the page is holding a change.
-        self._steps_was = list(self._steps)
+        self._read_nous()
         self._read_backups()
         #: Whether the screen of pages is what is drawn, rather than one of them.
         self._home = page is None
@@ -413,8 +411,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
           True for a card, and for a row of a page that is a list.
         """
         return bool(row) and (
-            self._home
-            or self._tab in (_DAEMONS, _ACCOUNTS, _MACHINES, _FALLBACK, _BACKUP)
+            self._home or self._tab in (_DAEMONS, _ACCOUNTS, _MACHINES, _NOUS, _BACKUP)
         )
 
     # -- The way across the top -----------------------------------------------------------
@@ -453,7 +450,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
                 _DAEMONS: self.DAEMONS_ABOUT,
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
                 _MACHINES: self.MACHINES_ABOUT,
-                _FALLBACK: self.STEPS_ABOUT,
+                _NOUS: self.NOUS_ABOUT,
                 _BACKUP: self.BACKUP_ABOUT,
                 _USAGE: self.USAGE_ABOUT,
             }[self._tab]
@@ -466,8 +463,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             self._fill_accounts()
         elif self._tab == _MACHINES:
             self._fill_machines()
-        elif self._tab == _FALLBACK:
-            self._fill_steps()
+        elif self._tab == _NOUS:
+            self._fill_nous()
         elif self._tab == _BACKUP:
             self._fill_backups()
         elif self._tab == _USAGE:
@@ -494,7 +491,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             return _many(len(self._repos), "target")
         if page == _USAGE:
             return self._usage_summary()
-        return _many(len(self._steps), "rule")
+        return f"{len(self._nous)} nous"
 
     def _pending(self, page: int) -> bool:
         """Whether one page is holding a change that saving would land."""
@@ -510,8 +507,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             return self._forget
         if page == _ACCOUNTS:
             return bool(self._gone or self._edits)
-        if page == _FALLBACK:
-            return self._steps != self._steps_was
+        if page == _NOUS:
+            return self._nous != self._nous_was
         if page == _BACKUP:
             return self._repos != self._repos_was
         return False
@@ -759,7 +756,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             _DAEMONS: self._daemon_actions,
             _ACCOUNTS: self._account_actions,
             _MACHINES: self._machine_actions,
-            _FALLBACK: self._step_actions,
+            _NOUS: self._nous_actions,
             _BACKUP: self._backup_actions,
             _USAGE: self._usage_actions,
         }.get(self._tab, lambda: [self._saves_all()])()
@@ -800,8 +797,8 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
             self._took_account(held)
         elif self._tab == _MACHINES:
             self._took_machine(held)
-        elif self._tab == _FALLBACK:
-            self._took_step(held)
+        elif self._tab == _NOUS:
+            self._took_nous(held)
         elif self._tab == _BACKUP:
             self._took_backup(held)
         elif held == _SENT:
@@ -920,7 +917,7 @@ class Adjusts(Providers, Machines, Fallbacks, Backups, Daemons, Spends):
         """Lands what every page was holding, and answers with what was changed."""
         told = list(self._told)
         self._applies_accounts(told)
-        self._applies_steps(told)
+        self._applies_nous(told)
         self._applies_backups(told)
         if self._pending(_NOTIFICATIONS):
             try:
