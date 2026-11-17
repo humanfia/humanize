@@ -60,7 +60,9 @@ dependencies = [
     # ordinary dependency rather than an extra: an install that could be missing the half
     # that reports its own failures is an install whose failures are not reported.
     "sentry-sdk>=2.71.0",
-    "textual>=8.2.8",
+    # With its tree-sitter grammars: `/env` edits an environment's files in a code editor,
+    # and code read without its colours is code read slower.
+    "textual[syntax]>=8.2.8",
     # What an entry is added to a copy of Grok Build's `config.toml` with, for an account
     # behind a gateway: what the person at this machine wrote in theirs -- their comments and
     # their order among it -- is still there in the copy after an entry is.
