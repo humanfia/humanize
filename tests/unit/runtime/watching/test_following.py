@@ -100,7 +100,6 @@ def test_a_side_question_is_told_what_the_run_in_front_did_and_not_its_thinking(
         task="build it",
         workspace="/w",
         going=True,
-        working=["NeiKos496/1"],
         waiting=0,
         waiting_for_input=False,
     )
@@ -117,7 +116,6 @@ def test_a_side_question_is_told_what_the_run_in_front_did_and_not_its_thinking(
         task="",
         workspace="",
         going=True,
-        working=(),
         waiting=0,
         waiting_for_input=False,
     ).observations
@@ -146,11 +144,9 @@ def test_a_side_question_is_told_each_agent_by_its_name_and_the_role_it_fills(
         task="build it",
         workspace="/w",
         going=True,
-        working=["NeiKos496/1"],
         waiting=0,
         waiting_for_input=False,
     )
 
     (agent,) = snapshot.agents
     assert (agent.agent, agent.role, agent.turns) == ("NeiKos496", "builder", 1)
-    assert [key for key, _ in snapshot.sessions] == ["NeiKos496/1"]

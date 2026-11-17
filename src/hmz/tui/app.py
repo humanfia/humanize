@@ -69,15 +69,7 @@ from hmz.daemon import Hmz
 from hmz.runtime import telemetry
 from hmz.runtime.chatting import resolve
 from hmz.runtime.kept import read_back, written
-from hmz.runtime.watching.btw import (
-    NOBODY,
-    THE_EPIC,
-    Btw,
-    FlowSnapshot,
-    Left,
-    compact,
-    opened_as,
-)
+from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left
 from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
@@ -2577,8 +2569,7 @@ class Humanize(App[None]):
         # And btw mode, in the colour its answers are in: every line typed goes to a side
         # conversation rather than to the flow while it is on.
         if (mode := self._btw) is not None:
-            asked = mode.target or THE_EPIC
-            left = f"[cyan]btw{_DOT}{escape(asked)}[/]{_DOT}{left}"
+            left = f"[cyan]btw{_DOT}{escape(mode.target)}[/]{_DOT}{left}"
         # For a moment after it happens, beside whatever else the line says: writing to a
         # clipboard is silent, and a person who has just dragged across half a screen is
         # owed the one word that says it went somewhere.
@@ -3531,7 +3522,7 @@ class Humanize(App[None]):
             self._btw_ask(mode, question)
 
     def _btw_target(self) -> str:
-        """Who a side question here goes to: a session's view key, or "" for The Epic.
+        """Who a side question here goes to: a session's view key, or "" for nobody.
 
         Returns:
           `<agent>/<n>` for a session, the newest of an agent's where the view is the
@@ -3571,11 +3562,13 @@ class Humanize(App[None]):
         if self._btw is not None:
             return ""
         target = self._btw_target()
-        if target:
-            if target not in self._btw_sessions():
-                return f"/btw: no conversation found for {target}"
-        elif not self.settings.btw:
-            return f"/btw: {NOBODY}"
+        if not target:
+            return (
+                "/btw: a side question is asked of a session; /ai asks Ai-chan about the "
+                "epic"
+            )
+        if target not in self._btw_sessions():
+            return f"/btw: no conversation found for {target}"
         return ""
 
     def _enter_btw(self) -> Btw | None:
@@ -3589,16 +3582,11 @@ class Humanize(App[None]):
             aside=self._link.aside,
             unaside=lambda side: self._asks("unaside", quiet=True, side=side),
             sessions=self._btw_sessions,
-            source=self._btw_source,
-            asking=lambda key, asking: self._on_screen(
-                self.show,
-                f"[dim]btw · asking {escape(key)}: {escape(compact(asking, 120))}[/dim]",
-            ),
         )
         with self._btw_lock:
             self._btw = mode
         self.show(
-            f"[cyan]btw · {escape(target or THE_EPIC)}[/] [dim]each "
+            f"[cyan]btw · {escape(target)}[/] [dim]each "
             "line is a question; /btw or esc to exit[/dim]"
         )
         self._draw()
@@ -3668,15 +3656,9 @@ class Humanize(App[None]):
             task=self._flow_task,
             workspace=_where(),
             going=self._run is not None,
-            working=self._working,
             waiting=len(self._queued) + len(self._given),
             waiting_for_input=bool(self._waits_on()),
         )
-
-    def _btw_source(self) -> dict[str, str] | None:
-        """What The Epic is opened as: the agent `/settings` names, and no other."""
-        said = read_back(self.settings.btw) if self.settings.btw else None
-        return opened_as(written(said) if said is not None else "")
 
     def _run_btw(self, mode: Btw, question: str, snapshot: FlowSnapshot) -> None:
         """Runs one side turn and posts only its final display event."""
@@ -4300,14 +4282,6 @@ class Humanize(App[None]):
             self._draw()  # and the status line says which mode this is in from now on
         if said.btw is not None:
             self.settings.btw = said.btw
-            # Not the one open now: a side conversation is one agent from its first turn on.
-            self.show(
-                "[dim]/btw will ask "
-                f"{escape(said.btw)} about {THE_EPIC} next time you enter btw mode[/dim]"
-                if said.btw
-                else f"[dim]/btw will ask nobody about {THE_EPIC}: set its agent to ask it"
-                "[/dim]"
-            )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.
