@@ -12,6 +12,8 @@ client ever sees:
   every message it is told goes back as the notification `told` `{tag, message}`.
 - `ask` `{client, said}`: what a frontend asked, answered as :meth:`hmz.runtime.Host.asked`
   answers it.
+- `chat` `{said}`: what `chat.*` asks of the chat held, by nobody attached, answered as
+  :meth:`hmz.runtime.Host.chatted` answers it.
 - `detach` `{client}`: lets a frontend go.
 - `status`: how the host stands, with what it said of itself.
 - `detach_all`: lets every frontend go, answering how many.
@@ -132,6 +134,8 @@ class Carrier:
             return {"client": client}
         if method == "ask":
             return host.asked(str(said["client"]), dict(said["said"]))
+        if method == "chat":
+            return host.chatted(dict(said["said"]))
         if method == "detach":
             host.detach(str(said["client"]))
             return {}

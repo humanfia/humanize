@@ -905,6 +905,8 @@ and counting them in `elided`.
 - `unheld`: `agent`, `texts`.
 - `dropped`: `given` (`[{agent, text, by, client}]`), `queued` (`[{text, by, client, to}]`),
   `because` (`stopped` or `ended`).
+- `shell`: `key`, `command`, `out`, `err`, `status`: a `!` command a chat ran for its user
+  (Section 8.9.6 of [CORE]).
 - `printed`: `text`: one line printed in the host process.
 - `notice`: `text`: a notice of **hmz** about the epic, as Section 3 of [CORE] defines notices.
 - `stopping`: `by`, `client`.

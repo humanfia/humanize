@@ -158,6 +158,16 @@ def test_ask_is_answered_as_the_host_answers(host: mock.Mock) -> None:
     host.asked.assert_called_once_with("c1", {"do": "start"})
 
 
+def test_a_chat_is_asked_from_outside_every_frontend(host: mock.Mock) -> None:
+    host.chatted.return_value = {"ok": False, "why": "no", "code": 400}
+    carrier = Carrier(host, {})
+
+    said = _carried(carrier, "chat", said={"do": "say", "text": "/clear"})
+
+    assert said == {"result": {"ok": False, "why": "no", "code": 400}}
+    host.chatted.assert_called_once_with({"do": "say", "text": "/clear"})
+
+
 def test_status_says_what_the_host_said_of_itself(host: mock.Mock) -> None:
     carrier = Carrier(host, {"pid": 7, "kind": "host"})
 

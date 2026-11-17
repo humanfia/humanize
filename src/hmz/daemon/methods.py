@@ -1,4 +1,4 @@
-"""The methods this machine's daemon serves itself: sessions, pairing, devices, hosts and epics.
+"""The methods this machine's daemon serves itself: sessions, pairing, devices, hosts, epics, chats.
 
 Each is a handler of `hmz.rpc`, given the call and answering its result or raising
 :class:`hmz.rpc.RpcError` (Section 4 of daemon.md). The other families -- settings, epics
@@ -49,6 +49,10 @@ EPIC = (
     "detach",
     "quit",
 )
+
+
+#: Why a chat whose host folded it away takes nothing more (Section 4.21.2.4).
+_FOLDED = "this chat has folded away; carry it on from its epic"
 
 
 def _refused(code: int, message: str) -> Exception:
@@ -241,6 +245,7 @@ class _Methods:
                     if key in status
                 }
                 | {
+                    "kind": status.get("epic_kind") or "",
                     "workspace": hosted.workspace,
                     "slot": hosted.slot,
                     "asking": [
@@ -321,6 +326,98 @@ class _Methods:
         call.answer(result)
         sub.opened()
         return result
+
+    # -- chats
+
+    def _chatted(
+        self, call: Call, hosted: Hosted, said: dict[str, Any]
+    ) -> dict[str, Any]:
+        """What the chat a host holds answers, refused as the host refuses it.
+
+        Raises:
+          RpcError: With the code and the words the host refused it with, 409 where it says
+            no code.
+        """
+        session = self._router.session(call)
+        answer = hosted.chat({**said, "by": session.name or f"somebody@{session.kind}"})
+        if not answer.get("ok"):
+            code = answer.get("code")
+            raise _refused(
+                code if isinstance(code, int) else 409,
+                str(answer.get("why") or "refused"),
+            )
+        return {k: v for k, v in answer.items() if k not in ("ok", "why", "code")}
+
+    def _chat_held(self, call: Call) -> Hosted:
+        """The host of the chat a call names (Section 4.21.2.4).
+
+        Raises:
+          RpcError: 400 for a slot that is not a chat's, 404 where no host holds it, and
+            409 where its chat has folded away and its host gone with it.
+        """
+        named = workspace(call.params["workspace"])
+        slotted = slot(call.params.get("slot"))
+        if not slotted.startswith("chat:"):
+            raise _refused(400, f"{slotted or '(the workspace)'} is not a chat slot.")
+        hosted = self._router.hosts.get(named, slotted)
+        if hosted is None and self._router.hosts.gone(named, slotted):
+            raise _refused(409, _FOLDED)
+        if hosted is None:
+            raise _none_held(named, slotted)
+        return hosted
+
+    def chat_start(self, call: Call) -> dict[str, Any]:
+        """Starts a chat on a chat host, or carries one on there (Section 4.21.1).
+
+        What the host would refuse it for before it starts anything is refused here first, so
+        that no host is started for a chat that cannot be.
+        """
+        from hmz.runtime import Hmz
+        from hmz.runtime.doing.hosting import chat_checked
+
+        params = call.params
+        named = workspace(params["workspace"])
+        given = params.get("slot") or "chat:"
+        if not (isinstance(given, str) and given.startswith("chat:")):
+            raise _refused(400, f"{given} is not a chat slot.")
+        slotted = slot(given, new=True)
+        checked = chat_checked(Hmz(Path(named)), params)
+        if not checked["ok"]:
+            raise _refused(int(checked["code"]), str(checked["why"]))
+        hosted = self._router.hosts.opened(named, slotted)
+        started = self._chatted(
+            call,
+            hosted,
+            {
+                "do": "start",
+                "agent": checked["agent"],
+                "task": checked["task"],
+                "resume": checked["resume"],
+                "prefer": checked["prefer"],
+                "remember": params.get("remember") is True,
+            },
+        )
+        return {"slot": hosted.slot, "epic": str(started.get("epic") or "")}
+
+    def chat_say(self, call: Call) -> dict[str, Any]:
+        """Says one line to a chat (Section 4.21.2)."""
+        text = call.params.get("text")
+        if not isinstance(text, str):
+            raise _refused(-32602, "chat.say takes text.")
+        self._chatted(call, self._chat_held(call), {"do": "say", "text": text})
+        return {}
+
+    def chat_commands(self, call: Call) -> dict[str, Any]:
+        """What a line of a chat can start with, and its preference (Section 4.21.3)."""
+        return self._chatted(call, self._chat_held(call), {"do": "commands"})
+
+    def chat_set(self, call: Call) -> dict[str, Any]:
+        """Sets a chat's own preference (Section 4.21.4)."""
+        prefer = call.params.get("prefer")
+        if prefer not in ("native", "flow"):
+            raise _refused(400, "prefer is native or flow")
+        self._chatted(call, self._chat_held(call), {"do": "set", "prefer": prefer})
+        return {}
 
     def epic(self, do: str) -> Handler:
         """The handler of one call to an epic, which the host attached carries out."""
@@ -420,6 +517,10 @@ class _Methods:
             "btw.list": asides.listed,
             "btw.ask": asides.ask,
             "btw.leave": asides.leave,
+            "chat.start": self.chat_start,
+            "chat.say": self.chat_say,
+            "chat.commands": self.chat_commands,
+            "chat.set": self.chat_set,
         }
 
 

@@ -1,9 +1,9 @@
 """A workspace's runs, held where a terminal closing cannot end them, for whatever reads them.
 
-    from hmz.daemon import host, running
+    from hmz.daemon import attach, where
 
-    with (running() or host()).link(name="ci") as link:
-        link.start("chat", "say hello", agents={"assistant": "claude/MODEL:low"})
+    with attach("sdk", "ci", slot=where.chat()) as link:
+        link.chat("claude/MODEL:low", "say hello")
 
 One daemon per machine and user, reached through one socket in the machine's temporary
 directory, and on whatever it listens on beside it, and holding the runs of every workspace
@@ -12,7 +12,8 @@ there (`protocol/daemon.md`). Each workspace's are held by hosts of their own --
 workspace -- the way `screen` holds a shell: a process of its own, in a session of its own,
 that a terminal closing cannot reach. A workspace has its own host, which runs its flows one at
 a time, and a host per chat and per `hmz exec` beside it, each named by its slot (see
-:func:`hmz.daemon.where.slot`). Every client speaks JSON-RPC to the daemon over a session of
+:func:`hmz.daemon.where.slot`); a chat, which is no flow, is started and said to by `chat.*`
+(:meth:`Link.chat`). Every client speaks JSON-RPC to the daemon over a session of
 `protocol/wire.md` (:mod:`hmz.daemon.routing`), and the daemon speaks for it to the host; any
 number of frontends read one host at once, each a :class:`Link` of its own. Letting go of one is
 not stopping the run: the flow goes on taking its turns, and the next frontend to arrive is told

@@ -147,7 +147,8 @@ def test_a_line_checks_as_hmz_exec_would_without_starting_anything(
     )
 
     assert checked["flow"] == "chat"
-    assert checked["chats"] is True
+    # A flow named chat is a flow like any other (Section 8.3.6 of core.md).
+    assert "chats" not in checked
     assert checked["names"]["assistant"]
     assert checked["declared"]["name"] == "chat"
     assert checked["unreadable"] == ""

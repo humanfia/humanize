@@ -118,7 +118,7 @@ def test_another_epic_ending_after_is_another_notice(
     assert [one["kind"] for one in notices.look()] == ["failed"]
 
 
-def test_a_question_is_asked_and_a_chat_waiting_is_listening(
+def test_a_question_is_asked_and_a_flow_waiting_is_listening(
     statuses: Statuses, notices: Notices
 ) -> None:
     statuses.stands(pending=[_asked("q1")])
@@ -138,9 +138,9 @@ def test_a_question_is_asked_and_a_chat_waiting_is_listening(
 
 
 def _chat(statuses: Statuses, turn: str, **said: Any) -> None:
-    """The chat standing at a turn, as a host says one."""
+    """The chat standing at a turn, as a host says one: an epic of kind chat, of no flow."""
     statuses.stands(**said)
-    statuses.now["/w"] |= {"flow": "chat", "turn": turn}
+    statuses.now["/w"] |= {"epic_kind": "chat", "flow": "", "turn": turn}
 
 
 def test_each_chat_turn_done_is_a_done_notice(
@@ -158,19 +158,31 @@ def test_each_chat_turn_done_is_a_done_notice(
     _chat(statuses, "done", pending=[_asked("q3", "listen")])
     (second,) = notices.look()
 
-    assert (first["kind"], first["flow"], first["text"]) == ("done", "chat", "which?")
+    assert (first["kind"], first["flow"], first["text"]) == ("done", "", "which?")
     assert second["kind"] == "done"
+
+
+def test_a_flow_named_chat_is_a_flow_that_listens_and_stops(
+    statuses: Statuses, notices: Notices
+) -> None:
+    statuses.stands()
+    statuses.now["/w"] |= {"epic_kind": "flow", "flow": "chat"}
+    notices.look()
+    statuses.stands(pending=[_asked("q1", "listen")], ended=_ended("stopped"))
+    statuses.now["/w"] |= {"epic_kind": "flow", "flow": "chat"}
+
+    assert sorted(one["kind"] for one in notices.look()) == ["listening", "stopped"]
 
 
 @pytest.mark.parametrize(
     ("turn", "how", "kinds"),
     [
-        # Left, between turns or mid-turn, it is no news.
+        # Ended between turns, its last turn told done already: no news, and never stopped.
         ("done", "stopped", []),
-        ("running", "stopped", []),
-        # Its last turn told done already, its end is told nothing again.
-        ("done", "done", []),
         # Ended on a turn nothing had told done, that turn is.
+        ("running", "stopped", ["done"]),
+        # As an earlier hmz ended one, which read done.
+        ("done", "done", []),
         ("running", "done", ["done"]),
         ("done", "failed", ["failed"]),
         ("running", "crashed", ["failed"]),
@@ -181,7 +193,7 @@ def test_a_chat_ending_is_news_only_where_it_failed_or_ended_a_turn(
 ) -> None:
     _chat(statuses, turn)
     notices.look()
-    ended = _ended(how, at=time.time() + 1) | {"flow": "chat"}
+    ended = _ended(how, at=time.time() + 1) | {"flow": ""}
     _chat(statuses, "done", ended=ended)
 
     assert [one["kind"] for one in notices.look()] == kinds

@@ -219,8 +219,39 @@ def test_a_run_is_a_runner_and_its_task_with_nothing_started(
     assert run.running is False
 
 
+def test_a_chat_is_set_up_in_this_workspace_with_nothing_started(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from hmz.runtime import chatting
+    from hmz.runtime.doing.running import Chatting
+
+    made: list[tuple[Any, Any]] = []
+
+    def chat(spec: Any, *, person: Any) -> Any:
+        made.append((spec, person))
+        return SimpleNamespace(spec=spec)
+
+    monkeypatch.setattr(chatting, "Chat", chat)
+    person: Any = object()
+
+    held = Holding(tmp_path).chat(
+        "claude/opus", "hello", person=person, resume="/epics/e1", prefer="flow"
+    )
+
+    assert isinstance(held, Chatting)
+    ((spec, given),) = made
+    assert given is person
+    assert spec == chatting.ChatSpec(
+        tmp_path, "claude/opus", "hello", resume=Path("/epics/e1"), prefer="flow"
+    )
+    assert Holding(tmp_path).chat("claude/opus", "hi", person=person).task == "hi"
+    assert made[-1][0].resume is None
+
+
 def test_the_workspace_itself_neither_runs_nor_holds_an_epic() -> None:
-    for name in ("run", "runner", "exec", "host"):
+    for name in ("run", "runner", "exec", "host", "chat"):
         assert not hasattr(Hmz, name)
 
 
