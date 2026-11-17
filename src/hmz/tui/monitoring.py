@@ -54,6 +54,7 @@ from .pick import (
     Sheet,
     _popup,
     _shade,
+    chatting,
     named_as,
     reads,
     setting,
@@ -1370,18 +1371,6 @@ def details(
 def _task(epic: Mapping[str, Any], room: int) -> str:
     """What an epic was started on, as one line cut to the room there is: a task is pages."""
     return _fits(" ".join(str(epic.get("task") or "").split()), room)
-
-
-def chatting(epic: Mapping[str, Any]) -> bool:
-    """Whether an epic is the built-in chat: a conversation, which nothing stops.
-
-    Args:
-      epic: The epic, as :func:`details` reads it.
-
-    Returns:
-      Whether its flow is `chat`.
-    """
-    return named_as(str(epic.get("ref") or epic.get("flow") or "")) == "chat"
 
 
 class Halts(Popup):

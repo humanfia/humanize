@@ -1106,8 +1106,8 @@ Row summary: `stops at <duration>, <n> out, <money>[, even mid-turn]` for the li
 duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 12d, $5.00`;
 `stops at 1m30s, 12.0k out, $0.50, even mid-turn`); where only some of the limits set cut a turn
 off, ` even mid-turn` follows each of those instead (`stops at 12.0k out even mid-turn, $0.50`);
-unset: `none set; an epic needs one`, or for
-`chat` `none needed; runs until you stop it`.
+unset: `none set; an epic needs one`. Every flow needs one: a chat is no flow, and is never set up
+here.
 
 ## `/epics` {#the-runs-that-have-already-happened}
 
@@ -1351,7 +1351,7 @@ Storage keys are in [Settings](/reference/settings).
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
-  │    this machine: what epics show, who answers The Epic, error reports    │
+  │    this machine: details, who answers The Epic, chat $, error reports    │
   │──────────────────────────────────────────────────────────────────────────│
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
@@ -1371,7 +1371,7 @@ Storage keys are in [Settings](/reference/settings).
   │    repositories epics are backed up to                                   │
   │──────────────────────────────────────────────────────────────────────────│
   │ ⌂  Workspace                                        work/api · flow rlar │
-  │    this directory: its flow, and forgetting it                           │
+  │    this directory: its flow, its chat agent, and forgetting it           │
   │──────────────────────────────────────────────────────────────────────────│
   │ $  Usage                                                 $4.20 in 30 days │
   │    what the epics spent, by day and by flow                              │
@@ -1443,6 +1443,8 @@ in force.
 | Error reports, Details | at once on save | — |
 | Notifications | at once on save: the next notice of a kind is told or not | — |
 | /btw The Epic | next time btw mode is entered | `takes effect on next /btw` |
+| Chat prefers for $ | at once on save: the next `$` line of every chat that does not say for itself | — |
+| Chat agent | the next chat started in this directory | `takes effect on next chat` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
 | Nous | next failed turn | — |
@@ -1469,6 +1471,7 @@ in this order, under the heading in the first column.
 | --- | --- | --- | --- | --- |
 | Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
 | Agents | **/btw The Epic** ▾ `the agent that answers side questions asked of The Epic` | `none` (`nobody answers The Epic`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up The Epic's agent`) | none | `btw` (`cli[@account]/model:effort`) |
+| Chat | **Chat prefers for $** ▾ `what $<name> starts in a chat where a native skill and a flow share it` | `native` (`the harness's own skill of that name`), `flow` (`the flow of that name; the skill stays $ in the harness`) | native | `chat.prefer` |
 | Privacy | **Error reports** ▾ `send error reports to Humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
 | Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
 
@@ -1929,13 +1932,14 @@ Empty: `no epic here in these days` (`on this machine` for every directory).
 
 ### Workspace page {#workspace-page}
 
-Intro: `What <last 2 path parts> remembers: the flow it opens on and how it was last
-configured.` Scope: `workspaces.<resolved cwd>`. Rows in this order, under the heading in the
+Intro: `What <last 2 path parts> remembers: the flow last set up in it, the agent its chats talk
+to, and how it was last configured.` Scope: `workspaces.<resolved cwd>`. Rows in this order, under the heading in the
 first column.
 
 | Heading | Row | Value | Kind |
 | --- | --- | --- | --- |
 | Flow | **Default flow** `configured with <n> agent(s); chosen with /flow` | the flow, or `none` | read-only |
+| Chat | **Chat agent** ▸ `the agent a new chat here talks to` | `cli[@account]/model:effort`, or `not set` | `enter` opens the [agent sheet](#what-each-agent-is) titled `Set up the chat's agent`; saved as `workspaces.<path>.chat.agent` |
 | Reset | **Forget** `clear saved settings here, across <n> flow(s)` | `on` (`clear saved settings here`), `off` (`keep them`); starts off | ▾; on save deletes this directory's entry |
 
 ### First start {#first-start}

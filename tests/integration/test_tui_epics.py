@@ -266,6 +266,26 @@ async def test_a_chat_has_no_exomyth_to_open(workspace: Path) -> None:
         assert "Exomyth" not in screen(_app_of(pilot))
 
 
+async def test_a_chat_written_down_here_is_continued_rather_than_resumed(
+    workspace: Path,
+) -> None:
+    # Written as an hmz that ran a chat as the flow `chat` wrote one, which still reads as a chat.
+    with Epic("chat", "hello", workspace) as chat:
+        pass
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await until(pilot, lambda: listed(app) == [chat.path.name], "the chat")
+        await shows(pilot, " · chat")
+
+        await pilot.press("enter")
+        await shows(pilot, "continue", "carry the conversation on", "graph")
+        assert "resume epic" not in screen(app)
+        assert "Exomyth" not in screen(app)
+
+
 async def test_the_epic_going_opens_in_exomyth_from_the_monitor(
     workspace: Path,
 ) -> None:

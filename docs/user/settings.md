@@ -210,7 +210,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
   <span class="sel"> ⚙  <b>General</b>                                    details off · reports off </span> <span class="n">1</span>
-     <span class="m">this machine: what epics show, who answers The Epic, error reports</span>
+     <span class="m">this machine: details, who answers The Epic, chat $, error reports</span>
    ────────────────────────────────────────────────────────────────────────
    ◉  <b>Accounts</b>                                                0 accounts
      <span class="m">what agents sign in as, under each CLI</span>
@@ -225,7 +225,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
      <span class="m">repositories epics are backed up to</span>
    ────────────────────────────────────────────────────────────────────────
    ⌂  <b>Workspace</b>                                   demo · flow ralph_loop
-     <span class="m">this directory: its flow, and forgetting it</span>
+     <span class="m">this directory: its flow, its chat agent, and forgetting it</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
                                                                     <span class="btn"> Save </span> <span class="n">2</span>
@@ -316,6 +316,7 @@ about.
 | --- | --- | --- |
 | Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
 | Agents | /btw The Epic | the agent that answers a side question asked of The Epic, about a whole epic ([`/btw`](/user/btw)): `none`, the one you chose, or `another…`, which chooses its CLI, account, model and effort. With `none`, only a conversation can be asked. It takes effect the next time you enter btw mode. |
+| Chat | Chat prefers for $ | what `$<name>` in a chat starts where the chat's agent has a skill of that name and a flow is called it too: `native`, the skill (the default), or `flow`, the flow. A chat can say otherwise for itself with `/prefer`. |
 | Privacy | Error reports | whether Humanize [reports what goes wrong](/user/reporting) to its developers |
 | Privacy | What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 
@@ -1205,7 +1206,8 @@ make it forget. The line across its top names the directory.
 
 | Heading | Row | What it is |
 | --- | --- | --- |
-| Flow | Default flow | the flow it opens on, and how many agents that flow was set up with |
+| Flow | Default flow | the flow last set up here, and how many agents that flow was set up with |
+| Chat | Chat agent | the agent a new chat in this directory talks to: <kbd>enter</kbd> sets up its CLI, account, model and effort, as a flow's agent is set up. It takes effect from the next chat. |
 | Reset | Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
 
 **Forget** clears this directory only. Every other directory, and everything on the other

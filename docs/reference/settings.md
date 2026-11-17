@@ -298,9 +298,11 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | --- | --- | --- | --- |
 | General | Details | `details` | switch |
 | General | /btw The Epic | `btw` | pick |
+| General | Chat prefers for $ | `chat.prefer` | pick: `native`, `flow` |
 | General | Error reports | `enable_sentry` | switch |
 | General | What is sent | — | shows the lists |
 | Workspace | Default flow | `workspaces.<path>.flow` | read-only |
+| Workspace | Chat agent | `workspaces.<path>.chat.agent` | agent sheet |
 | Workspace | Forget | deletes `workspaces.<path>` | switch |
 
 Changes are held until saved (the save button, or the question asked on leaving). The pages

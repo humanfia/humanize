@@ -38,16 +38,14 @@ _FLOWS = {
         params=_Params,
         resumable=True,
     ),
-    "chat": doubles.Described(agents=(_YOU,), params=_Nothing),
+    "talk": doubles.Described(agents=(_YOU,), params=_Nothing),
 }
 
 
 @pytest.fixture(autouse=True)
 def flows(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Two flows that load, `chat` the privileged one; any other will not."""
-    resolved, privileged = doubles.resolving(_FLOWS, frozenset({"chat"}))
-    monkeypatch.setattr(hmz.runtime.flowing, "resolved", resolved)
-    monkeypatch.setattr(hmz.runtime.flowing, "privileged", privileged)
+    """Two flows that load, `talk` only somebody at the prompt; any other will not."""
+    monkeypatch.setattr(hmz.runtime.flowing, "resolved", doubles.resolving(_FLOWS))
 
 
 @pytest.fixture
@@ -65,7 +63,6 @@ def test_declared_of_splits_who_is_chosen_from_who_is_here() -> None:
         (_CODER, _REVIEWER),
         (_BOX,),
         _Params,
-        unbounded=False,
         resumable=True,
         outworlders=("you",),
     )
@@ -74,11 +71,18 @@ def test_declared_of_splits_who_is_chosen_from_who_is_here() -> None:
     assert declared.places == ("box",)
 
 
-def test_declared_of_says_a_privileged_flow_needs_no_budget() -> None:
-    declared = pick.declared_of("chat")
+@pytest.mark.parametrize("flow", ["loop", "talk"])
+def test_declared_of_says_every_flow_needs_a_budget(flow: str) -> None:
+    declared = pick.declared_of(flow)
 
     assert declared is not None
-    assert declared.unbounded
+    assert not declared.unbounded
+
+
+def test_declared_of_a_flow_of_only_somebody_at_the_prompt_chooses_no_agent() -> None:
+    declared = pick.declared_of("talk")
+
+    assert declared is not None
     assert declared.roles == ()
     assert declared.outworlders == ("you",)
 
@@ -88,7 +92,7 @@ def test_declared_of_a_flow_that_will_not_load_is_none() -> None:
 
 
 @pytest.mark.parametrize(
-    ("flow", "model"), [("loop", _Params), ("chat", None), ("gone", None)]
+    ("flow", "model"), [("loop", _Params), ("talk", None), ("gone", None)]
 )
 def test_params_model_is_none_for_no_fields_or_no_flow(
     flow: str, model: type[BaseModel] | None
@@ -105,7 +109,7 @@ def test_params_of_reads_what_was_kept_through_the_flows_model() -> None:
     [
         ("loop", {}),
         ("loop", {"rounds": "many"}),
-        ("chat", {"rounds": 1}),
+        ("talk", {"rounds": 1}),
         ("gone", {"rounds": 1}),
     ],
 )

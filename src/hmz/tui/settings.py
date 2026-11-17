@@ -31,7 +31,7 @@ of, which say what a list of accounts or machines does, and this is where they a
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import TYPE_CHECKING, Literal, NamedTuple, cast
 
 from rich.markup import escape
 from textual import on, work
@@ -154,7 +154,7 @@ _PAGES = (
     _Page(
         "General",
         "⚙",
-        "this machine: what epics show, who answers The Epic, error reports",
+        "this machine: details, who answers The Epic, chat $, error reports",
     ),
     _Page("Notifications", "♪", "which epics on this machine you are told of"),
     _Page("Daemons", "⇄", "this machine's and other machines', over ssh or EasyTier"),
@@ -164,7 +164,9 @@ _PAGES = (
         "Runtimes", "▦", "ssh hosts, docker daemons, swarms, Apple containers and Slurm"
     ),
     _Page("Backup", "⇪", "repositories epics are backed up to"),
-    _Page("Workspace", "⌂", "this directory: its flow, and forgetting it"),
+    _Page(
+        "Workspace", "⌂", "this directory: its flow, its chat agent, and forgetting it"
+    ),
     _Page("Usage", "$", "what the epics spent, by day and by flow"),
 )
 
@@ -176,7 +178,9 @@ _SENTRY = "reports"
 _SENT = "sent"
 _DETAILS = "details"
 _BTW = "btw"
+_PREFER = "prefer"
 _RUNS = "flow"
+_CHAT_AGENT = "chat-agent"
 _FORGET = "forget"
 _SYSTEM = "system"
 
@@ -191,9 +195,18 @@ _KINDS = {
 }
 
 #: The kinds of row those are: a switch, turned on or off from the two dropped under it; a
-#: value picked out of a list; one that says something when it is opened; and one that is
-#: only read -- a directory and the flow it opens on are what is remembered, not set here.
-_SWITCH, _PICK, _SAYS, _READ = "switch", "pick", "says", "read"
+#: value picked out of a list; one that says something when it is opened; one that opens a
+#: sheet to set it up on; and one that is only read -- a directory and the flow last set up
+#: in it are what is remembered, not set here.
+_SWITCH, _PICK, _SAYS, _SETS, _READ = "switch", "pick", "says", "sets", "read"
+
+#: What a chat's `$<name>` can mean where a native skill and a flow are both called that
+#: (Section 8.9.10 of [CORE]), and what each comes to, said beside it on the list dropped
+#: under the row.
+_PREFERS: dict[Literal["native", "flow"], str] = {
+    "native": "the harness's own skill of that name",
+    "flow": "the flow of that name; the skill stays $ in the harness",
+}
 
 #: What the list of The Epic's agent offers beside the agents it can already be: setting one up.
 _ANOTHER = f"{_APART_MARK}another"
@@ -202,6 +215,7 @@ _ANOTHER = f"{_APART_MARK}another"
 #: and in the transcript once it is saved.
 _NEXT_LAUNCH = "takes effect on next launch"
 _NEXT_BTW = "takes effect on next /btw"
+_NEXT_CHAT = "takes effect on next chat"
 
 
 class _Setting(NamedTuple):
@@ -306,6 +320,12 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self._details = self._details_was = settings.details
         #: The agent `/btw` talks to outside a session, or "" for the flow's first.
         self._btw = self._btw_was = settings.btw
+        #: What a chat's `$<name>` means where it names both a native skill and a flow, for
+        #: every chat that does not say for itself.
+        self._prefer: Literal["native", "flow"] = settings.chat_prefer
+        self._prefer_was = self._prefer
+        #: The agent a new chat in this directory talks to, or None where none was chosen.
+        self._chat_agent = self._chat_agent_was = settings.chat_agent
         #: Which kinds of notice are told, and whether the system shows them too: kept with the
         #: web interface's, under `notifications` in this machine's `settings.yaml`.
         wanted = preferences()
@@ -445,8 +465,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 _EVERYWHERE: "How Humanize behaves on this machine, in every directory.",
                 _NOTIFICATIONS: "Which epics on this machine you are told of, here and in "
                 "the web interface, while you are not on them.",
-                _DIRECTORY: f"What {_shortly(self._workspace)} remembers: the flow it "
-                "opens on and how it was last configured.",
+                _DIRECTORY: f"What {_shortly(self._workspace)} remembers: the flow last "
+                "set up in it, the agent its chats talk to, and how it was last configured.",
                 _DAEMONS: self.DAEMONS_ABOUT,
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
                 _MACHINES: self.MACHINES_ABOUT,
@@ -496,15 +516,16 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
     def _pending(self, page: int) -> bool:
         """Whether one page is holding a change that saving would land."""
         if page == _EVERYWHERE:
-            return (self._sentry, self._details, self._btw) != (
+            return (self._sentry, self._details, self._btw, self._prefer) != (
                 self._sentry_was,
                 self._details_was,
                 self._btw_was,
+                self._prefer_was,
             )
         if page == _NOTIFICATIONS:
             return (self._kinds, self._system) != (self._kinds_was, self._system_was)
         if page == _DIRECTORY:
-            return self._forget
+            return self._forget or self._chat_agent != self._chat_agent_was
         if page == _ACCOUNTS:
             return bool(self._gone or self._edits)
         if page == _NOUS:
@@ -601,6 +622,15 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                     group="Flow",
                 ),
                 _Setting(
+                    _CHAT_AGENT,
+                    "Chat agent",
+                    written(self._chat_agent) if self._chat_agent else "not set",
+                    "the agent a new chat here talks to",
+                    _SETS,
+                    _NEXT_CHAT if self._chat_agent != self._chat_agent_was else "",
+                    group="Chat",
+                ),
+                _Setting(
                     _FORGET,
                     "Forget",
                     _word(self._forget),
@@ -627,6 +657,14 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 _PICK,
                 _NEXT_BTW if self._btw != self._btw_was else "",
                 group="Agents",
+            ),
+            _Setting(
+                _PREFER,
+                "Chat prefers for $",
+                self._prefer,
+                "what $<name> starts in a chat where a native skill and a flow share it",
+                _PICK,
+                group="Chat",
             ),
             _Setting(
                 _SENTRY,
@@ -664,6 +702,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             return _chip(one.value, _DROPS, here=here, toggles=one.kind == _SWITCH)
         if one.kind == _SAYS:
             return _chip("", _OPENS, here=here)
+        if one.kind == _SETS:
+            return _chip(one.value, _OPENS, here=here)
         return _shade("$text-muted", one.value, here=here), len(one.value)
 
     def _fill_own(self) -> None:
@@ -723,7 +763,9 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             f"[$text-muted]{said}[/]" if said else ""
         )
         kind = next((one.kind for one in rows if one.held == landing), _READ)
-        does = {_SWITCH: "choose", _PICK: "choose", _SAYS: "read"}.get(kind)
+        does = {_SWITCH: "choose", _PICK: "choose", _SAYS: "read", _SETS: "set up"}.get(
+            kind
+        )
         self._footed(*((Key("enter", does),) if does else ()), Key("esc", "back"))
 
     def _lands(self, items: Sequence[str]) -> str:
@@ -807,49 +849,60 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._fill()
         elif held == _BTW:
             self._chooses_btw()
+        elif held == _CHAT_AGENT:
+            self._sets_chat_agent()
 
     def drops(self, row: str) -> bool:
-        """Whether a row is a switch of the general or workspace page, its two values dropped.
+        """Whether a row of the general or workspace page has its values dropped under it.
 
         Args:
           row: The row, by id.
 
         Returns:
-          True for a switch.
+          True for a switch, and for what a chat's `$` prefers.
         """
         if not self._home and self._tab == _USAGE:
             return self._drops_usage(row)
         return (
             not self._home
             and self._tab in (_EVERYWHERE, _NOTIFICATIONS, _DIRECTORY)
-            and row in _MEANS
+            and (row in _MEANS or row == _PREFER)
         )
 
     def dropping(self, row: str) -> Drop:
-        """A switch's two values, what each means, and which it is held at.
+        """A row's values, what each means, and which it is held at.
 
         Args:
-          row: The switch, by id.
+          row: The row, by id.
 
         Returns:
           The list, opening on the answer it is not, so that enter twice turns it round.
         """
         if self._tab == _USAGE:
             return self._dropping_usage(row)
+        if row == _PREFER:
+            return Drop(
+                "Chat prefers for $",
+                [Value(one, one, means) for one, means in _PREFERS.items()],
+                self._prefer,
+                cursor=next(one for one in _PREFERS if one != self._prefer),
+            )
         now = self._switched(row)
         named = next(one.named for one in self._settings() if one.held == row)
         return switched(named, _word(now) if now is not None else "", _MEANS[row])
 
     def dropped(self, row: str, picked: str) -> None:
-        """Holds a switch at the value picked.
+        """Holds a row at the value picked.
 
         Args:
-          row: The switch, by id.
-          picked: `on` or `off`.
+          row: The row, by id.
+          picked: `on` or `off`, or what a chat's `$` prefers.
         """
         on_ = picked == _YES
         if self._tab == _USAGE:
             self._dropped_usage(row, picked)
+        elif row == _PREFER:
+            self._prefer = "flow" if picked == "flow" else "native"
         elif row in self._kinds:
             self._kinds[row] = on_
         elif row == _SYSTEM:
@@ -894,17 +947,10 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 Dropdown("/btw The Epic", values, self._btw, at=self.dropped_at())
             )
             if picked == _ANOTHER:
-                chosen = await showing.push_screen_wait(
-                    Agent(
-                        "The Epic's agent",
-                        read_back(self._btw) or Runs(""),
-                        self._offered,
-                        unavailable=self._unavailable,
-                    )
+                chosen = await self._agent_set_up(
+                    "The Epic's agent", read_back(self._btw) or Runs("")
                 )
-                picked = (
-                    written(chosen) if chosen is not None and complete(chosen) else None
-                )
+                picked = written(chosen) if chosen is not None else None
         finally:
             self.opened()
         if picked is None or picked == self._btw:
@@ -913,12 +959,78 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self.changed()
         self._fill()
 
+    @work
+    async def _sets_chat_agent(self) -> None:
+        """Sets up the agent a new chat here talks to, part by part, on the agent sheet.
+
+        As a flow's agent role is set up (Section 16.5 of [TUI]): a chat's agent is one more
+        agent this directory remembers, but no flow's, so no role rules a CLI out.
+        """
+        if self.opening():
+            return
+        try:
+            chosen = await self._agent_set_up(
+                "the chat's agent", self._chat_agent or Runs("")
+            )
+        finally:
+            self.opened()
+        if chosen is None or chosen == self._chat_agent:
+            return
+        self._chat_agent, self._said = chosen, ""
+        self.changed()
+        self._fill()
+
+    async def _agent_set_up(self, named: str, runs: Runs) -> Runs | None:
+        """Sets one agent up on the sheet every agent is set up on, and answers it.
+
+        Args:
+          named: Whose agent it is, which the sheet is titled `Set up` with.
+          runs: What it runs now, which the sheet opens on.
+
+        Returns:
+          The agent, or None where the sheet was walked out of or left without a model:
+          what was there before stays.
+        """
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        chosen = await showing.push_screen_wait(
+            Agent(named, runs, self._offered, unavailable=self._unavailable)
+        )
+        return chosen if chosen is not None and complete(chosen) else None
+
+    def _applies_chat(self, told: list[str]) -> None:
+        """Writes down what a chat's `$` prefers and this directory's chat agent, if changed.
+
+        Written here rather than answered for the interface to write: neither changes what
+        the interface has on the screen, only what the next chat, or the next `$` line in one,
+        reads. The chat agent is not written where this directory is being forgotten in the
+        same save: forgetting is everything it remembers, that agent among it.
+
+        Args:
+          told: What happened, for the transcript; a write that failed is said there.
+        """
+        settings = _hmz().settings
+        if self._prefer != self._prefer_was:
+            try:
+                settings.chat_prefer = self._prefer
+            except OSError as why:
+                told.append(f"hmz: chat preference not saved: {escape(str(why))}")
+        agent = self._chat_agent
+        if agent is not None and agent != self._chat_agent_was and not self._forget:
+            try:
+                settings.chat_agent = agent
+            except OSError as why:
+                told.append(f"hmz: chat agent not saved: {escape(str(why))}")
+
     def applied(self) -> None:
         """Lands what every page was holding, and answers with what was changed."""
         told = list(self._told)
         self._applies_accounts(told)
         self._applies_nous(told)
         self._applies_backups(told)
+        self._applies_chat(told)
         if self._pending(_NOTIFICATIONS):
             try:
                 # What was changed here alone: the web interface may have changed the rest.
