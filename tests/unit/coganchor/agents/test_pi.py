@@ -10,7 +10,6 @@ import pytest
 
 from hmz.coganchor import fence
 from hmz.coganchor.agents import (
-    UNSAID,
     Failed,
     PiAgent,
     PiAgentConfig,
@@ -180,10 +179,6 @@ def test_the_process_is_held_open_and_told_a_new_effort_in_line(
     [
         ({"effort": "medium"}, ["--thinking", "medium"]),
         (
-            {"permission": "read-only"},
-            ["--exclude-tools", "bash,edit,write,powershell"],
-        ),
-        (
             {"append_system_prompt": ("be brief", "be kind")},
             ["--append-system-prompt", "be brief", "--append-system-prompt", "be kind"],
         ),
@@ -210,17 +205,73 @@ def test_what_the_agent_is_configured_with_goes_on_the_command_line(
     assert argv[at : at + len(flags)] == flags
 
 
-@pytest.mark.parametrize("permission", ["workspace-write", "auto", "bypass", UNSAID])
-def test_only_read_only_takes_tools_away(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, permission: str
+@pytest.mark.parametrize(
+    ("writes", "withheld"),
+    [(None, None), (False, "edit,write"), (True, None)],
+)
+def test_a_fence_that_writes_nothing_withholds_the_writing_tools_and_keeps_the_shell(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    writes: bool | None,
+    withheld: str | None,
 ) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
-    agent = _agent(permission=permission)
+    work = tmp_path / "work"
+    work.mkdir()
+    drawn = {
+        None: None,
+        False: Fence(read=("/",)),
+        True: Fence(read=("/",), write=(str(work),)),
+    }[writes]
+    agent = _agent(fence=drawn)
     heard(agent)
 
-    _turn(agent.new(tmp_path))
+    _turn(agent.new(work))
 
-    assert "--exclude-tools" not in spawned[0].args
+    assert option(spawned[0].args, "--exclude-tools") == withheld
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "restarted"),
+    [
+        ("writes", "reads", "edit,write"),
+        ("reads", "writes", None),
+        (None, "reads", "edit,write"),
+        ("reads", "reads", False),
+    ],
+)
+def test_a_fence_moved_by_reconfiguring_is_a_process_given_the_tools_it_allows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    before: str | None,
+    after: str,
+    restarted: str | bool | None,
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    work = tmp_path / "work"
+    work.mkdir()
+    drawn = {
+        None: None,
+        "reads": Fence(read=("/",)),
+        "writes": Fence(read=("/",), write=(str(work),)),
+    }
+    agent = _agent(fence=drawn[before])
+    heard(agent)
+    session = agent.new(work)
+    _turn(session, "one")
+
+    agent.reconfigure(
+        PiAgentConfig(**configured("anthropic/sonnet", {"fence": drawn[after]}))
+    )
+    _turn(session, "two")
+
+    if restarted is False:
+        assert len(spawned) == 1
+    else:
+        _, second = spawned
+        assert option(second.args, "--exclude-tools") == restarted
 
 
 def test_a_fence_that_cuts_the_network_runs_pi_offline(

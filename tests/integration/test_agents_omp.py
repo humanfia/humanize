@@ -14,6 +14,7 @@ a turn started with it would be.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -249,8 +250,9 @@ while (told := take()) is not None:
     if steered is not None:
         note("steer " + steered["message"])
         user(steered["message"])
-    if said == "approve":
-        # What omp asks before a tool it is to approve at `--approval-mode always-ask`.
+    if said == "approve" and flags.get("--approval-mode") != "yolo":
+        # What omp asks before a tool it is to approve, at any mode but `yolo`, which asks
+        # nothing and runs it.
         out({"type": "extension_ui_request", "id": "req-1", "method": "select",
              "title": "Allow tool: write\nPath: hello.txt", "options": ["Approve", "Deny"]})
         more = until("extension_ui_response") or {}
@@ -453,28 +455,41 @@ def test_a_forked_session_carries_on_from_its_parent(omp: Standins) -> None:
     assert f"get_state {child.id}" in omp.said()
 
 
-def test_an_agent_that_may_change_nothing_has_every_approval_refused(
-    omp: Standins,
+@pytest.mark.parametrize("writes", [False, True])
+def test_a_fenced_agent_is_asked_nothing_whatever_the_fence_writes(
+    omp: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writes: bool
 ) -> None:
-    agent = OhMyPiAgent(
-        OhMyPiAgentConfig(
-            model="deepseek/stand-in", effort="high", permission="read-only"
-        )
-    )
+    from hmz.coganchor.fence import Fence
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    # Held by nothing here: what is checked is what omp is told, not what the fence refuses.
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    work = (tmp_path / "work").resolve()
+    work.mkdir()
+    drawn = Fence(read=("/",), write=(str(work),) if writes else ())
+    agent = OhMyPiAgent(dataclasses.replace(CONFIG, fence=drawn))
     asked: list[Question] = []
 
     def answers(question: Question) -> str:
         asked.append(question)
-        return "Approve"
+        return "Deny"
 
     agent.ask = answers
 
-    assert agent.new()("approve") == "Deny"
-    assert omp.calls()[0].flag("--approval-mode") == "always-ask"
+    assert agent.new(work)("approve") == "approve"
+    assert omp.calls()[0].flag("--approval-mode") == "yolo"
     assert asked == []
 
 
-def test_an_approval_at_no_rung_is_put_to_whoever_drives_the_agent(
+def test_an_approval_of_an_unfenced_agent_is_put_to_whoever_drives_it(
     omp: Standins,
 ) -> None:
     agent = OhMyPiAgent(CONFIG)

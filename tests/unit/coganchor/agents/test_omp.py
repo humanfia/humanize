@@ -2,7 +2,7 @@
 
 What is checked is what differs from pi -- the command line, the session asked for rather
 than given, the turn ending on a terminal `agent_end`, the tool named off the message so far,
-the rungs as omp's approval modes, and the providers declared in YAML -- each through a turn
+the fence as omp's approval mode, and the providers declared in YAML -- each through a turn
 of a scripted process. What omp says to a turn is pi's protocol, which `test_pi` checks.
 """
 
@@ -224,13 +224,9 @@ def test_a_fork_opens_on_top_of_its_parent_and_learns_its_own_id(
     [
         ({}, []),
         ({"effort": "high"}, ["--thinking", "high"]),
-        ({"permission": "read-only"}, ["--approval-mode", "always-ask"]),
-        ({"permission": "workspace-write"}, ["--approval-mode", "yolo"]),
-        ({"permission": "auto"}, ["--approval-mode", "yolo"]),
-        ({"permission": "bypass"}, ["--approval-mode", "yolo"]),
     ],
 )
-def test_the_command_line_is_the_model_its_effort_and_omps_approval_mode(
+def test_the_command_line_is_the_model_and_its_effort(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     said: dict[str, Any],
@@ -245,32 +241,66 @@ def test_the_command_line_is_the_model_its_effort_and_omps_approval_mode(
     assert spawned[0].args[1:] == [*_BARE, *flags]
 
 
-@pytest.mark.parametrize(("then", "restarted"), [("read-only", True), ("auto", False)])
-def test_a_rung_moved_by_reconfiguring_is_a_process_started_at_it(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, then: str, restarted: bool
+@pytest.mark.parametrize("writes", [False, True])
+def test_any_fence_runs_omp_asking_nothing_and_none_tells_it_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, writes: bool
 ) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
-    agent = _agent(permission="bypass")
+    work = tmp_path / "work"
+    work.mkdir()
+    drawn = Fence(read=("/",), write=(str(work),) if writes else ())
+    agent = _agent(fence=drawn)
     heard(agent)
-    session = agent.new(tmp_path)
+
+    _turn(agent.new(work))
+
+    argv = spawned[0].args
+    assert argv[argv.index("--") + 2 :] == [*_BARE, "--approval-mode", "yolo"]
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "restarted"),
+    [
+        (None, "reads", ["--approval-mode", "yolo"]),
+        ("writes", "reads", ["--approval-mode", "yolo"]),
+        ("reads", None, []),
+        ("reads", "reads", None),
+        (None, None, None),
+    ],
+)
+def test_a_fence_moved_by_reconfiguring_is_a_process_started_inside_it(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    before: str | None,
+    after: str | None,
+    restarted: list[str] | None,
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    work = tmp_path / "work"
+    work.mkdir()
+    drawn = {
+        None: None,
+        "reads": Fence(read=("/",)),
+        "writes": Fence(read=("/",), write=(str(work),)),
+    }
+    agent = _agent(fence=drawn[before])
+    heard(agent)
+    session = agent.new(work)
     _turn(session, "one")
 
-    agent.reconfigure(OhMyPiAgentConfig(**configured(_MODEL, {"permission": then})))
+    agent.reconfigure(OhMyPiAgentConfig(**configured(_MODEL, {"fence": drawn[after]})))
     _turn(session, "two")
 
-    if restarted:
-        first, second = spawned
-        assert option(first.args, "--approval-mode") == "yolo"
-        assert second.args[1:] == [
-            *_BARE,
-            "--resume",
-            "s-1",
-            "--approval-mode",
-            "always-ask",
-        ]
-    else:
+    if restarted is None:
         (only,) = spawned
         assert _told(only.told)[-1] == {"type": "prompt", "message": "two"}
+    else:
+        _, second = spawned
+        argv = second.args
+        told = argv[argv.index("--") + 2 :] if "--" in argv else argv[1:]
+        assert told == [*_BARE, "--resume", "s-1", *restarted]
 
 
 @pytest.mark.parametrize("unfinished", [{"isTerminal": False}, {"yielded": False}])
@@ -313,20 +343,9 @@ def test_a_prompt_omp_answers_itself_ends_the_turn(
     assert [(one.kind, one.text) for one in events] == [("result", "")]
 
 
-@pytest.mark.parametrize(
-    ("permission", "options", "replied"),
-    [
-        ("read-only", ["Approve", "Deny"], None),
-        ("read-only", ["a", "b"], "a"),
-        ("", ["Approve", "Deny"], "Approve"),
-    ],
-)
-def test_an_approval_at_read_only_is_refused_and_anything_else_goes_to_the_person(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    permission: str,
-    options: list[str],
-    replied: str | None,
+@pytest.mark.parametrize("options", [["Approve", "Deny"], ["a", "b"]])
+def test_whatever_omp_asks_goes_to_the_person(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, options: list[str]
 ) -> None:
     asking = line(
         {
@@ -338,7 +357,7 @@ def test_an_approval_at_read_only_is_refused_and_anything_else_goes_to_the_perso
         }
     )
     spawned = spawning(monkeypatch, answers=_rpc(asking, *_SAID))
-    agent = _agent(permission=permission)
+    agent = _agent()
     heard(agent)
     questions: list[Question] = []
 
@@ -353,11 +372,10 @@ def test_an_approval_at_read_only_is_refused_and_anything_else_goes_to_the_perso
     replies = [
         one for one in _told(spawned[0].told) if one["type"] == "extension_ui_response"
     ]
-    value = "Deny" if replied is None else replied
-    assert replies == [{"type": "extension_ui_response", "id": "ui-1", "value": value}]
-    assert [one.options for one in questions] == (
-        [] if replied is None else [tuple(options)]
-    )
+    assert replies == [
+        {"type": "extension_ui_response", "id": "ui-1", "value": options[0]}
+    ]
+    assert [one.options for one in questions] == [tuple(options)]
 
 
 @pytest.mark.parametrize("named", ["models.yml", "models.yaml"])
@@ -399,7 +417,8 @@ def test_a_fence_that_cuts_the_network_is_not_said_to_omp(
     _turn(agent.new(work))
 
     argv = spawned[0].args
-    assert argv[argv.index("--") + 2 :] == _BARE  # pi's would end `--offline`
+    # pi's would end `--offline`
+    assert argv[argv.index("--") + 2 :] == [*_BARE, "--approval-mode", "yolo"]
 
 
 def test_pis_extension_prefixes_a_flows_tools_as_omp_does() -> None:
