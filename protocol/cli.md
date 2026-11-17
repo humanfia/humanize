@@ -549,7 +549,7 @@ every limit is graceful, and `budget.graceful.<name>` whether the limit `<name>`
 **7.6.12** A budget that sets none of `duration`, `cost` and `output_tokens` MUST be a usage error.
 
 **7.6.13** A line with no `budget.` limit MUST be refused under Section 7.7 for every flow but
-`chat`, which MUST then run with no cost limit.
+`chat` and `ai_chan`, which MUST then run with no cost limit.
 
 ### 7.7. Refusals before the epic starts
 
