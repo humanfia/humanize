@@ -31,7 +31,7 @@ class _Opened:
 def opened(monkeypatch: pytest.MonkeyPatch) -> _Opened:
     """`hmz.daemon`, the flows and the agents, as the interface finds them, all stood in for."""
     settings = mock.MagicMock(
-        details=False, flow="", btw="", chat_agent=None, chat_prefer="native"
+        details=False, flow="", ai_chan="", chat_agent=None, chat_prefer="native"
     )
     settings.agents.return_value = {}
     settings.envs.return_value = {}
