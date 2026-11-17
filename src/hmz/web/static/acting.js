@@ -8,6 +8,7 @@ import { ask } from './held.js'
 import { chipSelect, composer } from './composer.js'
 import { choice, menu, section, submenu } from './shell.js'
 import { line } from './transcript.js'
+import { questionCard } from './asking/card.js'
 
 /**
  * Sends a form once at a time, once it is ready to: its button says it is busy and takes no
@@ -33,31 +34,13 @@ function sending(form, busy, act, ready = () => true) {
   })
 }
 
-/** One question the run is waiting on a person for, answerable here unless another holds it. */
+/**
+ * One question the run is waiting on a person for, answerable here unless another holds it: its
+ * card, as `asking/card.js` draws it -- the whole form its schema asks for, or the options it
+ * offers and a line to type.
+ */
 export function question(workspace, one, me, clients) {
-  const named = Object.fromEntries((clients || []).map((client) => [client.client, client.name || client.client]))
-  const holder = h('div', { class: 'question', 'data-hmz': 'question' }, h('div', { class: 'kicker' }, `${one.role || 'the flow'} asks`), h('div', { class: 'body' }, one.text))
-  if (one.owner && one.owner !== me) {
-    holder.append(h('p', { class: 'dim' }, `Waiting for ${named[one.owner] || one.owner} to answer: that frontend holds ${one.role}.`))
-    return holder
-  }
-  const options = (one.options || []).map((option, index) =>
-    acting(option, () => ask(workspace, 'answer', { question: one.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
-  )
-  const typed = h('input', { type: 'text', placeholder: 'Answer', 'aria-label': 'Answer' })
-  const form = h('form', { class: 'row' }, typed, h('button', { class: 'btn small primary', type: 'submit' }, 'Answer'))
-  sending(
-    form,
-    'Answering…',
-    async () => {
-      await ask(workspace, 'answer', { question: one.question, text: typed.value })
-      typed.value = ''
-    },
-    () => typed.value.trim(),
-  )
-  if (options.length) holder.append(h('div', { class: 'row' }, options))
-  holder.append(form)
-  return holder
+  return questionCard(workspace, one, me, clients)
 }
 
 /**
