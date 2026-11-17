@@ -4,17 +4,19 @@
 // timeline, drawn by views/exomyth. `#/live` is whichever run is going on a host: a workspace's
 // own, or a chat's by its `slot`. A chat is only its conversation, as a chat app draws one:
 // never a graph, its agents or a way to stop it -- and one folded away is carried on by saying
-// something in it, on a host of its own, with what was said before it still above. Under
+// something in it, on a host of its own, with what was said before it still above. Every line
+// of a chat goes by `chat.say`; its box completes its harness's native input, the names hmz
+// keeps and the flows, and serves those hmz keeps and the flows itself. Under
 // the view, while the run goes, are the questions it waits on a person for and the box that
 // says a line to it; beside it, a panel of what it is and was -- its figures, its budget, how it
 // was set up, the flows it called -- with its board, its people and the side questions asked
 // beside it.
 
 import { asides, board, outworlders, question, saying } from '../acting.js'
-import { call, exported, hash } from '../api.js'
+import { call, exported, given, hash } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
-import { ask } from '../held.js'
+import { ask, placed } from '../held.js'
 import { composer as composed } from '../composer.js'
 import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
@@ -22,6 +24,7 @@ import { bar, dragged, keep, kept, sidePanel, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
 import { copy, menuOn, toast } from '../ui.js'
 import { saidTraced, sayer } from '../transcript.js'
+import { completions, pathItems, pathParts, preferSaid, RESERVED, route, typing } from '../natives.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
 const LINES = 3000
@@ -115,7 +118,7 @@ export function mount(root, { parts, query }) {
       btw = asides(detail.workspace, detail.name)
     }
     const run = going && going.started ? going : null
-    const chat = chatting(detail)
+    const chat = isChat(detail)
     // A chat is its one conversation, and is opened on it wherever it is opened, as a chat app
     // opens on one: the one going, or the last it opened, which a chat carried on goes on from.
     const conversation = chat && (run ? run.records.find((one) => one.type === 'opened' && !one.person) : sessionsOf(detail).at(-1))
@@ -126,6 +129,7 @@ export function mount(root, { parts, query }) {
     const model = run ? live(held, run, detail) : written(detail, traced)
     const agentOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
     persons = new Set(model.agents.filter((one) => one.person).map((one) => one.name))
+    if (chat) followCatalogue(detail, run)
     drawHead(detail, run, chat)
     if (chat || reading(mode)) drawThread(detail, run)
     else drawGraph(detail, run, model)
@@ -146,8 +150,10 @@ export function mount(root, { parts, query }) {
     const state = markOf(how, { chat, turn, asked, epic: detail.name })
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
     const stopWaits = Date.now() - (stopsAsked.get(detail.name) || 0) < STOP_WAITS
-    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits], () => {
+    const prefer = chat ? preference(detail) : null
+    region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits, prefer], () => {
       const actions = []
+      if (chat) actions.push(preferToggle(detail))
       // A chat is never stopped from its page: it is a conversation, as a chat app's.
       if (!chat && going && run.state === 'running') actions.push(stopWaits ? h('button', { class: 'btn danger', type: 'button', disabled: true }, 'Stopping…') : confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => stopping(detail.name) }))
       else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
@@ -281,7 +287,7 @@ export function mount(root, { parts, query }) {
     const scroller = main.querySelector('.thread-scroll')
     if (run) {
       // Another link's records start their numbers over: what was said is said again from the top.
-      const chat = chatting(detail)
+      const chat = isChat(detail)
       const whose = JSON.stringify([key, run.number, held().epoch, chat])
       if (saidFor !== whose) {
         saidFor = whose
@@ -327,8 +333,8 @@ export function mount(root, { parts, query }) {
           h(
             'div',
             { class: 'thread-ask row', 'data-hmz': 'thread-ask' },
-            asking.options.map((option, index) =>
-              acting(option, () => ask(here, 'answer', { question: asking.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' }),
+            asking.options.map((option) =>
+              acting(option, () => chatAsk(here, 'say', { text: option }), { kind: 'btn small', busy: 'Answering…' }),
             ),
           ),
         )
@@ -369,10 +375,9 @@ export function mount(root, { parts, query }) {
     const clients = standing.clients && standing.clients.clients
     const me = held() ? held().me : ''
     // A chat waiting to be told what next is waiting on its composer, which says it; what it
-    // asks in its conversation's thread is asked there.
-    const chat = chatting(detail)
-    const threaded = chat && mode.session ? askedIn(mode.session) : null
-    const carded = pending.filter((one) => !(chat && (one.mode === 'listen' || (threaded && one.question === threaded.question))))
+    // asks is asked in its conversation, and answered by `chat.say` there, never on a card.
+    const chat = isChat(detail)
+    const carded = chat ? [] : pending
     region('dock-questions', [carded, me, clients], () => {
       const kept = new Set()
       const shown = carded.map((one) => {
@@ -395,9 +400,7 @@ export function mount(root, { parts, query }) {
       // In a thread, a line goes to whose thread it is: a session, an agent, or a person.
       const to = mode.session || (mode.log ? (persons.has(mode.log) ? `outworlder:${mode.log}` : mode.log) : '')
       if (to && sayToKey !== to) {
-        // A chat's line is said to its next turn, which is its one conversation's: the turn
-        // open, or the next the person is asked to start.
-        sayTo = saying(here, to, { asked: () => askedIn(to), to: chatting(detail) && mode.session ? '' : to })
+        sayTo = saying(here, to, { asked: () => askedIn(to) })
         sayToKey = to
       }
     }
@@ -406,7 +409,9 @@ export function mount(root, { parts, query }) {
     if (going) carryingOn = false
     const carried = !going && chat && detail.picks_up && !detail.held && !carryingOn
     if (carried && !carry) carry = carrying(detail)
-    const composer = going ? (reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
+    // Every line of a chat going is said to it, an answer to what it asks included.
+    if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }))
+    const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
     region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
       if (composer) dock.append(composer)
@@ -554,7 +559,7 @@ export function mount(root, { parts, query }) {
       pending.find((one) => {
         if (one.owner && one.owner !== held().me) return false
         const key = one.key || (run.records.findLast((record) => record.type === 'asked' && record.question === one.question) || {}).key
-        return key ? key === session : chatting(run.started)
+        return key ? key === session : isChat(run.started)
       }) || null
     )
   }
@@ -565,23 +570,201 @@ export function mount(root, { parts, query }) {
 
   /**
    * The box a chat folded away is carried on in: what is said in it starts the chat again on a
-   * host of its own, going on in this epic with the agent it had, and the page follows that host.
+   * host of its own, going on in this epic with the agent it had and the preference set for it,
+   * and the page follows that host.
    */
   function carrying(detail) {
+    return chatBox(detail, async (text) => {
+      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.at, prefer: preferring })
+      carry = null
+      carryingOn = true
+      stop()
+      stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told)
+    }).node
+  }
+
+  // ------------------------------------------------------------------ a chat's native input
+
+  /** The chat's catalogue, as its host last said it, and the host it was read off. */
+  let catalogue = null
+  let catalogueOf = ''
+  /** How many turns of the chat had ended when its catalogue was read: read again after each. */
+  let catalogueAt = -1
+  /** The flows on offer in the workspace, where no host holds the chat to say its catalogue. */
+  let flowsHere = null
+  /** The preference a chat folded away is carried on with, picked before it is carried on. */
+  let preferring = null
+  /** The box a chat going is talked to in. */
+  let talk = null
+  /** What `@` listed, by the directory listed, until the catalogue is read again. */
+  const listed = new Map()
+
+  /**
+   * Reads the catalogue again where the host changed or a turn ended since it was read; the
+   * workspace's flows are read once besides, for a chat no host holds or one not yet answered.
+   */
+  function followCatalogue(detail, run) {
+    if (!flowsHere) {
+      flowsHere = []
+      call('flows.list', { workspace: detail.workspace }).then(
+        (found) => {
+          flowsHere = found.flows.map((one) => ({ sigil: '$', name: one.name, about: one.about || '', how: '', source: 'flow' }))
+        },
+        () => {},
+      )
+    }
+    const slot = here.slot
+    if (!slot || !run || !run.live) return
+    // The last turn ended, by its record, found from the end where it is near.
+    const ended = run.records.findLast((one) => one.type === 'event' && one.kind === 'ends')
+    const ends = ended ? ended.seq : 0
+    if (catalogueOf === slot && catalogueAt === ends) return
+    catalogueOf = slot
+    catalogueAt = ends
+    readCatalogue().catch(() => {})
+  }
+
+  /** Reads the chat's catalogue off its host, the preference it says taking over one picked here. */
+  async function readCatalogue() {
+    const slot = here.slot
+    const read = await chatAsk(here, 'commands')
+    if (here.slot !== slot) return
+    catalogue = { ...read, slot }
+    preferring = null
+    listed.clear()
+    draw()
+  }
+
+  /** What a chat's lines are read against: its catalogue, or, with none, what hmz and the workspace offer. */
+  function entries() {
+    if (catalogue && catalogue.slot === here.slot) return catalogue.entries
+    return [...RESERVED.map((name) => ({ sigil: '/', name, about: '', how: '', source: 'hmz' })), ...(flowsHere || [])]
+  }
+
+  /** The chat's preference, and where it comes from. */
+  function preference(detail) {
+    if (preferring) return { prefer: preferring, from: 'chat' }
+    if (catalogue && catalogue.slot === here.slot) return { prefer: catalogue.prefer, from: catalogue.prefer_from }
+    return detail.prefer ? { prefer: detail.prefer, from: 'chat' } : { prefer: 'native', from: 'settings' }
+  }
+
+  /** Sets the chat's preference: on its host while it goes, else for when it is carried on. */
+  async function prefers(detail, prefer) {
+    if (seen && seen.going && seen.going.live && here.slot) {
+      await chatAsk(here, 'set', { prefer })
+      catalogueAt = -1
+      followCatalogue(detail, seen.going)
+    } else preferring = prefer
+    draw()
+  }
+
+  /** The toggle of a chat's preference, saying where the one in force comes from. */
+  function preferToggle(detail) {
+    const { prefer, from } = preference(detail)
+    return h(
+      'div',
+      { class: 'segmented prefer-switch', role: 'group', 'aria-label': 'What $ prefers', title: preferSaid(prefer, from), 'data-hmz': 'prefer' },
+      h('span', { class: 'prefer-label mono', 'aria-hidden': 'true' }, '$'),
+      [['native', 'Native'], ['flow', 'Flow']].map(([key, label]) =>
+        h('button', { type: 'button', 'aria-pressed': String(prefer === key), 'data-prefer': key, onclick: () => prefer !== key && prefers(detail, key).catch((error) => toast(error.message)) }, label),
+      ),
+      h('span', { class: 'prefer-from dim', 'data-hmz': 'prefer-from' }, from === 'chat' ? 'this chat' : 'settings'),
+    )
+  }
+
+  /** What the word at the caret could become: the catalogue's entries, and for `@` the workspace's paths. */
+  async function completing(detail, text, caret) {
+    const typed = typing(text, caret)
+    if (!typed) return null
+    const groups = completions(entries(), typed, preference(detail).prefer)
+    if (typed.sigil === '@' && detail.workspace) {
+      const { dir, base } = pathParts(typed.word)
+      // Names starting with `.` are listed only once a `.` is typed, as a shell completes them.
+      const hidden = base.startsWith('.')
+      const key = `${hidden}\n${dir}`
+      if (!listed.has(key)) listed.set(key, call('paths.list', { at: `${detail.workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
+      const items = pathItems(dir, base, await listed.get(key))
+      if (items.length) groups.unshift({ source: 'path', label: 'Files', items })
+    }
+    return { from: typed.from, to: typed.to, groups }
+  }
+
+  /**
+   * The box under a chat: it completes the chat's native input, serves the names hmz keeps and
+   * starts the flows a line names, and says every other line as `say` does.
+   */
+  function chatBox(first, say) {
+    // The epic as it was read last, which the box outlives a reading of.
+    const now = () => (seen && seen.detail) || first
     const box = composed({
-      placeholder: 'Message',
+      placeholder: 'Message · / commands · $ skills and flows · @ files · ! shell',
       label: 'What to say',
+      complete: (text, caret) => completing(now(), text, caret),
       submit: async (text) => {
-        const agents = Object.fromEntries(detail.agents.map((one) => [one.role, one.runs]))
-        const started = await ask(detail.workspace, 'start', { flow: detail.flow, task: text, agents, resume: detail.at })
-        carry = null
-        carryingOn = true
-        stop()
-        stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told)
+        const detail = now()
+        // A `$` line is read against the catalogue, which a chat going is asked for where it
+        // has not answered yet: said unread, a flow it names would be refused.
+        const live = seen && seen.going && seen.going.live && here.slot
+        if (live && !(catalogue && catalogue.slot === here.slot) && /^\s*\$/.test(text)) await readCatalogue().catch(() => {})
+        const line = route(text, entries(), preference(detail).prefer)
+        if (line.kind === 'reserved') return hmzServes(detail, line.name, line.rest)
+        if (line.kind === 'flow') return startFlow(detail.workspace, line.name, line.rest)
+        return say(text)
       },
     })
     box.node.dataset.hmz = 'say'
-    return box.node
+    return box
+  }
+
+  /** What the page does for a name hmz keeps, as Section 8.9.8 of protocol/core.md has it done. */
+  async function hmzServes(detail, named, rest) {
+    const at = given({ workspace: detail.workspace })
+    switch (named) {
+      case 'clear':
+      case 'chat':
+        return go(`/new?${new URLSearchParams({ ...at, kind: 'chat' })}`)
+      case 'exit':
+      case 'quit':
+        return go('/new')
+      case 'resume':
+      case 'epics':
+        return go(`/search?${new URLSearchParams(at)}`)
+      case 'settings':
+        return go('/settings')
+      case 'prefer': {
+        const wanted = rest || (preference(detail).prefer === 'flow' ? 'native' : 'flow')
+        if (wanted !== 'native' && wanted !== 'flow') throw new Error(`/prefer takes native or flow, not ${wanted}`)
+        return prefers(detail, wanted)
+      }
+      case 'btw': {
+        // A side question is asked beside the chat, in its panel, never in it.
+        panel.open()
+        tab = 'aside'
+        for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
+        draw()
+        const asking = panel.body.querySelector('.aside textarea')
+        if (asking) {
+          asking.value = rest
+          asking.dispatchEvent(new Event('input'))
+          asking.focus()
+          if (rest) asking.form.requestSubmit()
+        }
+        return
+      }
+      default:
+        throw new Error(`/${named} is not served here`)
+    }
+  }
+
+  /**
+   * Starts a flow a chat's line names, as New › Flow starts it, set up as this workspace last
+   * set that flow up; with no task, New › Flow is opened on it to be told one.
+   */
+  async function startFlow(workspace, flow, task) {
+    if (!flow || !task) return go(`/new?${new URLSearchParams({ ...given({ workspace }), ...(flow ? { flow } : {}) })}`)
+    const { remembered } = await call('flows.get', { name: flow, workspace })
+    const started = await ask(workspace, 'start', { ...remembered, flow, task })
+    go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 
   function told(now) {
@@ -640,6 +823,20 @@ function exomyth(root, name, query) {
     },
     moved: () => false,
   }
+}
+
+/** Whether an epic is a chat: by its kind, or, for one written before chats had one, by its flow. */
+function isChat(epic) {
+  return Boolean(epic) && (epic.kind === 'chat' || chatting(epic))
+}
+
+/**
+ * Asks a chat's host one thing -- `say`, `commands` or `set` -- as `chat.<what>` (Section 4.21 of
+ * protocol/daemon.md), the host named by its workspace and slot. The same as held.js's `chatAsk`,
+ * kept here until that is on this branch.
+ */
+function chatAsk(where, what, params = {}) {
+  return call(`chat.${what}`, { ...placed(where), ...params })
 }
 
 /** How long Stop stays asked, waiting for the epic to say it is stopping. */
