@@ -408,3 +408,75 @@ def test_pis_extension_prefixes_a_flows_tools_as_omp_does() -> None:
     extension = Path(omp.__file__).with_name("pi_tools.cjs").read_text()
 
     assert f"name: `{omp.PREFIX}${{tool.name}}`" in extension
+
+
+#: What omp says of its slash commands as it comes up, unasked.
+_COMMANDS = line(
+    {
+        "type": "available_commands_update",
+        "commands": [
+            {"name": "compact", "description": "Compact", "source": "builtin"},
+            {
+                "name": "plan",
+                "aliases": ["p"],
+                "description": "Plan mode",
+                "source": "builtin",
+            },
+            {"name": "skill:lint", "description": "Lint", "source": "skill"},
+        ],
+    }
+)
+
+
+def test_the_catalog_is_what_omp_says_it_has_unasked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID), opening=[_COMMANDS])
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+
+    _turn(session)
+
+    assert [(one.sigil, one.name, one.how) for one in session.natives()] == [
+        ("!", "", "call"),
+        ("!", "!", "call"),
+        ("/", "compact", "call"),
+        ("/", "plan", "pass"),
+        ("/", "p", "pass"),
+        ("/", "skill:lint", "pass"),
+    ]
+    assert "get_commands" not in {one["type"] for one in _told(spawned[0].told)}
+
+
+def test_a_native_bang_is_omps_own_bash(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ran = line(
+        {
+            "type": "response",
+            "id": "hmz-native",
+            "command": "bash",
+            "success": True,
+            "data": {"output": "hi\n", "exitCode": 0},
+        }
+    )
+    answers = _rpc(*_SAID)
+    spawned = spawning(
+        monkeypatch,
+        answers=lambda told: (ran,) if '"bash"' in told else answers(told),
+    )
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+    _turn(session)
+
+    events = list(session.stream("!!echo hi", native=True))
+
+    assert _told(spawned[0].told)[-1] == {
+        "type": "bash",
+        "command": "echo hi",
+        "excludeFromContext": True,
+        "id": "hmz-native",
+    }
+    assert [(one.kind, one.text) for one in events] == [("result", "hi")]
