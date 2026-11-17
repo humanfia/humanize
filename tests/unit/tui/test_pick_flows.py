@@ -71,14 +71,6 @@ def test_declared_of_splits_who_is_chosen_from_who_is_here() -> None:
     assert declared.places == ("box",)
 
 
-@pytest.mark.parametrize("flow", ["loop", "talk"])
-def test_declared_of_says_every_flow_needs_a_budget(flow: str) -> None:
-    declared = pick.declared_of(flow)
-
-    assert declared is not None
-    assert not declared.unbounded
-
-
 def test_declared_of_a_flow_of_only_somebody_at_the_prompt_chooses_no_agent() -> None:
     declared = pick.declared_of("talk")
 

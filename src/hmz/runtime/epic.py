@@ -684,16 +684,18 @@ def found(
       ran: The epic.
       went: How it went, as :func:`ending` says it.
       how: Only one that went so, or "" for any.
-      flow: Only one of this flow, as it was named, or "" for any.
+      flow: Only one of this flow, as it was named -- `chat` for a chat -- or "" for any.
       text: Only one whose task, flow or name holds this, in any case, or "" for any.
     """
     wanted = text.casefold()
+    # A chat is of no flow, and is found as what it is.
+    named = CHAT if ran.chat else ran.flow
     return (
         (not how or went == how)
-        and (not flow or ran.flow == flow)
+        and (not flow or named == flow)
         and (
             not wanted
-            or any(wanted in one.casefold() for one in (ran.task, ran.flow, ran.name))
+            or any(wanted in one.casefold() for one in (ran.task, named, ran.name))
         )
     )
 

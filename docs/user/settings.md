@@ -372,7 +372,7 @@ directory's, while its log or the monitor is up -- is never told of.
 | Kinds | Failed | an epic failed, crashed, ran out of budget or was refused |
 | Kinds | Stopped | an epic was stopped |
 | Kinds | Questions | a flow asks you something |
-| Kinds | Chat turns | a chat waits for its next turn |
+| Kinds | Waiting | a flow waits for what you say next; a chat's finished turn is told as Done |
 | Shown | System | also ring the terminal's bell and show a system notification, which iTerm2, Ghostty, WezTerm, kitty and Windows Terminal show as your system's own |
 
 Every row is on until you turn it off. They are kept in `~/.hmz/settings.yaml` under

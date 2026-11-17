@@ -585,7 +585,8 @@ def listed(
         "offset": offset,
         "limit": limit,
         "counts": counts,
-        "flows": sorted({ran.flow for ran in every if kind(ran) == "flow"}),
+        # What `flow` finds them by: a chat, of no flow, as `chat` (:func:`found`).
+        "flows": sorted({"chat" if kind(ran) == "chat" else ran.flow for ran in every}),
     }
 
 

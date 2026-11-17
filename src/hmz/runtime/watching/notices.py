@@ -240,7 +240,10 @@ def _noticed(
                     "workspace": workspace,
                     "slot": now.get("slot") or "",
                     "epic": ended.get("epic") or "",
-                    "flow": ended.get("flow") or now.get("flow") or "",
+                    # A chat has no flow, and is told of as what it is.
+                    "flow": "chat"
+                    if chat
+                    else ended.get("flow") or now.get("flow") or "",
                     "task": ended.get("task") or now.get("task") or "",
                     "role": "",
                     # Why in a line: of a crash, the last of its traceback.
@@ -263,7 +266,7 @@ def _noticed(
                 "workspace": workspace,
                 "slot": now.get("slot") or "",
                 "epic": now.get("epic") or "",
-                "flow": now.get("flow") or "",
+                "flow": "chat" if chat else now.get("flow") or "",
                 "task": now.get("task") or "",
                 "role": one.get("role") or "",
                 "text": one.get("text") or "",

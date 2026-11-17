@@ -16,7 +16,7 @@ const KINDS = {
   failed: ['Failed', '✕', 'failed'],
   stopped: ['Stopped', '■', 'stopped'],
   asked: ['Question', '?', 'asking'],
-  listening: ['Chat turn', '›', 'asking'],
+  listening: ['Waiting', '›', 'asking'],
 }
 
 /** How long a card stays, and how many stand at once. */

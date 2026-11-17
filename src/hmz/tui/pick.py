@@ -2032,16 +2032,6 @@ class Declared(NamedTuple):
     outworlders: tuple[str, ...] = ()
 
     @property
-    def unbounded(self) -> bool:
-        """Whether a run of it needs no budget, which no flow's does.
-
-        A chat was the one that did, and a chat is no flow any more (Section 8 of [CORE]):
-        every flow is set up with a budget (Section 8.8 of [TUI]). Kept, always False, for a
-        caller still asking.
-        """
-        return False
-
-    @property
     def roles(self) -> tuple[str, ...]:
         """The agent roles, by name, in the order the flow declares them."""
         return tuple(one.name for one in self.agents)
@@ -12411,7 +12401,8 @@ class Epics(Sheet[Doing]):
           row: The row, by id.
         """
         if row == _BY_FLOW:
-            return ran.flow
+            # A chat is of no flow, and is found as what it is (`found` reads it so too).
+            return "chat" if ran.chat else ran.flow
         if row == _BY_WORKSPACE:
             return _ran_in(ran)
         if ran.at not in self._went:

@@ -191,7 +191,7 @@ _KINDS = {
     "failed": ("Failed", "an epic failed, crashed, ran out of budget or was refused"),
     "stopped": ("Stopped", "an epic was stopped"),
     "asked": ("Questions", "a flow asks you something"),
-    "listening": ("Chat turns", "a chat waits for its next turn"),
+    "listening": ("Waiting", "a flow waits for what you say next"),
 }
 
 #: The kinds of row those are: a switch, turned on or off from the two dropped under it; a

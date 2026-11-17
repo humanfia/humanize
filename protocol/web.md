@@ -696,7 +696,7 @@ user add, edit, connect and remove remote daemons, pair devices and revoke them,
 specifies.
 
 **3.11.3.3** `Notifications` MUST let the user switch each kind of notification on and off --
-`Done`, `Failed`, `Stopped`, `Questions` and `Chat turns` -- and switch system notifications on and
+`Done`, `Failed`, `Stopped`, `Questions` and `Waiting` -- and switch system notifications on and
 off.
 
 **3.11.3.4** In a browser, `Notifications` MUST offer `Allow`, and the page MUST ask the browser for

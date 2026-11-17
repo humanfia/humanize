@@ -1079,7 +1079,7 @@ transcript; details off MUST show the agents' answers only.
 ### 19.4. Notifications
 
 **19.4.1** The Notifications page MUST offer, each on or off, the kinds Done, Failed, Stopped,
-Questions and Chat turns, and **System**, whether the terminal's bell rings and a system
+Questions and Waiting, and **System**, whether the terminal's bell rings and a system
 notification is shown too, kept in the settings file (Section 3.4.5 of [FILES]); the page keeps
 its own (Section 3.15 of [WEB]).
 

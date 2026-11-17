@@ -218,6 +218,9 @@ def _ran(flow: str, **said: Any) -> Any:
         backup=(),
         backed={},
         **said,
+        # As `hmz.runtime.epic.read` reads one: of no kind and the flow `chat`, an earlier
+        # hmz's chat.
+        chat=said.get("kind", "chat" if flow == "chat" else "flow") == "chat",
     )
 
 

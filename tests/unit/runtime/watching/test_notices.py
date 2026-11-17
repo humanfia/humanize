@@ -158,7 +158,8 @@ def test_each_chat_turn_done_is_a_done_notice(
     _chat(statuses, "done", pending=[_asked("q3", "listen")])
     (second,) = notices.look()
 
-    assert (first["kind"], first["flow"], first["text"]) == ("done", "", "which?")
+    # A chat has no flow, and is told of as a chat.
+    assert (first["kind"], first["flow"], first["text"]) == ("done", "chat", "which?")
     assert second["kind"] == "done"
 
 
