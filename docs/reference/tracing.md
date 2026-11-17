@@ -177,7 +177,7 @@ process**, under the session that started it.
 ```json
 {"version": 1, "layout": "9f2c41d07ab3e815", "epic": "20261012T093000.000Z",
  "origin": 1791800000.123, "live": false,
- "strings": ["", "chat", "flows", ...],
+ "strings": ["", "rlar", "flows", ...],
  "processes": [{"id": 0, "kind": "flow", "name": 1, "parent": -1, "tracks": [0], ...}, ...],
  "tracks": [{"process": 0, "name": 2, "first": 0, "count": 3, "depths": 2,
              "spans": {"start": [...], "dur": [...], "depth": [...], "cat": [...],
@@ -322,7 +322,7 @@ JSON Lines in the epic, one per stretch of time the flow's Python spent in one p
 
 ```json
 {"t": 1790000000.12, "dt": 0.409,
- "stack": ["run_flow /…/hmz/runtime/flowing/engine.py:1722", "chat /…/flows/chat.py:12", "[await]"]}
+ "stack": ["run_flow /…/hmz/runtime/flowing/engine.py:1722", "rlar /…/flows/builtin/rlar/__init__.py:120", "[await]"]}
 ```
 
 | Field | Type | |
@@ -365,19 +365,24 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 
 | `event` | When | Fields |
 | --- | --- | --- |
-| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `duration` in seconds, `null` for none, and in ISO 8601 (`PT1H`, `P1Y`) in an epic an earlier Humanize wrote; `cost: "Infinity"` for unlimited; `graceful` a boolean, or `{duration, cost, output_tokens}` of booleans where the limits differ), `profile_flow`, `profile_environment` (`true`, only for a run [profiled](#profiling-a-run) that way), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
+| `began` | the epic opens | `kind` (`chat` for a [chat](/user/chat), `flow` otherwise; a `began` with none is read as `flow`, but one whose `flow` is `chat`, which an earlier Humanize wrote, as a chat), `flow` (as named; absent for a chat), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `duration` in seconds, `null` for none, and in ISO 8601 (`PT1H`, `P1Y`) in an epic an earlier Humanize wrote; `cost: "Infinity"` for unlimited; `graceful` a boolean, or `{duration, cost, output_tokens}` of booleans where the limits differ), `profile_flow`, `profile_environment` (`true`, only for a run [profiled](#profiling-a-run) that way), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
+| `set` | a chat's own preference is set (`/prefer`, `chat.set`), or its agent changed (`/model`, `/effort`) | `prefer` (`native` or `flow`), `agents` (as `began` gives them), or both; a reader takes each from the last event that gives it, `began` included |
 | `opened` | a session's CLI has given it an id (when it opens, or during its first turn, as the CLI says it rather than when that turn ends, and whether or not that turn then lands); a session whose CLI never started is not written | `agent` (the agent's own name, such as `NeiKos496`, never the role it fills), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<agent>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, or the `<backend>:<name>` of the runtime a harness setting named; only when its work was on another machine; `self` in an epic an earlier Humanize wrote is read as `env`) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |
 | `usage` | the run ends | `cost` (USD), `output_tokens`, `seconds`: the run's total as its budget counted it |
 | `ended` | the epic closes | `how`: `done`, `failed` or `stopped` |
 
+A chat's `began` gives `kind` `chat`, one entry of `agents`, whose `agent` is `assistant`, and
+its `workspace` and `task`, `prefer` where it has its own, and none of `flow`, `ref`,
+`picked_up`, `envs`, `used`, `params`, `budget`, `profile_flow` or `profile_environment`.
+
 `how` is `stopped` for a run cancelled from outside (<kbd>ctrl+c</kbd>, `Run.stop()`), whose
 budget ran out, or that raised `FlowCancelled`; `failed` for any other exception; `done`
 otherwise. A missing `ended` means the process was killed (or the run is still going).
 
 ```json
-{"event": "began", "at": "2026-09-30T05:33:55.691Z", "flow": "chat", "task": "hi", "workspace": "/tmp/ws", "resumable": false, "ref": "chat:chat", "agents": [{"agent": "assistant", "backend": "claude", "model": "haiku", "effort": "low", "provider": "", "name": "NeiKos496"}], "envs": [], "params": {}, "budget": {"duration": null, "cost": "Infinity", "output_tokens": null, "graceful": true}}
+{"event": "began", "at": "2026-09-30T05:33:55.691Z", "kind": "flow", "flow": "goal", "task": "hi", "workspace": "/tmp/ws", "resumable": false, "ref": "goal:goal", "agents": [{"agent": "worker", "backend": "claude", "model": "haiku", "effort": "low", "provider": "", "name": "NeiKos496"}], "envs": [], "params": {}, "budget": {"duration": null, "cost": 1.0, "output_tokens": null, "graceful": true}}
 {"event": "opened", "at": "2026-09-30T05:33:57.978Z", "agent": "NeiKos496", "backend": "claude", "provider": "local", "session": "56107ec6-dfa6-4484-97dc-ae0f49981bed", "name": "NeiKos496-claude@local-56107ec6-dfa6-4484-97dc-ae0f49981bed", "where": "sessions/claude"}
 {"event": "usage", "at": "2026-09-30T05:33:58.796Z", "cost": 0.0, "output_tokens": 46, "seconds": 2.252695}
 {"event": "ended", "at": "2026-09-30T05:33:58.796Z", "how": "done"}

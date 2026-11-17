@@ -365,7 +365,7 @@ panel of [the web page](/user/web): `Figures` (time, spend, tokens), `Budget` (e
 what has gone of it, as a meter), `Set up` (the flow, task, agents, environments, params, and
 whether it is profiled) and `Flows` (the flows called). It stays live.
 
-Under it, for every flow but a chat, is `Stop` while the run runs and `Force stop` while it
+Under it, for every flow, is `Stop` while the run runs and `Force stop` while it
 winds down. <kbd>tab</kbd> reaches the button; each asks before it acts. See
 [Stopping](/user/stopping).
 

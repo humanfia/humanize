@@ -43,10 +43,12 @@ def held(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
 
 class _Settings:
-    flow, btw, details, enable_sentry = "chat", "", False, None
+    flow, btw, details, enable_sentry = "ralph", "", False, None
 
     def __init__(self) -> None:
         self.forgot = False
+        self.chat_agent: Any = None
+        self.chat_prefer = "native"
 
     def flows(self) -> dict[str, Any]:
         return {}
@@ -77,7 +79,23 @@ def test_a_credential_is_shown_as_written_and_never_by_its_value(
     assert said["ice_servers"] == [
         {"urls": "turn:t:3478", "username": "u", "credential": True}
     ]
-    assert (said["workspace"], said["flow"], said["listen"]) == ("/w", "chat", [])
+    assert (said["workspace"], said["flow"], said["listen"]) == ("/w", "ralph", [])
+    # No chat agent remembered yet, and `$` names going native.
+    assert (said["chat"], said["prefer"]) == ("", "native")
+
+
+def test_the_chat_agent_and_the_preference_are_written_as_settings_keeps_them(
+    held: dict[str, Any],
+) -> None:
+    hmz = _hmz()
+
+    said = settings.write(hmz, {"chat": "claude@work/opus:high", "prefer": "flow"})
+
+    assert (said["chat"], said["prefer"]) == ("claude@work/opus:high", "flow")
+    assert (hmz.settings.chat_agent.spec, hmz.settings.chat_agent.provider) == (
+        "claude/opus:high",
+        "work",
+    )
 
 
 def test_listeners_and_a_credential_sent_back_as_true_are_written(
@@ -109,6 +127,8 @@ def test_listeners_and_a_credential_sent_back_as_true_are_written(
         ({"ice_servers": [{"urls": "http://x"}]}, "ice_servers is a list of"),
         ({"ice_servers": [{"urls": "turn:new", "credential": True}]}, "Type the"),
         ({"details": "yes"}, "details is true or false."),
+        ({"chat": "opus"}, "chat is an agent as -a spells one: "),
+        ({"prefer": "both"}, "prefer is native or flow."),
     ],
 )
 def test_a_value_refused_writes_nothing(
@@ -154,5 +174,5 @@ def test_a_workspace_is_a_whole_path_and_one_to_write_is_there(
     with pytest.raises(RpcError) as missing:
         call("settings.forget", workspace=str(tmp_path / "gone"))
     assert missing.value.code == 404
-    assert call("settings.get", workspace=str(tmp_path / "gone"))["flow"] == "chat"
+    assert call("settings.get", workspace=str(tmp_path / "gone"))["flow"] == "ralph"
     assert made == [(tmp_path / "gone").resolve()]

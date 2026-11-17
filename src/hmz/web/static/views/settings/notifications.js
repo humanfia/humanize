@@ -13,7 +13,7 @@ const KINDS = [
   ['failed', 'Failed'],
   ['stopped', 'Stopped'],
   ['asked', 'Questions'],
-  ['listening', 'Chat turns'],
+  ['listening', 'Waiting'],
 ]
 
 /** What the browser says of showing notifications, as the page says it. */

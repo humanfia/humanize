@@ -50,11 +50,11 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
 def elsewhere(
     tmp_path: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[tuple[Path, Host]]:
-    """Another workspace's runs, which the daemon says it holds."""
+    """A chat of another workspace, which the daemon says it holds."""
     del workspace
     other = tmp_path / "elsewhere"
     other.mkdir()
-    host = Host(Holding(other))
+    host = Host(Holding(other), slot="chat:0a1b2c3d4e5f")
     held = SimpleNamespace(workspace=str(other), status=host.status)
     monkeypatch.setattr(hmz.daemon, "daemons", lambda: [held])
     try:
@@ -74,7 +74,7 @@ async def test_another_epic_is_told_and_dotted_until_opened_and_this_one_never(
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
         with linked(host, kind="sdk") as someone:
-            someone.start("chat", "hello there", agents={"assistant": RUNS})
+            someone.chat(RUNS, "hello there")
             await until(pilot, lambda: heard(other) == ["hello there"], "its turn")
             await shows(pilot, "chat · elsewhere")
         await pilot.pause(2.5)
@@ -109,7 +109,7 @@ async def test_a_kind_turned_off_on_notifications_is_told_of_nowhere(
         await opened(pilot)
         await typed(pilot, "/settings notifications")
         await on(pilot, Adjusts)
-        await shows(pilot, "Done", "Questions", "Chat turns", "System")
+        await shows(pilot, "Done", "Questions", "Waiting", "System")
         for kind in ("done", "listening"):
             await picks(pilot, kind, "off")
         await leaves(pilot)
@@ -118,7 +118,7 @@ async def test_a_kind_turned_off_on_notifications_is_told_of_nowhere(
         assert wanted["kinds"]["listening"] is False
 
         with linked(host, kind="sdk") as someone:
-            someone.start("chat", "hello there", agents={"assistant": RUNS})
+            someone.chat(RUNS, "hello there")
             await until(pilot, lambda: heard(other) == ["hello there"], "its turn")
             await pilot.pause(4.5)
         assert "elsewhere" not in screen(app)

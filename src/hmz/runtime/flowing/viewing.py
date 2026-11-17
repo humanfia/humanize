@@ -107,6 +107,7 @@ if TYPE_CHECKING:
     from pathlib import PurePosixPath
     from types import FrameType
 
+    from hmz.coganchor.agents.native import NativeCommand
     from hmz.flows import (
         AskUserHookResult,
         Budget,
@@ -1525,6 +1526,9 @@ class _Person:
     def keep(self, sessions: Path) -> Kept:
         del sessions
         raise UnsupportedOperation("an outworlder keeps no conversation")
+
+    def natives(self) -> list[NativeCommand]:
+        return []
 
     def interrupt(self) -> None:
         return

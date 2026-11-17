@@ -39,7 +39,7 @@ and your own flows:
 
 | Place | Holds | Run as |
 | --- | --- | --- |
-| built in | `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop`, `rlar` | `rlar` |
+| built in | `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop`, `rlar` | `rlar` |
 | `official` | the flows you installed from [humanfia/flowverse](https://github.com/humanfia/flowverse) | `aot`, `you/review` |
 | a flowverse you added | the flows you installed from it | `@yours/review`, `@yours/you/review` |
 | `local` | this project's `.hmz/flows/` | `@local/review`, or `review` |
@@ -325,7 +325,7 @@ installs `review` the same way, under whatever name they chose for it.
 | One flow per repository | Its variants included: see below |
 | The flow in a directory named after it | `review/`, holding the `__init__.py` with the `async` function marked `@flow`. Only this directory is installed, so the repository can hold tests, a README and a `pyproject.toml` beside it |
 | Or a single `.py` file | `review.py`, for a flow with nothing to bring along. It is installed as a directory of its own |
-| A name Humanize does not ship | `[a-z][a-z0-9_]*`, and, listed bare, not `chat`, `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` or `rlar`: a manifest naming one of those is skipped. Under a user any name goes: `you/chat` is yours |
+| A name Humanize does not ship | `[a-z][a-z0-9_]*`, and, listed bare, not `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` or `rlar`: a manifest naming one of those is skipped. Under a user any name goes: `you/rlar` is yours |
 | A name starting with `_` | Is not a flow |
 
 **Variants are subflows of one module.** Two takes on one flow go in one directory as two
@@ -453,7 +453,7 @@ it does not remove it. Adding a flowverse runs nothing: an index holds no code. 
 
 A bare name is looked for **nearest first**: this project's `.hmz/flows`, then
 `~/.hmz/flows`, then the rest. So a flow of your own can stand in for one of Humanize's by
-taking its name: `.hmz/flows/chat/` is what `-f chat` runs in that project. A name nothing
+taking its name: `.hmz/flows/rlar/` is what `-f rlar` runs in that project. A name nothing
 installed answers to is refused, saying where it could be installed from. `you/review` and
 `@yours/review` name one place, so nothing can stand in for them.
 

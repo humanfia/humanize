@@ -46,6 +46,12 @@ type _Turn = Callable[[Process, str, str], None]
 _DEFAULTS: dict[str, Any] = {"model": "gpt-x", "effort": ""}
 
 
+def _holding(self: CodexAgent, fence: Fence) -> bool:
+    """`CodexAgent.holds` as it answers where Codex's own sandbox holds the fence."""
+    del self, fence
+    return True
+
+
 def _item(method: str, thread: str, turn: str, **item: Any) -> dict[str, Any]:
     return {
         "method": f"item/{method}",
@@ -119,6 +125,11 @@ class _Server:
         self.replies: list[dict[str, Any]] = []
         #: What to do once the driver has answered something the server asked, by its id.
         self.after: dict[int, Callable[[], None]] = {}
+        #: What `skills/list` lists, and what a shell command prints and exits on.
+        self.skills: list[dict[str, Any]] = []
+        self.output: tuple[str, int] = ("", 0)
+        #: Whether an operation's turn is preceded by a stray completion of another turn.
+        self.stray = False
         self._threads = 0
         self._turned = 0
         spawner.replying(self._heard)
@@ -140,12 +151,44 @@ class _Server:
         if method in ("thread/start", "thread/fork"):
             self._threads += 1
             proc.say({"id": ident, "result": {"thread": {"id": f"th-{self._threads}"}}})
-        elif method == "turn/start":
+        elif method in ("turn/start", "review/start"):
             self._turned += 1
             turn = f"tu-{self._turned}"
             proc.say({"id": ident, "result": {"turn": {"id": turn}}})
             answer = self.turns.pop(0) if self.turns else _says(_message("done"))
             answer(proc, str(params["threadId"]), turn)
+        elif method == "skills/list":
+            listed = {"cwd": params["cwds"][0], "skills": self.skills, "errors": []}
+            proc.say({"id": ident, "result": {"data": [listed]}})
+        elif method in ("thread/shellCommand", "thread/compact/start"):
+            # Answered with nothing, and done as a turn of the server's own that no answer
+            # names, as codex-cli 0.163.0 does both.
+            proc.say({"id": ident, "result": {}})
+            if self.stray:
+                # Said late of a turn already over, before the operation's own turn begins.
+                proc.say(
+                    {
+                        "method": "turn/completed",
+                        "params": {
+                            "threadId": params["threadId"],
+                            "turn": {"id": "tu-old", "status": "completed"},
+                        },
+                    }
+                )
+            self._turned += 1
+            item = (
+                {
+                    "type": "commandExecution",
+                    "id": "sh",
+                    "command": f"/bin/zsh -lc {params['command']!r}",
+                    "source": "userShell",
+                    "aggregatedOutput": self.output[0],
+                    "exitCode": self.output[1],
+                }
+                if method == "thread/shellCommand"
+                else {"type": "contextCompaction", "id": "cc"}
+            )
+            _says(item)(proc, str(params["threadId"]), f"tu-{self._turned}")
         else:
             proc.say({"id": ident, "result": {}})
 
@@ -1087,3 +1130,253 @@ def test_a_recalled_thread_is_forked_by_a_codex_run_here_for_another_machine(
     (forked,) = server.called("thread/fork")
     assert (forked["threadId"], forked["cwd"]) == ("told", str(mirror / "desk"))
     assert (home / rollout).read_text() == (kept / rollout).read_text()
+
+
+def _native(session: CodexSession, line: str) -> str:
+    """What a native turn of `line` answered with."""
+    *_, result = session.stream(line, native=True)
+    assert result.kind == "result"
+    return result.text
+
+
+def test_the_catalogue_is_the_skills_the_sigils_and_the_commands_codex_serves(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.skills = [
+        {"name": "lint", "path": "/s/lint/SKILL.md", "description": "lints"},
+        {
+            "name": "off",
+            "path": "/s/off/SKILL.md",
+            "description": "x",
+            "enabled": False,
+        },
+    ]
+    listed = {
+        (one.sigil, one.name): one.how for one in _agent().new(tmp_path).natives()
+    }
+    assert listed[("$", "lint")] == "call"
+    assert ("$", "off") not in listed
+    assert listed[("@", "")] == listed[("!", "")] == "call"
+    for name in ("compact", "review", "rename", "model", "effort"):
+        assert listed[("/", name)] == "call"
+    for name in ("permissions", "mcp", "logout", "status"):
+        assert listed[("/", name)] == "refuse"
+    for name in ("clear", "resume", "exit", "quit", "btw"):
+        assert ("/", name) not in listed
+    (asked,) = server.called("skills/list")
+    assert asked["cwds"] == [str(tmp_path)]
+
+
+def test_the_skills_are_listed_again_once_a_conversation_opens(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    session.natives()
+    session.natives()
+    assert len(server.called("skills/list")) == 1
+    server.skills = [{"name": "new", "path": "/s/new/SKILL.md", "description": "x"}]
+    session("hi")
+    assert ("$", "new") in {(one.sigil, one.name) for one in session.natives()}
+
+
+def test_a_shell_command_is_the_servers_own_and_answers_with_its_output(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.output = ("hi\nerr\n", 3)
+    session = _agent().new(tmp_path)
+    assert _native(session, "!echo hi; exit 3") == "hi\nerr\n(exit 3)"
+    (ran,) = server.called("thread/shellCommand")
+    assert ran == {"threadId": "th-1", "command": "echo hi; exit 3"}
+    assert not server.called("turn/start")
+    assert session.id == "th-1"
+
+
+def test_a_shell_command_is_left_to_the_chat_where_codex_s_sandbox_holds_the_fence(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The server's shell command runs unsandboxed, and nothing else is around Codex."""
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
+    held = Fence.of(
+        rules=[(".", WRITE)], online=True, workdir=tmp_path, home=tmp_path / "home"
+    )
+    session = _agent(fence=held).new(tmp_path)
+    shell = [one for one in session.natives() if one.sigil == "!"]
+    assert [one.how for one in shell] == ["emulate"]
+    _native(session, "!rm -rf /")
+    assert not server.called("thread/shellCommand")
+    (turned,) = server.called("turn/start")
+    assert turned["input"] == [{"type": "text", "text": "!rm -rf /"}]
+
+
+def test_a_skill_and_a_file_named_in_a_line_go_as_items_beside_it(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.skills = [{"name": "lint", "path": "/s/lint/SKILL.md", "description": "x"}]
+    (tmp_path / "a.py").write_text("x = 1\n")
+    (tmp_path / "shot.png").write_bytes(b"\x89PNG")
+    line = "$lint @a.py, @shot.png and @nowhere $unknown"
+    _native(_agent().new(tmp_path), line)
+    (turned,) = server.called("turn/start")
+    assert turned["input"] == [
+        {"type": "localImage", "path": str(tmp_path / "shot.png")},
+        {"type": "text", "text": line},
+        {"type": "skill", "name": "lint", "path": "/s/lint/SKILL.md"},
+        {"type": "mention", "name": "a.py", "path": str(tmp_path / "a.py")},
+    ]
+
+
+def test_a_line_that_is_not_native_is_text_whatever_it_starts_with(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    (tmp_path / "a.py").write_text("")
+    session = _agent().new(tmp_path)
+    lines = ("/compact", "!ls", "@a.py", "$lint")
+    for line in lines:
+        session(line)
+    assert [one["input"] for one in server.called("turn/start")] == [
+        [{"type": "text", "text": line}] for line in lines
+    ]
+    assert not server.called("skills/list")
+
+
+def test_compact_is_the_servers_own_and_waits_for_it_to_finish(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    session("hi")
+    events = list(session.stream("/compact", native=True))
+    assert server.called("thread/compact/start") == [{"threadId": "th-1"}]
+    assert events[-1].kind == "result"
+    assert any(one.text.startswith("contextCompaction") for one in events)
+    assert len(server.called("turn/start")) == 1
+
+
+@pytest.mark.parametrize(
+    ("line", "target"),
+    [
+        ("/review", {"type": "uncommittedChanges"}),
+        ("/review base main", {"type": "baseBranch", "branch": "main"}),
+        ("/review commit abc123", {"type": "commit", "sha": "abc123"}),
+        ("/review look at auth", {"type": "custom", "instructions": "look at auth"}),
+    ],
+)
+def test_review_is_a_turn_of_the_servers_own_review(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    line: str,
+    target: dict[str, str],
+) -> None:
+    server.turns = [_says(_message("no findings"))]
+    assert _native(_agent().new(tmp_path), line) == "no findings"
+    (asked,) = server.called("review/start")
+    assert asked == {"threadId": "th-1", "target": target, "delivery": "inline"}
+
+
+def test_a_review_answers_with_its_findings_and_is_priced_at_the_model(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.turns = [
+        _says(
+            {"type": "exitedReviewMode", "id": "x", "review": "one finding"},
+            total=(10, 5),
+        )
+    ]
+    *_, result = _agent().new(tmp_path).stream("/review", native=True)
+    assert result.text == "one finding"
+    assert dict(result.tokens) == {"gpt-x": 15}
+
+
+def test_a_review_waits_for_a_turn_held_to_a_fence_codex_s_sandbox_holds(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`review/start` takes no sandbox: it runs at what the thread's last turn was sent."""
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
+    held = Fence.of(
+        rules=[(".", WRITE)], online=False, workdir=tmp_path, home=tmp_path / "home"
+    )
+    session = _agent(fence=held).new(tmp_path)
+    assert "held to its fence yet" in _native(session, "/review")
+    assert not server.called("review/start")
+    session("hi")
+    _native(session, "/review")
+    assert len(server.called("review/start")) == 1
+
+
+def test_an_operation_ends_on_its_own_turn_not_on_one_said_late(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.output, server.stray = ("hi\n", 0), True
+    assert _native(_agent().new(tmp_path), "!echo hi") == "hi\n"
+
+
+def test_a_fork_runs_on_the_model_a_chat_moved_its_parent_to(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    session("hi")
+    _native(session, "/model gpt-z")
+    session.fork()("go on")
+    assert server.called("thread/fork")[0]["model"] == "gpt-z"
+    assert server.called("turn/start")[-1]["model"] == "gpt-z"
+
+
+def test_rename_names_the_thread(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    assert "auth work" in _native(session, "/rename auth work")
+    assert server.called("thread/name/set") == [
+        {"threadId": "th-1", "name": "auth work"}
+    ]
+
+
+def test_model_and_effort_move_the_next_turns(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent(effort="low").new(tmp_path)
+    assert "gpt-y" in _native(session, "/model gpt-y high")
+    assert "medium" in _native(session, "/effort medium")
+    assert not spawner.started  # nothing of Codex's was asked
+    session("hi")
+    (turned,) = server.called("turn/start")
+    assert (turned["model"], turned["effort"]) == ("gpt-y", "medium")
+    assert session.model == "gpt-y"
+    assert _native(session, "/model") == "model gpt-y, effort medium"
+
+
+def test_an_effort_codex_has_no_word_for_is_refused_and_left(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent(effort="low").new(tmp_path)
+    assert "ultracode" in _native(session, "/effort ultracode")
+    assert session.effort == "low"
+
+
+@pytest.mark.parametrize(
+    ("line", "said"),
+    [
+        ("/permissions", "/permissions is served only by Codex's own interactive"),
+        ("/nope now", "Unrecognized command '/nope'"),
+        ("/rename", "/rename needs"),
+    ],
+)
+def test_a_command_codex_would_not_send_is_answered_without_a_turn(
+    spawner: Spawner, server: _Server, tmp_path: Path, line: str, said: str
+) -> None:
+    assert _native(_agent().new(tmp_path), line).startswith(said)
+    assert not server.called("turn/start")
+
+
+def test_a_path_is_not_a_command(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    _native(_agent().new(tmp_path), "/usr/bin/env is odd")
+    (turned,) = server.called("turn/start")
+    assert turned["input"] == [{"type": "text", "text": "/usr/bin/env is odd"}]

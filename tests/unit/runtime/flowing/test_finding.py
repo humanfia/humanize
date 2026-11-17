@@ -21,7 +21,6 @@ from hmz.runtime.flowing.finding import (
     inside,
     offered,
     offers,
-    privileged,
     resolved,
     within,
 )
@@ -83,7 +82,7 @@ def test_within_looks_in_every_directory_a_place_keeps(places: Places) -> None:
     assert within(local, "zz_x") is None
     flow_file(places.mine, "zz_x")
     assert within(local, "zz_x") == Path(".hmz/flows/zz_x.py")
-    assert within(official, "chat") == BUILTIN_AT / "chat" / ENTRY
+    assert within(official, "goal") == BUILTIN_AT / "goal" / ENTRY
 
 
 # ------------------------------------------------------------------------- finding
@@ -96,7 +95,7 @@ def test_find_takes_a_name_nearest_first(places: Places) -> None:
     assert find("zz_both") == str(mine.resolve())
     assert find("@user/zz_both") == str(yours.resolve())
     assert find("@local/zz_both:inner") == str(mine.resolve())
-    assert find("chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
+    assert find("goal") == str((BUILTIN_AT / "goal" / ENTRY).resolve())
 
 
 @pytest.mark.parametrize(
@@ -174,7 +173,7 @@ def test_found_lists_humanizes_own_first_and_yours_last(places: Places) -> None:
     flow_file(places.mine, "zz_mine")
     listed = found()
     assert listed[0].whose == OFFICIAL
-    assert Offer(OFFICIAL, "chat", about("chat")) in listed
+    assert Offer(OFFICIAL, "goal", about("goal")) in listed
     assert listed[-2:] == [
         Offer(LOCAL, "@local/zz_mine", ""),
         Offer(USER, "@user/zz_yours", ""),
@@ -189,16 +188,11 @@ def test_resolved_loads_the_flow_a_name_comes_to(places: Places) -> None:
     flow = resolved("zz_r:zz_s")
     assert (flow.name, flow.description) == ("zz_s", "Said.")
     assert builtin(flow) is False
-    assert privileged(flow) is False
 
 
-def test_chat_is_humanizes_own_and_trusted_with_every_capability(
-    places: Places,
-) -> None:
+def test_a_flow_of_the_package_is_humanizes_own(places: Places) -> None:
     del places
-    chat = resolved("chat")
-    assert builtin(chat) is True
-    assert privileged(chat) is True
+    assert builtin(resolved("goal")) is True
 
 
 def test_resolved_fetches_a_repository_ref_on_this_thread(

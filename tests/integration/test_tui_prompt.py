@@ -40,8 +40,27 @@ async def test_it_opens_on_chat_with_the_model_the_installed_agent_says_it_runs(
     async with Humanize().run_test(size=SIZE) as pilot:
         drawn = await shows(pilot, RUNS)
 
-    assert "chat" in drawn
-    assert "assistant" in drawn
+    # The chat's agent, as its one role and at rest on the status line.
+    assert f"assistant · {RUNS}" in drawn
+    assert f"◉ {RUNS}" in drawn.splitlines()[-1]
+
+
+async def test_it_opens_on_a_new_chat_whatever_flow_is_held(
+    workspace: Path,
+) -> None:
+    from tests.integration.doubles_tui import OWN, own_flow, set_up_own_flow
+
+    own_flow(workspace)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await set_up_own_flow(pilot)
+    async with Humanize().run_test(size=SIZE) as pilot:
+        drawn = await shows(pilot, RUNS)
+
+        # The flow is held for `$` and `/flow`, and what is said starts the chat.
+        assert f"◉ {RUNS}" in drawn.splitlines()[-1]
+        assert f"◉ {OWN}" not in drawn
+        await typed(pilot, "hello")
+        await shows(pilot, "heard hello", "◉ done")
 
 
 async def test_with_no_agent_installed_a_line_is_answered_with_why_it_cannot_run(

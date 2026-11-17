@@ -150,6 +150,7 @@ export function mountSidebar(root, context, where) {
         const where = encodeURIComponent(group.path)
         menuOn(folder, () => [
           { head: group.path },
+          { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${where}`) },
           { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${where}`) },
           { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${where}`) },
           { label: 'Search here', glyph: 'search', href: hash(`/search?workspace=${where}`) },
@@ -207,7 +208,7 @@ export function mountSidebar(root, context, where) {
       toggle,
       h(
         'a',
-        { href: link, 'aria-current': at ? 'page' : null, title: `${run.task}\n${flowName(run.flow)} · ${how} · ${when(run.began)}`, 'data-hmz': 'epic' },
+        { href: link, 'aria-current': at ? 'page' : null, title: `${run.task}\n${chat ? 'chat' : flowName(run.flow)} · ${how} · ${when(run.began)}`, 'data-hmz': 'epic' },
         h('span', { class: ['side-mark', `tone-${tone(how)}`], 'aria-label': how }, MARKS[how] || '·'),
         h('span', { class: 'side-label' }, headline(run.task)),
         unseen ? marked() : null,
@@ -338,15 +339,20 @@ export function epicMenu(run) {
   const base = hash(`/epics/${encodeURIComponent(run.name)}`)
   // Going, whether a host holds it or another process does -- `hmz exec`, say.
   const going = run.held || run.how === 'running'
-  const resumes = run.resumable && !going && run.how !== 'done'
-  // A chat is its conversation alone: no log of every session, no timeline, and never stopped.
+  // A chat is its conversation alone: no log of every session, no timeline, and never stopped;
+  // it is carried on by saying something in it, not resumed from a form, and one like it is a new
+  // chat with its agent.
   const chat = chatting(run)
+  const resumes = !chat && run.resumable && !going && run.how !== 'done'
+  const assistant = chat ? (run.agents[0] || {}).runs || '' : ''
   return [
     { head: run.task.split('\n')[0] },
     { label: 'Open', glyph: 'open', href: base },
     chat ? null : { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
     resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
-    { label: 'New epic like it', glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
+    chat
+      ? { label: 'New chat like it', glyph: 'thread', href: hash(`/new/chat?${new URLSearchParams(given({ workspace: run.workspace, agent: assistant }))}`) }
+      : { label: 'New epic like it', glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
     '-',
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
     { label: 'Copy task', glyph: 'copy', act: () => copy(run.task, 'Task copied') },

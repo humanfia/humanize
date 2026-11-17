@@ -183,10 +183,22 @@ def _refused(capsys: pytest.CaptureFixture[str], *argv: str) -> str:
     return capsys.readouterr().err
 
 
-def test_chat_answers_on_stdout_and_works_in_the_project(
+def _chat(*argv: str) -> subprocess.CompletedProcess[str]:
+    """Runs `hmz chat` as a program, in the working directory, and answers with how it went."""
+    return subprocess.run(
+        [sys.executable, "-m", "hmz", "chat", *argv],
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
+        check=False,
+    )
+
+
+def test_chat_answers_one_turn_on_stdout_and_works_in_the_project(
     tmp_path: Path, project: Path
 ) -> None:
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}:high", "hello there")
+    ran = _chat("-a", f"{AGENT}:high", "hello there")
 
     assert ran.returncode == 0, ran.stderr
     assert ran.stdout.strip() == "did: hello there"
@@ -199,15 +211,60 @@ def test_chat_answers_on_stdout_and_works_in_the_project(
     (epic,) = epics.all()
     ran_as = epics.read(epic)
     assert ran_as is not None
-    assert (ran_as.flow, ran_as.task, ran_as.how) == ("chat", "hello there", "done")
-    assert [one.spec for one in ran_as.agents] == [f"{AGENT}:high"]
+    assert ran_as.task == "hello there"
     (session,) = ran_as.sessions
-    # Under the agent's own name, which the epic says fills `assistant`.
-    (drove,) = ran_as.agents
-    assert (drove.agent, drove.name) == ("assistant", session.agent)
-    assert session.agent != "assistant"
     assert session.backend == "claude"
     assert session.ident == start["session"]
+
+
+def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
+    tmp_path: Path, project: Path
+) -> None:
+    first = _chat("-a", AGENT, "hello")
+    assert first.returncode == 0, first.stderr
+    (epic,) = Hmz(project).epics.all()
+
+    then = _chat("--resume", epic.name, "and then?")
+
+    assert then.returncode == 0, then.stderr
+    assert then.stdout.strip() == "did: and then?"
+    assert Hmz(project).epics.all() == [epic]
+    # The same conversation, carried on from where the first left it.
+    first_start, then_start = started(tmp_path)
+    assert (
+        then_start["argv"][then_start["argv"].index("--resume") + 1]
+        == (first_start["session"])
+    )
+
+
+def test_a_failed_first_turn_fails_the_chat_with_what_the_cli_said() -> None:
+    ran = _chat("-a", AGENT, "--", "fail: it broke")
+
+    assert ran.returncode == 1
+    assert "it broke" in ran.stderr
+
+
+def test_a_chat_with_no_agent_given_or_remembered_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as stopped:
+        main(["chat", "hello"])
+
+    assert stopped.value.code == 2
+    assert "give one with -a" in capsys.readouterr().err
+    assert not started(tmp_path)
+
+
+@pytest.mark.parametrize("message", ["/clear", "$goal win"])
+def test_a_chat_line_hmz_keeps_or_naming_a_flow_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], message: str
+) -> None:
+    with pytest.raises(SystemExit) as stopped:
+        main(["chat", "-a", AGENT, message])
+
+    assert stopped.value.code == 2
+    assert message.split(maxsplit=1)[0] in capsys.readouterr().err
+    assert not started(tmp_path)
 
 
 def test_goal_says_the_task_as_a_goal() -> None:
@@ -218,7 +275,16 @@ def test_goal_says_the_task_as_a_goal() -> None:
 
 
 def test_a_failed_first_turn_fails_the_run_with_what_the_cli_said() -> None:
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", "--", "fail: it broke")
+    ran = hmz_exec(
+        "-f",
+        "ralph_loop",
+        "-a",
+        f"agent={AGENT}",
+        "-p",
+        "budget.cost=1",
+        "--",
+        "fail: it broke",
+    )
 
     assert ran.returncode != 0
     assert "it broke" in ran.stderr
@@ -460,22 +526,25 @@ def test_an_env_role_works_where_its_e_names(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("argv", "says"),
     [
-        (["-a", "assistant"], "assistant"),
-        (["-a", "assistant=no-such-cli/m"], "no-such-cli"),
-        (["-a", f"assistant={AGENT},stranger={AGENT}"], "stranger"),
-        (["-a", f"assistant={AGENT}", "-e", "workspace=nowhere/x"], "nowhere"),
-        (["-a", f"assistant={AGENT}", "-e", "workspace=local/elsewhere"], "workspace"),
-        (["-a", f"assistant={AGENT}", "-e", "stranger=local"], "stranger"),
-        (["-a", f"assistant={AGENT}", "-p", "rounds=3"], "rounds"),
-        (["-a", f"assistant={AGENT}", "-p", "budget.cost=lots"], "lots"),
-        (["-a", f"assistant={AGENT}", "-p", "budget.duration=soon"], "soon"),
-        (["-a", f"assistant={AGENT}", "-p", "novalue"], "novalue"),
+        (["-a", "worker"], "worker"),
+        (["-a", "worker=no-such-cli/m"], "no-such-cli"),
+        (["-a", f"worker={AGENT},stranger={AGENT}"], "stranger"),
+        (["-a", f"worker={AGENT}", "-e", "workspace=nowhere/x"], "nowhere"),
+        (["-a", f"worker={AGENT}", "-e", "workspace=local/elsewhere"], "workspace"),
+        (["-a", f"worker={AGENT}", "-e", "stranger=local"], "stranger"),
+        (["-a", f"worker={AGENT}", "-p", "rounds=3"], "rounds"),
+        (["-a", f"worker={AGENT}", "-p", "budget.cost=lots"], "lots"),
+        (["-a", f"worker={AGENT}", "-p", "budget.duration=soon"], "soon"),
+        (["-a", f"worker={AGENT}", "-p", "novalue"], "novalue"),
     ],
 )
 def test_a_wrong_agent_env_or_param_is_refused_before_anything_starts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], argv: list[str], says: str
 ) -> None:
-    said = _refused(capsys, "-f", "chat", *argv, "hello")
+    # A limit of its own, so that the budget is never what is wrong, whichever of its limits
+    # the case gets wrong.
+    bounded = ["-p", "budget.output_tokens=1000000"]
+    said = _refused(capsys, "-f", "goal", *bounded, *argv, "hello")
 
     assert "hmz exec: error" in said
     assert says in said
@@ -486,6 +555,15 @@ def test_a_loop_without_a_budget_is_refused(capsys: pytest.CaptureFixture[str]) 
     said = _refused(capsys, "-f", "ralph_loop", "-a", f"agent={AGENT}", "work")
 
     assert "budget" in said
+
+
+def test_chat_names_a_flow_as_any_name_does_and_no_chat(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    said = _refused(capsys, "-f", "chat", "-a", f"assistant={AGENT}", "hello")
+
+    assert "chat" in said
+    assert not started(tmp_path)
 
 
 def test_a_flow_that_is_not_there_is_refused(

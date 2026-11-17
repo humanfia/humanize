@@ -13,6 +13,7 @@ from textual.binding import Binding
 from hmz.tui import app
 from hmz.tui.app import Editor, Humanize
 from hmz.tui.history import History
+from hmz.tui.pick import Runs
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -29,7 +30,9 @@ class _Opened:
 @pytest.fixture
 def opened(monkeypatch: pytest.MonkeyPatch) -> _Opened:
     """`hmz.daemon`, the flows and the agents, as the interface finds them, all stood in for."""
-    settings = mock.MagicMock(details=False, flow="", ai_chan="")
+    settings = mock.MagicMock(
+        details=False, flow="", ai_chan="", chat_agent=None, chat_prefer="native"
+    )
     settings.agents.return_value = {}
     settings.envs.return_value = {}
     settings.params.return_value = {}
@@ -88,10 +91,22 @@ def test_it_opens_on_what_this_workspace_was_last_set_up_to_run(
     assert humanize.settings is opened.settings
 
 
-def test_with_nothing_remembered_it_opens_on_chat(opened: _Opened) -> None:
-    Humanize()
+def test_with_nothing_remembered_no_flow_is_read(opened: _Opened) -> None:
+    humanize = Humanize()
 
-    assert opened.declared == ["chat"]
+    assert opened.declared == []
+    assert humanize.chatting()
+
+
+def test_it_opens_on_a_chat_with_the_chat_agent_remembered(opened: _Opened) -> None:
+    opened.settings.flow = "rlar"
+    opened.settings.chat_agent = Runs("claude/opus:high")
+
+    humanize = Humanize()
+
+    # On the chat, whatever flow is held ready.
+    assert humanize.chatting()
+    assert opened.declared == ["rlar"]
 
 
 def test_a_flow_and_agents_handed_over_win_over_what_was_remembered(
@@ -130,8 +145,11 @@ def test_it_is_drawn_in_the_terminals_colours_unless_asked_otherwise(
         (Humanize.nothing_to_resume, False),
         (Humanize.in_btw, False),
         (Humanize.leaves_btw, False),
-        (Humanize.refused_stop, "no flow is running"),
+        # On a chat, which is never stopped.
+        (Humanize.refused_stop, "a chat is not stopped: /clear starts another"),
         (Humanize.refused_resume, ""),
+        (Humanize.refused_chat, "the chat is already on the screen"),
+        (Humanize.refused_prefer, ""),
     ],
 )
 def test_with_nothing_running_the_command_table_reads_as_much(

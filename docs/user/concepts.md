@@ -49,8 +49,8 @@ its [trace](#trace) shows every turn on one timeline.
 
 <RunAnatomy />
 
-The same run at the prompt is `/flow`, the same choices made in menus, and the task typed at
-`❯`. See [Your first run](/user/first-run).
+The same run at the prompt is `/flow`, the same choices made in menus, and
+`$rlar fix the flaky payment test` typed at `❯`. See [Your first run](/user/first-run).
 
 ## Agent
 
@@ -81,9 +81,16 @@ agent](/features/backends).
 ## Budget
 
 What a run may spend before it is stopped: a `duration`, a `cost` in US dollars, or a number of
-`output_tokens`. Every flow except `chat` needs one. See [Every run has a
+`output_tokens`. Every flow needs one; a [chat](#chat) has none. See [Every run has a
 budget](/features/allowances). A single turn can also have a budget of its own, set by the
 flow: [A turn can be cut off](/features/budgets).
+
+## Chat
+
+You talking to one [agent](#agent), a turn at a time, in one conversation in one
+[workspace](#workspace): an [epic](#epic) of its own kind, with no flow, params or budget. `hmz`
+opens on one, and lines your agent's CLI reads natively, such as its `/` commands and skills,
+work in it. See [Chat](/user/chat).
 
 ## Effort
 
@@ -100,8 +107,8 @@ that names none works in the [workspace](#workspace). See
 
 ## Epic
 
-One run of one flow, written down as it happens: the flow, its agents, and every session they
-opened. `/epics` lists the runs of this directory. See [Tracing](/user/tracing) and
+One run of one flow, or one [chat](#chat), written down as it happens: the flow, its agents,
+and every session they opened. `/epics` lists the epics of this directory. See [Tracing](/user/tracing) and
 [Picking a run up](/user/resuming).
 
 ## Flow

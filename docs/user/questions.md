@@ -7,7 +7,7 @@ nobody is there, and to count them from a script.
 
 ## Try it
 
-Start the interface, which opens on [`chat`](https://humanfia.ai/flows/chat) with one agent, and ask for a
+Start the interface, which opens on a [chat](/user/chat) with one agent, and ask for a
 question:
 
 ```sh
@@ -26,8 +26,8 @@ type next is the answer.
 
 - A coding agent CLI that can stop to ask: Claude Code, Codex, Kimi Code, pi or Oh My Pi. See
   [Which agents ask](#which-agents-ask).
-- A flow that passes its agents' questions on to you. `chat`, the flow `hmz` opens on, passes
-  every one on.
+- A flow that passes its agents' questions on to you, or a [chat](/user/chat), which `hmz`
+  opens on and which puts every one to you.
 
 ## Two kinds of question
 
@@ -37,17 +37,16 @@ type next is the answer.
 - **A flow's question** comes from the flow, between turns: a flow that needs a setting from
   you asks for it. The flow waits, then goes on with what you said.
 
-In `chat` the second kind is the conversation itself rather than a question beside it. After
-every answer `chat` waits for your next message, and whatever you type in the conversation,
-a follow-up or a steer, is that message. There is no separate question to answer. The agent's
-own questions still show in the conversation, with the choices it offered.
+A chat has no flow, so it has no second kind: after every answer it waits for your next
+message, and whatever you type, a follow-up or a steer, is that message. Its wait is never
+drawn as a question. The agent's own questions show in the conversation, with the choices it
+offered, and your next line answers them.
 
 Both are shown the same way, a `●` line in yellow with `type an answer, or /afk to stop being
 asked` under it, and both are answered the same way: type a line and press <kbd>enter</kbd>.
-`chat` asking what next is the exception: its question is the answer already on the screen,
-so nothing more is shown. Nothing times out. A question is put to **you** as the flow's
-`human` role, its [outworlder](/user/concepts), which is why its own transcript is headed
-`outworlder human`.
+Nothing times out. In a flow, a question is put to **you** as the flow's `human` role, its
+[outworlder](/user/concepts), which is why its own transcript is headed `outworlder human`. A
+chat has no outworlder: its questions are put to you in its conversation.
 
 ## Example: answer an agent's question at the prompt
 
@@ -63,14 +62,13 @@ stops on the question:
 ● Should the old /v1 API be kept alongside the new /v2, or should it be dropped entirely? (Keep /v1 / Drop /v1)   ②
    type an answer, or /afk to stop being asked                                              ③
 
-                                        assistant · claude/claude-haiku-4-5-20251001:low · ● 1
-                                                           human · outworlder · asking   ④
+                                    assistant · claude/claude-haiku-4-5-20251001:low · ● 1   ④
                                     input 20 · output 620 · cache_read 27.7k · cache_write 13.9k
                                                                            $0.02 · 118 out/s
 ─────────────────────────────────────────────────────────────────────────────────────────────
 ❯ keep, until the next release                                                              ⑤
 ─────────────────────────────────────────────────────────────────────────────────────────────
-  ·\· assistant… (9s · ctrl+c twice to stop)    enter answer · shift+tab switch view · / commands · …   ⑥
+  ·\· running… (9s)                                       enter answer · / commands · …   ⑥
 ```
 
 Press <kbd>enter</kbd>, and the same turn goes on with your answer:
@@ -89,16 +87,16 @@ Press <kbd>enter</kbd>, and the same turn goes on with your answer:
 2. **The same question put to you**, in the same conversation. The choices the agent offered
    follow it in brackets. They are suggestions: type one, or anything else.
 3. **`type an answer, or /afk to stop being asked`** marks a question that is waiting.
-4. **`human · outworlder · asking`** on the agent lines above the prompt says a question is up,
-   even when it has scrolled out of sight.
+4. **The agent line**, `●` while its turn is open, waiting on your answer. In a flow, an
+   outworlder line under it, `human · outworlder · asking`, says a question is up even when
+   it has scrolled out of sight; a chat has none.
 5. **Your answer**, typed at the prompt like any other line.
 6. **`enter answer`** on the status line says what <kbd>enter</kbd> will do: it answers
    the question rather than steering the turn. On a narrow terminal the status line drops its
    leftmost keys first, so this one may not be shown.
 7. **The turn carries on** with your answer, in the same session.
-8. **`chat` waiting for your next message**: the reply is the question, so nothing more is
-   shown. Type the next thing to say, here or in the assistant's own conversation, where it is
-   the next message rather than a steer. Or leave it for as long as you like.
+8. **The chat waiting for your next message**: nothing more is shown. Type the next thing to
+   say, and it is the next turn. Or leave it for as long as you like.
 
 ## Example: a flow's question with choices
 
@@ -130,7 +128,7 @@ Under `hmz exec` nobody is at a prompt, so every question is answered by nobody.
 task:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Before anything else, use your question tool to ask me whether to keep the old /v1 API beside /v2, offering keep and drop. Then reply with one sentence."
 ```
 
@@ -144,30 +142,30 @@ The error indicates "nobody to ask" - this likely means the user isn't available
 ✻ Worked for 5s · assistant
 ```
 
-With `--json`, the question is an object of kind `asks`, so a script can count them:
+Under `hmz exec`, with `--json`, the question is an object of kind `asks`, so a script can
+count them:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" \
+hmz exec -f goal -a worker=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --json "…" \
     | jq -c 'select(.kind == "asks")'
 ```
 
 ```json
-{"at":1790746636.0548427,"agent":"assistant","cli":"claude","model":"claude-haiku-4-5-20251001","session":"","kind":"asks","text":"Should we keep the old /v1 API alongside /v2, or deprecate it completely?","whose":"","tokens":{},"spent":{}}
+{"at":1790746636.0548427,"agent":"worker","cli":"claude","model":"claude-haiku-4-5-20251001","session":"","kind":"asks","text":"Should we keep the old /v1 API alongside /v2, or deprecate it completely?","whose":"","tokens":{},"spent":{}}
 ```
 
 ### What each part means
 
 1. **The question is still printed**, in yellow, so a log shows what the agent wanted to know.
 2. **The agent is told nobody answered**, and carries on as best it can: here it wrote the
-   question into its answer instead. `chat` then ends, since nobody is there to send a next
-   message.
-   The command exits `0`.
+   question into its answer instead. The `hmz chat` above then ends its chat, since nobody is
+   there to send a next message, and exits `0`.
 
 ## Check that it worked
 
 - At the prompt, the `●` question and its `type an answer` line are followed by your line, and
   the agent's next words take your answer into account.
-- `human · outworlder · asking` is gone from the agent lines once nothing is waiting.
+- In a flow, `human · outworlder · asking` is gone from the agent lines once nothing is waiting.
 - Under `hmz exec --json`, count the `asks` objects to see how often a run wanted you.
 
 ## Answering, in detail
@@ -175,8 +173,8 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 - **Where you answer.** A question is shown on whichever transcript you are reading and on the
   asking outworlder's own, which <kbd>shift+tab</kbd> reaches and which holds nothing but what
   it asks you. A line typed on either answers it: the oldest question up on the first, the
-  oldest that outworlder asks on the second. One the agent stopped mid-turn to ask, and
-  `chat` asking what next, are shown and answered in that agent's conversation instead. On one
+  oldest that outworlder asks on the second. One the agent stopped mid-turn to ask, and every
+  question in a [chat](/user/chat), are shown and answered in that agent's conversation instead. On one
   agent's transcript any other line goes to the agent. See [Many conversations at once](/user/conversations).
 - **Somebody else's.** Where [another interface](/features/daemon#several-people-on-one-run)
   reads the same run, a question nobody has claimed goes to whoever answers first, and an
@@ -186,8 +184,8 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 
 ## Which agents ask
 
-An agent asks only if its CLI can, and only if the flow passes its questions on to you. `chat`
-passes every one on.
+An agent asks only if its CLI can, and only if the flow passes its questions on to you. A chat
+puts every one to you.
 
 | `claude` | `codex` | `kimi` | `pi` | `omp` | every other |
 | --- | --- | --- | --- | --- | --- |
@@ -207,16 +205,16 @@ off with `/afk off`. On an outworlder's own transcript it says so for that outwo
 ```text
 ❯ /afk on
 away: agents that ask are told nobody is here
-— the flow is done —
 ```
 
-Here `chat` was waiting for your next message, so being away ended it.
+`/afk` is about a flow's outworlders. A chat has none, so being away changes nothing in one:
+it waits for your next message for as long as you leave it, and
+[folds away](/user/chat#leaving-and-carrying-on) if nobody reads it.
 
 | | While you are away |
 | --- | --- |
 | An agent's question | shown, and the agent is told nobody answered; it carries on |
 | A flow's question | answered with nothing, or with the flow's defaults |
-| `chat` waiting for your next message | answered with nothing, so the conversation ends |
 | A flow's question that has no default | the flow fails with `nobody is there to answer …`, unless it handles that |
 | A question already up | answered by nobody, at once |
 
@@ -234,7 +232,7 @@ See [Being away](/user/afk).
 - **A run under `hmz exec` fails with `nobody is there to answer …`.** The flow asked for
   something it has no default for. Pass it with `-p`, or run it at the prompt.
 - **Your agent never asks.** Its CLI cannot, or the flow does not pass its questions on. Use
-  one of the four CLIs above in `chat`.
+  one of the five CLIs above in a [chat](/user/chat).
 
 ## Next steps
 

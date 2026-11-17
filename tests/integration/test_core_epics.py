@@ -94,7 +94,15 @@ def test_an_epic_exports_whole_with_an_accounts_values_struck_out(
 ) -> None:
     hmz = Hmz(project)
     hmz.accounts.write("claude", "work", env={"ANTHROPIC_API_KEY": SECRET})
-    ran = hmz_exec("-f", "chat", "-a", f"assistant={AGENT}", f"use {SECRET} please")
+    ran = hmz_exec(
+        "-f",
+        "goal",
+        "-a",
+        f"worker={AGENT}",
+        "-p",
+        "budget.cost=1",
+        f"use {SECRET} please",
+    )
     assert ran.returncode == 0, ran.stderr
     (epic,) = hmz.epics.all()
     (session,) = hmz.epics.sessions(epic)
@@ -121,7 +129,7 @@ def test_an_epic_exports_whole_with_an_accounts_values_struck_out(
     )
     assert SECRET.encode() not in said
     assert b"[redacted]" in said
-    assert manifest["run"]["flow"] == "chat"
+    assert manifest["run"]["flow"] == "goal"
     assert manifest["run"]["how"] == "done"
     assert [one["runs"] for one in manifest["agents"]] == [f"{AGENT}:auto"]
     assert SECRET not in json.dumps(manifest)

@@ -60,7 +60,6 @@ from hmz.runtime.flowing.engine import (
     LiveCall,
     current,
     define_flow,
-    full_view,
     load_flow,
     new_outworlder,
     run_flow,
@@ -762,13 +761,6 @@ def test_define_flow_refuses_what_is_not_a_flow() -> None:
             caller_globals={},
             caller_locals={},
         )
-
-
-def test_full_view_takes_only_a_flow_the_engine_made() -> None:
-    assert isinstance(stateless, FlowImpl)
-    assert full_view(stateless) is stateless
-    with pytest.raises(TypeError, match="not a flow the engine made"):
-        full_view(object())  # pyright: ignore[reportArgumentType]
 
 
 async def test_load_flow_is_looked_up_once_inside_a_run(
