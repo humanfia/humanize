@@ -16,6 +16,9 @@ test('the scope defaults to the epic shown, else the workspace shown, else the d
   assert.deepEqual(scopeOf(...at('/live?workspace=%2Fw&slot=chat%3A1')), { scope: 'workspace', workspace: '/w', epic: '' })
   assert.deepEqual(scopeOf(...at('/new?workspace=%2Fw')), { scope: 'workspace', workspace: '/w', epic: '' })
   assert.deepEqual(scopeOf(...at('/new')), { scope: 'daemon', workspace: '', epic: '' })
+  // No epic named, no epic scope: never `epic` with an empty epic.
+  assert.deepEqual(scopeOf(...at('/epics')), { scope: 'daemon', workspace: '', epic: '' })
+  assert.deepEqual(scopeOf(...at('/flows?workspace=%2Fw')), { scope: 'workspace', workspace: '/w', epic: '' })
   // Importing an epic shows none.
   assert.deepEqual(scopeOf(...at('/epics/import')), { scope: 'daemon', workspace: '', epic: '' })
 })
