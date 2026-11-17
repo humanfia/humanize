@@ -21,33 +21,29 @@ if TYPE_CHECKING:
 __all__ = ["METHODS", "clear", "listed", "rename", "write"]
 
 
-def _shown(one: Nous) -> dict[str, Any]:
-    from hmz.coganchor import nous
-
+def _shown(book: Any, one: Nous) -> dict[str, Any]:
     return {
         "name": one.name,
         "virtual": one.virtual,
         "tries": one.tries,
         "policy": one.policy,
         "timeout": one.timeout,
-        "graph": nous.shown(one.graph),
-        "then": nous.shown(one.then),
+        "graph": book.shown(one.graph),
+        "then": book.shown(one.then),
     }
 
 
 def listed(hmz: Any) -> dict[str, Any]:
     """Every nous, the ways of waiting and picking there are, and the nous to name."""
-    from hmz.coganchor import backends, nous
-
     book = hmz.nous
     return {
-        "nous": [_shown(one) for one in book.all()],
+        "nous": [_shown(book, one) for one in book.all()],
         "policies": [{"name": one.name, "about": one.about} for one in book.policies()],
         "default": book.default,
         "strategies": [
             {"name": one.name, "about": one.about} for one in book.strategies()
         ],
-        "faults": [*backends.FAULTS, nous.ANY],
+        "faults": list(book.faults()),
         "concrete": _concrete(hmz),
     }
 
@@ -82,8 +78,6 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
     Raises:
       RpcError: 400 for a value `NousBook` refuses.
     """
-    from hmz.coganchor import nous
-
     book = hmz.nous
     name, tries = said.get("name"), said.get("tries", 0)
     policy, timeout = said.get("policy") or book.default, said.get("timeout", 0)
@@ -102,15 +96,13 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
     ):
         raise _refused("Say timeout in seconds, or 0 for no limit.")
     try:
-        book.put(
-            nous.Nous(
-                name,
-                tries,
-                policy,
-                float(timeout),
-                book.graph(said.get("graph")),
-                book.graph(said.get("then")),
-            )
+        book.write(
+            name,
+            tries=tries,
+            policy=policy,
+            timeout=float(timeout),
+            graph=said.get("graph"),
+            then=said.get("then"),
         )
     except (TypeError, ValueError) as why:
         raise _refused(str(why)) from why

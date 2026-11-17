@@ -497,7 +497,7 @@ next as that list, and as one nous where it holds one node.
 
 **3.6.2.1** An entry whose name does not name a nous of an existing harness or a virtual nous, whose
 graph or `then` is not a nous graph Section 4.11.4.9 of [CORE] allows, that is concrete with a
-`graph` or virtual without one, or that is concrete with `tries` and `timeout` of 0 and no `then`,
+`graph` or virtual without one, or that is concrete with `tries` of 0 and no `then`,
 MUST be ignored when read.
 
 **3.6.2.2** A `tries` or `timeout` that is not a finite number MUST be read as 0, and a negative one

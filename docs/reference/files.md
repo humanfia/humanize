@@ -43,7 +43,7 @@ collide, e.g. `/a/b.c` and `/a/b-c`). Timestamps written into files are UTC,
 
 ```
 H/
-├── settings.yaml                       everything /settings sets: workspaces, machine settings, fallbacks, added CLIs, runtimes
+├── settings.yaml                       everything /settings sets: workspaces, machine settings, nous, added CLIs, runtimes
 ├── .settings.yaml.lock                 held by each writer of settings.yaml
 ├── history.jsonl                       lines typed at the TUI prompt
 ├── web-port                            the port the last hmz web listened on, its --port default
@@ -81,7 +81,7 @@ M/
 ### `H/settings.yaml`
 
 [Settings](/reference/settings) is the schema. Written through `hmz.coganchor.settings`: by
-`hmz.runtime.settings.Settings`, and by the fallbacks, added CLIs and runtimes.
+`hmz.runtime.settings.Settings`, and by the nous, added CLIs and runtimes.
 
 | Property | Value |
 | --- | --- |

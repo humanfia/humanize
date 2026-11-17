@@ -87,6 +87,32 @@ _EARLIER = frozenset(
 CARRIED = ("general", "nous", "runtimes", "backup")
 
 
+def _named_first(every: Sequence[Any]) -> list[Any]:
+    """Every nous, each after the virtual nous its graph and its `then` name."""
+    held = {one.name: one for one in every}
+    done: list[Any] = []
+    seen: set[str] = set()
+
+    def names(graph: Any) -> list[str]:
+        nodes = graph.nodes if graph is not None else ()
+        return [
+            name for node in nodes for name in (node.use, *(n for n, _ in node.among))
+        ]
+
+    def visit(one: Any) -> None:
+        if one.name in seen:
+            return
+        seen.add(one.name)
+        for name in [*names(one.graph), *names(one.then)]:
+            if name in held:
+                visit(held[name])
+        done.append(one)
+
+    for one in every:
+        visit(one)
+    return done
+
+
 def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
     """The RPC calls that write one daemon's settings to another, of the pages asked for.
 
@@ -108,8 +134,7 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
             general["reports"] = settings.enable_sentry
         sent.append(("settings.set", general))
     if "nous" in pages:
-        from hmz.coganchor import nous
-
+        book = hmz.nous
         sent += [
             (
                 "nous.set",
@@ -118,13 +143,13 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
                     "tries": one.tries,
                     "policy": one.policy,
                     "timeout": one.timeout,
-                    "graph": nous.shown(one.graph),
-                    "then": nous.shown(one.then),
+                    "graph": book.shown(one.graph),
+                    "then": book.shown(one.then),
                 },
             )
-            # Virtual nous a graph names go before the graphs naming them, so that each
-            # write names only nous the daemon already has.
-            for one in sorted(hmz.nous.all(), key=lambda one: not one.virtual)
+            # Each nous after every virtual one its graphs name, so that each write names
+            # only nous the daemon already has.
+            for one in _named_first(book.all())
         ]
     if "runtimes" in pages:
         for one in hmz.runtimes.all():

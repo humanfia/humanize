@@ -9,6 +9,6 @@ export const WRITES = new Set([
   'workspaces.forget', 'flowverses.add', 'flowverses.fetch', 'flowverses.remove',
   'flowverses.install', 'flowverses.uninstall', 'settings.set', 'settings.forget',
   'accounts.create', 'accounts.correct', 'accounts.remove', 'accounts.models', 'accounts.copy',
-  'fallbacks.set', 'fallbacks.clear', 'runtimes.set', 'runtimes.remove', 'runtimes.import',
+  'nous.set', 'nous.rename', 'nous.clear', 'runtimes.set', 'runtimes.remove', 'runtimes.import',
   'easytier.set', 'easytier.remove',
 ])

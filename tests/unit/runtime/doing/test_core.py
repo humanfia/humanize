@@ -13,11 +13,11 @@ from hmz.coganchor import backends
 from hmz.runtime import (
     Accounts,
     Epics,
-    Fallbacks,
     Flows,
     Flowverses,
     Hmz,
     Holding,
+    NousBook,
     Run,
     Runtimes,
     runner,
@@ -46,7 +46,7 @@ def test_the_workspace_is_the_one_named_or_wherever_humanize_is_run(
         ("flows", Flows),
         ("accounts", Accounts),
         ("runtimes", Runtimes),
-        ("fallbacks", Fallbacks),
+        ("nous", NousBook),
         ("epics", Epics),
     ],
 )
@@ -109,7 +109,7 @@ def test_what_a_batch_carries_is_this_machines_own_settings(
 
     assert hmz.carried(("general",)) == [("/api/settings", {"details": True})]
     assert seen == [(hmz, ("general",))]
-    assert hmz.daemons.CARRIED == ("general", "fallback", "runtimes", "backup")
+    assert hmz.daemons.CARRIED == ("general", "nous", "runtimes", "backup")
 
 
 def test_every_backend_is_listed_installed_or_not(stand: Stands) -> None:

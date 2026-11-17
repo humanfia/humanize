@@ -574,7 +574,7 @@ Command 'claude' returned non-zero exit status 1. 429 rate limit exceeded
 (throttled: the service asks it to slow down, with no quota spent; a wait is what answers it)
 ```
 
-Humanize waits, retries, or moves to the next place of its [fallback](/user/settings#fallback) chain
+Humanize waits, retries, or moves on through its [nous](/user/settings#nous)
 by itself, depending on the kind. The entries below say what is left for you to do. A failure with
 no brackets is one Humanize did not recognise, and it is retried as that place says. Under
 `hmz exec`, a failure nothing recovers from ends the run with a traceback whose last line is
@@ -598,14 +598,14 @@ says. Then choose a model it runs.
 **Symptom.** A turn fails with this bracket, and the run pauses or moves to another place.
 
 **Cause.** The account hit its rate limit: the service is asking it to slow down, and has not
-said a quota is spent. Humanize waits, tries once more, then moves to the next place of the
-[fallback chain](/user/settings#fallback), if there is one.
+said a quota is spent. Humanize waits, tries once more, then moves on through its
+[nous](/user/settings#nous), if it has somewhere to go.
 
 **Fix.** Give it one to move to: add an account on [the Accounts page of
-`/settings`](/user/settings#accounts), and put a place under it (the same model under the new
-account, say) on the chain of the place that failed, on the Fallback page.
+`/settings`](/user/settings#accounts), and put a nous under it (the same model under the new
+account, say) in the `then` of the nous that failed, or balance the two, on the Nous page.
 
-**Verify.** The next time it happens, the transcript says `carrying on as` the other place.
+**Verify.** The next time it happens, the transcript says `carrying on as` the other nous.
 
 ### `(spent: this account has spent its quota; another one, or a wait, is what answers it)`
 
@@ -625,7 +625,7 @@ move to, as for a rate limit above.
 **Symptom.** A turn fails with this bracket.
 
 **Cause.** The credential was refused, or the login expired. Humanize moves straight on to the
-next place of the fallback chain.
+next nous of its walk.
 
 A login that renews itself (Codex with ChatGPT, Claude Code with a subscription) is also
 revoked, with `refresh token was revoked`, when two copies of it renewed apart: a copy of
@@ -652,7 +652,7 @@ another machine, sign its CLI in there instead.
 
 **Cause.** The role has `network=False`, so its [fence](/user/permissions) lets it reach only
 the hosts its model and login are at, and the CLI reached for another. Nothing was wrong with
-the account. Humanize moves straight on to the next place of the fallback chain.
+the account. Humanize moves straight on to the next nous of its walk.
 
 **Fix.** Give the role `network=True`, or point it at a model whose host the fence knows.
 
@@ -701,7 +701,7 @@ models to ask the CLI what this account runs now. Then choose one of those.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
-**Symptom.** A turn fails with this bracket, and goes straight to the next fallback.
+**Symptom.** A turn fails with this bracket, and goes straight to the next nous.
 
 **Cause.** The CLI says there is no such model. No account of that CLI has it.
 

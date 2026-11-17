@@ -702,7 +702,7 @@ form's `workdir` on this machine -- complete as they are written, as a shell doe
 | Menu | Held until saved | Applied at once |
 | --- | --- | --- |
 | `/flow`, roles, agent sheet, params, budget, backup, environment form, unsaved host | the flow, its roles, params, budget, both profiling switches and backup targets | installing, updating, uninstalling; adding, fetching and removing a flowverse |
-| `/settings` General, Workspace, Fallback, Backup | everything | — |
+| `/settings` General, Workspace, Nous, Backup | everything | — |
 | `/settings` Accounts | edit settings, remove | add an account, sign in again, add a custom CLI |
 | `/settings` Runtimes; `/epics` | — | everything (an upload is queued, not waited on) |
 | Monitor board | — | everything |
@@ -1361,8 +1361,8 @@ Storage keys are in [Settings](/reference/settings).
   │ ◉  Accounts                                        3 accounts  ● unsaved │
   │    what agents sign in as, under each CLI                                │
   │──────────────────────────────────────────────────────────────────────────│
-  │ ↻  Fallback                                                      2 rules │
-  │    where a turn goes when its agent fails                                │
+  │ ↻  Nous                                                           2 nous │
+  │    what agents think with, and where a failed turn goes                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ▦  Runtimes                                                    1 machine │
   │    ssh hosts, docker daemons, swarms, Apple containers and Slurm         │
@@ -1388,7 +1388,7 @@ Storage keys are in [Settings](/reference/settings).
 | ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
 | ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
-| ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
+| ↻ Nous | `<n> nous` | nous differ from what is saved |
 | ▦ Runtimes | `<n> machine(s)` | never |
 | ⇪ Backup | `<n> target(s)` | targets differ from what is saved |
 | ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | forget on |
@@ -1422,7 +1422,7 @@ Every page is drawn as any menu is ([Anatomy](#menu-anatomy)).
 | Daemons | Add daemon · Import… · Search… | name, row text |
 | Usage | — | — |
 | Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
-| Fallback | Add fallback rule · Search… · Save | place, rule text |
+| Nous | add nous · Search… · Save | name, row text |
 | Backup | Add target · Download… (a target saved) · Search… · Save | name, row text |
 | Runtimes | Add a runtime… · Import ~/.ssh/config · Search… | name, backend, row text |
 
@@ -1445,7 +1445,7 @@ in force.
 | /btw The Epic | next time btw mode is entered | `takes effect on next /btw` |
 | Forget | next launch | `takes effect on next launch` |
 | Account edit, removal | next agent session (running sessions keep their account) | `from the next agent session` |
-| Fallback rules | next failed turn | — |
+| Nous | next failed turn | — |
 | Backup targets | the next backup | — |
 | Runtimes | at once | — |
 | Daemons | at once | — |
@@ -1546,11 +1546,11 @@ imported`, `device <device> revoked`.
 
 **Batch apply…** (with a daemon added) opens **Batch apply**: `This machine's settings, written
 to other daemons as each of their pages saves them. Accounts stay put: only a secret sets them.`
-A switch per page carried -- `general`, `fallback`, `runtimes`, `backup`, each `carried`, on --
+A switch per page carried -- `general`, `nous`, `runtimes`, `backup`, each `carried`, on --
 then one per daemon, `written to`, off. **Done** `writes the pages switched on to each daemon
 switched on`; error `switch on a page and a daemon`. Each daemon is reached as **connect**
 reaches it and written with the calls its own settings pages make (`settings.set`,
-`fallbacks.set`, `runtimes.set`), a backup target's URL with
+`nous.set`, `runtimes.set`), a backup target's URL with
 nothing signed into it (so one that signs in is refused there). Said under the list and in the
 transcript: `<daemon>: applied` or `<daemon>: <why>`, for each, `·` between.
 
@@ -1580,7 +1580,7 @@ actions   esc back`.
 
 `as local` offers no rows and no button: `this is <cli> as local: Humanize keeps no
 credentials for it, so you cannot edit, sign in, or remove it`. Where a failing turn goes is the
-[Fallback page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
+[Nous page](#where-a-turn-goes-when-it-cannot-be-taken)'s, not an account's.
 
 On save the transcript says, per change: `<cli>/<name> and its credentials were removed`,
 `<cli>/<name> is updated` (and `<other>/<name> is updated with it`), then once `account
@@ -1660,42 +1660,34 @@ after the command's first word: `<name> added as a backend`; transcript ``<name>
 backend: `<command>` starts it``. Refusals: `command is required`, `<x> is already a backend
 Humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
 
-### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
+### Nous page {#where-a-turn-goes-when-it-cannot-be-taken}
 
-Intro: `Where a turn falls back when an agent fails, tried in order. An agent is a CLI, an
-account and a model. A chain starts only from the agent it is written for. Saved rules apply
-from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <a>[, then <b>…]` or `… · no fallback`. Empty: `no fallback rules configured yet`.
-Semantics: [Providers](/reference/providers) and [Falling back](/user/settings#fallback).
+Intro: `What agents think with. A concrete nous is HARNESS[@ACCOUNT]/MODEL[:EFFORT]; a virtual
+nous is a name for a graph of others. A failed turn is retried as the nous says, then goes to its
+then.` Rows: `<name>  virtual|concrete · no retries|<n> retries · <policy> · <limit>[ · graph
+<nodes>] · then <nodes>`, a graph's nodes in order from its start joined by `→`, a use node as its
+nous and a balance node as `<strategy>(<nous>×<weight>, …)`; `none` for no graph. Empty: `no nous
+written down yet`. Buttons: **add nous** (`a concrete nous, or a virtual one`), **Search…**,
+**Save**. Semantics: [Nous](/user/settings#nous).
 
-Rule form: title `Add fallback rule` (or the place when editing); intro `What happens when an
-agent cannot take a turn: retry as configured, then fall back to another agent in a new
-conversation.`
+Nous form: rows `name` (typed, or chosen from the concrete nous the accounts and installed
+harnesses run; a name with no `/` is a virtual nous, and on one already written renaming it renames
+it in every nous held), `effort` (concrete only; rewrites the `:EFFORT` of the name), `tries` ▾
+(`none`, `1`, `2`, `3`, `5`, `8`, `13`, `21`), `policy` ▾ (the six policies, each with what it
+does), `limit` ▾ (`no limit`, `30s`, `1m`, `5m`, `15m`, `60m`), `graph` (virtual only) and `then`,
+each opening the graph form. Buttons: **remove** (an existing nous; refused while another names
+it, saying `<other> still names <name>`), then **Done** (`applies this nous when /settings is
+saved`). Refused on **Done**, with the reason `Hmz().nous.check` gives: a name that is no nous, a
+virtual nous with no graph, a concrete one with neither retries nor a then (`<name> says nothing:
+give it retries or a then`), a graph that does not hold together, nous naming one another round.
 
-| Row | Kind | Values | Default |
-| --- | --- | --- | --- |
-| `fails on` (new only) | ▸ | a place (`—` empty) | — |
-| `falls back to` | ▸ | the first place of the chain, or `nowhere` | `nowhere` |
-| `then` (one per further place) | ▸ | the next place of the chain (`if that fails too, in a new conversation`) | — |
-| `then` (after the last, once the chain has one) | ▸ | `+ add` (`add an agent to try after the ones above`) | — |
-| `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
-| `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
-| `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
-
-Buttons: **Remove** (editing a rule only; red; `removes this fallback rule when saved`), then
-**Done** (`applies this fallback rule when /settings is saved`).
-
-Place picker: `Select the agent that fails` / `Select the fallback agent for <place>`; `Here an
-agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
-Button **Search…**. Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
-for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
-to query them` for an account not yet asked. On a row of the chain, `nowhere` takes that place
-off it, and a place already further along the chain swaps with the one there (how the chain is
-reordered).
-
-Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `an agent can
-be on the chain only once`, `choose a fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
-a fallback rule; done will update it`. Transcript on save: `<place> <rule>` or `<place> has no
-fallback`.
+Graph form: the `start` node ▾, one row per node (as the page shows it), **add node**; **remove**
+on a `then`. Node form: `id`, `kind` ▾ (`use`, `balance`); a use node's `nous` (typed or chosen,
+virtual nous first); a balance node's `strategy` ▾ (each with what it picks), `among` (`<nous>
+<weight>, …`, or **add** from the picker at weight 1) and `spread`; then one row per fault class
+and `*`, each ▾ another node or none. Removing a node takes the edges to it away; renaming one
+renames them. On save, renames are applied first, then each nous written and each removed one
+cleared; the transcript says what each came to.
 
 ### Runtimes page {#runtimes}
 

@@ -1810,6 +1810,9 @@ class SessionBase(ABC):
                     else f"{failed_at._agent.backend} has nowhere left to run"
                 )
                 self._narrates(f"{went}; carrying on as {stood_in.spec}")
+            if stood_in is self._agent:
+                # Back here after a stand-in took a step: a cut lands in this session again.
+                self._took = None
             names = (*walk.picks(), step.nous)
             nous.started(names)
             started, tokens, fault = time.monotonic(), 0, None

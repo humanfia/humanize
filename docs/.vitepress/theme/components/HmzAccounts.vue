@@ -1,12 +1,12 @@
 <script setup lang="ts">
-// One agent's turn, carried down a fallback chain of places. A turn runs as an account, with
+// One agent's turn, carried down a nous's `then` chain. A turn runs as an account, with
 // every key the backend would read from the environment unset unless the account set it
 // (`Profile.hushes` and `Profile.creds` in `src/hmz/coganchor/backends.py`). When the place
 // fails, it is tried again inside the session that was running, and then the turn moves to the
 // next place of the chain in a new conversation (`_falling_back` and `stands_in` in
 // `src/hmz/coganchor/agents/base.py`): a rate limit gets at least one more try after at least
 // 30 seconds, refused credentials move on at once and leave that account needing a new sign-in
-// (`ANSWERS` in `src/hmz/coganchor/fallbacks.py`). The agent's next turn starts at the first
+// (`ANSWERS` in `src/hmz/coganchor/nous.py`). The agent's next turn starts at the first
 // place again, and carries on in the conversation the place that worked holds if it has to. The
 // waits drawn are compressed.
 import { computed, ref } from 'vue'

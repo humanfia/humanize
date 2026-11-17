@@ -8,7 +8,7 @@ way in asks, so that a nous written from a command line is one the interface rea
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -94,6 +94,32 @@ class NousBook:
 
         return nous.graph_of(said)
 
+    def shown(self, graph: Graph | None) -> dict[str, Any] | None:
+        """A graph as the daemon's methods carry it: whole, its nodes a list, or None."""
+        from hmz.coganchor import nous
+
+        return nous.shown(graph)
+
+    def check(self, nous: Nous, among: Sequence[Nous] | None = None) -> Nous:
+        """One nous as :meth:`put` would write it beside `among`, without writing it.
+
+        Raises:
+          ValueError: For a nous that cannot be.
+        """
+        from hmz.coganchor import nous as nous_
+
+        return nous_.check(nous, among)
+
+    def checked(self, name: str, graph: Graph) -> Graph:
+        """One graph of the nous `name` as it would be written, without writing it.
+
+        Raises:
+          ValueError: For a graph that does not hold together.
+        """
+        from hmz.coganchor import nous
+
+        return nous.checked(name, graph)
+
     def put(self, nous: Nous) -> Nous:
         """Writes one nous down, whole, in place of whatever was under its name.
 
@@ -104,25 +130,29 @@ class NousBook:
 
         return nous_.put(nous)
 
-    def virtual(
+    def write(
         self,
         name: str,
-        graph: object,
         *,
         tries: int = 0,
         policy: str = "",
         timeout: float = 0.0,
+        graph: object = None,
         then: object = None,
     ) -> Nous:
-        """Writes one virtual nous down: a name that stands for a graph.
+        """Writes one nous down, whole, in place of whatever was under its name.
 
         Args:
-          name: What agents name it by.
-          graph: Its graph, in any shape :meth:`graph` reads.
-          tries: How many times over the graph is walked again before `then`.
-          policy: How long to wait between those walks, or "" for the default.
-          timeout: The longest the walking again may go on for, 0 for no limit.
-          then: Where a turn goes once those walks are spent, or None for nowhere.
+          name: A concrete nous, or what agents name a virtual one by.
+          tries: How many times over its body is taken again before `then`.
+          policy: How long to wait between those tries, or "" for the default.
+          timeout: The longest the trying again may go on for, 0 for no limit.
+          graph: A virtual nous's graph, in any shape :meth:`graph` reads, or None for a
+            concrete one.
+          then: Where a turn goes once those tries are spent, likewise, or None for nowhere.
+
+        Returns:
+          The nous as written.
 
         Raises:
           ValueError: For a nous that cannot be.
@@ -140,6 +170,12 @@ class NousBook:
                 nous.graph_of(then),
             )
         )
+
+    def faults(self) -> tuple[str, ...]:
+        """What a node's edges may be named after: every fault class, and `*` for any."""
+        from hmz.coganchor import backends, nous
+
+        return (*backends.FAULTS, nous.ANY)
 
     def retrying(self, said: str, tries: int, policy: str, timeout: float) -> Nous:
         """Says how a failed turn at one nous is taken again before its `then`.

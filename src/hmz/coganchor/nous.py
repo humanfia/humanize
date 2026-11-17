@@ -62,6 +62,8 @@ __all__ = [
     "Walk",
     "answers",
     "chain",
+    "check",
+    "checked",
     "clear",
     "entry",
     "every",
@@ -429,12 +431,7 @@ class Nous:
 
     def says(self) -> bool:
         """Whether it says anything at all, which is what keeps it written down."""
-        return (
-            self.virtual
-            or self.then is not None
-            or self.tries > 0
-            or bool(self.timeout)
-        )
+        return self.virtual or self.then is not None or self.tries > 0
 
 
 #: How a virtual nous, a node and an added strategy may be called.
@@ -531,20 +528,18 @@ def chain(names: Iterable[str]) -> Graph | None:
     )
 
 
-def put(nous: Nous) -> Nous:
-    """Writes one nous down in place of whatever was written under its name.
+def check(nous: Nous, among: Iterable[Nous] | None = None) -> Nous:
+    """One nous as :func:`put` would write it, without writing it.
 
     Args:
       nous: The nous, whole.
+      among: Every other nous it is to be written beside, or None for those written down.
 
     Returns:
-      It, as written: its name canonical.
+      It, as it would be written: its name and the nous of its graphs canonical.
 
     Raises:
-      ValueError: For a nous that cannot be: a name that is no nous, a concrete one with a
-        graph or a virtual one without one, a policy or a number nothing waits by, a graph
-        that does not hold together, or one that comes round to a nous on its way.
-      OSError: If the settings cannot be read, or written.
+      ValueError: As :func:`put` does.
     """
     name = reads(nous.name)
     if not name:
@@ -574,6 +569,39 @@ def put(nous: Nous) -> Nous:
         graph=_checked(name, nous.graph),
         then=_checked(name, nous.then),
     )
+
+    others = {one.name: one for one in (every() if among is None else among)}
+    others.pop(name, None)
+    _loops(others | ({name: made} if made.says() else {}))
+    return made
+
+
+def checked(name: str, graph: Graph) -> Graph:
+    """One graph of a nous as it would be written, without writing it.
+
+    Raises:
+      ValueError: For a graph that does not hold together, naming `name` in why.
+    """
+    return cast("Graph", _checked(name, graph))
+
+
+def put(nous: Nous) -> Nous:
+    """Writes one nous down in place of whatever was written under its name.
+
+    Args:
+      nous: The nous, whole.
+
+    Returns:
+      It, as written: its name canonical.
+
+    Raises:
+      ValueError: For a nous that cannot be: a name that is no nous, a concrete one with a
+        graph or a virtual one without one, a policy or a number nothing waits by, a graph
+        that does not hold together, or one that comes round to a nous on its way.
+      OSError: If the settings cannot be read, or written.
+    """
+    made = check(nous)
+    name = made.name
 
     def change(held: dict[str, Any]) -> None:
         kept = {one.name: one for one in _read(held)}

@@ -195,7 +195,7 @@ async def test_settings_are_batch_applied_to_another_daemon(host: Host) -> None:
 
         await pilot.click("#act-batch")
         await on(pilot, Batching)
-        await shows(pilot, "general", "fallback", "runtimes", "backup", "box")
+        await shows(pilot, "general", "nous", "runtimes", "backup", "box")
         await picks(pilot, "daemon:box", "on")
         await pilot.click("#act-done")
         await on(pilot, Adjusts)

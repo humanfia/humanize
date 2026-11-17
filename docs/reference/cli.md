@@ -213,7 +213,12 @@ the several-flows-per-module rule are specified in
 
 ```text
 <role>=<cli>[@<provider>]/<model>[:<effort>]
+<role>=<nous>
 ```
+
+The rest after `=` is a concrete [nous](/user/settings#nous); one with no `/` is the name of a
+virtual nous written on the Nous page, and the agent is built at the concrete nous its graph
+starts at and walks the graph each turn.
 
 | Part | Rule |
 | --- | --- |
@@ -395,9 +400,10 @@ Stage 1–2 messages are preceded by the usage block.
 | --- | --- |
 | no `-f`, no task | `the following arguments are required: -f/--flow` / `…: task` |
 | unknown option | `unrecognized arguments: <args>` |
-| an `-a` item without `role=` | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
+| an `-a` item without `role=` | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>] or <role>=<nous>` |
 | an `-a` role that is not an identifier | ``-a '<item>': '<role>' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier`` |
 | an `-a` with an unknown CLI, no `/` or no model | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
+| an `-a` naming a virtual nous nobody wrote | `-a '<item>': '<name>' is no nous written down` |
 | `@` with no account | `-a '<item>': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
 | a role twice in `-a` | `-a: the role '<role>' is given twice` |
 | an `-e` that does not match | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
@@ -466,7 +472,7 @@ One line (or block) per event, in order. `●` is `⏺` on macOS.
 
 Cost footer: `✻ <kind> <count>[ · <kind> <count>…] · [<money> · ]<model> · <agent>`, drawn
 only for a `result` carrying `spent`. `<model>` is the one model the result's `tokens` names,
-where it names exactly one (the model a [fallback](/user/settings#fallback) carried the turn
+where it names exactly one (the model a [nous](/user/settings#nous) carried the turn
 to, or the one an alias resolved to), else the agent's configured model; it is also what the
 money is priced at. Kinds in the order `input`, `output`, `cache_read`,
 `cache_write`, `reasoning`, then any other alphabetically. Counts: `< 1000` as an integer,
@@ -1004,7 +1010,7 @@ is [Files](/reference/files).
 | Path | Command | Access |
 | --- | --- | --- |
 | `epics/<workspace>/<datetime>-<hex>/` | `hmz exec`, runs started from `hmz` | written: one [epic](/reference/tracing#epics) per run |
-| `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers); its `runtimes`, `fallbacks` and `clis` are read by all when an agent or environment is opened |
+| `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers); its `runtimes`, `nous` and `clis` are read by all when an agent or environment is opened |
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |
