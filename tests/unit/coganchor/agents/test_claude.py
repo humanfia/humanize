@@ -45,6 +45,11 @@ if TYPE_CHECKING:
 #: What every agent here is made with unless a test says otherwise.
 _DEFAULTS: dict[str, Any] = {"model": "claude-x", "effort": ""}
 
+#: A fence that writes nothing, and one that writes somewhere: the two grants a driver reads
+#: off the fence, each with the network open so that the web tools stay out of it.
+_READS = Fence(online=True)
+_WRITES = Fence(write=("/w",), online=True)
+
 
 def _flag(argv: list[str], name: str) -> str:
     return argv[argv.index(name) + 1]
@@ -203,26 +208,58 @@ def test_a_turn_never_lets_claude_fall_back_to_another_model(
     assert spawner.last.environ["CLAUDE_CODE_NO_MODEL_FALLBACK"] == "1"
 
 
-@pytest.mark.parametrize(
-    ("permission", "mode"),
-    [
-        ("read-only", "plan"),
-        ("workspace-write", "acceptEdits"),
-        ("auto", "auto"),
-        ("bypass", "bypassPermissions"),
-    ],
-)
-def test_each_rung_is_a_permission_mode(
-    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str, mode: str
+def test_an_agent_with_no_fence_is_told_nothing_of_a_grant(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
-    claude.mode = mode
-    _agent(permission=permission).new(tmp_path)("go")
+    _agent().new(tmp_path)("go")
     argv = spawner.last.args
-    assert _flag(argv, "--permission-mode") == mode
-    routed = permission in ("read-only", "bypass")
-    assert ("--permission-prompt-tool" in argv) is routed
-    if routed:
-        assert _flag(argv, "--permission-prompt-tool") == "stdio"
+    for absent in (
+        "--permission-mode",
+        "--tools",
+        "--permission-prompt-tool",
+        "--disallowedTools",
+    ):
+        assert absent not in argv
+
+
+def test_a_fence_that_writes_nothing_withholds_the_writing_tools_and_keeps_the_shell(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.mode = "bypassPermissions"
+    _agent(fence=_READS).new(tmp_path)("go")
+    argv = spawner.last.args
+    assert _flag(argv, "--permission-mode") == "bypassPermissions"
+    assert _flag(argv, "--tools") == "default"
+    denied = _flag(argv, "--disallowedTools").split(",")
+    assert denied == ["Edit", "Write", "NotebookEdit"]
+    assert _flag(argv, "--permission-prompt-tool") == "stdio"
+    assert "plan" not in argv
+
+
+def test_a_fence_that_writes_somewhere_gives_every_tool(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.mode = "bypassPermissions"
+    _agent(fence=_WRITES).new(tmp_path)("go")
+    argv = spawner.last.args
+    assert _flag(argv, "--permission-mode") == "bypassPermissions"
+    assert _flag(argv, "--permission-prompt-tool") == "stdio"
+    assert "--tools" not in argv
+    assert "--disallowedTools" not in argv
+
+
+def test_the_writing_tools_withheld_join_the_others_on_one_list(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.mode = "bypassPermissions"
+    agent = _agent(fence=Fence(online=False))
+    agent.disable_goals()
+    agent.new(tmp_path)("go")
+    argv = spawner.last.args
+    assert argv.count("--disallowedTools") == 1
+    denied = set(_flag(argv, "--disallowedTools").split(","))
+    assert {"Edit", "Write", "NotebookEdit", "WebSearch", "WebFetch", "Agent"} <= denied
+    assert "Bash" not in denied
 
 
 def test_what_the_config_says_reaches_the_command_line(
@@ -661,20 +698,18 @@ def _replied(proc: Process) -> dict[str, Any]:
     return reply["response"]["response"]
 
 
-@pytest.mark.parametrize(
-    ("permission", "behavior"), [("bypass", "allow"), ("read-only", "deny")]
-)
-def test_a_permission_is_granted_unless_the_rung_changes_nothing(
-    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str, behavior: str
+@pytest.mark.parametrize("fence", [_READS, _WRITES])
+def test_a_permission_is_granted_whatever_the_fence_writes(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, fence: Fence
 ) -> None:
-    claude.mode = "bypassPermissions" if permission == "bypass" else "plan"
+    claude.mode = "acceptEdits"
     seen: list[Occasion] = []
 
     def watch(occasion: Occasion) -> Verdict:
         seen.append(occasion)
         return Verdict()
 
-    agent = _agent(permission=permission)
+    agent = _agent(fence=fence, asks=False)
     agent.hooks.on(Moment.PERMISSION_REQUEST, watch)
     claude.answers = [
         _asking(
@@ -683,14 +718,13 @@ def test_a_permission_is_granted_unless_the_rung_changes_nothing(
     ]
     agent.new(tmp_path)("go")
     replied = _replied(spawner.last)
-    assert replied["behavior"] == behavior
+    assert replied == {"behavior": "allow", "updatedInput": {"command": "ls"}}
     assert [(one.tool, one.about) for one in seen] == [("Bash", "ls")]
-    if behavior == "allow":
-        assert replied["updatedInput"] == {"command": "ls"}
 
 
+@pytest.mark.parametrize("fence", [_READS, _WRITES])
 def test_a_hook_on_permission_request_asks_and_may_refuse(
-    spawner: Spawner, claude: _Claude, tmp_path: Path
+    spawner: Spawner, claude: _Claude, tmp_path: Path, fence: Fence
 ) -> None:
     claude.mode = "manual"
     seen: list[Occasion] = []
@@ -699,7 +733,7 @@ def test_a_hook_on_permission_request_asks_and_may_refuse(
         seen.append(occasion)
         return Verdict(refused=True, because="not that")
 
-    agent = _agent(permission="bypass")
+    agent = _agent(fence=fence)
     agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
     claude.answers = [
         _asking(
@@ -708,17 +742,18 @@ def test_a_hook_on_permission_request_asks_and_may_refuse(
     ]
     agent.new(tmp_path)("go")
     assert _flag(spawner.last.args, "--permission-mode") == "manual"
+    assert ("--tools" in spawner.last.args) is (fence is _READS)
     assert _replied(spawner.last) == {"behavior": "deny", "message": "not that"}
     assert [(one.tool, one.about) for one in seen] == [("Bash", "rm")]
 
 
-@pytest.mark.parametrize("permission", ["read-only", "bypass"])
+@pytest.mark.parametrize("fence", [_READS, _WRITES])
 @pytest.mark.parametrize(("answer", "behavior"), [("blue", "allow"), (None, "deny")])
 def test_a_question_for_its_user_is_put_to_whoever_is_driving(
     spawner: Spawner,
     claude: _Claude,
     tmp_path: Path,
-    permission: str,
+    fence: Fence,
     answer: str | None,
     behavior: str,
 ) -> None:
@@ -728,8 +763,8 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
         asked.append(question)
         return answer
 
-    claude.mode = "plan" if permission == "read-only" else "bypassPermissions"
-    agent = _agent(permission=permission)
+    claude.mode = "bypassPermissions"
+    agent = _agent(fence=fence)
     agent.ask = ask
     question = {"question": "Which?", "options": [{"label": "blue"}, {"label": "red"}]}
     claude.answers = [
@@ -749,9 +784,8 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
         assert replied["updatedInput"]["answers"] == {"Which?": "blue"}
 
 
-@pytest.mark.parametrize("permission", ["", "workspace-write", "auto"])
-def test_a_rung_humanize_does_not_answer_for_routes_nothing(
-    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str
+def test_an_agent_with_no_fence_routes_nothing(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
     asked: list[Question] = []
 
@@ -759,7 +793,7 @@ def test_a_rung_humanize_does_not_answer_for_routes_nothing(
         asked.append(question)
         return "blue"
 
-    agent = _agent(permission=permission)
+    agent = _agent()
     agent.ask = ask
     question = {"question": "Which?", "options": [{"label": "blue"}]}
     claude.answers = [
@@ -780,7 +814,7 @@ def test_a_rung_humanize_does_not_answer_for_routes_nothing(
 def test_web_search_not_switched_off_leaves_the_web_tools_alone(
     spawner: Spawner, claude: _Claude, tmp_path: Path, web_search: bool | None
 ) -> None:
-    _agent(permission="read-only", web_search=web_search).new(tmp_path)("go")
+    _agent(fence=_READS, web_search=web_search).new(tmp_path)("go")
     argv = spawner.last.args
     if "--disallowedTools" in argv:
         denied = set(_flag(argv, "--disallowedTools").split(","))
@@ -790,7 +824,7 @@ def test_web_search_not_switched_off_leaves_the_web_tools_alone(
 def test_an_account_that_forbids_bypass_is_moved_and_remembered(
     spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
-    agent = _agent(permission="bypass")
+    agent = _agent(fence=_WRITES)
     assert not agent.declines()
     events = list(agent.new(tmp_path).stream("go"))
     assert any("will not run an agent at bypass" in one.text for one in events)
@@ -816,7 +850,7 @@ def test_bypass_refused_as_root_is_taken_again_at_accept_edits(
 
     spawner.script = script
     claude.mode = "acceptEdits"
-    events = list(_agent(permission="bypass").new(tmp_path).stream("go"))
+    events = list(_agent(fence=_READS).new(tmp_path).stream("go"))
     assert events[-1].text == "done"
     assert [_flag(one.args, "--permission-mode") for one in spawner.started] == [
         "bypassPermissions",

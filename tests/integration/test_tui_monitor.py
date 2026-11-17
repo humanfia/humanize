@@ -224,8 +224,11 @@ async def test_with_nobody_named_the_epic_is_refused_and_the_settings_named(
 
 
 def _asides(workspace: Path) -> list[list[str]]:
-    """The stand-ins started read-only for a side question, oldest first."""
-    return [one for one in started(workspace) if "plan" in one]
+    """The stand-ins started read-only for a side question, oldest first.
+
+    Told `--tools`, which is said only where the file-writing tools are withheld.
+    """
+    return [one for one in started(workspace) if "--tools" in one]
 
 
 async def test_the_epic_opens_from_the_monitor_and_is_stopped_there(

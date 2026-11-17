@@ -1567,8 +1567,8 @@ or flow resources restart the process; an anchored turn always ends it.
 claude --print --input-format stream-json --output-format stream-json --verbose
   [--include-partial-messages]
   (--session-id <new uuid> | --resume <id> | --resume <parent> --fork-session)
-  [--permission-mode plan|acceptEdits|auto|bypassPermissions|manual]
-  [--permission-prompt-tool stdio]
+  [--permission-mode bypassPermissions|manual|acceptEdits]
+  [--tools default] [--permission-prompt-tool stdio]
   --settings '<json>' --model <model> [--effort <rung>] [--json-schema '<json>']
   [--disallowedTools <list>] [--allowedTools <list>] [--mcp-config '<json>']
 ```
@@ -1577,8 +1577,13 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 | --- | --- | --- |
 | `allowed_tools` | `()` | `--allowedTools` rules; at most 32, sorted, unique, no `,`, each at most 4096 characters (`ValueError: allowed_tools must be unique sorted Claude tool rules`) |
 | `partial_messages` | `True` | `--include-partial-messages` |
-| `asks` | `None` | at `bypass`, `--permission-mode manual` instead of `bypassPermissions`, so every tool that would change something is asked about. `None`: while a `PERMISSION_REQUEST` hook is hung on the agent. A flow sets it `True` while its own `PERMISSION_REQUEST` hook is hung and `False` otherwise |
+| `asks` | `None` | for a fenced agent, `--permission-mode manual` instead of `bypassPermissions`, so every tool that would change something is asked about. `None`: while a `PERMISSION_REQUEST` hook is hung on the agent. A flow sets it `True` while its own `PERMISSION_REQUEST` hook is hung and `False` otherwise |
 
+- With no fence nothing of a grant is said: no `--permission-mode`, no
+  `--permission-prompt-tool`. A fenced agent runs at `bypassPermissions` with
+  `--permission-prompt-tool stdio`, and one whose fence writes nothing also gets `--tools
+  default` with `Edit`, `Write` and `NotebookEdit` in `--disallowedTools`, which takes them off
+  its tool list; `Bash` stays, and the fence refuses its writes.
 - Every turn runs with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, so background subagents and
   commands finish inside the turn.
 - Every turn runs with `CLAUDE_CODE_NO_MODEL_FALLBACK=1`, overriding an inherited value, so

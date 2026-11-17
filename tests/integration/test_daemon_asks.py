@@ -257,7 +257,8 @@ def test_the_epic_is_told_how_to_ask_and_carries_the_skill(
     (prompt,) = stood.said("claude")
     assert "hmz-ask ask --to <session>" in prompt
     (launch, *_) = stood.calls("claude")
-    assert launch.flag("--permission-mode") == "plan"
+    assert launch.flag("--permission-mode") == "bypassPermissions"
+    assert launch.flag("--tools") == "default"
     settings = json.loads(launch.flag("--settings") or "{}")
     assert "PreToolUse" in settings.get("hooks", {})
 
