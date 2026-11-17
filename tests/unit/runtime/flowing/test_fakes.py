@@ -23,6 +23,7 @@ from hmz.flows import (
     EnvBackendKind,
     EnvCollection,
     EnvCommandTimeout,
+    EnvError,
     EnvFileNotFound,
     FlowContext,
     FlowParams,
@@ -685,6 +686,77 @@ async def test_commands_are_answered_by_a_table_or_a_function_first() -> None:
     assert await function.exec(["make"], timeout=0) == (2, "", "no")
     assert await function.exec(["true"], timeout=0) == (0, "", "")
     assert table.commands == [("make",), "echo hi"]
+
+
+async def test_a_fake_lists_what_its_files_and_made_directories_are() -> None:
+    env = FakeEnvDriver({"b.txt": "bee", "src/main.py": "", "src/deep/x": ""})
+    await env.mkdir("empty")
+    await env.write("a.txt", b"a")
+
+    listed = await env.list(".")
+
+    assert [(one.name, one.kind) for one in listed] == [
+        ("empty", "dir"),
+        ("src", "dir"),
+        ("a.txt", "file"),
+        ("b.txt", "file"),
+    ]
+    assert [one.name for one in await env.list("src")] == ["deep", "main.py"]
+    assert (await env.stat("b.txt")).size == 3
+    assert (await env.stat("a.txt")).mtime > 0
+    assert (await env.stat("src")).kind == "dir"
+    with pytest.raises(EnvFileNotFound):
+        await env.stat("missing")
+    with pytest.raises(EnvFileNotFound):
+        await env.list("missing")
+    with pytest.raises(EnvError):
+        await env.list("b.txt")
+    with pytest.raises(EnvError):
+        await env.mkdir("b.txt")
+
+
+async def test_a_fake_moves_and_removes_files_and_trees() -> None:
+    env = FakeEnvDriver({"a.txt": "a", "src/x": "x", "src/y/z": "z"})
+    await env.mkdir("src/empty")
+
+    await env.rename("a.txt", "b.txt")
+    await env.rename("src", "lib")
+
+    assert env.files == {"b.txt": b"a", "lib/x": b"x", "lib/y/z": b"z"}
+    assert [one.name for one in await env.list("lib")] == ["empty", "y", "x"]
+    with pytest.raises(EnvError, match="already there"):
+        await env.rename("b.txt", "lib")
+    with pytest.raises(EnvFileNotFound):
+        await env.rename("a.txt", "c.txt")
+    await env.remove("lib")
+    await env.remove("b.txt")
+    assert env.files == {}
+    with pytest.raises(EnvFileNotFound):
+        await env.remove("lib")
+    with pytest.raises(EnvError, match="will not remove"):
+        await env.remove("/")
+
+
+async def test_a_fake_terminal_echoes_until_it_ends_or_is_killed() -> None:
+    env = FakeEnvDriver()
+
+    pty = await env.pty(None, cols=80, rows=24)
+    await pty.write(b"ls\r")
+    await pty.resize(100, 30)
+    assert await pty.read() == b"ls\r"
+    await pty.write(b"bye\x04ignored")
+    assert await pty.read() == b"bye"
+    assert await pty.read() == b""
+    assert await pty.wait() == 0
+    other = await env.pty(["top"], cols=80, rows=24)
+    await env.close()
+
+    assert await other.wait() == 137
+    assert [(one.argv, one.sizes) for one in env.ptys] == [
+        (None, [(80, 24), (100, 30)]),
+        (("top",), [(80, 24)]),
+    ]
+    assert env.ptys[0].typed == b"ls\rbye\x04ignored"
 
 
 async def test_a_command_past_its_timeout_says_so() -> None:

@@ -85,6 +85,7 @@ from .viewing import (
     AgentView,
     Conversations,
     EnvView,
+    HeldEnv,
     Made,
     OutworlderView,
     Source,
@@ -117,11 +118,13 @@ __all__ = [
     "DEPTH",
     "Call",
     "FlowImpl",
+    "HeldEnv",
     "LiveCall",
     "Recorder",
     "Run",
     "current",
     "define_flow",
+    "held_by",
     "load_flow",
     "meets",
     "new_outworlder",
@@ -1154,7 +1157,7 @@ class Call:
                 and one.id == name
             ):
                 return
-        self.hold(Made(driver, kind, name))
+        self.hold(Made(driver, kind, name, run))
 
     def unmade(self, driver: EnvDriver, kind: str, name: str) -> None:
         """A temporary copy or scratch directory was removed by the flow itself."""
@@ -1352,6 +1355,14 @@ class LiveCall:
     resumable: bool = False
 
 
+def held_by(recorder: object) -> Run | None:
+    """The run going now that was given `recorder`, if any: how its environments are found."""
+    for run in tuple(_RUNS):
+        if run.given is recorder:
+            return run
+    return None
+
+
 class Interruptible(Protocol):
     """A turn under way, as its run sees it: something it can cut short as it ends."""
 
@@ -1378,6 +1389,8 @@ class Run:
         "dropped",
         "due",
         "fetched",
+        "given",
+        "held",
         "here_chain",
         "here_driver",
         "here_grant",
@@ -1441,6 +1454,11 @@ class Run:
         self.due = False
         self.closing: set[asyncio.Task[None]] = set()
         self.derived: dict[int, EnvDriver] = {}
+        #: Every environment the run holds, by its driver's `id`, in the order it was first
+        #: held: what the host's env panels list. Read from other threads under `lock`.
+        self.held: dict[int, HeldEnv] = {}
+        #: The recorder as the run was given it, which :func:`held_by` finds the run by.
+        self.given: object = recorder
         self.specs: dict[tuple[AgentDriver, Grant], str] = {}
         #: Where sessions kept in a flow's state are copied beside their CLI's, and
         #: whether it is a temporary directory of the run's own, once one has been.
@@ -1494,6 +1512,7 @@ class Run:
             self.here_driver = driver
             self.here_grant = Grant.of(frozenset(driver.capabilities))
             self.here_chain = f"{driver.backend}@{driver.provider}{driver.workdir}"
+            self.holds(HeldEnv("workspace", self.here_chain, None, driver, frozenset()))
         return driver
 
     def here(self, role: EnvRole, node: Call, flow: FlowImpl) -> EnvView:
@@ -1505,7 +1524,43 @@ class Run:
             # What the workspace lacks is the machine's to say, not a grant's. Asked here
             # first, without building a set, since nearly every role lacks nothing.
             _serves_env(flow, role, driver)
-        return _narrowed(role, driver, grant, self.here_chain, node, flow)
+        view = _narrowed(role, driver, grant, self.here_chain, node, flow)
+        with self.lock:
+            held = self.held.get(id(driver))
+            if held is not None and held.role == "workspace" and not held.declared:
+                # The workspace, named now by the role that takes it.
+                self.held[id(driver)] = HeldEnv(
+                    role.name, held.chain, None, driver, role.grant.capabilities
+                )
+        return view
+
+    def holds(self, env: HeldEnv) -> None:
+        """Lists an environment among those the run holds, unless it is already."""
+        with self.lock:
+            self.held.setdefault(id(env.driver), env)
+
+    def forget(self, driver: EnvDriver, kind: str, name: str) -> None:
+        """Takes a destroyed temporary copy or scratch directory, and what came of it, off."""
+        with self.lock:
+            gone = {
+                one.chain
+                for one in self.held.values()
+                if one.made == (id(driver), kind, name)
+            }
+            if gone:
+                self.held = {
+                    key: one
+                    for key, one in self.held.items()
+                    if not any(
+                        one.chain == chain or one.chain.startswith(f"{chain}#")
+                        for chain in gone
+                    )
+                }
+
+    def held_envs(self) -> tuple[HeldEnv, ...]:
+        """Every environment the run holds, oldest first. From any thread."""
+        with self.lock:
+            return tuple(self.held.values())
 
     def spec_of(self, view: AgentView | OutworlderView) -> str:
         """What a journal knows an agent by."""
@@ -1906,16 +1961,15 @@ async def run_flow(
                 meets(role, driver, impl)
     said = impl.params_of(params)
     loop = asyncio.get_running_loop()
-    if recorder is not None:
-        recorder = _whole(recorder)
     run = Run(
         person=Source(outworlder, made=False, node=None),
         local=local,
-        recorder=recorder,
+        recorder=None if recorder is None else _whole(recorder),
     )
+    run.given = recorder
     top = Call(run, None, None, 0, budget, task)
-    if recorder is not None:
-        recorder.began(lambda: top.usage)
+    if run.recorder is not None:
+        run.recorder.began(lambda: top.usage)
     if budget.duration is not None:
         top.deadline = top.since + budget.duration.total_seconds()
     views: dict[str, AgentView] = {}
@@ -1934,6 +1988,10 @@ async def run_flow(
                 role.name,
                 f"{driver.backend}@{driver.provider}{driver.workdir}",
             )
+    for name, view in env_views.items():
+        run.holds(HeldEnv(name, view.chain, None, view.driver, view.grant.capabilities))
+    if local is not None:
+        run.workspace()
     _RUNS.add(run)
     try:
         home = impl.home or home_of(impl)

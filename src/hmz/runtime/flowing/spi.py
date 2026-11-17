@@ -37,7 +37,7 @@ import threading
 import time
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from hmz.flows import (
     HARNESS_AGENTS,
@@ -86,6 +86,8 @@ __all__ = [
     "AgentDriver",
     "BoundHook",
     "EnvDriver",
+    "EnvEntry",
+    "EnvPty",
     "HookBridge",
     "HookTable",
     "Kept",
@@ -204,6 +206,56 @@ class Placement:
     workdir: PurePosixPath
     machine: MachineConfig | None = None
     env: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class EnvEntry:
+    """One path in an environment, as its driver lists or looks at it, links not followed.
+
+    Attributes:
+      name: Its last component.
+      kind: A directory, a symbolic link, a regular file, or anything else.
+      size: Its size in bytes, as the machine says it.
+      mtime: When it was last modified, in seconds since the epoch.
+      target: Where a link points, as it is written; None for anything else.
+    """
+
+    name: str
+    kind: Literal["file", "dir", "link", "other"]
+    size: int
+    mtime: float
+    target: str | None = None
+
+
+class EnvPty(Protocol):
+    """A program an environment runs on a terminal of its own, for somebody to type at.
+
+    Not for flows: what a person opens beside a run, to look around the machine it uses.
+    """
+
+    async def read(self) -> bytes:
+        """What it wrote next, as soon as there is any; b"" once it has ended and all is read.
+
+        Not reading holds it up where the machine can: the terminal fills, and the program
+        waits to write.
+        """
+        ...
+
+    async def write(self, data: bytes) -> None:
+        """Types at it. Dropped once it has ended."""
+        ...
+
+    async def resize(self, cols: int, rows: int) -> None:
+        """Gives its terminal another window, which it hears as `SIGWINCH`."""
+        ...
+
+    async def wait(self) -> int:
+        """Waits for it to end: its exit status, 128 + N for one killed by signal N."""
+        ...
+
+    async def kill(self) -> None:
+        """Kills it and everything it started on its terminal. Bounded, and never raises."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -923,6 +975,69 @@ class EnvDriver(Protocol):
 
         Raises:
           ScratchError: If it could not be removed.
+        """
+        ...
+
+    async def list(self, path: str) -> list[EnvEntry]:
+        """What a directory holds, directories first and then by name.
+
+        Not for flows, like everything below up to :meth:`close`: what a person browsing the
+        environment beside a run asks.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+          EnvPermissionDenied: If it may not be listed.
+          EnvError: For anything else, like a file.
+        """
+        ...
+
+    async def stat(self, path: str) -> EnvEntry:
+        """What one path is, a link not followed.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+        """
+        ...
+
+    async def mkdir(self, path: str) -> None:
+        """Makes a directory and those above it; one already there is left as it is.
+
+        Raises:
+          EnvError: The leaf for why it could not be made.
+        """
+        ...
+
+    async def rename(self, path: str, to: str) -> None:
+        """Moves a file or a directory to where nothing is.
+
+        Raises:
+          EnvFileNotFound: If `path` is not there.
+          EnvError: If something is at `to`, or it could not be moved.
+        """
+        ...
+
+    async def remove(self, path: str) -> None:
+        """Removes a file, a link, or a directory and everything in it.
+
+        Raises:
+          EnvFileNotFound: If it is not there.
+          EnvError: If it is the workdir or above it, or could not be removed.
+        """
+        ...
+
+    async def pty(self, argv: Sequence[str] | None, *, cols: int, rows: int) -> EnvPty:
+        """Starts a program on a terminal of its own, in the workdir, with `TERM` set.
+
+        Killed when the driver closes, as its commands are.
+
+        Args:
+          argv: The program and its arguments; None for a login shell -- `$SHELL -l` where
+            the machine sets `SHELL`, else `bash -l` where it has bash, else `/bin/sh -l`.
+          cols: The terminal's width.
+          rows: Its height.
+
+        Raises:
+          EnvError: The leaf for why it could not be started.
         """
         ...
 

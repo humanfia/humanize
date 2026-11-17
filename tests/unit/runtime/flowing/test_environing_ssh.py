@@ -20,8 +20,15 @@ from hmz.flows import (
     EnvPermissionDenied,
     EnvUnavailable,
 )
-from hmz.runtime.flowing.environing import MachineEnvDriver, Resources
+from hmz.runtime.flowing.environing import (
+    LOGIN_SHELL,
+    REMOVE_SCRIPT,
+    TERM,
+    MachineEnvDriver,
+    Resources,
+)
 from hmz.runtime.flowing.environing_ssh import PROBE_SCRIPT, SSHMachine, facts_of
+from hmz.runtime.flowing.spi import EnvEntry
 from tests.unit.runtime.flowing.doubles_u11 import FakeRemote, reach, same_path, until
 
 # ------------------------------------------------------------------------- what it says
@@ -277,6 +284,157 @@ async def test_files_are_read_and_written_there(
     with pytest.raises(EnvPermissionDenied):
         await driver.write("/readonly/x", b"")
     assert driver.available, "an error the host sent back is not a broken connection"
+
+
+async def test_a_directory_is_listed_and_a_path_looked_at_there(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote(dirs={"/", "/home/me", "/work", "/work/src"})
+    remote.files["/work/a.txt"] = b"abc"
+    driver = await _driver(monkeypatch, remote)
+
+    listed = await driver.list(".")
+
+    assert listed == [
+        EnvEntry("src", "dir", 64, 2.0),
+        EnvEntry("a.txt", "file", 3, 1.5),
+    ]
+    assert await driver.stat("a.txt") == EnvEntry("a.txt", "file", 3, 1.5)
+    with pytest.raises(EnvFileNotFound, match="on box"):
+        await driver.list("missing")
+    with pytest.raises(EnvFileNotFound):
+        await driver.stat("missing")
+
+
+async def test_a_file_is_moved_and_removed_there(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote()
+    remote.files["/work/a.txt"] = b"a"
+    driver = await _driver(monkeypatch, remote)
+
+    await driver.rename("a.txt", "b.txt")
+    await driver.remove("b.txt")
+
+    assert remote.renamed == [("/work/a.txt", "/work/b.txt")]
+    assert remote.files == {}
+    assert remote.commands == [], "a file is unlinked, with no command run"
+    with pytest.raises(EnvFileNotFound):
+        await driver.remove("b.txt")
+
+
+async def test_a_directory_is_removed_there_by_the_script(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote(dirs={"/", "/home/me", "/work", "/work/sub"})
+    driver = await _driver(monkeypatch, remote)
+
+    await driver.remove("sub")
+
+    ((argv, _),) = remote.commands
+    assert argv == ["/bin/sh", "-c", REMOVE_SCRIPT, "humanize", "/work/sub"]
+
+
+async def test_a_terminal_there_streams_what_it_writes_and_hears_what_is_typed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote()
+    driver = await _driver(monkeypatch, remote)
+
+    pty = await driver.pty(None, cols=80, rows=24)
+
+    ((argv, cwd),) = remote.commands
+    assert (argv, cwd) == (["/bin/sh", "-c", LOGIN_SHELL, "humanize"], "/work")
+    assert remote.envs == [{"TERM": TERM}]
+    (running,) = remote.execs
+    assert running.tty == (24, 80)
+    assert running.wrote is not None
+    running.wrote(1, b"$ ")
+    assert await pty.read() == b"$ "
+    await pty.write(b"ls\r")
+    await pty.write(b"")
+    await pty.resize(132, 50)
+    assert running.stdin == [b"ls\r"]
+    assert running.sizes == [(50, 132)]
+    running.wrote(1, b"a ")
+    running.wrote(1, b"b\r\n")
+    assert running.ended is not None
+    running.ended({"exit_code": 3}, None)
+    assert await pty.read() == b"a b\r\n"
+    assert await pty.read() == b""
+    assert await pty.wait() == 3
+    await pty.write(b"too late")
+    assert running.stdin == [b"ls\r"]
+
+
+async def test_a_terminal_that_could_not_start_says_why_on_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.coganchor.proto import RemoteOSError
+
+    remote = FakeRemote()
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(["nope"], cols=80, rows=24)
+    (running,) = remote.execs
+    assert running.ended is not None
+
+    running.ended(None, RemoteOSError(errno.ENOENT, "No such file or directory"))
+
+    assert await pty.read() == b"nope: No such file or directory\r\n"
+    assert await pty.read() == b""
+    assert await pty.wait() == 127
+
+
+async def test_a_terminal_whose_connection_went_is_hung_up_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote()
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(None, cols=80, rows=24)
+    (running,) = remote.execs
+    assert running.ended is not None
+
+    running.ended(None, ConnectionResetError(errno.ECONNRESET, "gone"))
+
+    assert await pty.wait() == 128 + signal.SIGHUP
+    assert not driver.available
+
+
+async def test_what_a_terminal_wrote_and_nobody_read_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote()
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(None, cols=80, rows=24)
+    (running,) = remote.execs
+    assert running.wrote is not None
+    chunk = bytes(1 << 20)
+
+    for _ in range(20):
+        running.wrote(1, chunk)
+    running.wrote(1, b"last")
+    assert running.ended is not None
+    running.ended({"exit_code": 0}, None)
+
+    read = b""
+    while piece := await pty.read():
+        read += piece
+    assert read.endswith(b"last")
+    assert len(read) <= (8 << 20) + len(chunk)
+
+
+async def test_closing_kills_a_terminal_there(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote()
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(None, cols=80, rows=24)
+
+    await driver.close()
+
+    assert [one.signals for one in remote.execs] == [[signal.SIGKILL]]
+    assert await pty.wait() == 128 + signal.SIGKILL
+    assert await pty.read() == b""
 
 
 async def test_a_subdirectory_is_made_there(monkeypatch: pytest.MonkeyPatch) -> None:

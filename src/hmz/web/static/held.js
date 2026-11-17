@@ -19,10 +19,13 @@ const WEIGHED = 32 * 1024 * 1024
 const FRAME = 256
 
 /** The snapshots a host sends, each kept by its type (Section 4.9.3 of protocol/daemon.md). */
-const STANDING = new Set(['clients', 'claims', 'away', 'run', 'sessions', 'calls', 'waiting', 'pending', 'usage', 'board'])
+const STANDING = new Set(['clients', 'claims', 'away', 'run', 'sessions', 'calls', 'waiting', 'pending', 'usage', 'board', 'envs'])
 
 /** Every host followed, by its workspace's path and its slot. */
 const followed = new Map()
+
+/** Who hears every message of a host as it comes, by the host's key: kept apart from following it. */
+const heard = new Map()
 
 /** A host, named either way, as `{workspace, slot}`: slot '' for the workspace's own. */
 export function placed(where) {
@@ -66,18 +69,45 @@ export function follow(where, told) {
 export async function ask(where, what, body = {}) {
   const { workspace, slot } = placed(where)
   if (what === 'start') return starts(workspace, slot, body)
+  return hosted({ workspace, slot }, `epic.${what}`, body)
+}
+
+/**
+ * Calls a method on the subscription that follows a host, as `sub`: one of `epic.*`, or one of
+ * an environment's (`env.*`), attached first where none does.
+ */
+export async function hosted(where, method, params = {}) {
+  const { workspace, slot } = placed(where)
   const stop = follow({ workspace, slot }, () => {})
   try {
     const opening = followed.get(`${workspace}\n${slot}`).opening
     if (!opening) throw new Error('This host cannot be reached.')
     const sub = await opening
-    return await call(`epic.${what}`, { ...body, sub: sub.sub })
+    return await call(method, { ...params, sub: sub.sub })
   } finally {
     stop()
   }
 }
 
-/** Starts an epic of a flow as it is set up, writing that down as the workspace's set-up of its flow. */
+/**
+ * Tells `fn` every message of a host's subscription as it comes -- those it keeps and those it
+ * does not, such as a terminal's output sent to this page alone -- while something follows it.
+ *
+ * @returns {() => void} What stops telling it.
+ */
+export function hearing(where, fn) {
+  const { workspace, slot } = placed(where)
+  const key = `${workspace}\n${slot}`
+  if (!heard.has(key)) heard.set(key, new Set())
+  const fns = heard.get(key)
+  fns.add(fn)
+  return () => {
+    fns.delete(fn)
+    if (!fns.size && heard.get(key) === fns) heard.delete(key)
+  }
+}
+
+/** Starts an epic as it is set up, writing that down as the workspace's set-up of its flow. */
 async function starts(workspace, slot, { scratch = false, ...said }) {
   const sub = await attach({ ...(scratch ? { scratch: true } : { workspace }), slot, replay: false }, () => {})
   try {
@@ -179,8 +209,16 @@ function following(workspace, slot) {
     })
   }
 
-  function heard(mine, message) {
+  function hear(mine, message) {
     if (opening !== mine) return
+    // Whoever hears it going wrong is not what the rest of the page follows the host by.
+    for (const fn of [...(heard.get(`${workspace}\n${slot}`) || [])]) {
+      try {
+        fn(message)
+      } catch (error) {
+        console.error(error)
+      }
+    }
     const type = message.type
     if (type === 'welcome') {
       if (message.epoch !== state.epoch) {
@@ -227,7 +265,7 @@ function following(workspace, slot) {
   function connect() {
     const mine = attach(
       { workspace, slot, figures: true },
-      (message) => heard(mine, message),
+      (message) => hear(mine, message),
       (why) => ended(mine, why),
     )
     opening = one.opening = mine

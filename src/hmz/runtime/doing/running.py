@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from hmz.runtime.chatting import Chat, ChatEnd
     from hmz.runtime.epic import Epic
     from hmz.runtime.flowing import Declaration, OutworlderDriver
+    from hmz.runtime.flowing.engine import Run as EngineRun
     from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.flowing.spi import Placement
     from hmz.runtime.runner import Opened, Runner
@@ -140,6 +141,19 @@ class Run:
         Which is what its sessions are keyed by: the role is only the parameter it is taken as.
         """
         return {role: one.name for role, one in self._runner.agents.items()}
+
+    @property
+    def envs(self) -> EngineRun | None:
+        """The run as its engine holds it, once it has started and until it ends.
+
+        What lists the environments it holds (`held_envs`) and the loop their drivers live
+        on (`loop`): every one a role was given, the run's own workspace, and every one a
+        flow derived and has not destroyed.
+        """
+        from hmz.runtime.flowing.engine import held_by
+
+        recorder = self._runner.recorder
+        return None if recorder is None else held_by(recorder)
 
     @property
     def epic(self) -> Path | None:

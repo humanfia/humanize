@@ -56,6 +56,7 @@ from hmz.runtime.flowing.viewing import (
     CALLING,
     AgentView,
     EnvView,
+    HeldEnv,
     Made,
     OutworlderView,
     SessionView,
@@ -66,10 +67,18 @@ from hmz.runtime.flowing.viewing import (
 
 
 class Run:
-    """What a view reaches of the run: what was derived in it."""
+    """What a view reaches of the run: what was derived in it, and what it holds."""
 
     def __init__(self) -> None:
         self.derived: dict[int, object] = {}
+        self.held: list[HeldEnv] = []
+        self.forgot: list[tuple[object, str, str]] = []
+
+    def holds(self, env: HeldEnv) -> None:
+        self.held.append(env)
+
+    def forget(self, driver: object, kind: str, name: str) -> None:
+        self.forgot.append((driver, kind, name))
 
 
 class Node:
@@ -229,6 +238,20 @@ async def test_what_is_derived_is_a_view_of_the_same_role_named_by_how_it_was_de
     assert len(node.run.derived) == 4
     assert node.made_here == [("temp_clone", "t"), ("scratch", "s")]
     assert node.unmade_here == [("temp_clone", "t"), ("scratch", "s")]
+    # Each is held by the run, under the one it came of, until it is destroyed.
+    assert [(one.chain, one.parent) for one in node.run.held] == [
+        (one.chain, "repo=local/work") for one in (sub, tree, copy, scratch)
+    ]
+    assert [one.made for one in node.run.held] == [
+        None,
+        None,
+        (id(view.driver), "temp_clone", "t"),
+        (id(view.driver), "scratch", "s"),
+    ]
+    assert node.run.forgot == [
+        (view.driver, "temp_clone", "t"),
+        (view.driver, "scratch", "s"),
+    ]
 
 
 async def test_what_a_call_made_is_removed_when_it_is_released() -> None:
@@ -236,10 +259,12 @@ async def test_what_a_call_made_is_removed_when_it_is_released() -> None:
     await driver.derive_temp_clone("t", holder="me")
     await driver.derive_scratch("s")
 
-    await Made(driver, "temp_clone", "t").release()
+    run = Run()
+    await Made(driver, "temp_clone", "t", cast("Any", run)).release()
     await Made(driver, "scratch", "s").release()
 
     assert (driver.clones, driver.scratches) == ([], [])
+    assert run.forgot == [(driver, "temp_clone", "t")]
 
 
 # ---------------------------------------------------------------------------------- agents

@@ -37,9 +37,10 @@ granted what it declared -- with the drivers underneath swapped for these::
 - :class:`FakeEnvDriver` is a dictionary of files under a workdir, with worktrees,
   temporary copies, scratch directories and snapshots as copies of it, and `exec` answered by a
   function or a table, with a few commands -- `true`, `false`, `echo`, `cat`, `ls`, `sleep`
-  and `git rev-parse` -- answered by default. A temporary copy is its holder's until the
-  run that took it closes, and a run resumed on the same fake takes it again as it was
-  left.
+  and `git rev-parse` -- answered by default. Directories are where files are, and where
+  `mkdir` made one; a terminal it opens is a :class:`FakePty`, which echoes what is typed.
+  A temporary copy is its holder's until the run that took it closes, and a run resumed on
+  the same fake takes it again as it was left.
 - :class:`FakeOutworlder` answers as the person outside the run would, or is away.
 - :func:`run_fake` runs a flow with a fake for every role nobody gave one for.
 
@@ -72,6 +73,7 @@ from hmz.flows import (
     DurationExceeded,
     EnvBackendKind,
     EnvCommandTimeout,
+    EnvError,
     EnvFileNotFound,
     HarnessKind,
     HookKind,
@@ -88,9 +90,10 @@ from hmz.flows import (
     WorktreeError,
 )
 
-from .spi import ENV_CAPABILITIES, HARNESS_CAPABILITIES, Kept, Placement
+from .spi import ENV_CAPABILITIES, HARNESS_CAPABILITIES, EnvEntry, Kept, Placement
 
 if TYPE_CHECKING:
+    import builtins
     from collections.abc import Awaitable, Sequence
     from pathlib import Path
 
@@ -129,6 +132,7 @@ __all__ = [
     "FakeAgentDriver",
     "FakeEnvDriver",
     "FakeOutworlder",
+    "FakePty",
     "FakeSession",
     "Handler",
     "Reply",
@@ -923,6 +927,81 @@ class _Disk:
         #: Each snapshot's files, by path relative to the workdir it was taken of, oldest
         #: first.
         self.snapshots: dict[str, dict[PurePosixPath, bytes]] = {}
+        #: The directories `mkdir` made; every one a file is in is there too.
+        self.dirs: set[PurePosixPath] = set()
+        #: When each file was last written through a driver, in seconds since the epoch.
+        self.stamps: dict[PurePosixPath, float] = {}
+
+
+def _moved[T](
+    held: dict[PurePosixPath, T], source: PurePosixPath, target: PurePosixPath
+) -> None:
+    """Moves what is kept under one path, and that path's own, to under another."""
+    for one in [one for one in held if one.is_relative_to(source)]:
+        held[target / one.relative_to(source)] = held.pop(one)
+
+
+#: The control character that ends what is typed at a :class:`FakePty`, as at a shell.
+_EOT = b"\x04"
+
+
+class FakePty:
+    """A terminal a :class:`FakeEnvDriver` opened: it echoes back whatever is typed at it.
+
+    Typing `^D` ends it, with status 0; killing it, with 128 + SIGKILL.
+
+    Attributes:
+      argv: What it was opened to run, or None for the login shell.
+      typed: Everything typed at it.
+      sizes: Every window it was given, as (cols, rows), the one it was opened with first.
+      status: How it ended, or None while it runs.
+    """
+
+    def __init__(self, argv: Sequence[str] | None, cols: int, rows: int) -> None:
+        self.argv = None if argv is None else tuple(argv)
+        self.typed = bytearray()
+        self.sizes = [(cols, rows)]
+        self.status: int | None = None
+        self._unread: deque[bytes] = deque()
+        self._arrived = asyncio.Event()
+        self._ended = asyncio.Event()
+
+    async def read(self) -> bytes:
+        while not self._unread:
+            if self.status is not None:
+                return b""
+            self._arrived.clear()
+            await self._arrived.wait()
+        return self._unread.popleft()
+
+    async def write(self, data: bytes) -> None:
+        if self.status is not None:
+            return
+        self.typed += data
+        said, eot, _ = bytes(data).partition(_EOT)
+        if said:
+            self._unread.append(said)
+            self._arrived.set()
+        if eot:
+            self.end(0)
+
+    async def resize(self, cols: int, rows: int) -> None:
+        if self.status is None:
+            self.sizes.append((cols, rows))
+
+    async def wait(self) -> int:
+        await self._ended.wait()
+        return self.status if self.status is not None else 0
+
+    async def kill(self) -> None:
+        self.end(128 + 9)
+
+    def end(self, status: int) -> None:
+        """Ends it, as the program in it exiting with `status` would."""
+        if self.status is None:
+            self.status = status
+            self._ended.set()
+            self._arrived.set()
 
 
 class FakeEnvDriver:
@@ -991,6 +1070,8 @@ class FakeEnvDriver:
         self._disk = _Disk() if _disk is None else _disk
         self._clone = _clone
         self._scratch: dict[str, FakeEnvDriver] = {}
+        #: Every terminal opened here, in order.
+        self.ptys: builtins.list[FakePty] = []
         for path, data in (files or {}).items():
             self._disk.files[self._at(path)] = (
                 data.encode() if isinstance(data, str) else data
@@ -1146,7 +1227,84 @@ class FakeEnvDriver:
             raise EnvFileNotFound(f"{self._at(path)}: no such file") from None
 
     async def write(self, path: str, data: bytes) -> None:
-        self._disk.files[self._at(path)] = bytes(data)
+        at = self._at(path)
+        self._disk.files[at] = bytes(data)
+        self._disk.stamps[at] = time.time()
+
+    def _entry(self, at: PurePosixPath) -> EnvEntry | None:
+        """What is at a path, or None for nothing."""
+        disk = self._disk
+        data = disk.files.get(at)
+        if data is not None:
+            return EnvEntry(at.name, "file", len(data), disk.stamps.get(at, 0.0))
+        if (
+            at == self.workdir
+            or at in disk.dirs
+            or any(one.is_relative_to(at) for one in (*disk.files, *disk.dirs))
+        ):
+            return EnvEntry(at.name, "dir", 0, 0.0)
+        return None
+
+    def _there_now(self, at: PurePosixPath) -> EnvEntry:
+        entry = self._entry(at)
+        if entry is None:
+            raise EnvFileNotFound(f"{at}: no such file or directory")
+        return entry
+
+    async def list(self, path: str) -> builtins.list[EnvEntry]:
+        at = self._at(path)
+        if self._there_now(at).kind != "dir":
+            raise EnvError(f"could not list {at}: not a directory")
+        disk = self._disk
+        names = {
+            one.relative_to(at).parts[0]
+            for one in (*disk.files, *disk.dirs)
+            if one != at and one.is_relative_to(at)
+        }
+        entries = [self._there_now(at / name) for name in names]
+        return sorted(entries, key=lambda one: (one.kind != "dir", one.name))
+
+    async def stat(self, path: str) -> EnvEntry:
+        return self._there_now(self._at(path))
+
+    async def mkdir(self, path: str) -> None:
+        at = self._at(path)
+        if at in self._disk.files:
+            raise EnvError(f"could not make the directory {at}: a file is there")
+        self._disk.dirs.add(at)
+
+    async def rename(self, path: str, to: str) -> None:
+        source, target = self._at(path), self._at(to)
+        self._there_now(source)
+        if source == target:
+            return
+        if self._entry(target) is not None:
+            raise EnvError(f"could not move {source}: {target} is already there")
+        disk = self._disk
+        _moved(disk.files, source, target)
+        _moved(disk.stamps, source, target)
+        disk.dirs = {
+            target / one.relative_to(source) if one.is_relative_to(source) else one
+            for one in disk.dirs
+        }
+
+    async def remove(self, path: str) -> None:
+        at = self._at(path)
+        if self.workdir.is_relative_to(at):
+            raise EnvError(f"will not remove {at}: the workdir {self.workdir} is in it")
+        self._there_now(at)
+        disk = self._disk
+        for one in [one for one in disk.files if one.is_relative_to(at)]:
+            del disk.files[one]
+            disk.stamps.pop(one, None)
+        disk.dirs = {one for one in disk.dirs if not one.is_relative_to(at)}
+
+    async def pty(self, argv: Sequence[str] | None, *, cols: int, rows: int) -> FakePty:
+        if argv is not None and not argv:
+            raise ValueError("a program to run on a terminal is at least a program")
+        opened = FakePty(argv, cols, rows)
+        self.ptys.append(opened)
+        return opened
 
     async def derive_worktree(
         self,
@@ -1265,6 +1423,8 @@ class FakeEnvDriver:
 
     async def close(self) -> None:
         self.closed += 1
+        for opened in self.ptys:
+            await opened.kill()
         # Holds on copies are let go of, and the copies left where they are, as a real
         # driver's are -- so that a run resumed on this machine takes them again. A copy is
         # closed by the run that derived it as it ends; the driver it was derived from, by

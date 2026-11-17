@@ -33,6 +33,8 @@ What is held for them:
 - *keys*: which conversation is `<agent>/<n>`, numbered once so every frontend names it alike.
 - *asides*: the side conversations `/btw` opens, read-only and invisible to the run.
 - *history*: every record of the run, in order, so a frontend arriving late reads it all.
+- *envs*: every environment the run holds, and what a frontend does in one -- its files, a
+  terminal, its git (:mod:`hmz.runtime.doing.desk`).
 
 Nothing is ever said to a frontend while anything here is locked. Each has an outbox and a
 thread of its own that empties it, so one that has stopped reading costs its own memory -- up
@@ -267,6 +269,46 @@ def _placed(where: Placement | None) -> dict[str, Any] | None:
         "anchored": where.machine is not None,
     }
 
+
+def _works_at(where: Placement, driver: Any) -> bool:
+    """Whether a session placed `where` works in the directory a driver is at."""
+    try:
+        return (
+            str(where.workdir) == str(driver.workdir)
+            and str(where.backend) == str(driver.backend)
+            and where.provider == driver.provider
+        )
+    except Exception:  # noqa: BLE001 -- a driver that cannot say where it is is nowhere
+        return False
+
+
+#: Every request about an environment, each served by :class:`hmz.runtime.doing.desk.Desk`.
+_ENV_METHODS = (
+    "env.list",
+    "env.stat",
+    "env.read",
+    "env.find",
+    "env.search",
+    "env.write",
+    "env.mkdir",
+    "env.rename",
+    "env.remove",
+    "env.term.open",
+    "env.term.input",
+    "env.term.resize",
+    "env.term.ack",
+    "env.term.close",
+    "env.term.list",
+    "env.git.status",
+    "env.git.diff",
+    "env.git.log",
+    "env.git.stage",
+    "env.git.unstage",
+    "env.git.discard",
+    "env.git.commit",
+    "env.git.snapshots",
+    "env.git.rewind",
+)
 
 #: Where each side conversation carried on from an earlier run keeps what it was carried on
 #: with, by the conversation: taken away as it is closed.
@@ -634,6 +676,13 @@ class _Run:
     stopped_by: str = ""
     #: Of a chat, whether an empty next message was said, which its next wait answers.
     ending: bool = False
+    #: The role each session was opened for and where it works, which says whose turn is
+    #: open in an environment.
+    placed: weakref.WeakKeyDictionary[SessionBase, tuple[str, Placement]] = (
+        dataclasses.field(
+            default_factory=weakref.WeakKeyDictionary[Any, tuple[str, Any]]
+        )
+    )
 
 
 class _Person:
@@ -735,6 +784,14 @@ class Host:
         self._letting_go: float | None = None
         self._ticking: threading.Thread | None = None
         self._spent_at = 0.0
+        from hmz.runtime.doing.desk import Desk
+
+        self._desk = Desk(
+            post=self._post_to, record=self._env_record, guard=self._working_at
+        )
+        #: Held while the environments are listed, so that a list made before the run
+        #: ended never lands after the one made as it did.
+        self._listing = threading.Lock()
         self._requests: dict[
             str, Callable[[_Frontend, dict[str, Any]], dict[str, Any]]
         ] = {
@@ -758,6 +815,8 @@ class Host:
             "chat.commands": functools.partial(self._chats_for, "commands"),
             "chat.set": functools.partial(self._chats_for, "set"),
         }
+        for method in _ENV_METHODS:
+            self._requests[method] = functools.partial(self._env_asked, method)
         with self._lock:
             self._snap("clients", clients=[])
             self._snap("claims", claims={})
@@ -769,6 +828,7 @@ class Host:
             self._snap_pending()
             self._snap("usage", run=0, usage=None, budget=None)
             self._snap("board", items=None)
+            self._snap("envs", envs=[])
 
     # ----------------------------------------------------------------- frontends
 
@@ -1040,6 +1100,7 @@ class Host:
             self._closed = True
             self._over.set()
             self._spoke.notify_all()
+        self._desk.closed()
         for one in runs:
             with contextlib.suppress(Exception):
                 one.run.close()
@@ -1129,6 +1190,8 @@ class Host:
         for one in sides:
             del self._asides[one.side]
         _closed_all([one.session for one in sides])
+        # Its terminals live on, for it or anybody to reattach to.
+        self._desk.let_go(frontend.client)
         self._snap_clients()
         self._snap_claims()
 
@@ -1268,6 +1331,9 @@ class Host:
             # The epic is named a moment after the run starts, and nothing announces it.
             self._snap_run()
             self._folds()
+        # What the run holds changes as its flow derives and destroys, unannounced.
+        self._lists_envs()
+        self._desk.tick()
 
     def _folds(self) -> None:
         """Folds a chat away that has been between turns with nobody attached for long enough.
@@ -1448,6 +1514,7 @@ class Host:
             self._snap("usage", run=number, usage=None, budget=started["budget"])
             self._ticks()
         _closed_all(sides)
+        self._lists_envs()
         run.watch(functools.partial(self._heard, current))
         run.opened(functools.partial(self._opened, current))
         run.noticed(functools.partial(self._noticed, current))
@@ -1867,6 +1934,7 @@ class Host:
             if self._last is current and spent is not None:
                 self._snap("usage", **spent)
             self._spoke.notify_all()
+        self._lists_envs()
 
     def _stop(self, frontend: _Frontend, said: dict[str, Any]) -> dict[str, Any]:
         del said
@@ -1923,6 +1991,7 @@ class Host:
             for session in closing:
                 stopping.working.discard(session)
             self._snap_sessions(self._current or stopping)
+        self._lists_envs()
         return _ok(closed=len(closing))
 
     def _quit(self, frontend: _Frontend, said: dict[str, Any]) -> dict[str, Any]:
@@ -1934,6 +2003,54 @@ class Host:
         del said
         self.detach(frontend.client)
         return _ok()
+
+    # -------------------------------------------------------------- environments
+
+    def _lists_envs(self) -> None:
+        """Says the environments of the run in view as they stand. Not under the lock."""
+        with self._listing:
+            with self._lock:
+                shown = self._current or self._stopping or self._last
+                going = shown is not None and shown in (self._current, self._stopping)
+            if shown is None:
+                return
+            holds = None
+            if going:
+                with contextlib.suppress(Exception):
+                    holds = shown.run.envs
+            envs = self._desk.refresh(shown.number, holds, going=going)
+            with self._lock:
+                if not self._closed:
+                    self._snap("envs", envs=envs)
+
+    def _env_asked(
+        self, method: str, frontend: _Frontend, said: dict[str, Any]
+    ) -> dict[str, Any]:
+        return _ok(**self._desk.asked(frontend.client, frontend.name, method, said))
+
+    def _post_to(self, client: str, message: dict[str, Any]) -> None:
+        """Says one message to one frontend alone: what a terminal it watches printed."""
+        frontend = self._frontends.get(client)
+        if frontend is not None:
+            self._post(frontend, message, _sized(message))
+
+    def _env_record(self, message: dict[str, Any]) -> None:
+        """Writes what a frontend did in an environment into the run's history."""
+        with self._lock:
+            if not self._closed:
+                self._record(message)
+
+    def _working_at(self, run: int, driver: Any) -> str | None:
+        """The role of a session with a turn open where a driver works, if any."""
+        with self._lock:
+            for shown in (self._current, self._stopping):
+                if shown is None or shown.number != run:
+                    continue
+                for session in list(shown.working):
+                    placed = shown.placed.get(session)
+                    if placed is not None and _works_at(placed[1], driver):
+                        return placed[0]
+        return None
 
     # ---------------------------------------------------------------- what opened
 
@@ -1967,6 +2084,8 @@ class Host:
             # role it fills.
             key = self._key_of(current, agent, session)
             current.agents.append(agent)
+            if where is not None:
+                current.placed[session] = (role, where)
             if person:
                 if current.board is None:
                     board = current.board = agent.board

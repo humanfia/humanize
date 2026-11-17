@@ -38,6 +38,7 @@ holds the same table, so an import that breaks it fails the run.
 | what a run looks like as it happens -- who is working, what it has cost, what a side question is told -- for every interface | `runtime/watching/`, once |
 | anything two of `cli`, `tui`, `web` and `daemon` would each need | `runtime/doing/`, once |
 | who is outside a run: claims, away, questions, lines said to agents, asides | `runtime/doing/hosting.py` |
+| what a frontend does in a run's environments (`env.*`): the `envs` list, files, terminals and their flow control | `runtime/doing/desk.py`; git's commands and what they print, `runtime/doing/gitdesk.py` |
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
 | a view of the web interface, or what its server answers | `web/`: the page under `web/static/`, plain ES modules speaking JSON-RPC to daemons (`rpc/`, `api.js`); the server in `site.py` -- the page's files, `/here`, admission -- and its bridges `/rpc` and `/dial` in `bridge.py` |
 | runs kept going after the terminal closes, and the one JSON-RPC endpoint every client reaches them through, on its socket and its listeners | `daemon/` |

@@ -2327,6 +2327,15 @@ status 127.
 | `machine` | Every file on the fake machine by absolute path. |
 | `commands` | Every command run in this workdir, in order. |
 | `clones`, `scratches` | Ids of copies and scratch directories not yet removed. |
+| `ptys` | Every terminal `pty` opened here, in order: each a `FakePty`. |
+
+It also answers what a person browsing the environment beside a run asks of a driver, which
+flows never do: `list` and `stat` see a directory wherever a file is under it or `mkdir` made
+one; `rename` and `remove` move and delete whole trees, refusing a target that is there and
+the workdir itself; and `pty(argv, cols=, rows=)` opens a `FakePty`, which echoes what is
+typed at it, ends with status 0 at `^D` and with 137 when killed or when the driver closes.
+Its `argv`, `typed`, `sizes` (`(cols, rows)`, the first the one it was opened with) and
+`status` say what it was given.
 
 ### `FakeOutworlder` {#fakeoutworlder}
 

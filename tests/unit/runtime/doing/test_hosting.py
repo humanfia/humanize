@@ -174,6 +174,8 @@ class FakeRun:
     released: threading.Event = field(default_factory=threading.Event)
     stopped: bool = False
     lingers: bool = False
+    #: What the run holds, as its engine lists it: None for nothing yet.
+    envs: Any = None
     closed: int = 0
 
     def watch(self, listener: Callable[..., None]) -> None:
