@@ -18,7 +18,6 @@ import websockets.sync.client
 from hmz.coganchor import fence
 from hmz.coganchor.agents import (
     KEEPING,
-    UNSAID,
     Failed,
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
@@ -373,17 +372,20 @@ def test_the_server_is_started_as_the_config_says(
     assert argv[at : at + len(flags)] == flags
 
 
+_WRITES = Fence(write=("/work",))
+
+
 @pytest.mark.parametrize(
     ("said", "told"),
     [
         ({"effort": "high"}, {"thinking": "high"}),
-        ({"permission": "read-only"}, {"permission_mode": "manual", "plan_mode": True}),
-        ({"permission": "auto"}, {"permission_mode": "yolo", "plan_mode": False}),
+        ({"fence": Fence()}, {"permission_mode": "auto", "plan_mode": False}),
+        ({"fence": _WRITES}, {"permission_mode": "auto", "plan_mode": False}),
         (
-            {"permission": "workspace-write"},
-            {"permission_mode": "auto", "plan_mode": False},
+            {"fence": _WRITES, "asks": True},
+            {"permission_mode": "yolo", "plan_mode": False},
         ),
-        ({"permission": "bypass"}, {"permission_mode": "auto", "plan_mode": False}),
+        ({"asks": True}, {}),
     ],
 )
 def test_the_session_profile_carries_how_the_agent_is_configured(
@@ -391,14 +393,55 @@ def test_the_session_profile_carries_how_the_agent_is_configured(
     daemon: _Daemon,
     server: list[Process],
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     said: dict[str, Any],
     told: dict[str, Any],
 ) -> None:
     del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     _turn(made(**said).new(tmp_path))
 
     (profile,) = daemon.posted(f"/sessions/{_SESSION}/profile")
     assert profile["agent_config"] == {"model": "kimi-k2", "swarm_mode": False, **told}
+
+
+@pytest.mark.parametrize("asking", ["hook", "answerer"])
+def test_a_fenced_session_runs_at_yolo_while_somebody_listens_for_what_it_asks(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    asking: str,
+) -> None:
+    del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    agent = made(fence=_WRITES)
+    if asking == "hook":
+        agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _occasion: Verdict())
+    else:
+        agent.ask = lambda _question: None
+    _turn(agent.new(tmp_path))
+
+    (profile,) = daemon.posted(f"/sessions/{_SESSION}/profile")
+    assert profile["agent_config"]["permission_mode"] == "yolo"
+
+
+def test_asks_said_off_keeps_a_hooked_session_at_auto(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    agent = made(fence=_WRITES, asks=False)
+    agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _occasion: Verdict())
+    _turn(agent.new(tmp_path))
+
+    (profile,) = daemon.posted(f"/sessions/{_SESSION}/profile")
+    assert profile["agent_config"]["permission_mode"] == "auto"
 
 
 @pytest.mark.parametrize(
@@ -406,11 +449,20 @@ def test_the_session_profile_carries_how_the_agent_is_configured(
     [
         ({"web_search": False}, ["WebSearch", "FetchURL"]),
         ({"web_search": True}, []),
-        ({"fence": Fence(online=False)}, ["WebSearch", "FetchURL"]),
-        ({"fence": Fence(online=False), "web_search": True}, ["WebSearch", "FetchURL"]),
+        ({"fence": Fence()}, ["Write", "Edit"]),
+        ({"fence": _WRITES}, []),
+        ({"fence": _WRITES, "web_search": False}, ["WebSearch", "FetchURL"]),
+        (
+            {"fence": Fence(online=False)},
+            ["Write", "Edit", "WebSearch", "FetchURL"],
+        ),
+        (
+            {"fence": Fence(write=("/work",), online=False), "web_search": True},
+            ["WebSearch", "FetchURL"],
+        ),
     ],
 )
-def test_the_web_tools_are_said_on_the_prompt(
+def test_the_withheld_tools_are_said_on_the_prompt(
     made: Callable[..., KimiCodeCLIAgent],
     daemon: _Daemon,
     server: list[Process],
@@ -427,44 +479,77 @@ def test_the_web_tools_are_said_on_the_prompt(
     assert prompt["disabled_tools"] == disabled
 
 
-@pytest.mark.parametrize(
-    ("permission", "decision"),
-    [
-        ("auto", "approved"),
-        ("workspace-write", "approved"),
-        ("bypass", "approved"),
-        ("read-only", "rejected"),
-        (UNSAID, "rejected"),
-    ],
-)
-def test_an_approval_the_server_holds_is_answered_by_the_rung(
+def test_an_agent_nobody_fenced_or_asked_about_is_told_no_tools(
     made: Callable[..., KimiCodeCLIAgent],
     daemon: _Daemon,
     server: list[Process],
     tmp_path: Path,
-    permission: str,
+) -> None:
+    del server
+    _turn(made().new(tmp_path))
+
+    (prompt,) = daemon.posted(f"/sessions/{_SESSION}/prompts")
+    assert "disabled_tools" not in prompt
+
+
+@pytest.mark.parametrize(
+    ("said", "decision"),
+    [
+        ({"fence": Fence()}, "approved"),
+        ({"fence": _WRITES}, "approved"),
+        ({}, "rejected"),
+    ],
+)
+def test_an_approval_the_server_holds_is_granted_where_a_fence_holds_the_grant(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    said: dict[str, Any],
     decision: str,
 ) -> None:
     del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     daemon.approvals = [
         {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
     ]
 
-    _turn(made(permission=permission).new(tmp_path))
+    _turn(made(**said).new(tmp_path))
 
     (answer,) = daemon.posted(f"/sessions/{_SESSION}/approvals/ap1")
     assert answer["decision"] == decision
 
 
-@pytest.mark.parametrize("permission", ["auto", "workspace-write", "bypass"])
-def test_a_hook_refusing_an_approval_rejects_it_at_a_granting_rung(
+def test_a_hook_saying_nothing_leaves_an_unfenced_approval_rejected(
     made: Callable[..., KimiCodeCLIAgent],
     daemon: _Daemon,
     server: list[Process],
     tmp_path: Path,
-    permission: str,
 ) -> None:
     del server
+    daemon.approvals = [
+        {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
+    ]
+    agent = made()
+    agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _occasion: Verdict())
+    _turn(agent.new(tmp_path))
+
+    (answer,) = daemon.posted(f"/sessions/{_SESSION}/approvals/ap1")
+    assert answer["decision"] == "rejected"
+
+
+@pytest.mark.parametrize("said", [{}, {"fence": _WRITES}])
+def test_a_hook_refusing_an_approval_rejects_it(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    said: dict[str, Any],
+) -> None:
+    del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     daemon.approvals = [
         {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
     ]
@@ -474,7 +559,7 @@ def test_a_hook_refusing_an_approval_rejects_it_at_a_granting_rung(
         seen.append(occasion)
         return Verdict(refused=True, because="not that")
 
-    agent = made(permission=permission)
+    agent = made(**said)
     agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
     _turn(agent.new(tmp_path))
 
@@ -482,24 +567,6 @@ def test_a_hook_refusing_an_approval_rejects_it_at_a_granting_rung(
         {"decision": "rejected", "feedback": "not that"}
     ]
     assert [(one.tool, one.about) for one in seen] == [("Shell", "rm -rf")]
-
-
-def test_a_hook_saying_nothing_leaves_a_read_only_approval_rejected(
-    made: Callable[..., KimiCodeCLIAgent],
-    daemon: _Daemon,
-    server: list[Process],
-    tmp_path: Path,
-) -> None:
-    del server
-    daemon.approvals = [
-        {"approval_id": "ap1", "tool_name": "Shell", "action": "rm -rf"}
-    ]
-    agent = made(permission="read-only")
-    agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _occasion: Verdict())
-    _turn(agent.new(tmp_path))
-
-    (answer,) = daemon.posted(f"/sessions/{_SESSION}/approvals/ap1")
-    assert answer["decision"] == "rejected"
 
 
 @pytest.mark.parametrize(

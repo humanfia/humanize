@@ -375,8 +375,16 @@ Per-backend rules:
   inside the fence (macOS, and Linux under Landlock), each turn under a fence is sent
   `sandboxPolicy: {"type": "externalSandbox", "networkAccess": "enabled"|"restricted"}`, the
   fence holding the grant.
-- **kimi**: Kimi's modes are, loosest last, `manual`, `yolo`, `auto`. Kimi `auto` denies
-  `AskUserQuestion`, so with no hook hung no question and no `NOTIFICATION` occur.
+- **kimi**: Kimi's modes are, loosest last, `manual`, `yolo`, `auto`. The mode goes in the
+  session profile's `permission_mode`, with `plan_mode` false; the withheld tools (`Write`,
+  `Edit`, and the web tools) go in each prompt's `disabled_tools`, sent as `[]` when nothing is
+  withheld so a resumed session gets its tools back. Kimi `auto` denies `AskUserQuestion` and
+  raises no approval, so with no hook hung no question and no `NOTIFICATION` occur. It runs at
+  `yolo` instead while a `PERMISSION_REQUEST` hook is hung or `agent.ask` is set
+  (`KimiCodeCLIAgentConfig.asks` says so outright). Each approval the daemon holds on
+  `/approvals` -- what `yolo` still asks about -- is answered yes unless the hook refuses. An
+  agent driven by hand bootstraps at `manual`, where nearly every tool raises one, and each is
+  answered no: nothing said what it may do.
 - **mcode**, **dsh**, **omp**, **cursor-agent**, **ACP**: none can withhold a writing tool, so
   each runs unattended and a fence that writes nothing is what keeps the workdir unchanged.
   `mcode`'s `smart` is its own reviewer, which fails the turn where it would have asked, and is
