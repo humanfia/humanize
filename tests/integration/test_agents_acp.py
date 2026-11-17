@@ -188,6 +188,40 @@ def test_the_public_agent_reader_accepts_aliases_and_added_acp_clis(
     ]
 
 
+@pytest.mark.parametrize(
+    ("spec", "diagnostic"),
+    [
+        (
+            "assistant=codxe/gpt-6.1-sol",
+            "unknown CLI 'codxe'; see the CLI reference for supported names",
+        ),
+        (
+            "assistant=codex/",
+            "missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]",
+        ),
+        (
+            "agent=cod'xe/m",
+            """unknown CLI "cod'xe"; see the CLI reference for supported names""",
+        ),
+        (
+            "agent=litellm/",
+            "missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]",
+        ),
+    ],
+)
+def test_the_public_agent_reader_reports_invalid_specs(
+    spec: str, diagnostic: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exited:
+        read_line(["-f", "chat", "-a", spec, "task"])
+
+    assert exited.value.code == 2
+    assert (
+        capsys.readouterr().err.splitlines()[-1]
+        == f"hmz exec: error: -a {spec!r}: {diagnostic}"
+    )
+
+
 def test_a_turn_opens_a_session_and_says_what_the_agent_said(
     acp: Standins, session: AcpSession
 ) -> None:

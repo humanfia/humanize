@@ -5,8 +5,8 @@
 // A simulation, and it has to say what the code says. The reading is
 // `hmz.runtime.flowing.specs.parse_agents` over `hmz.coganchor.backends.read`, the ladders
 // are each profile's `efforts` in `hmz.coganchor.backends`, and every refusal below is the
-// line `hmz exec` prints for it. It knows the thirteen CLIs Humanize ships and no CLI added at
-// the accounts page of /settings, and it cannot know which roles a flow declares.
+// line `hmz exec` prints for it. It knows the built-in backends. It cannot look up added CLIs
+// from the accounts page of /settings or know which roles a flow declares.
 //
 // The reading is played as a labelled transform: the spelled-out value comes apart, a brace
 // names each part, and each name flies down into the row that explains it; a refusal jolts and
@@ -38,6 +38,7 @@ const CLIS: Cli[] = [
   { name: 'mimo', title: 'mimocode', aliases: ['mimo', 'mimocode', 'mimo-code'], efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
   { name: 'cursor-agent', title: 'Cursor Agent', aliases: ['cursor-agent', 'cursor-cli'], efforts: ['max', 'xhigh', 'extra-high', 'high', 'medium', 'low', 'minimal', 'none'] },
   { name: 'mcode', title: 'MiniMax Code', aliases: ['mcode', 'minimax', 'minimax-code'], efforts: ['max', 'xhigh', 'high', 'medium', 'low'] },
+  { name: 'litellm', title: 'LiteLLM', aliases: ['litellm'], efforts: ['high', 'medium', 'low', 'minimal', 'none'] },
 ]
 
 const EXAMPLES = [
@@ -84,6 +85,23 @@ function takes(cli: Cli, effort: string): boolean {
   return !rung || rung === 'auto' || cli.efforts.includes(rung)
 }
 
+// The CLI quotes both the argument and the backend name with Python's str repr.
+function pythonRepr(value: string): string {
+  const quote = value.includes("'") && !value.includes('"') ? '"' : "'"
+  const escaped = value.replace(/[\p{C}\p{Z}\\'"]/gu, (character) => {
+    if (character === quote || character === '\\') return '\\' + character
+    if (character === '\t') return '\\t'
+    if (character === '\n') return '\\n'
+    if (character === '\r') return '\\r'
+    if (!/[\p{C}\p{Z}]/u.test(character) || character === ' ') return character
+    const code = character.codePointAt(0)!
+    if (code < 0x100) return '\\x' + code.toString(16).padStart(2, '0')
+    if (code < 0x10000) return '\\u' + code.toString(16).padStart(4, '0')
+    return '\\U' + code.toString(16).padStart(8, '0')
+  })
+  return quote + escaped + quote
+}
+
 function read(value: string): Reading {
   const refused = (error: string, usage = true): Reading => ({ agents: [], error, usage })
   // A comma starts the next agent only where a role and `=` follow it.
@@ -125,10 +143,11 @@ function read(value: string): Reading {
     if (monkey >= 0 && !account) {
       return refused(`-a '${one}': expected an account after @, as in claude@deepseek/MODEL:EFFORT`)
     }
-    if (!cliAs) return refused(`-a '${one}': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
+    const argument = pythonRepr(one)
+    if (!cliAs) return refused(`-a ${argument}: expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
     const cli = named(cliAs) ?? (slash < 0 ? named(cliAs.split(':', 1)[0].trim()) : undefined)
-    if (!cli) return refused(`-a '${one}': unknown CLI '${cliAs}'; see the CLI reference for supported names`)
-    if (!model) return refused(`-a '${one}': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
+    if (!cli) return refused(`-a ${argument}: unknown CLI ${pythonRepr(cliAs)}; see the CLI reference for supported names`)
+    if (!model) return refused(`-a ${argument}: missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]`)
     if (agents.some((other) => other.role === role)) {
       return refused(`-a: the role '${role}' is given twice`)
     }
@@ -382,7 +401,7 @@ onBeforeUnmount(() => {
   <div ref="root" class="spec hmz-panel">
     <div class="top">
       <strong>How <code>-a</code> is read</strong>
-      <span class="sim">a simulation, in your browser · built-in CLIs only</span>
+      <span class="sim">a simulation, in your browser · built-in backends only</span>
     </div>
 
     <label class="line">
