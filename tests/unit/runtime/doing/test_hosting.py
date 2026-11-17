@@ -1360,8 +1360,6 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
         assert answer["ok"], answer
         assert reached == [aichan.Reach(id=1)]
         assert where.asked_chats[-1]["role"] is mock.sentinel.role
-        refused = alice.asks("start", flow="ralph", task="fix it")
-        assert refused["why"] == "an Ai-chan host runs its own conversation"
     finally:
         host.close()
 

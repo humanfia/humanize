@@ -1189,8 +1189,6 @@ class Host:
                 return _no("this host has closed")
             if self._slot.startswith("chat:"):
                 return _no("a chat is started with chat.start")
-            if self._slot.startswith("ai:"):
-                return _no("an Ai-chan host runs its own conversation")
             if self._current is not None:
                 return _no("a flow is already running")
             if self._starting:
