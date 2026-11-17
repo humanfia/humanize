@@ -965,10 +965,11 @@ component lacks one extension of lowercase letters or digits, or that is longer 
 MUST be refused 404, as MUST a path naming no file.
 
 **4.5.5** An HTML file MUST be served with `Content-Security-Policy: default-src 'self'; img-src
-'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self' ws: wss:;
-frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, and with `Cache-Control: no-cache`:
-`'self'` lets the page reach the server's own `/rpc` and `/dial`, and `ws:` and `wss:` the relay of
-any `webrtc:` route, whose host the server cannot know.
+'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws:
+wss:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, and with `Cache-Control:
+no-cache`: `'self'` lets the page reach the server's own `/rpc` and `/dial`, `ws:` and `wss:` the
+relay of any `webrtc:` route, whose host the server cannot know, and `'unsafe-inline'` in
+`style-src` the editor and the terminal of Section 3.16 style what they draw.
 
 **4.5.6** A failure the server does not anticipate MUST be refused 500, `Something went wrong here:
 <why>`, and its traceback written to the server's standard error.
