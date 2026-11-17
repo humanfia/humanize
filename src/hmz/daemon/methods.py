@@ -38,6 +38,8 @@ EPIC = (
     "start",
     "say",
     "answer",
+    # A read, carrying no `idem`: the HTML of a face a question names.
+    "face",
     "stop",
     "force",
     "afk",
@@ -89,10 +91,21 @@ _NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_termi
 _FOLDED = "this chat has folded away; carry it on from its epic"
 
 
-def _refused(code: int, message: str) -> Exception:
+def _refused(code: int, message: str, data: dict[str, Any] | None = None) -> Exception:
     from hmz.rpc import RpcError
 
-    return RpcError(code, message)
+    return RpcError(code, message, data)
+
+
+def _host_refused(answer: Mapping[str, Any]) -> Exception:
+    """A call to an epic the host refused: with the code and data it says, 409 without."""
+    code = answer.get("code")
+    data = answer.get("data")
+    return _refused(
+        code if isinstance(code, int) else 409,
+        str(answer.get("why") or "refused"),
+        cast("dict[str, Any]", data) if isinstance(data, dict) else None,
+    )
 
 
 def _unanswered(call: Call, said: dict[str, Any]) -> None:
@@ -467,7 +480,7 @@ class _Methods:
                 remembers = self._checks(call, sub.hosted.workspace, said)
             answer = sub.hosted.ask(sub.client, {"do": do, **said})
             if not answer.get("ok"):
-                raise _refused(409, str(answer.get("why") or "refused"))
+                raise _host_refused(answer)
             if remembers is not None:
                 remembers()
             result = {k: v for k, v in answer.items() if k != "ok"}

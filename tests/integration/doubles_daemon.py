@@ -95,6 +95,54 @@ async def waits(task, *, agents, envs, params, ctx):
         await asyncio.sleep(0.05)
 """
 
+#: Shows the reviewer where it stands, asks for a `Review` whole beside a diff, and writes it down.
+REVIEWS = """
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel
+
+from hmz.flows import (
+    AgentCollection,
+    Diff,
+    EnvCollection,
+    FlowParams,
+    LocalEnv,
+    Outworlder,
+    Table,
+    flow,
+)
+
+
+class Review(BaseModel):
+    verdict: Literal["approve", "reject"]
+    notes: str = ""
+
+
+class Agents(AgentCollection):
+    reviewer: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, name="reviews")
+async def reviews(task, *, agents, envs, params, ctx):
+    reviewer = await agents["reviewer"].spawn()
+    await agents["reviewer"].show(
+        [Table(columns=("step", "state"), rows=(("lint", "passed"),), title="checks")],
+        session=reviewer,
+    )
+    review = await agents["reviewer"].run(
+        f"review {task}",
+        session=reviewer,
+        output_schema=Review,
+        context=[Diff(patch="--- a/x\\n+++ b/x\\n@@ -1 +1 @@\\n-old\\n+new\\n")],
+    )
+    Path("result.json").write_text(review.model_dump_json())
+"""
+
 #: A frontend in a process of its own: claims one role and answers what it is asked for it.
 ANSWERS = """
 import sys

@@ -71,6 +71,7 @@ def test_every_call_to_an_epic_is_served() -> None:
         "start",
         "say",
         "answer",
+        "face",
         "stop",
         "force",
         "afk",
@@ -208,6 +209,39 @@ def test_a_refusal_of_the_host_is_answered_409_with_its_why() -> None:
         409,
         "There is no environment 9:x.",
     )
+
+
+def test_a_refusal_of_the_host_naming_its_code_is_answered_with_it_and_its_data() -> (
+    None
+):
+    errors = [{"path": ["verdict"], "message": "pick one"}]
+    served, hosted = _served(
+        answer={
+            "ok": False,
+            "why": "the answer does not fit: pick one",
+            "code": 400,
+            "data": {"errors": errors},
+        }
+    )
+
+    with pytest.raises(RpcError) as refused:
+        served["epic.answer"](_call("epic.answer", question="q1", value={}, idem="k"))
+    assert (refused.value.code, refused.value.message, refused.value.data) == (
+        400,
+        "the answer does not fit: pick one",
+        {"errors": errors},
+    )
+    assert hosted.asked == [("c1", {"do": "answer", "question": "q1", "value": {}})]
+
+
+def test_a_face_is_read_from_the_host() -> None:
+    served, hosted = _served(answer={"ok": True, "html": "<p>hi</p>", "title": "Hi"})
+
+    assert served["epic.face"](_call("epic.face", hash="ab")) == {
+        "html": "<p>hi</p>",
+        "title": "Hi",
+    }
+    assert hosted.asked == [("c1", {"do": "face", "hash": "ab"})]
 
 
 def test_a_call_naming_no_subscription_is_refused_410() -> None:
