@@ -438,7 +438,9 @@ impl Running {
         let info = self
             .client
             .start(self.options.token.as_deref())
-            .map_err(|error| error.to_io())?;
+            // Its words kept: an anchor that did not prove the token says so, not just
+            // "connection refused".
+            .map_err(|error| io::Error::new(error.to_io().kind(), error.to_string()))?;
         if let Some(fence) = &self.options.fence {
             let net = fence.get("online") == Some(&serde_json::Value::Bool(false));
             if !hello_fences(&info, net) {

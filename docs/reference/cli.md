@@ -752,7 +752,7 @@ exits with its status. Semantics: [Remote execution](/reference/remote-execution
 | `--private NAME` | — | Keep this variable out of the agent's commands on the target. Repeatable. |
 | `--net {local,remote}` | `local` | Where the agent's own TCP connections go. Commands always use the target's network. |
 | `--net-allow HOST[:PORT]` | — | With `--net remote`, keep connections to this host local. Repeatable. |
-| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret a `tcp://` target expects. |
+| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret a `tcp://` target expects, proved inside TLS rather than sent; a `peer://` target's ticket is its secret and this is unused. |
 | `--token-file FILE` | — | Read that secret from `FILE` instead. What Humanize itself spawns is always given this, never `--token`: a command line is in every user's `ps`. The file is under `hmz.machine()/tokens/`, mode `0600`, named by the secret's SHA-256. |
 | `--force` | off | Use the mirror directory even if it holds unrelated files. |
 | `--native` | off | Run the CLI installed on the target instead of supervising one here. |
@@ -781,7 +781,7 @@ exits with its status. Semantics: [Remote execution](/reference/remote-execution
 ```text
 hmz internal anchor serve --export VIRTUAL[:REAL] [--export …]
     (--stdio | --listen [HOST:]PORT | --peer TICKET@HOST:PORT)
-    [--token TOKEN] [--log-level {debug,info,warning,error}]
+    [--token TOKEN | --token-file FILE] [--log-level {debug,info,warning,error}]
 ```
 
 | Option | Default | Meaning |
@@ -790,16 +790,19 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export …]
 | `--stdio` | | Serve one session over stdin/stdout. |
 | `--listen [HOST:]PORT` | host `127.0.0.1` | Serve TCP connections. |
 | `--peer TICKET@HOST:PORT` | | Serve one session through a rendezvous broker. |
-| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret required from clients. |
+| `--token TOKEN` | `$HUMANIZE_TOKEN`, but not with `--peer` | Shared secret required from clients. |
+| `--token-file FILE` | | A file holding that secret, read verbatim. |
 | `--log-level` | `$HUMANIZE_LOG`, else `warning` | |
 
-Exactly one of `--stdio`, `--listen`, `--peer`.
+Exactly one of `--stdio`, `--listen`, `--peer`. `--listen` and `--peer` speak only TLS, inside
+which a client proves the token, or with `--peer` the ticket, rather than sending it
+([Remote execution › The link over a network](/reference/remote-execution#the-link-over-a-network)).
 
 | Exit | When |
 | --- | --- |
 | `0` | served until the session or the process ended |
 | `1` | cannot listen (`hmz: cannot listen on <host>:<port>: <why>`), or cannot dial the peer |
-| `2` | a bad `--export`; a malformed address (`hmz: malformed listen address '<a>'; expected [HOST:]PORT`); a non-loopback `--listen` without a token (`hmz: cannot listen on a non-loopback address without --token`). Loopback is `127.0.0.1`, `::1`, `localhost`. |
+| `2` | a bad `--export`; a malformed address (`hmz: malformed listen address '<a>'; expected [HOST:]PORT`); a non-loopback `--listen` without a token (`hmz: cannot listen on a non-loopback address without --token`); `--token` or `--token-file` with `--peer` (`hmz: --token cannot be given with --peer, whose ticket is the secret`). Loopback is `127.0.0.1`, `::1`, `localhost`. |
 
 ::: danger
 A listener reachable from other machines runs commands for whoever holds its token. See
