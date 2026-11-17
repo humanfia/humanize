@@ -114,13 +114,20 @@ a weak `ETag` and `Cache-Control: no-cache` (`304` when it has not changed). A p
 carries:
 
 ```text
-Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self';
-  script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none';
-  form-action 'self'
+Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:;
+  style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:;
+  frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 ```
 
 `'self'` lets the page reach the server's own `/rpc` and `/dial`; `ws:` and `wss:` the relay
-of a `webrtc:` route, whose host the server cannot know.
+of a `webrtc:` route, whose host the server cannot know. `'unsafe-inline'` in `style-src` lets
+the editor and the terminal style what they draw from their own scripts; scripts stay the
+server's own files only.
+
+The editor (CodeMirror 6) and the terminal (xterm.js) are the page's only third-party code,
+served from `/vendor/codemirror.js`, `/vendor/xterm.js` and `/vendor/xterm_css.css`. They are
+built from the pinned packages in `src/hmz/web/vendor/`; see
+[Rebuilding the vendored code](/contributing/architecture#vendored-web-code).
 
 ## `/here` {#here}
 

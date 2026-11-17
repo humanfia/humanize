@@ -9,6 +9,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -781,6 +782,27 @@ def test_one_flow_runs_at_a_time(host: Host, where: Workspace) -> None:
     second = _started(alice, where)
     alice.told("started", run=2)
     second.released.set()
+
+
+def test_an_env_is_asked_of_the_run_going_attaching_nobody(
+    host: Host, where: Workspace
+) -> None:
+    no_flow = {"ok": False, "why": "no flow is running, so no env is open", "code": 409}
+    assert host.env({"do": "hosts.env.list"}) == no_flow
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert host.env({"do": "hosts.env.list"}) == no_flow
+
+    driver = SimpleNamespace(backend="local", workdir="/w", capabilities=frozenset())
+    held = SimpleNamespace(role="box", driver=driver, parent=None)
+    run.envs = SimpleNamespace(loop=None, held_envs=lambda: (held,))
+
+    assert host.env({"do": "hosts.env.list"}) == {
+        "ok": True,
+        "envs": [{"name": "box", "kind": "local", "workdir": "/w", "can": []}],
+    }
+    assert host.status()["attached"] == 1
+    run.released.set()
 
 
 @pytest.mark.parametrize(
