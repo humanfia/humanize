@@ -154,7 +154,7 @@ _PAGES = (
     _Page(
         "General",
         "⚙",
-        "this machine: what epics show, who answers The Epic, error reports",
+        "this machine: what epics show, Ai-chan's nous, error reports",
     ),
     _Page("Notifications", "♪", "which epics on this machine you are told of"),
     _Page("Daemons", "⇄", "this machine's and other machines', over ssh or EasyTier"),
@@ -175,7 +175,7 @@ _HOME_ABOUT = "Every setting Humanize keeps. What you change is held until you s
 _SENTRY = "reports"
 _SENT = "sent"
 _DETAILS = "details"
-_BTW = "btw"
+_AI_CHAN = "ai_chan"
 _RUNS = "flow"
 _FORGET = "forget"
 _SYSTEM = "system"
@@ -195,13 +195,13 @@ _KINDS = {
 #: only read -- a directory and the flow it opens on are what is remembered, not set here.
 _SWITCH, _PICK, _SAYS, _READ = "switch", "pick", "says", "read"
 
-#: What the list of The Epic's agent offers beside the agents it can already be: setting one up.
+#: What the list of Ai-chan's nous offers beside the ones it can already be: setting one up.
 _ANOTHER = f"{_APART_MARK}another"
 
 #: When a setting that cannot land at once does land, said beside its row while it is held
 #: and in the transcript once it is saved.
 _NEXT_LAUNCH = "takes effect on next launch"
-_NEXT_BTW = "takes effect on next /btw"
+_NEXT_AI = "takes effect on the next Ai-chan conversation"
 
 
 class _Setting(NamedTuple):
@@ -296,7 +296,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
           agents: The backends offered here, and what each of them says it runs, which is
             what the nous page chooses a concrete nous out of.
           page: Which page to open inside, or None for the screen of them all.
-          unavailable: The optional backends that still need installing, which the btw agent
+          unavailable: The optional backends that still need installing, which Ai-chan's
             is offered as it is anywhere else an agent is set up.
         """
         super().__init__()
@@ -304,8 +304,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self._sentry = self._sentry_was = settings.enable_sentry
         self._overridden = telemetry.enabled() is not self._sentry
         self._details = self._details_was = settings.details
-        #: The agent `/btw` talks to outside a session, or "" for the flow's first.
-        self._btw = self._btw_was = settings.btw
+        #: The nous a new Ai-chan conversation defaults to, or "" for none.
+        self._ai_chan = self._ai_chan_was = settings.ai_chan
         #: Which kinds of notice are told, and whether the system shows them too: kept with the
         #: web interface's, under `notifications` in this machine's `settings.yaml`.
         wanted = preferences()
@@ -496,10 +496,10 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
     def _pending(self, page: int) -> bool:
         """Whether one page is holding a change that saving would land."""
         if page == _EVERYWHERE:
-            return (self._sentry, self._details, self._btw) != (
+            return (self._sentry, self._details, self._ai_chan) != (
                 self._sentry_was,
                 self._details_was,
-                self._btw_was,
+                self._ai_chan_was,
             )
         if page == _NOTIFICATIONS:
             return (self._kinds, self._system) != (self._kinds_was, self._system_was)
@@ -620,12 +620,12 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 group="Display",
             ),
             _Setting(
-                _BTW,
-                "/btw The Epic",
-                self._btw or "none",
-                "the agent that answers side questions asked of The Epic",
+                _AI_CHAN,
+                "Ai-chan",
+                self._ai_chan or "none",
+                "the nous a new Ai-chan conversation defaults to",
                 _PICK,
-                _NEXT_BTW if self._btw != self._btw_was else "",
+                _NEXT_AI if self._ai_chan != self._ai_chan_was else "",
                 group="Agents",
             ),
             _Setting(
@@ -805,8 +805,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             sent, kept = "; ".join(SENT), "; ".join(KEPT)
             self._said = f"Sent: {sent}. Never sent: {kept}."
             self._fill()
-        elif held == _BTW:
-            self._chooses_btw()
+        elif held == _AI_CHAN:
+            self._chooses_ai_chan()
 
     def drops(self, row: str) -> bool:
         """Whether a row is a switch of the general or workspace page, its two values dropped.
@@ -873,11 +873,12 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         }[held]
 
     @work
-    async def _chooses_btw(self) -> None:
-        """Asks which agent answers The Epic, from the list dropped under its row, and holds it.
+    async def _chooses_ai_chan(self) -> None:
+        """Asks which nous a new Ai-chan conversation defaults to, from the list under its row.
 
-        None, the one chosen already where one is, or another -- set up on the sheet every
-        agent is set up on. None is nobody: no agent of an epic stands in for it.
+        None, the one chosen already where one is, another nous, or an agent set up on the
+        sheet every agent is set up on (Section 19.2.1 of tui.md). None is no default: `/ai`
+        then asks for one each time.
         """
         if self.opening():
             return
@@ -886,18 +887,23 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
         try:
-            values = [Value("", "none", "nobody answers The Epic")]
-            if self._btw:
-                values.append(Value(self._btw, self._btw, "chosen"))
-            values.append(Value(_ANOTHER, "another…", "set one up"))
+            values = [Value("", "none", "ask for one each time")]
+            if self._ai_chan:
+                values.append(Value(self._ai_chan, self._ai_chan, "chosen"))
+            values.extend(
+                Value(one.name, one.name, "a nous")
+                for one in self._nous
+                if one.name != self._ai_chan
+            )
+            values.append(Value(_ANOTHER, "another…", "set an agent up"))
             picked = await showing.push_screen_wait(
-                Dropdown("/btw The Epic", values, self._btw, at=self.dropped_at())
+                Dropdown("Ai-chan", values, self._ai_chan, at=self.dropped_at())
             )
             if picked == _ANOTHER:
                 chosen = await showing.push_screen_wait(
                     Agent(
-                        "The Epic's agent",
-                        read_back(self._btw) or Runs(""),
+                        "Set up Ai-chan",
+                        read_back(self._ai_chan) or Runs(""),
                         self._offered,
                         unavailable=self._unavailable,
                     )
@@ -907,9 +913,9 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 )
         finally:
             self.opened()
-        if picked is None or picked == self._btw:
+        if picked is None or picked == self._ai_chan:
             return
-        self._btw, self._said = picked, ""
+        self._ai_chan, self._said = picked, ""
         self.changed()
         self._fill()
 
@@ -939,7 +945,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 else None,
                 details=self._details if self._details != self._details_was else None,
                 forget=self._forget,
-                btw=self._btw if self._btw != self._btw_was else None,
+                ai_chan=self._ai_chan if self._ai_chan != self._ai_chan_was else None,
                 told=tuple(told),
                 corrected=tuple(self._corrected),
             )

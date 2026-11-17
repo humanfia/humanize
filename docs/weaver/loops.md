@@ -368,14 +368,23 @@ same task. The heart of it is whose turn it is, kept in `ctx.state` so a resumed
 with the right one:
 
 ```python
-chasers = (agents["first_chaser"], agents["second_chaser"])
+roles = ("first_chaser", "second_chaser")
 turn = state["turn"] if "turn" in state else 0
 while True:
-    chaser = chasers[turn]
+    role = roles[turn]
+    chaser = agents[role]
     session = await chaser.spawn()
-    await chaser.run(task, session=session, env=envs["workspace"])
-    state["turn"] = turn = (turn + 1) % len(chasers)
+    try:
+        await chaser.run(task, session=session, env=envs["workspace"], budget=quotas[role])
+    except BudgetExceeded as error:
+        if not error.own:  # the run's budget, not this turn's quota
+            raise
+    state["turn"] = turn = (turn + 1) % len(roles)
 ```
+
+Each chaser's `quotas[role]` is a `Budget(..., graceful=False)` built from params such as
+`-p first_chaser_cost=1.5`: a turn that reaches it is cut off and raises with `own=True`, and
+the other chaser takes over.
 
 **Start from a built-in loop.** Copy one into your project with **Copy here** in `/flow`, and
 change the copy. See [Flowverses](/weaver/flowverses#managing-flowverses).
