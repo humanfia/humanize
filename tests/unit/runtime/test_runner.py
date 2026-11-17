@@ -31,7 +31,7 @@ from hmz.runtime import epic, flowing
 from hmz.runtime.flowing import environments, harnesses
 from hmz.runtime.flowing import specs as flowing_specs
 from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
-from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
+from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES, Ask
 from hmz.runtime.runner import Line, Refused, Runner, read_line
 
 if TYPE_CHECKING:
@@ -765,11 +765,20 @@ class Clock:
 
 
 class Asked:
+    def __init__(self) -> None:
+        self.shown: list[tuple[object, ...]] = []
+
     def away_for(self, role: str) -> bool:
         return False
 
-    async def run(self, prompt: str, output_schema: object, role: str) -> str:
-        return f"{role}: {prompt}"
+    async def run(self, ask: Ask, role: str) -> str:
+        return f"{role}: {ask.prompt}"
+
+    def show(self, context: object, session: str, role: str) -> None:
+        self.shown.append((context, session, role))
+
+    def mount(self, face: object) -> None:
+        self.shown.append((face,))
 
 
 def test_a_watched_run_is_timed_by_what_its_agents_say_and_not_by_its_waits(
@@ -788,13 +797,16 @@ def test_a_watched_run_is_timed_by_what_its_agents_say_and_not_by_its_waits(
         cast("Any", builder.watched[0])("agent", None, "event")
         # On a loop of its own: the flow is called on the run's.
         with concurrent.futures.ThreadPoolExecutor(1) as aside:
-            asking = said["outworlder"].run("ok?", None, "human")
+            asking = said["outworlder"].run(Ask(prompt="ok?", schema=None), "human")
             answered.append(aside.submit(asyncio.run, asking).result())
         assert said["outworlder"].away_for("human") is False
+        said["outworlder"].show((), "human/1", "human")
+        said["outworlder"].mount("face")
         return "returned"
 
     engine_.flow = flow
-    runner.run("task", outworlder=cast("Any", Asked()))
+    person = Asked()
+    runner.run("task", outworlder=cast("Any", person))
 
     (clock,) = Clock.made
     assert (clock.doing, clock.stirs, clock.waits, clock.held) == (
@@ -804,6 +816,8 @@ def test_a_watched_run_is_timed_by_what_its_agents_say_and_not_by_its_waits(
         False,
     )
     assert answered == ["human: ok?"]
+    # What is pushed to the person goes through the clock's wrapper untouched.
+    assert person.shown == [((), "human/1", "human"), ("face",)]
 
 
 def test_an_unwatched_run_is_not_timed(

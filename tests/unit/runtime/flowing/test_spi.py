@@ -6,6 +6,7 @@ import asyncio
 from pathlib import PurePosixPath
 from typing import Any
 
+import pydantic
 import pytest
 
 from hmz.flows import (
@@ -21,6 +22,7 @@ from hmz.flows import (
     HookKind,
     HookResult,
     ImageEnvMixin,
+    OutworlderAway,
     ShellEnvMixin,
     SteeringAgentMixin,
     StopHookResult,
@@ -36,6 +38,7 @@ from hmz.runtime.flowing.spi import (
     Placement,
     SessionHandle,
     TurnRequest,
+    away_answer,
     capabilities_of,
     default_result,
 )
@@ -107,6 +110,35 @@ def test_a_moment_with_no_hook_comes_to_its_result_built_with_nothing(
 def test_an_outworlders_run_has_no_answer_to_default_to() -> None:
     with pytest.raises(ValueError, match="no answer"):
         default_result(HookKind.OUTWORLDER_RUN)
+
+
+class Defaulted(pydantic.BaseModel):
+    note: str = "none"
+
+
+class Needed(pydantic.BaseModel):
+    note: str
+
+
+class Ruled(pydantic.BaseModel):
+    low: int = 2
+    high: int = 1
+
+    @pydantic.model_validator(mode="after")
+    def ordered(self) -> Ruled:
+        if self.low > self.high:
+            raise ValueError("low is above high")
+        return self
+
+
+def test_an_away_answer_is_empty_text_or_the_schemas_defaults() -> None:
+    assert away_answer(None) == ""
+    assert away_answer(Defaulted) == Defaulted()
+    with pytest.raises(OutworlderAway, match="no default"):
+        away_answer(Needed)
+    # Defaults a rule of the model's own refuses are no answer either.
+    with pytest.raises(OutworlderAway, match="no default"):
+        away_answer(Ruled)
 
 
 async def test_a_table_fires_the_hook_hung_on_a_moment_or_answers_the_default() -> None:
