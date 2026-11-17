@@ -1996,6 +1996,9 @@ where a budget of the flow call or turn, or of a flow call above it, is spent (S
 **3.15.2.16** `DurationExceeded(BudgetExceeded, TimeoutError)` MUST be raised where `duration` is
 spent. `CostExceeded(BudgetExceeded)` MUST be raised where `cost` is spent.
 `OutputTokensExceeded(BudgetExceeded)` MUST be raised where `output_tokens` are spent.
+`BudgetExceeded.own` MUST be `True` where `run` raises it because the turn's own
+`budget` (Section 3.8.2.3) is spent while no budget above the turn is, and MUST be `False`
+otherwise. Where a budget above the turn is also spent, `run` MUST raise for that budget.
 
 **3.15.2.17** `FlowCancelled(FlowRuntimeError)` MUST be raised where an operation of a flow call is
 attempted after its caller, a call above it, or the epic has ended.

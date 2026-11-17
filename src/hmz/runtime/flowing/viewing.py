@@ -58,6 +58,7 @@ from hmz.flows import (
     AskUserHookAgentMixin,
     AskUserHookParams,
     BashEnvMixin,
+    BudgetExceeded,
     CapabilityNotGranted,
     DurationExceeded,
     EnvBackendKind,
@@ -396,6 +397,21 @@ class AgentView:
         view._forked_at = forked._turns
         return view
 
+    def _whose(self, error: BudgetExceeded, budget: Budget | None) -> BudgetExceeded:
+        """Which budget a turn ran out of: its own (`own`), or the flow's error in its place.
+
+        Asked once the turn is over, so a budget above it that ran out alongside the turn's
+        own is the one said: every later turn would run into that one too.
+        """
+        if budget is None:
+            return error
+        try:
+            self._node.limits(None)
+        except BudgetExceeded as over:
+            return over
+        error.own = True
+        return error
+
     def _placement(self, env: Env | None) -> Placement:
         """Where a turn given `env` works."""
         if env is None:
@@ -571,7 +587,12 @@ class AgentView:
             # What an interrupted turn raises; a turn that answered, or failed of itself,
             # before the deadline's interrupt reached it did so in time.
             if cut is not None and cut.fired and isinstance(error, SessionError):
-                raise cut.exceeded(self._role) from error
+                raise self._whose(cut.exceeded(self._role), budget) from error
+            if (
+                isinstance(error, BudgetExceeded)
+                and (whose := self._whose(error, budget)) is not error
+            ):
+                raise whose from error
             raise
         finally:
             turns.pop(id(handle), None)
