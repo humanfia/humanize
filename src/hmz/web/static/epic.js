@@ -89,9 +89,18 @@ function same(detail, started) {
 /** How far apart, in seconds, the host's start and the epic's own may be and be one start. */
 const SAME = 120
 
-/** Whether an epic is the built-in chat, read as a conversation rather than as a flow. */
+/**
+ * Whether an epic is a chat, read as a conversation rather than as a flow: by its kind -- an epic
+ * row's or a `started` record's `kind`, a host's `epic_kind` -- and, where none is given, as an
+ * epic written before chats had a kind of their own, by its flow named `chat` (Section 8.3.5 of
+ * protocol/core.md).
+ *
+ * @param {{kind?: string, epic_kind?: string, flow?: string}} epic
+ */
 export function chatting(epic) {
-  return flowName(epic.flow) === 'chat'
+  if (!epic) return false
+  const kind = epic.kind || epic.epic_kind
+  return kind ? kind === 'chat' : flowName(epic.flow) === 'chat'
 }
 
 /**
