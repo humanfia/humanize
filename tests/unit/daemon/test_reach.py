@@ -66,7 +66,7 @@ def test_refusals_come_in_their_order(kept: Conversations) -> None:
     )
     assert (
         held.refusal("hosts.stop", {"workspace": "/x"})
-        == "hosts.stop is out of Ai-chan's scope: the host  of /x."
+        == "hosts.stop is out of Ai-chan's scope: the host of /x."
     )
     assert (
         held.refusal("flows.list", {"workspace": "/x"})
@@ -124,7 +124,7 @@ def test_an_epic_scope_reaches_its_epic_and_no_workspace(
 
     assert held.refusal("hosts.status", {"workspace": "/w"}) is None
     assert held.refusal("hosts.status", {"workspace": "/x"}) == (
-        "hosts.status is out of Ai-chan's scope: the host  of /x."
+        "hosts.status is out of Ai-chan's scope: the host of /x."
     )
     assert held.refusal("runs.get", {"name": "e1"}) is None
     assert held.refusal("runs.get", {"name": "e2"}) == (
@@ -138,7 +138,7 @@ def test_an_epic_scope_reaches_its_epic_and_no_workspace(
     )
     assert held.refusal("epic.say", {"sub": "s1"}) is None
     assert held.refusal("epic.say", {"sub": "s2"}) == (
-        "epic.say is out of Ai-chan's scope: the host  of /x."
+        "epic.say is out of Ai-chan's scope: the host of /x."
     )
 
 

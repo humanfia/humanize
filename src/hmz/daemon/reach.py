@@ -251,7 +251,9 @@ class Held:
                 hosted = self._hosts.get(workspace, slot)
                 epic = str(hosted.status().get("epic") or "") if hosted else ""
             return "" if self.epic(epic, workspace) else f"the epic {epic}"
-        return "" if self.host(workspace, slot) else f"the host {slot} of {workspace}"
+        if self.host(workspace, slot):
+            return ""
+        return f"the host {slot} of {workspace}" if slot else f"the host of {workspace}"
 
     # -- what it reaches (Section 4.21.1 of daemon.md)
 

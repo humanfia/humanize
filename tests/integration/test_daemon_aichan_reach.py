@@ -173,7 +173,7 @@ def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
         )
         assert (
             _refused(ai, "hosts.stop", {"workspace": str(other)})
-            == f"hosts.stop is out of Ai-chan's scope: the host  of {elsewhere}."
+            == f"hosts.stop is out of Ai-chan's scope: the host of {elsewhere}."
         )
         assert (
             _refused(ai, "flows.list", {"workspace": str(other)})
