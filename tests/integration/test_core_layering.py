@@ -70,6 +70,18 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.epic",
         "hmz.runtime.telemetry",
     },
+    # A chat: one agent and one conversation, run on the same plumbing an epic is.
+    "hmz.runtime.chatting": {
+        "hmz.coganchor",
+        "hmz.flows",
+        "hmz.runtime.backing",
+        "hmz.runtime.epic",
+        "hmz.runtime.flowing",
+        "hmz.runtime.kept",
+        "hmz.runtime.runner",
+        "hmz.runtime.settings",
+        "hmz.runtime.telemetry",
+    },
     # What a flow imports: it names the engine only from inside `flow`, `load` and
     # `Outworlder.new` (see HANDED_THROUGH), and the fake tools and command lines it hands an
     # agent, which are coganchor's own (see FAKING).
@@ -81,6 +93,7 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.trust",
         "hmz.flows",
         "hmz.runtime.backing",
+        "hmz.runtime.chatting",
         "hmz.runtime.epic",
         "hmz.runtime.exporting",
         "hmz.runtime.flowing",

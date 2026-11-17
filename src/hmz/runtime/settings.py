@@ -31,7 +31,7 @@ from __future__ import annotations
 import copy
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import yaml
 
@@ -283,6 +283,60 @@ class Settings:
                 return {}
             said[role] = runs
         return said
+
+    @property
+    def chat_agent(self) -> Runs | None:
+        """The agent a new chat here talks to, or None where none was chosen.
+
+        A workspace's, as a flow's agents are. Read where an earlier hmz wrote it, too: the
+        `assistant` of the flow `chat`, from when a chat was a flow.
+        """
+        raw = self._here().get("chat")
+        said = (
+            read_back(cast("dict[str, Any]", raw).get("agent"))
+            if isinstance(raw, dict)
+            else None
+        )
+        if said is None:
+            said = self.agents("chat").get("assistant")
+        return said
+
+    @chat_agent.setter
+    def chat_agent(self, runs: Runs) -> None:
+        """Writes down the agent a new chat here talks to."""
+
+        def change(held: dict[str, Any]) -> None:
+            mine = self._mine(held)
+            if not isinstance(mine.get("chat"), dict):
+                mine["chat"] = {}
+            cast("dict[str, Any]", mine["chat"])["agent"] = written(runs)
+
+        self._write(change)
+
+    @property
+    def chat_prefer(self) -> Literal["native", "flow"]:
+        """What `$<name>` in a chat means where it names both a native skill and a flow.
+
+        This machine's rather than a workspace's, as `details` is, and overridden for one chat
+        by that chat's own preference (Section 8.9 of [CORE]). `native` unless somebody says
+        otherwise: a chat is meant to take what its harness takes, as its harness takes it.
+        """
+        raw = self._held.get("chat")
+        said = (
+            cast("dict[str, Any]", raw).get("prefer") if isinstance(raw, dict) else None
+        )
+        return "flow" if said == "flow" else "native"
+
+    @chat_prefer.setter
+    def chat_prefer(self, prefer: Literal["native", "flow"]) -> None:
+        """Writes down what `$<name>` in a chat means where it names both."""
+
+        def change(held: dict[str, Any]) -> None:
+            if not isinstance(held.get("chat"), dict):
+                held["chat"] = {}
+            cast("dict[str, Any]", held["chat"])["prefer"] = prefer
+
+        self._write(change)
 
     def envs(self, flow: str) -> dict[str, str]:
         """What each environment role of one flow was last given here, as `-e` spells one.
