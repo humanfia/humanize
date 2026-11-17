@@ -250,9 +250,10 @@ asks, the card holds the review face: one fold per file, the first one open, two
 buttons and the notes. **Approve** and **Send review** end the flow with `True`. Request
 changes with a note, and the note is the builder's next prompt.
 
-Above the face the card keeps a **Plain form** switch. Press it and the same question is the
-form Humanize draws from `Review`: the verdict as two large buttons, the notes as a text box,
-with the diff and the table above them. Your answer goes through either way.
+Above the face, beside its title, the card keeps one switch, **Plain form**. Press it and the
+same question is the form Humanize draws from `Review`: the verdict as two large buttons, the
+notes as a text box, with the diff and the table above them. The switch then says **Back to
+Review**, and takes you back to the face as you left it. Your answer goes through either way.
 
 At the prompt in a terminal, there is no face: the question is the form, with a line saying the
 web page has a richer view of it. See [Questions](/user/questions).
@@ -294,8 +295,8 @@ Every block takes a `title=` too, which the JSON carries as `"title"` where it i
 
 A face is code the flow brought, run in the page that holds your runs, so it runs fenced in:
 
-- **A sandboxed frame.** It runs in an `<iframe sandbox="allow-scripts allow-forms">` of its
-  own origin. It has no cookies, cannot read the page, and cannot call the daemon.
+- **A sandboxed frame.** It runs in an `<iframe sandbox="allow-scripts allow-forms">`, with an
+  opaque origin of its own. It has no cookies, cannot read the page, and cannot call the daemon.
 - **No network.** Its policy is `connect-src 'none'`: no `fetch`, no WebSocket, no image or
   font from elsewhere. Images come as `data:` or `blob:` URLs, and so do fonts. Everything else
   is in the one HTML file.
@@ -310,11 +311,15 @@ A face is code the flow brought, run in the page that holds your runs, so it run
 The person always gets the question. The plain form takes the face's place where:
 
 - the face fails to load, or throws before it calls `hmz.on("ask", …)`;
-- it does not answer the page's hello within 5 seconds;
-- the person presses **Plain form**, which they can do at any time, and back again;
-- the question is answered somewhere with no faces: at the prompt in a terminal, or by a
-  [caller](/weaver/human-agent#stand-in-for-the-person) in code. A caller is told the face's hash, never handed
-  its HTML.
+- it has not called `hmz.on("ask", …)` within 5 seconds of its frame loading;
+- the person presses **Plain form**, which they can do at any time, and **Back to …** again;
+- the question is answered somewhere with no faces: at the prompt in a terminal, by a
+  [stand-in](/weaver/human-agent#stand-in-for-the-person), which is handed the `Face` as
+  `params.face` and answers the schema, or by a
+  [program](/weaver/human-agent#from-a-program), which is told the face's hash alone.
+
+When the face could not be shown, the card says why above the form, with **Try again**, which
+loads the face afresh and, once it answers, shows it in place of the form.
 
 ## Faces written by an agent {#face-design}
 
@@ -337,7 +342,8 @@ reviewing = await human.spawn(face=face)
 2. **`about`** says what the person is deciding and what helps them decide.
 
 It returns the first fenced `html` block the agent wrote, or the whole of what it said where
-there is none. An answer with no HTML in it raises `ValueError`. `FACE_GUIDE` is the bridge
+there is none, titled by the page's `<title>`. An answer with no HTML in it, one that does not
+start with a tag, raises `ValueError`. `FACE_GUIDE` is the bridge
 above written for an agent: one self-contained HTML file, no network, the page's colours. It is
 exported from `hmz.flows`, should you want to prompt an agent yourself.
 
@@ -377,7 +383,7 @@ async def test_the_person_sends_it_back_then_approves() -> None:
 
     assert approved is True
     assert builder.prompts == ["add subtract", "add a test"]
-    first = person.asked[0]  # ②
+    first = person.asks[0]  # ②
     assert first.prompt == "Round 1: ship it?"
     assert first.face  # ③
     assert first.context[0] == {"kind": "diff", "patch": PATCH, "title": "The change"}  # ④
@@ -385,14 +391,16 @@ async def test_the_person_sends_it_back_then_approves() -> None:
 ```
 
 1. **A list of mappings** answers question by question, each read as a `Review`.
-2. **`person.asked`** is every question put to the person, as the `Ask` a caller receives.
+2. **`person.asks`** is every question put to the person, whole, as the `Ask` a program
+   receives; `person.asked` is just their prompts.
 3. **`face`** is the face's hash. The script never runs the face: it answers the schema.
 4. **`context`** is each block as JSON, exactly as the face is handed it.
 
 ## Variations
 
 **A face from a string.** `Face.html(text, title="")` takes the HTML itself, for a face made up
-in code.
+in code. A `Face` is frozen: `face.html` is its HTML, `face.title` its title, and `face.hash`
+the SHA-256 of the HTML that every question of its session names it by.
 
 **Text with a face.** A face can serve a question with no schema: `schema` is `null`, and it
 submits a string.

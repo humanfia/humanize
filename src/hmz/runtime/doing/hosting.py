@@ -59,6 +59,7 @@ import tempfile
 import threading
 import time
 import weakref
+from collections.abc import Mapping
 from concurrent import futures
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -66,7 +67,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 import pydantic
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Sequence
 
     from hmz.coganchor.agents import (
         AgentBase,
@@ -213,6 +214,62 @@ def _clipped(said: Any, longest: int = _LONGEST, *, shows: bool = False) -> Any:
     if isinstance(said, list):
         return [_clipped(one, longest, shows=shows) for one in said]  # pyright: ignore[reportUnknownVariableType]
     return said
+
+
+def _secret(node: Mapping[str, Any]) -> bool:
+    """Whether a field of a schema holds a secret (`hmz:widget` `secret`, or a password)."""
+    extra: Any = node.get("json_schema_extra")
+    widget: Any = node.get("hmz:widget")
+    if widget is None and isinstance(extra, Mapping):
+        widget = cast("Mapping[str, Any]", extra).get("hmz:widget")
+    return widget == "secret" or node.get("format") == "password"
+
+
+def _unsecret(text: str, schema: Mapping[str, Any] | None) -> str:
+    """An answer as it is recorded: the JSON of a value with each secret field written `***`.
+
+    The flow is given the answer whole; what every frontend and the epic's history keep of it
+    never holds a secret.
+    """
+    if schema is None:
+        return text
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return text
+    defs = cast("Mapping[str, Any]", schema.get("$defs") or {})
+
+    def node_of(node: Any) -> Mapping[str, Any]:
+        if not isinstance(node, Mapping):
+            return {}
+        held = cast("Mapping[str, Any]", node)
+        ref = held.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            return node_of(defs.get(ref.removeprefix("#/$defs/")))
+        branches: Any = held.get("anyOf") or ()
+        for branch in cast("Sequence[Any]", branches):
+            if isinstance(branch, Mapping):
+                one = cast("Mapping[str, Any]", branch)
+                if one.get("type") != "null":
+                    return {**held, **node_of(one)}
+        return held
+
+    def hidden(said: Any, node: Mapping[str, Any]) -> Any:
+        if not isinstance(said, dict):
+            return said
+        properties = cast("Mapping[str, Any]", node.get("properties") or {})
+        kept = dict(cast("dict[str, Any]", said))
+        for name, raw in properties.items():
+            if name not in kept:
+                continue
+            field = node_of(raw)
+            if _secret(cast("Mapping[str, Any]", raw)) or _secret(field):
+                kept[name] = "***"
+            else:
+                kept[name] = hidden(kept[name], field)
+        return kept
+
+    return json.dumps(hidden(value, node_of(schema)), ensure_ascii=False)
 
 
 def _sized(message: dict[str, Any]) -> int:
@@ -2727,7 +2784,7 @@ class Host:
                 "role": asked.role,
                 "by": by,
                 "client": client,
-                "text": text,
+                "text": _unsecret(text, asked.schema),
             }
         )
         self._snap_pending()

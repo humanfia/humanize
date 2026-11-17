@@ -1459,6 +1459,34 @@ def test_a_check_that_fails_refuses_the_value_it_could_not_read(
     run.released.set()
 
 
+def test_a_secret_is_given_the_flow_whole_and_recorded_as_stars(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "user": {"type": "string"},
+            "token": {"type": "string", "hmz:widget": "secret"},
+        },
+    }
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(
+        outworlders.ask, cast("Any", Shaped(schema=schema, check=lambda _: ()))
+    )
+    question = alice.told("asked", run=1)["question"]
+
+    said = {"user": "ann", "token": "s3cret"}
+    assert alice.asks("answer", question=question, value=said) == {"ok": True}
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is not None
+    assert json.loads(asking.answer) == said
+    answered = alice.told("answered", question=question)
+    assert json.loads(answered["text"]) == {"user": "ann", "token": "***"}
+    run.released.set()
+
+
 def test_a_schema_question_answered_in_text_reads_the_text_as_json(
     host: Host, where: Workspace, outworlders: Outworlders
 ) -> None:

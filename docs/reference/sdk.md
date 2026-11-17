@@ -269,7 +269,8 @@ class Ask:
 class OutworlderDriver(Protocol):
     def away_for(self, role: str) -> bool: ...
     async def run(self, ask: Ask, role: str) -> str | BaseModel | Mapping[str, Any]: ...
-    def show(self, context: tuple[dict[str, Any], ...], session: str, role: str) -> None: ...
+    # optional:
+    # def show(self, context: tuple[dict[str, Any], ...], session: str, role: str) -> None: ...
 ```
 
 What answers a run's `Outworlder` roles from a program, given to [`Hmz.run`](#hmz-run) or
@@ -280,22 +281,23 @@ Guide: [The person as an agent › From a program](/weaver/human-agent#from-a-pr
 | --- | --- |
 | `prompt` | What the flow asked. |
 | `schema` | The JSON Schema of the flow's `output_schema`, or `None` for a text question. |
-| `model` | `None` here: the pydantic model lives in the flow's process. [`fakes`](#fakes), in that process, set it. |
+| `model` | `None`: the pydantic model lives in the flow's process, and a `Run` has only its schema. |
 | `context` | The question's [context blocks](/reference/flows#context-blocks), as JSON. |
-| `face` | The hash of the session's [face](/reference/flows#face), or `""`. A driver draws no face. |
+| `face` | The hash of the session's [face](/reference/flows#face), or `""`. A driver draws no face, and is never handed one: its `mount`, if it has one, is not called. |
 | `session` | `<role>/<n>`: the same for every question of one outworlder session. |
 | `errors` | `()`, or, on a try after a refused answer, `[{path, message}]` saying why. |
 
 | Member | Behaviour |
 | --- | --- |
 | `away_for(role)` | Whether that role is set away when the run starts. An away role is never asked. |
-| `run(ask, role)` | The answer: a `str` for a text question, sent as `text`; a mapping or a pydantic model for a schema question, sent as `value` (a model as `model_dump(mode="json")`). |
+| `run(ask, role)` | The answer: a `str`, sent as `text` (JSON text is read as the value of a schema question); a mapping or a pydantic model for a schema question, sent as `value` (a model as `model_dump(mode="json")`). `""`, or raising, answers nothing, as an away person does. |
 | `show(context, session, role)` | Optional. Called with what the flow [showed](/reference/flows#outworlder) the role; absent, it is not delivered. Its return is ignored. |
 
 **A refused answer.** An answer that does not fit the schema is refused by the host. `run` is
-called again with the same `Ask`, its `errors` set, up to three more times. Where the last of
-those misfits too, the role is set away, and the question is answered as an away person
-answers it.
+called again with the same `Ask`, its `errors` set, up to twice more: three tries in all. Where
+the third misfits too, the question is answered as an away person answers it: the role is set
+away, and back again unless `away_for` now says it is away. An answer refused for any other
+reason, answered elsewhere first say, is left at that.
 
 ```python
 from typing import Any

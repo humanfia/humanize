@@ -46,7 +46,7 @@ offered, and your next line answers them.
 
 Both are shown the same way, a `●` line in yellow. One asking for text has
 `type an answer, or /afk to stop being asked` under it: type a line and press <kbd>enter</kbd>.
-One asking for a form has `form · <n> fields — press enter to open` under it instead.
+One asking for a form has `form · <n> fields — press Enter to open` under it instead.
 Nothing times out. In a flow, a question is put to **you** as the flow's `human` role, its
 [outworlder](/user/concepts), which is why its own transcript is headed `outworlder human`. A
 chat has no outworlder: its questions are put to you in its conversation.
@@ -109,23 +109,35 @@ and a line to open the form:
 
 ```text
 ● How should I do this: add a subtract function to calc.py?                     ①
-  ▾ The change · +12 −3 in 2 files                                              ②
-    calc.py
-    + def subtract(a, b):
-    +     return a - b
-  ▸ Checks · table · 1 row
-  form · 2 fields — press enter to open                                         ③
+
+  The change · diff · +2 −0 in 1 file                                           ②
+    diff --git a/calc.py b/calc.py
+    +def subtract(a, b):
+    +    return a - b
+
+  Checks · table · 1 row
+    check   result
+    tests   pass
+
+  form · 2 fields — press Enter to open                                         ③
 ```
 
-Press <kbd>enter</kbd>, and the form opens as a sheet over the transcript:
+Press <kbd>enter</kbd> on an empty prompt, and the form opens as a sheet along the bottom of the
+screen, over the transcript, which stays readable above it:
 
 ```text
  How should I do this: add a subtract function to calc.py?
+ human asks; the context is in the transcript above
 
- Which way should this be built?    fast   [ careful · suggested ]              ④
- Write tests for it?                [ Yes, write tests · suggested ]   No tests
+ Approach                                                                       ④
+   1 fast  [ 2 careful ]
+   suggested · Which way should this be built?
+ Tests
+   [ 1 Yes, write tests for it? ]  2 No
+   suggested · Write tests for it?
 
-                                                       enter submit · esc later  ⑤
+                                                                     answer     ⑤
+ 1-9 pick · ←/→ move · pgup/pgdn read above · esc close, keeping the draft      ⑥
 ```
 
 These two are drawn after the interface, not recorded.
@@ -133,27 +145,40 @@ These two are drawn after the interface, not recorded.
 ### What each part means
 
 1. **The prompt**, the headline of the question.
-2. **What the flow handed you to read**: a diff, a table, text, code. Each long one is folded
-   behind a line that sums it up, and the first is open. An image or a chart is a line saying
-   it is in the web page.
+2. **What the flow handed you to read**: a diff, a table, text, code, each under a line saying
+   what it is. The first is drawn at length and the rest shorter, each saying how many more
+   lines there are and where to read them whole. An image or a chart is a line saying it is in
+   the web page, with the page's address where `hmz web` has been run on this machine.
 3. **The form waiting.** It does not open by itself, so a question coming up never takes the
-   line you are typing.
-4. **One row per field.** A few choices are laid out side by side and a yes or no is two
-   words, never a box to tick. What the flow suggests is already picked and marked
-   `suggested`, so if you agree, <kbd>enter</kbd> is all it takes.
-5. **The keys**, at the foot of the sheet. Closing it leaves the question up, to open again.
+   line you are typing. Where another interface holds it, the line says `Waiting for <name>`.
+4. **One row per field**, required fields first. A few choices are laid out side by side,
+   picked by their number or with <kbd>←</kbd>/<kbd>→</kbd>, and a yes or no is two of them,
+   never a box to tick. What the flow suggests is already picked and marked `suggested`, so if
+   you agree, the button is all it takes. Where some fields are required and some not, the rest
+   fold under **More options (n)**.
+5. **The button**, `answer`, which says `answer · 2 required left` while required fields are
+   empty.
+6. **The keys**, at the foot of the sheet. <kbd>pgup</kbd>/<kbd>pgdn</kbd> scroll the
+   transcript behind it, to read the diff while you decide. <kbd>esc</kbd> closes it and keeps
+   what you filled in, to open again with <kbd>enter</kbd>.
 
 An answer that does not fit, a word where a number goes, is not sent on: what is wrong is said
 under the field, and the sheet stays open with what you typed, until it fits.
 
 | A field that is | Is |
 | --- | --- |
-| one of a few words | those words, side by side; one of many: a list to search |
-| yes or no | two buttons, worded from the question |
-| a number | a number field |
-| text | a text field |
-| a list | one row per item, to add to and remove from |
+| one of up to five words | those words, side by side; one of more: a list to pick from |
+| yes or no | two words, `Yes, <its description>` and `No` |
+| a number | a number, checked as you send |
+| text | a line, or several for Markdown or code |
+| a list of words or numbers | one per line |
+| anything else | JSON |
 | given a default | already filled in, and marked `suggested` |
+
+Words typed at the prompt instead of opening the form are not lost: the form opens with them
+where they fit, in the choice they name or the first empty text field. A JSON object typed
+there, `{"approach": "fast", "tests": false}`, is sent as the answer itself. Once answered, the
+question closes with one line of what you said, `❯ careful · Yes, write tests for it?`.
 
 A question asking for text has no form: type a line and press <kbd>enter</kbd>, as for an
 agent's question.
@@ -161,30 +186,35 @@ agent's question.
 ## Example: the same form in the browser {#in-the-browser}
 
 In [the web page](/user/web), the question is one card under the epic's graph, laid out to be
-read top to bottom: the prompt, then what to read, then the form, then **Submit**.
+read top to bottom: the prompt, then what to read, then the form, then **Send answer**.
 
 - **Few choices, large.** Up to five choices are a row of buttons; more are a list to search.
   <kbd>1</kbd>–<kbd>9</kbd> picks one while you are not typing in a field.
-- **The suggested answer, ready.** Defaults are picked and marked `suggested`. Fields with no
-  default come first, and those with one fold under **More options (n)**.
-- **What is left, on the button.** **Submit** says what is still needed, `2 required left`,
-  until nothing is. <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd> submits from anywhere in
-  the card.
+- **The suggested answer, ready.** Defaults are picked and marked `suggested`. Required fields
+  come first; in a form of more than three fields, the optional ones with a default fold under
+  **More options (n)**.
+- **What is left, on the button.** **Send answer** says what is still needed, `2 required
+  left`, until nothing is. <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd> sends from anywhere
+  in the card.
+- **A question in words.** The choices it offers are buttons, numbered, each sending its own
+  words; or type your own in the line under them.
 - **Errors where you look.** A field is checked when you leave it and when you submit, never
   while you type. What does not fit is said beside the field, and the cursor goes to the first.
 - **Nothing lost.** What you have typed is kept in this browser until you send it, so a reload
-  brings it back. A question that goes away says why: `went away` when it was answered as
-  nobody, `the run ended` when the run did.
+  brings it back. A question that goes away folds to why: `Withdrawn: human went away` when
+  it was answered as nobody, `Withdrawn: the run ended` when the run did.
 - **A closing line.** Once sent, the card folds to one line of what you answered:
-  `You answered: approve · 'LGTM'`.
+  `You answered: approve · ‘LGTM’`.
 - **Somebody else's.** A question another window holds is shown, but not to be answered:
-  `Waiting for <name>`.
+  `Waiting for <name> to answer`.
 
 A flow may bring a [face](/weaver/faces) of its own for a question: a page made for that one
 decision, a review of a diff file by file, say. It sits in the card where the form would be.
-**Plain form**, above it, swaps it for the form at any time, and back. A face that fails to
-load is replaced by the form by itself. At the prompt in a terminal there is no face: the
-question says the web page has a richer view, and its form is the one shown here.
+**Plain form**, above it, swaps it for the form at any time, and **Back to …** swaps it back. A
+face that fails to load, or does not answer within five seconds, is replaced by the form by
+itself, with a note saying why and **Try again**. At the prompt in a terminal there is no
+face: the question says a richer view of it is in the web page, and its form is the one shown
+here.
 
 What a flow shows you without asking, its progress, a result, a chart, goes into the asking
 outworlder's own transcript, in the terminal and in the browser alike.
@@ -284,7 +314,7 @@ it waits for your next message for as long as you leave it, and
 | A flow's question | answered with nothing, or with the flow's defaults |
 | What a flow shows you | not shown, and the flow is not held up |
 | A flow's question that has no default | the flow fails with `nobody is there to answer …`, unless it handles that |
-| A question already up | answered by nobody, at once, and its card says `went away` |
+| A question already up | answered by nobody, at once; its card says `Withdrawn: human went away`, the prompt `withdrawn: away` |
 
 See [Being away](/user/afk).
 

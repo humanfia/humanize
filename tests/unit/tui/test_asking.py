@@ -171,6 +171,18 @@ def test_an_answer_is_said_as_the_choices_picked_and_the_words_written() -> None
     assert said == "approve · 'LGTM' · Yes, write tests"
 
 
+def test_a_secret_is_typed_as_bullets_and_said_back_as_stars() -> None:
+    class Login(BaseModel):
+        user: str
+        token: str = Field(json_schema_extra={"hmz:widget": "secret"})
+
+    schema = Login.model_json_schema()
+
+    (_, token) = asking.fields(schema)
+    assert token.secret
+    assert asking.summary({"user": "ann", "token": "s3cret"}, schema) == "'ann' · ***"
+
+
 def test_a_long_answer_is_shortened() -> None:
     said = asking.summary("word " * 40)
 

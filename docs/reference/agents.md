@@ -2128,9 +2128,13 @@ With `schema=`, the person is asked one question per field:
 | `list[str]` | one comma-separated line |
 
 A refused value is asked again a bounded number of times. Under `suppress`, an unfinished
-questionnaire answers `None`. In a flow the person is an `Outworlder` role; an away outworlder
-answers with the model built from its defaults, or raises `OutworlderAway` for a field without
-one.
+questionnaire answers `None`.
+
+In a flow the person is not this agent but an [`Outworlder`](/reference/flows#outworlder) role,
+and a shape is never asked a field at a time there: the whole of it is one form, at the prompt
+or in the browser, its answer checked against the model in one place and refused beside the
+field it is about ([Questions](/user/questions)). An away outworlder answers with the model
+built from its defaults, or raises `OutworlderAway` for a field without one.
 
 ## Environment variables {#environment-variables}
 

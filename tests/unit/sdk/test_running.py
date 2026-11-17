@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 from typing import TYPE_CHECKING, Any, cast
 
@@ -355,6 +356,19 @@ def test_a_model_answer_is_sent_as_its_json_value(daemon: _Daemon) -> None:
 
     (params,) = daemon.calls("epic.answer", 1)
     assert params["value"] == {"verdict": "reject", "notes": ""}
+
+
+def test_a_mapping_answering_a_text_question_is_sent_as_its_json_text(
+    daemon: _Daemon,
+) -> None:
+    person = _Person({"pick": 2})
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="which?")
+
+    (params,) = daemon.calls("epic.answer", 1)
+    assert json.loads(params["text"]) == {"pick": 2}
+    assert "value" not in params
 
 
 def test_an_answer_that_does_not_fit_is_asked_again_with_what_did_not_fit(

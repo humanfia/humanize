@@ -147,10 +147,11 @@ And under the graph, while it goes:
   the flow handed you to read -- a diff file by file, a table, text, code, a picture, a chart,
   each long one folded behind a line that sums it up -- then how to answer. A question asking
   for text has its offered answers as buttons and a field for your own; one asking for a shape
-  is one whole form, its suggested answers already picked, and **Submit** saying what is left.
-  A flow may draw a question with a [face](/weaver/faces) of its own instead, which **Plain
-  form** swaps for the form. What you type is kept in this browser until it is sent, and a sent
-  card folds to `You answered: …`. A question another window holds says `Waiting for <name>`.
+  is one whole form, its suggested answers already picked, and **Send answer** saying what is
+  left. A flow may draw a question with a [face](/weaver/faces) of its own instead, which
+  **Plain form** swaps for the form. What you type is kept in this browser until it is sent,
+  and a sent card folds to `You answered: …`. A question another window holds says `Waiting
+  for <name> to answer`.
   A chat waiting for your next line puts nothing here, and what its agent asks is asked in its
   conversation. See [Questions](/user/questions#in-the-browser).
 - **Say something.** <kbd>Enter</kbd> sends a line to the epic as a line typed in `hmz` goes

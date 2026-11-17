@@ -209,40 +209,42 @@ async def settle(
 ### What the person sees
 
 In the [web page](/user/web), the question is one card under the graph: the prompt as its
-headline, then the form, then **Submit**.
+headline, then the form, then **Send answer**.
 
 <pre class="asking-tty" aria-label="The form in the web page, drawn after the interface"><span class="said">How should I do this: add a subtract function to calc.py?</span>
 
-Which way should this be built?
-<span class="you">[&nbsp;fast&nbsp;]  [&nbsp;careful&nbsp;·&nbsp;suggested&nbsp;]</span>
+Approach  <span class="dim">suggested</span>
+<span class="you">[&nbsp;1&nbsp;fast&nbsp;]  [&nbsp;2&nbsp;careful&nbsp;•&nbsp;]</span>
+<span class="dim">Which way should this be built?</span>
 
-Write tests for it?
-<span class="you">[&nbsp;Yes,&nbsp;write&nbsp;tests&nbsp;·&nbsp;suggested&nbsp;]  [&nbsp;No&nbsp;tests&nbsp;]</span>
+Tests  <span class="dim">suggested</span>
+<span class="you">[&nbsp;Yes,&nbsp;tests&nbsp;•&nbsp;]  [&nbsp;No&nbsp;]</span>
+<span class="dim">Write tests for it?</span>
 
-<span class="you">[&nbsp;Submit&nbsp;]</span>  <span class="dim">or ctrl+enter</span>
+<span class="you">[&nbsp;Send&nbsp;answer&nbsp;]</span>  <span class="dim">Ctrl+↵</span>
 </pre>
 <p class="asking-tty-note">Drawn after the web page, not recorded. Pressing <strong>fast</strong>,
-then <strong>Submit</strong>, makes <code>settled</code>
+then <strong>Send answer</strong>, makes <code>settled</code>
 <code>Settled(approach='fast', tests=True)</code>.</p>
 
 The defaults are already picked and marked `suggested`, so a person who agrees presses
-**Submit**, or <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and is done. At the prompt in a
-terminal, the same question is a line in the transcript, `form · 2 fields — press enter to
+**Send answer**, or <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and is done. At the prompt
+in a terminal, the same question is a line in the transcript, `form · 2 fields — press Enter to
 open`, and <kbd>enter</kbd> opens the same form as a sheet. See [Questions](/user/questions).
 
-| In the model | What they get, on the page and at the prompt |
-| --- | --- |
-| `description=` | the field's label, or the field's name where there is none |
-| `Literal[…]`, an `Enum` | up to five values: a row of large buttons; more: a list to search |
-| `bool` | two buttons, worded from the description, never a bare checkbox |
-| `int`, `float` | a number field |
-| `str` | a text field |
-| `list[…]` | a row per item, with add and remove |
-| a nested model | its fields, grouped under its name |
-| a default | prefilled and marked `suggested`; fields with none come first |
+| In the model | What they get on the page | At the prompt |
+| --- | --- | --- |
+| `description=` | the hint under the field's title | the same |
+| `Literal[…]`, an `Enum` | up to five values: a row of large buttons; more: a list to search | side by side, picked by number; more: a list |
+| `bool` | two buttons worded from the description, or the title where it is a question, as `Yes, tests` and `No`; never a bare checkbox | two, `Yes, <description>` and `No` |
+| `int`, `float` | a number field | a number |
+| `str` | a text field | a line, or several for Markdown or code |
+| `list[…]` | a row per item, with add and remove | one per line for words and numbers, else JSON |
+| a nested model | its fields, grouped under its name | JSON |
+| a default | prefilled and marked `suggested`; required fields come first | the same, folded under **More options** |
 
 A field that does not fit, a word where a number goes, is said beside the field when the
-person leaves it or presses **Submit**, never while they type. Every answer goes through the
+person leaves it or presses **Send answer**, never while they type. Every answer goes through the
 same check, the one the host makes, whoever answers it.
 
 Run from a command line, the person is away and the defaults decide. A real run:
@@ -492,9 +494,10 @@ print(run.run())
    JSON), `ask.schema` (a JSON Schema, or `None` for text), `ask.face` (a face's hash, or `""`)
    and `ask.session` (`<role>/<n>`, the same for every question of one outworlder session).
 3. **`ask.errors`** is set when the last answer did not fit: the same question comes back with
-   each error's `path` and `message`, up to three more times. If the last of those does not
-   fit either, the role is set away.
+   each error's `path` and `message`, up to twice more. If the third answer does not fit
+   either, the question is answered as nobody's, as it is when `run` raises or returns `""`.
 4. **`show`** is optional. Leave it out and what the flow shows is not handed to the program.
+   A program is never handed a face: `ask.face` is its hash, and the schema is what to answer.
 
 ## Check it worked
 
@@ -534,8 +537,8 @@ async def test_the_person_settles_how() -> None:
         "settle", "add subtract", agents={"builder": builder}, outworlder=person
     )
 
-    assert [ask.prompt for ask in person.asked] == ["How should I do this: add subtract?"]  # ④
-    assert person.asked[0].schema["properties"].keys() == {"approach", "tests"}
+    assert person.asked == ["How should I do this: add subtract?"]  # ④
+    assert person.asks[0].schema["properties"].keys() == {"approach", "tests"}
     assert builder.prompts == [
         "add subtract\n\nBuild it the fast way. Write no tests."
     ]
@@ -573,8 +576,9 @@ async def test_the_script_stands_in_for_the_person() -> None:
    what ends `talk`. Without it, the person would answer `"ok"` from then on.
 2. **No person given** is a person who is away, so `talk` takes one turn.
 3. **`FakeOutworlder(reply)`** answers from a script, here a mapping read into `Settled`.
-4. **`person.asked`** is every question put to the person, each an `Ask`: its `prompt`, and
-   the `schema` it was asked in.
+4. **`person.asked`** is every prompt put to the person, and **`person.asks`** every question
+   whole, each an `Ask`: its `prompt`, the `schema` it was asked in, its `context` and `face`.
+   **`person.shown`** is what the flow showed with nothing to answer, as `(session, context)`.
 5. **Away, the defaults decide**, exactly as in the real run above.
 6. **The run's own person is never asked** when the stand-in answers for them.
 

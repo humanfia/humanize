@@ -64,6 +64,7 @@ it.
 | [Hooks](/weaver/hooks) | Your code, run at the moments of a session |
 | [The agent asking the flow](/weaver/tools) | A question mid-turn, answered by the flow's own code |
 | [The person as an agent](/weaver/human-agent) | You, driven by a flow like any other agent |
+| [A face for the person](/weaver/faces) | Your own HTML page for a question, in place of the form |
 
 What an agent may touch and what it carries are declared by the flow too:
 [Permissions](/user/permissions) and [Skills](/user/skills) are written for you.

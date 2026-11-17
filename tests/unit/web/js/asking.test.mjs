@@ -9,6 +9,7 @@ import {
   imageSource,
   isLong,
   keepDraft,
+  secretOf,
   kindOf,
   labelOf,
   multiline,
@@ -22,6 +23,7 @@ import {
   resolved,
   sendLabel,
   summaryOf,
+  withoutSecrets,
   widgetOf,
   withdrawnWhy,
   yesNo,
@@ -232,4 +234,11 @@ test('a refusal of an answer is read for the errors of each field', () => {
   assert.deepEqual(refusalErrors(refused), [{ path: ['verdict'], message: 'Input should be approve' }])
   assert.deepEqual(refusalErrors(Object.assign(new Error('x'), { said: { errors: [{ path: [], message: 'no' }] } })), [{ path: [], message: 'no' }])
   assert.deepEqual(refusalErrors(new Error('gone')), [])
+})
+
+test('a secret is never kept in a draft and is said back as stars', () => {
+  const schema = { type: 'object', properties: { user: { type: 'string' }, token: { type: 'string', 'hmz:widget': 'secret' }, pin: { type: 'string', format: 'password' } } }
+  assert.ok(secretOf(schema.properties.token))
+  assert.deepEqual(withoutSecrets({ user: 'ann', token: 's3cret', pin: '1234' }, schema), { user: 'ann' })
+  assert.equal(summaryOf({ user: 'ann', token: 's3cret' }, schema), '‘ann’ · token: ***')
 })

@@ -9,7 +9,7 @@ import { fill, h, problem } from '../dom.js'
 import { ask } from '../held.js'
 import { blocks } from './blocks.js'
 import { schemaForm } from './form.js'
-import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, summaryOf, withdrawnWhy } from './logic.js'
+import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, summaryOf, withdrawnWhy, withoutSecrets } from './logic.js'
 
 /** Each card drawn, by its node, with what settles it. */
 const settlers = new WeakMap()
@@ -90,7 +90,7 @@ export function questionCard(where, one, me, clients) {
   }
 
   const sending = schema ? schemaAnswer(where, one, schema, settle) : textAnswer(where, one, settle)
-  if (one.face && (one.face.hash || typeof one.face === 'string')) faced(where, one, kicker, answer, sending, settle)
+  if (one.face && (one.face.hash || typeof one.face === 'string')) faced(where, one, context, answer, sending, settle)
   else answer.append(sending.node)
   node.addEventListener('keydown', (event) => {
     if (settled) return
@@ -175,7 +175,7 @@ function schemaAnswer(where, one, schema, settle) {
       progress()
       clearTimeout(timer)
       timer = setTimeout(() => {
-        keepDraft(draftOf(where, one), value)
+        keepDraft(draftOf(where, one), withoutSecrets(value, schema))
         kept.say('Draft kept')
       }, 400)
     },
@@ -316,16 +316,20 @@ function themeTokens() {
  * A question answered through the flow's own face, mounted by the page's face host: the plain
  * form a button away, and the plain form alone where the face cannot be shown.
  */
-function faced(where, one, kicker, answer, sending, settle) {
+function faced(where, one, context, answer, sending, settle) {
   const plain = h('div', { class: 'ask-plain-form', hidden: true }, sending.node)
   const frame = h('div', { class: 'ask-face', 'data-hmz': 'ask-face', 'aria-busy': 'true' }, h('p', { class: 'loading dim', role: 'status' }, `Opening ${(one.face && one.face.title) || 'the flow’s view'}…`))
   const note = h('p', { class: 'dim ask-face-note', hidden: true })
   let failed = false
   // The face host draws the one switch between the face and the plain form, and says when
   // the plain form is to be shown: chosen, or because the face failed or never answered.
+  // The face is handed the context itself: the card's own blocks stand only beside the
+  // plain form, so that nothing is drawn twice.
   const showPlain = (yes) => {
     plain.hidden = !yes
+    if (context) context.hidden = !yes
   }
+  showPlain(false)
   const fallBack = (why) => {
     if (failed) return
     failed = true

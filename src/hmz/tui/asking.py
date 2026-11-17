@@ -96,6 +96,7 @@ class Field(NamedTuple):
       choices: What a choice is picked from: what each says, and the value it is.
       items: For a list, the kind of each of its values.
       nullable: Whether it may be null, which a blank row answers.
+      secret: Whether it holds a secret: drawn as bullets, and written back as `***`.
     """
 
     name: str
@@ -108,6 +109,7 @@ class Field(NamedTuple):
     choices: tuple[tuple[str, Any], ...] = ()
     items: str = "text"
     nullable: bool = False
+    secret: bool = False
 
 
 # -- The schema ---------------------------------------------------------------------------------
@@ -245,6 +247,8 @@ def _field(
         return made._replace(kind=str(kind))
     if kind == "string":
         widget = said.get("hmz:widget") or said.get("format")
+        if widget in ("secret", "password"):
+            return made._replace(kind="text", secret=True)
         return made._replace(
             kind="lines" if widget in ("markdown", "code", "textarea") else "text"
         )
@@ -413,6 +417,8 @@ def summary(value: object, schema: Mapping[str, Any] | None = None) -> str:
     by = {one.name: one for one in fields(schema)}
 
     def said(field: Field | None, one: object) -> str:
+        if field is not None and field.secret:
+            return "***"
         if field is not None and field.kind == "choice":
             return _typed(field, one) or _label(one)
         if isinstance(one, str):
@@ -775,6 +781,7 @@ class Asks(Form[Any]):
             field.title,
             about,
             kind=_STEPS if field.kind == "choice" else _WRITES,
+            secret=field.secret,
             needed=field.required and not typed.strip(),
         )
 

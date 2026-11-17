@@ -1158,17 +1158,15 @@ is set.
 ### `Face` {#face}
 
 ```python
-@dataclass(frozen=True)
-class Face:
-    html: str
-    title: str = ""
-
+class Face:                                       # frozen and slotted, not a dataclass
+    def __init__(self, html: str, title: str = "") -> None: ...
+    html: str                                     # on the class: Face.html(text, *, title="")
+    @property
+    def title(self) -> str: ...
     @property
     def hash(self) -> str: ...                    # sha256 hex of html
     @classmethod
     def file(cls, path: str | os.PathLike[str], *, title: str = "") -> Face: ...
-    @classmethod
-    def html(cls, text: str, *, title: str = "") -> Face: ...
     @classmethod
     async def design(cls, agent: Agent, *, session: Session, about: str,
                      output_schema: type[BaseModel] | None = None,
@@ -1183,10 +1181,11 @@ Humanize draws. Given to [`Outworlder.spawn`](#outworlder). Guide:
 
 | Member | Behaviour |
 | --- | --- |
+| `html`, `title` | The HTML, and what the face is called (`""` for none). Setting either raises `FrozenInstanceError`; two faces of the same HTML and title are equal. |
 | `hash` | The sha256 of `html`, in hex. A question names its face by it. |
 | `Face.file(path, title="")` | Reads `path`, relative to the directory of the module that calls it, as UTF-8. |
-| `Face.html(text, title="")` | A face from the HTML itself. |
-| `Face.design(agent, session=…, about=…, output_schema=None, env=None)` | Runs one turn of `agent` in `session` with `FACE_GUIDE`, `about` and the schema's JSON Schema, and returns the first fenced `html` block of its answer, or the whole answer where there is none. `ValueError` where no HTML came back. |
+| `Face.html(text, title="")` | A face from the HTML itself: on the class, `html` makes a face; on a face, it is the HTML. |
+| `Face.design(agent, session=…, about=…, output_schema=None, env=None)` | Runs one turn of `agent` in `session` with `FACE_GUIDE`, `about` and the schema's JSON Schema, and returns the first fenced `html` block of its answer, or the whole answer where there is none, titled by its `<title>`. `ValueError` where what came back does not start with HTML. |
 | `FACE_GUIDE` | The bridge and the rules below, written for an agent: one self-contained HTML file, no network, the page's theme. |
 
 **The bridge.** The face is served in a frame and handed `window.hmz` before its own scripts
@@ -1205,11 +1204,11 @@ run:
 | Rule | |
 | --- | --- |
 | Sandbox | `<iframe sandbox="allow-scripts allow-forms">`: an opaque origin, no cookies, no call to the daemon. |
-| Policy | `default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'`. `'self'` lets it import the page's `/vendor/*.js`. |
+| Policy | `default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'`. `'self'` lets it import the page's `/vendor/*.js`, which are shared with its opaque origin alone. |
 | Channel | A `MessageChannel` port handed over once, at load. Messages from anywhere else are ignored. |
 | One per session | One frame per outworlder session, kept across its questions. |
-| Falling back | The form is drawn instead where the face fails to load, throws before it calls `hmz.on("ask", …)`, or does not answer the page within 5 s; and whenever the person presses **Plain form**. |
-| Elsewhere | The terminal and SDK drivers draw no face: they get its hash only. |
+| Falling back | The form is drawn instead where the face fails to load, throws before it calls `hmz.on("ask", …)`, or has not called it within 5 s of its frame loading, under a note saying why and **Try again**; and whenever the person presses **Plain form**, until **Back to …**. |
+| Elsewhere | The terminal and SDK drivers draw no face: they get its hash only. An `OUTWORLDER_RUN` hook gets the `Face` itself, as `params.face`. |
 
 ## Environment roles {#where-each-agent-works}
 
@@ -2450,9 +2449,15 @@ FakeOutworlder(reply: Reply = None, *, away: bool = False)
 ```
 
 Answers like a `FakeAgentDriver`, or is away: a reply is text, a pydantic model, or a mapping
-or JSON text validated into the schema asked for; a function receives `output_schema=`.
-`asked` lists every question it was asked, each the [`Ask`](/reference/sdk#outworlderdriver) an
-SDK driver receives, with `model` set to the schema asked for.
+or JSON text, sent as the answer to the schema asked for; a function receives `output_schema=`.
+
+| Attribute | What it holds |
+| --- | --- |
+| `asked` | Every prompt it was asked, in order. |
+| `asks` | Every question whole, in order: the [`Ask`](/reference/sdk#outworlderdriver) an SDK driver receives, its `schema`, `context`, `face` hash and `session`. |
+| `shown` | Every context the flow [showed](#outworlder) it, as `(session, context)`, in order. |
+| `faces` | Every [`Face`](#face) handed to its `mount`. A run of `fakes.run_fake` answers it as a program does, which is never handed a face, so this stays empty there. |
+| `away` | Whether nobody is there; it may be changed between questions. |
 
 <style>
 .harness-matrix table {

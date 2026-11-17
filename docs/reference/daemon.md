@@ -347,8 +347,9 @@ taking `idem`. `face` is a read.
   against the schema by the host, with the flow's own model, before the flow is handed it. A
   misfit is refused and leaves the question up: `errors` holds every reason, `path` the list of
   keys and indexes to the field (`[]` for the whole value), `message` in words.
-- **A question without one** takes `text`. A number picks that option, counting from 1, only
-  where the question has options.
+- **A question without one** takes `text`, or a `value` that is a string; any other `value` is
+  refused 409, `q<n> is answered in text`. A number in `text` picks that option, counting from
+  1, only where the question has options.
 - **Faces** are handed to the host before the first question that names one, and kept for the
   epic's lifetime, so a frontend may fetch one by the hash an `asked` record or the `pending`
   snapshot names, as often as it likes.

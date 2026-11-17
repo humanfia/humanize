@@ -249,10 +249,30 @@ export function sendLabel(left, ready = 'Send answer') {
  * An answer said back in one line: each value of an object in the order asked, choices as they
  * are, text quoted and cut short -- "approve · ‘LGTM’".
  */
+/** Whether a field holds a secret: never kept in a draft, never written back but as `***`. */
+export function secretOf(node = {}) {
+  return widgetOf(node) === 'secret' || node.format === 'password'
+}
+
+/** A value with every secret of its schema left out, as a draft may keep it. */
+export function withoutSecrets(value, node = null, root = node) {
+  if (!node || !value || typeof value !== 'object' || Array.isArray(value)) return value
+  const kept = { ...value }
+  for (const field of fieldsOf(resolved(node, root).node, root)) {
+    if (secretOf(field.raw) || secretOf(field.node)) delete kept[field.name]
+    else if (field.name in kept) kept[field.name] = withoutSecrets(kept[field.name], field.node, root)
+  }
+  return kept
+}
+
 export function summaryOf(value, node = null, root = node, most = 90) {
   const parts = []
   const add = (one, field) => {
     if (blank(one)) return
+    if (field && (secretOf(field.raw || {}) || secretOf(field.node))) {
+      parts.push(`${labelOf(field.name, field.node).toLowerCase()}: ***`)
+      return
+    }
     if (typeof one === 'boolean') parts.push(field ? `${labelOf(field.name, field.node).toLowerCase()}: ${one ? 'yes' : 'no'}` : one ? 'yes' : 'no')
     else if (typeof one === 'string') parts.push(field && kindOf(field.node) === 'choice' ? one : `‘${oneLine(one, 40)}’`)
     else if (typeof one === 'number') parts.push(field ? `${labelOf(field.name, field.node).toLowerCase()}: ${one}` : String(one))

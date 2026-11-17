@@ -283,10 +283,16 @@ def test_a_face_answers_its_ask_and_is_told_what_does_not_fit(engine: str) -> No
         assert ask["context"] == [{"kind": "markdown", "text": "Adds a cache."}]
         assert ask["errors"] == []
 
-        # It fits itself to what it draws.
-        height = page.locator("[data-hmz=face-frame]").bounding_box()
-        assert height is not None
-        assert height["height"] > 200
+        # It fits itself to what it draws, once it has said how tall that is.
+        def tall() -> float:
+            box = page.locator("[data-hmz=face-frame]").bounding_box()
+            return box["height"] if box else 0.0
+
+        for _ in range(50):
+            if tall() > 200:
+                break
+            page.wait_for_timeout(100)
+        assert tall() > 200
 
         # A misfit comes back with where and why, and the face says it beside the field.
         inside.locator("[data-verdict=changes]").click()

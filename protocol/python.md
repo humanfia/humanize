@@ -1404,16 +1404,16 @@ asking nothing and awaiting no answer, and MUST return without waiting for anyon
 #### 3.10.7. Faces
 
 ```python
-@dataclass(frozen=True)
 class Face:
-    html: str
-    title: str = ""
+    __slots__ = ("_hash", "_text", "_title")
+    html: str  # on the class: def html(text: str, /, *, title: str = "") -> Face
+    def __init__(self, html: str, title: str = "") -> None: ...
+    @property
+    def title(self) -> str: ...
     @property
     def hash(self) -> str: ...
     @classmethod
     def file(cls, path: str | os.PathLike[str], *, title: str = "") -> Face: ...
-    @classmethod
-    def html(cls, text: str, *, title: str = "") -> Face: ...
     @classmethod
     async def design(
         cls, agent: Agent, *, session: Session, about: str,
@@ -1429,22 +1429,29 @@ ask is drawn: what it submits MUST be validated as every other answer is (Sectio
 MUST reach nothing but the bridge of Section 3.6.11 of [WEB].
 
 **3.10.7.2** `Face.hash` MUST be the SHA-256 of `html`, encoded as UTF-8, in lowercase hexadecimal.
+`Face` MUST be a slotted class that is not a dataclass, and frozen: setting or deleting an attribute
+of a face MUST raise `dataclasses.FrozenInstanceError`, and two faces MUST be equal, and hash
+equal, where their `hash` and `title` are.
 
 **3.10.7.3** `Face.file(path)` MUST read the file at `path` as UTF-8, a relative `path` from the
-directory of the module that calls it. `Face.html(text)` MUST make a face of `text`.
+directory of the module that calls it. `Face.html(text)`, on the class, MUST make a face of `text`; `.html` of a face MUST be its HTML.
 
 **3.10.7.4** `Face.design(agent, session=..., about=...)` MUST take one turn of `agent` in
 `session`, working in `env`, prompted with `FACE_GUIDE`, `about` and, where `output_schema` is
 given, its JSON Schema; it MUST make a face of the first fenced code block of the answer whose info
-string is `html`, else of the whole answer, and MUST raise `ValueError` where the answer holds no
-HTML.
+string is `html`, else of the whole answer, titled by the document's `<title>` (`""` for none), and
+MUST raise `ValueError` where what it would make a face of does not start with HTML (`<` and a
+letter or `!`).
 
 **3.10.7.5** `FACE_GUIDE` MUST tell an agent that writes a face: that a face is one self-contained
 HTML file that reaches no network; the bridge `window.hmz` of Section 3.6.11 of [WEB]; and the
 theme's CSS variables it is drawn in.
 
 **3.10.7.6** A face mounted on a session MUST be made known to the host before any ask of that
-session names it, and every ask of the session MUST name it by `hash` and `title`.
+session names it, and every ask of the session MUST name it by `hash` and `title`. `spawn` MUST
+raise `TypeError` for a `face` without `html`, `title` and `hash`, and, on an outworlder not made
+with `Outworlder.new()`, MUST hand the face to its driver's `mount(face)` where the driver has one
+(Section 4.5.4).
 
 **3.10.7.7** A face MUST NOT be needed to answer: every frontend MUST be able to answer an ask that
 names a face without it (Section 3.6.11 of [WEB], Section 10 of [TUI]), and an `OUTWORLDER_RUN` hook
@@ -2665,7 +2672,9 @@ class Ask:
 class OutworlderDriver(Protocol):
     def away_for(self, role: str) -> bool: ...
     async def run(self, ask: Ask, role: str) -> str | pydantic.BaseModel | Mapping[str, Any]: ...
-    def show(self, context: tuple[dict[str, Any], ...], session: str, role: str) -> None: ...
+    # Optional, called only where the driver has them:
+    # def show(self, context: tuple[dict[str, Any], ...], session: str, role: str) -> None: ...
+    # def mount(self, face: Face) -> None: ...
 ```
 
 **4.5.4.1** `Ask` MUST be one ask of Section 3.10.4: `prompt`; `schema`, the JSON Schema of the
@@ -2685,15 +2694,24 @@ schema; and, to a question without one, the JSON of that mapping or model as `te
 
 **4.5.4.4** Where `epic.answer` is refused 400 with `errors` in its `data` (Section 4.8.4 of
 [DAEMON]), the `Run` MUST call `run` again with the same `Ask` carrying those `errors`, at most
-three more times for one question; where the last answer is refused too, it MUST set the role away.
+twice more for one question, three tries in all; where the last answer is refused too, it MUST
+answer the question with nothing (Section 4.5.4.5). An answer refused otherwise MUST be left
+unanswered by the `Run`.
 
-**4.5.4.5** A question the outworlder raises on MUST be answered with nothing, as an away role's is.
+**4.5.4.5** A question the outworlder raises on, or answers with `""`, MUST be answered with
+nothing, as an away role's is: the `Run` MUST set the role away (`epic.afk`), and set it back where
+the outworlder's `away_for` then says the role is not away.
 
 **4.5.4.6** A `Run` MUST call the outworlder's `show` with the `context`, `session` and `role` of
 every `shown` record of those roles, where the outworlder has a `show`, and MUST otherwise ignore
 the record.
 
 **4.5.4.7** `hmz.sdk.Ask` MUST be the class the `Run` builds its asks of.
+
+**4.5.4.8** A `Run` MUST NOT call the outworlder's `mount`: an SDK outworlder is told of a face only
+by `Ask.face`, and answers from the schema (Section 3.10.7.7). `mount(face)` MUST be called only by
+an engine holding the driver in its own process, with the `Face`, once for each `spawn(face=...)`
+of an outworlder it fills, before any ask names that face (Section 3.10.7.6).
 
 ### 4.6. `Refused`
 

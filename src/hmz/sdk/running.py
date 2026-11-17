@@ -763,7 +763,10 @@ class Run:
             with asyncio.Runner() as loop:
                 for _ in range(_TRIES):
                     try:
-                        said = _answer(loop.run(outworlder.run(ask, role)))
+                        said = _answer(
+                            loop.run(outworlder.run(ask, role)),
+                            shaped=ask.schema is not None,
+                        )
                     except Exception:  # noqa: BLE001 -- answered with nothing, as away is
                         said = None
                     if said is None:
@@ -925,20 +928,24 @@ def _objects(said: Any) -> tuple[dict[str, Any], ...]:
     return tuple(one for one in map(_object, said) if one is not None)  # pyright: ignore[reportUnknownArgumentType]
 
 
-def _answer(said: Any) -> dict[str, Any] | None:
+def _answer(said: Any, *, shaped: bool = True) -> dict[str, Any] | None:
     """The params of `epic.answer` saying an answer, or None where nothing was said.
 
     Text is sent as `text`; a model or a mapping is a value of the question's schema, sent as
-    `value`.
+    `value` -- or, for a question asked in text (not `shaped`), as its JSON in `text`.
     """
     if isinstance(said, str):
         return {"text": said} if said else None
     if isinstance(said, Mapping):
         # Raised where it is not JSON, rather than sent as what it is not.
-        return {"value": json.loads(json.dumps(dict(said)))}  # pyright: ignore[reportUnknownArgumentType]
-    # A pydantic model, told by its method: pydantic is not imported to ask.
-    dump = getattr(said, "model_dump", None)
-    return {"value": dump(mode="json")} if callable(dump) else None
+        value: Any = json.loads(json.dumps(dict(said)))  # pyright: ignore[reportUnknownArgumentType]
+    else:
+        # A pydantic model, told by its method: pydantic is not imported to ask.
+        dump = getattr(said, "model_dump", None)
+        if not callable(dump):
+            return None
+        value = dump(mode="json")
+    return {"value": value} if shaped else {"text": json.dumps(value)}
 
 
 def _misfits(refused: Refused) -> tuple[dict[str, Any], ...]:

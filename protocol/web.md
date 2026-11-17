@@ -490,11 +490,13 @@ NOT offer to resume it.
 **3.6.9.1** A question MUST be drawn as one card, in reading order: the question's `text` as its
 headline; its context blocks beneath (Section 3.6.10); and the means to answer it last.
 
-**3.6.9.2** A question that another frontend holds MUST be drawn read-only, with `Waiting for
-<name>`, `<name>` being that frontend's name.
+**3.6.9.2** A question that another frontend holds MUST be drawn read-only, its form or options
+drawn but not to be filled, with `Waiting for <name> to answer: that frontend holds <role>.`,
+`<name>` being that frontend's name.
 
-**3.6.9.3** A question without a schema MUST offer its options as buttons and a field for an answer
-of the user's own, sent as `text` of `epic.answer`.
+**3.6.9.3** A question without a schema MUST offer its options as buttons, each numbered `1` to `9`
+in order, and a field for an answer of the user's own; a button MUST send its option's text, and
+the field what is typed, as `text` of `epic.answer`.
 
 **3.6.9.4** A question with a schema MUST be answered by one form drawn from the whole schema, sent
 whole as `value` of `epic.answer` (Section 4.8.4 of [DAEMON]); the page MUST NOT ask it a field at a
@@ -520,39 +522,44 @@ type, and word it, alike wherever it draws it:
 **3.6.9.6** Each field MUST be named by its `title`, else its name, with its `description` as a
 hint beneath it.
 
-**3.6.9.7** The form MUST put the required fields first, in the schema's order. A field with a
-default MUST be filled with it and marked `suggested`, and the fields with defaults MUST be folded
-under `More options (<n>)`, `<n>` being how many, where any field is required.
+**3.6.9.7** The form MUST put the required fields first, then the optional fields without a
+default, then those with one, each in the schema's order. A field with a default MUST be filled
+with it and marked `suggested`. Where an object has more than 3 fields and not every one has a
+default and is optional, its optional fields with defaults MUST be folded under `More options
+(<n>)`, `<n>` being how many, opened where one of them holds other than its default or a problem.
 
 **3.6.9.8** The button that sends the form MUST say `<n> required left` while `<n>` required fields
-are empty, and `Submit` otherwise. A form every field of which has a default MUST be sendable at
-once with that button or `Enter`.
+are empty, and `Send answer` otherwise. A form every field of which has a default MUST be sendable
+at once with that button or `Enter`.
 
 **3.6.9.9** Where the focus is not in a text field, the digits `1` to `9` MUST pick the option, or
-the value of the first choice of the form, of that number. `Cmd+Enter`, or `Ctrl+Enter`, MUST send
-the answer. The order of `Tab` MUST be the order of reading.
+the value of the choice of the form holding the focus, else of its first, of that number; within a
+choice, the arrow keys MUST move the pick. `Cmd+Enter`, or `Ctrl+Enter`, MUST send the answer. The
+order of `Tab` MUST be the order of reading.
 
 **3.6.9.10** The page MUST check a field when it loses the focus and when the form is sent, and MUST
 NOT check it at each key. What is wrong MUST be said in plain words beside its field.
 
 **3.6.9.11** Where `epic.answer` is refused as an answer that does not fit, the page MUST put each
-of the refusal's `errors` beside the field its `path` names, else above the button, and MUST move
-the focus to the first.
+of the refusal's `errors` beside the field its `path` names, or the nearest field holding it, else
+above the button, and MUST move the focus to the first.
 
-**3.6.9.12** The page MUST keep what the user has typed into a question in this browser, per
-question, until the question is answered or withdrawn, and MUST restore it when the page is opened
-again; a `secret` field MUST NOT be kept.
+**3.6.9.12** The page MUST keep what the user has typed into a question in this browser, keyed by
+the question's host, run and number, until the question is answered or withdrawn or for 14 days,
+and MUST restore it when the page is opened again; a `secret` field MUST NOT be kept.
 
-**3.6.9.13** A question withdrawn MUST stay in its place, read-only, saying why: `went away` for
-`away`, `the run ended` for `over`.
+**3.6.9.13** A question withdrawn MUST fold, in its place, to one line saying why: `Withdrawn:
+<role> went away` for `away`, `Withdrawn: the run ended` for `over`.
 
-**3.6.9.14** A question answered MUST fold to one line of the answer, `You answered: <answer>`, the
-values of a form joined by ` · ` and text in quotes, as `approve · 'LGTM'`, and a `secret` value
-written `***`.
+**3.6.9.14** A question answered MUST fold to one line of the answer, `You answered: <answer>`, or
+`<name> answered: <answer>` where another frontend answered it: the values of a form in the order
+asked joined by ` · `, a choice as it is, text in quotes, and a `yes`, `no` or number after its
+field's label, as `approve · ‘LGTM’ · tests: no`; a `secret` value MUST be written `***`. A folded
+question MUST be dismissable.
 
 **3.6.9.15** A new question MUST be marked by the page's marks of Section 3.5 and Section 3.15 and
-one quiet highlight, and by nothing that moves or plays by itself; the page MUST honour
-`prefers-reduced-motion`.
+one quiet highlight that fades by itself, and by nothing that moves or plays by itself; the page
+MUST honour `prefers-reduced-motion`.
 
 **3.6.9.16** Each field MUST have a label of its own; its hint and what is wrong with it MUST be
 tied to it for assistive technology; the focus MUST be visible; and the colours MUST keep their
@@ -615,14 +622,18 @@ every other message from the frame, and every message that does not come from it
 loads.
 
 **3.6.11.8** The page MUST mount one frame for each outworlder session (`session`), MUST keep it,
-and what the face holds, across that session's questions, and MUST hand it each of them with
-`ask`.
+and what the face holds, across that session's questions, MUST hand it each of them with `ask`,
+and MUST hand it, with `show`, the context of every `shown` record of that session. The page MAY
+let go of the frames of all but the 8 sessions it drew last.
 
 **3.6.11.9** A face that fails to load, that throws before it calls `hmz.on("ask", ...)`, or that
-has not called it within 5 seconds, MUST give way to the context blocks and the form, as for a
-question naming no face.
+has not called it within 5 seconds of its frame being loaded, MUST give way to the form, as for a
+question naming no face, under a note saying why the face could not be shown, beside `Try again`,
+which loads the frame afresh and, where the face then calls `hmz.on("ask", ...)`, shows it again.
 
-**3.6.11.10** The page MUST offer, beside every face, a switch to `Plain form` and back.
+**3.6.11.10** The page MUST draw, beside every face it shows, one switch: `Plain form`, which shows
+the form in place of the face, and, while the form is shown, `Back to <title>`, the face's `title`,
+else `the custom view`, which shows the face again as the person left it.
 
 ### 3.7. Exomyth
 
@@ -1297,12 +1308,14 @@ files.
 **4.5.8** `faces/frame.html`, the document a face runs in (Section 3.6.11), MUST be served with
 `Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'self'; style-src
 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'; frame-ancestors
-'self'`, and with `Cache-Control: no-cache`: a face reaches no network, and `'self'` lets it import
-the page's files under `vendor/` and `faces/`.
+'self'`, and with `Cache-Control: no-cache`: a face reaches no network, and `'self'` lets it load
+`faces/bridge.js` and import the page's files under `vendor/`. The file MUST also say that policy,
+but `frame-ancestors`, in a `<meta http-equiv="Content-Security-Policy">` of its own, for a server
+that gives every page one policy (Section 3.12.9 of [DESKTOP]).
 
-**4.5.9** Every `.js` and `.css` file under `vendor/` and `faces/` MUST be served with
-`Access-Control-Allow-Origin: *`, so that a face, whose origin is opaque, can import it; those files
-hold nothing of the user's.
+**4.5.9** A file under `vendor/` asked for with `Origin: null` MUST be served with
+`Access-Control-Allow-Origin: null`, so that a face, whose origin is opaque, can import it; those
+files hold nothing of the user's. No other answer MUST carry `Access-Control-Allow-Origin`.
 
 ### 4.6. `/here`
 
