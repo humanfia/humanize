@@ -240,10 +240,12 @@ outside:
 | `cursor-agent`, `mcode` | <Badge type="tip" text="held by Landlock, bubblewrap or Seatbelt" /> | <Badge type="danger" text="refused" /> |
 | a CLI added over ACP | <Badge type="tip" text="held by Landlock, bubblewrap or Seatbelt" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
-A role at `read-only`, with no rule that lets it write its workdir, also runs in its CLI's
-read-only mode, where the CLI has one (every CLI but `dsh`, `mcode` and CLIs added over the
-Agent Client Protocol: those run with no rung of their own, and a grant that writes nothing is
-what keeps them from writing).
+A role whose rules let it write nothing is also told so by its CLI's own controls: its
+file-writing tools are withheld and its shell is kept, so it can still run a build or a test,
+and the fence refuses any write the shell attempts. No CLI is put in a plan or asking mode for
+it. Where a CLI cannot withhold its tools (`cursor-agent`, `mcode`, `omp`, `dsh` and CLIs added
+over the Agent Client Protocol), it runs unattended and the fence alone keeps it from writing.
+The list per CLI is in [Agents](/reference/agents#what-an-agent-may-do).
 Where a CLI can be told, `network=False` also switches its web tools off.
 
 Cursor's web search and fetch cannot be switched off and run on Cursor's own servers, which it

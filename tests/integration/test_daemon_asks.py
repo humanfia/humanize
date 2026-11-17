@@ -6,6 +6,10 @@ CLI that waits on its hook (`claude`), run as a command line where the stand-in 
 read off the stream and said when the turn would stop where the CLI did neither (`cursor-agent`
 in plan mode). Either way `Btw` carries the ask out, the asking callback hears it once, and the
 answer reaches The Epic within the question it was asked.
+
+The Epic runs inside a fence that writes nothing, whatever its harness. The fence itself is not
+put up here, only what it is: each one a stand-in would be spawned inside is kept, and the
+stand-in is spawned bare.
 """
 
 from __future__ import annotations
@@ -20,10 +24,13 @@ from hmz.daemon.link import linked
 from hmz.runtime.doing.hosting import Host
 from hmz.runtime.watching.btw import Btw, FlowSnapshot
 from tests.integration.doubles_agents import Standins, standins
+from tests.integration.test_agents_mcode import MCODE
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
+
+    from hmz.coganchor.fence import Fence
 
 pytestmark = pytest.mark.timeout(60)
 
@@ -95,10 +102,32 @@ out({"type": "result", "subtype": "success", "is_error": False, "result": said,
 
 
 @pytest.fixture
-def stood(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standins:
+def fences(monkeypatch: pytest.MonkeyPatch) -> list[Fence]:
+    """The fences the stand-ins would be spawned inside, none of them put up."""
+    held: list[Fence] = []
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        held.append(fence)
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    return held
+
+
+@pytest.fixture
+def stood(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fences: list[Fence]
+) -> Standins:
+    del fences
     held = standins(tmp_path, monkeypatch)
     held.install("claude", CLAUDE)
     held.install("cursor-agent", CURSOR)
+    held.install("mcode", MCODE)
     return held
 
 
@@ -230,11 +259,30 @@ def test_the_epic_is_told_how_to_ask_and_carries_the_skill(
     assert "PreToolUse" in settings.get("hooks", {})
 
 
-@pytest.mark.parametrize("runs", ["mcode/MiniMax-M2.5", "dsh/deepseek-v4-pro"])
-def test_a_harness_with_no_read_only_rung_is_refused_saying_so(
-    host: Host, runs: str
+def test_the_epic_runs_inside_a_fence_that_writes_nothing(
+    host: Host, fences: list[Fence]
 ) -> None:
-    from hmz.runtime import Refused
+    _epic(host, "claude/claude-stand-in", []).ask("hello", _snapshot())
 
-    with pytest.raises(Refused, match="no read-only rung"):
-        _epic(host, runs, []).ask("hello", _snapshot())
+    assert fences
+    assert not any(fence.writes for fence in fences)
+
+
+def test_a_harness_that_cannot_withhold_its_tools_answers_inside_a_fence_that_writes_nothing(
+    host: Host, stood: Standins, fences: list[Fence]
+) -> None:
+    answer = _epic(host, "mcode/MiniMax-M2.5", []).ask("hello", _snapshot())
+
+    assert answer
+    assert stood.calls("mcode")
+    assert fences
+    assert not any(fence.writes for fence in fences)
+
+
+def test_a_side_conversation_on_dsh_is_opened_rather_than_refused(host: Host) -> None:
+    link = linked(host, "alice")
+
+    opened = link.aside(runs="dsh/deepseek-v4-pro")
+
+    assert opened["side"]
+    link.asked({"do": "unaside", "side": opened["side"]})

@@ -812,9 +812,9 @@ HUMANIZE_WATCHDOG=3600 hmz
 **Symptom.** A note when a Codex agent starts. The work goes on.
 
 **Cause.** This Codex has requirements set by whoever manages it, an enterprise policy or the
-machine's own, and they forbid full access. So the agent runs one
-[permission](/user/permissions) rung down, at `auto`: Codex asks before it reaches past the
-workspace, and Humanize says yes.
+machine's own, and they forbid full access. So the agent runs in Codex's `workspace-write`
+sandbox with approval `on-request`: Codex asks before it reaches past the workspace, and
+Humanize says yes. Its [permission](/user/permissions) is held by the fence either way.
 
 **Fix.** Nothing to do.
 

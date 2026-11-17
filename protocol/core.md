@@ -732,54 +732,51 @@ ladder (Section 4.4.3).
 
 **4.2.5** **Effort ladder**: the ordered list of efforts a harness kind accepts.
 
-**4.2.6** **Rung**: one of the four permission levels `read-only`, `workspace-write`, `auto` and
-`bypass`, ordered from tightest to loosest.
-
-**4.2.7** **Grant**: the permission a flow declares for a role, as Section 3 of [PYTHON] defines
+**4.2.6** **Grant**: the permission a flow declares for a role, as Section 3 of [PYTHON] defines
 it: a `preset` (`read-only`, `workspace-write` or `danger-full-access`), a `network` flag, and
 `granular` rules, each a path and an access `none`, `read` or `write`; its **rules** are the
 preset's rules followed by the granular ones, and the last rule matching a path, which a rule does
 for its own path and everything beneath it, decides that path's access.
 
-**4.2.8** **Confinement**: the restriction hmz places around the harness process and every process
+**4.2.7** **Confinement**: the restriction hmz places around the harness process and every process
 it starts, so that the agent touches no more than its grant allows.
 
-**4.2.9** **Managed item**: an item hmz supplies to a harness at launch that the user did not
+**4.2.8** **Managed item**: an item hmz supplies to a harness at launch that the user did not
 configure: a flow skill, a flow-declared subagent, a flow-declared command, the hmz tool server, a
 hook hmz hangs, a model declaration hmz adds for a flow or for an account, or an execpolicy rule hmz
 adds for a fake command line on `codex`.
 
-**4.2.10** **System level**: the harness machine's system-wide configuration of a harness.
+**4.2.9** **System level**: the harness machine's system-wide configuration of a harness.
 
-**4.2.11** **User level**: the harness machine's per-user configuration of a harness, together with
+**4.2.10** **User level**: the harness machine's per-user configuration of a harness, together with
 the managed items of the agent.
 
-**4.2.12** **Project level**: the configuration of a harness found in the env's workspace.
+**4.2.11** **Project level**: the configuration of a harness found in the env's workspace.
 
-**4.2.13** **Fault class**: the classification hmz assigns to a failed turn, one of `contended`,
+**4.2.12** **Fault class**: the classification hmz assigns to a failed turn, one of `contended`,
 `spent`, `throttled`, `refused`, `unlisted`, `retired`, `missing`, `sandboxed`, `unmirrored`,
 `fenced`, `killed` and `dropped`, or unclassified.
 
-**4.2.14** **Fallback chain**: the ordered list of places to which a turn is carried once its own
+**4.2.13** **Fallback chain**: the ordered list of places to which a turn is carried once its own
 place has no retries left.
 
-**4.2.15** **Stand-in**: an agent at the next place of a fallback chain that takes a turn its
+**4.2.14** **Stand-in**: an agent at the next place of a fallback chain that takes a turn its
 original agent could not.
 
-**4.2.16** **Fake tool**: a tool a flow declares whose calls run in the flow's process.
+**4.2.15** **Fake tool**: a tool a flow declares whose calls run in the flow's process.
 
-**4.2.17** **Fake command line**: a program a flow declares that appears on the agent's `PATH` and
+**4.2.16** **Fake command line**: a program a flow declares that appears on the agent's `PATH` and
 whose runs are answered in the flow's process.
 
-**4.2.18** **Gateway**: a LiteLLM proxy that hmz runs on this machine's loopback interface to carry
+**4.2.17** **Gateway**: a LiteLLM proxy that hmz runs on this machine's loopback interface to carry
 an account the harness has no way in for of its own.
 
-**4.2.19** **ACP harness**: a harness the user adds by command line, driven over the Agent Client
+**4.2.18** **ACP harness**: a harness the user adds by command line, driven over the Agent Client
 Protocol.
 
-**4.2.20** **Human agent**: the agent whose turns are answered by the user at the prompt.
+**4.2.19** **Human agent**: the agent whose turns are answered by the user at the prompt.
 
-**4.2.21** **Watchdog window**: the time a turn is permitted to pass without any output from its
+**4.2.20** **Watchdog window**: the time a turn is permitted to pass without any output from its
 harness before the watchdog acts (Section 4.12).
 
 ### 4.3. Harnesses
@@ -1131,49 +1128,57 @@ where a flow hangs a permission-request hook (Section 4.9.3) or an ask-user hook
 
 **4.6.1.2** What limits an agent MUST be its grant and the hooks its flow hangs.
 
-#### 4.6.2. Rungs
+#### 4.6.2. Telling the harness
 
-**4.6.2.1** hmz MUST derive a rung from a role's grant as follows: a `preset` of `read-only` whose
-rules do not give the workdir `write` gives `read-only`; every other grant gives `bypass`.
+**4.6.2.1** hmz MUST tell each harness what its agent's grant permits, read off the agent's
+confinement (Section 4.6.4): a confinement whose rules give no path `write` **writes nothing**, and
+every other confinement **writes somewhere**. An agent hmz does not confine, one driven by hand,
+MUST be told nothing, and run at its harness's own defaults.
 
-**4.6.2.2** On `kimi`, a rung other than `read-only` MUST become `auto` while a permission-request
-hook or an ask-user hook is hung on the agent.
+**4.6.2.2** hmz MUST NOT hold a grant by a harness's plan mode or by any mode that puts an action to
+approval. Where a harness can withhold a tool, hmz MUST withhold it rather than deny it as it is
+called; where a harness cannot, it MUST run with every request granted, and confinement holds the
+grant.
 
-**4.6.2.3** A rung a harness does not accept MUST become `bypass`; `dsh` and every ACP harness
-accept only `bypass`, and `mcode` does not accept `read-only`.
+**4.6.2.3** A harness whose confinement writes nothing MUST be withheld its file-writing tools where
+the following table names them, MUST keep its shell, whose writes confinement refuses, and MUST be
+asked nothing. A harness whose confinement writes somewhere MUST be given every tool and asked
+nothing. Each harness MUST be launched as the table states:
 
-**4.6.2.4** Each rung MUST launch each harness as the following table states:
+| Kind | Writes nothing | Writes somewhere |
+| --- | --- | --- |
+| `agy` | hmz's reader agent, whose tools are the reading tools and `run_command`, skip permissions | skip permissions |
+| `claude` | `--tools` its default built-in tools but `Edit`, `Write` and `NotebookEdit`, `bypassPermissions` | `bypassPermissions` |
+| `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` |
+| `cursor-agent` | `--force`, sandbox off | `--force`, sandbox off |
+| `grok` | always approve, tools `read_file`, `grep`, `list_dir` and `run_terminal_command` | always approve |
+| `kimi` | `auto`, plan mode off, its write and edit tools disabled | `auto` |
+| `mcode` | `full` | `full` |
+| `mimo`, `opencode` | edit denied, bash allowed | nothing denied |
+| `omp` | `yolo` | `yolo` |
+| `pi` | `edit` and `write` withheld | nothing withheld |
+| `qwen` | `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | nothing withheld |
+| `dsh`, ACP | every request granted | every request granted |
+| `litellm` | nothing said | nothing said |
 
-| Kind | `read-only` | `workspace-write` | `auto` | `bypass` |
-| --- | --- | --- | --- | --- |
-| `agy` | plan mode, read tools only | accept-edits mode | skip permissions | skip permissions |
-| `claude` | `plan` | `acceptEdits` | `auto` | `bypassPermissions` |
-| `codex` | sandbox `read-only` | sandbox `workspace-write` | `on-request` | `danger-full-access` |
-| `cursor-agent` | `--mode plan` | sandbox on | `--auto-review` | sandbox off |
-| `grok` | read tools only | web search off | every tool | every tool |
-| `kimi` | `manual`, plan mode | `auto` | `yolo` | `auto` |
-| `mcode` | refused | `full` | `smart` | `full` |
-| `mimo`, `opencode` | edit, bash denied | web tools denied | nothing denied | nothing denied |
-| `omp` | every approval denied | `yolo` | `yolo` | `yolo` |
-| `pi` | write tools withheld | nothing withheld | nothing withheld | nothing withheld |
-| `qwen` | write tools withheld | `web_fetch` withheld | nothing withheld | nothing withheld |
-| `dsh`, ACP | refused | refused | refused | every request granted |
-| `litellm` | nothing said | nothing said | nothing said | nothing said |
+**4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
+permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
+`untrusted` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
+MUST run at `yolo` where the table says `auto`.
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
-root, hmz MUST run that agent at `acceptEdits` with every request granted, and MUST say so once per
-agent.
+root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
+withheld, and MUST say so once per agent.
 
 **4.6.2.6** Where Codex refuses `danger-full-access` on the harness machine, hmz MUST run that agent
-at `auto` with every request granted, and MUST say so once per agent.
+with sandbox `workspace-write` and the approval policy `on-request`, granting every request, and
+MUST say so once per agent.
 
-**4.6.2.7** Codex's approval policy MUST be `never` at every rung but `auto`.
+**4.6.2.7** hmz MUST NOT write what it tells a harness into any configuration file of the user.
 
-**4.6.2.8** hmz MUST NOT write a rung into any configuration file of the user.
-
-**4.6.2.9** A fake command line ruled out of Codex's sandbox (Section 4.10.2.8) MUST NOT widen the
-sandbox of any other command, its network included: at `read-only` the network MUST stay cut unless
-confinement (Section 4.6.4) permits it.
+**4.6.2.8** A fake command line ruled out of Codex's sandbox (Section 4.10.2.8) MUST NOT widen the
+sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
+cut unless confinement (Section 4.6.4) permits it.
 
 #### 4.6.3. Web search
 
@@ -1229,9 +1234,9 @@ sandbox that prevents applying one, the session MUST be refused with `HarnessSan
 **4.6.4.9** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for an ACP
 harness that declares no hosts, and the message MUST name what to declare.
 
-**4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant, except
-as Section 4.6.4.19 permits; confinement MUST otherwise hold the grant whatever the harness
-enforces.
+**4.6.4.10** hmz MUST NOT rely on a harness's own sandbox, or on what Section 4.6.2 tells it, to
+hold the grant, except as Section 4.6.4.19 permits; confinement MUST otherwise hold the grant
+whatever the harness enforces.
 
 **4.6.4.11** A turn kept off a host by confinement MUST fail with the fault class `fenced`.
 
@@ -1270,8 +1275,8 @@ the harness machine's loopback.
 
 **4.6.4.19** Where an agent's harness location and env location are both `local`, and its harness
 kind is named in `sandbox.native` (Section 3.4.11 of [FILES]) of that machine and in the following
-table, hmz MUST hold the grant by telling that harness's own sandbox what the table states instead
-of confining the harness, where the grant has no carve-out and that sandbox was found to start on
+table, hmz MUST hold the grant by telling that harness's own sandbox what the table states, in
+place of the sandbox Section 4.6.2.3 names, instead of confining the harness, where the grant has no carve-out and that sandbox was found to start on
 that machine; otherwise hmz MUST confine the harness as this section states.
 
 | Kind | Told |
@@ -1467,16 +1472,16 @@ than this machine.
 
 #### 4.9.3. Permission requests
 
-**4.9.3.1** A permission request that no hook refuses MUST be granted, except on `claude` at
-`read-only`, on `codex` and `grok` with no rung said, and on `kimi` at `read-only` or with no rung
-said, where it MUST be denied.
+**4.9.3.1** A permission request that no hook refuses MUST be granted, except on `codex`, `grok`
+and `kimi` told nothing (Section 4.6.2.1), where it MUST be denied.
 
 **4.9.3.2** A hook MUST be able to turn a grant into a denial and MUST NOT be able to turn a denial
 into a grant.
 
-**4.9.3.3** While a permission-request hook is hung, `claude` at `bypass` MUST run in its manual
-permission mode, so that every tool that changes something reaches the hook, and `codex` MUST run
-with the approval policy `untrusted`; each MUST take effect from the session's next turn.
+**4.9.3.3** While a permission-request hook is hung, `claude` MUST run in its manual permission mode
+where it would run at `bypassPermissions`, so that every tool that changes something reaches the
+hook, and `codex` MUST run with the approval policy `untrusted`; each MUST take effect from the
+session's next turn.
 
 #### 4.9.4. Questions
 
@@ -1485,8 +1490,8 @@ to the role's ask-user hook where one is hung.
 
 **4.9.4.2** Where no ask-user hook is hung, hmz MUST tell the harness that nobody answered.
 
-**4.9.4.3** While an ask-user hook is hung on `codex`, Codex MUST be launched able to ask its user
-outside plan mode.
+**4.9.4.3** While an ask-user hook is hung on `codex`, Codex MUST be launched able to ask its
+user.
 
 #### 4.9.5. Timing
 
@@ -1512,7 +1517,7 @@ refused.
 MUST reach the agent as a failed tool call.
 
 **4.10.1.4** On `grok`, a turn that `grok` can take only in print mode (a schema, the first turn of
-a fork, web search off, or a rung that withholds tools) MUST be refused with `HarnessUnrecoverable`
+a fork, web search off, or a confinement that writes nothing, whose tools are withheld) MUST be refused with `HarnessUnrecoverable`
 while any fake tool is offered.
 
 **4.10.1.5** Fake tools MUST be refused to a harness running on a machine other than this machine,
@@ -1548,7 +1553,7 @@ machine.
 outside Codex's sandbox, by an execpolicy rule `prefix_rule(pattern=["<name>"], decision="allow")`
 in `rules/hmz.rules` of its virtual config home, beside links to the user's own rule files; the rule
 MUST be written only for a name the agent shelves, and every other command MUST stay in the sandbox
-the rung puts it in.
+Section 4.6.2.3 puts it in.
 
 ### 4.11. Failures, retries and fallbacks
 
@@ -3443,7 +3448,10 @@ steer, a stop or any other input.
 **9.3.3** Asking a side question MUST NOT change the state, the transcript, the board, the budget
 limits or the outcome of the epic.
 
-**9.3.4** Every side conversation MUST run at the `read-only` rung.
+**9.3.4** Every side conversation MUST run inside a confinement of its own that writes nothing
+(Section 4.6.2.1): the confinement of the agent it copies with every `write` read as `read`, or,
+where that agent has none, one whose grant is `read` on `/` with the network; its harness MUST be
+told as Section 4.6.2.3 tells a confinement that writes nothing.
 
 **9.3.5** Every side conversation MUST run with no skills, no goals, no tools of the flow, no hooks
 of the flow and no approval of MCP servers, except what Section 9.6.10 to Section 9.6.14 give the
@@ -3584,7 +3592,7 @@ MUST refuse the tool with the ask command's output as the reason.
 
 **9.6.13** On a harness that has a shell (Section 4.10.2.1), `hmz-ask` MUST be a fake command line
 that prints the ask command's output. On `codex`, `hmz-ask` alone MUST run outside Codex's sandbox
-(Section 4.10.2.8), and the sandbox MUST otherwise stay as the read-only rung puts it, its network
+(Section 4.10.2.8), and the sandbox MUST otherwise stay `read-only` (Section 4.6.2.3), its network
 cut.
 
 **9.6.14** Where the answer to an ask command reached the btw agent neither as a refusal (Section
@@ -3610,9 +3618,6 @@ agent opens, and MUST NOT change a side conversation already open.
 **9.7.5** A frontend MUST NOT offer a choice of the btw agent other than the `btw` setting, and MUST
 NOT offer a choice of the agent of a session side copy, which is the asked session's own (Section
 9.5.4, Section 9.5.5).
-
-**9.7.6** A side question whose side conversation would run on a harness that has no read-only rung
-(`mcode`, `dsh`, every ACP harness) MUST be refused, saying that harness has no read-only rung.
 
 ### 9.8. Whom a side question is asked of
 
@@ -4688,8 +4693,8 @@ document on which the security of a user's machine, credentials and work depends
   permission-request or ask-user hook, and a hook turns a grant into a denial but never a denial
   into a grant (Section 4.6.1.1 and Section 4.9.3.2).
 - hmz never writes the system level of a harness, the user's real configuration of a harness, a
-  managed item into the workspace, or a rung into a configuration file of the user (Section
-  4.5.1.2, Section 4.5.1.6, Section 4.5.2.8 and Section 4.6.2.8).
+  managed item into the workspace, or what it tells a harness into a configuration file of the
+  user (Section 4.5.1.2, Section 4.5.1.6, Section 4.5.2.8 and Section 4.6.2.7).
 - Credential files read through a virtual config home are the user's or the account's real files
   and are never copied into it (Section 4.5.2.9).
 - Configuration in a workspace that runs a program is enumerated per harness, an unreadable or
@@ -4700,7 +4705,7 @@ document on which the security of a user's machine, credentials and work depends
   can read, never appear on a command line, and are removed with the gateway (Section 4.13.2.3
   and Section 4.13.2.4).
 - On `codex`, a fake command line that runs outside Codex's sandbox does so only by a rule for its
-  own name, and widens the sandbox of no other command (Section 4.6.2.9 and Section 4.10.2.8).
+  own name, and widens the sandbox of no other command (Section 4.6.2.8 and Section 4.10.2.8).
 - The value of an account variable is never printed, displayed, logged or sent to a frontend page,
   and a secret typed at a way in is neither shown back nor placed on a command line (Section
   5.5.1.4, Section 5.11.1.1 and Section 5.11.1.2).
@@ -4726,8 +4731,8 @@ document on which the security of a user's machine, credentials and work depends
   hmz removes as leftovers only what names this user and this host; mirrors under harness location
   standalone remain in the harness machine's cache between turns (Section 6.6.1.3, Section 7.7.1.9
   and Section 7.12).
-- A side question never reaches a session of the epic's flow, and every side conversation runs at
-  the `read-only` rung, modifies no file of the workspace, and is told to treat what it
+- A side question never reaches a session of the epic's flow, and every side conversation runs
+  inside a confinement of its own that writes nothing, modifies no file of the workspace, and is told to treat what it
   observes about the epic as data and not as instructions (Section 9.3).
 - The btw agent reaches the sessions of an epic only through at most 4 asks per side question, and
   on `codex` only `hmz-ask` runs outside the sandbox, whose network stays cut (Section 9.6.4 and
