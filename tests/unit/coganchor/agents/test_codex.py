@@ -46,6 +46,12 @@ type _Turn = Callable[[Process, str, str], None]
 _DEFAULTS: dict[str, Any] = {"model": "gpt-x", "effort": ""}
 
 
+def _holding(self: CodexAgent, fence: Fence) -> bool:
+    """`CodexAgent.holds` as it answers where Codex's own sandbox holds the fence."""
+    del self, fence
+    return True
+
+
 def _item(method: str, thread: str, turn: str, **item: Any) -> dict[str, Any]:
     return {
         "method": f"item/{method}",
@@ -1192,7 +1198,7 @@ def test_a_shell_command_is_left_to_the_chat_where_codex_s_sandbox_holds_the_fen
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The server's shell command runs unsandboxed, and nothing else is around Codex."""
-    monkeypatch.setattr(CodexAgent, "holds", lambda self, fence: True)
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
     held = Fence.of(
         rules=[(".", WRITE)], online=True, workdir=tmp_path, home=tmp_path / "home"
     )
@@ -1291,7 +1297,7 @@ def test_a_review_waits_for_a_turn_held_to_a_fence_codex_s_sandbox_holds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """`review/start` takes no sandbox: it runs at what the thread's last turn was sent."""
-    monkeypatch.setattr(CodexAgent, "holds", lambda self, fence: True)
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
     held = Fence.of(
         rules=[(".", WRITE)], online=False, workdir=tmp_path, home=tmp_path / "home"
     )
