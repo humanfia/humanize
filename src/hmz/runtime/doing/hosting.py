@@ -2307,6 +2307,7 @@ def _made(runs: str) -> AgentBase | None:
                 model=spec.model,
                 effort=spec.effort,
                 provider=spec.provider,
+                nous=spec.nous,
                 **identifying(made, spec.cli),
             )
         )

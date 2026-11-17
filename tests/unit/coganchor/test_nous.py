@@ -1,0 +1,526 @@
+"""`hmz.coganchor.nous`: what an agent thinks with, and where a turn goes when it cannot."""
+
+from __future__ import annotations
+
+import math
+import random
+from typing import TYPE_CHECKING
+
+import pytest
+import yaml
+
+from hmz.coganchor import backends, nous, prices, settings
+from hmz.coganchor.nous import ANY, Graph, Node, Nous, Run, Wait
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+
+def test_every_fault_has_exactly_one_answer() -> None:
+    faults = [one.fault for one in nous.ANSWERS]
+    assert sorted(faults) == sorted(backends.FAULTS)
+
+
+@pytest.mark.parametrize("answer", nous.ANSWERS, ids=lambda one: one.fault)
+def test_every_answer_is_well_formed(answer: nous.Answer) -> None:
+    assert answer.about
+    assert answer.tries >= 0
+    assert answer.least >= 0
+    assert not answer.policy or nous.named(answer.policy) is not None
+    if answer.held:
+        assert answer.tries == 0
+
+
+@pytest.mark.parametrize("fault", ["", "never-heard-of-it"])
+def test_answers_an_unclassified_failure_as_a_turn_always_was(fault: str) -> None:
+    assert nous.answers(fault) == nous.Answer(fault, "failed")
+
+
+def test_policies_and_strategies_are_named_once() -> None:
+    for names in (
+        [one.name for one in nous.POLICIES],
+        [one.name for one in nous.strategies()],
+    ):
+        assert len(names) == len(set(names))
+    assert nous.named(nous.DEFAULT) is not None
+    assert nous.strategies()[0].name == "shuffle"
+
+
+@pytest.mark.parametrize(
+    ("args", "said"),
+    [
+        (("claude", "claude-opus-5"), "claude/claude-opus-5"),
+        (("claude", "claude-opus-5", "work"), "claude@work/claude-opus-5"),
+        (("claude", "claude-opus-5", "work", "high"), "claude@work/claude-opus-5:high"),
+        (("claude", "claude-opus-5", "", "auto"), "claude/claude-opus-5"),
+        (("kimi", "moonshot/kimi-k3"), "kimi/moonshot/kimi-k3"),
+    ],
+)
+def test_spec(args: tuple[str, ...], said: str) -> None:
+    assert nous.spec(*args) == said
+
+
+@pytest.mark.parametrize(
+    ("said", "read"),
+    [
+        ("claude/claude-opus-5", "claude/claude-opus-5"),
+        (" claude-code @ work / claude-opus-5:high ", "claude@work/claude-opus-5:high"),
+        ("claude/claude-opus-5:auto", "claude/claude-opus-5"),
+        ("grok-build/grok-5", "grok/grok-5"),
+        ("opencode/ollama/qwen3:8b", "opencode/ollama/qwen3:8b"),
+        ("smart", "smart"),
+        ("claude", ""),
+        ("claude/", ""),
+        ("claude@/m", ""),
+        ("nobody/m", ""),
+        ("two words", ""),
+        ("", ""),
+    ],
+)
+def test_reads(said: str, read: str) -> None:
+    assert nous.reads(said) == read
+
+
+def test_nothing_written_is_a_nous_that_says_nothing() -> None:
+    assert nous.every() == []
+    assert nous.rule("claude/m") == Nous("claude/m")
+    assert not nous.rule("claude/m").says()
+
+
+def test_a_concrete_nous_with_an_effort_has_what_is_written_without_it() -> None:
+    nous.retrying("claude/m", 2, "constant", 0)
+    assert nous.rule("claude/m:high").tries == 2
+    nous.retrying("claude/m:high", 5, "constant", 0)
+    assert nous.rule("claude/m:high").tries == 5
+    assert nous.rule("claude/m:low").tries == 2
+
+
+def test_then_writes_a_chain_down_as_a_list() -> None:
+    made = nous.then("claude/a", ["codex/b", "grok-build/c"])
+    assert made.then == nous.chain(["codex/b", "grok/c"])
+    assert settings.read()["nous"] == {
+        "claude/a": {
+            "tries": 0,
+            "policy": nous.DEFAULT,
+            "timeout": 0.0,
+            "then": ["codex/b", "grok/c"],
+        }
+    }
+    nous.then("claude/a", "codex/b")
+    assert settings.read()["nous"]["claude/a"]["then"] == "codex/b"
+
+
+@pytest.mark.parametrize("nowhere", [[], "", "  ", None])
+def test_then_nowhere_takes_the_nous_away(nowhere: Sequence[str] | None) -> None:
+    nous.then("claude/a", ["codex/b"])
+    assert nous.then("claude/a", nowhere) == Nous("claude/a")
+    assert nous.every() == []
+
+
+def _smart() -> Graph:
+    return Graph(
+        "pool",
+        (
+            Node(
+                "pool",
+                balance="least-busy",
+                among=(("claude@work/a", 1), ("claude@team/a", 2)),
+                on=(("spent", "other"), (ANY, "cheap")),
+            ),
+            Node("other", use="codex/b", on=((ANY, "cheap"),)),
+            Node("cheap", use="grok/c"),
+        ),
+    )
+
+
+def test_a_virtual_nous_is_written_whole_and_read_back() -> None:
+    made = nous.put(Nous("smart", tries=1, graph=_smart()))
+    assert nous.every() == [made]
+    assert settings.read()["nous"]["smart"]["graph"] == {
+        "start": "pool",
+        "nodes": {
+            "pool": {
+                "balance": "least-busy",
+                "among": {"claude@work/a": 1, "claude@team/a": 2},
+                "on": {"spent": "other", ANY: "cheap"},
+            },
+            "other": {"use": "codex/b", "next": "cheap"},
+            "cheap": {"use": "grok/c"},
+        },
+    }
+    assert nous.graph_of(nous.shown(made.graph)) == made.graph
+
+
+def test_a_graph_reads_every_shape_it_is_written_in() -> None:
+    assert nous.graph_of("codex/b") == nous.chain(["codex/b"])
+    assert nous.graph_of(["codex/b", "grok/c"]) == nous.chain(["codex/b", "grok/c"])
+    assert nous.graph_of(None) is None
+    listed = nous.graph_of(
+        {
+            "start": "p",
+            "nodes": [
+                {
+                    "id": "p",
+                    "balance": "cost",
+                    "among": ["kimi/x", {"nous": "opencode/y", "weight": 3}],
+                }
+            ],
+        }
+    )
+    assert listed == Graph(
+        "p", (Node("p", balance="cost", among=(("kimi/x", 1), ("opencode/y", 3))),)
+    )
+    with pytest.raises(TypeError):
+        nous.graph_of(7)
+
+
+@pytest.mark.parametrize(
+    ("made", "why"),
+    [
+        (Nous("nobody/a", tries=1), "is not a nous"),
+        (Nous("claude/a", graph=nous.chain(["codex/b"])), "has no graph"),
+        (Nous("smart"), "needs a graph"),
+        (Nous("claude/a", tries=1, policy="sometimes"), "is not a retry policy"),
+        (Nous("claude/a", tries=-1), "counts"),
+        (Nous("claude/a", tries=1, timeout=math.inf), "counts"),
+        (Nous("claude/a", then=nous.chain(["claude-code/a"])), "comes round"),
+        (Nous("claude/a", then=nous.chain(["ghost"])), "no nous written down"),
+        (Nous("smart", graph=Graph("x", (Node("p", use="codex/b"),))), "is no node"),
+        (
+            Nous(
+                "smart", graph=Graph("p", (Node("p", use="codex/b", on=((ANY, "p"),)),))
+            ),
+            "come round",
+        ),
+        (
+            Nous(
+                "smart",
+                graph=Graph("p", (Node("p", use="codex/b"), Node("q", use="grok/c"))),
+            ),
+            "cannot be reached",
+        ),
+        (
+            Nous(
+                "smart",
+                graph=Graph("p", (Node("p", use="codex/b", on=(("late", "p"),)),)),
+            ),
+            "no fault class",
+        ),
+        (
+            Nous(
+                "smart",
+                graph=Graph("p", (Node("p", balance="dice", among=(("kimi/x", 1),)),)),
+            ),
+            "no strategy",
+        ),
+        (
+            Nous(
+                "smart",
+                graph=Graph(
+                    "p",
+                    (Node("p", balance="cost", among=(("kimi/x", 1), ("kimi/x", 2))),),
+                ),
+            ),
+            "twice",
+        ),
+        (
+            Nous("smart", graph=Graph("p", (Node("p", balance="cost"),))),
+            "balances nothing",
+        ),
+    ],
+)
+def test_put_refuses_a_nous_that_cannot_be(made: Nous, why: str) -> None:
+    with pytest.raises(ValueError, match=why):
+        nous.put(made)
+    assert nous.every() == []
+
+
+def test_check_says_what_put_would_without_writing() -> None:
+    made = nous.check(Nous("claude-code/a", tries=1))
+    assert made == Nous("claude/a", tries=1)
+    assert nous.every() == []
+    looped = Nous("a", graph=nous.chain(["b"]))
+    with pytest.raises(ValueError, match="comes round"):
+        nous.check(looped, [Nous("b", graph=nous.chain(["a"]))])
+    assert nous.checked(
+        "smart", Graph("n1", (Node("n1", use="claude-code/a"),))
+    ) == nous.chain(["claude/a"])
+    with pytest.raises(ValueError, match="smart: the start"):
+        nous.checked("smart", Graph("x", (Node("p", use="codex/b"),)))
+
+
+def test_nous_that_name_one_another_round_are_refused() -> None:
+    nous.put(Nous("a", graph=nous.chain(["codex/b"])))
+    nous.put(Nous("b", graph=nous.chain(["a"])))
+    with pytest.raises(ValueError, match="comes round"):
+        nous.put(Nous("a", graph=nous.chain(["b"])))
+
+
+def test_a_virtual_nous_another_names_is_not_cleared_and_renames_with_it() -> None:
+    nous.put(Nous("inner", graph=nous.chain(["codex/b"])))
+    nous.then("claude/a", ["inner"])
+    with pytest.raises(ValueError, match="still names inner"):
+        nous.clear("inner")
+    nous.renamed("inner", "kept")
+    assert [one.name for one in nous.every()] == ["kept", "claude/a"]
+    assert nous.rule("claude/a").then == nous.chain(["kept"])
+    nous.put(Nous("other", graph=nous.chain(["grok/c"])))
+    with pytest.raises(ValueError, match="already a nous"):
+        nous.renamed("other", "kept")
+    assert nous.clear("other")
+    assert nous.clear("claude-code/a")
+    assert nous.clear("kept")
+    assert not nous.clear("kept")
+
+
+def test_entry_is_where_a_walk_starts() -> None:
+    nous.put(Nous("smart", graph=_smart()))
+    nous.put(Nous("outer", graph=nous.chain(["smart", "codex/b"])))
+    assert nous.entry("outer") == "claude@work/a"
+    assert nous.entry("claude/x:high") == "claude/x:high"
+    with pytest.raises(ValueError, match="no nous written down"):
+        nous.entry("ghost")
+
+
+def _hand_written(held: object) -> None:
+    at = settings.where()
+    at.parent.mkdir(parents=True, exist_ok=True)
+    at.write_text(yaml.safe_dump(held), encoding="utf-8")
+
+
+def test_the_old_fallbacks_are_read_as_then_and_dropped_at_the_next_write() -> None:
+    _hand_written(
+        {
+            "fallbacks": [
+                "not a row",
+                {"spec": "claude/a", "to": ["codex/b"], "tries": 2, "policy": "linear"},
+                {"spec": "nobody/a", "to": ["codex/b"]},
+            ]
+        }
+    )
+    assert nous.every() == [
+        Nous("claude/a", 2, "linear", 0.0, then=nous.chain(["codex/b"]))
+    ]
+    nous.retrying("grok/c", 1, "constant", 0)
+    held = settings.read()
+    assert "fallbacks" not in held
+    assert list(held["nous"]) == ["claude/a", "grok/c"]
+
+
+def test_every_reads_what_somebody_wrote_by_hand_forgivingly() -> None:
+    _hand_written(
+        {
+            "nous": {
+                "nobody/a": {"tries": 1},
+                "claude/a": {"tries": "3", "timeout": "inf", "policy": "sometimes"},
+                "claude/b": {},
+                "smart": {"tries": 1},
+                "codex/b": {"graph": ["grok/c"]},
+                "grok/c": {"tries": -2, "then": {"start": "x", "nodes": "no"}},
+                "kimi/d": "not a mapping",
+            }
+        }
+    )
+    assert nous.every() == [Nous("claude/a", 3, nous.DEFAULT, 0.0)]
+
+
+def test_an_unreadable_file_is_nothing_and_refuses_a_write() -> None:
+    at = settings.where()
+    at.parent.mkdir(parents=True)
+    at.write_text("nous: [unclosed\n", encoding="utf-8")
+    assert nous.every() == []
+    with pytest.raises(OSError, match="cannot be read"):
+        nous.then("claude/a", ["codex/b"])
+
+
+@pytest.mark.parametrize(
+    ("policy", "waits"),
+    [
+        ("none", [0, 0, 0, 0, 0]),
+        ("constant", [0, 1, 1, 1, 1]),
+        ("linear", [0, 1, 2, 3, 4]),
+        ("exponential", [0, 1, 2, 4, 8]),
+        ("fibonacci", [0, 1, 1, 2, 3]),
+    ],
+)
+def test_waits(policy: str, waits: list[float]) -> None:
+    assert [nous.waits(policy, attempt) for attempt in range(1, 6)] == waits
+
+
+def test_jitter_waits_anywhere_up_to_the_exponential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def highest(_low: float, high: float) -> float:
+        return high
+
+    monkeypatch.setattr(random, "uniform", highest)
+    assert [nous.waits("exponential-jitter", one) for one in range(1, 6)] == [
+        0,
+        1,
+        2,
+        4,
+        8,
+    ]
+    assert nous.waits("exponential-jitter", 10**6) == nous.CEILING
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _walked(
+    root: str, faults: dict[str, str], *, memo: dict[str, str] | None = None
+) -> list[str]:
+    """Every step a walk takes, each concrete nous failing with the fault given for it."""
+    clock = _Clock()
+    walk = nous.Walk(root, memo=memo, clock=clock)
+    steps: list[str] = []
+    step = walk.next()
+    while step is not None:
+        if isinstance(step, Wait):
+            clock.now += step.seconds
+            steps.append(f"wait {step.seconds:.0f}")
+            step = walk.next()
+            continue
+        assert isinstance(step, Run)
+        steps.append(step.nous)
+        if step.nous not in faults:
+            walk.landed()
+            break
+        step = walk.next(faults[step.nous])
+    return steps
+
+
+def test_a_nous_with_nothing_written_is_one_step() -> None:
+    assert _walked("claude/a", {"claude/a": ""}) == ["claude/a"]
+
+
+def test_a_concrete_nous_walks_its_then_and_its_then_walks_on() -> None:
+    nous.then("claude/a", ["codex/b", "grok/c"])
+    nous.then("codex/b", ["kimi/d"])
+    assert _walked("claude/a:high", {"claude/a:high": "", "codex/b": ""}) == [
+        "claude/a:high",
+        "codex/b",
+        "kimi/d",
+    ]
+
+
+def test_edges_follow_the_fault() -> None:
+    nous.put(Nous("smart", graph=_smart()))
+    failing = {"claude@team/a": "spent", "claude@work/a": "spent"}
+    # The heavier first where both are as busy, then the other, then the edge for `spent`.
+    assert _walked("smart", failing) == ["claude@team/a", "claude@work/a", "codex/b"]
+    failing = dict.fromkeys(failing, "refused")
+    assert _walked("smart", failing)[2:] == ["grok/c"]
+
+
+def test_a_balance_node_tries_spread_members_and_keeps_what_answered() -> None:
+    nous.put(
+        Nous(
+            "pool",
+            graph=Graph(
+                "p",
+                (
+                    Node(
+                        "p",
+                        balance="round-robin",
+                        among=(("kimi/x", 1), ("opencode/y", 1)),
+                        spread=1,
+                    ),
+                ),
+            ),
+        )
+    )
+    first = _walked("pool", {"kimi/x": "", "opencode/y": ""})
+    assert len(first) == 1
+    memo: dict[str, str] = {}
+    landed = _walked("pool", {}, memo=memo)
+    assert memo == {"pool>p": landed[0]}
+    for _ in range(3):
+        assert _walked("pool", {}, memo=memo) == landed
+
+
+def test_a_virtual_nous_is_walked_again_as_its_envelope_says() -> None:
+    nous.put(Nous("v", tries=2, policy="constant", graph=nous.chain(["kimi/x"])))
+    assert _walked("v", {"kimi/x": "dropped"}) == [
+        "kimi/x",
+        "wait 1",
+        "kimi/x",
+        "wait 1",
+        "kimi/x",
+    ]
+    assert _walked("v", {"kimi/x": "refused"}) == ["kimi/x"]
+    nous.put(
+        Nous("v", tries=5, policy="constant", timeout=1.5, graph=nous.chain(["kimi/x"]))
+    )
+    assert _walked("v", {"kimi/x": "dropped"}) == ["kimi/x", "wait 1", "kimi/x"]
+
+
+def test_a_throttled_virtual_nous_waits_at_least_the_throttled_wait() -> None:
+    nous.put(Nous("v", tries=1, policy="none", graph=nous.chain(["kimi/x"])))
+    assert _walked("v", {"kimi/x": "throttled"}) == ["kimi/x", "wait 30", "kimi/x"]
+
+
+def test_a_virtual_nous_nobody_wrote_down_fails_where_it_is_named() -> None:
+    nous.put(Nous("v", graph=nous.chain(["kimi/x"])))
+    _hand_written({"nous": {"v": {"graph": ["ghost", "kimi/x"]}}})
+    assert _walked("v", {}) == ["kimi/x"]
+
+
+def _last(members: Sequence[nous.Member]) -> str:
+    return members[-1].name
+
+
+@pytest.mark.parametrize(
+    ("strategy", "expect"),
+    [
+        ("cost", "opencode/cost-y"),
+        ("least-busy", "kimi/least-busy-x"),
+        ("latency", "kimi/latency-x"),
+        ("mine", "grok/mine-z"),
+    ],
+)
+def test_strategies_pick_by_what_they_say(
+    strategy: str, expect: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    nous.strategy("mine", "the last one", _last)
+    x, y, z = f"kimi/{strategy}-x", f"opencode/{strategy}-y", f"grok/{strategy}-z"
+    priced = {f"{strategy}-x": 9.0, f"{strategy}-y": 1.0}
+
+    def price(model: str) -> prices.Price | None:
+        if model not in priced:
+            return None
+        return prices.Price(model, "", {"input": priced[model], "output": 0.0})
+
+    monkeypatch.setattr(prices, "price", price)
+    nous.started([y])
+    nous.finished([z], 5.0)
+    try:
+        nous.put(
+            Nous(
+                "pool",
+                graph=Graph(
+                    "p", (Node("p", balance=strategy, among=((x, 1), (y, 1), (z, 1))),)
+                ),
+            )
+        )
+        assert _walked("pool", {})[0] == expect
+    finally:
+        nous.finished([y], 0.0)
+
+
+def test_a_member_that_was_rate_limited_is_picked_last() -> None:
+    hot, cold = "kimi/rate-limited", "opencode/cool"
+    nous.finished([hot], 1.0, fault="throttled")
+    among = ((hot, 1), (cold, 1))
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
+    assert _walked("pool", {cold: "dropped"}) == [cold, hot]
+
+
+def test_a_strategy_of_ones_own_cannot_take_a_built_in_name() -> None:
+    with pytest.raises(ValueError, match="cannot name"):
+        nous.strategy("shuffle", "", _last)

@@ -5,7 +5,8 @@
 //! as a child; `ssh://`, `docker://`, `apple-container://` and `slurm://` run it on the far
 //! side through a [`Road`], having shipped this very binary there (the right one for that
 //! machine's OS and architecture) if it is not already in its cache. Two ways find one already
-//! running: `tcp://HOST:PORT` dials it, and `peer://TICKET@HOST:PORT` meets it through a broker.
+//! running: `tcp://HOST:PORT` dials it, and `peer://TICKET@HOST:PORT` meets it through a broker;
+//! either is then carried inside TLS ([`crate::tls`]), and a pipe as it is.
 
 pub mod road;
 pub mod ship;
@@ -23,6 +24,7 @@ pub use target::{Endpoint, Target};
 
 use crate::broker::{Meeting, Role};
 use crate::proto::Channel;
+use crate::tls;
 
 /// How long dialling a `tcp://` target may take. `socket.create_connection(timeout=30.0)`.
 const DIALLING: Duration = Duration::from_secs(30);
@@ -72,9 +74,12 @@ pub fn connect(target: &Target, exports: &[String], token: Option<&str>) -> io::
     match target.scheme.as_str() {
         "tcp" => {
             let stream = dial(&target.host, target.port.unwrap_or(0))?;
-            // Nagle off: this protocol is a small request and a small reply, over and over.
+            // An empty token is none, as an empty `$HUMANIZE_TOKEN` is to the anchor.
+            let key = token
+                .filter(|token| !token.is_empty())
+                .map(|token| token.as_bytes().to_vec());
             Ok(Link {
-                channel: Arc::new(Channel::from_tcp(stream)?),
+                channel: Arc::new(tls::dial(stream, key, target.describe())?),
                 child: None,
             })
         }
@@ -85,8 +90,10 @@ pub fn connect(target: &Target, exports: &[String], token: Option<&str>) -> io::
                 port: target.port.unwrap_or(0),
             };
             let stream = crate::broker::dial(&meeting, Role::Anchor, PAIRING)?;
+            // The ticket is the key, whatever token there is.
+            let key = Some(meeting.ticket.into_bytes());
             Ok(Link {
-                channel: Arc::new(Channel::from_tcp(stream)?),
+                channel: Arc::new(tls::dial(stream, key, target.describe())?),
                 child: None,
             })
         }
@@ -203,9 +210,20 @@ mod tests {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let target = Target::parse(&format!("tcp://127.0.0.1:{port}")).unwrap();
-        let link = connect(&target, &[], None).unwrap();
-        let (_accepted, _) = listener.accept().unwrap();
+        let answering = std::thread::spawn(move || {
+            let (accepted, _) = listener.accept().unwrap();
+            let identity = tls::Identity::fresh().unwrap();
+            identity.answer(accepted, None, String::new()).unwrap()
+        });
+        let link = connect(&target, &[], Some("t")).unwrap();
+        let answered = answering.join().unwrap();
         assert!(link.child.is_none());
+        // Inside TLS, bound alike at both ends; the key is the token, and the anchor's own.
+        let (ours, theirs) = (link.channel.bound().unwrap(), answered.bound().unwrap());
+        assert_eq!(ours.binding, theirs.binding);
+        assert_eq!(ours.key.as_deref(), Some(&b"t"[..]));
+        assert_eq!(ours.whom, format!("tcp://127.0.0.1:{port}"));
         link.close();
+        assert!(answered.recv().unwrap().is_none());
     }
 }

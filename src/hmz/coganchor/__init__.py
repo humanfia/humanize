@@ -4,8 +4,8 @@ The whole of the capability, so that the layers above it only ever schedule flow
 CLI *is* -- its name, its efforts, where it keeps its logs and its credentials, what it runs
 -- is :mod:`hmz.coganchor.backends` and :mod:`hmz.coganchor.models`; driving one is
 :mod:`hmz.coganchor.agents`; which account it runs as is :mod:`hmz.coganchor.providers`;
-where its turns land is :mod:`hmz.coganchor.machines`; where a turn goes when the place
-taking it cannot is :mod:`hmz.coganchor.fallbacks`; and what its tokens cost is
+where its turns land is :mod:`hmz.coganchor.machines`; what it thinks with, and where a turn
+goes when that cannot take it, is :mod:`hmz.coganchor.nous`; and what its tokens cost is
 :mod:`hmz.coganchor.prices`.
 
 And the anchor this package is named for: running an agent on one machine and having it act

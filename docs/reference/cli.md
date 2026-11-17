@@ -213,7 +213,12 @@ the several-flows-per-module rule are specified in
 
 ```text
 <role>=<cli>[@<provider>]/<model>[:<effort>]
+<role>=<nous>
 ```
+
+The rest after `=` is a concrete [nous](/user/settings#nous); one with no `/` is the name of a
+virtual nous written on the Nous page, and the agent is built at the concrete nous its graph
+starts at and walks the graph each turn.
 
 | Part | Rule |
 | --- | --- |
@@ -395,9 +400,10 @@ Stage 1–2 messages are preceded by the usage block.
 | --- | --- |
 | no `-f`, no task | `the following arguments are required: -f/--flow` / `…: task` |
 | unknown option | `unrecognized arguments: <args>` |
-| an `-a` item without `role=` | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
+| an `-a` item without `role=` | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>] or <role>=<nous>` |
 | an `-a` role that is not an identifier | ``-a '<item>': '<role>' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier`` |
 | an `-a` with an unknown CLI, no `/` or no model | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
+| an `-a` naming a virtual nous nobody wrote | `-a '<item>': '<name>' is no nous written down` |
 | `@` with no account | `-a '<item>': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
 | a role twice in `-a` | `-a: the role '<role>' is given twice` |
 | an `-e` that does not match | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
@@ -466,7 +472,7 @@ One line (or block) per event, in order. `●` is `⏺` on macOS.
 
 Cost footer: `✻ <kind> <count>[ · <kind> <count>…] · [<money> · ]<model> · <agent>`, drawn
 only for a `result` carrying `spent`. `<model>` is the one model the result's `tokens` names,
-where it names exactly one (the model a [fallback](/user/settings#fallback) carried the turn
+where it names exactly one (the model a [nous](/user/settings#nous) carried the turn
 to, or the one an alias resolved to), else the agent's configured model; it is also what the
 money is priced at. Kinds in the order `input`, `output`, `cache_read`,
 `cache_write`, `reasoning`, then any other alphabetically. Counts: `< 1000` as an integer,
@@ -746,7 +752,7 @@ exits with its status. Semantics: [Remote execution](/reference/remote-execution
 | `--private NAME` | — | Keep this variable out of the agent's commands on the target. Repeatable. |
 | `--net {local,remote}` | `local` | Where the agent's own TCP connections go. Commands always use the target's network. |
 | `--net-allow HOST[:PORT]` | — | With `--net remote`, keep connections to this host local. Repeatable. |
-| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret a `tcp://` target expects. |
+| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret a `tcp://` target expects, proved inside TLS rather than sent; a `peer://` target's ticket is its secret and this is unused. |
 | `--token-file FILE` | — | Read that secret from `FILE` instead. What Humanize itself spawns is always given this, never `--token`: a command line is in every user's `ps`. The file is under `hmz.machine()/tokens/`, mode `0600`, named by the secret's SHA-256. |
 | `--force` | off | Use the mirror directory even if it holds unrelated files. |
 | `--native` | off | Run the CLI installed on the target instead of supervising one here. |
@@ -775,7 +781,7 @@ exits with its status. Semantics: [Remote execution](/reference/remote-execution
 ```text
 hmz internal anchor serve --export VIRTUAL[:REAL] [--export …]
     (--stdio | --listen [HOST:]PORT | --peer TICKET@HOST:PORT)
-    [--token TOKEN] [--log-level {debug,info,warning,error}]
+    [--token TOKEN | --token-file FILE] [--log-level {debug,info,warning,error}]
 ```
 
 | Option | Default | Meaning |
@@ -784,16 +790,19 @@ hmz internal anchor serve --export VIRTUAL[:REAL] [--export …]
 | `--stdio` | | Serve one session over stdin/stdout. |
 | `--listen [HOST:]PORT` | host `127.0.0.1` | Serve TCP connections. |
 | `--peer TICKET@HOST:PORT` | | Serve one session through a rendezvous broker. |
-| `--token TOKEN` | `$HUMANIZE_TOKEN` | Shared secret required from clients. |
+| `--token TOKEN` | `$HUMANIZE_TOKEN`, but not with `--peer` | Shared secret required from clients. |
+| `--token-file FILE` | | A file holding that secret, read verbatim. |
 | `--log-level` | `$HUMANIZE_LOG`, else `warning` | |
 
-Exactly one of `--stdio`, `--listen`, `--peer`.
+Exactly one of `--stdio`, `--listen`, `--peer`. `--listen` and `--peer` speak only TLS, inside
+which a client proves the token, or with `--peer` the ticket, rather than sending it
+([Remote execution › The link over a network](/reference/remote-execution#the-link-over-a-network)).
 
 | Exit | When |
 | --- | --- |
 | `0` | served until the session or the process ended |
 | `1` | cannot listen (`hmz: cannot listen on <host>:<port>: <why>`), or cannot dial the peer |
-| `2` | a bad `--export`; a malformed address (`hmz: malformed listen address '<a>'; expected [HOST:]PORT`); a non-loopback `--listen` without a token (`hmz: cannot listen on a non-loopback address without --token`). Loopback is `127.0.0.1`, `::1`, `localhost`. |
+| `2` | a bad `--export`; a malformed address (`hmz: malformed listen address '<a>'; expected [HOST:]PORT`); a non-loopback `--listen` without a token (`hmz: cannot listen on a non-loopback address without --token`); `--token` or `--token-file` with `--peer` (`hmz: --token cannot be given with --peer, whose ticket is the secret`). Loopback is `127.0.0.1`, `::1`, `localhost`. |
 
 ::: danger
 A listener reachable from other machines runs commands for whoever holds its token. See
@@ -1004,7 +1013,7 @@ is [Files](/reference/files).
 | Path | Command | Access |
 | --- | --- | --- |
 | `epics/<workspace>/<datetime>-<hex>/` | `hmz exec`, runs started from `hmz` | written: one [epic](/reference/tracing#epics) per run |
-| `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers); its `runtimes`, `fallbacks` and `clis` are read by all when an agent or environment is opened |
+| `settings.yaml` | `hmz` | read and written: [what the interface remembers](/reference/tui#what-it-remembers); its `runtimes`, `nous` and `clis` are read by all when an agent or environment is opened |
 | `history.jsonl` | `hmz` | read and written: [prompt history](/reference/tui#history) |
 | `epics/<workspace>/<datetime>-<hex>/host.log` | `hmz` | appended: what the [host process](/reference/daemon#files) wrote while it held that run. The daemon's socket, record, lock and log are in the machine's temporary directory, not here |
 | `prices.json` | all | model prices, refreshed when older than a day by the interface as it opens and by a run as it starts |

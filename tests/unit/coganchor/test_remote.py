@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import hmac
 import io
 import queue
 import threading
@@ -22,6 +23,7 @@ from hmz.coganchor.proto import (
     Stream,
 )
 from hmz.coganchor.remote import RemoteClient
+from hmz.coganchor.tls import Bound
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -107,6 +109,66 @@ def test_the_handshake_says_the_version_and_the_token() -> None:
     assert peer.sent[0].op is Op.HELLO
     assert peer.sent[0].meta["version"] == PROTOCOL_VERSION
     assert peer.sent[0].meta["token"] == "secret"
+
+
+def _sealed(answer: Callable[[Bound, bytes], object]) -> Peer:
+    """A peer inside TLS bound to the key `k`, whose `HELLO` reply proves what `answer` says."""
+    bound = Bound(bytes(32), b"k", "tcp://far:1")
+
+    def replying(frame: Frame) -> list[Frame]:
+        if frame.op is not Op.HELLO:
+            return []
+        cog = bytes.fromhex(frame.meta["proof"])
+        return [
+            Frame.reply(
+                frame.msg_id, version=PROTOCOL_VERSION, proof=answer(bound, cog)
+            )
+        ]
+
+    peer = Peer(replying)
+    peer.bound = bound
+    return peer
+
+
+def _proved(bound: Bound, cog: bytes) -> str:
+    return hmac.digest(
+        b"k", b"hmz-anchor anchor\0" + bound.binding + cog, "sha256"
+    ).hex()
+
+
+def test_inside_tls_the_handshake_proves_the_key_and_never_shows_it() -> None:
+    peer = _sealed(_proved)
+    client = RemoteClient(peer)
+    client.start("ignored")
+    client.close()
+    said = peer.sent[0].meta
+    assert "token" not in said
+    assert (
+        said["proof"]
+        == hmac.digest(b"k", b"hmz-anchor cog\0" + bytes(32), "sha256").hex()
+    )
+
+
+def _unproved(bound: Bound, cog: bytes) -> object:
+    del bound, cog
+
+
+def _forged(bound: Bound, cog: bytes) -> object:
+    del bound, cog
+    return "00" * 32
+
+
+@pytest.mark.parametrize("answer", [_unproved, _forged])
+def test_inside_tls_a_target_that_does_not_prove_the_key_is_refused(
+    answer: Callable[[Bound, bytes], object],
+) -> None:
+    client = RemoteClient(_sealed(answer))
+    with pytest.raises(
+        ConnectionError,
+        match=r"^the serving half at tcp://far:1 did not prove the token$",
+    ):
+        client.start()
+    client.close()
 
 
 def test_a_target_speaking_another_version_is_refused() -> None:

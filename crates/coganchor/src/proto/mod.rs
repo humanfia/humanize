@@ -17,6 +17,9 @@
 //! direction finished with `END`, and `RSP` or `ERR` closes it. Errors carry the remote errno
 //! verbatim, never translated between platforms.
 //!
+//! A pipe carries the frames as they are. A `tcp://` or `peer://` connection carries them
+//! inside TLS ([`crate::tls`]), where the `HELLO` proves a key instead of presenting a token.
+//!
 //! Strings in the metadata are JSON strings, and a path that is not UTF-8 crosses the wire the
 //! way Python's `surrogateescape` spells it: each undecodable byte `0xXX` as the lone surrogate
 //! `\udcXX`. [`json`] carries such strings in Rust as UTF-8 with each of those bytes stood in

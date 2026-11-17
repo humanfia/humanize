@@ -156,7 +156,7 @@ const LAYERS: Layer[] = [
   {
     id: 'api',
     dotted: 'hmz.daemon.api',
-    here: 'The methods a daemon serves beyond epics and sessions, one module per family: settings, accounts, fallbacks, runtimes, EasyTier.',
+    here: 'The methods a daemon serves beyond epics and sessions, one module per family: settings, accounts, nous, runtimes, EasyTier.',
     note: 'Reaches what each family keeps through `coganchor` and the runtime, and checks a listener with `reach.routes`.',
     spec: 'daemon.md#418-settings',
   },
@@ -264,7 +264,7 @@ const LAYERS: Layer[] = [
   {
     id: 'coganchor',
     dotted: 'hmz.coganchor',
-    here: 'Driving a coding agent CLI: backends, drivers, accounts, models, fallbacks, prices, machines, and the anchor.',
+    here: 'Driving a coding agent CLI: backends, drivers, accounts, models, nous, prices, machines, and the anchor.',
     spec: 'core.md#4-agents',
     ref: '/reference/agents',
   },

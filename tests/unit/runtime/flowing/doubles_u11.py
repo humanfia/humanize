@@ -585,8 +585,8 @@ def reach(
     far = FakeRemote() if remote is None else remote
     targets: list[str] = []
 
-    def connect(target: object, exported: list[str]) -> _Link:
-        del exported
+    def connect(target: object, exported: list[str], token: str | None = None) -> _Link:
+        del exported, token
         targets.append(str(target))
         if refused is not None:
             raise refused

@@ -24,7 +24,7 @@ saved runtime by its `harness` setting ([below](#where-the-harness-runs)).
 | **Mirror** (shadow) | A directory on the harness's machine that reproduces the target's workspace, filled lazily. The supervised agent works in it. |
 | **Arrangement** | How one anchor runs its harness relative to the target: supervised here, supervised on another machine (afar), or the target's own CLI (native). A flow session's [harness location](#where-the-harness-runs) becomes one of them: `local` is supervised, `standalone` is afar, `env` is native. |
 | **Broker** (rendezvous) | `coganchor broker`: a TCP server that introduces a harness and a serving half on two machines that cannot dial each other, and relays their bytes when no direct connection can be made. |
-| **Ticket** | A 128-bit secret naming one meeting at a broker. |
+| **Ticket** | A 128-bit secret naming one meeting at a broker. It never reaches the broker: each half presents a name derived from it, and proves the ticket itself to the other half inside TLS. |
 | **Export** | A directory the serving half exposes, as `VIRTUAL[:REAL]`: the path the agent names, and where it really is on the target. |
 | **Fence** | What an agent's processes may reach ([Agents › The fence](/reference/agents#the-fence)). Under an anchor it is held on both machines ([below](#a-fence-on-both-machines)). |
 
@@ -121,8 +121,8 @@ machine in `AnchorConfig.harness`.
 | `docker://CONTAINER[?OPTIONS][@ENDPOINT]` | a running container | the serving half is bootstrapped with `docker exec -i`, running as the container's user or the one `OPTIONS` names, with its variables and under its wrapper | yes | `docker` here; `/bin/sh` in a Linux container on x86-64 or aarch64 |
 | `apple-container://CONTAINER` | a running Apple container on this Mac | the serving half is bootstrapped with `container exec -i`, running as the container's user | yes | Apple's `container` here; `/bin/sh` in the container |
 | `slurm://JOBID[?python=PATH]` | the node a running Slurm job of this user's was given | the serving half is bootstrapped with `srun --jobid=JOBID --overlap`, a step of that job sharing its allocation, running as this user | yes | `srun` here; `/bin/sh` on a Linux node on x86-64 or aarch64 (`python=PATH` is accepted and not used) |
-| `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout | no | a served target and its token |
-| `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting `TICKET` | no | written by Humanize only |
+| `tcp://HOST:PORT` | a serving half [left listening](#serving-a-target) | a TCP connection, `TCP_NODELAY`, 30 s connect timeout, carrying [TLS](#the-link-over-a-network) | no | a served target and its token |
+| `peer://TICKET@HOST:PORT` | a serving half waiting at a broker | the broker at `HOST:PORT`, presenting a name derived from `TICKET`, carrying [TLS](#the-link-over-a-network) | no | written by Humanize only |
 
 Parsing rules:
 
@@ -199,6 +199,24 @@ the command of exchange `target` runs under (an `EXEC` with `tty: true`) is set 
 the command's foreground process group is sent `SIGWINCH`. It is answered whether or not that
 command still runs; `rows` or `cols` outside `0..65535` is `EINVAL`. A client asks only a
 serving half whose reply says `resize`; an older one answers the op `ENOSYS`.
+
+### The link over a network {#the-link-over-a-network}
+
+A `tcp://` or `peer://` session is carried inside TLS; one on a pipe (`local`, `ssh://`,
+`docker://`, `apple-container://`, `slurm://`) is not, and its handshake carries the token as
+it is.
+
+| Step | Behaviour |
+| --- | --- |
+| TLS | TLS 1.3 only, application protocol `hmz-anchor`, before any frame. The serving half is the server, under a self-signed ECDSA P-256 certificate it makes when it starts and keeps nowhere; the other half shows no certificate and takes any whose handshake signature verifies. |
+| Binding | The SHA-256 of the DER SubjectPublicKeyInfo of the serving half's certificate. |
+| Key | The token's bytes on `tcp://`; the ticket's on `peer://`, where any token is ignored. |
+| Handshake | The request carries `proof`, hex of HMAC-SHA256(key, `hmz-anchor cog` NUL binding), and no `token`; the reply carries `proof`, hex of HMAC-SHA256(key, `hmz-anchor anchor` NUL binding and the request's 32 proof bytes). Null both ways where neither side holds a key (a loopback listener without a token). |
+| Refusals | A serving half holding a key compares in constant time and refuses a missing or wrong proof with `EACCES`, `invalid token`. A client holding a key refuses a missing or wrong proof in the reply, before any other request: `ConnectionError: the serving half at <target> did not prove the token` (from `coganchor cog`, exit 1). |
+| Broker | Each half presents, and greets a punched socket with, hex of SHA-256(`hmz-anchor ticket` NUL ticket), never the ticket. A relayed session's bytes are TLS. |
+
+The certificate is not vouched for by anybody: who is at the other end is as certain as the
+token or ticket is secret.
 
 ### ssh connections
 
@@ -757,7 +775,9 @@ machine, Humanize books a meeting:
    else `$HUMANIZE_RENDEZVOUS`, else this machine's outward-facing IPv4 address (the source
    address of a route to `192.0.2.1`; `127.0.0.1` if there is none).
 3. It spawns `coganchor cog --target peer://TICKET@HOST:PORT` on the harness machine.
-4. Both halves dial the broker with the ticket and their role (`anchor` or `serve`), and offer
+4. Both halves dial the broker with a name derived from the ticket (never the ticket itself;
+   see [the link over a network](#the-link-over-a-network)) and their role (`anchor` or
+   `serve`), and offer
    the address they dialled from plus the IPv4 addresses their hostname resolves to -- left
    out where resolving it takes longer than 1 s, as an unanswered macOS `.local` name does.
 
@@ -765,9 +785,9 @@ machine, Humanize books a meeting:
 | --- | --- | --- |
 | Pairing | a half waits at the broker for the other | 120 s |
 | Discovery | each half is told the address its connection arrived from, and the other half's addresses | 30 s per broker answer |
-| Punching | both halves connect to each other's candidates from the port they dialled the broker from, and listen on it; each punched socket must present `HMZ1` and a digest of the ticket; the anchor half says `GO` on the socket it keeps and the serving half answers `OK` | 4 s (`--punching` on a standalone broker) |
+| Punching | both halves connect to each other's candidates from the port they dialled the broker from, and listen on it; each punched socket must present `HMZ1` and a digest of the name derived from the ticket; the anchor half says `GO` on the socket it keeps and the serving half answers `OK` | 4 s (`--punching` on a standalone broker) |
 | Greeting | a punched socket that does not prove itself is dropped | 3 s |
-| Relay | if punching fails, the two connections already held to the broker are spliced, 64 KiB at a time | none |
+| Relay | if punching fails, the two connections already held to the broker are spliced, 64 KiB at a time; what crosses is TLS between the two halves | none |
 
 - The broker remembers pairs of external addresses it failed to introduce (up to 1024 pairs).
   After 3 failures a pair is relayed without punching, except when its failure count is a
@@ -860,7 +880,11 @@ listening on a machine without Humanize installed, copy the build for that machi
   without --token`, exit 2. A malformed address: `hmz: malformed listen address '<spec>';
   expected [HOST:]PORT`, exit 2. A bind failure exits 1.
 - `--token` defaults to `$HUMANIZE_TOKEN`. With a token, a session whose handshake does not
-  present it is refused with `invalid token`.
+  present it (on `--stdio`), or prove it ([over TLS](#the-link-over-a-network), on
+  `--listen`), is refused with `invalid token`.
+- `--peer` takes no token: its ticket is the secret, `$HUMANIZE_TOKEN` is ignored, and
+  `--token` or `--token-file` with it is refused: `hmz: --token cannot be given with --peer,
+  whose ticket is the secret`, exit 2.
 - For `ssh://`, `docker://` and `slurm://` targets the token is unused; ssh, the docker socket
   and Slurm authenticate the session.
 
@@ -957,8 +981,9 @@ from hmz.coganchor.anchor import NotInstalled
 | A provider's variables reach commands on the target | never under supervised (`private`); under `native`, the CLI's environment is the turn's |
 | A credential appears in an argv | never; projected files cross on stdin |
 | A listening serving half without a token | loopback only |
-| A Slurm job's listening serving half (`via: tcp`) | token-authenticated, the token set in its batch script, never on a command line on the node; the traffic is not encrypted, so it stays within the cluster's network |
-| A broker port | open on every interface for the life of the process that booked a third-machine harness; pairing requires a 128-bit ticket known to exactly two machines |
+| A Slurm job's listening serving half (`via: tcp`) | token-authenticated, the token set in its batch script, never on a command line on the node, and proved inside TLS rather than sent |
+| A `tcp://` or `peer://` session | inside TLS 1.3; the token or ticket is proved by each half, bound to the serving half's certificate, and never crosses the network |
+| A broker port | open on every interface for the life of the process that booked a third-machine harness; pairing requires a 128-bit ticket known to exactly two machines, which the broker never learns |
 | A mirror overwrites a directory it did not create | never without `force` |
 | A flow session's CLI starts a program its project names on a machine other than the work's | never: refused when the session opens ([a project's own programs](#a-projects-own-programs)) |
 

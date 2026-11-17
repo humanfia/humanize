@@ -61,11 +61,11 @@ if TYPE_CHECKING:
     from hmz.coganchor import AnchorConfig
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.faking import FakeCli, FakeTool
-    from hmz.coganchor.fallbacks import Answer
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.gateway import Gateway
     from hmz.coganchor.homes import Home, Virtual
     from hmz.coganchor.machines import MachineConfig
+    from hmz.coganchor.nous import Answer
     from hmz.coganchor.providers import Provider
     from hmz.coganchor.tailing import Tail
 
@@ -113,6 +113,22 @@ KEPT = ".kept"
 #: it could not find, put on a spawn that came back as a `FileNotFoundError` instead of as a
 #: process -- so that a CLI which is not installed reads as one failure and not as two.
 _NOTHING_TO_RUN = 127
+
+
+class _Spent(Exception):  # noqa: N818 -- not an error: a nous with no tries left
+    """Every try at one concrete nous has failed, and the walk goes on from the last one.
+
+    Attributes:
+      last: The last failure.
+      answer: What kind of failure it was, and what it is owed.
+      at: The session it failed in.
+    """
+
+    def __init__(
+        self, last: subprocess.CalledProcessError, answer: Answer, at: SessionBase
+    ) -> None:
+        super().__init__(str(last))
+        self.last, self.answer, self.at = last, answer, at
 
 
 #: How long whatever reads a process's pipes is waited on once the process has gone. Its pipes
@@ -679,7 +695,11 @@ class SessionBase(ABC):
         #: had to be taken there. Held for as long as this session is rather than opened per
         #: turn: what this conversation was is lost at the move, and losing a second one
         #: every turn after it would be a stateful loop started over every round.
-        self._moved_to: SessionBase | None = None
+        self._moved: dict[str, SessionBase] = {}
+        #: What each balance node of this conversation's nous picked the last time one of its
+        #: turns answered, by node: tried first at the next turn, so that a conversation stays
+        #: where it was rather than being dealt afresh each turn.
+        self._picked: dict[str, str] = {}
         #: The conversation this one is taking a turn for, for one that is a stand-in's, or
         #: None for one a flow is talking to. What a recovery here says is said there: nobody
         #: is watching a stand-in, and a chain walked past it is a chain whoever is watching
@@ -1129,11 +1149,11 @@ class SessionBase(ABC):
                 return  # over while whoever was told was being told
             self._waking.set()
         self._cuts()
-        if self._moved_to is not None:
-            # And the conversation this one moved to, since the turn being cut off may be
+        for moved in list(self._moved.values()):
+            # And the conversations this one moved to, since the turn being cut off may be
             # being taken there: this conversation carried on somewhere else is still this
             # conversation, and cutting off only the half that is waiting cuts off nothing.
-            self._moved_to.interrupt(why=why)
+            moved.interrupt(why=why)
 
     def _cuts(self) -> None:
         """Ends whatever is holding the turn now running, as roughly as it takes.
@@ -1729,37 +1749,20 @@ class SessionBase(ABC):
     def _falling_back(
         self, prompt: str, *, schema: type[BaseModel] | None = None
     ) -> Iterator[Event]:
-        """One turn, tried again and then taken at the next place of the chain, until one lands.
+        """One turn, walked through the agent's nous until a concrete nous answers it.
 
-        A turn fails for a kind of reason, and each kind has an answer of its own. A gateway
-        that answered 503 is the same call away from working; a subscription that said "too
-        many requests" is that call away once it has been left alone for a while, and then
-        away at a place that has not spent its quota; a key that was refused is refused a
-        minute later too, so another place is the whole of the answer and none of the waiting
-        is; a model that has been retired is retired at the next call too; opencode's own
-        store being busy is two turns of it racing and is gone in a second. Retried
-        identically -- which is what they all were -- three of those are a flow that makes no
-        progress and one is a flow hammering a service that has just asked it to stop.
+        A turn fails for a kind of reason, and each kind has an answer of its own: a gateway
+        that answered 503 is the same call away from working, a subscription that said "too
+        many requests" is that call away once it has been left alone a while, a key that was
+        refused is refused a minute later too. Which kind it was is worked out by
+        :meth:`_trouble`, and `hmz.coganchor.nous.answers` says what that kind gets.
 
-        So which kind it was is worked out here, out of what the CLI said, how it exited and, for
-        the one backend that keeps it there, its own log: `hmz.coganchor.backends.trouble` reads it
-        against signatures written down beside everything else that is true of a backend.
-        `hmz.coganchor.fallbacks.answers` then says what that kind gets -- how few goes it is worth,
-        how long the shortest wait is, whether to reopen the transport first -- and the place
-        says the rest, as it always did. Every step of it is narrated as an event, because a
-        recovery nobody can see is indistinguishable from a hang.
-
-        A backend that already knows says so itself, and is believed: `Unrecoverable` for a
-        failure no place could come out of differently, which is raised on rather than
-        counted as an attempt, and `Failed(fault=...)` for one it can name. Guessing is only
-        what is left when the backend has said nothing.
-
-        The tries are taken inside the session that was running: a transport that was
-        reopened resumes that same conversation, what was lost having been the socket rather
-        than the session. What a failed try already put on the transcript stays there -- it
-        is how somebody reading it finds out that the place went down and where the turn went
-        next. Once they are spent the turn goes to the next place of the chain, in a session
-        of its own: :meth:`AgentBase.stands_in`.
+        Where the turn is taken is the agent's nous (`hmz.coganchor.nous`): a concrete nous
+        is tried with its own tries and then its `then`, a virtual one is a graph walked node
+        by node, each failure following the edge its fault names. Each concrete nous after
+        the first takes the turn in a session of a stand-in of its own, since no harness takes
+        another's session id; this session's own nous takes it here. Every step is narrated,
+        because a recovery nobody can see is indistinguishable from a hang.
 
         Args:
           prompt: The input prompt for this turn, as the backend is to be given it.
@@ -1769,29 +1772,120 @@ class SessionBase(ABC):
           What the agent said, in the order it said it.
 
         Raises:
-            subprocess.CalledProcessError: If every try at every place of the chain failed,
-              which is the last of them raised as the turn's own failure, carrying which kind
-              of failure it was and what a person does about it -- or at once, without
-              another try or another place, for an `Unrecoverable`: a turn that failed for a
-              reason no other try could come out differently on is a turn that has failed,
-              and trying it again is a loop rather than a recovery.
+          subprocess.CalledProcessError: The last failure, once the walk has nowhere left,
+            carrying which kind of failure it was and what a person does about it -- or at
+            once for an `Unrecoverable`, which no other try could come out of differently.
         """
-        from hmz.coganchor import fallbacks
+        from hmz.coganchor import nous
 
-        # Taken here until it moves (:meth:`_instead`): each round of a turn -- a hook that
-        # refuses a stop sends the agent round again -- starts where the place is, and is what
-        # a cut of it lands in (:meth:`_landed`).
+        # Taken here until it moves (:meth:`_instead`): each round of a turn starts where the
+        # nous starts, and is what a cut of it lands in (:meth:`_landed`).
         self._took = None
-        # How this place is tried again, read once for the whole turn: it is a file. Read
-        # against this place's own row even for a place standing in for another -- how often
-        # a turn is tried again is a thing about the place -- while where it goes next is the
-        # chain it was reached by, and never its own row's.
-        again_ = fallbacks.tried(self._agent.spec)
+        walk = nous.walk(self._agent.nous, memo=self._picked)
+        last: subprocess.CalledProcessError | None = None
+        failed_at: SessionBase = self
+        answer = nous.answers("")
+        step = walk.next()
+        while step is not None:
+            if self._agent._stopped:
+                raise Stopped(f"{self._agent.id} was stopped")
+            if isinstance(step, nous.Wait):
+                self._narrates(step.about)
+                if self._sits(step.seconds) and self._cut and last is not None:
+                    raise last
+                step = walk.next(answer.fault)
+                continue
+            stood_in = self._agent.stand_in(step.nous)
+            if stood_in is None or (
+                stood_in is not self._agent and not self._may_stand_in(stood_in)
+            ):
+                # A nous that names no agent that could take this turn: a harness nobody
+                # installed, a setting it cannot be told. Failed as it would have failed.
+                step = walk.next(answer.fault or "missing")
+                continue
+            if last is not None:
+                went = (
+                    failed_at._went(answer)
+                    if answer.fault
+                    else f"{failed_at._agent.backend} has nowhere left to run"
+                )
+                self._narrates(f"{went}; carrying on as {stood_in.spec}")
+            if stood_in is self._agent:
+                # Back here after a stand-in took a step: a cut lands in this session again.
+                self._took = None
+            names = (*walk.picks(), step.nous)
+            nous.started(names)
+            started, tokens, fault = time.monotonic(), 0, None
+            try:
+                taking = (
+                    self._tries(
+                        prompt, schema=schema, at=step.nous, deadline=step.deadline
+                    )
+                    if stood_in is self._agent
+                    else self._instead(
+                        stood_in,
+                        prompt,
+                        schema=schema,
+                        at=step.nous,
+                        deadline=step.deadline,
+                    )
+                )
+                for event in taking:
+                    if event.kind == "result":
+                        tokens += sum(event.tokens.values())
+                    yield event
+            except _Spent as spent:
+                last, answer, failed_at = spent.last, spent.answer, spent.at
+                fault = answer.fault
+            finally:
+                nous.finished(names, time.monotonic() - started, tokens, fault)
+            if fault is None:
+                walk.landed()
+                return
+            if self._agent._stopped:
+                # Stopped while this turn was waiting to try again. A run ended by hand is
+                # ended, not carried on somewhere else.
+                raise Stopped(f"{self._agent.id} was stopped")
+            step = walk.next(answer.fault)
+        if last is None:  # nothing ran at all, which is nothing this can raise about
+            raise RuntimeError("no try was taken")
+        raise last
+
+    def _tries(
+        self,
+        prompt: str,
+        *,
+        schema: type[BaseModel] | None = None,
+        at: str = "",
+        deadline: float | None = None,
+    ) -> Iterator[Event]:
+        """One turn taken here, tried again as the concrete nous it is taken at says.
+
+        The tries are taken inside this session: a transport that was reopened resumes the
+        same conversation, what was lost having been the socket rather than the session. How
+        many there are is the larger of what the nous asks for and what the fault floors it
+        at, and none for a fault no try could come out of differently.
+
+        Args:
+          prompt: The input prompt for this turn, as the backend is to be given it.
+          schema: The shape to answer in, or None.
+          at: The concrete nous it is taken at, whose tries are these, or "" for this agent's.
+          deadline: The `time.monotonic()` past which no try is begun, or None for none.
+
+        Yields:
+          What the agent said, in the order it said it.
+
+        Raises:
+          _Spent: Once every try here has failed, carrying the last failure.
+        """
+        from hmz.coganchor import nous
+
+        again_ = nous.rule(at or self._agent.spec)
         last: subprocess.CalledProcessError | None = None
         # What the last failure was and what it is owed. A turn that has not failed yet is
         # owed what a turn has always been owed: the goes the place asked for, the place's
         # own wait, and the chain after them.
-        answer = fallbacks.answers("")
+        answer = nous.answers("")
         since = time.monotonic()
         goes, attempt = again_.tries, 0
         while True:
@@ -1805,8 +1899,8 @@ class SessionBase(ABC):
                 # and a place that asked for a backoff against a gateway that is down
                 # asked for it.
                 waiting = max(
-                    fallbacks.waits(again_.policy, attempt),
-                    fallbacks.waits(answer.policy, attempt) if answer.policy else 0.0,
+                    nous.waits(again_.policy, attempt),
+                    nous.waits(answer.policy, attempt) if answer.policy else 0.0,
                     answer.least,
                 )
                 # Checked before the wait rather than after it, so that a turn is never
@@ -1814,7 +1908,7 @@ class SessionBase(ABC):
                 if (
                     again_.timeout
                     and time.monotonic() - since + waiting > again_.timeout
-                ):
+                ) or (deadline is not None and time.monotonic() + waiting > deadline):
                     break
                 self._narrates(self._recovering(answer, waiting, attempt - 1, goes))
                 # Woken by a cut-off or a stop, the wait is over and so is the turn: cut off,
@@ -1862,28 +1956,9 @@ class SessionBase(ABC):
                 self._shut()
             if attempt > goes:
                 break
-        if self._agent._stopped:
-            # Stopped while this turn was waiting to try again. A run ended by hand is
-            # ended, not carried on somewhere else.
-            raise Stopped(f"{self._agent.id} was stopped")
-        # Every try here is spent. What is left is the next place of the chain -- another
-        # CLI, another account, another model -- which cannot carry the conversation: no
-        # backend takes another backend's session id.
-        stood_in = self._agent.stands_in()
-        if stood_in is not None and self._may_stand_in(stood_in):
-            # What went wrong, where anything here recognised it, and otherwise the line a
-            # turn with nothing left to try has always been narrated with.
-            went = (
-                self._went(answer)
-                if answer.fault
-                else f"{self._agent.backend} has nowhere left to run"
-            )
-            self._narrates(f"{went}; carrying on as {stood_in.spec}")
-            yield from self._instead(stood_in, prompt, schema=schema)
-            return
         if last is None:  # nothing ran at all, which is nothing this can raise about
             raise RuntimeError("no try was taken")
-        raise last
+        raise _Spent(last, answer, self)
 
     def _sits(self, seconds: float) -> bool:
         """Waits out the pause before a turn is tried again, or less.
@@ -1981,7 +2056,7 @@ class SessionBase(ABC):
         """
         from dataclasses import replace
 
-        from hmz.coganchor import backends, fallbacks
+        from hmz.coganchor import backends, nous
 
         backend = self._agent.backend
         said = failed.fault if isinstance(failed, Failed) else ""
@@ -2001,7 +2076,7 @@ class SessionBase(ABC):
                     backend, self._environ() or os.environ, within=within
                 ),
             )
-        answer = fallbacks.answers(fault)
+        answer = nous.answers(fault)
         if fault == "missing":
             answer = replace(answer, fix=backends.installing(backend))
         if fault == "unlisted":
@@ -2032,7 +2107,7 @@ class SessionBase(ABC):
         Returns:
           The clause that goes in brackets after what the CLI said.
         """
-        from hmz.coganchor import fallbacks, models
+        from hmz.coganchor import models, nous
 
         try:
             account = self._agent.node().name
@@ -2042,7 +2117,7 @@ class SessionBase(ABC):
             # An account that has gone, a backend nothing here knows: the turn failed for
             # what it named rather than for this, and a fix nobody can build is left as the
             # one the kind itself carries.
-            return fallbacks.answers("unlisted").fix
+            return nous.answers("unlisted").fix
         model = self._agent._config.model
         if not held:
             return (
@@ -2110,9 +2185,10 @@ class SessionBase(ABC):
         Returns:
           The session, which works where this one works and goes when this one goes.
         """
-        if self._moved_to is None:
-            self._moved_to = stood_in.new(self._cwd)
-        return self._moved_to
+        held = self._moved.get(stood_in.spec)
+        if held is None:
+            held = self._moved[stood_in.spec] = stood_in.new(self._cwd)
+        return held
 
     def _may_stand_in(self, stood_in: AgentBase) -> bool:
         """Whether the turn may be moved there, given what is in front of the model here.
@@ -2149,6 +2225,8 @@ class SessionBase(ABC):
         prompt: str,
         *,
         schema: type[BaseModel] | None = None,
+        at: str = "",
+        deadline: float | None = None,
     ) -> Iterator[Event]:
         """This turn, taken in a session of the agent this one falls back to.
 
@@ -2158,15 +2236,14 @@ class SessionBase(ABC):
         back through the session it asked, bracketed by the moments and the `begins` and
         `ends` this session was already going to say.
 
-        The stand-in takes its own tries and then the next place of the chain, so a chain of
-        three places is this called once and then once again inside it. It cannot come round,
-        nor wander onto a chain of its own: the agent that stood in was built holding only the
-        places after it on the chain it was reached by.
+        The stand-in takes the tries of the nous it stands in at, and no more: where the turn
+        goes after those is the walk's to say, which this session holds (:meth:`_falling_back`).
 
-        Taken in the one session this conversation moves to, which is opened once and held for
-        as long as this one is: :meth:`_moving_to`. What the flow put in front of this turn
-        goes with it -- the skills this conversation carries and the callbacks the agent is
-        offering -- since it is this conversation's turn wherever it is taken.
+        Taken in the one session this conversation moves to at that nous, which is opened
+        once and held for as long as this one is: :meth:`_moving_to`. What the flow put in
+        front of this turn goes with it -- the skills this conversation carries and the
+        callbacks the agent is offering -- since it is this conversation's turn wherever it
+        is taken.
 
         Args:
           stood_in: The agent taking the turn.
@@ -2174,6 +2251,8 @@ class SessionBase(ABC):
             is about to be asked, since one that can be held to a shape is told separately and
             one that cannot is asked in the prompt.
           schema: The shape to answer in, or None.
+          at: The concrete nous it is taken at.
+          deadline: The `time.monotonic()` past which no try is begun, or None for none.
 
         Yields:
           What the stand-in said, in the order it said it.
@@ -2202,7 +2281,7 @@ class SessionBase(ABC):
                 # this turn's, and nothing of it goes there.
                 raise Failed(1, [stood_in.backend], "", f"turn cut off: {self._cut}")
             self._took = session
-            yield from session._falling_back(prompt, schema=schema)
+            yield from session._tries(prompt, schema=schema, at=at, deadline=deadline)
 
     def _shaped_ask(self, prompt: str, schema: type[BaseModel] | None) -> str:
         """The prompt as the backend is to be given it, shape and all.
@@ -2423,10 +2502,10 @@ class SessionBase(ABC):
             self._unshelving = None
             self._clis = ()
             self._agent.shelf.shelves(id(self), ())
-        if self._moved_to is not None:
-            # And the conversation this one moved to, which is this conversation carried on
-            # somewhere else: it ends when this one does.
-            self._moved_to.close()
+        for moved in list(self._moved.values()):
+            # And the conversations this one moved to, which are this conversation carried
+            # on somewhere else: they end when this one does.
+            moved.close()
 
     def _shut(self) -> None:  # noqa: B027  -- empty on purpose, and so not abstract
         """Lets go of whatever is holding this conversation open.
@@ -2974,8 +3053,9 @@ class SessionBase(ABC):
         self.interrupt(why=why)
         if type(self).cuts_transport:
             self._lets_go()
-        if (moved := self._moved_to) is not None and moved._working:
-            moved.cut(why=why)
+        for moved in list(self._moved.values()):
+            if moved._working:
+                moved.cut(why=why)
 
     def _at_the_boundary(self) -> None:
         """Refuses a fork whose conversation has moved on since it was asked for.
@@ -3783,7 +3863,7 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
     would be three CLIs held open for a failure that never came.
 
     Args:
-      place: Where the turn goes, as `CLI[@ACCOUNT]/MODEL`.
+      place: Where the turn goes, the concrete nous `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`.
       like: The agent that could not run, which is what the one taking over is configured as.
 
     Returns:
@@ -3795,30 +3875,33 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
     """
     from dataclasses import fields, replace
 
-    from hmz.coganchor import backends, fallbacks
+    from hmz.coganchor import backends, nous
+    from hmz.coganchor.spelling import parted
 
     from . import driver
     from .config import AgentConfig as Common
 
-    said = fallbacks.reads(place)
-    backend, _, model = said.partition("/")
+    said = nous.reads(place)
+    backend, _, rest = said.partition("/")
+    model, effort = parted(rest)
     backend, _, provider = backend.partition("@")
     profile = backends.named(backend)
-    if not said or profile is None:
+    if "/" not in said or profile is None:
         return False
     try:
         kind, config = driver(profile.name)
     except KeyError:
         return False
-    # The three things the step itself says, and the only three: the CLI, the account it runs
-    # as and the model it runs are what a turn can fail for having named, so they are the
-    # settings the step owns and the settings the agent is not allowed to bring with it. An
-    # account written into a step and then overwritten by the account that had just gone down
-    # would be a step that walks back onto the place it was written to leave.
+    # The four things the nous itself says: the harness, the account it runs as, the model,
+    # and how hard it thinks where it says so -- elsewhere the agent's own effort, carried
+    # down the ladder of the harness taking over. The rest is what that agent *is*.
     moved: dict[str, Any] = {
         "model": model,
-        "effort": _rung(backends.named(like.backend), profile, like.effort),
+        "effort": effort
+        if effort and effort != backends.AUTO
+        else _rung(backends.named(like.backend), profile, like.effort),
         "provider": provider,
+        "nous": "",
     }
     try:
         if profile.name == like.backend and isinstance(like.config, config):
@@ -4318,13 +4401,10 @@ class AgentBase(ABC):
         #: the next turn of that flow to sign in as somebody else. None until it is asked for.
         self._at: Provider | None = None
         self._starting = threading.Lock()
-        #: The agent this one's turns go to once it has nowhere left to run, once it has been
-        #: asked for -- False for an agent that falls back nowhere, so that reading the chain
-        #: is a thing that happens once rather than once a turn.
-        self._stands_in: AgentBase | Literal[False] | None = None
-        #: The rest of that chain, for an agent that is itself a stand-in, or None for one
-        #: that has not been told and reads it off what is written down.
-        self._beyond: tuple[str, ...] | None = None
+        #: The agents this one's turns are taken by at each other concrete nous its walk
+        #: reached, by that nous -- False for one that names no agent that could, so that
+        #: building one is a thing that happens once rather than once a turn.
+        self._stand_ins: dict[str, AgentBase | Literal[False]] = {}
         #: The flow's own callbacks this agent's conversations are offering, and the socket
         #: they are served on. The agent's rather than a session's because a CLI is told
         #: about its tools where it is started, and some of these are started once per agent.
@@ -5208,57 +5288,52 @@ class AgentBase(ABC):
 
     @property
     def spec(self) -> str:
-        """Where this agent runs, as a step names it: `CLI[@ACCOUNT]/MODEL`.
+        """The concrete nous this agent runs at: `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`.
 
-        Three things and no more, because those are what a turn can fail for having named. How
-        hard it thinks and what it may reach for are what this agent *is* rather than where it
-        runs, and a step is not written about them.
-
-        The account it was configured with, as it was configured -- an agent given none is
-        at the place with no account in it -- since that is what somebody wrote down when they
-        said where this place falls back to.
+        The account it was configured with, as it was configured -- an agent given none is at
+        the nous with no account in it -- and the effort only where it says one.
         """
-        from hmz.coganchor import fallbacks
+        from hmz.coganchor import nous
 
-        return fallbacks.spec(self.backend, self._config.model, self._config.provider)
+        return nous.spec(
+            self.backend, self._config.model, self._config.provider, self._config.effort
+        )
 
-    def stands_in(self) -> AgentBase | None:
-        """The agent that takes this one's turns, once this one has nowhere left to run.
+    @property
+    def nous(self) -> str:
+        """The nous this agent's turns are walked through (`hmz.coganchor.nous`).
 
-        Which is what is left once the tries this place is given are spent -- a model retired,
-        a CLI that will not start, a whole account rate-limited rather than one request. The
-        next place of the chain then, and a turn taken in a session of its own, because no
-        backend can be handed another backend's session id.
+        A virtual one it was configured at, or else its own concrete nous.
+        """
+        return self._config.nous or self.spec
 
-        The chain is read off what is written down only for the agent a turn was started at,
-        and only where that agent's place is a chain's main one: a place that is merely some
-        chain's step has none of its own. An agent that is itself a stand-in reads nothing --
-        it was handed the rest of the chain it was reached by, and carries on along that, even
-        where its own place heads a chain somebody wrote down.
+    def stand_in(self, nous: str) -> AgentBase | None:
+        """The agent that takes this one's turns at another concrete nous.
 
-        Made at most once and kept: the agent that went down is not one to try again each
-        turn, and a stand-in made afresh every time would be a new conversation and a new set
-        of skills lodged every turn.
-        Held only for as long as this agent is: it is this agent's answer.
+        This agent itself at its own nous, and at one that is its own without an effort.
+        Elsewhere an agent configured as this one -- effort, grant, skills, fake tools --
+        at that nous's harness, account and model, and at its effort where it names one.
+        Made at most once and kept, since a stand-in made afresh every turn would be a new
+        conversation and a new set of skills lodged every turn; held only for as long as this
+        agent is.
+
+        Args:
+          nous: The concrete nous.
 
         Returns:
-          The agent to take the turn, already carrying this agent's skills and holding the
-          rest of the chain so that it cannot come round to this one, or None where the chain
-          has nowhere left -- which is the turn failing as it always has.
+          The agent, or None for a nous that names none that could take a turn of this one's
+          -- a harness nobody installed here, a setting it cannot be told.
         """
-        from hmz.coganchor import fallbacks
+        from hmz.coganchor import nous as nous_
 
+        said = nous_.reads(nous) or nous
+        bare = nous_.spec(self.backend, self._config.model, self._config.provider)
+        if said in (self.spec, bare):
+            return self
         with self._starting:
-            if self._stands_in is not None:
-                return self._stands_in or None
-            walked = (
-                self._beyond
-                if self._beyond is not None
-                else tuple(fallbacks.chain(self.spec)[1:])
-            )
-            # Written down as "nothing", so that an agent with nowhere to go is asked once
-            # rather than once a turn: reading the chain is reading a file.
-            self._stands_in = made = _built(walked[0], self) if walked else False
+            if said in self._stand_ins:
+                return self._stand_ins[said] or None
+            self._stand_ins[said] = made = _built(said, self)
             if made:
                 made.loads(self._loads)
                 made.epic = self.epic
@@ -5273,9 +5348,6 @@ class AgentBase(ABC):
                 # turn: an account that went down is not a reason for the money to stop being
                 # counted.
                 self._also_allowed(made)
-                # Only the steps after its own: a chain read again from the top by each hop
-                # would be a chain that walks the agents before it a second time.
-                made._beyond = walked[1:]
             return made or None
 
     @property
@@ -6177,9 +6249,9 @@ class AgentBase(ABC):
             session._waking.set()
             session.close()
         with self._starting:
-            stood_in = self._stands_in
-        if stood_in:
-            stood_in.stop()
+            stood_in = [one for one in self._stand_ins.values() if one]
+        for one in stood_in:
+            one.stop()
         with self._gatewaying:
             through, self._gateway = self._gateway, None
         if through is not None:

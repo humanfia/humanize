@@ -4,7 +4,10 @@
 //! `--stdio` serves one session on standard input and output (which are then pointed at
 //! `/dev/null`); `--listen` serves many, writing `hmz internal anchor serve listening HOST
 //! PORT` to standard error once bound, and refusing a non-loopback address without a token;
-//! `--peer` meets one through a broker ([`crate::broker::dial`]).
+//! `--peer` meets one through a broker ([`crate::broker::dial`]), its ticket the secret. The
+//! last two are TLS under a certificate made as this process starts ([`crate::tls`]), and a
+//! client proves the token or ticket inside it; standard input and output are a pipe whoever
+//! started this already trusts, and carry the token as it is.
 //!
 //! Interrupted from the keyboard, any of them stops what its sessions started and exits 0, as
 //! the Python half's `KeyboardInterrupt` did.
@@ -25,6 +28,7 @@ use crate::cli::{self, AnchorArgs};
 use crate::exit;
 use crate::log;
 use crate::proto::Channel;
+use crate::tls::Identity;
 
 /// The hosts a listener may take without a token: this machine alone can reach them.
 const LOOPBACK_HOSTS: [&str; 3] = ["127.0.0.1", "::1", "localhost"];
@@ -35,8 +39,21 @@ const PAIRING: Duration = Duration::from_secs(120);
 /// Runs `coganchor anchor`, returning its exit status.
 pub fn main(args: AnchorArgs) -> i32 {
     log::init(args.log_level.as_deref(), "warning");
-    let token = match cli::secret(args.token.as_deref(), args.token_file.as_deref()) {
-        Ok(token) => token,
+    if args.peer.is_some() && (args.token.is_some() || args.token_file.is_some()) {
+        log::say("--token cannot be given with --peer, whose ticket is the secret");
+        return exit::USAGE;
+    }
+    // `$HUMANIZE_TOKEN` stands in for `--token` everywhere but a meeting, where whatever this
+    // process happened to inherit is no business of the session's.
+    let token = args.token.clone().or_else(|| {
+        std::env::var("HUMANIZE_TOKEN")
+            .ok()
+            .filter(|token| args.peer.is_none() && !token.is_empty())
+    });
+    let token = match cli::secret(token.as_deref(), args.token_file.as_deref()) {
+        // An empty one is none: a non-loopback listener refuses it below, and a loopback one
+        // asks nobody for anything.
+        Ok(token) => token.filter(|token| !token.is_empty()),
         Err(error) => return exit::failed(format!("cannot read the token file: {error}")),
     };
     let exports = match ExportTable::parse(&args.exports) {
@@ -53,12 +70,18 @@ pub fn main(args: AnchorArgs) -> i32 {
     if let Some(peer) = &args.peer {
         let met = Meeting::parse(peer)
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))
-            .and_then(|meeting| crate::broker::dial(&meeting, Role::Serve, PAIRING));
-        let channel = match met.and_then(Channel::from_tcp) {
+            .and_then(|meeting| {
+                let stream = crate::broker::dial(&meeting, Role::Serve, PAIRING)?;
+                let whom = format!("{}:{}", meeting.host, meeting.port);
+                // The ticket is the key the cog proves.
+                Identity::fresh()?.answer(stream, Some(meeting.ticket.into_bytes()), whom)
+            });
+        let channel = match met {
             Ok(channel) => Arc::new(channel),
             Err(error) => return exit::failed(error),
         };
-        Server::new(channel, exports, token).run();
+        Server::new(channel.clone(), exports, None).run();
+        channel.close();
         return 0;
     }
 
@@ -79,7 +102,7 @@ pub fn main(args: AnchorArgs) -> i32 {
         ));
         return exit::USAGE;
     };
-    if !LOOPBACK_HOSTS.contains(&host.as_str()) && token.as_deref().is_none_or(str::is_empty) {
+    if !LOOPBACK_HOSTS.contains(&host.as_str()) && token.is_none() {
         log::say("cannot listen on a non-loopback address without --token");
         return exit::USAGE;
     }
@@ -92,7 +115,11 @@ pub fn main(args: AnchorArgs) -> i32 {
             ));
         }
     };
-    serve_forever(listener, exports, token)
+    let identity = match Identity::fresh() {
+        Ok(identity) => Arc::new(identity),
+        Err(error) => return exit::failed(error),
+    };
+    serve_forever(listener, exports, identity, token)
 }
 
 /// The session's channel on what were standard input and output. Both are duplicated away
@@ -163,7 +190,12 @@ fn strerror(error: &io::Error) -> String {
 }
 
 /// Serves every connection to the listener, each on a thread of its own, until interrupted.
-fn serve_forever(listener: TcpListener, exports: Arc<ExportTable>, token: Option<String>) -> i32 {
+fn serve_forever(
+    listener: TcpListener,
+    exports: Arc<ExportTable>,
+    identity: Arc<Identity>,
+    token: Option<String>,
+) -> i32 {
     let bound: SocketAddr = match listener.local_addr() {
         Ok(bound) => bound,
         Err(error) => return exit::failed(error),
@@ -191,20 +223,21 @@ fn serve_forever(listener: TcpListener, exports: Arc<ExportTable>, token: Option
             }
         };
         let exports = exports.clone();
-        let token = token.clone();
+        let identity = identity.clone();
+        let key = token.as_ref().map(|token| token.as_bytes().to_vec());
         std::thread::spawn(move || {
             let peer = stream
                 .peer_addr()
                 .map_or_else(|_| "?".into(), |a| a.to_string());
             tracing::info!("connection from {peer}");
-            let channel = match Channel::from_tcp(stream) {
+            let channel = match identity.answer(stream, key, peer.clone()) {
                 Ok(channel) => Arc::new(channel),
                 Err(error) => {
                     tracing::warn!("connection from {peer} unusable: {error}");
                     return;
                 }
             };
-            Server::new(channel.clone(), exports, token).run();
+            Server::new(channel.clone(), exports, None).run();
             channel.close();
             tracing::info!("connection from {peer} closed");
         });

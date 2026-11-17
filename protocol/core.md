@@ -712,7 +712,7 @@ Out of scope:
 - The flow-facing API through which a flow declares roles, permissions, hooks, tools and budgets:
   Section 3 of [PYTHON].
 - The `-a` command-line option and exit statuses: [CLI].
-- The `fallbacks` and `clis` keys of `settings.yaml`: Section 3 of [FILES].
+- The `nous` and `clis` keys of `settings.yaml`: Section 3 of [FILES].
 - Where an epic keeps the sessions of its agents: Section 3.
 - How usage and cost are displayed while an epic runs: Section 10.
 
@@ -721,11 +721,11 @@ Out of scope:
 **4.2.1** **Harness kind**: the name by which hmz identifies one harness, as listed in Section
 4.3.1.
 
-**4.2.2** **Agent spec**: the text `<harness>[@<account>]/<model>[:<effort>]` that names an agent,
-read as Section 7.4 of [CLI] states.
+**4.2.2** **Agent spec**: the text that names an agent, a concrete nous or the name of a virtual
+nous, read as Section 7.4 of [CLI] states.
 
-**4.2.3** **Place**: the text `<harness>[@<account>]/<model>`, identifying a harness kind, an
-account and a model, without an effort.
+**4.2.3** **Concrete nous**: the text `<harness>[@<account>]/<model>[:<effort>]`, identifying a
+harness kind, an account, a model and an effort.
 
 **4.2.4** **Effort**: how hard the model is asked to think, in the words of the harness's effort
 ladder (Section 4.4.3).
@@ -760,11 +760,11 @@ the managed items of the agent.
 `spent`, `throttled`, `refused`, `unlisted`, `retired`, `missing`, `sandboxed`, `unmirrored`,
 `fenced`, `killed` and `dropped`, or unclassified.
 
-**4.2.14** **Fallback chain**: the ordered list of places to which a turn is carried once its own
-place has no retries left.
+**4.2.14** **Virtual nous**: a name that stands for a nous graph and names an agent as a concrete
+nous does.
 
-**4.2.15** **Stand-in**: an agent at the next place of a fallback chain that takes a turn its
-original agent could not.
+**4.2.15** **Stand-in**: an agent at a concrete nous other than its original agent's that takes a
+turn its original agent could not.
 
 **4.2.16** **Fake tool**: a tool a flow declares whose calls run in the flow's process.
 
@@ -781,6 +781,12 @@ Protocol.
 
 **4.2.21** **Watchdog window**: the time a turn is permitted to pass without any output from its
 harness before the watchdog acts (Section 4.12).
+
+**4.2.22** **Nous**: a concrete nous or a virtual nous.
+
+**4.2.23** **Nous graph**: a directed acyclic graph of use nodes, each naming one nous, and balance
+nodes, each naming several nous and a strategy, whose edges are followed when a node fails
+(Section 4.11.4).
 
 ### 4.3. Harnesses
 
@@ -891,6 +897,10 @@ reason.
 
 **4.4.1.6** A setting the harness cannot express MUST be refused before the agent's first turn with
 `HarnessUnrecoverable` naming the agent spec and the reason.
+
+**4.4.1.7** An agent spec naming a virtual nous MUST make an agent at the concrete nous that nous
+starts at, the first nous of its start node, whose turns MUST be walked through the virtual nous
+(Section 4.11.4).
 
 #### 4.4.2. Models
 
@@ -1605,36 +1615,39 @@ the error the following table names for its fault class:
 **4.11.2.2** The error's message MUST carry what the harness said and, for a classified failure, the
 fault class and what the user can do about it.
 
-#### 4.11.3. Retries at one place
+#### 4.11.3. Retries at a concrete nous
 
-**4.11.3.1** A failed turn MUST first be retried at its own place, in the same session, before it is
-carried to a stand-in.
+**4.11.3.1** A failed turn MUST first be retried at the concrete nous it was taken at, in the same
+session, before its walk goes on (Section 4.11.4).
 
-**4.11.3.2** The number of retries at a place MUST be the larger of the place's configured retries
-and the floor the fault class sets in the following table, except that a fault class marked "none"
-MUST receive no retry whatever the place configures:
+**4.11.3.2** The number of retries at a concrete nous MUST be the larger of the nous's configured
+retries and the floor the fault class sets in the following table, except that a fault class marked
+"none" MUST receive no retry whatever the nous configures:
 
 | Fault class | Floor | Shortest wait | Harness process restarted |
 | --- | --- | --- | --- |
 | `throttled`, `spent` | 1 | 30 seconds | no |
 | `contended` | 3 | 1 second, constant | no |
-| `dropped` | 1 | the place's | yes |
+| `dropped` | 1 | the nous's | yes |
 | `killed` | 1 | 1 second, constant | yes |
 | `refused`, `unlisted`, `retired` | none | — | — |
 | `missing`, `sandboxed`, `unmirrored`, `fenced` | none | — | — |
-| unclassified | 0 | the place's | no |
+| unclassified | 0 | the nous's | no |
 
-**4.11.3.3** A place with no configured retries MUST have zero configured retries.
+**4.11.3.3** A nous with no configured retries MUST have zero configured retries; the retries
+configured for a concrete nous with no entry of its own MUST be those of the same concrete nous
+without its effort.
 
-**4.11.3.4** The wait before each retry MUST be the longest of the place's policy wait, the fault
+**4.11.3.4** The wait before each retry MUST be the longest of the nous's policy wait, the fault
 class's own wait and the fault class's shortest wait, each policy wait capped at 60 seconds.
 
-**4.11.3.5** A place's retry policy MUST be one of `none`, `constant`, `linear`, `exponential`,
+**4.11.3.5** A nous's retry policy MUST be one of `none`, `constant`, `linear`, `exponential`,
 `exponential-jitter` and `fibonacci`, with a base of 1 second, and MUST be `exponential-jitter`
-where the place names none.
+where the nous names none.
 
-**4.11.3.6** Where a place configures a timeout, a retry whose wait would end after that timeout,
-counted from the turn's first attempt, MUST NOT be taken.
+**4.11.3.6** Where a nous configures a timeout, a retry whose wait would end after that timeout,
+counted from the nous's first attempt, MUST NOT be taken; nor MUST any retry or walk of a nous
+named inside a virtual nous whose wait would end after the virtual nous's timeout.
 
 **4.11.3.7** A retry of a fault class whose harness process the table of Section 4.11.3.2 marks as
 restarted MUST end the harness process and resume the
@@ -1643,30 +1656,63 @@ same conversation by its id in a new process.
 **4.11.3.8** hmz MUST report each retry, with its fault class, wait and attempt number, as a notice
 to the flow's watchers, and on standard error where nothing watches.
 
-#### 4.11.4. Fallback chains
+#### 4.11.4. Nous and their graphs
 
-**4.11.4.1** Once a place has no retries left, the turn MUST be taken at the next place of the
-fallback chain configured for the original place, in a new session, by a stand-in configured as the
-original agent was (effort, grant, skills, fake tools), and its answer MUST be returned through the
-original session.
+**4.11.4.1** A turn MUST be walked through the agent's nous: a concrete nous is its turn, retried as
+Section 4.11.3 states; a virtual nous is a walk of its nous graph from its start node, walked again
+up to its configured retries with its policy's wait, as Section 4.11.3.4 states with no floor, and
+not walked again for a fault class Section 4.11.3.2 marks "none".
 
-**4.11.4.2** A place with no configured chain MUST have none, and nothing MUST be carried to a
-stand-in by default.
+**4.11.4.2** Once a nous has failed and has no retries left, the turn MUST be walked through the
+nous graph configured as that nous's `then`, where one is; a nous with none MUST fail.
 
-**4.11.4.3** A stand-in MUST be retried as its own place's retries state, and MUST carry on along
-the chain it was reached by and MUST NOT read a chain of its own place.
+**4.11.4.3** A use node MUST walk its nous, `then` included; a balance node MUST walk one of its nous
+picked by its strategy and, while that fails, another not yet walked this turn, until it has walked
+`spread` of them, or all of them where `spread` is 0.
 
-**4.11.4.4** A chain MUST NOT contain its own place, and MUST NOT contain one place twice.
+**4.11.4.4** A node that fails MUST be followed by the node its edge for the fault class names, or
+else by its `*` edge; a node with neither MUST fail the graph with that fault class.
 
-**4.11.4.5** An account MUST NOT name another account to carry on under; another account of the same
-harness MUST be reached only as a place on a chain.
+**4.11.4.5** The first concrete nous to answer MUST end the walk, and its answer MUST be returned
+through the original session.
 
-**4.11.4.6** A setting that measured the original model MUST be dropped when a stand-in runs another
-model, and a setting the stand-in's harness cannot express MUST make that place no stand-in.
+**4.11.4.6** Each concrete nous other than the original agent's own, and that same nous without its
+effort, MUST take the turn in a session of its own, held for as long as the original session, by a
+stand-in configured as the original agent was (grant, skills, fake tools) at that nous's harness,
+account and model, and at its effort where it names one or else at the original agent's.
 
-**4.11.4.7** A stopped agent MUST NOT be carried to a stand-in.
+**4.11.4.7** A balance node MUST pick by one of the following strategies, or by one a program
+added (Section 4.11 of [PYTHON]), counting the turns of this process only:
 
-**4.11.4.8** Stand-ins MUST spend from the same epic budget as the original agent.
+| Strategy | Picks |
+| --- | --- |
+| `shuffle` (default) | at random, weighted |
+| `round-robin` | in turn, weighted, smoothly |
+| `least-busy` | the fewest turns being taken at it |
+| `latency` | the lowest moving average of answered turns' durations |
+| `usage` | the fewest tokens spent in the last 60 seconds, per weight |
+| `cost` | the lowest price per million tokens in and out |
+
+**4.11.4.8** A balance node MUST first pick the nous it picked the last time a turn of the same
+session answered, and MUST pick a nous that failed `throttled` or `spent` in the last 60 seconds
+only once no other is left to pick.
+
+**4.11.4.9** A nous graph MUST NOT have a cycle of edges, a node no edge reaches from its start,
+an edge to no node, or a balance node naming one nous twice; nous MUST NOT name one another round
+through their graphs and `then`; such a nous MUST be refused where it is written.
+
+**4.11.4.10** A nous that names no stand-in that can take the turn (Section 4.11.4.11) MUST fail
+with the fault class of the failure before it, or `missing` where there is none.
+
+**4.11.4.11** A setting that measured the original model MUST be dropped when a stand-in runs another
+model, and a setting the stand-in's harness cannot express MUST make that nous no stand-in.
+
+**4.11.4.12** A stopped agent MUST NOT be carried to a stand-in.
+
+**4.11.4.13** Stand-ins MUST spend from the same epic budget as the original agent.
+
+**4.11.4.14** An account MUST NOT name another account to carry on under; another account of the same
+harness MUST be reached only as a nous of a graph.
 
 ### 4.12. Watchdog
 
@@ -1794,7 +1840,7 @@ serves several harness kinds.
 
 Out of scope:
 
-- The harness kinds, agent specs, retries and fallback chains: Section 4.
+- The harness kinds, agent specs, retries and nous: Section 4.
 - The LiteLLM gateway's lifecycle: Section 4.13.2.
 - The layout of `<home>/providers/` and of the machine cache as files: Section 4 of [FILES] and
   Section 7 of [FILES].
@@ -2182,10 +2228,10 @@ network; a catalogue never asked for MUST read as empty and MUST NOT be guessed.
 #### 5.9.1. Refusal
 
 **5.9.1.1** A turn whose credential the provider refuses (expired, revoked, invalid, or not signed
-in) MUST fail with the fault class `refused`, MUST NOT be retried at its place, and MUST be carried
-to the next place of its fallback chain where one is configured, as Section 4.11 states.
+in) MUST fail with the fault class `refused`, MUST NOT be retried at its concrete nous, and MUST be
+walked on through its nous as Section 4.11.4 states.
 
-**5.9.1.2** A turn that fails as `refused` after its fallback chain is exhausted MUST raise
+**5.9.1.2** A turn that fails as `refused` once its walk has nowhere left MUST raise
 `HarnessRefused` in the flow, whose message MUST say that the account needs signing in again.
 
 **5.9.1.3** hmz MUST NOT attempt to sign an account in again without the user.
@@ -2704,7 +2750,7 @@ be accepted and MUST NOT be used.
 **6.9.1.11** `tcp://HOST:PORT` MUST name a serving half listening at that address.
 
 **6.9.1.12** `peer://TICKET@HOST:PORT` MUST name a serving half waiting at the broker at `HOST:PORT`
-under `TICKET`.
+under the name Section 6.10.13 derives from `TICKET`.
 
 **6.9.1.13** A `peer://` target given together with a harness machine other than this machine MUST
 be refused with `ValueError`.
@@ -2740,7 +2786,40 @@ command a request asks for, and MAY follow a symbolic link that leads out of the
 given it as the name of a file that holds the token and that only the user can read.
 
 **6.10.7** A broker ticket MUST be unguessable, MUST be the whole of what authenticates a peer at
-the broker, and MUST pair only the two halves presenting it.
+the broker, and MUST pair only the two halves presenting the name derived from it (Section
+6.10.13).
+
+**6.10.8** On a connection a serving half accepts under `--listen` or meets under `--peer`, and on
+one a half makes to reach a `tcp://` or `peer://` target, the two halves MUST speak TLS 1.3 and no
+earlier version, with the application protocol `hmz-anchor`, before any frame; a half MUST close a
+connection whose handshake agrees on no application protocol or another. The serving half MUST be
+the TLS server, under a self-signed ECDSA P-256 certificate it generates when it starts and stores
+nowhere. The other half MUST be the TLS client, MUST present no certificate, and MUST accept any
+certificate whose TLS 1.3 handshake signature verifies. A serving half on its standard input and
+output MUST NOT speak TLS.
+
+**6.10.9** The binding of a connection of Section 6.10.8 MUST be the SHA-256 of the DER
+SubjectPublicKeyInfo of the serving half's certificate, and its key MUST be the bytes of the token
+as given on `tcp://` and `--listen`, and the bytes of `TICKET` on `peer://` and `--peer`; a half
+reaching a `peer://` target MUST NOT use a token.
+
+**6.10.10** On a connection of Section 6.10.8 the handshake MUST carry no token. Its request MUST
+carry `proof`, the lowercase hex of HMAC-SHA256 under the key of the bytes `hmz-anchor cog`, a NUL
+and the binding, or null where the client holds no key; its reply MUST carry `proof`, the
+lowercase hex of HMAC-SHA256 under the key of the bytes `hmz-anchor anchor`, a NUL, the binding
+and the 32 bytes of the request's proof, or null where the serving half holds no key.
+
+**6.10.11** A serving half holding a key MUST compare a request's proof with its own in constant
+time, and MUST refuse a handshake whose proof is missing or another as it refuses another token
+(Section 6.10.2).
+
+**6.10.12** A client holding a key MUST refuse a reply whose proof is missing or another, before it
+sends any other request, with `ConnectionError: the serving half at <target> did not prove the
+token`.
+
+**6.10.13** Each half of a `peer://` meeting MUST present to the broker, and in a punched
+connection's greeting, the lowercase hex of the SHA-256 of the bytes `hmz-anchor ticket`, a NUL and
+`TICKET`, in place of `TICKET`, and MUST NOT send `TICKET` to the broker or outside TLS.
 
 ## 7. Environments
 
@@ -4722,6 +4801,11 @@ document on which the security of a user's machine, credentials and work depends
   a token-less non-loopback listener, but confines neither the commands a request runs nor symbolic
   links leaving the exported tree; its token appears on no command line and a broker ticket is the
   whole of a peer's authentication (Section 6.10).
+- A `tcp://` or `peer://` session crosses the network inside TLS 1.3, in which each half proves the
+  token or ticket by an HMAC bound to the serving half's certificate, so neither the secret nor the
+  session is seen on the network or by the broker, and a half that cannot prove the secret is
+  refused; the certificate itself is not vouched for, so who is at the other end is as certain as
+  the secret is kept (Section 6.10.8 to Section 6.10.13).
 - What hmz starts on other machines carries labels naming the user, host and owning process, and
   hmz removes as leftovers only what names this user and this host; mirrors under harness location
   standalone remain in the harness machine's cache between turns (Section 6.6.1.3, Section 7.7.1.9

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor import fallbacks
+from hmz.coganchor import nous
 from hmz.coganchor.agents import (
     Budget,
     ClaudeCodeAgent,
@@ -170,7 +170,7 @@ def test_a_rejected_codex_start_fails_rather_than_answering_with_another_turn(
 ) -> None:
     cli = standins(tmp_path, monkeypatch)
     cli.install("codex", CODEX)
-    fallbacks.retrying("codex/test", 0, "constant", 0.0)
+    nous.retrying("codex/test", 0, "constant", 0.0)
     agent = CodexAgent(CodexAgentConfig(model="test", effort=""))
     session = agent.new()
     try:

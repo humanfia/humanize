@@ -431,7 +431,7 @@ What to know before the first run:
 - **`via: tcp` holds none.** The job itself runs Humanize's serving half on its node, on a free
   port, and each connection presents a secret only this run knows; `srun` is used just to put
   Humanize on the node and read the port. It needs this machine to reach the nodes' ports, and
-  its traffic, authenticated but not encrypted, stays within the cluster's network.
+  its traffic is encrypted, and the secret is proved inside it rather than sent.
 - **A job waiting in the queue keeps no one else waiting.** Every role's environment is brought
   up at once, and other runs on this machine can submit while yours waits.
 
