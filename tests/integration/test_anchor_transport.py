@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import socket
 import stat
 import subprocess
 import sys
@@ -18,6 +19,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor import AnchorConfig, anchor, binary
+from hmz.coganchor.proto import Frame, Op
 from hmz.coganchor.rendezvous import Meeting, ticket
 from hmz.coganchor.transport import Road, Target
 from tests.integration.doubles_anchor import Fakes, announced, fakes, stopped
@@ -313,6 +315,63 @@ def test_a_listening_target_refuses_a_client_with_the_wrong_secret(
                 target=f"tcp://{host}:{port}", workspace=str(workspace), token="wrong"
             )
         )
+
+
+def test_a_listening_target_refuses_a_client_with_no_secret(
+    listening: tuple[str, int], workspace: Path
+) -> None:
+    host, port = listening
+
+    with pytest.raises(OSError, match="invalid token"):
+        anchor.check(
+            AnchorConfig(target=f"tcp://{host}:{port}", workspace=str(workspace))
+        )
+
+
+def test_a_listening_target_speaks_tls_and_nothing_else(
+    listening: tuple[str, int],
+) -> None:
+    # A frame in the clear, as a HELLO crossed before: no frame comes back, at most an alert.
+    with socket.create_connection(listening, timeout=30) as sock:
+        sock.sendall(Frame.request(1, Op.HELLO, version=1, token="s3cret").encode())
+        said = b""
+        while chunk := sock.recv(4096):
+            said += chunk
+
+    assert not said or said[0] == 0x15  # a TLS alert record
+
+
+def test_a_client_refuses_a_listener_that_cannot_prove_its_secret(
+    workspace: Path,
+) -> None:
+    # One that lets anybody in, never having been told the secret, as an impostor would.
+    process, host, port = announced(
+        [*SERVE, "--listen", "127.0.0.1:0", "--export", str(workspace)]
+    )
+    target = f"tcp://{host}:{port}"
+    try:
+        with pytest.raises(
+            ConnectionError,
+            match=f"^the serving half at {target} did not prove the token$",
+        ):
+            anchor.check(
+                AnchorConfig(target=target, workspace=str(workspace), token="s3cret")
+            )
+        # And through `coganchor cog`, which says so and exits 1.
+        said = subprocess.run(
+            [str(binary.here()), "cog", "--check", "--target", target],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "HUMANIZE_TOKEN": "s3cret"},
+            cwd=workspace,
+            check=False,
+        )
+    finally:
+        stopped(process)
+
+    assert said.returncode == 1, said.stderr
+    assert f"the serving half at {target} did not prove the token" in said.stderr
 
 
 def test_a_serving_half_will_not_listen_beyond_loopback_without_a_secret(

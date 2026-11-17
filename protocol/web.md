@@ -31,6 +31,7 @@ It is normative. It is cited by the tag [WEB].
   - [3.13. Remote daemons](#313-remote-daemons)
   - [3.14. Release notice](#314-release-notice)
   - [3.15. Notifications](#315-notifications)
+  - [3.16. Ai-chan](#316-ai-chan)
   - [3.17. Environments](#317-environments)
 - [4. The Server](#4-the-server)
   - [4.1. Scope](#41-scope)
@@ -85,7 +86,8 @@ Out of scope:
 - The daemon, hosts, attaching and the lifetime of epics: Section 3 of [DAEMON] and Section 4 of
   [DAEMON].
 - What a chat is and how it folds away: Section 8 of [CORE].
-- What a side question is, and the btw agent: Section 9 of [CORE].
+- What a side question is: Section 9 of [CORE].
+- What Ai-chan is and does: Section 14 of [CORE].
 - What an epic records, its figures and its timeline: Section 3 of [CORE] and Section 10 of [CORE].
 - Backup targets and their policies: Section 11 of [CORE].
 - Release checks and `hmz update`: Section 13 of [CORE].
@@ -360,19 +362,18 @@ going or that it called, how it was set up, and where it is written down.
 **3.6.3.3** The spending MUST NOT be summed over kinds of token into one figure, and a figure that
 is only a lower bound MUST be marked as one.
 
-**3.6.3.4** `Aside` MUST let the user ask a side question as Section 9 of [CORE] specifies: of The
-Epic, or of one session of the epic. `Aside` MUST offer this also for an epic its host no longer
-holds and for that epic's sessions, and The Epic MUST then be told that epic, as Section 4.15.3.3
-of [DAEMON] specifies.
+**3.6.3.4** `Aside` MUST let the user ask a side question of one session of the epic as Section 9
+of [CORE] specifies. `Aside` MUST offer this also for an epic its host no longer holds and for that
+epic's sessions, as Section 4.15.3.3 of [DAEMON] specifies.
 
-**3.6.3.5** `Aside` MUST hold several side conversations, as Section 9.8 of [CORE] states, each
-picking whom it asks at its start with the control of Section 9.8 of [CORE] -- `The Epic`, then the
-epic's agents, each opening its sessions -- above the box its question is typed in, and MUST NOT
-offer a choice of any agent.
+**3.6.3.5** `Aside` MUST hold several side conversations, as Section 9.6 of [CORE] states, each
+picking the session it asks at its start with the control of Section 9.6 of [CORE] -- the epic's
+agents, each opening its sessions -- above the box its question is typed in, and MUST NOT offer a
+choice of any agent.
 
 **3.6.3.6** `Aside` MUST keep each side conversation, the side questions asked in it and their
-answers for the page opened again, MUST show while each is answering and whom The Epic asks on the
-way, MUST let the user close each, and MUST say that side questions never reach the epic.
+answers for the page opened again, MUST show while each is answering, MUST let the user close each,
+and MUST say that side questions never reach the epic.
 
 **3.6.3.7** `Board` MUST let the user edit, remove and add lines of the epic's board, and MUST NOT
 offer to change a line the flow owns.
@@ -621,9 +622,9 @@ another, MUST be part of the address, and picking it MUST change nothing else on
 
 #### 3.11.2. Daemon pages
 
-**3.11.2.1** `General` MUST let the user set whether a turn's working is shown, the agent that
-answers The Epic (none until one is picked), and whether errors are reported, as Section 9 of [CORE]
-and Section 12 of [CORE] specify.
+**3.11.2.1** `General` MUST let the user set whether a turn's working is shown, `Ai-chan`, the nous
+a new Ai-chan conversation defaults to (none until one is picked), and whether errors are reported,
+as Section 14.3.2 of [CORE] and Section 12 of [CORE] specify.
 
 **3.11.2.2** `Accounts` MUST list every account by its harness, way in and the names of the
 variables it sets, and MUST let the user ask again what it runs, correct it, copy it to another
@@ -871,6 +872,38 @@ specifies.
 
 **3.15.3.2** A click on a system notification MUST bring the page forward on the epic it is about.
 
+### 3.16. Ai-chan
+
+**3.16.1** Every view of the page MUST offer a button, drawn as Ai-chan's avatar, the file
+`ai-chan/avatar.png` among the page's files (Section 4.5.3), that opens and closes the **Ai-chan
+drawer** beside the view; the drawer MUST stay open, as it was, while the user goes from view to
+view of one daemon, until it is closed.
+
+**3.16.2** The drawer MUST list every Ai-chan conversation of the daemon shown (Section 4.22.3 of
+[DAEMON]), newest first, each with its title, its scope, its nous, its preset, whether its network
+is on, and whether a turn is open, it is between turns or it has folded away; and MUST offer `New`
+and, on each conversation, `Forget`, which asks for confirmation and then calls `aichan.forget`.
+
+**3.16.3** `New` MUST open a form in the drawer that asks for the scope -- `Daemon`, `Workspace` or
+`Epic`, defaulting as Section 14.3.4 of [CORE] states to the epic, else the workspace, the view
+shows --, the workspace and the epic the scope names, the nous (defaulting to the `ai_chan`
+setting), the preset (`read-only` or `danger-full-access`, defaulting to `read-only`), `Network`
+(off by default) and the task; Enter in the box for the task MUST make the conversation by
+`aichan.create` and open it.
+
+**3.16.4** Opening a conversation MUST draw it in the drawer as a chat (Section 8.8 of [CORE]),
+attached to its slot by `epic.attach`, carrying it on where it has folded away (Section 14.8.5 of
+[CORE]), with Ai-chan's answers beside her avatar and a box that says the next line to her.
+
+**3.16.5** The drawer MUST show each tool Ai-chan calls, with the method and how it was answered,
+on one line the user can open (Section 14.7.3 of [CORE]).
+
+**3.16.6** While Ai-chan's turn is open, the drawer MUST offer `Stop`, which stops that turn
+without asking for confirmation (Section 14.8.3 of [CORE]).
+
+**3.16.7** On a screen as narrow as a phone's, the drawer MUST cover the view, and Escape and a
+button MUST close it.
+
 ### 3.17. Environments
 
 #### 3.17.1. The view
@@ -1078,7 +1111,7 @@ and `X-Frame-Options: DENY`.
 **4.5.2** A refusal MUST carry `{"error": "<sentence>"}`, `application/json; charset=utf-8`.
 
 **4.5.3** `GET /` MUST serve `index.html`, and `GET /<path>` the file of that path among the page's
-files, with the media type of its extension (`.html`, `.js`, `.css`, `.svg`, `.json`).
+files, with the media type of its extension (`.html`, `.js`, `.css`, `.svg`, `.png`, `.json`).
 
 **4.5.4** A path whose components are not each one or more letters, digits, `_` or `-`, whose last
 component lacks one extension of lowercase letters or digits, or that is longer than 200 characters,

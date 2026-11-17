@@ -38,6 +38,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
 rand = "0.10"
 time = { version = "0.3", features = ["formatting", "local-offset", "macros"] }
+# A `tcp://` or `peer://` link is TLS 1.3 under a certificate the anchor makes as it starts,
+# each end proving the secret by an HMAC bound to it. ring rather than aws-lc: no cmake for the
+# static musl builds.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rcgen = { version = "0.13", default-features = false, features = ["crypto", "ring"] }
+hmac = "0.13"
 
 
 [dev-dependencies]

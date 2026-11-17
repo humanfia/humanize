@@ -6,6 +6,8 @@ use std::os::unix::net::UnixStream;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::tls::Bound;
+
 use super::{Frame, HEADER_BYTES, ProtocolError, parse_header};
 
 /// Reads the next frame, or `None` at a clean end of stream (at a frame boundary).
@@ -76,6 +78,7 @@ pub struct Channel {
     writer: Mutex<Option<Box<dyn Write + Send>>>,
     waker: Option<Box<dyn Waker>>,
     closed: AtomicBool,
+    bound: Option<Bound>,
 }
 
 impl Channel {
@@ -86,20 +89,8 @@ impl Channel {
             writer: Mutex::new(Some(writer)),
             waker: None,
             closed: AtomicBool::new(false),
+            bound: None,
         }
-    }
-
-    /// A channel over a connected TCP socket.
-    pub fn from_tcp(stream: TcpStream) -> io::Result<Channel> {
-        let _ = stream.set_nodelay(true);
-        let reader = stream.try_clone()?;
-        let writer = stream.try_clone()?;
-        Ok(Channel {
-            reader: Mutex::new(Box::new(reader)),
-            writer: Mutex::new(Some(Box::new(writer))),
-            waker: Some(Box::new(stream)),
-            closed: AtomicBool::new(false),
-        })
     }
 
     /// A channel over a connected Unix socket.
@@ -111,7 +102,19 @@ impl Channel {
             writer: Mutex::new(Some(Box::new(writer))),
             waker: Some(Box::new(stream)),
             closed: AtomicBool::new(false),
+            bound: None,
         })
+    }
+
+    /// The same channel, carried inside TLS whose `HELLO` proves the other end by `bound`.
+    pub fn with_bound(mut self, bound: Bound) -> Channel {
+        self.bound = Some(bound);
+        self
+    }
+
+    /// What the `HELLO` proves the other end by, where the channel is carried inside TLS.
+    pub fn bound(&self) -> Option<&Bound> {
+        self.bound.as_ref()
     }
 
     /// Sends one frame. Fails once the channel is closed or the peer has gone.

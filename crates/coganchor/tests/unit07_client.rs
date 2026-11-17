@@ -342,3 +342,102 @@ fn a_silent_target_times_out() {
     );
     assert_eq!(client.start(None).unwrap_err().errno, libc::ETIMEDOUT);
 }
+
+/// A cog holding `ours` and a real anchor holding `theirs`, over TLS on loopback as a
+/// `tcp://` target is reached; `serve` answers in place of the anchor where given.
+fn sealed(
+    ours: Option<&str>,
+    theirs: Option<&str>,
+    serve: Option<fn(Channel)>,
+) -> (RemoteClient, JoinHandle<()>) {
+    use coganchor::anchor::ExportTable;
+    use coganchor::anchor::server::Server;
+    use coganchor::tls;
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let theirs = theirs.map(|key| key.as_bytes().to_vec());
+    let serving = std::thread::spawn(move || {
+        let (tcp, _) = listener.accept().unwrap();
+        let identity = tls::Identity::fresh().unwrap();
+        let channel = identity.answer(tcp, theirs, String::new()).unwrap();
+        match serve {
+            Some(serve) => serve(channel),
+            None => {
+                let exports = ExportTable::parse(&["/w:/".to_owned()]).unwrap();
+                Server::new(Arc::new(channel), Arc::new(exports), None).run();
+            }
+        }
+    });
+    let tcp = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    let key = ours.map(|key| key.as_bytes().to_vec());
+    let channel = tls::dial(tcp, key, format!("tcp://127.0.0.1:{port}")).unwrap();
+    (
+        RemoteClient::with_timeout(Arc::new(channel), Duration::from_secs(5)),
+        serving,
+    )
+}
+
+#[test]
+fn over_tls_the_token_is_proved_both_ways() {
+    let (client, serving) = sealed(Some("s3cret"), Some("s3cret"), None);
+    let info = client.start(Some("ignored")).unwrap();
+    assert!(info["proof"].is_string());
+    assert_eq!(
+        client.call(Op::Stat, meta! {"path" => "/w"}).unwrap()["kind"],
+        "dir"
+    );
+    client.close();
+    serving.join().unwrap();
+
+    // Nobody holding a key, as a loopback listener without a token: null both ways.
+    let (client, serving) = sealed(None, None, None);
+    assert_eq!(client.start(None).unwrap()["proof"], Value::Null);
+    client.close();
+    serving.join().unwrap();
+}
+
+#[test]
+fn over_tls_a_wrong_or_missing_token_is_refused() {
+    for ours in [Some("wrong"), None] {
+        let (client, serving) = sealed(ours, Some("s3cret"), None);
+        let error = client.start(Some("s3cret")).unwrap_err();
+        assert_eq!(
+            (error.errno, error.strerror.as_str()),
+            (libc::EACCES, "invalid token")
+        );
+        let refused = client.call(Op::Stat, meta! {"path" => "/w"}).unwrap_err();
+        assert_eq!(refused.strerror, "not authenticated");
+        client.close();
+        serving.join().unwrap();
+    }
+}
+
+#[test]
+fn over_tls_an_anchor_that_cannot_prove_the_token_is_refused() {
+    // One that answers without a proof, and one without the token at all.
+    fn impostor(channel: Channel) {
+        while let Ok(Some(frame)) = channel.recv() {
+            let reply = meta! {"version" => 1, "proof" => "00".repeat(32)};
+            let _ = channel.send(&Frame::reply(frame.id, reply, Vec::new()));
+        }
+    }
+    for (theirs, serve) in [
+        (None, Some(impostor as fn(Channel))),
+        (Some("other"), Some(impostor as fn(Channel))),
+        (None, None),
+    ] {
+        let (client, serving) = sealed(Some("s3cret"), theirs, serve);
+        let error = client.start(None).unwrap_err();
+        assert_eq!(error.errno, libc::ECONNREFUSED);
+        assert!(
+            error
+                .strerror
+                .starts_with("the serving half at tcp://127.0.0.1:"),
+            "{error}"
+        );
+        assert!(error.strerror.ends_with(" did not prove the token"));
+        client.close();
+        serving.join().unwrap();
+    }
+}
