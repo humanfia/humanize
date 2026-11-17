@@ -11,7 +11,7 @@ import asyncio
 import contextlib
 import os
 import re
-from pathlib import Path
+import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -24,6 +24,7 @@ from tests.integration.doubles_anchor import fakes
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+    from pathlib import Path
 
     from hmz.runtime.flowing.spi import EnvPty
 
@@ -92,14 +93,14 @@ async def test_a_terminal_is_typed_at_resized_and_exits(
     seen = bytearray()
 
     await pty.write(b"stty size; pwd -P; echo $TERM\n")
-    await _until(pty, seen, rb"\r\n24 80\r\n")
+    await _until(pty, seen, rb"24 80\r\n")
     await _until(pty, seen, re.escape(str(work).encode()) + rb"\r\n")
     await _until(pty, seen, rb"xterm-256color\r\n")
     await pty.resize(132, 50)
     await pty.write(b"stty size\n")
-    await _until(pty, seen, rb"\r\n50 132\r\n")
+    await _until(pty, seen, rb"50 132\r\n")
     await pty.write(b"echo $((6 * 7))\n")
-    await _until(pty, seen, rb"\r\n42\r\n")
+    await _until(pty, seen, rb"42\r\n")
     await pty.write(b"exit 5\n")
     await _drained(pty)
 
@@ -126,15 +127,13 @@ async def test_killing_a_terminal_kills_what_runs_in_its_foreground(
     pty = await driver.pty(["/bin/sh"], cols=80, rows=24)
     seen = bytearray()
     await pty.write(b"sh -c 'echo $$ > held; echo started; exec sleep 300'\n")
-    await _until(pty, seen, rb"\r\nstarted\r\n")
+    await _until(pty, seen, rb"started\r\n")
     held = int((work / "held").read_text())
 
     await pty.kill()
 
     assert await pty.wait() == 128 + 9
-    async with asyncio.timeout(PATIENCE):
-        while _alive(held):
-            await asyncio.sleep(0.05)
+    assert await asyncio.to_thread(_gone, held)
 
 
 async def test_killing_a_terminal_here_kills_its_background_jobs_too(
@@ -144,16 +143,14 @@ async def test_killing_a_terminal_here_kills_its_background_jobs_too(
     try:
         pty = await driver.pty(["/bin/sh", "-i"], cols=80, rows=24)
         seen = bytearray()
-        await pty.write(b"set -m; sleep 300 & echo $! > held; echo started\n")
-        await _until(pty, seen, rb"\r\nstarted\r\n")
+        await pty.write(b"set -m; sleep 300 & echo $! > held; echo st''arted\n")
+        await _until(pty, seen, rb"started\r\n")
         held = int((work / "held").read_text())
 
         await pty.kill()
 
         assert await pty.wait() == 128 + 9
-        async with asyncio.timeout(PATIENCE):
-            while _alive(held):
-                await asyncio.sleep(0.05)
+        assert await asyncio.to_thread(_gone, held)
     finally:
         await driver.close()
 
@@ -161,7 +158,9 @@ async def test_killing_a_terminal_here_kills_its_background_jobs_too(
 async def test_closing_the_environment_kills_its_terminals(
     driver: MachineEnvDriver,
 ) -> None:
-    pty = await driver.pty(["/bin/sh", "-c", "echo up; exec sleep 300"], cols=80, rows=24)
+    pty = await driver.pty(
+        ["/bin/sh", "-c", "echo up; exec sleep 300"], cols=80, rows=24
+    )
     await _until(pty, bytearray(), rb"up")
 
     await driver.close()
@@ -211,7 +210,8 @@ async def test_files_are_listed_looked_at_moved_and_removed(
     await driver.remove("link")
     await driver.remove(str(work / "made" / "c.txt"))
 
-    assert sorted(one.name for one in work.iterdir()) == ["made"]
+    left = await asyncio.to_thread(lambda: sorted(one.name for one in work.iterdir()))
+    assert left == ["made"]
     assert [one.name for one in await driver.list("made")] == ["deeper"]
     with pytest.raises(EnvFileNotFound):
         await driver.stat("src")
@@ -219,6 +219,16 @@ async def test_files_are_listed_looked_at_moved_and_removed(
         await driver.remove("src")
     with pytest.raises(EnvError, match="will not remove"):
         await driver.remove(".")
+
+
+def _gone(pid: int) -> bool:
+    """Whether a process is gone within our patience, looking every 50ms."""
+    deadline = time.monotonic() + PATIENCE
+    while _alive(pid):
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.05)
+    return True
 
 
 def _alive(pid: int) -> bool:
