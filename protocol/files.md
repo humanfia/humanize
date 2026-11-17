@@ -210,7 +210,7 @@ MUST keep its mode.
 
 **3.3.3.6** Every write MUST set the key `spelling` to `2`.
 
-**3.3.3.7** Where a write of `enable_sentry`, `details`, `btw`, `every_epic`, `backup` or a
+**3.3.3.7** Where a write of `enable_sentry`, `details`, `btw`, `every_epic`, `chat`, `backup` or a
 workspace entry fails, or the file is unreadable, the process MUST keep the change in effect for
 itself for as long as it runs and MUST NOT report an error.
 
@@ -364,6 +364,12 @@ an absent value or any other MUST be read as `auto`.
 (Section 4.6.4.19 of [CORE]); an absent value MUST be read as an empty list, and an entry that is
 not a kind name MUST be ignored.
 
+#### 3.4.12. `chat`
+
+**3.4.12.1** `chat.prefer` MUST be `native` or `flow`, the preference of every chat of this machine
+whose own is not overridden (Section 8.9.10 of [CORE]); an absent value or any other MUST be read as
+`native`.
+
 ### 3.5. `workspaces`
 
 #### 3.5.1. Workspace entries
@@ -381,14 +387,22 @@ its path, and every workspace with an entry MUST be offered by the web interface
 [WEB]).
 
 **3.5.1.5** `workspaces.<path>.flow` MUST be a string naming, as Section 7.3 of [CLI] names a flow,
-the flow the terminal interface opens on in that workspace.
+the flow last set up in that workspace.
 
-**3.5.1.6** An absent `flow` MUST make the terminal interface open on the flow `chat`.
+**3.5.1.6** The terminal interface MUST open on a new chat whatever `flow` says (Section 3 of
+[TUI]); an absent `flow` MUST mean that no flow has been set up in that workspace.
 
 **3.5.1.7** `workspaces.<path>.flows` MUST be a mapping from a flow's name, as the flowverse lists
 it, to its flow entry.
 
 **3.5.1.8** Removing a workspace's settings MUST remove its whole workspace entry.
+
+**3.5.1.9** `workspaces.<path>.chat.agent` MUST be an agent spec naming the chat agent of that
+workspace: the agent of the last chat started or changed there through a frontend (Section 8.3.8 of
+[CORE]); a value that cannot be read as an agent spec MUST be read as absent.
+
+**3.5.1.10** Starting a chat through a frontend, and changing a chat's agent (Section 8.9.5 of
+[CORE]), MUST write `chat.agent` alone, and MUST NOT change `flow` or any flow entry.
 
 #### 3.5.2. Flow entries
 
@@ -448,11 +462,12 @@ MUST remove that key.
 **3.5.4.1** The terminal interface and the web interface MUST read the workspace entry to set up an
 epic they start.
 
-**3.5.4.2** `hmz exec` and the software development kit MUST NOT read `workspaces`.
+**3.5.4.2** `hmz exec` and the software development kit MUST NOT read `workspaces`; `hmz chat`
+MUST read only `chat.agent` of it, and only where it is given no agent ([CLI]).
 
 **3.5.4.3** The terminal interface MUST use a flow entry to start the flow without asking only where
 its agent roles equal the flow's declared agent roles, every required env role has an env spec, its
-params validate, and a budget is present for every flow that requires one.
+params validate, and a budget is present.
 
 ### 3.6. `nous`
 
@@ -1257,8 +1272,8 @@ its epic directory.
 
 **6.2.3** **Record**: a JSON Lines file in an epic directory whose lines are events.
 
-**6.2.4** **Epic record**: the record `<epic>/epic.jsonl`, which describes the **flow** the **epic**
-executes.
+**6.2.4** **Epic record**: the record `<epic>/epic.jsonl`, which describes the **epic**: the
+**flow** it executes, or, for a **chat**, its assistant and conversation.
 
 **6.2.5** **Call record**: a record `<epic>/epic.<flow>_<id>.jsonl`, which describes one call of a
 **flow** by another **flow** within the **epic**.
@@ -1329,7 +1344,8 @@ form of the canonical reference of the called **flow**, or `flow` where that for
 **6.5.1** The first event of an epic record MUST be `began`, written when the **epic** begins, with
 the keys:
 
-- `flow`: string, the **flow** as the **user** named it;
+- `kind`: string, `chat` for a **chat** (Section 8 of [CORE]) and `flow` otherwise;
+- `flow`: string, the **flow** as the **user** named it; absent for a **chat**;
 - `task`: string, the task given to the **flow**;
 - `workspace`: string, the absolute path of the **workspace**, symbolic links resolved;
 - `resumable`: boolean, whether the **flow** declares that it can be resumed;
@@ -1351,6 +1367,8 @@ the keys:
   profiled;
 - `backup`: array of the names of the backup targets of the **epic**; present only where it is not
   empty;
+- `prefer`: string, `native` or `flow`, the preference of a **chat** where it is overridden for
+  that **chat** (Section 8.9.10 of [CORE]); present only where it is;
 - `spelling`: the integer `2`, stating that `envs` and `used` follow the role env spec spelling of
   Section 6.2.9.
 
@@ -1430,7 +1448,19 @@ last `imported` event.
 
 **6.5.18** `hmz` MAY write `backed` and `imported` events after the last `ended` of an epic record.
 
-**6.5.19** An epic record MUST contain no events other than those of Section 6.5.
+**6.5.19** The `began` of a **chat** MUST give `kind` `chat`, one entry of `agents`, whose `agent`
+is `assistant`, and its `workspace` and `task`, and MUST NOT give `flow`, `ref`, `picked_up`,
+`envs`, `used`, `params`, `budget`, `profile_flow` or `profile_environment`.
+
+**6.5.20** A reader MUST read a `began` that gives no `kind` as of kind `flow`, except one whose
+`flow` is `chat`, which it MUST read as a **chat**.
+
+**6.5.21** `hmz` MUST write the event `set` into the epic record of a **chat** each time its
+preference is overridden or its agent is changed (Section 8.9.5 of [CORE]), with the key `prefer`
+(string), the key `agents` (as `began` gives it), or both; a reader MUST take a **chat**'s override
+and agent from the last event that gives each, `began` included.
+
+**6.5.22** An epic record MUST contain no events other than those of Section 6.5.
 
 ### 6.6. Events of a call record
 
@@ -1480,9 +1510,6 @@ where one was written.
 **6.7.7** Where an **epic** resumes another, `hmz` MUST copy `resume.jsonl` of the resumed **epic**
 into the new epic directory before compacting it, and MUST NOT modify the file of the resumed
 **epic**.
-
-**6.7.8** Where a **chat** is carried on in its own epic directory, `hmz` MUST compact
-`<epic>/resume.jsonl` in place by atomic replacement.
 
 ### 6.8. Profiles
 

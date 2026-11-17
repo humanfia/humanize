@@ -426,6 +426,16 @@ workspace; starting a chat or an epic MUST NOT end another.
 **3.6.6.6** A chat that has folded away MUST be carried on, in the same epic, when the user says
 something in it, with what was said before drawn above.
 
+**3.6.6.7** The box under a chat MUST complete `/`, `$` and `@` from the chat's catalogue, the names
+hmz keeps and the flows (`chat.commands`, Section 4 of [DAEMON]), each tagged with where it comes
+from, and MUST serve each line as Section 8.9 of [CORE] states.
+
+**3.6.6.8** The page MUST draw a `!` line of a chat and its output in the style of a shell.
+
+**3.6.6.9** The page MUST offer, for each chat, a toggle of its preference between `native` and
+`flow`, showing whether it comes from the settings file or the chat (`chat.set`, Section 4 of
+[DAEMON]).
+
 #### 3.6.7. An epic written down
 
 **3.6.7.1** An epic that has ended MUST show how it was set up -- its agents, environments,
@@ -551,13 +561,21 @@ as [CLI] specifies.
 
 **3.8.13** Starting an epic MUST write down what the form holds for that workspace, as `Save` does.
 
-**3.8.14** The form MUST refuse to save or start where a role has no agent, or where, for every flow
-but chat, no limit bounds what the epic spends.
+**3.8.14** The form MUST refuse to save or start where a role has no agent, or where no limit bounds
+what the epic spends.
 
 **3.8.15** Once the epic starts, the page MUST go to it; for a chat, to its conversation.
 
 **3.8.16** Resuming an epic MUST open the form set up as that epic was started, in that epic's
 workspace.
+
+**3.8.17** `New epic` MUST offer two choices, `Chat` and `Flow`; Section 3.8.1 to Section 3.8.16
+state `Flow`, which MUST NOT offer a chat among its flows.
+
+**3.8.18** `Chat` MUST take a workspace, or `No workspace`, as Section 3.8.2 and Section 3.8.3
+state; the assistant's agent, set up a part at a time as Section 3.8.8 states, starting from the
+chat agent that workspace remembers (Section 8.3.8 of [CORE]); and the first message, Enter in its
+box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going to its conversation.
 
 ### 3.9. Flows
 

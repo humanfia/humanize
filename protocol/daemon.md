@@ -46,6 +46,7 @@ It is normative. It is cited by the tag [DAEMON].
   - [4.18. Settings](#418-settings)
   - [4.19. Notices](#419-notices)
   - [4.20. Methods and the interfaces they replace](#420-methods-and-the-interfaces-they-replace)
+  - [4.21. Chats](#421-chats)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -135,7 +136,8 @@ host per `hmz exec` beside it; each host MUST run in a process of its own, stand
 workspace.
 
 **3.3.4** A chat host, an exec host and the workspace host of one workspace MUST NOT wait on each
-other; how many epics each runs at a time is stated in Section 3.4.3 of [CORE].
+other; how many epics each runs at a time is stated in Section 3.4.3 of [CORE] and Section 8.6 of
+[CORE].
 
 **3.3.5** Two spellings of one directory MUST name one workspace, and two directories MUST name two
 workspaces.
@@ -242,8 +244,8 @@ frontend once the frontend that claimed its role detaches.
 **3.6.8** A frontend that falls too far behind what it is told MUST be told so and detached, and
 MUST NOT hold up the epic or another frontend.
 
-**3.6.9** The terminal interface MUST offer, on leaving while a flow other than a chat is going, to
-stop the flow or to detach, as [TUI] specifies.
+**3.6.9** The terminal interface MUST offer, on leaving while a flow is going, to stop the flow or
+to detach, as [TUI] specifies.
 
 **3.6.10** Running the terminal interface again in the same workspace MUST attach it to that
 workspace's host, and MUST show the epic from its start.
@@ -558,8 +560,8 @@ whole path, not <workspace>.`, and one naming no directory 404, `There is no dir
 except where a method states it reads an epic of a workspace since removed.
 
 **4.5.3** `slot` absent or `""` MUST mean the workspace's own host; one that is not a slot, nor
-`chat:` or `exec:` alone where Section 4.7.1.2 permits it, MUST be refused 400, `<slot> is not a
-slot.`
+`chat:` or `exec:` alone where Section 4.7.1.2 or Section 4.21.1.1 permits it, MUST be refused 400,
+`<slot> is not a slot.`
 
 **4.5.4** `idem` MUST be taken by every write as Section 6.7 of [WIRE] states.
 
@@ -583,8 +585,8 @@ for <slot>` appended where `slot` is not `""`.
 order taken on, each with `pid`, `workspace`, `started` and `slot`.
 
 **4.6.2.2** `hosts.running` MUST answer `running`, holding, for every host whose epic is going or
-stopping, `state`, `run`, `flow`, `epic`, `task` and, of a chat, `turn` from its status, each with
-`workspace`, `slot` and `asking` (the questions it waits on, each `<run>:<question>`).
+stopping, `state`, `run`, `kind`, `flow`, `epic`, `task` and, of a chat, `turn` from its status,
+each with `workspace`, `slot` and `asking` (the questions it waits on, each `<run>:<question>`).
 
 **4.6.2.3** `hosts.open` `{workspace, slot}` MUST start the host of that workspace and slot where
 none is, as `epic.attach` does (Section 4.7.1.2 to Section 4.7.1.4), MUST NOT attach to it, and MUST
@@ -611,7 +613,9 @@ an absent `turn` as the host not holding a chat.
 - `slot`: The host's slot.
 - `state`: `running`, `stopping` or `idle`.
 - `run`: The epic number of the epic going, else stopping, else the last; `0` for none.
-- `flow`: That epic's flow as named, or `""`.
+- `epic_kind`: That epic's kind, `flow` or `chat` (Section 3.2.13 of [CORE]), or `""` for none;
+  `hosts.running` answers it as `kind`.
+- `flow`: That epic's flow as named, or `""`, as it is for a chat.
 - `epic`: That epic's directory name, `""` before it has one.
 - `task`: That epic's task, or `""`.
 - `pending`: `[{question, role, text, mode}]`: every question waiting on a person.
@@ -717,9 +721,9 @@ refused start MUST leave the set-up as it was.
 **4.8.2.4** `epic.start` MUST be refused with `a flow to start is named` for a missing `flow`;
 `backup is a list of backup target names` for a `backup` that is not one; `this host has closed`; `a
 flow is already running` while an epic is going; `a flow is already starting` while another start is
-under way; `this chat has folded away; carry it on from its epic` on a chat host that has folded
-(Section 4.13.8); `an exec host runs one epic` on an exec host that has started one; and with the
-`Refused` message of Section 4.6 of [PYTHON] for everything `flows.check` refuses.
+under way; `a chat is started with chat.start` on a chat host (Section 4.21.1); `an exec host runs
+one epic` on an exec host that has started one; and with the `Refused` message of Section 4.6 of
+[PYTHON] for everything `flows.check` refuses.
 
 **4.8.2.5** An epic that is stopping MUST NOT prevent `epic.start`.
 
@@ -876,17 +880,18 @@ of history records dropped from the front.
 across the host's life.
 
 **4.9.2.2** A host MUST keep the history records of the epic going or the last, starting afresh with
-each `epic.start`, up to 32 MiB of JSON, dropping the oldest whole records first and counting them
-in `elided`.
+each `epic.start` and `chat.start`, up to 32 MiB of JSON, dropping the oldest whole records first
+and counting them in `elided`.
 
 **4.9.2.3** Every history record other than `printed` MUST carry `run`, its epic number.
 
 **4.9.2.4** The history records MUST be those of the following list, with those fields.
 
-- `started`: `flow`, `ref`, `task`, `by`, `client`, `roles` (agent roles not filled by the runtime),
-  `names` (`{role: agent name}`), `outworlders`, `agents`, `envs` (`{role: spec}`), `params`,
-  `budget`, `profile_flow`, `profile_environment`, `backup`, `resume` (`""`, or the text given),
-  `began` (host monotonic seconds), `at` (Unix seconds).
+- `started`: `kind` (`flow` or `chat`; of a chat, `flow` and `ref` are `""` and `params` and
+  `budget` `null`), `flow`, `ref`, `task`, `by`, `client`, `roles` (agent roles not filled by the
+  runtime), `names` (`{role: agent name}`), `outworlders`, `agents`, `envs` (`{role: spec}`),
+  `params`, `budget`, `profile_flow`, `profile_environment`, `backup`, `resume` (`""`, or the text
+  given), `began` (host monotonic seconds), `at` (Unix seconds).
 - `opened`: `role`, `key` (`<agent>/<n>`), `agent`, `cli`, `model`, `counts` (token kinds the
   backend reports, sorted), `forks`, `person`, `kept` (directory of the session's logs, `""` for a
   person or the harness's own home), `env`, `harness`, `mono`, `wall`.
@@ -970,8 +975,9 @@ them.
 **4.10.1.2** A line said with `to` an agent's name MUST go into that agent's newest session with a
 turn open; a line said with `to` `<agent>/<n>` MUST go into that session.
 
-**4.10.1.3** In a chat, a line said to an agent or session with no turn open MUST answer the waiting
-`listen` question this frontend is permitted to answer, and MUST go into no turn.
+**4.10.1.3** On a chat host, `epic.say` and `epic.answer` MUST be refused with `say it to the chat
+with chat.say`; every line of a chat, an answer to what its assistant asks included, is said by
+`chat.say` (Section 4.21.2).
 
 **4.10.1.4** A line said with `to` `outworlder:<role>` MUST only answer that role's waiting `listen`
 question and MUST NOT go into any turn.
@@ -1093,8 +1099,8 @@ release what they made, and the host process MUST then exit.
 
 #### 4.13.7. Failures
 
-**4.13.7.1** Whatever a frontend sends, other than `epic.stop`, `epic.force`, `epic.quit` and
-`hosts.stop`, MUST NOT end an epic.
+**4.13.7.1** Whatever a frontend sends, other than `epic.stop`, `epic.force`, `epic.quit`,
+`hosts.stop` and an empty `chat.say`, MUST NOT end an epic.
 
 **4.13.7.2** A failure that belongs to an epic MUST be written to that epic's `host.log` (Section 6
 of [FILES]), and one that belongs to none to `daemon.log` in the daemon directory (Section 7 of
@@ -1103,12 +1109,11 @@ of [FILES]), and one that belongs to none to `daemon.log` in the daemon director
 #### 4.13.8. Folding a chat
 
 **4.13.8.1** A chat's host MUST fold its chat once the chat has waited between turns with no
-frontend attached for 60 seconds; folding MUST set every role away, MUST answer the waiting
-question with nothing, and MUST end the chat `done`.
+frontend attached for 60 seconds; folding MUST end the chat as an empty next message does (Section
+8.4.7 of [CORE]), keeping its conversation to be carried on.
 
-**4.13.8.2** A folded chat host MUST refuse `epic.start` (Section 4.8.2.4); a folded chat is carried
-on by starting the `chat` flow on a new slot with `resume` its epic directory, which continues in
-that same epic.
+**4.13.8.2** A folded chat host MUST refuse `chat.say` (Section 4.21.2); a folded chat is carried on
+by `chat.start` on a new slot with `resume` its epic directory, which continues in that same epic.
 
 ### 4.14. Sessions, pairing and devices
 
@@ -1227,7 +1232,8 @@ found in the task, flow or epic name), `offset` (default `0`) and `limit` (defau
 
 #### 4.16.2. Epic rows
 
-**4.16.2.1** An epic row MUST hold `name`, `workspace`, `flow`, `task` (its first line, cut at 240
+**4.16.2.1** An epic row MUST hold `name`, `workspace`, `kind` (`flow` or `chat`), `flow` (`""` for
+a chat), `task` (its first line, cut at 240
 characters with `…`), `began`, `ended`, `how` (its ending, `running` while going, `unfinished` where
 its process went before it ended; of a chat, as Section 8.5 of [CORE] says it), `agents` (`[{name,
 role, runs}]`), `sessions` (a count), `resumable`, `spent`, `held` (whether a host is going with
@@ -1328,7 +1334,8 @@ and MUST answer `days_back`, `days` (per UTC day, oldest first), `flows` (costli
 #### 4.17.1. `flows.list`
 
 **4.17.1.1** `flows.list` MUST take `workspace` and answer `flows` (`[{whose, name, about}]`),
-`flow` (the flow that workspace opens on) and `running` (`[{ref, name, depth, since, task}]`).
+`flow` (the flow last set up in that workspace, or `""`) and `running`
+(`[{ref, name, depth, since, task}]`).
 
 #### 4.17.2. `flows.get`
 
@@ -1359,8 +1366,8 @@ workspace runs the flow with, as Section 3 of [FILES] defines it, and MUST answe
 does.
 
 **4.17.4.2** `flows.setup` MUST be refused 404 for a flow not on offer or that will not load; 400
-for an agent that is not an agent spec, a role left without an agent, a flow other than `chat` with
-no budget limit, and a `backup` naming an unknown target.
+for an agent that is not an agent spec, a role left without an agent, a flow with no budget limit,
+and a `backup` naming an unknown target.
 
 **4.17.4.3** `flows.fork` MUST take `flow` and `workspace`, copy the flow as `Flows.fork` of Section
 4.7.7 of [PYTHON] does, and answer `said` and `at`; what that raises MUST be refused 400.
@@ -1422,10 +1429,9 @@ check everything `hmz exec` checks before an epic starts (Section 7.7 of [CLI]) 
 can be reached, without starting the epic, any agent CLI or any env, and without reaching another
 machine.
 
-**4.17.8.2** `flows.check` MUST answer `flow` (as named), `ref`, `chats` (whether it is the built-in
-`chat` flow), `declared` (as `flows.get` answers), `names` (`{role: agent name}`), `budget`,
-`backup` (the targets it would go to) and `unreadable` (every limit of the budget nothing the epic
-drives can enforce, in words, or `""`).
+**4.17.8.2** `flows.check` MUST answer `flow` (as named), `ref`, `declared` (as `flows.get`
+answers), `names` (`{role: agent name}`), `budget`, `backup` (the targets it would go to) and
+`unreadable` (every limit of the budget nothing the epic drives can enforce, in words, or `""`).
 
 **4.17.8.3** `flows.check` MUST refuse 400 with the `Refused` message of Section 4.6 of [PYTHON],
 the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
@@ -1435,17 +1441,20 @@ the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
 #### 4.18.1. `settings.*`
 
 **4.18.1.1** `settings.get` MUST take `workspace`, for a workspace that need not exist, and answer
-`workspace`, `flow`, `btw`, `details`, `reports` (`null` where never answered), `flows` (the flows
-set up there), `backup` (`targets`, each `name`, `url` without credentials, `branch`, `policies`,
-`every`; and `defaults`), `listen` and `ice_servers`.
+`workspace`, `flow`, `chat` (the chat agent remembered there, or `""`), `prefer` (`native` or
+`flow`, Section 3.4.12 of [FILES]), `btw`, `details`, `reports` (`null` where never answered),
+`flows` (the flows set up there), `backup` (`targets`, each `name`, `url` without credentials,
+`branch`, `policies`, `every`; and `defaults`), `listen` and `ice_servers`.
 
-**4.18.1.2** `settings.set` MUST take `workspace` and any of `btw` (text), `details` (boolean),
+**4.18.1.2** `settings.set` MUST take `workspace` and any of `chat` (an agent spec), `prefer`
+(`native` or `flow`), `btw` (text), `details` (boolean),
 `reports` (boolean), `backup` (`{targets, defaults}`, every target), `listen` (a list of listener
 specs) and `ice_servers` (a list of `{urls, username, credential}`), MUST be a write, and MUST
 answer as `settings.get` does.
 
-**4.18.1.3** `settings.set` MUST write `btw`, `details`, `backup`, `listen` and `ice_servers` as
-Section 3 of [FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of [FILES];
+**4.18.1.3** `settings.set` MUST write `chat` as `chat.agent` of the workspace, `prefer` as
+`chat.prefer`, and `btw`, `details`, `backup`, `listen` and `ice_servers` as Section 3 of [FILES]
+defines them, and `reports` as the key `enable_sentry` of Section 3 of [FILES];
 a change of `listen` MUST open and close listeners at once.
 
 **4.18.1.4** A target whose `url` equals the credential-free URL `settings.get` answered MUST keep
@@ -1559,11 +1568,11 @@ community nodes could not be read: <why>`.
 
 | Kind | When |
 | --- | --- |
-| `done` | An epic ended done; or a chat finished a turn |
+| `done` | An epic of a flow ended done; or a chat finished a turn |
 | `failed` | An epic failed, crashed, ran out of budget or was refused |
-| `stopped` | An epic other than a chat was stopped |
+| `stopped` | An epic of a flow was stopped |
 | `asked` | A flow asked a person a question |
-| `listening` | A flow other than a chat waits for what to say next |
+| `listening` | A flow waits for what to say next |
 
 **4.19.1.2** A notice MUST hold `id` (an integer greater than every earlier one, across restarts of
 the daemon), `kind`, `workspace`, `slot`, `epic`, `flow`, `task`, `role`, `text` and `at` (Unix
@@ -1634,6 +1643,77 @@ stands for the path or method name of the row before.
 /api/daemons/{name}/connect` and `/d/{name}/api/...` -- and the notifications list -- every path
 under `/api/notifications` -- MUST NOT be methods: each client keeps them for itself (Section 3.8.1
 and Section 3.15 of [WEB]), and reaches each daemon itself.
+
+### 4.21. Chats
+
+#### 4.21.1. `chat.start`
+
+**4.21.1.1** `chat.start` MUST take `workspace`, `slot` (a chat slot, or `chat:` alone for a new
+one, `chat:`), `agent` (an agent spec, as `epic.start` takes one for a role), `task` (text,
+required, not empty), `resume` (the text of an epic directory, `null`), `prefer` (`native`, `flow`
+or `null`) and `remember` (boolean, `false`), and MUST be a write.
+
+**4.21.1.2** `chat.start` MUST start the host of that slot as `epic.attach` does (Section 4.7.1.2),
+without attaching to it, MUST start a chat there (Section 8 of [CORE]) with `agent` as its assistant
+and `task` as its first message, and MUST be answered with `slot` and `epic`, the chat's epic
+directory name.
+
+**4.21.1.3** With `resume`, `chat.start` MUST carry on the chat of that epic directory in that same
+epic (Section 8.7 of [CORE]), `task` being its next turn, with `agent` where given and the chat's
+own agent otherwise.
+
+**4.21.1.4** With `prefer`, `chat.start` MUST record it as the chat's override (Section 8.9.10 of
+[CORE]).
+
+**4.21.1.5** With `remember` `true`, `chat.start` MUST write `agent` as the chat agent of the
+workspace (Section 3.5.1.9 of [FILES]) once the host has taken the start; a refused start MUST
+leave it as it was.
+
+**4.21.1.6** `chat.start` MUST be refused 400 with `a chat starts with something said` for an empty
+`task`, `<slot> is not a chat slot.` for a slot that is not one, `an agent for the chat is named`
+for a missing `agent` without `resume`, and the reason of Section 8.3.7 of [CORE] for an agent it
+refuses; 404 with `<epic> is not a chat of <workspace>.` for a `resume` that names none; and 409
+with `a chat is already going on <slot>` for a slot whose host holds one.
+
+#### 4.21.2. `chat.say`
+
+**4.21.2.1** `chat.say` MUST take `workspace`, `slot` and `text` (text, required), MUST be a write,
+and MUST be answered `{}`.
+
+**4.21.2.2** `chat.say` MUST serve `text` as Section 8.9 of [CORE] states, and MUST otherwise say
+it to the chat: as the next turn between turns, into the open turn where its harness accepts a
+message mid-turn, and held for the next turn otherwise (Section 8.4 of [CORE]); an empty `text`
+MUST end the chat (Section 8.4.7 of [CORE]).
+
+**4.21.2.3** A line `chat.say` delivers, holds, has refused or drops MUST be recorded as Section
+4.10.1.6 states for `epic.say`.
+
+**4.21.2.4** `chat.say` MUST be refused 400, naming the line, for a `$` line that names a flow and
+for a name Section 8.9.7 of [CORE] keeps, which the frontend serves; 404 as Section 4.6.1.1 states
+where no host holds the slot; and 409 with `this chat has folded away; carry it on from its epic`
+on a chat host that has folded (Section 4.13.8).
+
+#### 4.21.3. `chat.commands`
+
+**4.21.3.1** `chat.commands` MUST take `workspace` and `slot`, and MUST answer `entries`,
+`prefer` and `prefer_from`.
+
+**4.21.3.2** `entries` MUST hold the catalogue of the chat's conversation (Section 8.9.2 of [CORE]),
+or, before it has opened, what the catalogue of its harness holds without one, each `sigil`,
+`name`, `about`, `how` and `source` `native`; then each name Section 8.9.7 of [CORE] keeps, with
+`source` `hmz` and `how` `""`; then each flow on offer in the workspace, with sigil `$`, `source`
+`flow` and `how` `""`.
+
+**4.21.3.3** `prefer` MUST be the chat's preference, `native` or `flow`, and `prefer_from` MUST be
+`chat` where the chat overrides it and `settings` otherwise.
+
+#### 4.21.4. `chat.set`
+
+**4.21.4.1** `chat.set` MUST take `workspace`, `slot` and `prefer` (`native` or `flow`), MUST record
+it as the chat's override (Section 8.9.10 of [CORE]), MUST be a write, and MUST be answered `{}`.
+
+**4.21.4.2** `chat.set` MUST be refused 400 for a `prefer` that is neither, and as `chat.say` is
+for a slot no host holds or a chat that has folded.
 
 ## 5. Security Considerations
 
