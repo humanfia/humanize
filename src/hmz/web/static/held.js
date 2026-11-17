@@ -3,7 +3,8 @@
 // slot -- the records of the run in front of it, how everything stands, and the figures the
 // daemon works out -- the same the terminal interface draws (`epic.attach` with `figures`,
 // Section 4.7 of protocol/daemon.md). A host is followed only while a view of it is open. What a
-// view asks of a host's runs goes through `ask`, as a call to the epic on its subscription.
+// view asks of a host's runs goes through `ask`, as a call to the epic on its subscription; what
+// it asks of a chat -- starting one, saying its next line, its catalogue -- through `chatAsk`.
 //
 // A host is named by `where`: a workspace's path alone for the workspace's own, or
 // `{workspace, slot}` for a chat's.
@@ -56,16 +57,11 @@ export function follow(where, told) {
   }
 }
 
-/** Whether a flow named to start is the built-in chat, however it was named. */
-function chats(flow) {
-  return typeof flow === 'string' && flow.replace(/[/#]+$/, '').split(/[/#:]/).pop() === 'chat'
-}
-
 /**
  * Asks one host's runs one thing: `start`, `say`, `answer`, `stop`, `force`, `afk`, … -- the call
- * `epic.<what>` on the subscription that follows the host, attached first where none does. A
- * chat started at a workspace alone is a new chat's, on a host of its own, which the answer
- * names; and an epic started with `scratch` is started in a directory made for it alone.
+ * `epic.<what>` on the subscription that follows the host, attached first where none does. An
+ * epic started with `scratch` is started in a directory made for it alone. A chat is started
+ * with `chatAsk`, never here.
  */
 export async function ask(where, what, body = {}) {
   const { workspace, slot } = placed(where)
@@ -81,10 +77,9 @@ export async function ask(where, what, body = {}) {
   }
 }
 
-/** Starts an epic as it is set up, writing that down as the workspace's set-up of its flow. */
+/** Starts an epic of a flow as it is set up, writing that down as the workspace's set-up of its flow. */
 async function starts(workspace, slot, { scratch = false, ...said }) {
-  const chat = !slot && chats(said.flow) ? 'chat:' : slot
-  const sub = await attach({ ...(scratch ? { scratch: true } : { workspace }), slot: chat, replay: false }, () => {})
+  const sub = await attach({ ...(scratch ? { scratch: true } : { workspace }), slot, replay: false }, () => {})
   try {
     const started = await call('epic.start', { ...said, remember: true, sub: sub.sub })
     // Followed a moment longer, as the view gone to next follows it.
@@ -94,6 +89,70 @@ async function starts(workspace, slot, { scratch = false, ...said }) {
     sub.close()
   }
 }
+
+/**
+ * Asks a chat one thing: `start`, `say`, `commands`, `set` -- the call `chat.<what>` (Section
+ * 4.21 of protocol/daemon.md), which names the chat by its workspace and slot rather than by a
+ * subscription. A chat started at a workspace alone is a new chat's, on a host of its own beside
+ * every other epic there, which the answer names; one started with `scratch` is started in a
+ * directory made for it alone.
+ *
+ * @param {string|{workspace: string, slot: string}} where The chat, or the workspace a new one starts in.
+ * @param {string} what The method of `chat.*`.
+ * @param {object} [params] Its parameters but `workspace` and `slot`; `scratch` for `start`.
+ */
+export async function chatAsk(where, what, params = {}) {
+  const { workspace, slot } = placed(where)
+  if (what === 'start') return chatStarts(workspace, slot, params)
+  return call(`chat.${what}`, { ...params, workspace, slot })
+}
+
+/** Starts a chat, or carries one on, answering `{workspace, slot, epic}`. */
+async function chatStarts(workspace, slot, { scratch = false, ...said }) {
+  // No workspace: a directory made for the chat alone, as `scratch` makes one for an epic, with
+  // a chat's host of its own there, which the chat then starts on.
+  const made = scratch ? await scratchChat() : null
+  try {
+    const at = made ? made.workspace : workspace
+    const started = await call('chat.start', { ...said, workspace: at, slot: made ? made.slot : slot || 'chat:' })
+    // Followed a moment longer, as the view gone to next follows it.
+    follow({ workspace: at, slot: started.slot }, () => {})()
+    return { ...started, workspace: at }
+  } finally {
+    made?.sub.close()
+  }
+}
+
+/** A new chat's host in a directory made for it alone: where it is, as its welcome says. */
+async function scratchChat() {
+  let welcomed = (_message) => {}
+  let gone = (_error) => {}
+  const where = new Promise((resolve, reject) => {
+    welcomed = resolve
+    gone = reject
+  })
+  // Settled however the attaching goes, so that no refusal of it is left unheard.
+  where.catch(() => {})
+  const sub = await attach(
+    { scratch: true, slot: 'chat:', replay: false },
+    (message) => message.type === 'welcome' && welcomed(message),
+    (why) => gone(new Error(why || 'The host let this page go.')),
+  )
+  // A host that never welcomes the page leaves nobody waiting on it.
+  const waited = setTimeout(() => gone(new Error('The chat’s host did not answer.')), WELCOMED)
+  try {
+    const { workspace, slot } = await where
+    return { sub, workspace, slot }
+  } catch (error) {
+    sub.close()
+    throw error
+  } finally {
+    clearTimeout(waited)
+  }
+}
+
+/** How long, in milliseconds, a chat's host made for it alone has to welcome the page. */
+const WELCOMED = 30000
 
 /** The run in front of a workspace's records: its number, and the records of it. */
 export function current(state) {
