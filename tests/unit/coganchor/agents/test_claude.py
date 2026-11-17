@@ -341,6 +341,22 @@ def test_a_turn_says_what_the_agent_did(
     assert (events[-1].kind, events[-1].text) == ("result", "found it")
 
 
+def test_a_user_message_of_plain_text_is_read_past(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    # What Claude says back in the user's place after a `/compact`: text, not tool answers.
+    claude.answers = [
+        _says(
+            {"type": "user", "message": {"content": "This session is being continued"}},
+            "compacted",
+        )
+    ]
+
+    events = list(_agent().new(tmp_path).stream("/compact", native=True))
+
+    assert (events[-1].kind, events[-1].text) == ("result", "compacted")
+
+
 def test_a_reach_is_said_once_as_it_starts(
     spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:

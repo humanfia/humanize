@@ -1624,7 +1624,14 @@ class ClaudeCodeSession(StreamSessionBase):
         elif said.get("type") == "user":
             # A tool answering, which is the only thing said back to Claude on this stream
             # that is worth reading: one of them is an agent of its own having finished.
-            for part in said.get("message", {}).get("content", []):
+            content: object = said.get("message", {}).get("content", [])
+            # Plain text where Claude says something back in the user's place, as after a
+            # `/compact`: no tool answers there.
+            parts = cast("list[Any]", content) if isinstance(content, list) else []
+            for each in parts:
+                if not isinstance(each, dict):
+                    continue
+                part = cast("dict[str, Any]", each)
                 if part.get("type") != "tool_result":
                     continue
                 marked = str(part.get("tool_use_id") or "")
