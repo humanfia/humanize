@@ -48,6 +48,12 @@ const ALLOWED: Record<string, string[]> = {
     'hmz.runtime.telemetry',
   ],
   'hmz.flows': ['hmz.runtime.flowing', 'hmz.coganchor.faking'],
+  'hmz.flows.builtin.ai_chan': [
+    'hmz.flows',
+    'hmz.coganchor.fence',
+    'hmz.runtime.flowing.engine',
+    'hmz.sdk',
+  ],
   'hmz.runtime.doing': [
     'hmz.coganchor',
     'hmz.reach',

@@ -630,6 +630,24 @@ class Runner:
         cost = self._budget.cost
         return cost is not None and not math.isinf(cost)
 
+    def _here(self) -> Path:
+        """What fills the flow's `LocalEnv` roles: the workspace, or Ai-chan's scratch directory.
+
+        An Ai-chan conversation works in `<home>/ai/<machine>/<id>/`, made where it is not yet
+        (Section 14.4.1 of core.md, Section 4.16.3 of files.md).
+        """
+        from hmz import home, machine_id
+        from hmz.runtime.flowing import scratched
+
+        if not scratched(self._impl):
+            return self._workspace
+        ai = home() / "ai"
+        ai.parent.mkdir(parents=True, exist_ok=True)
+        scratch = ai / machine_id() / str(getattr(self._params, "id", 0))
+        for one in (ai, scratch.parent, scratch):
+            one.mkdir(mode=0o700, exist_ok=True)
+        return scratch
+
     def unreadable(
         self, stopped: Callable[[], bool] | None = None, *, fetch: bool = True
     ) -> str:
@@ -782,7 +800,7 @@ class Runner:
             finally:
                 given_up.set()
             await self._settled(noticed)
-            local = self._local or local_env(self._workspace)
+            local = self._local or local_env(await asyncio.to_thread(self._here))
             await self._placeable(local)
         except BaseException as why:
             # Stopped, or refused, before the run began: what it was given goes either way.

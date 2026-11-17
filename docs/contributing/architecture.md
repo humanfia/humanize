@@ -46,7 +46,7 @@ holds the same table, so an import that breaks it fails the run.
 | the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
-| a flow Humanize ships | `flows/builtin/`, for `chat` and the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
+| a flow Humanize ships | `flows/builtin/`, for `chat`, Ai-chan's `ai_chan` and the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
 
 Nothing sits at the top of `src/hmz/` but `__init__.py` and `__main__.py`. Name a module for
 what it holds, in the words `hmz` and these docs use.
@@ -61,7 +61,9 @@ when:
 - **Two layers name each other.** One pair may: `flows` calls into `runtime/flowing` from inside
   `flow`, `load` and `Outworlder.new`, and never at import. Importing `hmz.flows` must load
   nothing else of Humanize but `hmz.coganchor.faking`, which holds `FakeTool`, `FakeCli` and
-  `FakeCommand`, and that is checked too.
+  `FakeCommand`, and that is checked too. The one flow of the package that is a frontend as
+  well, Ai-chan's `flows/builtin/ai_chan`, is a layer of its own: it may name `hmz.sdk`, the
+  engine and the fence, inside the calls that need them.
 - **A top-level package is missing from the table.** `cli` is the one exemption.
 
 Nothing of `src/hmz/` runs on a target. The halves of a session that run beside the agent and on

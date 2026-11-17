@@ -63,6 +63,7 @@ __all__ = [
     "placed",
     "privileged",
     "resolved",
+    "scratched",
     "within",
 ]
 
@@ -101,9 +102,16 @@ def placed(file: str | os.PathLike[str]) -> Path:
 #: of places has no need to pay for.
 BUILTIN_AT = placed(__file__).parents[2] / "flows" / "builtin"
 
-#: Where the one flow Humanize trusts with more than it declares is: `chat`, the package's own,
-#: said by where it is rather than by a name a flow of yours could take.
-_PRIVILEGED_AT = BUILTIN_AT / "chat"
+#: Where the one flow Humanize hands every capability of its harness is: `chat`, the
+#: package's own, said by where it is rather than by a name a flow of yours could take.
+_FULL_AT = BUILTIN_AT / "chat"
+
+#: Where the flows that converse are: `chat` and Ai-chan's `ai_chan`, which take turns, fold
+#: away and are carried on as a chat is, and run without a budget.
+_PRIVILEGED_AT = (_FULL_AT, BUILTIN_AT / "ai_chan")
+
+#: Where the one flow whose `LocalEnv` roles are a scratch directory of its own is: Ai-chan's.
+_SCRATCHED_AT = BUILTIN_AT / "ai_chan"
 
 #: What a flow's own name is separated from the one inside it by. A module that holds one
 #: visible flow is named by itself; one that holds three names the others after it.
@@ -340,8 +348,8 @@ def resolved(named_: str) -> FlowImpl:
     Anything :func:`hmz.flows.load` takes where no flow is asking: a bare name nearest first,
     `[@<flowverse>/][<user>/]<flow>`, either with `:<inside>`, a path, or a
     `git+<url>[#<subdir>]` ref,
-    which is fetched here, on this thread. The one flow that is :func:`privileged` is handed
-    its harness's every capability, with :func:`~hmz.runtime.flowing.engine.full_view`.
+    which is fetched here, on this thread. `chat` is handed its harness's every capability,
+    with :func:`~hmz.runtime.flowing.engine.full_view`.
 
     Args:
       named_: What the flow is called.
@@ -381,7 +389,7 @@ def resolved(named_: str) -> FlowImpl:
         fetched = found_.flow
         assert fetched is not None  # noqa: S101 -- asking its name fetched it
         flow = fetched
-    if privileged(flow):
+    if _made(flow).is_relative_to(_FULL_AT):
         full_view(flow)
     return flow
 
@@ -444,21 +452,38 @@ def builtin(flow: FlowImpl) -> bool:
 
 
 def privileged(flow: FlowImpl) -> bool:
-    """Whether a flow is the one Humanize trusts with more than it declares, which is `chat`.
+    """Whether a flow is one Humanize trusts to converse: `chat`, or Ai-chan's `ai_chan`.
 
-    `chat` talks to whichever agent it is given, and so declares nothing of any: it is handed
-    every capability of its harness instead. And it runs for as long as somebody answers it,
-    so it is the one flow a run may be started without a budget for. Shipping with Humanize is
-    not what earns either -- the loops beside it in the package declare what they ask of their
-    agents and are held to it, and spend under a budget, like a flow of anybody's.
+    Each runs for as long as somebody answers it, so they are the flows a run may be started
+    without a budget for, and each takes turns, folds away and is carried on as a chat is.
+    `chat` alone, talking to whichever agent it is given, is also handed every capability of
+    its harness (:func:`resolved`). Shipping with Humanize is not what earns either -- the
+    loops beside them in the package declare what they ask of their agents and are held to
+    it, and spend under a budget, like a flow of anybody's.
 
     Args:
       flow: The flow.
 
     Returns:
-      Whether it was defined in the package's own `chat`.
+      Whether it was defined in the package's own `chat` or `ai_chan`.
     """
-    return _made(flow).is_relative_to(_PRIVILEGED_AT)
+    made = _made(flow)
+    return any(made.is_relative_to(one) for one in _PRIVILEGED_AT)
+
+
+def scratched(flow: FlowImpl) -> bool:
+    """Whether a flow's `LocalEnv` roles are its conversation's scratch directory: `ai_chan`.
+
+    Ai-chan works in a directory of her conversation's own rather than in the workspace she
+    is about (Section 14.4.1 of core.md).
+
+    Args:
+      flow: The flow.
+
+    Returns:
+      Whether it was defined in the package's own `ai_chan`.
+    """
+    return _made(flow).is_relative_to(_SCRATCHED_AT)
 
 
 def _made(flow: FlowImpl) -> Path:

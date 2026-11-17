@@ -99,6 +99,7 @@ RECORD = ".installed.json"
 #: machine whatever anybody has fetched.
 RESERVED = frozenset(
     {
+        "ai_chan",
         "chat",
         "continue_loop",
         "flame_chase",

@@ -74,7 +74,7 @@ class Run:
 
     @property
     def chats(self) -> bool:
-        """Whether the flow is Humanize's own `chat`, said by where it is, not by its name."""
+        """Whether the flow converses -- Humanize's `chat` or `ai_chan` -- said by where it is."""
         from hmz.runtime.flowing import privileged
 
         return privileged(self._runner.impl)

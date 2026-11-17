@@ -23,6 +23,7 @@ from hmz.runtime.flowing.finding import (
     offers,
     privileged,
     resolved,
+    scratched,
     within,
 )
 from hmz.runtime.flowing.index import RECORD
@@ -190,6 +191,7 @@ def test_resolved_loads_the_flow_a_name_comes_to(places: Places) -> None:
     assert (flow.name, flow.description) == ("zz_s", "Said.")
     assert builtin(flow) is False
     assert privileged(flow) is False
+    assert scratched(flow) is False
 
 
 def test_chat_is_humanizes_own_and_trusted_with_every_capability(
@@ -199,6 +201,17 @@ def test_chat_is_humanizes_own_and_trusted_with_every_capability(
     chat = resolved("chat")
     assert builtin(chat) is True
     assert privileged(chat) is True
+    assert scratched(chat) is False
+
+
+def test_ai_chan_converses_in_her_scratch_directory(
+    places: Places,
+) -> None:
+    del places
+    her = resolved("ai_chan")
+    assert builtin(her) is True
+    assert privileged(her) is True
+    assert scratched(her) is True
 
 
 def test_resolved_fetches_a_repository_ref_on_this_thread(
