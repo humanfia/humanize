@@ -657,7 +657,7 @@ mod tests {
         }
         assert!(!at("http://127.0.0.1:8765/"));
         assert!(!at("http://localhost/"));
-        assert!(!at("https://docs.humanfia.ai/humanize/"));
+        assert!(!at("https://humanfia.ai/humanize/"));
         assert!(!at("file:///etc/passwd"));
         assert!(!at("tauri://elsewhere/"));
         // While it is developed, the one `tauri dev` serves.

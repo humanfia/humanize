@@ -164,7 +164,7 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/humanfia/humanize"
-Documentation = "https://docs.humanfia.ai/humanize/"
+Documentation = "https://humanfia.ai/humanize/"
 Changelog = "https://github.com/humanfia/humanize/releases"
 Source = "https://github.com/humanfia/humanize"
 Issues = "https://github.com/humanfia/humanize/issues"

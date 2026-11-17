@@ -9,7 +9,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Manager, Runtime};
 
 /// Where the documentation is.
-pub const DOCS: &str = "https://docs.humanfia.ai/humanize/";
+pub const DOCS: &str = "https://humanfia.ai/humanize/";
 
 /// Check for Updates…, and what it says while a look by hand runs.
 const CHECK: &str = "check-for-updates";

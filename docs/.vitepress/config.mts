@@ -3,13 +3,17 @@ import { dirname, join } from 'node:path'
 
 import { defineConfig, type SiteConfig } from 'vitepress'
 
-// Deployed to https://docs.humanfia.ai/humanize/ by .github/workflows/build-docs.yml.
-// The custom domain belongs to the organisation's own pages, so this repository is a project
-// page served under a subdirectory of it, and `base` is that subdirectory: without it every
+// Deployed to https://humanfia.ai/humanize/ by .github/workflows/build-docs.yml.
+// The domain belongs to the organisation's own Pages site (humanfia/humanfia.github.io, which is
+// humanfia.ai), so this repository is a project page served under a subdirectory of it, and
+// this site is Humanize's page on humanfia.ai as well as its documentation: the organisation's
+// site has no page about Humanize of its own, and links here. `base` is that subdirectory:
+// without it every
 // stylesheet, script and link would ask for a path at the domain root, where nothing of this
 // site is. Internal links are still written from the site's own root -- VitePress prepends
 // the base to each of them -- so nothing in a page names the subdirectory.
 const BASE = '/humanize/'
+const HOST = 'https://humanfia.ai'
 
 // Where a page used to be, and where it is now: a path on this site, or the full URL of a page
 // that left it. Guides used to be one flat section serving two audiences at once; they are a
@@ -113,7 +117,7 @@ const MOVED: Record<string, string> = {
   ...Object.fromEntries(MOVED_TO_WEAVER.map((page) => [`guide/${page}`, `weaver/${page}`])),
   'guide/': 'user/',
   'tutorials/': 'user/',
-  // The quickstart is Your first run, which the home page sends a new reader to.
+  // The quickstart is Your first run.
   'tutorials/quickstart': 'user/first-run',
   'tutorials/take-home': 'user/tutorials/take-home',
   'tutorials/port-a-project': 'user/tutorials/port-a-project',
@@ -138,6 +142,9 @@ export default defineConfig({
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,
+
+  // Listed in humanfia.ai's robots.txt beside the organisation site's own.
+  sitemap: { hostname: `${HOST}${BASE}` },
 
   // `docs/tapes/` is the machinery the demos are rendered by, not a page of the site: its
   // README is written for somebody standing in that directory with docker. Left in, VitePress
@@ -175,6 +182,10 @@ export default defineConfig({
         link: '/contributing/',
         activeMatch: '/contributing/',
       },
+      // The rest of humanfia.ai, which this site is one path of: the flows' catalogue, the
+      // other projects, the blog and the news. The same origin and another build, so the
+      // browser loads it rather than the router (`target`; theme/index.ts for links in a page).
+      { text: 'Humanfia', link: `${HOST}/`, target: '_self', rel: 'home', noIcon: true },
     ],
 
     // Every sidebar opens with its own section as a link rather than with an entry inside a
@@ -478,7 +489,7 @@ export default defineConfig({
             '<meta charset="utf-8">',
             '<meta name="robots" content="noindex">',
             `<meta http-equiv="refresh" content="0; url=${way}">`,
-            `<link rel="canonical" href="${new URL(way, 'https://docs.humanfia.ai').href}">`,
+            `<link rel="canonical" href="${new URL(way, HOST).href}">`,
             '<title>Humanize</title>',
             '</head>',
             `<body>This page moved to <a href="${way}">${way}</a>.</body>`,

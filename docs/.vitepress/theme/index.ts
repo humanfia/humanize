@@ -1,4 +1,5 @@
-// The page at the site's root is a hero and a few cards, the features landing is a
+// The page at the site's root is the product page (components/product/, which index.md imports
+// itself), the features landing is a
 // set of diagrams rather than a page of prose, each feature page is one diagram of its own, and
 // a tutorial plays the loop of the flow it runs -- so the theme exists to register them.
 // Everything else is VitePress's default theme untouched: the two role guides, contributing
@@ -14,7 +15,6 @@ import HmzDaemon from './components/HmzDaemon.vue'
 import HmzFeatures from './components/HmzFeatures.vue'
 import HmzFlow from './components/flow/FlowPlayer.vue'
 import HmzGoal from './components/HmzGoal.vue'
-import HmzHero from './components/HmzHero.vue'
 import HmzLoops from './components/HmzLoops.vue'
 import HmzMap from './components/HmzMap.vue'
 import HmzMoments from './components/HmzMoments.vue'
@@ -32,7 +32,19 @@ import './style.css'
 
 export default {
   extends: DefaultTheme,
-  enhanceApp({ app }) {
+  enhanceApp({ app, router, siteData }) {
+    // This site is served under humanfia.ai, at its base (/humanize/), beside the organisation's
+    // own site and every other project's: the same origin, and none of them this build. The
+    // router takes a click on any same-origin link for a page of its own and answers one it has
+    // not got with its 404, so a link that leaves the base -- humanfia.ai/flows/ -- is handed to
+    // the browser instead.
+    router.onBeforeRouteChange = (to) => {
+      if (typeof window === 'undefined') return
+      const url = new URL(to, window.location.origin)
+      if (url.origin !== window.location.origin || url.pathname.startsWith(siteData.value.base)) return
+      window.location.assign(url.href)
+      return false
+    }
     app.component('HmzAccounts', HmzAccounts)
     app.component('HmzAnchor', HmzAnchor)
     app.component('HmzBackends', HmzBackends)
@@ -41,7 +53,6 @@ export default {
     app.component('HmzFeatures', HmzFeatures)
     app.component('HmzFlow', HmzFlow)
     app.component('HmzGoal', HmzGoal)
-    app.component('HmzHero', HmzHero)
     app.component('HmzLoops', HmzLoops)
     app.component('HmzMap', HmzMap)
     app.component('HmzMoments', HmzMoments)

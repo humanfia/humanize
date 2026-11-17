@@ -48,7 +48,7 @@ whichever comes first. If a fix needs longer, we will say why and agree a date w
 
 ## Scope
 
-The [Security](https://docs.humanfia.ai/humanize/user/security) page of the docs is the model
+The [Security](https://humanfia.ai/humanize/user/security) page of the docs is the model
 this policy is held to: what a flow lets its agents touch, how that is enforced, and where your
 credentials are kept. Read it first.
 
@@ -72,8 +72,8 @@ These are not, because they are how Humanize is meant to work or are already doc
 - **A flow is Python, and runs with your privileges.** Installing a flow, or adding a flowverse,
   trusts the people who wrote it.
 - **The limits the docs already state**, under
-  [What a flow lets its agents touch](https://docs.humanfia.ai/humanize/user/security#what-a-flow-lets-its-agents-touch)
-  and [Other things worth knowing](https://docs.humanfia.ai/humanize/user/security#other-things-worth-knowing).
+  [What a flow lets its agents touch](https://humanfia.ai/humanize/user/security#what-a-flow-lets-its-agents-touch)
+  and [Other things worth knowing](https://humanfia.ai/humanize/user/security#other-things-worth-knowing).
 - **What an agent does within the access it was given**, prompt injection included.
 
 Some reports belong elsewhere:

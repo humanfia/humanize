@@ -2,7 +2,7 @@
 
 `chat` is one agent talking: the flow an interface opens on, and the shortest thing there is
 that shows what a flow is. Beside it are the loops
-[FlowBench](https://humanfia.ai/projects/flowbench) scores, under the same names --
+[FlowBench](https://humanfia.ai/flowbench/) scores, under the same names --
 `ralph_loop`, `stateful_ralph`, `continue_loop`, `goal`, `flame_chase` and `rlar`. They are here
 rather than in the [official flowverse](https://github.com/humanfia/flowverse) because they are
 what Humanize is for before anything has been fetched: a machine that has never reached a

@@ -12,7 +12,7 @@ authors:
   - name: The Humanize contributors
     website: https://github.com/humanfia/humanize/graphs/contributors
 repository-code: https://github.com/humanfia/humanize
-url: https://docs.humanfia.ai/humanize/
+url: https://humanfia.ai/humanize/
 license: Apache-2.0
 keywords:
   - coding agents

@@ -32,7 +32,7 @@ under your own login, so you also [sign in to one](#signing-each-backend-in).
 
 Download the installer for your platform from the
 [latest release](https://github.com/humanfia/humanize/releases/latest), or from
-[humanfia.ai](https://humanfia.ai/projects/humanize#get-started), which picks it for you.
+[the front page](/#get-started), which picks it for you.
 
 ### macOS {#macos}
 
