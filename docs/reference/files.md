@@ -365,7 +365,7 @@ Every path in this section is safe to delete while Humanize is not running.
 | each CLI's home ([Backend homes](/reference/environment#backend-homes)) | sessions to trace; credentials of `@local`; tally |
 | `$DSH_HOME` (`~/.dsh`): `settings.yaml`, `.credentials.yaml`, `.env` | DeepSeek Harness key and endpoint |
 
-Antigravity's permission profiles `hmz-read-only.md`, `hmz-read-only-web.md` and
+Antigravity's agents `hmz-read-only.md`, `hmz-read-only-web.md` and
 `hmz-offline.md` are written into the `agents/` of the
 [virtual home](/reference/agents#virtual-homes) each agy process is started in, beside links to
 your own; `~/.gemini/antigravity-cli/agents/` is never written.

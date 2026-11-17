@@ -435,7 +435,7 @@ driver reads from the same fence what to tell its CLI, as the tables above say.
 | `kimi` | `disabled_tools` on each prompt: `WebSearch`, `FetchURL` when off, or when the fence cuts the network |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network |
 | `mimo`, `opencode` | `webfetch: deny`, `websearch: deny`, `codesearch: deny` in the permission table |
-| `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; at `read-only`, `hmz-read-only-web` when on |
+| `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; under a fence that writes nothing, `hmz-read-only-web` when on |
 | `cursor-agent`, `mcode`, `omp`, `pi`, an ACP CLI | cannot be told: `False` is refused |
 
 Under a flow, it is the role's `network` (`True` by default), on a backend that
@@ -1528,7 +1528,7 @@ or flow resources restart the process; an anchored turn always ends it.
 | --- | --- | --- |
 | `add_workspace` | `True` | `--add-dir <session dir>`, pinning the session's directory |
 | `print_timeout` | `86400.0` | `--print-timeout` seconds (raised from the CLI's 300; since 1.1.28 a timed-out turn exits successfully with a partial answer) |
-| `disable_slash_commands` | `False` | `--disable-slash-commands`; with `read-only`: `Unserved: agy cannot run at read-only with disable_slash_commands: its plan mode has no effect while expansion is off` |
+| `disable_slash_commands` | `False` | `--disable-slash-commands` |
 | `sandbox` | `False` | `--sandbox`, the CLI's terminal restrictions; not how a fence is held |
 
 - Usage is cumulative per conversation; each result reports its own increment. Shaped answers
@@ -1542,9 +1542,10 @@ or flow resources restart the process; an anchored turn always ends it.
   turn is started as (`hmz-read-only`, `hmz-read-only-web`, `hmz-offline`) are written into its
   `agents/` beside links to the user's own, so `~/.gemini/antigravity-cli/agents` is never
   written. An account whose arguments carry `--app_data_dir` of their own runs in that home
-  as before, without the flow's skills; there `read-only` or `web_search=False` is
-  `Unserved: agy cannot run at read-only or off the web under an account naming its own
-  --app_data_dir: ...`, said where the agent is made or reconfigured, and again at a turn
+  as before, without the flow's skills; there a fence that writes nothing, or
+  `web_search=False`, is `Unserved: agy cannot be held to reading or off the web under an
+  account naming its own --app_data_dir: ...`, said where the agent is made or reconfigured,
+  and again at a turn
   whose account a fallback changed to one. agy replaces `jetbox_summaries_proto.pb` (its conversation
   summaries index) rather than writing through it, so that index keeps what Humanize's turns
   wrote to it only for their process.
@@ -1554,8 +1555,9 @@ or flow resources restart the process; an anchored turn always ends it.
   names restarts the process. agy runs commands in the first workspace directory by path, so
   the plugin's must sort after the session's: where it would sort before (a session under
   `/workspace` with `TMPDIR=/tmp`) the turn is refused with `Unserved: agy cannot be offered
-  tools in <dir>`. Calls need `auto` or `bypass` (or the user's own `mcp(...)` allow rule); at
-  other rungs agy denies them.
+  tools in <dir>`. A fenced turn is run with `--dangerously-skip-permissions`, so its calls go
+  through; an agent driven by hand, told nothing, has them denied unless the user's own
+  `mcp(...)` allow rule grants them.
 
 ### Claude Code {#claude-code}
 
