@@ -218,7 +218,7 @@ attaches again where it left off; where it cannot, it ends with
 ([`gone`](/reference/daemon#gone)) ends it with `RuntimeError(<why>)`, e.g. `the host went
 away`; one that let go of it for falling behind (`too far behind; attach again`) does not: the
 run then attaches again and claims its outworlder's roles again. Once the epic has ended it stays attached, on a thread
-of its own, while `backed` of `runs.get` says a backup is not done, so that its host waits for
+of its own, while `backed` of `runs.get` says a backup its end queued (to a target whose policies hold `end`) is not done, so that its host waits for
 the backups too, for at most 60 seconds or until `close()`.
 
 ### Properties {#run-properties}
