@@ -3021,7 +3021,8 @@ class Humanize(App[None]):
     def refused_chat(self) -> str:
         """Why `/chat` has nothing to do now: the chat is on the screen already."""
         # An Ai-chan conversation is drawn as a chat, but is not this interface's chat.
-        on = self.chatting() and self._ai is None
+        # Nor is what is followed on another daemon, chat or not: its own is this machine's.
+        on = self.chatting() and self._ai is None and self._afar is None
         return "the chat is already on the screen" if on else ""
 
     def refused_prefer(self) -> str:
@@ -4978,8 +4979,9 @@ class Humanize(App[None]):
         self._flow_shown = False
         slot = self._holding(epic.name)
         if slot is not None:
-            if slot != self._slot:
-                self._relinks(slot)
+            # On this machine, whose chat it is, whatever is followed on another daemon.
+            if (slot, None) != (self._slot, self._afar):
+                self._moves(slot, None)
             self._chat_slot, self._chat_epic = slot, epic.name
             return
         ran = self.hmz.epics.read(epic)
@@ -4991,7 +4993,7 @@ class Humanize(App[None]):
         if why := self.hmz.epics.foreign(epic):
             self.show(f"hmz: {ran.name} cannot be continued here: {why}", "red")
             return
-        self._relinks(where.chat())
+        self._moves(where.chat(), None)
         self._continuing = epic
         self._chat_slot, self._chat_epic = "", epic.name
         self.show(f"[dim]say something to continue {escape(ran.name)}[/dim]")
@@ -5016,7 +5018,7 @@ class Humanize(App[None]):
             self._continues(self.hmz.epics.under() / self._chat_epic)
         else:
             self._flow_shown = False
-            self._relinks(where.chat())
+            self._moves(where.chat(), None)
         self._draw()
 
     def action_prefer(self, argv: Sequence[str] = ()) -> None:
@@ -5874,9 +5876,16 @@ class Humanize(App[None]):
             if self._slot.startswith("chat:") and (self._starting or self._turn)
             else None
         )
-        if held is None and self._chat_epic and self._continuing is None:
+        if (
+            held is None
+            and self._afar is None
+            and self._chat_epic
+            and self._continuing is None
+        ):
             # Its chat went on by itself while a flow was on the screen, or ended under it:
-            # back to it where a host still holds it, and carried on where none does.
+            # back to it where a host still holds it, and carried on where none does. Not
+            # from an epic followed on another daemon, where this machine's chat is not said
+            # to (`_chat_starts`): `/chat` comes back to it.
             held = self._holding(self._chat_epic)
             if held is None:
                 self._continuing = self.hmz.epics.under() / self._chat_epic

@@ -407,7 +407,8 @@ where that directory has not run the flow before -- and follows it; **follow** o
 there does the same for it. It is followed on the interface's own screen, as an epic of this
 machine is, with `@<name>` on the status line: you read it, answer what it asks, say a line to
 it or stop it, and <kbd>esc</kbd> leaves it going there and comes back to
-the list.
+the list. Your own chat stays on this machine meanwhile: `/chat` leaves the epic going there
+and puts that chat back on the screen.
 
 **Batch apply…** writes this machine's settings to other daemons: switch on the pages --
 general, nous, runtimes, backup -- and the daemons, and each says whether they were
