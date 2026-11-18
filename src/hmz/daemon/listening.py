@@ -244,13 +244,7 @@ class Listener:
         self._tcp("127.0.0.1", easytier.PORT, Route("easytier", name=name))
 
     def _relay(self, route: Route) -> None:
-        registered = Registration(
-            route.url,
-            self._identity(),
-            self._admit,
-            webrtc=route.kind == "webrtc",
-        )
-        if self._holds(registered.close):
+        if self._holds(_registered(route, self._identity(), self._admit)):
             self._says(str(route))
 
 
@@ -314,20 +308,23 @@ class _Signals:
 class Registration:
     """This daemon registered at one relay, accepting the clients that join it there.
 
-    Native joins are spliced and carry mutual TLS; WebRTC joins, where the spec is `webrtc:`
-    and the optional dependency is installed, are answered as a data channel whose DTLS holds
-    the browser to its own fingerprint (Section 4.7 of wire.md). A join this registration
-    does not take is refused with why. One control connection, opened again as Section 3.6.4
-    says where it drops.
+    Native joins, where a spec is `relay:`, are spliced and carry mutual TLS; WebRTC joins,
+    where a spec is `webrtc:` and the optional dependency is installed, are answered as a data
+    channel whose DTLS holds the browser to its own fingerprint (Section 4.7 of wire.md). A
+    join this registration does not take is refused with why. One control connection for
+    every listener at the relay (Section 5.4.1), opened again as Section 3.6.4 says where it
+    drops.
+
+    Attributes:
+      url: The relay's URL.
+      kinds: The kind of each listener open here: `relay`, `webrtc`.
     """
 
-    def __init__(
-        self, url: str, identity: Identity, admit: Admit, *, webrtc: bool
-    ) -> None:
+    def __init__(self, url: str, identity: Identity, admit: Admit) -> None:
         self.url = url
+        self.kinds: list[str] = []
         self._identity = identity
         self._admit = admit
-        self._webrtc = webrtc
         self._closed = threading.Event()
         self._lock = threading.Lock()
         self._control: ClientConnection | None = None
@@ -426,7 +423,7 @@ class Registration:
         from hmz.reach import WebSocketPipe, websocket
         from hmz.trust import tls
 
-        if self._webrtc:
+        if "relay" not in self.kinds:
             self._refuses(control, conn, "This daemon answers WebRTC alone here.")
             return
         try:
@@ -446,7 +443,7 @@ class Registration:
     def _offered(self, control: ClientConnection, conn: str) -> None:
         from hmz import rtc
 
-        if not self._webrtc:
+        if "webrtc" not in self.kinds:
             self._refuses(control, conn, "This daemon takes native joins alone here.")
             return
         if not rtc.available():
@@ -494,6 +491,35 @@ class Registration:
             with self._lock:
                 self._joins.pop(conn, None)
         self._admit(pipe, pipe.device)
+
+
+#: The registrations open, by relay URL and daemon id.
+_registrations: dict[tuple[str, str], Registration] = {}
+_registering = threading.Lock()
+
+
+def _registered(route: Route, identity: Identity, admit: Admit) -> Callable[[], None]:
+    """Opens a `relay:` or `webrtc:` listener on the one registration at its relay.
+
+    Returns:
+      What closes the listener, and the registration with the last listener on it.
+    """
+    key = (route.url, identity.fingerprint)
+    with _registering:
+        held = _registrations.get(key)
+        if held is None:
+            held = _registrations[key] = Registration(route.url, identity, admit)
+        held.kinds.append(route.kind)
+
+    def closes() -> None:
+        with _registering:
+            held.kinds.remove(route.kind)
+            if held.kinds:
+                return
+            del _registrations[key]
+        held.close()
+
+    return closes
 
 
 def _read(message: str | bytes) -> dict[str, Any]:
