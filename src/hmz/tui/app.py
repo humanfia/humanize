@@ -1156,6 +1156,9 @@ class Humanize(App[None]):
         #: Whether what the runs held when this arrived has all been told, so that what is
         #: told after it is happening now rather than being read back.
         self._live = False
+        #: The lines typed here into the chat on the screen that its host has yet to tell
+        #: of, oldest first: what it tells of them is not drawn a second time.
+        self._typed: list[str] = []
         #: What the runs have said and the screen has not taken yet, oldest first, and
         #: whether the screen has been asked to take it.
         self._arriving = threading.Lock()
@@ -1717,6 +1720,7 @@ class Humanize(App[None]):
         self._opened_envs = []
         self._reach.moved()
         self._live = self._starting = self._afk = False
+        self._typed = []
         self._run = self._seen_last = self._stopping = None
         self._halted, self._forcing, self._answering = set(), set(), set()
         if (sheet := self._asking) is not None:
@@ -3019,6 +3023,43 @@ class Humanize(App[None]):
         answer or a word put into her turn like any flow's, drawn when her host says it.
         """
         return self.chatting() and self._ai is None
+
+    def _typed_already(self, said: Mapping[str, Any]) -> bool:
+        """Whether a line the chat's host tells of is on the screen as it was typed here.
+
+        Only one typed since this interface reached the chat's host, and only once: a chat
+        gone back to is drawn from what its host tells of it, the screen having been cleared,
+        and a line another frontend said was never typed here. Told by what was typed, since
+        a line of a chat names no frontend, said through the daemon as it is.
+
+        Args:
+          said: The line, as the host tells it: `said`, or `answered` to what the chat asked.
+
+        Returns:
+          Whether it is, which takes it off the lines waiting to be told.
+        """
+        if not self._typed_here() or self._by(said):
+            return False
+        text = str(said.get("text") or "")
+        asked = said.get("question")
+        options: Sequence[str] = next(
+            (
+                one.get("options") or ()
+                for one in self._pending
+                if asked and one.get("question") == asked
+            ),
+            (),
+        )
+        for typed in self._typed:
+            # A number typed at a question is told as the answer it numbers.
+            try:
+                at = int(typed)
+            except ValueError:  # no number, or digits `int` does not read as one
+                at = 0
+            if typed == text or (0 < at <= len(options) and options[at - 1] == text):
+                self._typed.remove(typed)
+                return True
+        return False
 
     def refused_chat(self) -> str:
         """Why `/chat` has nothing to do now: the chat is on the screen already."""
@@ -5280,10 +5321,12 @@ class Humanize(App[None]):
             self._shows_context(message)
         elif kind == "withdrawn":
             self._withdrawn(message)
-        elif kind == "answered" and not (self._typed_here() and not self._by(message)):
-            self._answered(message)
-        elif kind == "said" and not (self._typed_here() and not self._by(message)):
+        elif kind in ("answered", "said") and self._typed_already(message):
             # A line of a chat this interface said is on the screen already, as it was typed.
+            pass
+        elif kind == "answered":
+            self._answered(message)
+        elif kind == "said":
             self._said_by_you(
                 str(message.get("text") or ""),
                 str(message.get("key") or ""),
@@ -5900,7 +5943,14 @@ class Humanize(App[None]):
         # said -- an answer to what the chat waits on, or a word put into its turn -- is not
         # drawn again (`_told`), and a `!` goes to nobody who would say it.
         self._said_by_you(text)
-        self._asks("chat.say", slot=held, text=text)
+        self._typed.append(text)
+        self._asks(
+            "chat.say",
+            # Never said, so never told of.
+            refused=lambda: text in self._typed and self._typed.remove(text),
+            slot=held,
+            text=text,
+        )
 
     def _chat_starts(self, task: str) -> None:
         """Starts a chat on what was said, or carries on the one `/epics` or `/chat` chose.

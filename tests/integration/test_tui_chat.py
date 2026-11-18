@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz import daemon as daemons
 from hmz.daemon.reach import Conversations
 from hmz.runtime.epic import Ran, epics, read
 from hmz.tui import Humanize
@@ -511,3 +512,47 @@ async def test_resume_in_a_chat_carries_on_an_earlier_one(workspace: Path) -> No
         await shows(pilot, "heard more")
     # Carried on in its own epic: no third.
     assert len(epics(workspace)) == 2
+
+
+async def test_a_chat_gone_back_to_is_drawn_with_every_line_said_in_it(
+    workspace: Path,
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await chatting(pilot, "one")
+        await typed(pilot, "two")
+        await shows(pilot, "heard two", "◉ done")
+        await typed(pilot, "/clear")
+        await chatting(pilot, "other")
+
+        await typed(pilot, "/resume")
+        await shows(pilot, "Resume a chat", "one")
+        first, _ = epics(workspace)
+        await opens(pilot, first.name)
+
+        drawn = await shows(pilot, "heard one", "heard two")
+    assert drawn.index("❯ one") < drawn.index("heard one") < drawn.index("❯ two")
+    assert drawn.index("❯ two") < drawn.index("heard two")
+
+
+async def test_a_line_another_frontend_says_in_a_chat_is_drawn_in_it(
+    workspace: Path,
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await chatting(pilot, "one")
+        (slot,) = [
+            one.slot for one in daemons.daemons() if one.slot.startswith("chat:")
+        ]
+        link = daemons.attach("sdk", workspace=workspace, slot=slot)
+        try:
+            link.chat_say("from elsewhere")
+
+            drawn = await shows(pilot, "heard from elsewhere")
+        finally:
+            link.close()
+        assert drawn.index("❯ from elsewhere") < drawn.index("heard from elsewhere")
+        # And one typed here is drawn once, as it was typed.
+        await typed(pilot, "two")
+        drawn = await shows(pilot, "heard two", "◉ done")
+    assert drawn.count("❯ two") == 1
