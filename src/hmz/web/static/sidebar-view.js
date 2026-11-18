@@ -94,33 +94,43 @@ function daysAgo(at, now) {
   return Math.max(0, Math.round((day(now) - day(at)) / 86400000))
 }
 
+/** What the group of the rows that have no folder is called, and what it is kept by. */
+export const NO_FOLDER = 'No folder'
+const NOWHERE = ':nowhere'
+
 /**
  * The list's groups, in their order: the rows pinned first, under `Pinned`, then the rest by
  * folder -- every workspace offered, those with a row a host goes with first, then by their
- * latest -- by date, or as one group.
+ * latest, and last the rows of no folder -- by date, or as one group. Grouped by date, a list with
+ * nothing to show keeps `Today`, so that a heading is always there; grouped by anything but
+ * folder, the folders stand last as a group of their own, `Folders`, each with how many rows it has.
  *
  * @param {{workspaces?: {path: string}[], runs?: object[], view: object, pinned?: Set<string>, now?: number, chat?: (run: object) => boolean}} of
- * @returns {{key: string, kind: 'pinned'|'folder'|'date'|'all', label: string, path: string, runs: object[]}[]}
+ * @returns {{key: string, kind: 'pinned'|'folder'|'date'|'all'|'folders', label: string, path: string, runs: object[], folders?: {path: string, count: number}[]}[]}
  */
 export function arranged({ workspaces = [], runs = [], view, pinned = new Set(), now = Date.now(), chat = byKind }) {
   const rows = sorted(runs, view, now, chat)
   const kept = rows.filter((run) => pinned.has(run.name))
   const rest = rows.filter((run) => !pinned.has(run.name))
   const groups = kept.length ? [{ key: ':pinned', kind: 'pinned', label: 'Pinned', path: '', runs: kept }] : []
-  if (view.group === 'none') return [...groups, { key: ':all', kind: 'all', label: 'All', path: '', runs: rest }]
-  if (view.group === 'date') {
-    const days = DAYS.map(([, key, label]) => ({ key: `:date:${key}`, kind: 'date', label, path: '', runs: [] }))
-    for (const run of rest) days[DAYS.findIndex(([most]) => daysAgo(stamp(run, view.sort, now), now) <= most)].runs.push(run)
-    return [...groups, ...days.filter((one) => one.runs.length)]
-  }
   const folders = new Map()
-  for (const one of workspaces || []) folders.set(one.path, { key: one.path, kind: 'folder', label: '', path: one.path, runs: [] })
+  for (const one of workspaces || []) if (one.path) folders.set(one.path, { key: one.path, kind: 'folder', label: '', path: one.path, runs: [] })
   for (const run of rest) {
-    if (!folders.has(run.workspace)) folders.set(run.workspace, { key: run.workspace, kind: 'folder', label: '', path: run.workspace, runs: [] })
-    folders.get(run.workspace).runs.push(run)
+    const path = run.workspace || ''
+    if (!folders.has(path)) folders.set(path, { key: path || NOWHERE, kind: 'folder', label: path ? '' : NO_FOLDER, path, runs: [] })
+    folders.get(path).runs.push(run)
   }
   const rank = (group) => (group.runs.some((one) => one.held) ? 1e14 : 0) + Math.max(0, ...group.runs.map((run) => (view.sort === 'created' ? Date.parse(run.began) || 0 : last(run))))
-  return [...groups, ...[...folders.values()].sort((a, b) => rank(b) - rank(a))]
+  const ordered = [...folders.values()].sort((a, b) => Number(!a.path) - Number(!b.path) || rank(b) - rank(a))
+  if (view.group === 'folder') return [...groups, ...ordered]
+  // Every folder, reachable though the list is not grouped by them.
+  const named = ordered.filter((one) => one.path).map((one) => ({ path: one.path, count: one.runs.length }))
+  const places = named.length ? [{ key: ':folders', kind: 'folders', label: 'Folders', path: '', runs: [], folders: named }] : []
+  if (view.group === 'none') return [...groups, { key: ':all', kind: 'all', label: 'All', path: '', runs: rest }, ...places]
+  const days = DAYS.map(([, key, label]) => ({ key: `:date:${key}`, kind: 'date', label, path: '', runs: [] }))
+  for (const run of rest) days[DAYS.findIndex(([most]) => daysAgo(stamp(run, view.sort, now), now) <= most)].runs.push(run)
+  const full = days.filter((one) => one.runs.length)
+  return [...groups, ...(full.length || groups.length ? full : [days[0]]), ...places]
 }
 
 /**

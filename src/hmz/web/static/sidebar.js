@@ -9,7 +9,7 @@
 import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
 import { pick } from './importing.js'
-import { copy, menuOn, toast } from './ui.js'
+import { copy, menuButton, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { bell, readOf, unreadOn } from './notifications.js'
@@ -28,6 +28,9 @@ const entryOf = (parts) => (parts[0] === 'new' && parts[1] === 'chat' ? 'new/cha
 const PINNED = 'hmz-pinned'
 const UNREAD = 'hmz-unread'
 const VIEW = 'hmz-list'
+
+/** Whether the device has nothing to point with, so that nothing is said only where it points. */
+const touched = matchMedia('(hover: none)')
 
 /** A row by the daemon it is of, as two daemons may name theirs alike. */
 const markKey = (name) => `${daemon()} ${name}`
@@ -76,14 +79,22 @@ function splitter() {
     event.preventDefault()
     el.setPointerCapture(event.pointerId)
     el.classList.add('dragging')
-    // The sidebar starts at the window's left edge: it is as wide as the pointer is far in.
-    const move = (at) => set(at.clientX, false)
+    // It is moved by as far as the pointer went, from wherever on it the pointer took hold: a
+    // press that goes nowhere sizes nothing.
+    const from = Number(el.getAttribute('aria-valuenow'))
+    let moved = false
+    const move = (at) => {
+      if (at.clientX === event.clientX && !moved) return
+      moved = true
+      set(from + at.clientX - event.clientX, false)
+    }
     const done = (at) => {
       el.classList.remove('dragging')
       el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerup', done)
       el.removeEventListener('pointercancel', done)
-      set(at.type === 'pointerup' ? at.clientX : el.getAttribute('aria-valuenow'), true)
+      if (at.type === 'pointerup') move(at)
+      if (moved) set(el.getAttribute('aria-valuenow'), true)
     }
     el.addEventListener('pointermove', move)
     el.addEventListener('pointerup', done)
@@ -125,7 +136,7 @@ export function mountSidebar(root, context, where) {
         'div',
         { class: 'side-top' },
         // The mark first, then what a desktop app's title row holds, in its order; the bell last.
-        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': 'Humanize, a new chat' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': 'Humanize, a new chat', title: 'Humanize' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
         iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
         iconButton('back', 'Back', { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
         iconButton('forward', 'Forward', { class: 'side-forward', 'data-hmz': 'forward', onclick: () => history.forward() }),
@@ -172,8 +183,8 @@ export function mountSidebar(root, context, where) {
   let view = viewOf(kept(VIEW, ''))
   /** How many rows each group shows, by its key, where `Show N more` was pressed. */
   const shown = new Map()
-  /** The group whose `Show N more` asked for the rows being read, or `:list` where the list did. */
-  let loading = ''
+  /** The group whose `Show N more` asked for the rows being read, `:list` where the list's `Show more` did, or none. */
+  let loading = null
   /** How many rows were listed when more were asked for, and whether asking brought none. */
   let asked = null
   let dry = false
@@ -201,7 +212,7 @@ export function mountSidebar(root, context, where) {
       // Asked for more and refused: the list asks for no more by itself.
       if (error && asked !== null) dry = true
       asked = null
-      loading = ''
+      loading = null
       if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Loading…'))
       else draw()
     })
@@ -278,12 +289,13 @@ export function mountSidebar(root, context, where) {
   }
 
   function draw() {
-    // A menu open in the list stands until it is closed: the list is drawn again then.
-    if (list.querySelector('.popover')) {
+    // A menu open in the list, or from a row of it, stands until it is closed: the list is drawn again then.
+    if (list.querySelector('.popover, [aria-haspopup][aria-expanded=true]')) {
       stale = true
       return
     }
     stale = false
+    const held = spot()
     const { parts, query } = where()
     const here = parts[0] === 'epics' ? parts[1] : ''
     for (const link of root.querySelectorAll('.side-nav a')) {
@@ -303,7 +315,8 @@ export function mountSidebar(root, context, where) {
     fill(
       list,
       groups.map((group) => {
-        const folder = group.kind === 'folder'
+        // A folder is a workspace, by its path; the rows of none are a group like any other.
+        const folder = group.kind === 'folder' && Boolean(group.path)
         const open = !shut.has(group.key)
         const called = folder ? nameOf(group.path) : group.label
         const { rows, more: rest } = paged(group.runs, shown.get(group.key), here)
@@ -328,7 +341,16 @@ export function mountSidebar(root, context, where) {
           focus('.side-toggle')
         })
         const sort = iconButton('sliders', 'Group and sort', { class: 'side-sort', 'data-hmz': 'list-menu-open' })
-        menu(sort, listMenu, { label: 'Group and sort' })
+        // A choice made, the button that opened the menu has the focus back, as Escape gives it.
+        menu(
+          sort,
+          (close) =>
+            listMenu(() => {
+              close()
+              sort.focus()
+            }),
+          { label: 'Group and sort' },
+        )
         const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : '/new/chat'
         const head = h(
           'div',
@@ -338,23 +360,7 @@ export function mountSidebar(root, context, where) {
           sort,
           iconButton('plus', folder ? `New chat in ${called}` : 'New chat', { class: 'side-add', 'data-hmz': 'group-add', onclick: () => (location.hash = hash(fresh)) }),
         )
-        if (folder) {
-          const at = encodeURIComponent(group.path)
-          menuOn(head, () => [
-            { head: group.path },
-            { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
-            { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${at}`) },
-            { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${at}`) },
-            { label: 'Search here', glyph: 'search', href: hash(`/search?workspace=${at}`) },
-            '-',
-            { label: 'Copy path', glyph: 'copy', act: () => copy(group.path, 'Path copied') },
-            { label: open ? 'Collapse' : 'Expand', glyph: 'chevron', act: () => toggle.click() },
-            '-',
-            { label: 'Settings', glyph: 'gear', href: hash(`/settings/workspace?workspace=${at}`) },
-            { label: 'Usage', glyph: 'chart', href: hash(`/settings/usage?workspace=${at}`) },
-            group.runs.length ? null : { label: 'Forget', danger: true, act: () => forget(group.path) },
-          ])
-        }
+        if (folder) menuOn(head, () => folderMenu(group.path, group.runs.length, { label: open ? 'Collapse' : 'Expand', glyph: 'chevron', act: () => toggle.click() }))
         // What the group does not show, brought by its last row: all of it that was read, and,
         // where the daemon holds more than was, a page more of the list.
         const last = rest
@@ -365,7 +371,8 @@ export function mountSidebar(root, context, where) {
                 type: 'button',
                 'data-hmz': 'group-more',
                 onclick: () => {
-                  shown.set(group.key, group.runs.length)
+                  // All of it from now on, whatever comes to be listed in it later.
+                  shown.set(group.key, Infinity)
                   if (more && !loading) further(group.key)
                   draw()
                   focus('.side-more')
@@ -380,14 +387,85 @@ export function mountSidebar(root, context, where) {
           'section',
           { class: 'side-group', 'data-hmz': folder ? 'workspace' : 'group', 'data-group': group.key, 'data-path': folder ? group.path : null },
           head,
-          open ? [rows.length ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run)))) : h('p', { class: 'side-quiet nested' }, 'No chats or epics'), last] : null,
+          !open
+            ? null
+            : group.kind === 'folders'
+              ? h('ul', { role: 'list' }, group.folders.map(place))
+              : [rows.length ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run)))) : h('p', { class: 'side-quiet nested' }, 'No chats or epics'), last],
         )
       }),
+      // Every row read is shown and the daemon holds more: the list ends with what reads a page
+      // more, so that no row waits on something nothing on the page could bring.
+      (more && !hidden && loading === null) || loading === ':list'
+        ? h(
+            'button',
+            { class: 'side-more side-more-list', type: 'button', 'data-hmz': 'list-more', disabled: loading !== null, onclick: () => further(':list') },
+            loading === null ? 'Show more' : 'Loading…',
+          )
+        : null,
     )
     list.parentElement.scrollTop = scrolled
-    // Every row read is shown and the daemon holds more: the next page is read without asking,
-    // so that no group waits on rows nothing on the page could bring.
-    if (more && !hidden && !loading) further(':list')
+    refocus(held)
+  }
+
+  /** What in the list holds the focus, said so that it is found once the list is drawn again. */
+  function spot() {
+    const el = document.activeElement
+    if (!el || !list.contains(el)) return null
+    const pick = el.tagName === 'A' ? `a[href="${CSS.escape(el.getAttribute('href') || '')}"]` : `.${[...el.classList].find((one) => one.startsWith('side-'))}`
+    return { pick, ...whose(el) }
+  }
+
+  /** The group and the row something in the list is of. */
+  function whose(el) {
+    const row = el.closest('.side-item')
+    return { group: el.closest('.side-group')?.dataset.group, row: row ? row.dataset.epic || row.dataset.place : undefined }
+  }
+
+  /**
+   * Gives the focus back to what held it before the list was drawn again: the same thing of the
+   * same row, wherever the row now stands, or of the same group; and what sorts the list, whose
+   * group may be gone, to the first there is.
+   */
+  function refocus(held) {
+    if (!held || list.contains(document.activeElement)) return
+    const all = [...list.querySelectorAll(held.pick)]
+    const same = (el, keys) => keys.every((key) => whose(el)[key] === held[key])
+    const found = all.find((el) => same(el, ['group', 'row'])) || (held.row ? all.find((el) => same(el, ['row'])) : held.pick === '.side-sort' ? all[0] : null)
+    found?.focus({ preventScroll: true })
+  }
+
+  /** What a folder offers, on its heading or on its row among `Folders`: `fold` folds a heading. */
+  function folderMenu(path, count, fold = null) {
+    const at = encodeURIComponent(path)
+    return [
+      { head: path },
+      { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
+      { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${at}`) },
+      { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${at}`) },
+      { label: 'Search here', glyph: 'search', href: hash(`/search?workspace=${at}`) },
+      '-',
+      { label: 'Copy path', glyph: 'copy', act: () => copy(path, 'Path copied') },
+      fold,
+      '-',
+      { label: 'Settings', glyph: 'gear', href: hash(`/settings/workspace?workspace=${at}`) },
+      { label: 'Usage', glyph: 'chart', href: hash(`/settings/usage?workspace=${at}`) },
+      count ? null : { label: 'Forget', danger: true, act: () => forget(path) },
+    ]
+  }
+
+  /** A folder as a row of `Folders`, where the list is not grouped by them: a new chat in it, and its menu. */
+  function place(folder) {
+    const more = iconButton('more', 'More options', { class: 'side-menu', 'data-hmz': 'row-menu' })
+    const row = h(
+      'div',
+      { class: 'side-run side-place' },
+      h('a', { href: hash(`/new/chat?workspace=${encodeURIComponent(folder.path)}`), title: folder.path, 'data-hmz': 'place' }, h('span', { class: 'side-label' }, nameOf(folder.path))),
+      more,
+    )
+    menuOn(row, () => folderMenu(folder.path, folder.count))
+    menuButton(more, row)
+    return h('li', { class: 'side-item', 'data-place': folder.path }, row)
   }
 
   function item(run, here, parts, unseen) {
@@ -416,7 +494,7 @@ export function mountSidebar(root, context, where) {
     const state = chat ? chatState(how) : ''
     const title = rowTitle(run, { chat, state, how, flow: flowName(run.flow), began: when(run.began) })
     // What can be done to it, opened by the button at the row's end as by a right click on it.
-    const more = iconButton('more', 'More options', { class: 'side-menu', 'aria-haspopup': 'menu', 'data-hmz': 'row-menu' })
+    const more = iconButton('more', 'More options', { class: 'side-menu', 'data-hmz': 'row-menu' })
     const row = chat
       ? // A chat, as a chat app lists one: what was asked and, only where it goes, asks or failed, the words for it.
         h(
@@ -428,6 +506,8 @@ export function mountSidebar(root, context, where) {
             h('span', { class: 'side-label' }, headline(run.task)),
             unseen ? marked() : null,
             state ? h('span', { class: 'side-status', 'data-hmz': 'chat-state', 'data-state': state }, CHAT_SAID[state]) : null,
+            // When it began, drawn where nothing can point at the row to be told.
+            touched.matches ? h('span', { class: 'side-meta side-age', 'data-hmz': 'chat-began' }, ago(run.began)) : null,
           ),
           more,
         )
@@ -455,11 +535,8 @@ export function mountSidebar(root, context, where) {
           ),
           more,
         )
-    menuOn(row, () => epicMenu(run))
-    more.addEventListener('click', () => {
-      const box = more.getBoundingClientRect()
-      row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.left, clientY: box.bottom + 4 }))
-    })
+    menuOn(row, () => epicMenu(run), 'row-menu')
+    menuButton(more, row)
     return h('li', { class: 'side-item', 'data-epic': run.name }, row, shown ? [tree(run, here, parts), reading(run)] : null)
   }
 
@@ -575,7 +652,7 @@ export function mountSidebar(root, context, where) {
     limit = PAGE
     asked = null
     dry = false
-    loading = ''
+    loading = null
     shown.clear()
     details.clear()
     strays.clear()

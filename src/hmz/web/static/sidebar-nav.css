@@ -16,14 +16,13 @@
   height: 28px;
 }
 
-/* The name gives way before the buttons do, where the sidebar is dragged narrow. */
+/* The mark stands where a desktop app's window keeps its traffic lights, in as much room: the
+   three buttons after it start 84 in, as that app's do. Its name is said, not drawn. */
 .side-top .brand {
-  flex: 0 1 auto;
-  min-width: 30px;
+  flex: none;
+  width: 76px;
   height: 28px;
-  margin-right: 6px;
   padding-left: 6px;
-  overflow: hidden;
 }
 
 .side-top .brand img {
@@ -31,9 +30,32 @@
 }
 
 .side-top .brand strong {
-  min-width: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* In Humanize Desktop's window on macOS the traffic lights are there themselves: the row stands
+   beside them, in their strip, the three buttons straight after them and the mark before the bell. */
+:root[data-shell='macos']:not([data-fullscreen]) .side-top {
+  margin-top: -2px;
+  padding-top: 0;
+  padding-left: 84px;
+}
+
+:root[data-shell='macos']:not([data-fullscreen]) .side-top .brand {
+  order: 1;
+  width: auto;
+  margin-left: auto;
+  padding: 0 4px;
+}
+
+:root[data-shell='macos']:not([data-fullscreen]) .side-top .notify-bell {
+  order: 2;
+  margin-left: 0;
 }
 
 /* ------------------------------------------------------------------------- the entries */

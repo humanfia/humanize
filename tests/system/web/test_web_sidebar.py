@@ -2,9 +2,9 @@
 
 Its epics and workspaces are answered on the wire, before Local is asked. Its measures are those
 of Claude's desktop app at 1296 by 792: 275 wide with a splitter on its right edge, a title row
-of 28px buttons, entries and rows 258 by 32, and a foot of one 28px row. The answers to what it
-sends off are held until the test gives them: an epic opened out, `Show N more`, `Upload` on an
-epic and `Forget` on a workspace.
+of 28px buttons that start 84 in, entries and rows 258 by 32, a row's state straight after its
+title, and a foot of one 28px row. The answers to what it sends off are held until the test gives
+them: an epic opened out, `Show N more`, `Upload` on an epic and `Forget` on a workspace.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.integration.doubles_web import served
-from tests.system.web.doubles_browser import ENGINES, Wire, again, opened
+from tests.system.web.doubles_browser import ENGINES, Wire, again, go, opened
 
 if TYPE_CHECKING:
     from playwright.sync_api import Locator, Page
@@ -191,18 +191,17 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         # The splitter lies across its right edge.
         assert _box(side.locator("[data-hmz=side-split]")) == (269, 0, 12, 792)
 
-        # The title row: the mark, then hiding it, back and forward, side by side; the bell last.
+        # The title row: the mark, where a desktop app's window keeps its traffic lights, then
+        # hiding it, back and forward, side by side from 84 in; the bell last.
         top = side.locator(".side-top")
         expect(top.locator(":scope > *")).to_have_count(5)
-        assert _box(top.locator(".brand"))[:2] == (8, 8)
+        assert _box(top.locator(".brand")) == (8, 8, 76, 28)
         boxes = [
             _box(top.get_by_role("button", name=name, exact=True))
             for name in ("Hide sidebar", "Back", "Forward", "Notifications")
         ]
         assert [box[1:] for box in boxes] == [(8, 28, 28)] * 4
-        hide, back, forward, bell = (box[0] for box in boxes)
-        assert (back, forward) == (hide + 28, hide + 56)
-        assert bell == 238
+        assert [box[0] for box in boxes] == [84, 112, 140, 238]
 
         # The entries: 258 by 32, 2px apart, 8px in, all drawn alike but the one the page is on.
         entries = side.locator(".side-nav a")
@@ -235,7 +234,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         assert _box(add) == (238, 204, 24, 24)
         expect(add).to_have_attribute("aria-label", "New chat in w")
 
-        # A chat says how it stands in quiet words at the right of its line, and no more:
+        # A chat says how it stands in quiet words straight after its title, and no more:
         # no glyph, no dot, no flow, nothing that opens it out.
         said = {
             name: group.locator(f".side-item[data-epic={name}] [data-hmz=chat-state]")
@@ -250,11 +249,19 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(chat.locator(".side-run > a > *")).to_have_count(2)
         expect(chat.locator("svg, .side-toggle, [data-hmz=epic-flow]")).to_have_count(1)
         expect(chat.locator(".side-run > a svg")).to_have_count(0)
-        state = _box(said["going"])
-        assert state[0] + state[2] == 234
+        for name in ("going", "asks", "failed"):
+            title = _box(group.locator(f".side-item[data-epic={name}] .side-label"))
+            state = _box(said[name])
+            assert title[0] == 18
+            assert state[0] == title[0] + title[2] + 6
 
-        # Its menu's button, 24 by 24 at its far end, once the row is pointed at.
+        # Its menu's button, 24 by 24 at its far end, once the row is pointed at or holds
+        # the focus.
         more = chat.locator("[data-hmz=row-menu]")
+        expect(more).to_have_css("opacity", "0")
+        chat.locator("[data-hmz=epic]").focus()
+        expect(more).to_have_css("opacity", "1")
+        page.locator("body").evaluate("() => document.activeElement.blur()")
         expect(more).to_have_css("opacity", "0")
         chat.hover()
         expect(more).to_have_css("opacity", "1")
@@ -266,6 +273,8 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(flow.locator("[data-hmz=epic-flow]")).to_have_text("ralph")
         expect(flow.locator("[data-hmz=epic-state]")).to_have_text("Done")
         assert _box(flow.locator(".side-line").first)[3] == 32
+        title = _box(flow.locator(".side-label").first)
+        assert _box(flow.locator("[data-hmz=epic-state]"))[0] == title[0] + title[2] + 6
         flow.hover()
         assert _box(flow.locator("[data-hmz=row-menu]"))[0] == 238
 
@@ -297,16 +306,25 @@ def test_the_sidebar_is_sized_by_its_splitter_and_stays_so(engine: str) -> None:
         side = page.locator("[data-hmz=sidebar]")
         split = side.get_by_role("separator", name="Resize sidebar")
         expect(split).to_have_attribute("aria-valuenow", "275")
-        page.mouse.move(275, 400)
+        expect(side.locator("[data-hmz=epic]")).to_have_count(6)
+        # A press that goes nowhere sizes nothing, wherever on the splitter it lands.
+        page.mouse.click(279, 400)
+        assert _box(side)[2] == 275
+        assert page.evaluate("localStorage.getItem('hmz-side-wide')") is None
+        # Dragged, it moves by as far as the pointer went.
+        page.mouse.move(279, 400)
         page.mouse.down()
-        page.mouse.move(340, 400, steps=4)
+        page.mouse.move(344, 400, steps=4)
         page.mouse.up()
+        expect(split).to_have_attribute("aria-valuenow", "340")
         assert _box(side)[2] == 340
         assert _box(page.locator("[data-hmz=page]"))[0] == 340
         # Kept for the next visit.
         again(page)
         assert _box(side)[2] == 340
-        # By the keyboard, within its bounds.
+        # By the keyboard, within its bounds: on a view that takes the focus for nothing of
+        # its own, as a new chat does for its box once it is drawn.
+        go(page, "#/flows")
         split.focus()
         page.keyboard.press("ArrowLeft")
         assert _box(side)[2] == 324
@@ -360,8 +378,10 @@ def test_the_list_is_grouped_sorted_and_filtered_as_its_menu_says(engine: str) -
         )
         page.get_by_role("menuitemradio", name="None").click()
         expect(menu).to_have_count(0)
-        _named(page, "All")
+        _named(page, "All", "Folders")
         expect(epics).to_have_count(6)
+        # What sorts the list has the focus back, though the list was drawn again.
+        expect(page.locator("[data-hmz=list-menu-open]").first).to_be_focused()
 
         menu = _group_and_sort(page)
         menu.get_by_role("menuitem", name="Show").hover()
@@ -374,12 +394,22 @@ def test_the_list_is_grouped_sorted_and_filtered_as_its_menu_says(engine: str) -
         menu = _group_and_sort(page)
         menu.get_by_role("menuitem", name="Group by").hover()
         page.get_by_role("menuitemradio", name="Date").click()
-        _named(page, "Today", "Older")
+        _named(page, "Today", "Older", "Folders")
 
         # Kept for the next visit.
         again(page)
         expect(epics).to_have_count(5)
-        _named(page, "Today", "Older")
+        _named(page, "Today", "Older", "Folders")
+
+        # With nothing left to show, a heading stays, and on it what brings the rows back.
+        menu = _group_and_sort(page)
+        menu.get_by_role("menuitem", name="Show").hover()
+        page.get_by_role("menuitemcheckbox", name="Chats").click()
+        expect(epics).to_have_count(0)
+        _named(page, "Today", "Folders")
+        expect(
+            page.locator("[data-hmz=group][data-group=':date:today'] .side-quiet")
+        ).to_have_text("No chats or epics")
 
         _group_and_sort(page).get_by_role("menuitem", name="Reset to defaults").click()
         expect(epics).to_have_count(6)
@@ -446,3 +476,212 @@ def test_a_row_is_pinned_and_marked_unread_from_its_menu(engine: str) -> None:
         assert page.evaluate(
             "['hmz-pinned', 'hmz-unread'].map((key) => localStorage.getItem(key))"
         ) == [None, None]
+
+
+def test_a_list_by_date_with_nothing_in_it_keeps_a_heading(engine: str) -> None:
+    wire = Wire(
+        faked={
+            "runs.list": lambda _: {"result": _answers([])},
+            "workspaces.list": lambda _: {"result": {"workspaces": []}},
+        }
+    )
+    kept = "localStorage.setItem('hmz-list', JSON.stringify({ group: 'date' }))"
+    with (
+        served() as site,
+        opened(site, engine=engine, routed=wire.routes, init=kept) as page,
+    ):
+        _named(page, "Today")
+        expect(page.locator("[data-hmz=epics] .side-quiet")).to_have_text(
+            "No chats or epics"
+        )
+        _group_and_sort(page).get_by_role("menuitem", name="Reset to defaults").click()
+        expect(page.locator("[data-hmz=epics] .side-group")).to_have_count(0)
+        assert page.evaluate("localStorage.getItem('hmz-list')") is None
+
+
+def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them(
+    engine: str,
+) -> None:
+    wire = _wire(_MIXED)
+    # Answered when the test says, so that what it says meanwhile is seen.
+    wire.faked["workspaces.forget"] = lambda _: None
+    kept = "localStorage.setItem('hmz-list', JSON.stringify({ group: 'none' }))"
+    with (
+        served() as site,
+        opened(
+            site,
+            engine=engine,
+            width=1296,
+            height=792,
+            routed=wire.routes,
+            init=kept,
+        ) as page,
+    ):
+        _named(page, "All", "Folders")
+        folders = page.locator("[data-hmz=group][data-group=':folders']")
+        rows = folders.locator("[data-hmz=place]")
+        expect(rows).to_have_text(["w", "v", "empty"])
+        assert _box(rows.first)[2:] == (258, 32)
+        # A row opens a new chat in its folder.
+        rows.first.click()
+        page.wait_for_url(re.compile(r"#/new/chat\?workspace=%2Fw$"))
+
+        # Its menu is a folder's, bar folding it: by a right click, and by the button at its end.
+        empty = folders.locator(".side-item[data-place='/empty']")
+        empty.locator("[data-hmz=place]").click(button="right")
+        labels = page.locator(".popover.context .choice-label")
+        offered = [
+            "New chat here",
+            "New epic here",
+            "Flows here",
+            "Search here",
+            "Copy path",
+            "Settings",
+            "Usage",
+            "Forget",
+        ]
+        expect(labels).to_have_text(offered)
+        page.keyboard.press("Escape")
+        full = folders.locator(".side-item[data-place='/w']")
+        full.hover()
+        full.locator("[data-hmz=row-menu]").click()
+        expect(labels).to_have_text(offered[:-1])
+        page.keyboard.press("Escape")
+        expect(full.locator("[data-hmz=row-menu]")).to_be_focused()
+
+        empty.hover()
+        empty.locator("[data-hmz=row-menu]").click()
+        page.get_by_role("menuitem", name="Forget").click()
+        expect(page.locator("[data-hmz=working]")).to_have_text("Forgetting…")
+        wire.answer(page, "workspaces.forget", {})
+        expect(page.locator(".toast")).to_have_text("Forgotten")
+
+
+def test_more_options_is_a_popup_button_that_keeps_the_focus(engine: str) -> None:
+    wire = _wire(_MIXED)
+    with (
+        served() as site,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
+    ):
+        row = page.locator("[data-hmz=epics] .side-item[data-epic=rests]")
+        more = row.locator("[data-hmz=row-menu]")
+        menu = page.locator(".popover.context")
+        expect(more).to_have_attribute("aria-haspopup", "menu")
+        expect(more).to_have_attribute("aria-expanded", "false")
+
+        # By the keyboard: it opens on its first choice, and Escape gives the button the focus.
+        more.focus()
+        page.keyboard.press("Enter")
+        expect(more).to_have_attribute("aria-expanded", "true")
+        expect(menu.get_by_role("menuitem", name="Open")).to_be_focused()
+        # As a desktop app's: narrow, each choice one line of 28px.
+        width = _box(menu)[2]
+        assert 154 <= width <= 260
+        assert {_box(one)[3] for one in menu.locator(".choice").all()} == {28}
+        # The list is not drawn again under a menu open from it: the button stays the one.
+        page.wait_for_timeout(4500)
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
+        expect(more).to_be_focused()
+        expect(more).to_have_attribute("aria-expanded", "false")
+
+        # Pressed again, it shuts the menu it opened.
+        more.click()
+        expect(menu).to_have_count(1)
+        more.click()
+        expect(menu).to_have_count(0)
+
+        # A choice made, the focus is on the row's button still, wherever the row went.
+        more.click()
+        menu.get_by_role("menuitem", name="Pin").click()
+        pinned = page.locator("[data-hmz=group][data-group=':pinned']")
+        expect(pinned.locator("[data-hmz=row-menu]")).to_be_focused()
+
+        # What the keyboard left in the list holds the focus as the list is read again.
+        link = pinned.locator("[data-hmz=epic]")
+        link.focus()
+        page.wait_for_timeout(4500)
+        expect(link).to_be_focused()
+
+
+def test_the_list_reads_no_more_than_it_is_asked_to(engine: str) -> None:
+    # Four hundred chats, ten to a folder: no folder holds any back.
+    many = [_row(f"r{at:03d}", workspace=f"/f{at % 40:02d}") for at in range(400)]
+    wire = Wire(
+        faked={
+            "runs.list": lambda params: {
+                "result": _answers(many[: params["limit"]], len(many))
+            },
+            "workspaces.list": lambda _: {"result": {"workspaces": []}},
+        }
+    )
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        rows = page.locator("[data-hmz=epics] [data-hmz=epic]")
+        expect(rows).to_have_count(60)
+        expect(page.locator("[data-hmz=group-more]")).to_have_count(0)
+        # Read again and again as it is, it asks for the one page.
+        page.wait_for_timeout(5000)
+        assert {one["limit"] for one in wire.params("runs.list")} == {60}
+        expect(rows).to_have_count(60)
+
+        # The list ends with what reads a page more.
+        more = page.locator("[data-hmz=list-more]")
+        expect(more).to_have_text("Show more")
+        more.click()
+        expect(rows).to_have_count(120)
+        assert {one["limit"] for one in wire.params("runs.list")} == {60, 120}
+        expect(more).to_have_text("Show more")
+
+
+def test_a_group_shown_in_full_holds_nothing_back_later(engine: str) -> None:
+    listed = {"runs": [_row(f"c{at:02d}") for at in range(23)]}
+    wire = Wire(
+        faked={
+            "runs.list": lambda _: {"result": _answers(listed["runs"])},
+            "workspaces.list": lambda _: {"result": {"workspaces": []}},
+        }
+    )
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        group = page.locator("[data-hmz=workspace][data-path='/w']")
+        rows = group.locator("[data-hmz=epic]")
+        more = group.locator("[data-hmz=group-more]")
+        expect(more).to_have_text("Show 3 more")
+        more.click()
+        expect(rows).to_have_count(23)
+        # A chat started since stands first, and pushes none of the others back out.
+        listed["runs"] = [_row("newer", ended="2026-10-13T09:30:00Z"), *listed["runs"]]
+        expect(rows).to_have_count(24)
+        expect(more).to_have_count(0)
+
+
+def test_on_a_touch_screen_a_chat_says_when_it_began(engine: str) -> None:
+    wire = _wire(_MIXED)
+    with (
+        served() as site,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
+    ):
+        row = page.locator("[data-hmz=epics] .side-item[data-epic=asks]")
+        expect(row).to_have_count(1)
+        # Where the row can be pointed at, it says so there, and draws nothing of it.
+        expect(row.locator("[data-hmz=chat-began]")).to_have_count(0)
+
+    with (
+        served() as site,
+        opened(
+            site,
+            engine=engine,
+            width=1296,
+            height=792,
+            touch=True,
+            routed=wire.routes,
+        ) as page,
+    ):
+        row = page.locator("[data-hmz=epics] .side-item[data-epic=asks]")
+        began = row.locator("[data-hmz=chat-began]")
+        more = row.locator("[data-hmz=row-menu]")
+        # Drawn at the row's end, before its menu's button, which is always there too.
+        expect(began).to_have_text(re.compile(r"\S"))
+        expect(more).to_have_css("opacity", "1")
+        when, state = _box(began), _box(row.locator("[data-hmz=chat-state]"))
+        assert state[0] + state[2] <= when[0]
+        assert when[0] + when[2] <= _box(more)[0]

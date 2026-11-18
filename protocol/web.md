@@ -184,7 +184,9 @@ every view MUST be usable without horizontal scrolling of the page.
 
 **3.4.1.6** The title row MUST hold, in this order: the Humanize mark, `Hide sidebar`, `Back` and
 `Forward`, and, at its far end, the notification bell. `Back` and `Forward` MUST step back and
-forward through the addresses the page was on, as the browser's own do.
+forward through the addresses the page was on, as the browser's own do. In Humanize Desktop's window
+on macOS, outside full screen, the row MUST stand beside the window's traffic lights, `Hide sidebar`
+straight after them, and the mark MUST stand before the bell instead.
 
 **3.4.1.7** The four entries MUST be drawn alike, one row each; the entry of the view shown MUST be
 marked, and no entry MUST be drawn heavier than another otherwise.
@@ -195,7 +197,8 @@ MUST open the settings (Section 3.11).
 **3.4.1.9** On a screen wider than a phone's, the sidebar MUST be 275 CSS pixels wide until the user
 sizes it, and its right edge MUST be a splitter, `Resize sidebar`, that sizes it between 200 and 480
 CSS pixels where it is dragged or moved with the arrow keys, and makes it 275 wide again where it is
-double-clicked. The page MUST remember the width in this browser.
+double-clicked. Dragged, it MUST move by as far as the pointer went, and a press that moves nowhere
+MUST NOT size the sidebar. The page MUST remember the width in this browser.
 
 #### 3.4.2. Addresses
 
@@ -282,6 +285,13 @@ settings, and each workspace the user opened by its path. A folder, as any other
 MUST be drawn as a heading over its epics, saying its name, and MUST NOT be drawn as one of the rows
 under it.
 
+**3.5.1.1** While its list is grouped otherwise, the sidebar MUST show the same workspaces as the
+rows of a last group, `Folders`: each row MUST open a new chat in its workspace and MUST offer the
+menu of a folder (3.5.7), bar folding it, by a right click and by `More options` at its end.
+
+**3.5.1.2** The epics of no workspace MUST be listed as the last folder, `No folder`, which has no
+menu of a folder.
+
 **3.5.2** A workspace the user opens by its path MUST be written down in the settings, and MUST stay
 in the sidebar from then on.
 
@@ -344,9 +354,10 @@ message and its name its ID, and MUST NOT say `epic`, `flow` or `task`.
 
 **3.5.13** Each group MUST show a bounded number of its epics at first, and with them the epic the
 page is on, and MUST end with `Show N more`, `N` the number of its epics read and not shown, while
-there is one; pressed, it MUST show them. The sidebar MUST read a bounded number of epics at first,
-and MUST read more where `Show N more` is pressed, or where every epic read is shown, while the
-daemon holds more.
+there is one; pressed, it MUST show them, and every epic listed in that group from then on. The
+sidebar MUST read a bounded number of epics at first, and MUST read more only where the user asks:
+where `Show N more` is pressed while the daemon holds more, and where `Show more` is, with which the
+list MUST end while the daemon holds more and every epic read is shown.
 
 **3.5.14** The sidebar MUST show the epics of the daemon shown as they change, without the user
 asking.
@@ -355,14 +366,20 @@ asking.
 task's first line alone, with no mark or glyph of a state, no name of a flow and nothing that opens
 it out. After that line, in the same line, its row MUST say `Running` while its mark (3.5.10) is
 `running`, `Awaiting input` while it is `asking`, `Failed` where it is `failed`, and nothing where it
-is `stopped`. What the row says when pointed at MUST say when the chat began. The row, and what it
-says when pointed at, MUST NOT say `epic` or `flow`.
+is `stopped`. What the row says when pointed at MUST say when the chat began, and the row MUST show
+how long ago it began where the device has nothing to point with. The row, and what it says when
+pointed at, MUST NOT say `epic` or `flow`.
 
 **3.5.16** The first line of every epic's row, a chat's or another's, MUST be 32 CSS pixels tall, its
-task's first line at the left and the words for its state at the right. Each row MUST offer
+task's first line at the left, cut short where the line has no room for all of it, and the words for
+its state straight after it. Each row MUST offer
 `More options` at its far end, shown where the row is pointed at or holds the focus, and always
 where the device has nothing to point with; it MUST open the menu of that epic (3.5.12), the one a
-right click on the row opens.
+right click on the row opens. `More options` MUST say whether its menu is open, MUST close the menu
+where it is pressed again, and MUST hold the focus once Escape or a choice closes the menu.
+
+**3.5.16.1** Where the sidebar draws its list again, what held the focus in it MUST hold it still;
+after a choice in `Group and sort`, `Group and sort` MUST.
 
 **3.5.17** `Group and sort` MUST open a menu of: `Group by`, one of `Folder`, `Date` and `None`;
 `Sort by`, one of `Last updated` and `Created`; `Show`, `Chats` and `Epics`, each on or off; and
@@ -371,7 +388,7 @@ right click on the row opens.
 
 **3.5.17.1** Grouped by `Date`, the list MUST show its epics under `Today`, `Yesterday`,
 `Last 7 days`, `Last 30 days` and `Older`, by the moment they are sorted by, and no group that is
-empty; grouped by `None`, it MUST show them as one group.
+empty, bar `Today` where it has no epic to show; grouped by `None`, it MUST show them as one group.
 
 **3.5.17.2** Sorted by `Last updated`, an epic going MUST stand before one that is not, and the rest
 by when each ended, or began where it has not ended, newest first; sorted by `Created`, each by when

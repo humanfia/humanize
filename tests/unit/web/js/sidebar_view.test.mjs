@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { DEFAULTS, GROUP_ROWS, WIDTHS, arranged, paged, sorted, toggled, viewOf, viewText, widthOf } from '../../../../src/hmz/web/static/sidebar-view.js'
+import { DEFAULTS, GROUP_ROWS, NO_FOLDER, WIDTHS, arranged, paged, sorted, toggled, viewOf, viewText, widthOf } from '../../../../src/hmz/web/static/sidebar-view.js'
 
 const run = (name, workspace, began, more = {}) => ({ name, workspace, began, task: name, kind: 'chat', ...more })
-const names = (groups) => groups.map((one) => [one.kind === 'folder' ? one.path : one.label, one.runs.map((row) => row.name)])
+const names = (groups) => groups.filter((one) => one.kind !== 'folders').map((one) => [one.kind === 'folder' && one.path ? one.path : one.label, one.runs.map((row) => row.name)])
+const folders = (groups) => groups.filter((one) => one.kind === 'folders').map((one) => [one.key, one.label, one.folders])
 const NOW = Date.parse('2026-10-20T12:00:00')
 
 test('what Group and sort chose is the defaults until it says otherwise, and wherever it was kept wrong', () => {
@@ -76,6 +77,37 @@ test('by date, the rows stand under how long ago each was last updated, the empt
   // By when each began, one going long since is no longer of today.
   const created = arranged({ runs, view: { group: 'date', sort: 'created', chats: true, epics: true }, now: NOW })
   assert.deepEqual(names(created), [['Today', ['today']], ['Yesterday', ['yesterday']], ['Last 7 days', ['week']], ['Last 30 days', ['now']], ['Older', ['old']]])
+})
+
+test('by date, a list with nothing to show keeps Today, so that a heading is always there', () => {
+  const view = { ...DEFAULTS, group: 'date' }
+  assert.deepEqual(names(arranged({ runs: [], view, now: NOW })), [['Today', []]])
+  const runs = [run('a', '/w', '2026-10-13T10:00:00Z')]
+  assert.deepEqual(names(arranged({ runs, view: { ...view, chats: false }, now: NOW })), [['Today', []]])
+  // The rows pinned are a heading already.
+  assert.deepEqual(names(arranged({ runs, view, pinned: new Set(['a']), now: NOW })), [['Pinned', ['a']]])
+})
+
+test('grouped by anything but folder, the folders stand last as a group of their own', () => {
+  const runs = [run('a', '/w', '2026-10-13T10:00:00Z'), run('b', '/w', '2026-10-12T10:00:00Z'), run('nowhere', '', '2026-10-11T10:00:00Z')]
+  const of = { workspaces: [{ path: '/empty' }], runs, now: NOW }
+  const said = [[':folders', 'Folders', [{ path: '/w', count: 2 }, { path: '/empty', count: 0 }]]]
+  for (const group of ['date', 'none']) {
+    const groups = arranged({ ...of, view: { ...DEFAULTS, group } })
+    assert.deepEqual(folders(groups), said)
+    assert.equal(groups.at(-1).kind, 'folders')
+  }
+  assert.deepEqual(folders(arranged({ ...of, view: DEFAULTS })), [])
+  // No folder, no such group.
+  assert.deepEqual(folders(arranged({ runs: [], view: { ...DEFAULTS, group: 'none' }, now: NOW })), [])
+})
+
+test('by folder, the rows of no folder stand last, under No folder', () => {
+  const runs = [run('nowhere', '', '2026-10-13T10:00:00Z', { held: true }), run('a', '/w', '2026-10-12T10:00:00Z'), run('lost', undefined, '2026-10-11T10:00:00Z')]
+  const groups = arranged({ workspaces: [{ path: '/empty' }], runs, view: DEFAULTS, now: NOW })
+  assert.deepEqual(names(groups), [['/w', ['a']], ['/empty', []], [NO_FOLDER, ['nowhere', 'lost']]])
+  assert.deepEqual(groups.at(-1).path, '')
+  assert.ok(groups.at(-1).key)
 })
 
 test('grouped by nothing, the rows are one group, even an empty one', () => {

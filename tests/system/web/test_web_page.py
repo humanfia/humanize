@@ -1072,9 +1072,12 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         opened(site, engine=engine, user_agent=_APP, init=at_body) as page,
     ):
         assert page.evaluate("window.shellAtBody") == "macos"
-        # The sidebar keeps a strip for them, its top row drawn under it.
-        assert top(page, ".brand") >= strip
-        assert top(page, ".side-fold") >= strip
+        # The sidebar's top row stands beside them, in their strip: what hides the sidebar
+        # straight after them, and the mark, which they took the place of, before the bell.
+        assert left(page, ".side-fold") >= lights
+        assert top(page, ".side-fold") < strip
+        assert left(page, ".brand") > left(page, ".side-forward")
+        assert left(page, ".brand") < left(page, "[data-hmz=notifications]")
         for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
             expect(page.locator(row)).to_have_attribute(
                 "data-tauri-drag-region", "deep"

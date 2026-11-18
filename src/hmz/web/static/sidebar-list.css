@@ -1,6 +1,7 @@
 /* The sidebar's list, measured off Claude's desktop app: a group is a 24px heading over its rows,
    with what sorts the list and what starts a chat in it at its end; a row is 258 by 32, its title
-   on the left and, in the same line, how it stands in quiet words, with a menu at its far end. A
+   on the left and, straight after it in the same line, how it stands in quiet words, with a menu
+   at its far end. A
    chat is that one line; a flow's epic keeps what makes it another kind -- what opens it out, and
    its flow under its title. Every colour and font is a token of style.css. */
 
@@ -122,9 +123,21 @@
 }
 
 /* Room is kept at its end for its menu, whether or not that is drawn. */
-.side-chat > a {
+:is(.side-chat, .side-place) > a {
   height: 32px;
   padding: 0 32px 0 10px;
+}
+
+/* Its title is as wide as its words, cut short where the line is not: what stands after it
+   follows it at once, and what room is left is left at the line's end. */
+.side-chat > a > .side-label,
+.side-flow .side-line:first-child > .side-label {
+  flex: 0 1 auto;
+}
+
+/* When a chat began, at the row's end: drawn only where nothing can point at the row. */
+.side-age {
+  margin-left: auto;
 }
 
 /* How it stands, in the same line, said quietly; a failure in the colour of one. */
@@ -159,8 +172,8 @@
   opacity: 0;
 }
 
-.side-run:hover > .side-menu,
-.side-menu:focus-visible {
+.side-run:is(:hover, :focus-within) > .side-menu,
+.side-menu[aria-expanded='true'] {
   opacity: 1;
 }
 
@@ -253,6 +266,31 @@
   cursor: progress;
 }
 
+/* What reads a page more of the list, under its last group. */
+.side-more-list {
+  margin-top: 24px;
+}
+
+/* ------------------------------------------------------------------------- A row's menu */
+
+/* As a desktop app's: narrow, each choice one line of 28px, what it is about one line over them. */
+.popover.context.row-menu {
+  min-width: 154px;
+  max-width: 260px;
+}
+
+.row-menu .choice {
+  align-items: center;
+  min-height: 28px;
+  padding-block: 0;
+}
+
+.row-menu .context-head {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* ------------------------------------------------------------------- `Group and sort` */
 
 .popover:has(> .list-menu) {
@@ -302,4 +340,5 @@
   .icon-btn.side-menu {
     opacity: 1;
   }
+
 }
