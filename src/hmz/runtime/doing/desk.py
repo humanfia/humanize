@@ -280,8 +280,16 @@ class Holds(Protocol):
 
 
 def caps_of(capabilities: frozenset[type]) -> list[str]:
-    """The names of the environment mixins among `capabilities`, in :data:`CAPS` order."""
-    return [name for name, mixin in CAPS.items() if mixin in capabilities]
+    """The names of the environment mixins `capabilities` serve, in :data:`CAPS` order.
+
+    A mixin is served by itself and by any mixin implementing it, which is how
+    `RewindableEnvMixin`, an interface no driver lists, is served: by `GitEnvMixin`.
+    """
+    return [
+        name
+        for name, mixin in CAPS.items()
+        if any(mixin in one.__mro__ for one in capabilities)
+    ]
 
 
 # ------------------------------------------------------------------------- what is held
