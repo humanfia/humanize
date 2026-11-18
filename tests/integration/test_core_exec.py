@@ -15,8 +15,9 @@ import json
 import signal
 import subprocess
 import sys
+import tempfile
 import time
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -31,9 +32,6 @@ from tests.integration.doubles_core import (
     started,
     write_flow,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 #: Every epic here is held by a daemon of the test's own, in this process.
 pytestmark = pytest.mark.usefixtures("daemon", "loops")
@@ -283,6 +281,14 @@ def test_goal_says_the_task_as_a_goal() -> None:
 
     assert ran.returncode == 0, ran.stderr
     assert ran.stdout.strip() == "goal met: win"
+
+
+def test_a_run_that_ended_leaves_no_agents_temporary_directory_behind() -> None:
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
+
+    assert ran.returncode == 0, ran.stderr
+    left = [one.name for one in Path(tempfile.gettempdir()).glob("hmz-*")]
+    assert left == []
 
 
 def test_a_failed_first_turn_fails_the_run_with_what_the_cli_said() -> None:

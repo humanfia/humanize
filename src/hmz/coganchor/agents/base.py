@@ -4445,6 +4445,9 @@ class AgentBase(ABC):
         #: agent rather than per process, so that what a turn leaves there -- a build's
         #: cache, a file it means to read back -- is there for the next turn of the session.
         self._scratch: str | None = None
+        #: What takes that directory and the one its virtual homes are built in away: called
+        #: as the agent is stopped, and by the collector for one merely let go of.
+        self._sweeping: list[weakref.finalize[..., Any]] = []
         #: The LiteLLM gateway this agent's turns reach their model through, for an account
         #: litellm holds, once the first of them has started it; and what guards starting it.
         self._gateway: Gateway | None = None
@@ -4886,7 +4889,7 @@ class AgentBase(ABC):
             with self._starting:
                 if self._scratch is None:
                     self._scratch = tempfile.mkdtemp(prefix="hmz-fence-")
-                    weakref.finalize(self, _swept, self._scratch)
+                    self._sweeping.append(weakref.finalize(self, _swept, self._scratch))
                 tmp = self._scratch
         # And the flow's command lines, once there are any: the scripts on the PATH and the
         # socket they reach this process on, which are this agent's own.
@@ -5674,7 +5677,7 @@ class AgentBase(ABC):
         with self._holding:
             if self._homes is None:
                 made = os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-"))
-                weakref.finalize(self, _swept, made)
+                self._sweeping.append(weakref.finalize(self, _swept, made))
                 self._homes = Path(made)
             return self._homes
 
@@ -6268,6 +6271,13 @@ class AgentBase(ABC):
             through, self._gateway = self._gateway, None
         if through is not None:
             through.stop()
+        # And the directories made for its processes, which have none left to serve: an agent
+        # stopped is an agent ended, and one held to the end of a process that leaves without
+        # unwinding is one no collector ever gets to.
+        for sweep in list(self._sweeping):
+            sweep()
+        self._toolbox.close()
+        self._shelf.close()
 
     def watch(
         self, listener: Callable[[AgentBase, SessionBase | None, Event], None]
