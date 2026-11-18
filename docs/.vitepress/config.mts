@@ -1,7 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
+import { fileURLToPath } from 'node:url'
+
 import { defineConfig, type SiteConfig } from 'vitepress'
+
+import { chromeFor, loadChrome } from './humanfia/chrome'
 
 // Deployed to https://humanfia.ai/humanize/ by .github/workflows/build-docs.yml.
 // The domain belongs to the organisation's own Pages site (humanfia/humanfia.github.io, which is
@@ -14,6 +18,20 @@ import { defineConfig, type SiteConfig } from 'vitepress'
 // the base to each of them -- so nothing in a page names the subdirectory.
 const BASE = '/humanize/'
 const HOST = 'https://humanfia.ai'
+
+// The bar across the top and the footer are humanfia.ai's, read from that site (humanfia/chrome.ts):
+// one site to a reader, whichever build drew the page. `HUMANFIA_ORIGIN` points its links at a
+// local copy of the organisation's site, for looking at the two builds together.
+const CHROME = chromeFor(await loadChrome(), BASE, process.env.HUMANFIA_ORIGIN || undefined)
+
+/** A page of the organisation's build, loaded in the background once a pointer rests on a link
+ *  to it, so the click that follows swaps to a page that is already drawn. A browser that does
+ *  not know speculation rules ignores the script. */
+const PRERENDER_THE_REST = JSON.stringify({
+  prerender: [
+    { where: { and: [{ href_matches: '/*' }, { not: { href_matches: `${BASE}*` } }] }, eagerness: 'moderate' },
+  ],
+})
 
 // Where a page used to be, and where it is now: a path on this site, or the full URL of a page
 // that left it. Guides used to be one flat section serving two audiences at once; they are a
@@ -154,40 +172,22 @@ export default defineConfig({
   srcExclude: ['tapes/**'],
 
   head: [
-    // Written out with the base in it: VitePress prepends the base to a theme's own
-    // links and to what a page names, and hands `head` to the template as it is.
-    // The favicon draws the mark on a tile of its own and follows the viewer's light or dark.
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/humanize/favicon.svg' }],
-    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#f4f8f9' }],
-    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#0f1418' }],
+    // humanfia.ai's own icon and browser tint, from the domain's root: this is a page of that
+    // site. `head` goes to the template as it is, so no base is prepended to these.
+    ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+    ['meta', { name: 'theme-color', content: '#141a1f' }],
+    ['script', { type: 'speculationrules' }, PRERENDER_THE_REST],
   ],
 
   themeConfig: {
-    // A fixed pair rather than `logo.svg`, which follows the viewer's preference: the nav
-    // follows the site's own light/dark switch instead. `logo.svg` is for everywhere else --
-    // the README's banner links it.
-    logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: 'Humanize' },
-
-    // The sections, in the order a reader comes to need them: getting it and running flows,
-    // then writing one of their own. Features explains how it all works, for whoever wants to
-    // know why; reference spells every part of it out; and contributing is for the few working
-    // on Humanize itself. The flows there are to run are humanfia's, at humanfia.ai/flows.
-    nav: [
-      { text: 'Get Started', link: '/user/installation', activeMatch: '^/user/(installation|first-run)' },
-      { text: 'User Guide', link: '/user/', activeMatch: '^/user/(?!installation|first-run)' },
-      { text: 'Writing Flows', link: '/weaver/', activeMatch: '/weaver/' },
-      { text: 'Features', link: '/features/', activeMatch: '/features/' },
-      { text: 'Reference', link: '/reference/', activeMatch: '/reference/' },
-      {
-        text: 'Contributing',
-        link: '/contributing/',
-        activeMatch: '/contributing/',
-      },
-      // The rest of humanfia.ai, which this site is one path of: the flows' catalogue, the
-      // other projects, the blog and the news. The same origin and another build, so the
-      // browser loads it rather than the router (`target`; theme/index.ts for links in a page).
-      { text: 'Humanfia', link: `${HOST}/`, target: '_self', rel: 'home', noIcon: true },
-    ],
+    // humanfia.ai's bar: no logo and no title, because the brand is the animated wordmark the
+    // theme puts in the title link (theme/index.ts), and it goes to the organisation's front
+    // page. The links are the organisation's sections. This site's own -- the guides, the
+    // reference, contributing -- are at the head of every sidebar (theme/humanfia/SectionNav.vue)
+    // and on the front page.
+    siteTitle: false,
+    logoLink: { link: CHROME.home, target: '_self', rel: 'home' },
+    nav: CHROME.nav,
 
     // Every sidebar opens with its own section as a link rather than with an entry inside a
     // group of the same name: a group called Features holding an item called "All of them" is
@@ -457,7 +457,7 @@ export default defineConfig({
       ],
     },
 
-    socialLinks: [{ icon: 'github', link: 'https://github.com/humanfia/humanize' }],
+    socialLinks: CHROME.socialLinks,
 
     editLink: {
       pattern: 'https://github.com/humanfia/humanize/edit/main/docs/:path',
@@ -468,9 +468,10 @@ export default defineConfig({
 
     outline: { level: [2, 3] },
 
+    // The organisation's footer, and under it this project's own licence and copyright.
     footer: {
-      message: 'Released under the Apache-2.0 licence.',
-      copyright: 'Copyright © 2026 Zijian Zhang',
+      message: CHROME.footer.message,
+      copyright: 'Humanize is released under the Apache-2.0 licence · Copyright © 2026 Zijian Zhang',
     },
   },
 
@@ -506,6 +507,15 @@ export default defineConfig({
   },
 
   vite: {
+    // The footer has no slot, so humanfia.ai's replaces the theme's outright.
+    resolve: {
+      alias: [
+        {
+          find: /^.*\/VPFooter\.vue$/,
+          replacement: fileURLToPath(new URL('./theme/humanfia/SiteFooter.vue', import.meta.url)),
+        },
+      ],
+    },
     plugins: [
       {
         // The same redirects while `pnpm dev` is running, where nothing has been built yet and

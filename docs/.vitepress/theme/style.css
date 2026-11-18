@@ -498,31 +498,6 @@
   overflow-wrap: anywhere;
 }
 
-/* The default theme opens the nav bar out into its links, a search box and the overflow button
-   at 768px wide. Six links are more than fit there: the button holding the theme switch and the
-   GitHub link sits past the right edge, and the page scrolls sideways to reach it. So the nav
-   stays a button until 960px -- the width the sidebar comes back at, and by then there is room
-   for all six. Below that the layout is already the compact one, and now the nav is too.
-   The doubled class outweighs the scoped selectors these rules are overriding. */
-@media (min-width: 768px) and (max-width: 959px) {
-  .VPNavBarHamburger.VPNavBarHamburger {
-    display: flex;
-  }
-
-  .VPNavBarMenu.VPNavBarMenu {
-    display: none;
-  }
-
-  /* What it holds -- the theme switch, the GitHub link -- the nav screen holds already. */
-  .VPNavBarExtra.VPNavBarExtra {
-    display: none;
-  }
-
-  .VPNavScreen.VPNavScreen {
-    display: block;
-  }
-}
-
 /* ---------------------------------------------------------------------------------------
    Small things every page may use. Each is opt-in by its class, except `kbd` and the
    callouts, which every page already has and which only gain from it.

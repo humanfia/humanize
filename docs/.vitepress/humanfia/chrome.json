@@ -1,0 +1,56 @@
+{
+  "origin": "https://humanfia.ai",
+  "nav": [
+    {
+      "text": "Projects",
+      "items": [
+        {
+          "text": "Humanize",
+          "link": "https://humanfia.ai/humanize/"
+        },
+        {
+          "text": "FlowBench",
+          "link": "https://humanfia.ai/flowbench/"
+        },
+        {
+          "text": "HOA",
+          "link": "https://humanfia.ai/hoa/"
+        },
+        {
+          "text": "KDA",
+          "link": "https://humanfia.ai/kda/"
+        },
+        {
+          "text": "HMA",
+          "link": "https://humanfia.ai/hma/"
+        }
+      ]
+    },
+    {
+      "text": "Flows",
+      "link": "https://humanfia.ai/flows/"
+    },
+    {
+      "text": "Blog",
+      "link": "https://humanfia.ai/blog/"
+    },
+    {
+      "text": "News",
+      "link": "https://humanfia.ai/news/"
+    },
+    {
+      "text": "About",
+      "link": "https://humanfia.ai/about/"
+    }
+  ],
+  "socialLinks": [
+    {
+      "icon": "github",
+      "link": "https://github.com/humanfia"
+    }
+  ],
+  "footer": {
+    "message": "Open source on <a href=\"https://github.com/humanfia\">github.com/humanfia</a> · RSS: <a href=\"https://humanfia.ai/blog/feed.rss\">blog</a> · <a href=\"https://humanfia.ai/news/feed.rss\">news</a>",
+    "copyright": "Copyright © 2026"
+  }
+}

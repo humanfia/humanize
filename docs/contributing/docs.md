@@ -321,6 +321,19 @@ drawn by the components in `.vitepress/theme/components/product/`. So a link fro
 rather than the router (`.vitepress/theme/index.ts`). Nothing here may be published outside
 `/humanize/`, and renaming this repository moves the site.
 
+The bar across the top and the footer are the organisation's, so that a reader crossing between
+the two builds sees one site. Their links come from
+[humanfia.ai/chrome.json](https://humanfia.ai/chrome.json), fetched when the site is built
+(`.vitepress/humanfia/chrome.ts`, with a copy beside it for a build with no network); the
+wordmark, the footer and the rules that make the bar look and sit the same are in
+`.vitepress/theme/humanfia/`, kept in step with
+[humanfia/humanfia.github.io](https://github.com/humanfia/humanfia.github.io)'s theme. The bar
+therefore names the organisation's sections, and this site's own are at the head of every
+sidebar (`SectionNav.vue`). A page load between the two builds is cross-faded, with the bar
+carried across unchanged (`chrome.css`). To look at both builds together, build this one with
+`HUMANFIA_ORIGIN=http://localhost:<port>` and serve it under `/humanize/` of a build of the
+organisation's site.
+
 ## Next steps
 
 - [Add a page to these docs](/contributing/tutorials/a-page-of-docs), the tutorial

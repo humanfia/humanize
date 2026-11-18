@@ -1,0 +1,118 @@
+/* humanfia.ai's chrome, as this build draws it.
+
+   This site is one path of humanfia.ai, and the bar across the top and the footer are meant to
+   be the same object in both builds: a reader going from the organisation's pages to these and
+   back should see the page change and nothing round it. So what is here is the organisation's
+   theme where it touches the chrome (humanfia/humanfia.github.io, .vitepress/theme/style.css)
+   -- the ink the bar is written in, the face, the wordmark's size and colours -- and anything
+   changed there is changed here. The palette itself is already the same one (../style.css). */
+
+:root {
+  /* The wordmark: ink, and the green circle. */
+  --hf-mark: #141a1f;
+  --hf-green: #76b900;
+
+  /* Ink, and the two greys it fades through; the rules between things. */
+  --vp-c-text-1: #141a1f;
+  --vp-c-text-2: #435058;
+  --vp-c-text-3: #5d6a72;
+  --vp-c-divider: color-mix(in srgb, #141a1f 14%, transparent);
+  --vp-c-gutter: color-mix(in srgb, #141a1f 8%, transparent);
+}
+
+.dark {
+  --hf-mark: #e8f0f2;
+
+  --vp-c-text-1: #e8f0f2;
+  --vp-c-text-2: #b3c3c8;
+  --vp-c-text-3: #82939a;
+  --vp-c-divider: color-mix(in srgb, #e8f0f2 14%, transparent);
+  --vp-c-gutter: color-mix(in srgb, #e8f0f2 6%, transparent);
+}
+
+/* The site talking about itself is monospaced; what somebody wrote is not. */
+.VPNav,
+.VPNavScreen,
+.VPFooter,
+.VPLocalSearchBox,
+.VPSkipLink,
+.NotFound {
+  font-family: var(--vp-font-family-mono);
+}
+
+.VPLocalSearchBox input {
+  font-family: inherit;
+}
+
+/* The wordmark in the nav, a little taller than the theme's logo height. */
+.VPNavBarTitle .title {
+  --hf-wordmark-height: 27px;
+}
+
+/* The bar is laid out the one way on every page. The theme has a second layout for a page with
+   a sidebar -- the title becomes the head of the sidebar's column, the links start where the
+   column ends, and the search box and the menus land a few pixels from where they are on a page
+   without one. None of the organisation's pages has a sidebar and most of these do, so going
+   from one to the other would move the bar. Each rule below undoes one of the theme's for
+   `.has-sidebar`; the doubled class outweighs the scoped selector it answers. */
+@media (min-width: 960px) {
+  .VPNavBar.VPNavBar.has-sidebar {
+    background-color: var(--vp-nav-bg-color);
+  }
+
+  .VPNavBar.has-sidebar .wrapper.wrapper {
+    padding: 0 32px;
+  }
+
+  .VPNavBar.has-sidebar .container.container {
+    max-width: calc(var(--vp-layout-max-width) - 64px);
+  }
+
+  .VPNavBar.has-sidebar .container > .title.title {
+    position: static;
+    padding: 0;
+    width: auto;
+    height: calc(var(--vp-nav-height) - 1px);
+  }
+
+  .VPNavBar.has-sidebar .container > .content.content {
+    position: static;
+    padding: 0;
+  }
+
+  .VPNavBar.has-sidebar .content-body.content-body {
+    background-color: transparent;
+  }
+
+  .VPNavBar.has-sidebar .divider.divider {
+    padding-left: 0;
+    background-color: var(--vp-c-gutter);
+  }
+
+  .VPNavBarTitle.has-sidebar .title.title {
+    border-bottom-color: transparent;
+  }
+}
+
+/* One site, more than one build: a link to the organisation's pages is a page load rather than
+   a route change. The browser is asked to treat it as a change of page all the same -- it holds
+   the old page until the new one has drawn, then cross-fades the two -- and the nav is named,
+   so it is carried across as one object and does not fade at all. The organisation's theme has
+   the same block, under the same name. */
+@view-transition {
+  navigation: auto;
+}
+
+.VPNav {
+  view-transition-name: hf-nav;
+}
+
+::view-transition-group(root) {
+  animation-duration: 0.16s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
