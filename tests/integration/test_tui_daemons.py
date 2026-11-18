@@ -8,6 +8,7 @@ home of its own, paired from the code `hmz daemon pair` makes.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import os
@@ -50,6 +51,7 @@ from tests.integration.doubles_ssh import Host, faked
 from tests.integration.doubles_tui import (
     OWN,
     PATIENCE,
+    RUNS,
     SIZE,
     leaves,
     on,
@@ -262,6 +264,45 @@ async def test_an_epic_is_started_on_another_daemon_and_steered_here(
         "plan": "a plan",
         "review": "it is",
     }
+
+
+async def test_a_chat_followed_on_another_daemon_is_not_this_directorys(
+    host: Host,
+) -> None:
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    project = host.home / "project"
+
+    def starts() -> dict[str, Any]:
+        with pick.remotes().client("box") as client:
+            return client.call(
+                "chat.start",
+                {"workspace": str(project), "agent": RUNS, "task": "hi far"},
+                idem="abc123abc123",
+                seconds=PATIENCE,
+            )
+
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        made = await asyncio.to_thread(starts)
+        await typed(pilot, "/epics @box")
+        await on(pilot, RemoteEpics)
+        await shows(pilot, "hi far")
+        await _menu(pilot, str(made["epic"]))
+        await onto(pilot, "follow")
+        await pilot.press("enter")
+        await until(pilot, lambda: len(pilot.app.screen_stack) == 1, "the chat")
+        await shows(pilot, "@box", "heard hi far")
+        await typed(pilot, "more far")
+        await shows(pilot, "heard more far")
+
+        # Left going there: a line typed back here is this directory's own chat's.
+        await pilot.press("escape")
+        await on(pilot, RemoteEpics)
+        await leaves(pilot)
+        await until(pilot, lambda: "@box" not in screen(pilot.app), "this machine's")
+        await typed(pilot, "hello local")
+        await shows(pilot, "heard hello local")
+        assert "is not a chat of" not in screen(pilot.app)
 
 
 class _Gated:
