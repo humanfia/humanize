@@ -282,6 +282,23 @@ def test_a_face_is_framed_by_the_page_alone_and_reaches_nothing(
         assert "access-control-allow-origin" not in script.headers
         assert script.headers["x-frame-options"] == "DENY"
 
+        # A browser that has the library from the page asks a face's copy of it conditionally:
+        # told it has it, it is told the face may read it too, and nothing else is.
+        had = {"If-None-Match": library.headers["etag"]}
+        kept = browser.get("/vendor/markdown.js", Origin="null", **had)
+        assert kept.status == 304
+        assert kept.headers["access-control-allow-origin"] == "null"
+        elsewhere = browser.get(
+            "/vendor/markdown.js", Origin="https://example.com", **had
+        )
+        assert elsewhere.status == 304
+        assert "access-control-allow-origin" not in elsewhere.headers
+        script = browser.get(
+            "/app.js", Origin="null", **{"If-None-Match": script.headers["etag"]}
+        )
+        assert script.status == 304
+        assert "access-control-allow-origin" not in script.headers
+
 
 def test_what_another_site_left_in_the_cookie_jar_is_not_this_ones_business(
     project: Path,
