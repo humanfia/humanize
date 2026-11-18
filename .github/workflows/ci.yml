@@ -155,6 +155,7 @@ jobs:
               - .github/workflows/ci.yml
             coganchor:
               - crates/coganchor/**
+              - release-please-config.json
               - .github/workflows/ci.yml
             # The app, and the page it carries.
             desktop:
