@@ -34,6 +34,7 @@ from hmz.flows import (
     HarnessSandboxed,
     HarnessUnrecoverable,
     HookKind,
+    OutputSchemaError,
     OutputTokensExceeded,
     OutworlderAway,
     Permission,
@@ -50,7 +51,6 @@ from hmz.runtime.flowing import harnessing
 from hmz.runtime.flowing.harnesses import (
     HarnessDriver,
     HarnessSession,
-    away_answer,
     open_agent,
     open_outworlder,
     settled,
@@ -58,6 +58,7 @@ from hmz.runtime.flowing.harnesses import (
 from hmz.runtime.flowing.specs import AgentSpec
 from hmz.runtime.flowing.spi import (
     HARNESS_CAPABILITIES,
+    Ask,
     HookTable,
     Kept,
     Limits,
@@ -1592,40 +1593,33 @@ def test_a_fence_the_cli_cannot_be_held_to_is_unrecoverable(
 # ----------------------------------------------------------------------------- outworlder
 
 
-class Person:
-    """coganchor's person-shaped agent, answering what it is asked."""
-
-    def __init__(self, *, name: str) -> None:
-        self.name = name
-        self.ask: Callable[[Question], str | None] | None = None
-
-    def asked(self, question: Question) -> str | None:
-        return None if self.ask is None else self.ask(question)
-
-    def new(self) -> Callable[..., Any]:
-        def turn(
-            prompt: str, *, suppress: bool, schema: type[pydantic.BaseModel]
-        ) -> Any:
-            return schema.model_validate(
-                {"done": self.asked(Question(text=prompt)) == "yes"}
-            )
-
-        return turn
+def text(prompt: str) -> Ask:
+    """A text ask."""
+    return Ask(prompt=prompt, schema=None)
 
 
-async def test_nobody_to_ask_is_away_and_answers_as_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def shaped(prompt: str, model: type[pydantic.BaseModel] | None = Fix) -> Ask:
+    """An ask of `Fix`'s whole schema, with a block to read and a face."""
+    return Ask(
+        prompt=prompt,
+        schema=Fix.model_json_schema(),
+        model=model,
+        context=({"kind": "markdown", "text": "the diff"},),
+        face="abc",
+        session="lead/1",
+    )
+
+
+async def test_nobody_to_ask_is_away_and_answers_as_one() -> None:
     nobody = open_outworlder()
 
     assert nobody.away_for("reviewer")
-    assert await nobody.run("ok?", None, "reviewer") == ""
+    assert await nobody.run(text("ok?"), "reviewer") == ""
+    with pytest.raises(OutworlderAway, match="no default"):
+        await nobody.run(shaped("done?"), "reviewer")
 
 
-async def test_a_person_is_asked_as_the_role_asking(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(coganchor_agents, "HumanAgent", Person)
+async def test_a_person_is_asked_as_the_role_asking() -> None:
     heard: list[Question] = []
 
     def ask(question: Question) -> str | None:
@@ -1635,42 +1629,86 @@ async def test_a_person_is_asked_as_the_role_asking(
     person = open_outworlder(ask=ask)
 
     assert not person.away_for("reviewer")
-    assert await person.run("ship it?", None, "reviewer") == "yes"
-    assert await person.run("done?", Fix, "lead") == Fix(done=True)
-    assert [(one.text, one.asker) for one in heard] == [
-        ("ship it?", "reviewer"),
-        ("done?", "lead"),
+    assert await person.run(text("ship it?"), "reviewer") == "yes"
+    assert [(one.text, one.asker, one.schema, one.check) for one in heard] == [
+        ("ship it?", "reviewer", None, None)
     ]
 
 
-async def test_a_person_away_for_one_role_answers_as_away_for_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(coganchor_agents, "HumanAgent", Person)
+async def test_a_schema_is_asked_whole_in_one_question() -> None:
+    heard: list[Question] = []
+
+    def ask(question: Question) -> str | None:
+        heard.append(question)
+        return '{"done": true}'
+
+    person = open_outworlder(ask=ask)
+
+    assert await person.run(shaped("done?"), "lead") == Fix(done=True)
+    (question,) = heard
+    assert (question.text, question.asker, question.options) == ("done?", "lead", ())
+    assert question.schema == Fix.model_json_schema()
+    assert question.context == ({"kind": "markdown", "text": "the diff"},)
+    assert (question.face, question.session) == ("abc", "lead/1")
+
+
+async def test_a_schema_question_checks_a_value_field_by_field() -> None:
+    heard: list[Question] = []
+    person = open_outworlder(ask=lambda question: heard.append(question) or "{}")
+
+    with pytest.raises(OutputSchemaError, match="did not answer"):
+        await person.run(shaped("done?"), "lead")
+    check = heard[0].check
+    assert check is not None
+    assert check({"done": True}) == ()
+    (wrong,) = check({"done": "perhaps"})
+    assert wrong["path"] == ["done"]
+    assert wrong["message"]
+    assert check({})[0]["path"] == ["done"]
+
+
+async def test_a_schema_asked_with_no_model_answers_the_value_as_read() -> None:
+    person = open_outworlder(ask=lambda question: '{"done": true}')
+
+    assert await person.run(shaped("done?", None), "lead") == {"done": True}
+    with pytest.raises(OutputSchemaError, match="an object"):
+        await open_outworlder(ask=lambda question: "[1]").run(
+            shaped("done?", None), "lead"
+        )
+
+
+async def test_a_person_away_for_one_role_answers_as_away_for_it() -> None:
     person = open_outworlder(
         ask=lambda question: "here", away=lambda role: role == "afk"
     )
 
     assert person.away_for("afk")
-    assert await person.run("x", None, "afk") == ""
-    assert await person.run("x", None, "desk") == "here"
+    assert await person.run(text("x"), "afk") == ""
+    assert await person.run(text("x"), "desk") == "here"
 
 
-async def test_a_person_who_answered_nothing_went_away(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(coganchor_agents, "HumanAgent", Person)
-
+async def test_a_person_who_answered_nothing_went_away() -> None:
     with pytest.raises(OutworlderAway, match="nobody answered"):
-        await open_outworlder(ask=lambda question: None).run("x", None, "r")
+        await open_outworlder(ask=lambda question: None).run(text("x"), "r")
 
 
-class Defaulted(pydantic.BaseModel):
-    note: str = "none"
+def test_a_person_is_shown_context_and_faces_unless_away() -> None:
+    shown: list[tuple[str, str, tuple[dict[str, Any], ...]]] = []
+    faces: list[object] = []
+    person = open_outworlder(
+        ask=lambda question: "",
+        away=lambda role: role == "afk",
+        show=lambda role, session, context: shown.append((role, session, context)),
+        faces=faces.append,
+    )
+    block = ({"kind": "markdown", "text": "50%"},)
 
+    person.show(block, "lead/1", "lead")
+    person.show(block, "afk/1", "afk")
+    person.mount("face")
 
-def test_an_away_answer_is_empty_text_or_the_schemas_defaults() -> None:
-    assert away_answer(None) == ""
-    assert away_answer(Defaulted) == Defaulted()
-    with pytest.raises(OutworlderAway, match="no default"):
-        away_answer(Fix)
+    assert shown == [("lead", "lead/1", block)]
+    assert faces == ["face"]
+    # With nowhere to send them, both are dropped.
+    open_outworlder(ask=lambda question: "").show(block, "lead/1", "lead")
+    open_outworlder().mount("face")

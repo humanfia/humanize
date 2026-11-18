@@ -47,6 +47,7 @@ if TYPE_CHECKING:
     from hmz.flows import Budget, EnvError, FlowParams, Usage
     from hmz.runtime.flowing import (
         AgentDriver,
+        Ask,
         Declaration,
         EnvDriver,
         FlowImpl,
@@ -983,11 +984,25 @@ class _Waited:
         return self._held.away_for(role)
 
     async def run(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
-    ) -> str | pydantic.BaseModel:
+        self, ask: Ask, role: str
+    ) -> str | pydantic.BaseModel | Mapping[str, Any]:
         """Asks the outworlder, with the clock held until it answers."""
         with self._still.away():
-            return await self._held.run(prompt, output_schema, role)
+            return await self._held.run(ask, role)
+
+    def show(
+        self, context: tuple[dict[str, Any], ...], session: str, role: str
+    ) -> None:
+        """Pushes context to the outworlder, where it takes any."""
+        show = getattr(self._held, "show", None)
+        if show is not None:
+            show(context, session, role)
+
+    def mount(self, face: Any) -> None:
+        """Hands a session's face to the outworlder, where it takes any."""
+        mount = getattr(self._held, "mount", None)
+        if mount is not None:
+            mount(face)
 
 
 class Recorder:

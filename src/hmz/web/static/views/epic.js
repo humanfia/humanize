@@ -13,6 +13,7 @@
 // beside it.
 
 import { asides, board, outworlders, question, saying } from '../acting.js'
+import { settle } from '../asking/card.js'
 import { call, exported, given, hash } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
@@ -66,6 +67,8 @@ export function mount(root, { parts, query }) {
   let carryingOn = false
   /** The card of each question waiting, kept while it waits as it was asked of whom it was. */
   const cards = new Map()
+  /** The cards of questions no longer waiting, each folded into what became of it until dismissed. */
+  const settling = []
   let seen = null
   let traced = null
   let tracing = false
@@ -396,15 +399,49 @@ export function mount(root, { parts, query }) {
     const carded = chat ? [] : pending
     region('dock-questions', [carded, me, clients], () => {
       const kept = new Set()
+      const waiting = new Set(carded.map((one) => one.question))
       const shown = carded.map((one) => {
-        const key = JSON.stringify([one.question, one.owner || '', me, one.text, one.options])
+        const key = JSON.stringify([one.question, one.owner || '', me, one.text, one.options, Boolean(one.schema), (one.context || []).length, one.face ? one.face.hash || one.face : ''])
         if (!cards.has(key)) cards.set(key, question(here, one, me, clients))
         kept.add(key)
         return cards.get(key)
       })
-      for (const key of [...cards.keys()]) if (!kept.has(key)) cards.delete(key)
-      dock.querySelector('.questions')?.remove()
+      for (const [key, card] of [...cards]) {
+        if (kept.has(key)) continue
+        cards.delete(key)
+        // A question no longer waiting folds into what became of it, and stays until dismissed;
+        // one drawn anew, as another took it, is only drawn anew.
+        const id = JSON.parse(key)[0]
+        if (!waiting.has(id) && card.isConnected) settling.push({ card, question: id })
+      }
+      while (settling.length > SETTLED_KEPT) settling.shift()
+      dock.querySelector('[data-hmz=waiting]')?.remove()
       if (shown.length) dock.prepend(h('div', { class: 'questions', 'data-hmz': 'waiting', role: 'region', 'aria-label': 'Waiting for you' }, shown))
+    })
+    // What became of each question gone is read off the records as they come.
+    for (const one of settling) {
+      if (one.done) continue
+      const record = run ? run.records.findLast((each) => each.question === one.question && (each.type === 'answered' || each.type === 'withdrawn')) : null
+      if (record && record.type === 'answered') settle(one.card, { answered: record, mine: record.client === me })
+      else if (record) settle(one.card, { withdrawn: record.why })
+      else if (!going) settle(one.card, { withdrawn: 'over' })
+      else {
+        // Gone, and what became of it not yet heard: it is answerable no more meanwhile.
+        settle(one.card, { leaving: true })
+        continue
+      }
+      one.done = true
+    }
+    const gone = settling.filter((one) => one.card.isConnected || !one.drawn)
+    settling.splice(0, settling.length, ...gone)
+    region('dock-settled', [settling.map((one) => one.question)], () => {
+      dock.querySelector('[data-hmz=asked-settled]')?.remove()
+      for (const one of settling) one.drawn = true
+      if (!settling.length) return
+      const list = h('div', { class: 'questions questions-settled', 'data-hmz': 'asked-settled', role: 'region', 'aria-label': 'Answered' }, settling.map((one) => one.card))
+      const live = dock.querySelector('[data-hmz=waiting]')
+      if (live) live.after(list)
+      else dock.prepend(list)
     })
     if (going) {
       const sessions = (standing.sessions && standing.sessions.open) || []
@@ -936,6 +973,9 @@ function envsAddress(host, { env = '', tab = '' } = {}) {
 
 /** How long Stop stays asked, waiting for the epic to say it is stopping. */
 const STOP_WAITS = 10000
+
+/** How many questions gone are kept folded under those waiting, the latest last. */
+const SETTLED_KEPT = 3
 
 /**
  * When Stop was last asked of each epic, by its name: kept beyond one drawing of its page, so

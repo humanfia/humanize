@@ -14,8 +14,13 @@ import { withBase } from 'vitepress'
 
 <div class="hmz-facts">
 
-- **Any question too.** Asked for text rather than a [shape](/features/shapes), you type a line
-  and the flow gets it.
+- **One form, every field at once.** Asked for a [shape](/features/shapes), you get one form
+  of all of it, at the prompt or in the browser, with what the flow suggests already picked; an
+  answer the shape refuses is said beside the field it is about.
+- **Any question too.** Asked for text rather than a shape, you type a line and the flow gets
+  it.
+- **Something to read with it.** A question can carry a diff, a table or a chart, and a flow
+  can bring a [page of its own](/weaver/faces) to ask it in, the form always a click away.
 - **Away means answered.** Run unattended, or [marked away](/user/afk), a text question gets an
   empty answer.
 - **Give defaults to run unattended.** Away, a shape with a default in every field gets those,

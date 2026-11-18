@@ -45,6 +45,7 @@ import contextlib
 import contextvars
 import dataclasses
 import inspect
+import json
 import logging
 import threading
 import time
@@ -100,10 +101,18 @@ from hmz.flows import (
 
 from .declaring import Grant
 from .journaling import SESSION
-from .spi import HookTable, Kept, Limits, TurnRequest, default_result
+from .spi import (
+    Ask,
+    HookTable,
+    Kept,
+    Limits,
+    TurnRequest,
+    away_answer,
+    default_result,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Coroutine, Mapping
+    from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
     from pathlib import PurePosixPath
     from types import FrameType
 
@@ -1392,23 +1401,47 @@ class EnvView:
 # -------------------------------------------------------------------------- outworlders
 
 
-def away_answer(
-    schema: type[pydantic.BaseModel] | None,
-) -> str | pydantic.BaseModel:
-    """What an outworlder that is away answers.
+def _checked(context: Sequence[Any]) -> tuple[Any, ...]:
+    """What an outworlder is shown, refused here if any of it is not a context block.
+
+    A block is anything with an `as_json()`, which every block of :mod:`hmz.flows` has, or
+    a block already in its JSON form.
 
     Raises:
-      OutworlderAway: For a schema not every field of which has a default.
+      TypeError: For text in place of a sequence of blocks, or something in it that is not
+        a block.
     """
-    if schema is None:
-        return ""
-    try:
-        return schema()
-    except pydantic.ValidationError:
-        raise OutworlderAway(
-            f"nobody is there to answer with a {schema.__name__}, and it has fields "
-            "with no default"
-        ) from None
+    if isinstance(context, (str, bytes)):
+        raise TypeError(f"context={context!r} is text, not a sequence of blocks")
+    blocks = tuple(context)
+    for block in blocks:
+        if not callable(getattr(block, "as_json", None)) and not isinstance(
+            block, dict
+        ):
+            raise TypeError(f"{block!r} is not a context block")
+    return blocks
+
+
+#: How much the JSON forms of one ask's or one `show`'s context may come to, in bytes.
+_CONTEXT_MOST = 16 << 20
+
+
+def _jsoned(blocks: tuple[Any, ...]) -> tuple[dict[str, Any], ...]:
+    """Context blocks, each in the JSON form a driver hands on.
+
+    Raises:
+      ValueError: Where they come to more than 16 MiB written.
+    """
+    jsoned = tuple(
+        dict(cast("dict[str, Any]", block))
+        if isinstance(block, dict)
+        else dict(block.as_json())
+        for block in blocks
+    )
+    size = len(json.dumps(jsoned, ensure_ascii=False, default=str).encode())
+    if size > _CONTEXT_MOST:
+        raise ValueError(f"the context comes to {size} bytes, past 16 MiB")
+    return jsoned
 
 
 def _answered(
@@ -1432,7 +1465,7 @@ def _answered(
 class Source:
     """Whoever an outworlder view answers for: the run's own, or one a flow made."""
 
-    __slots__ = ("driver", "hook", "made", "node")
+    __slots__ = ("driver", "hook", "made", "node", "opened")
 
     def __init__(
         self, driver: OutworlderDriver | None, *, made: bool, node: Call | None
@@ -1444,6 +1477,14 @@ class Source:
         self.hook: HookFn[OutworlderRunHookParams, OutworlderRunHookResult] | None = (
             None
         )
+        #: How many sessions have been opened as each role, which numbers the next.
+        self.opened: dict[str, int] = {}
+
+    def session(self, role: str) -> str:
+        """Names a new session of one role: `<role>/<n>`, counted from 1 per role."""
+        who = role or "outworlder"
+        n = self.opened[who] = self.opened.get(who, 0) + 1
+        return f"{who}/{n}"
 
     def away_for(self, role: str) -> bool:
         """Whether nobody answers as one role: the run's `Outworlder` role it was filled for."""
@@ -1496,12 +1537,24 @@ async def _asked[T](node: Call | None, asking: Coroutine[Any, Any, T]) -> T:
 
 
 class _Person:
-    """The session handle of an outworlder, who has no CLI to hold one of."""
+    """The session handle of an outworlder, who has no CLI to hold one of.
 
-    __slots__ = ("source",)
+    Holds what a frontend keeps across the session's asks: its name, and the face it was
+    opened with.
+    """
 
-    def __init__(self, source: Source) -> None:
+    __slots__ = ("face", "name", "source")
+
+    def __init__(self, source: Source, name: str, face: Any = None) -> None:
         self.source = source
+        self.name = name
+        self.face = face
+
+    @property
+    def hash(self) -> str:
+        """The hash of its face, or "" for none."""
+        face = self.face
+        return "" if face is None else str(face.hash)
 
     @property
     def id(self) -> str | None:
@@ -1621,11 +1674,49 @@ class OutworlderView:
             raise CapabilityNotGranted(f"{self._role}: an outworlder has no skills")
         return self
 
-    async def spawn(self) -> SessionView:
+    async def spawn(self, face: Any = None) -> SessionView:
+        if face is not None and not all(
+            hasattr(face, one) for one in ("html", "title", "hash")
+        ):
+            raise TypeError(f"face={face!r} is not a Face")
         node = self._asking()
         if node is not None:
             node.check()
-        return SessionView(self, _Person(self._source))
+        source = self._source
+        if face is not None and not source.made and source.driver is not None:
+            # Handed over before any ask names it by its hash.
+            mount = getattr(source.driver, "mount", None)
+            if mount is not None:
+                mount(face)
+        return SessionView(self, _Person(source, source.session(self._asker), face))
+
+    def _person(self, session: Session) -> _Person:
+        """The handle of one of this outworlder's sessions.
+
+        Raises:
+          SessionError: For a session that is not one of its own.
+        """
+        if type(session) is SessionView:
+            handle = session._handle
+            if type(handle) is _Person and handle.source is self._source:
+                return handle
+        raise SessionError(f"{self._role}: {session!r} is not one of this outworlder's")
+
+    async def show(self, context: Sequence[Any], *, session: Session) -> None:
+        blocks = _checked(context)
+        handle = self._person(session)
+        node = self._asking()
+        if node is not None:
+            node.check()
+        source = self._source
+        driver = source.driver
+        # Nobody to show it to: one made with `Outworlder.new()` answers through a hook, and
+        # one away is not looking.
+        if source.made or driver is None or driver.away_for(self._asker):
+            return
+        show = getattr(driver, "show", None)
+        if show is not None and blocks:
+            show(_jsoned(blocks), handle.name, self._asker)
 
     def _asking(self) -> Call | None:
         """The call whose turn this is, or None outside any.
@@ -1648,6 +1739,7 @@ class OutworlderView:
         session: Session,
         env: Env | None = None,
         budget: Budget | None = None,
+        context: Sequence[Any] = (),
     ) -> str: ...
 
     @overload
@@ -1659,6 +1751,7 @@ class OutworlderView:
         env: Env | None = None,
         output_schema: type[TOutput],
         budget: Budget | None = None,
+        context: Sequence[Any] = (),
     ) -> TOutput: ...
 
     async def run(
@@ -1669,18 +1762,13 @@ class OutworlderView:
         env: Env | None = None,
         output_schema: type[pydantic.BaseModel] | None = None,
         budget: Budget | None = None,
+        context: Sequence[Any] = (),
     ) -> str | pydantic.BaseModel:
         if env is not None and type(env) is not EnvView:
             raise TypeError(f"{env!r} is not an environment this run handed out")
+        blocks = _checked(context)
         source = self._source
-        if (
-            type(session) is not SessionView
-            or type(session._handle) is not _Person
-            or session._handle.source is not source
-        ):
-            raise SessionError(
-                f"{self._role}: {session!r} is not one of this outworlder's"
-            )
+        handle = self._person(session)
         node = self._asking()
         if node is not None:
             node.limits(budget)  # refuses a turn under a spent budget
@@ -1689,6 +1777,9 @@ class OutworlderView:
             if hook is None:
                 return away_answer(output_schema)
             owner = source.node or node
+            # What the hook is told beyond the prompt, where the params say it: the blocks
+            # as the flow wrote them, and the face object itself.
+            told: dict[str, Any] = {"context": blocks, "face": handle.face}
             token = CALLING.set(owner)
             try:
                 answered = await _asked(
@@ -1699,6 +1790,7 @@ class OutworlderView:
                             session=session,
                             prompt=prompt,
                             output_schema=output_schema,
+                            **told,
                         )
                     ),
                 )
@@ -1710,9 +1802,17 @@ class OutworlderView:
         driver = source.driver
         if driver is None or driver.away_for(self._asker):
             return away_answer(output_schema)
+        ask = Ask(
+            prompt=prompt,
+            schema=None if output_schema is None else output_schema.model_json_schema(),
+            model=output_schema,
+            context=_jsoned(blocks),
+            face=handle.hash,
+            session=handle.name,
+        )
         away = False
         try:
-            said = await _asked(node, driver.run(prompt, output_schema, self._asker))
+            said = await _asked(node, driver.run(ask, self._asker))
         except OutworlderAway:
             said, away = None, True
         # An answer -- being away included -- once the call or the run is over reaches nobody.

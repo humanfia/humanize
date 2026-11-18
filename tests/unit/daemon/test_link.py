@@ -60,6 +60,21 @@ def test_asked_raises_a_refusal_as_the_runtimes_own(
         link.asked({"do": "start"})
 
 
+def test_a_refusal_carries_the_code_and_data_it_was_refused_with() -> None:
+    errors = [{"path": ["verdict"], "message": "pick one"}]
+    link, _ = _link(
+        {
+            "ok": False,
+            "why": "the answer does not fit: pick one",
+            "code": 400,
+            "data": {"errors": errors},
+        }
+    )
+    with pytest.raises(Refused) as refused:
+        link.answer("q1", value={})
+    assert (refused.value.code, refused.value.data) == (400, {"errors": errors})
+
+
 class _Params(pydantic.BaseModel):
     rounds: int = 2
 
@@ -129,6 +144,18 @@ def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> No
             ["q1", "yes"],
             {},
             {"do": "answer", "question": "q1", "text": "yes"},
+        ),
+        (
+            "answer",
+            ["q1"],
+            {"value": {"verdict": "approve"}},
+            {"do": "answer", "question": "q1", "value": {"verdict": "approve"}},
+        ),
+        (
+            "answer",
+            ["q1"],
+            {"text": '{"verdict": "approve"}'},
+            {"do": "answer", "question": "q1", "text": '{"verdict": "approve"}'},
         ),
         ("stop", [], {}, {"do": "stop"}),
         ("force", [], {}, {"do": "force"}),
@@ -440,6 +467,27 @@ def test_reached_raises_a_refusal_in_the_hosts_words(
     link = reached(tmp_path, "/w")
     with pytest.raises(Refused, match="no flow is running"):
         link.say("hi")
+
+
+def test_reached_raises_a_misfit_with_every_way_it_does_not_fit(
+    daemon_: _Daemon, tmp_path: Path
+) -> None:
+    from hmz.rpc import RpcError
+
+    errors = [{"path": ["n"], "message": "not a number"}]
+    daemon_.answers["epic.answer"] = RpcError(
+        400, "the answer does not fit: not a number", {"errors": errors}
+    )
+    daemon_.answers["epic.face"] = {"html": "<p>hi</p>", "title": "Hi"}
+    link = reached(tmp_path, "/w")
+    with pytest.raises(Refused, match="does not fit") as refused:
+        link.answer("q1", value={"n": "x"})
+    assert (refused.value.code, refused.value.data) == (400, {"errors": errors})
+    assert link.asked({"do": "face", "hash": "ab"})["html"] == "<p>hi</p>"
+    said = dict(daemon_.calls)
+    assert said["epic.answer"]["value"] == {"n": "x"}
+    assert said["epic.answer"]["idem"]
+    assert "idem" not in said["epic.face"]
 
 
 def test_reached_gives_up_waiting_and_says_so(daemon_: _Daemon, tmp_path: Path) -> None:

@@ -225,11 +225,14 @@ Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and wi
 
 ## Vendored web code {#vendored-web-code}
 
-The page under `web/static/` has no build step, save its one piece of third-party code: the
-editor (CodeMirror 6) and the terminal (xterm.js) of the env panels. `src/hmz/web/vendor/`
-pins them with pnpm and bundles them with esbuild into `web/static/vendor/codemirror.js`,
-`xterm.js` and `xterm_css.css`, which are committed; a module of the page that uses them
-imports them from `/vendor/` and from nothing else. After changing a version or what is
+The page under `web/static/` has no build step, save its third-party code: the editor
+(CodeMirror 6) and the terminal (xterm.js) of the env panels, Markdown (marked and DOMPurify),
+and charts (Vega-Lite and vega-embed). `src/hmz/web/vendor/` pins them with pnpm and bundles
+them with esbuild into `web/static/vendor/codemirror.js`, `xterm.js`, `xterm_css.css`,
+`markdown.js` and `vega.js`, which are committed; a module of the page that uses them imports
+them from `/vendor/` and from nothing else. None of them compiles code at run time, as the
+page's policy refuses `eval`: `build.mjs` rewrites the few places in Vega and d3-dsv that
+would, and fails if an upgrade moves them. After changing a version or what is
 bundled:
 
 ```sh

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 import sys
 import threading
@@ -409,18 +410,22 @@ class Workspace:
 
 @dataclass
 class Outworlders:
-    """What the host hands a run for whoever is outside it: its `ask` and its `away`."""
+    """What the host hands a run for whoever is outside it: `ask`, `away`, `show`, `faces`."""
 
     ask: Callable[[Any], str | None] | None = None
     away: Callable[[str], bool] | None = None
+    show: Callable[[str, str, tuple[dict[str, Any], ...]], None] | None = None
+    faces: Callable[[Any], None] | None = None
 
     def __call__(
         self,
         *,
         ask: Callable[[Any], str | None],
         away: Callable[[str], bool],
+        show: Callable[[str, str, tuple[dict[str, Any], ...]], None],
+        faces: Callable[[Any], None],
     ) -> str:
-        self.ask, self.away = ask, away
+        self.ask, self.away, self.show, self.faces = ask, away, show, faces
         return "outworlder"
 
 
@@ -1223,6 +1228,11 @@ class Question:
     text: str
     options: tuple[str, ...] = ()
     asker: str = "outworlder"
+    schema: dict[str, Any] | None = None
+    context: tuple[dict[str, Any], ...] = ()
+    face: str = ""
+    session: str = ""
+    check: Callable[[Any], tuple[dict[str, Any], ...]] | None = None
 
 
 @dataclass
@@ -1327,6 +1337,285 @@ def test_the_status_says_the_questions_waited_on_and_how_the_last_run_ended(
     )
     assert "spent" in ended["why"]
     assert ended["at"] > 0
+
+
+# ------------------------------------------------------------- shaped questions
+
+
+SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "verdict": {"enum": ["approve", "reject"]},
+        "notes": {"type": "string", "default": ""},
+    },
+    "required": ["verdict"],
+}
+
+DIFF = {"kind": "diff", "patch": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n"}
+
+
+def _verdicts(value: Any) -> tuple[dict[str, Any], ...]:
+    """What `Question.check` says of a value: a mapping with a verdict of the two."""
+    if not isinstance(value, dict):
+        return ({"path": [], "message": "an object is expected"},)
+    verdict = cast("dict[str, Any]", value).get("verdict")
+    if verdict not in ("approve", "reject"):
+        return ({"path": ["verdict"], "message": "approve or reject"},)
+    return ()
+
+
+@dataclass
+class Shaped:
+    """A question asked for a schema whole, as `Question` asks one."""
+
+    text: str = "review this"
+    options: tuple[str, ...] = ()
+    asker: str = "outworlder"
+    schema: dict[str, Any] | None = field(default_factory=lambda: dict(SCHEMA))
+    context: tuple[dict[str, Any], ...] = (DIFF,)
+    face: str = ""
+    session: str = "outworlder/1"
+    check: Callable[[Any], tuple[dict[str, Any], ...]] | None = _verdicts
+
+
+@dataclass(frozen=True)
+class Face:
+    html: str
+    title: str = ""
+
+    @property
+    def hash(self) -> str:
+        return f"h{len(self.html)}"
+
+
+def test_a_question_asked_for_a_schema_says_it_and_what_is_shown_beside_it(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+
+    Asking()(outworlders.ask, cast("Any", Shaped(options=("ignored",))))
+
+    asked = alice.told("asked", run=1)
+    assert (asked["options"], asked["mode"], asked["schema"]) == ([], "ask", SCHEMA)
+    assert (asked["context"], asked["face"], asked["session"]) == (
+        [DIFF],
+        None,
+        "outworlder/1",
+    )
+    pending = alice.waits(lambda one: one["type"] == "pending" and one["pending"])
+    (entry,) = pending["pending"]
+    assert {key: entry[key] for key in ("schema", "context", "face", "session")} == {
+        "schema": SCHEMA,
+        "context": [DIFF],
+        "face": None,
+        "session": "outworlder/1",
+    }
+    # And the status stays as small as it was.
+    assert set(host.status()["pending"][0]) == {"question", "role", "text", "mode"}
+    run.released.set()
+
+
+def test_a_question_of_text_alone_says_no_schema_and_nothing_beside_it(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+
+    Asking()(outworlders.ask, Question("which?", ("red", "blue")))
+
+    asked = alice.told("asked", run=1)
+    assert (asked["schema"], asked["context"], asked["face"], asked["session"]) == (
+        None,
+        [],
+        None,
+        "",
+    )
+    run.released.set()
+
+
+def test_a_value_that_does_not_fit_is_refused_400_with_every_way_it_does_not(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, cast("Any", Shaped()))
+    question = alice.told("asked", run=1)["question"]
+
+    assert alice.asks("answer", question=question, value={"verdict": "meh"}) == {
+        "ok": False,
+        "why": "the answer does not fit: approve or reject",
+        "code": 400,
+        "data": {"errors": [{"path": ["verdict"], "message": "approve or reject"}]},
+    }
+    assert alice.asks("answer", question=question, text="{not json") == {
+        "ok": False,
+        "why": "the answer does not fit: the answer is not JSON",
+        "code": 400,
+        "data": {"errors": [{"path": [], "message": "the answer is not JSON"}]},
+    }
+    # A number picks no option of a question that has none: it is the JSON it reads as.
+    refused = alice.asks("answer", question=question, text="1")
+    assert refused["why"] == "the answer does not fit: an object is expected"
+    assert not asking.done.is_set()
+
+    assert alice.asks(
+        "answer", question=question, value={"verdict": "approve", "notes": "LGTM"}
+    ) == {"ok": True}
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is not None
+    assert json.loads(asking.answer) == {"verdict": "approve", "notes": "LGTM"}
+    answered = alice.told("answered", question=question)
+    assert json.loads(answered["text"]) == {"verdict": "approve", "notes": "LGTM"}
+    run.released.set()
+
+
+def test_a_check_that_fails_refuses_the_value_it_could_not_read(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    def fails(value: Any) -> tuple[dict[str, Any], ...]:
+        raise TypeError(f"cannot read {value!r}")
+
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, cast("Any", Shaped(check=fails)))
+    question = alice.told("asked", run=1)["question"]
+
+    refused = alice.asks("answer", question=question, value=3)
+    assert (refused["why"], refused["code"]) == (
+        "the answer does not fit: cannot read 3",
+        400,
+    )
+    assert not asking.done.is_set()
+    run.released.set()
+
+
+def test_a_secret_is_given_the_flow_whole_and_recorded_as_stars(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "user": {"type": "string"},
+            "token": {"type": "string", "hmz:widget": "secret"},
+        },
+    }
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(
+        outworlders.ask, cast("Any", Shaped(schema=schema, check=lambda _: ()))
+    )
+    question = alice.told("asked", run=1)["question"]
+
+    said = {"user": "ann", "token": "s3cret"}
+    assert alice.asks("answer", question=question, value=said) == {"ok": True}
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is not None
+    assert json.loads(asking.answer) == said
+    answered = alice.told("answered", question=question)
+    assert json.loads(answered["text"]) == {"user": "ann", "token": "***"}
+    run.released.set()
+
+
+def test_a_schema_question_answered_in_text_reads_the_text_as_json(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, cast("Any", Shaped()))
+    question = alice.told("asked", run=1)["question"]
+
+    assert alice.asks("answer", question=question, text='{"verdict": "reject"}') == {
+        "ok": True
+    }
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is not None
+    assert json.loads(asking.answer) == {"verdict": "reject"}
+    run.released.set()
+
+
+def test_an_answer_is_text_or_a_value_and_a_text_question_takes_text(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, Question("which?", ("red", "blue")))
+    question = alice.told("asked", run=1)["question"]
+
+    assert alice.asks("answer", question=question, text="1", value="red") == {
+        "ok": False,
+        "why": "an answer is text or a value, not both",
+    }
+    assert alice.asks("answer", question=question, value=2) == {
+        "ok": False,
+        "why": f"{question} is answered in text",
+    }
+    # A value is taken as it is, never as the number of an option.
+    assert alice.asks("answer", question=question, value="green") == {"ok": True}
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer == "green"
+    run.released.set()
+
+
+def test_a_face_mounted_is_named_by_the_question_and_read_by_its_hash(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    assert outworlders.faces is not None
+    face = Face("<p>review</p>", "Review")
+    outworlders.faces(face)
+
+    Asking()(outworlders.ask, cast("Any", Shaped(face=face.hash)))
+
+    asked = alice.told("asked", run=1)
+    assert asked["face"] == {"hash": face.hash, "title": "Review"}
+    assert alice.asks("face", hash=face.hash) == {
+        "ok": True,
+        "html": "<p>review</p>",
+        "title": "Review",
+    }
+    assert alice.asks("face", hash="nothing") == {
+        "ok": False,
+        "why": "no face nothing",
+        "code": 404,
+    }
+    run.released.set()
+
+
+def test_what_a_run_shows_is_said_to_everybody_while_somebody_is_there(
+    host: Host, where: Workspace, outworlders: Outworlders
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.show is not None
+    image = {"kind": "image", "mime": "image/png", "data": "A" * (300 * 1024)}
+
+    outworlders.show("outworlder", "outworlder/1", (DIFF, image))
+
+    shown = alice.told("shown", run=1)
+    assert (shown["role"], shown["session"], shown["context"]) == (
+        "outworlder",
+        "outworlder/1",
+        # An image is never cut short, as a text that long elsewhere would be.
+        [DIFF, image],
+    )
+    alice.asks("afk", on=True)
+    outworlders.show("outworlder", "outworlder/1", (DIFF,))
+    outworlders.show("outworlder", "outworlder/1", ())
+    alice.asks("afk", on=False)
+    outworlders.show("outworlder", "outworlder/1", ())
+    alice.waits(lambda one: one["type"] == "shown" and one["context"] == [])
+    assert len([one for one in alice.snapshot() if one["type"] == "shown"]) == 2
+    run.released.set()
 
 
 @pytest.fixture

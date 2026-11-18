@@ -230,8 +230,15 @@ function following(workspace, slot) {
       Object.assign(state, { me: message.client, connected: true, gone: '' })
     } else if (type === 'live') state.connected = true
     else if (typeof message.seq === 'number') {
-      const weighs = String(message.text ?? '').length + FRAME
+      // Context beside a question, an image's above all, weighs what it is written as.
+      const weighs = String(message.text ?? '').length + (message.context ? JSON.stringify(message.context).length : 0) + FRAME
       state.records.push(message)
+      // Context shown to a person goes to the face their session has open, where it has one.
+      if (type === 'shown' && message.session) {
+        import('./faces/host.js')
+          .then(({ showFace }) => showFace(message.session, message.context || []))
+          .catch(() => {})
+      }
       weights.push(weighs)
       weight += weighs
       let dropped = 0

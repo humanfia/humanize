@@ -3,6 +3,8 @@
 // how long it worked -- read off the records of a run going, or off the trace of one that is
 // written down.
 
+import { blocks } from './asking/blocks.js'
+import { fieldsOf, kindOf, resolved, summaryOf } from './asking/logic.js'
 import { h, lasting } from './dom.js'
 import { refusedSaid, shellOf, shellParts } from './natives.js'
 import { copy, menuOn } from './ui.js'
@@ -101,6 +103,8 @@ export function sayer(key, { chat = false, folded = false } = {}) {
   const whose = (record) => (kind === 'agent' ? of(record).split('/')[0] === whom : kind === 'person' ? false : of(record) === key)
   // The answer the last turn ended on, which a chat says back to ask what next.
   let answer = ''
+  // What each question asked for, so that its answer is said back as its fields.
+  const schemas = new Map()
   return (record) => {
     const mine = whose(record)
     switch (record.type) {
@@ -123,10 +127,14 @@ export function sayer(key, { chat = false, folded = false } = {}) {
                 ? kind === 'session'
                 : record.role && (kind === 'agent' ? record.role === whom : key.startsWith(`${record.role}/`))
         )
-          ? [line('asks', record.text, { who: `${record.role || 'the flow'} asks` })]
+          ? [asked(record, schemas)]
           : []
       case 'answered':
+        if (kind === 'person' && record.role === whom) return [line('you', answeredText(record, schemas), { who: record.by ? `${record.by} answered` : 'answered' })]
         return chat && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+      // What a flow showed a person with nothing asked, in their thread.
+      case 'shown':
+        return (kind === 'person' && record.role === whom) || (kind === 'session' && (of(record) === key || key === `outworlder:${record.role}`)) ? [shown(record)] : []
       case 'started':
         return chat && kind !== 'person' && record.task ? [line('you', record.task)] : []
       // A chat's own: what its person ran, or said and it would not take.
@@ -141,6 +149,43 @@ export function sayer(key, { chat = false, folded = false } = {}) {
         return []
     }
   }
+}
+
+/** A question asked, with what it showed beside it and, for a form, how much it asks. */
+function asked(record, schemas) {
+  const one = line('asks', record.text, { who: `${record.role || 'the flow'} asks` })
+  const body = one.querySelector('.body')
+  const context = blocks(record.context)
+  if (context) body.append(context)
+  if (record.schema && typeof record.schema === 'object') {
+    schemas.set(record.question, record.schema)
+    const top = resolved(record.schema).node
+    const n = kindOf(top) === 'object' ? fieldsOf(top, record.schema).length : 1
+    body.append(h('div', { class: 'ask-form-note dim', 'data-hmz': 'ask-form-note' }, `form · ${n} ${n === 1 ? 'field' : 'fields'}`))
+  }
+  return one
+}
+
+/** An answer, as one line: a form's as its fields, text as it was said. */
+function answeredText(record, schemas) {
+  const text = String(record.text ?? '')
+  const schema = schemas.get(record.question)
+  if (!schema) return text
+  try {
+    return summaryOf(JSON.parse(text), schema, schema, 400)
+  } catch {
+    return text
+  }
+}
+
+/** Context a flow showed a person, as blocks under who it was shown to. */
+function shown(record) {
+  const one = line('notice', '', { who: `shown to ${record.role || 'you'}` })
+  one.classList.add('shown')
+  one.dataset.hmz = 'said-shown'
+  const context = blocks(record.context)
+  if (context) one.querySelector('.body').append(context)
+  return one
 }
 
 function said(record, who, began, folded = false) {

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import os
 import queue
 import re
@@ -49,7 +50,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 import pyfiglet
 from rich.box import ROUNDED
 from rich.console import Group
+from rich.markdown import Markdown
 from rich.markup import escape
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 from textual import events, on, work
@@ -74,6 +77,7 @@ from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
 
+from .asking import Asks, blocks, fields, summary
 from .complete import Command, flow_names, hinted, offered, tagged
 from .envs import Reach, opens_env, used
 from .flows import INSTALLED, VERSES, Flows, Lists
@@ -632,8 +636,8 @@ class Editor(TextArea):
                 self.take(whole)
                 return
         said, self.text = self.text.strip(), ""
-        if said:
-            self.post_message(self.Sent(said))
+        # Sent empty as well: enter on an empty prompt opens the form a question waits on.
+        self.post_message(self.Sent(said))
 
     def action_newline(self) -> None:
         """Breaks the line, which is what enter would do anywhere else.
@@ -1178,6 +1182,7 @@ class Humanize(App[None]):
                 Callable[[dict[str, Any]], object] | None,
                 Callable[[], object] | None,
                 bool,
+                Callable[[Exception], object] | None,
             ]
             | Callable[[], object]
             | None
@@ -1197,6 +1202,15 @@ class Humanize(App[None]):
         #: The questions this interface has answered and not yet heard were taken, which
         #: a line typed next does not answer again.
         self._answering: set[str] = set()
+        #: The questions asked as a form, as they were asked, by question: what the form is
+        #: drawn from, and what its answer is said back as.
+        self._forms: dict[str, dict[str, Any]] = {}
+        #: What a form held when it was closed unanswered, by question, to open on again.
+        self._drafts: dict[str, object] = {}
+        #: The form up now, where one is.
+        self._asking: Asks | None = None
+        #: Where the web page shows an epic, as it was last worked out: the epic, the page.
+        self._web = ("", "")
         #: Where each of those sessions works, as the run said as it opened it: the
         #: environment role it fills, the kind of machine, which one, and where on it.
         self._placed: dict[str, dict[str, Any]] = {}
@@ -1703,6 +1717,10 @@ class Humanize(App[None]):
         self._live = self._starting = self._afk = False
         self._run = self._seen_last = self._stopping = None
         self._halted, self._forcing, self._answering = set(), set(), set()
+        if (sheet := self._asking) is not None:
+            self._asking = None
+            self._closes_form(sheet)
+        self._forms, self._drafts, self._web = {}, {}, ("", "")
         self._working, self._monitor_opened = set(), set()
         self._placed, self._harnessed, self._began = {}, {}, {}
         self._called, self._outworlders = [], []
@@ -3369,6 +3387,12 @@ class Humanize(App[None]):
         command; and words, said.
         """
         line = event.text
+        if not line:
+            # Nothing typed, which opens the form of the question waiting, where one is: the
+            # one key a question arriving mid-sentence asks for, and only once it is pressed.
+            if (asked := self._answers_to()) is not None and self._form_of(asked):
+                self._opens_form(asked)
+            return
         # Written down whatever it turns out to be: a task, a word put into a running flow,
         # a command. All three were typed, and any of them may be worth typing again.
         self.history.add(line)
@@ -3976,6 +4000,7 @@ class Humanize(App[None]):
         *,
         refused: Callable[[], object] | None = None,
         quiet: bool = False,
+        failed: Callable[[Exception], object] | None = None,
         **said: Any,
     ) -> None:
         """Asks the runs one thing, off the event loop, in the order things were asked.
@@ -3990,9 +4015,11 @@ class Humanize(App[None]):
           then: What to do with the answer once it has come, on the screen, or None.
           refused: What to do once it has been refused, on the screen, or None.
           quiet: Whether a refusal is to go unsaid, for one that only says it was already so.
+          failed: What to do with the refusal itself, on the screen, or None: for one whose
+            further fields say more than its words -- an answer refused field by field.
           said: What that takes.
         """
-        self._requests.put(({"do": do, **said}, then, refused, quiet))
+        self._requests.put(({"do": do, **said}, then, refused, quiet, failed))
 
     def _requested(self) -> None:
         """Asks every request put in, in order, until the interface goes: the one thread."""
@@ -4000,7 +4027,7 @@ class Humanize(App[None]):
             if callable(asked):
                 asked()  # moving to another host, before whatever is asked of it
                 continue
-            request, answered, refused, hushed = asked
+            request, answered, refused, hushed, failed = asked
             try:
                 answer = (
                     self._chat_asked(request)
@@ -4012,6 +4039,8 @@ class Humanize(App[None]):
                     self._on_screen(self.show, f"hmz: {why}", "red")
                 if refused is not None:
                     self._on_screen(cast("Callable[..., None]", refused))
+                if failed is not None:
+                    self._on_screen(cast("Callable[..., None]", failed), why)
                 continue
             if answered is not None:
                 self._on_screen(cast("Callable[..., None]", answered), answer)
@@ -5226,6 +5255,10 @@ class Humanize(App[None]):
             self._ended(message)
         elif kind == "asked":
             self._show_question(message)
+        elif kind == "shown":
+            self._shows_context(message)
+        elif kind == "withdrawn":
+            self._withdrawn(message)
         elif kind == "answered" and not (self.chatting() and not self._by(message)):
             self._answered(message)
         elif kind == "said" and not (self.chatting() and not self._by(message)):
@@ -5304,6 +5337,11 @@ class Humanize(App[None]):
         elif kind == "pending":
             self._pending = list(message.get("pending") or ())
             waiting = {str(one.get("question")) for one in self._pending}
+            self._withdraws_form(waiting)
+            # What is said of a question after it goes -- answered, withdrawn -- is said
+            # before the snapshot it is gone from, so nothing of it is needed past here.
+            self._forms = {q: one for q, one in self._forms.items() if q in waiting}
+            self._drafts = {q: one for q, one in self._drafts.items() if q in waiting}
             self._asked_in = {
                 asked: held
                 for asked, held in self._asked_in.items()
@@ -5765,7 +5803,9 @@ class Humanize(App[None]):
             self._draw()
         elif self.chatting() and self._ai is None:
             self._says_to_chat(text)
-        elif (asked := self._answers_to()) is not None:
+        elif (asked := self._answers_to()) is not None and self._form_of(asked):
+            self._types_into_form(asked, text)
+        elif asked is not None:
             # Set aside here rather than when the runs say it was answered, so that a second
             # line typed before they do answers the next question -- and put back where it
             # is refused, since the question is still waiting.
@@ -6020,6 +6060,9 @@ class Humanize(App[None]):
         role = str(record.get("role") or "outworlder")
         if role not in self._outworlders:
             self._outworlders.append(role)
+        if self._form_of(record):
+            self._shows_form(record, role)
+            return
         asked = str(record.get("text") or "").strip()
         listening = record.get("mode") == "listen"
         repeated = bool(self._last_asked) and asked == self._last_asked.strip()
@@ -6070,6 +6113,10 @@ class Humanize(App[None]):
         held = self._asked_in.pop(str(asked), "")
         shown = self._shown_on.pop(str(asked), None)
         text, by = str(record.get("text") or ""), self._by(record)
+        self._drafts.pop(str(asked), None)
+        if (form := self._forms.pop(str(asked), None)) is not None:
+            # A form's answer said back as what was picked and written, not as its JSON.
+            text = summary(_answer_of(record), form.get("schema"))
         # Under the question where it is still on the screen, and not on one read since.
         self._said_by_you(
             text,
@@ -6079,6 +6126,264 @@ class Humanize(App[None]):
         )
         if held:
             self._said_by_you(text, held, by)
+
+    # -- Questions asked as a form ------------------------------------------------------------
+
+    def _form_of(self, asked: Mapping[str, Any]) -> bool:
+        """Whether a question is asked as a form: one with a schema for its answer.
+
+        Args:
+          asked: The question, as the runs said it -- asked, or pending.
+
+        Returns:
+          True for a schema question, and False for one answered in words.
+        """
+        question = str(asked.get("question"))
+        schema = asked.get("schema") or self._forms.get(question, {}).get("schema")
+        return isinstance(schema, dict)
+
+    def _web_page(self) -> str:
+        """Where the web page shows the epic going, or "" where that is not known here.
+
+        Only for this machine's own runs, and only where `hmz web` has listened here: a page
+        on another machine is reached from that machine.
+        """
+        if self._afar is not None or not self._epic_now:
+            return ""
+        if self._web[0] == self._epic_now:
+            return self._web[1]
+        from urllib.parse import quote
+
+        from hmz import home
+
+        # `<home>/web-port`, as the last `hmz web` here wrote it (Section 4.15 of files.md).
+        try:
+            said = (home() / "web-port").read_text(encoding="ascii").strip()
+        except (OSError, UnicodeDecodeError):
+            said = ""
+        port = int(said) if said.isdigit() and int(said) in range(1, 1 << 16) else 0
+        self._web = (
+            self._epic_now,
+            f"http://127.0.0.1:{port}/#/epics/{quote(self._epic_now)}" if port else "",
+        )
+        return self._web[1]
+
+    def _shows_form(self, record: dict[str, Any], role: str) -> None:
+        """Shows a question asked as a form: its prompt, its context, and how to answer it.
+
+        Read before it is answered: the prompt is the headline, what it carries is under
+        that, and the form comes last -- a line saying it is there, which enter opens. Never
+        opened by itself, which would be a screen taken from under somebody typing.
+
+        Args:
+          record: The question, with its `schema`, `context` and `face`.
+          role: The outworlder asking it.
+        """
+        question = str(record.get("question"))
+        self._forms[question] = record
+        key = f"{_OUTWORLDER}{role}"
+        web = self._web_page()
+        first, _, rest = str(record.get("text") or "").strip().partition("\n")
+        drawn: list[object] = []
+        if rest.strip():
+            drawn.append(Padding(Markdown(rest.strip()), (0, 0, 0, 2)))
+        drawn.extend(blocks(list(record.get("context") or ()), web=web))
+        drawn.append("")
+        count = len(fields(record.get("schema")))
+        owner = self._claims.get(role)
+        if owner is not None and owner != self._me:
+            drawn.append(
+                f"  [dim]Waiting for {escape(self._frontends.get(owner, owner))}[/dim]"
+            )
+        else:
+            drawn.append(
+                f"  [dim]form{_DOT}{count} field{'s' if count != 1 else ''} "
+                "\N{EM DASH} press[/dim] [b]Enter[/b] [dim]to open[/dim]"
+            )
+        if record.get("face"):
+            where = f": {web}" if web else " (hmz web)"
+            drawn.append(
+                "  [dim]a richer view of this question is in the web page"
+                f"{escape(where)}[/dim]"
+            )
+        # On the outworlder's own transcript, and on the one being read, which is where it
+        # is answered from.
+        self._shown_on[question] = self._attached
+        self._part(
+            key,
+            f"[yellow]{_SAID}[/] [b]{escape(first or 'A question')}[/b]",
+            packs=False,
+            shared=True,
+        )
+        for one in drawn:
+            self._into(key, one, shared=True)
+
+    def _shows_context(self, record: Mapping[str, Any]) -> None:
+        """Shows what an outworlder was shown with nothing asked, on its own transcript.
+
+        Args:
+          record: The `shown` record: the `role`, and its `context`.
+        """
+        role = str(record.get("role") or "outworlder")
+        if role not in self._outworlders:
+            self._outworlders.append(role)
+        key = f"{_OUTWORLDER}{role}"
+        self._part(
+            key, f"[cyan]{_SAID}[/] [dim]{escape(role)} was shown[/dim]", packs=False
+        )
+        for one in blocks(list(record.get("context") or ()), web=self._web_page()):
+            self._into(key, one)
+
+    def _opens_form(self, asked: Mapping[str, Any], typed: str = "") -> None:
+        """Opens the form of a question, on what it held when it was last closed.
+
+        Args:
+          asked: The question, as the runs said it.
+          typed: What was typed at the prompt for it, put in its first empty written field.
+        """
+        if self._asking is not None:
+            return
+        question = str(asked.get("question"))
+        sheet = Asks(
+            {**self._forms.get(question, {}), **asked},
+            send=self._sends_form,
+            keep=lambda draft: self._drafts.__setitem__(question, draft),
+            draft=self._drafts.get(question),
+            typed=typed,
+        )
+        self._asking = sheet
+        self.push_screen(sheet, lambda _: self._closed_form(sheet))
+
+    def _closed_form(self, sheet: Asks) -> None:
+        """Lets go of a form that has closed."""
+        if self._asking is sheet:
+            self._asking = None
+
+    def _types_into_form(self, asked: Mapping[str, Any], text: str) -> None:
+        """Takes a line typed at a question asked as a form.
+
+        A JSON object is the answer itself, as a caller would give it -- or any JSON, for a
+        schema that is not an object. Anything else opens the form with what was typed in
+        it, where it would have gone: words are how a question is answered at a prompt, and
+        refusing them would be refusing the habit.
+
+        Args:
+          asked: The question.
+          text: What was typed.
+        """
+        question = str(asked["question"])
+        schema = asked.get("schema") or self._forms.get(question, {}).get("schema")
+        whole = [one.name for one in fields(schema)] == [""]
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            value = None
+        if not (isinstance(value, dict) or (whole and value is not None)):
+            self._opens_form(asked, text)
+            return
+        self._answering.add(question)
+        self._asks(
+            "answer",
+            refused=lambda: self._answering.discard(question),
+            question=question,
+            value=value,
+        )
+
+    def _sends_form(self, sheet: Asks, value: object) -> None:
+        """Sends what a form was answered with, and closes it once the host takes it.
+
+        What the host refuses is said on the form, beside the fields it is about.
+
+        Args:
+          sheet: The form.
+          value: Its answer.
+        """
+        question = str(sheet.question.get("question"))
+        self._answering.add(question)
+
+        def took(_: dict[str, Any]) -> None:
+            self._drafts.pop(question, None)
+            self._closes_form(sheet)
+
+        def failed(why: Exception) -> None:
+            self._answering.discard(question)
+            data = getattr(why, "data", None)
+            errors = (
+                cast("dict[str, Any]", data).get("errors")
+                if isinstance(data, dict)
+                else None
+            )
+            if self._asking is sheet:
+                sheet.refused(
+                    str(why),
+                    [
+                        cast("dict[str, Any]", one)
+                        for one in cast("list[Any]", errors or [])
+                        if isinstance(one, dict)
+                    ],
+                )
+            else:
+                self.show(f"hmz: {why}", "red")
+
+        self._asks(
+            "answer", took, failed=failed, quiet=True, question=question, value=value
+        )
+
+    def _closes_form(self, sheet: Asks) -> None:
+        """Closes a form, and whatever was opened over it."""
+        if sheet not in self.screen_stack:
+            return
+        while self.screen is not sheet:
+            self.pop_screen()
+        sheet.dismiss(None)
+
+    def _withdrawn(self, record: Mapping[str, Any]) -> None:
+        """Says why a question asked as a form went away unanswered, rather than letting it go.
+
+        Under the question, where it is still on the screen; and the form comes down if it
+        is up, saying so. A question in words is left as it always was.
+
+        Args:
+          record: The `withdrawn` record: the `question`, and `why`.
+        """
+        question = str(record.get("question"))
+        form = self._forms.pop(question, None)
+        if form is None:
+            return
+        self._drafts.pop(question, None)
+        why = str(record.get("why") or "it went away")
+        shown = self._shown_on.pop(question, None)
+        self._into(
+            f"{_OUTWORLDER}{form.get('role') or 'outworlder'}",
+            f"  [dim]withdrawn: {escape(why)}[/dim]",
+            shared=shown == self._attached,
+        )
+        sheet = self._asking
+        if sheet is not None and sheet.question.get("question") == question:
+            self._asking = None
+            self._closes_form(sheet)
+            self.show(f"hmz: the question was withdrawn: {why}", "dim")
+
+    def _withdraws_form(self, waiting: set[str]) -> None:
+        """Closes the form up where its question is no longer waiting, saying why.
+
+        Args:
+          waiting: The questions waiting now.
+        """
+        sheet = self._asking
+        if sheet is None:
+            return
+        question = str(sheet.question.get("question"))
+        if question in waiting:
+            return
+        self._asking = None
+        self._closes_form(sheet)
+        if question not in self._answering:
+            self.show(
+                "hmz: the question went away before it was answered "
+                "(answered elsewhere, or the run moved on)",
+                "dim",
+            )
 
     @property
     def _set_up(self) -> bool:
@@ -6143,6 +6448,24 @@ class Humanize(App[None]):
             self._said_by_you(str(one.get("text")), by=self._by(one))
         if queued:
             self.show(f"[dim]   never sent: {escape(because)}[/dim]")
+
+
+def _answer_of(record: Mapping[str, Any]) -> object:
+    """The value a question asked as a form was answered with, as the runs said it.
+
+    Args:
+      record: The `answered` record: its `value`, or its `text` as the value's JSON.
+
+    Returns:
+      The value, or the text itself where it is not JSON.
+    """
+    if "value" in record:
+        return record["value"]
+    text = str(record.get("text") or "")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
 
 
 def _machine() -> dict[str, object]:

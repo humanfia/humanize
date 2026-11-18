@@ -1189,7 +1189,7 @@
     },
     {
       "name": "epic.answer",
-      "summary": "Answer a question.",
+      "summary": "Answer a question, in words or as a value of its schema.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -1210,6 +1210,10 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "value",
+          "schema": {}
         },
         {
           "name": "idem",
@@ -1244,6 +1248,9 @@
           "$ref": "#/components/errors/NotPaired"
         },
         {
+          "$ref": "#/components/errors/DoesNotFit"
+        },
+        {
           "$ref": "#/components/errors/UnknownSubscription"
         },
         {
@@ -1254,7 +1261,82 @@
         "scope": "epic",
         "sub": "sub"
       },
-      "x-hmz-writes": true
+      "x-hmz-writes": true,
+      "description": "Takes question and exactly one of text and value. An answer that does not fit the question's schema is refused with DoesNotFit, its data holding errors, one {path, message} per error; the question stays waiting."
+    },
+    {
+      "name": "epic.face",
+      "summary": "Read a face the flow made known, by its hash.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sub",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Sub"
+          }
+        },
+        {
+          "name": "hash",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "face",
+        "schema": {
+          "type": "object",
+          "required": [
+            "html",
+            "title"
+          ],
+          "properties": {
+            "html": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/UnknownSubscription"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "sub": "sub"
+      },
+      "x-hmz-writes": false
     },
     {
       "name": "epic.stop",
@@ -9943,6 +10025,20 @@
       "Refused": {
         "code": 400,
         "message": "A value the method refuses."
+      },
+      "DoesNotFit": {
+        "code": 400,
+        "message": "the answer does not fit: <message>",
+        "data": {
+          "errors": [
+            {
+              "path": [
+                "<key or index>"
+              ],
+              "message": "<why>"
+            }
+          ]
+        }
       },
       "NotPaired": {
         "code": 401,

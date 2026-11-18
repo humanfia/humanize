@@ -116,17 +116,33 @@ carries:
 ```text
 Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:;
   style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:;
-  frame-ancestors 'none'; base-uri 'none'; form-action 'self'
+  frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 ```
 
-`'self'` lets the page reach the server's own `/rpc` and `/dial`; `ws:` and `wss:` the relay
-of a `webrtc:` route, whose host the server cannot know. `'unsafe-inline'` in `style-src` lets
-the editor and the terminal style what they draw from their own scripts; scripts stay the
-server's own files only.
+`'self'` lets the page reach the server's own `/rpc` and `/dial`, and frame its own
+`faces/frame.html`; `ws:` and `wss:` the relay of a `webrtc:` route, whose host the server
+cannot know. `'unsafe-inline'` in `style-src` lets the editor and the terminal style what they
+draw from their own scripts; scripts stay the server's own files only.
 
-The editor (CodeMirror 6) and the terminal (xterm.js) are the page's only third-party code,
-served from `/vendor/codemirror.js`, `/vendor/xterm.js` and `/vendor/xterm_css.css`. They are
-built from the pinned packages in `src/hmz/web/vendor/`; see
+`faces/frame.html`, the document a [face](/weaver/faces) runs in, is the one file the page may
+frame: it carries `X-Frame-Options: SAMEORIGIN` and a policy of its own, which it also says in
+a `<meta>` of its own:
+
+```text
+Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'self';
+  style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:;
+  connect-src 'none'; frame-ancestors 'self'
+```
+
+A file under `vendor/` asked for with `Origin: null`, as a face's opaque origin asks, is
+answered with `Access-Control-Allow-Origin: null`, so a face can import it; no other answer
+says `Access-Control-Allow-Origin`.
+
+The page's only third-party code is served from `/vendor/`: the editor (CodeMirror 6) at
+`codemirror.js`, the terminal (xterm.js) at `xterm.js` and `xterm_css.css`, Markdown (marked
+and DOMPurify) at `markdown.js`, and charts (Vega-Lite through vega-embed, its expressions
+interpreted rather than compiled, so no `eval` is needed) at `vega.js`. They are built from the
+pinned packages in `src/hmz/web/vendor/`; see
 [Rebuilding the vendored code](/contributing/architecture#vendored-web-code).
 
 ## `/here` {#here}

@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- The document a face runs in, inside <iframe sandbox="allow-scripts allow-forms">: an opaque
+     origin, with no cookies and no /rpc. Its policy is served as a header too (site.py); it is
+     said here again so that where the server cannot give this file a policy of its own --
+     Humanize Desktop, which gives every HTML file the same one -- the face is held to this one
+     all the same. bridge.js installs window.hmz, waits for the page's port, and writes the face
+     in. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="bridge.js"></script>
+  </head>
+  <body></body>
+</html>

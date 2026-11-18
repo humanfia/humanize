@@ -667,3 +667,57 @@ class Chats:
     def started(self) -> list[dict[str, Any]]:
         """What each `chat.start` was asked with, oldest first."""
         return [said for method, said in self.asked if method == "chat.start"]
+
+
+def tell(app: Humanize, message: dict[str, Any]) -> None:
+    """Tells the interface one record of the runs, as its link would have handed it over.
+
+    For a record the host of this checkout does not say yet, or a moment a test needs exactly:
+    a question asked as a form, pending, answered.
+    """
+    # The interface's one way in for what the runs say, named rather than reached into.
+    vars(Humanize)["_told"](app, message)
+
+
+class Answers:
+    """The answers the interface sends (`epic.answer`), kept, and refused where a test says.
+
+    Every other call goes on to the daemon of the test as it would have.
+
+    Attributes:
+      sent: What each answer was sent with -- `question`, and `value` or `text` -- oldest
+        first.
+      refusing: What the host refuses an answer with: `{path, message}` apiece, or none to
+        take it.
+    """
+
+    def __init__(
+        self, refusing: Callable[[dict[str, Any]], list[dict[str, Any]]]
+    ) -> None:
+        self.sent: list[dict[str, Any]] = []
+        self.refusing = refusing
+
+    def install(self, monkeypatch: pytest.MonkeyPatch) -> Answers:
+        """Watches every answer the interface sends from here on."""
+        from hmz.daemon.link import Link
+        from hmz.runtime import Refused
+
+        real = Link.asked
+
+        def asked(
+            link: Link, said: dict[str, Any], *, seconds: float | None = None
+        ) -> dict[str, Any]:
+            if said.get("do") != "answer":
+                return real(link, said, seconds=seconds)
+            sent = {key: value for key, value in said.items() if key != "do"}
+            self.sent.append(sent)
+            if errors := self.refusing(sent):
+                raise Refused(
+                    f"the answer does not fit: {errors[0]['message']}",
+                    code=400,
+                    data={"errors": errors},
+                )
+            return {"ok": True}
+
+        monkeypatch.setattr(Link, "asked", asked)
+        return self

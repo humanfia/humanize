@@ -142,10 +142,17 @@ The panel beside it (the button at the top right shows and hides it) holds:
 
 And under the graph, while it goes:
 
-- **Waiting for you.** A question the epic put to a person, with its offered answers as buttons
-  and a field for your own. A question another window holds says whose it is. A chat waiting
-  for your next line puts nothing here, and what its agent asks is asked in its conversation. See
-  [Questions](/user/questions).
+- **Waiting for you.** A question the epic put to a person, as a card: the prompt, then what
+  the flow handed you to read -- a diff file by file, a table, text, code, a picture, a chart,
+  each long one folded behind a line that sums it up -- then how to answer. A question asking
+  for text has its offered answers as buttons and a field for your own; one asking for a shape
+  is one whole form, its suggested answers already picked, and **Send answer** saying what is
+  left. A flow may draw a question with a [face](/weaver/faces) of its own instead, which
+  **Plain form** swaps for the form. What you type is kept in this browser until it is sent,
+  and a sent card folds to `You answered: …`. A question another window holds says `Waiting
+  for <name> to answer`.
+  A chat waiting for your next line puts nothing here, and what its agent asks is asked in its
+  conversation. See [Questions](/user/questions#in-the-browser).
 - **Say something.** <kbd>Enter</kbd> sends a line to the epic as a line typed in `hmz` goes
   (`the next turn`), to a role, to one session (marked `working` while it has a turn open), or
   to a person the flow has; <kbd>Shift</kbd>+<kbd>Enter</kbd> starts a new line. In a session's
@@ -186,7 +193,7 @@ settings or from this chat; switching it sets this chat's own
 [preference](/user/chat#a-name-that-is-both).
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
-opens what they were asked and answered. A line typed under one goes to whose it is. There is
+opens what they were asked and answered, and what the flow showed them without asking. A line typed under one goes to whose it is. There is
 no log of every session at once: under an epic in the sidebar are its agents and their
 sessions.
 
@@ -674,6 +681,9 @@ answered only where it was meant to be:
   key off the browser's command line.
 - **No secret on the page.** Accounts are shown by the names of what they set, never by a
   value.
+- **A flow's face fenced in.** A [face](/weaver/faces) a flow brings runs in a sandboxed frame
+  of its own origin, with no cookies, no network and no way to the daemon. All it can do is
+  answer the question it was handed, and that answer is checked as any other is.
 
 The key changes every time `hmz web` starts, so an address from an earlier one lets nobody in.
 

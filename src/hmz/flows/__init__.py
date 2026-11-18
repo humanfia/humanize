@@ -31,13 +31,14 @@ in and the params it takes, and is handed exactly those::
 
 What is here is types: the protocols a flow's agents, environments, sessions and context
 answer to (:mod:`~hmz.flows.agents`, :mod:`~hmz.flows.envs`, :mod:`~hmz.flows.defining`),
-the moments a hook is hung on (:mod:`~hmz.flows.hooks`), and everything a flow can catch
-(:mod:`~hmz.flows.errors`), with the fake tools and command lines a role hands its agent,
-which are :mod:`hmz.coganchor.faking`'s own -- one type each, whichever side holds it. The
-objects a flow is handed are the runtime's, and answer to these structurally. Three things here
-do run: :func:`flow`, :func:`load` and `Outworlder.new`, each of which hands its call to
-:mod:`hmz.runtime.flowing` when it is made -- so importing this costs pydantic and nothing of
-Humanize's own but that one light module.
+the moments a hook is hung on (:mod:`~hmz.flows.hooks`), the context an outworlder is shown
+and the face it is asked in (:mod:`~hmz.flows.asking`, :mod:`~hmz.flows.faces`), and
+everything a flow can catch (:mod:`~hmz.flows.errors`), with the fake tools and command
+lines a role hands its agent, which are :mod:`hmz.coganchor.faking`'s own -- one type each,
+whichever side holds it. The objects a flow is handed are the runtime's, and answer to these
+structurally. Three things here hand their call to :mod:`hmz.runtime.flowing` when it is
+made: :func:`flow`, :func:`load` and `Outworlder.new` -- so importing this costs pydantic and
+nothing of Humanize's own but that one light module.
 """
 
 from __future__ import annotations
@@ -84,6 +85,7 @@ from .agents import (
     deny,
     read_only,
 )
+from .asking import Block, Chart, Code, Diff, Image, Json, Markdown, Table
 from .defining import Flow, FlowContext, FlowFn, FlowParams, FlowState, flow, load
 from .envs import (
     BashEnvMixin,
@@ -152,6 +154,7 @@ from .errors import (
     UnsupportedOperation,
     WorktreeError,
 )
+from .faces import FACE_GUIDE, Face
 from .hooks import (
     HOOK_TYPES,
     AskUserHookParams,
@@ -183,6 +186,7 @@ from .hooks import (
 )
 
 __all__ = [
+    "FACE_GUIDE",
     "HARNESS_AGENTS",
     "HOOK_TYPES",
     "PRESETS",
@@ -194,16 +198,20 @@ __all__ = [
     "AskUserHookParams",
     "AskUserHookResult",
     "BashEnvMixin",
+    "Block",
     "Budget",
     "BudgetExceeded",
     "CPUEnvMixin",
     "CapabilityMissing",
     "CapabilityNotGranted",
+    "Chart",
     "ClaudeCodeAgent",
+    "Code",
     "CodexAgent",
     "CostExceeded",
     "CursorAgent",
     "DeepSeekHarnessAgent",
+    "Diff",
     "DurationExceeded",
     "Env",
     "EnvBackendKind",
@@ -214,6 +222,7 @@ __all__ = [
     "EnvFileNotFound",
     "EnvPermissionDenied",
     "EnvUnavailable",
+    "Face",
     "FakeCli",
     "FakeCommand",
     "FakeTool",
@@ -254,11 +263,14 @@ __all__ = [
     "HookKind",
     "HookParams",
     "HookResult",
+    "Image",
     "ImageEnvMixin",
+    "Json",
     "KimiCodeAgent",
     "LiteLLMAgent",
     "LocalEnv",
     "LoopCommandAgentMixin",
+    "Markdown",
     "MemoryEnvMixin",
     "MiMoCodeAgent",
     "MiniMaxCodeAgent",
@@ -309,6 +321,7 @@ __all__ = [
     "SubagentStopHookAgentMixin",
     "SubagentStopHookParams",
     "SubagentStopHookResult",
+    "Table",
     "TempCloneBusy",
     "TemporaryClonedDirEnvMixin",
     "UnsupportedOperation",

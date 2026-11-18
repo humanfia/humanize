@@ -56,11 +56,12 @@ import tempfile
 import threading
 import time
 import weakref
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Sequence
 
     from hmz.coganchor.agents import (
         AgentBase,
@@ -82,6 +83,13 @@ __all__ = ["FOLD", "Host", "assistant", "chat_checked", "record"]
 #: answer is kilobytes; a tool that printed a file is the case this is for, and a frame of the
 #: socket carrying it has a ceiling of its own.
 _LONGEST = 256 * 1024
+
+#: What a message that shows something carries whole, never cut: the schema a question is
+#: answered in, and the context beside it, which the runtime holds to 16 MiB itself.
+_WHOLE = frozenset({"schema", "context"})
+
+#: The messages that carry such context.
+_SHOWING = frozenset({"asked", "shown", "pending"})
 
 #: How much of a run is kept for a frontend that arrives late, in bytes as the messages are
 #: written. The oldest whole records go first, and are counted.
@@ -177,17 +185,82 @@ def record(
     }
 
 
-def _clipped(said: Any) -> Any:
-    """What a message says, with any text too long to carry cut and the rest counted."""
+def _clipped(said: Any, longest: int = _LONGEST, *, shows: bool = False) -> Any:
+    """What a message says, with any text too long to carry cut and the rest counted.
+
+    In a message that `shows` -- `asked`, `shown` and `pending` -- the `schema` and the
+    `context` beside the question are carried whole.
+    """
     if isinstance(said, str):
-        if len(said) <= _LONGEST:
+        if len(said) <= longest:
             return said
-        return f"{said[:_LONGEST]}… ({len(said) - _LONGEST} more characters)"
+        return f"{said[:longest]}… ({len(said) - longest} more characters)"
     if isinstance(said, dict):
-        return {key: _clipped(value) for key, value in said.items()}  # pyright: ignore[reportUnknownVariableType]
+        return {
+            key: value
+            if shows and key in _WHOLE
+            else _clipped(value, longest, shows=shows)
+            for key, value in said.items()  # pyright: ignore[reportUnknownVariableType]
+        }
     if isinstance(said, list):
-        return [_clipped(one) for one in said]  # pyright: ignore[reportUnknownVariableType]
+        return [_clipped(one, longest, shows=shows) for one in said]  # pyright: ignore[reportUnknownVariableType]
     return said
+
+
+def _secret(node: Mapping[str, Any]) -> bool:
+    """Whether a field of a schema holds a secret (`hmz:widget` `secret`, or a password)."""
+    extra: Any = node.get("json_schema_extra")
+    widget: Any = node.get("hmz:widget")
+    if widget is None and isinstance(extra, Mapping):
+        widget = cast("Mapping[str, Any]", extra).get("hmz:widget")
+    return widget == "secret" or node.get("format") == "password"
+
+
+def _unsecret(text: str, schema: Mapping[str, Any] | None) -> str:
+    """An answer as it is recorded: the JSON of a value with each secret field written `***`.
+
+    The flow is given the answer whole; what every frontend and the epic's history keep of it
+    never holds a secret.
+    """
+    if schema is None:
+        return text
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return text
+    defs = cast("Mapping[str, Any]", schema.get("$defs") or {})
+
+    def node_of(node: Any) -> Mapping[str, Any]:
+        if not isinstance(node, Mapping):
+            return {}
+        held = cast("Mapping[str, Any]", node)
+        ref = held.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            return node_of(defs.get(ref.removeprefix("#/$defs/")))
+        branches: Any = held.get("anyOf") or ()
+        for branch in cast("Sequence[Any]", branches):
+            if isinstance(branch, Mapping):
+                one = cast("Mapping[str, Any]", branch)
+                if one.get("type") != "null":
+                    return {**held, **node_of(one)}
+        return held
+
+    def hidden(said: Any, node: Mapping[str, Any]) -> Any:
+        if not isinstance(said, dict):
+            return said
+        properties = cast("Mapping[str, Any]", node.get("properties") or {})
+        kept = dict(cast("dict[str, Any]", said))
+        for name, raw in properties.items():
+            if name not in kept:
+                continue
+            field = node_of(raw)
+            if _secret(cast("Mapping[str, Any]", raw)) or _secret(field):
+                kept[name] = "***"
+            else:
+                kept[name] = hidden(kept[name], field)
+        return kept
+
+    return json.dumps(hidden(value, node_of(schema)), ensure_ascii=False)
 
 
 def _sized(message: dict[str, Any]) -> int:
@@ -199,9 +272,19 @@ def _ok(**said: Any) -> dict[str, Any]:
     return {"ok": True, **said}
 
 
-def _no(why: str, code: int | None = None) -> dict[str, Any]:
-    """A refusal, saying why, and of a chat's the status code the daemon refuses it with."""
-    return {"ok": False, "why": why, **({"code": code} if code is not None else {})}
+def _no(
+    why: str, code: int | None = None, data: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """A refusal, saying why, and the status code and data the daemon refuses it with.
+
+    Without a code, the daemon refuses a call to an epic with 409.
+    """
+    return {
+        "ok": False,
+        "why": why,
+        **({"code": code} if code is not None else {}),
+        **({"data": data} if data is not None else {}),
+    }
 
 
 def _user() -> str:
@@ -377,6 +460,38 @@ class _Question:
     key: str = ""
     state: str = "pending"
     answer: str = ""
+    #: The JSON Schema its answer is a value of, or None for one answered in text.
+    schema: Mapping[str, Any] | None = None
+    #: What is shown beside it, as context blocks' JSON forms.
+    context: tuple[Mapping[str, Any], ...] = ()
+    #: The hash of the face it is answered in, or "" for none.
+    face: str = ""
+    #: The outworlder session asking, as `<role>/<n>`, or "".
+    session: str = ""
+    #: What says how a value misfits, as `[{"path", "message"}]`, or None for any fitting.
+    check: Callable[[Any], Sequence[Mapping[str, Any]]] | None = None
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class _Shaped:
+    """What a question is asked in beyond its text, as `_Question` keeps it."""
+
+    schema: Mapping[str, Any] | None = None
+    context: tuple[Mapping[str, Any], ...] = ()
+    face: str = ""
+    session: str = ""
+    check: Callable[[Any], Sequence[Mapping[str, Any]]] | None = None
+
+
+class _Face(Protocol):
+    """A face a flow answers its questions in, as `hmz.flows.Face` is one."""
+
+    @property
+    def html(self) -> str: ...
+    @property
+    def title(self) -> str: ...
+    @property
+    def hash(self) -> str: ...
 
 
 @dataclasses.dataclass(slots=True, eq=False)
@@ -506,6 +621,8 @@ class Host:
         self._questions: list[_Question] = []
         self._asking = itertools.count(1)
         self._answered: dict[str, str] = {}
+        #: Every face a run here has mounted, by its hash: its HTML and its title.
+        self._faces: dict[str, tuple[str, str]] = {}
         self._queue: list[_Line] = []
         self._given: list[_Given] = []
         self._handed = False
@@ -533,6 +650,7 @@ class Host:
             "start": self._start,
             "say": self._say,
             "answer": self._answer,
+            "face": self._face,
             "stop": self._stop,
             "force": self._force,
             "afk": self._afk,
@@ -916,7 +1034,9 @@ class Host:
         """Says one thing that happened, and keeps it for whoever arrives later."""
         self._seq += 1
         kind = message.pop("type")
-        written: dict[str, Any] = _clipped({"type": kind, "seq": self._seq, **message})
+        written: dict[str, Any] = _clipped(
+            {"type": kind, "seq": self._seq, **message}, shows=kind in _SHOWING
+        )
         size = _sized(written)
         self._history.append((written, size))
         self._kept += size
@@ -928,7 +1048,9 @@ class Host:
 
     def _snap(self, kind: str, /, **fields: Any) -> None:
         """Says how one thing stands now, where that has changed since it was last said."""
-        message: dict[str, Any] = _clipped({"type": kind, **fields})
+        message: dict[str, Any] = _clipped(
+            {"type": kind, **fields}, shows=kind in _SHOWING
+        )
         if self._snapshots.get(kind) == message:
             return
         self._snapshots[kind] = message
@@ -992,6 +1114,7 @@ class Host:
                     "mode": one.mode,
                     "key": one.key,
                     "owner": self._claims.get(one.role),
+                    **self._shaped(one),
                 }
                 for one in self._questions
             ],
@@ -1214,7 +1337,10 @@ class Host:
                 # Whoever is outside the run is every frontend here: asked on a thread of
                 # the run's own, and away while `/afk` says so.
                 outworlder=open_outworlder(
-                    ask=functools.partial(self._asks, number), away=self.away_for
+                    ask=functools.partial(self._asks, number),
+                    away=self.away_for,
+                    show=functools.partial(self._shows, number),
+                    faces=self._mounts,
                 ),
             )
             declared = run.declaration
@@ -2228,14 +2354,88 @@ class Host:
         Args:
           number: Which run is asking, so that a run on its way out cannot take the answer
             meant for the one that replaced it.
-          question: What it asks, and which `Outworlder` asks it.
+          question: What it asks, and which `Outworlder` asks it: a question asked for a
+            schema whole, with what is shown beside it, is always one to `answer`.
 
         Returns:
-          The answer, or None where nobody gave one.
+          The answer -- the JSON text of the value, for a question asked for a schema -- or
+          None where nobody gave one.
         """
+        schema = question.schema
         return self._waits(
-            number, question.asker or "outworlder", question.text, question.options
+            number,
+            question.asker or "outworlder",
+            question.text,
+            () if schema is not None else question.options,
+            "ask" if schema is not None else None,
+            shaped=_Shaped(
+                schema=schema,
+                context=tuple(question.context),
+                face=question.face,
+                session=question.session,
+                check=question.check,
+            ),
         )
+
+    def _shows(
+        self,
+        number: int,
+        role: str,
+        session: str,
+        context: Sequence[Mapping[str, Any]],
+    ) -> None:
+        """Shows every frontend what a run pushes to whoever is outside it, asking nothing.
+
+        Said only while that run is the one going and somebody is there for the role: a
+        `show` never waits, and what nobody is there to see is not kept for later.
+
+        Args:
+          number: Which run shows it.
+          role: The `Outworlder` role showing it.
+          session: The outworlder session it is shown in, as `<role>/<n>`.
+          context: What it shows, as context blocks' JSON forms.
+        """
+        with self._lock:
+            if not self._live(number, role):
+                return
+            self._record(
+                {
+                    "type": "shown",
+                    "run": number,
+                    "role": role,
+                    "session": session,
+                    "context": [dict(one) for one in context],
+                }
+            )
+
+    def _mounts(self, face: _Face) -> None:
+        """Keeps a face a run mounts, for `face` to hand out by its hash, for the epic's life."""
+        with self._lock:
+            self._faces[face.hash] = (face.html, face.title)
+
+    def _face(self, frontend: _Frontend, said: dict[str, Any]) -> dict[str, Any]:
+        del frontend
+        hashed = str(said.get("hash") or "")
+        with self._lock:
+            found = self._faces.get(hashed)
+        if found is None:
+            return _no(f"no face {hashed}", 404)
+        html, title = found
+        return _ok(html=html, title=title)
+
+    def _shaped(self, asked: _Question) -> dict[str, Any]:
+        """What `asked` and `pending` say of a question beyond its text. Under the lock."""
+        face = (
+            {"hash": asked.face, "title": self._faces.get(asked.face, ("", ""))[1]}
+            if asked.face
+            else None
+        )
+        return {
+            "schema": dict(asked.schema) if asked.schema is not None else None,
+            "context": [dict(one) for one in asked.context],
+            "face": face,
+            "session": asked.session,
+        }
 
     def _waits(
         self,
@@ -2244,6 +2444,8 @@ class Host:
         text: str,
         options: Sequence[str],
         mode: str | None = None,
+        *,
+        shaped: _Shaped | None = None,
     ) -> str | None:
         """Puts one question to every frontend, and waits for its answer, as `_asks` says.
 
@@ -2255,10 +2457,13 @@ class Host:
           mode: `ask` or `listen`, where the asker says which -- a chat, whose next message
             is never a question and whose assistant's question always is -- or None for the
             mode its options and the turns open make it.
+          shaped: The schema it is answered in, what is shown beside it, its face and its
+            session, or None for a question of text alone.
 
         Returns:
           The answer, or None where nobody gave one.
         """
+        shaped = shaped or _Shaped()
         with self._lock:
             current = self._current
             if current is None or not self._live(number, role):
@@ -2279,6 +2484,11 @@ class Host:
                 tuple(options),
                 mode,
                 key,
+                schema=shaped.schema,
+                context=shaped.context,
+                face=shaped.face,
+                session=shaped.session,
+                check=shaped.check,
             )
             self._questions.append(asked)
             self._record(
@@ -2291,6 +2501,7 @@ class Host:
                     "options": list(asked.options),
                     "mode": mode,
                     "key": key,
+                    **self._shaped(asked),
                 }
             )
             self._snap_pending()
@@ -2355,7 +2566,7 @@ class Host:
                 "role": asked.role,
                 "by": by,
                 "client": client,
-                "text": text,
+                "text": _unsecret(text, asked.schema),
             }
         )
         self._snap_pending()
@@ -2382,22 +2593,54 @@ class Host:
             return _no(_TO_CHAT)
         question = str(said.get("question") or "")
         text = said.get("text")
-        if not isinstance(text, str) or not text:
+        valued = "value" in said
+        if valued and text is not None:
+            return _no("an answer is text or a value, not both")
+        if not valued and (not isinstance(text, str) or not text):
             # Nothing is what nobody being there answers, and the flow hears it as that.
             return _no("an answer says something")
         with self._lock:
-            asked = next((one for one in self._questions if one.id == question), None)
-            if asked is None:
-                if question in self._answered:
-                    return _no(f"already answered by {self._answered[question]}")
-                return _no(f"no question {question} is waiting")
-            owner = self._claims.get(asked.role)
-            if owner not in (None, frontend.client):
-                return _no(f"{asked.role} is {self._name_of(owner or '')}'s")
-            self._answers(
-                asked, _chosen(asked.options, text), frontend.name, frontend.client
-            )
+            asked = self._answerable(frontend, question)
+        if isinstance(asked, dict):
+            return asked
+        if asked.schema is None and not valued:
+            answer = _chosen(asked.options, cast("str", text))
+            value: Any = answer
+        elif asked.schema is None:
+            value = said["value"]
+            if not isinstance(value, str) or not value:
+                return _no(f"{question} is answered in text")
+            answer = value
+        else:
+            value = said["value"] if valued else _parsed(cast("str", text))
+            if value is _UNPARSED:
+                return _misfit(({"path": [], "message": "the answer is not JSON"},))
+            answer = json.dumps(value, ensure_ascii=False)
+        # Off the lock: the flow's own check, which nothing else here waits on.
+        misfits = _misfits(asked, value)
+        if misfits:
+            return _misfit(misfits)
+        with self._lock:
+            # Answered, withdrawn or claimed by somebody else while it was checked.
+            again = self._answerable(frontend, question)
+            if isinstance(again, dict):
+                return again
+            self._answers(asked, answer, frontend.name, frontend.client)
         return _ok()
+
+    def _answerable(
+        self, frontend: _Frontend, question: str
+    ) -> _Question | dict[str, Any]:
+        """The question waiting that a frontend may answer, or why not. Under the lock."""
+        asked = next((one for one in self._questions if one.id == question), None)
+        if asked is None:
+            if question in self._answered:
+                return _no(f"already answered by {self._answered[question]}")
+            return _no(f"no question {question} is waiting")
+        owner = self._claims.get(asked.role)
+        if owner not in (None, frontend.client):
+            return _no(f"{asked.role} is {self._name_of(owner or '')}'s")
+        return asked
 
     # ----------------------------------------------------------- claims and away
 
@@ -2669,6 +2912,37 @@ def _natives(run: Chatting) -> list[NativeCommand]:
         return list(run.chat.natives())
     except Exception:  # noqa: BLE001 -- a catalogue nobody could read holds nothing
         return []
+
+
+#: What a text that is not JSON parses to, there being no JSON value it could be.
+_UNPARSED = object()
+
+
+def _parsed(typed: str) -> Any:
+    """The JSON value a text answering a schema question writes, or `_UNPARSED`."""
+    try:
+        return json.loads(typed)
+    except ValueError:
+        return _UNPARSED
+
+
+def _misfits(asked: _Question, value: Any) -> tuple[Mapping[str, Any], ...]:
+    """Every way a value does not fit a question, by its own check: a check that fails, one."""
+    if asked.check is None:
+        return ()
+    try:
+        return tuple(asked.check(value))
+    except Exception as why:  # noqa: BLE001 -- a check that cannot read a value is not fitted
+        return ({"path": [], "message": str(why) or type(why).__name__},)
+
+
+def _misfit(errors: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """The refusal of an answer that does not fit its question, saying every way it does not."""
+    said = [
+        {"path": list(one.get("path") or ()), "message": str(one.get("message") or "")}
+        for one in errors
+    ]
+    return _no(f"the answer does not fit: {said[0]['message']}", 400, {"errors": said})
 
 
 def _chosen(options: tuple[str, ...], typed: str) -> str:

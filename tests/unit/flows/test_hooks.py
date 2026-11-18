@@ -13,10 +13,13 @@ from hmz.flows import (
     HOOK_TYPES,
     AskUserHookParams,
     AskUserHookResult,
+    Diff,
+    Face,
     HookFn,
     HookKind,
     HookParams,
     HookResult,
+    Markdown,
     NotificationHookParams,
     NotificationHookResult,
     OutworlderRunHookParams,
@@ -130,7 +133,11 @@ def test_an_outworlders_result_must_say_something() -> None:
         (SubagentStartHookParams, {"subagent": "explore"}, {"task": ""}),
         (SubagentStopHookParams, {"subagent": "explore"}, {"said": ""}),
         (AskUserHookParams, {"question": "which?"}, {"options": ()}),
-        (OutworlderRunHookParams, {"prompt": "go on?"}, {"output_schema": None}),
+        (
+            OutworlderRunHookParams,
+            {"prompt": "go on?"},
+            {"output_schema": None, "context": (), "face": None},
+        ),
     ],
 )
 def test_params_carry_the_context_session_and_what_the_moment_says(
@@ -183,3 +190,15 @@ async def test_an_async_function_is_a_hook() -> None:
     assert await hook(told) == PreToolUseHookResult(
         block=True, reason="no force pushes"
     )
+
+
+def test_an_outworlders_hook_is_told_the_context_and_face_it_was_asked_with() -> None:
+    shown = (Markdown(text="tests pass"), Diff(patch="--- a\n+++ b\n"))
+    face = Face.html("<p>review</p>", title="Review")
+
+    told = OutworlderRunHookParams(
+        ctx=CTX, session=SESSION, prompt="merge?", context=shown, face=face
+    )
+
+    assert told.context == shown
+    assert told.face == face

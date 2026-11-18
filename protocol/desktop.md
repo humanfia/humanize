@@ -444,16 +444,26 @@ for a `.hmzepic` file opened with the app (Section 3.8.2) alone, at most 1 048 5
 **3.12.8** The app MUST close a pipe the page closes, and every pipe when the page goes or reloads,
 and MUST stop the processes it started for it.
 
-**3.12.9** The web view MUST hold the page to the Content-Security-Policy `default-src 'self';
-style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost ws: wss:`, `ipc:` and
-`http://ipc.localhost` being the app's own commands, `ws:` and `wss:` the relay of any `webrtc:`
-route (Section 3.5.7), and `'unsafe-inline'` in `style-src` lets the editor and the terminal of
-Section 3.17 of [WEB] style what they draw.
+**3.12.9** The web view MUST hold every page it serves to the Content-Security-Policy `default-src
+'self'; connect-src ipc: http://ipc.localhost ws: wss:; script-src 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; frame-src
+'self'`, and MUST NOT add hashes or nonces of its own to `script-src` or `style-src`: `ipc:` and
+`http://ipc.localhost` are the app's own commands, `ws:` and `wss:` the relay of any `webrtc:`
+route (Section 3.5.7), `'unsafe-inline'` in `script-src` lets a face run its own code (Section
+3.6.11 of [WEB]) and in `style-src` lets the editor and the terminal of Section 3.17 of [WEB], and
+a face, style what they draw, and `frame-src 'self'` lets the page frame a face. Since that policy
+is the same for every page, each page MUST narrow it with a `<meta http-equiv=
+"Content-Security-Policy">` of its own: `index.html` with `script-src 'self'`, so that the page
+runs no inline script, and `faces/frame.html` with the policy Section 4.5.8 of [WEB] states.
 
 **3.12.10** The `why` of `pipe_closed` MUST be `closed` where the page closed the pipe or went;
 the sentence of the failure where the carrier failed to open or failed once up; and, where the
 daemon's end closed it, the last line the carrier's process said on its standard error, or `The
 daemon closed it.` where it said nothing.
+
+**3.12.11** The web view MUST hold `faces/frame.html`, the document a face runs in, to both the
+policy of Section 3.12.9 and its own (Section 4.5.8 of [WEB]), and MUST give a face no command of
+the app.
 
 ## 4. Files of the Application
 

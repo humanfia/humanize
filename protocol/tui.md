@@ -693,6 +693,63 @@ closes.
 
 **10.10** The monitor MUST list every frontend reading the epic where there is more than one.
 
+**10.11** A question with a schema MUST be shown on its outworlder view and on the view read, as
+the first line of its text, the rest of its text as Markdown, its context blocks (Section 10.15),
+then the line `form · <n> fields — press Enter to open`, or `Waiting for <name>` where another
+frontend, `<name>`, holds its role; it MUST NOT take the focus from the editor while a line is being
+typed.
+
+**10.12** Where a question with a schema is the answerable question, `enter` with nothing typed MUST
+open its sheet. A line typed that is a JSON object, or any JSON value for a schema that is not an
+object, MUST be sent as `value` (Section 4.8.4 of [DAEMON]); any other line MUST open the sheet with
+the line put where it fits: in the first unanswered choice one of whose values it names, by its
+words or its number, else in the first empty text field, a required one first, else said on the
+message line as answering none of the fields.
+
+**10.13** The sheet MUST be a form of Section 15 laid along the bottom of the screen over the view
+it was opened from, which stays readable above it and which `pageup` and `pagedown` MUST scroll. It
+MUST be headed with the first line of the question's text, and MUST hold one row per field of the
+whole schema, named by its `title`, else its name, with its `description` beneath: the required
+fields first, in the schema's order, then the others, filled with their defaults, marked `suggested`
+while they hold them, and folded under one row, `More options (<n>)`, `<n>` being how many, where
+there are both. Beside the keys of Section 15.2.1, and in place of Section 15.2.4, a choice of at
+most 5 values and a boolean MUST show their values side by side in their row, the one picked marked,
+the digits `1` to `9` picking the value of that number and `←` and `→` moving the pick, a boolean's
+values being `Yes, <description>` where its `description` is one line of at most 40 characters, else
+`Yes`, and `No`; a choice of more values MUST be picked from a list under its row, by `1` to `9` as
+well, on a row of a choice. A `string` with `hmz:widget` `secret` MUST be hidden as it is typed; one
+with `hmz:widget` `markdown` or `code`, or `format` `textarea`, MUST take several lines; an array of
+strings, integers or numbers MUST take one value a line; and anything else -- an object, any other
+array, a union of several types -- MUST take JSON. Its button MUST say `answer`, and `answer · <n>
+required left` while `<n>` required fields are empty, and MUST send the whole form as `value`, or,
+where a field cannot be read, say what is wrong beside it and put the cursor on the first.
+
+**10.14** Where an answer is refused as one that does not fit, the sheet MUST stay open and put each
+of the refusal's `errors` beside the row of the first key of its `path`, the rest of the path
+before its message, else on the message line, the cursor on the first. `esc` MUST close the sheet
+and keep what it holds for the next time it is opened, until the question is answered or
+withdrawn; a question withdrawn while its sheet is open MUST close it, saying why.
+
+**10.15** Context blocks (Section 3.10.5 of [PYTHON]) MUST be written under their `title`:
+`markdown` as Markdown, `code` and `diff` highlighted as their language and as a diff, `table` as a
+table, `json` indented, and `image` and `chart` as one line naming the block and saying that the web
+page shows it, with the address of the epic's page where it is known: where this machine runs the
+epic and `<home>/web-port` (Section 4.15 of [FILES]) holds a port. The first block MUST show at
+most 40 lines, and each after it at most 12, and a table at most 10 rows, followed by how many
+more there are and, where it is known, that address.
+
+**10.16** Blocks shown with no question (`shown`) MUST be written to the outworlder view of their
+role, under a line saying `<role> was shown`, with no means to answer.
+
+**10.17** A question naming a face MUST say that a richer view of it is in the web page, with that
+address where it is known, and MUST be answered here by the sheet.
+
+**10.18** A question with a schema answered MUST be shown under it as one line of the answer, `❯
+<answer>`, `<answer>` being the values given joined by ` · `, a choice as its words, text quoted
+the rest as JSON and a `secret` value as `***`, followed by ` · by <name>` where another frontend, `<name>`, answered it; one
+withdrawn MUST be shown as `withdrawn: <why>`, `<why>` the record's (Section 4.9.2.4 of
+[DAEMON]).
+
 ## 11. Chat
 
 **11.1** The interface MUST hold one chat of its own at a time, and MUST treat as a chat the chat
@@ -1492,6 +1549,8 @@ states where its row's context holds.
 | 24.1.67 | Exomyth | `r` | read again |
 | 24.1.68 | Exomyth | `esc` | out of search, range, pane, then back |
 | 24.1.69 | anywhere | drag, double click, triple click | copy (Section 23) |
+| 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
+| 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 
