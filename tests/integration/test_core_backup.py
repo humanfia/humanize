@@ -175,6 +175,22 @@ def test_no_backup_is_made_where_none_is_asked_for(bare: Path, project: Path) ->
     assert said.backup == ()
 
 
+def test_an_exec_waits_on_no_target_its_epic_is_backed_up_to_by_hand_only(
+    bare: Path, project: Path
+) -> None:
+    _targets({"name": "t", "url": str(bare)}, defaults=("t",))
+    began = time.monotonic()
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "hi")
+    assert ran.returncode == 0, ran.stderr
+    assert time.monotonic() - began < 30
+    assert "backing the epic up" not in ran.stderr
+    assert "took longer" not in ran.stderr
+    said = read(_epic(project))
+    assert said is not None
+    assert said.backup == ("t",)
+    assert not _log(bare)
+
+
 def test_a_running_epic_is_backed_up_every_so_often(
     bare: Path, project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

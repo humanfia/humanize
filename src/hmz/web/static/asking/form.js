@@ -7,7 +7,7 @@
 // beside the field it is of. The same form asks a flow's params on a new epic.
 
 import { h } from '../dom.js'
-import { blank, choicesOf, FEW, fieldsOf, kindOf, labelOf, multiline, pathKey, problems, requiredLeft, resolved, widgetOf, yesNo } from './logic.js'
+import { blank, choicesOf, FEW, fieldsOf, kindOf, labelOf, multiline, pathKey, problems, requiredLeft, resolved, untouched, widgetOf, yesNo } from './logic.js'
 import { markdownInto } from './blocks.js'
 
 /** How many fields a form shows before those with a suggestion fold away. */
@@ -471,10 +471,10 @@ function objectControl(path, node, value, ctx, { fold = false, flat = false, sai
   return {
     el: group,
     group: true,
-    // An object nobody must give, left blank, is left out.
+    // An object nobody must give, left as it was first shown, is left out.
     read: () => {
       const out = read()
-      return !required && Object.values(out).every((one) => blank(one) || one === false) && !Object.keys(value).length ? undefined : out
+      return !required && untouched(fields, out, ctx.root) && !Object.keys(value).length ? undefined : out
     },
     focus: () => group.querySelector('input, textarea, select, button')?.focus(),
   }

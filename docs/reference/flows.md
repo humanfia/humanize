@@ -657,7 +657,9 @@ carves that subtree out of it. Whenever the rules give the workdir `.` `WRITE`
 and an absolute `$TMPDIR` are writable too, as Codex's `workspace-write` does. They are held as
 the CLI's own always-granted paths below are: where one of them and a rule's path nest, the
 deeper of the two decides, and at the same path the more permissive wins. So `deny("/tmp")`
-does not take `/tmp` away, and `deny("/tmp/x")` does keep the agent out of `/tmp/x`. A rule
+does not take `/tmp` away, and `deny("/tmp/x")` does keep the agent out of `/tmp/x`. Each of
+the three is granted as it is spelled and with its symbolic links followed (a Mac's `/tmp` is
+`/private/tmp`), so a rule spelled either way is carved out of it. A rule
 that writes `~` also writes whatever the user may change: all of `/`, held by the files' own permissions,
 except for root, which gets those temporary directories and `/run/user/0` and keeps the rest
 as the other rules say. Independently of the rules, the CLI may:

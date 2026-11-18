@@ -8,12 +8,13 @@ The agent flow system for token maxxing.
 
 ### Humanize Desktop
 
-Humanize Desktop puts `hmz web` in a window of its own, and installs `hmz` itself. Download it
-from the [latest release](https://github.com/humanfia/humanize/releases/latest):
-`humanize-<version>-macos-universal.dmg` on macOS, or
-`humanize-<version>-windows-x64-setup.exe` on Windows, where `hmz` runs in WSL 2
-(`wsl --install`). [Installation](https://humanfia.ai/humanize/user/installation#desktop)
-says how to open it the first time.
+Humanize Desktop is the page of `hmz web` in a window of its own. Download it from the
+[latest release](https://github.com/humanfia/humanize/releases/latest):
+`humanize-<version>-macos-universal.dmg` on macOS, where you install Humanize CLI as below
+too, or `humanize-<version>-windows-x64-setup.exe` on Windows, where the app installs `hmz`
+itself, in WSL 2 (`wsl --install`).
+[Installation](https://humanfia.ai/humanize/user/installation#desktop) says how to open it the
+first time.
 
 ### Humanize CLI
 
