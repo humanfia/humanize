@@ -168,7 +168,8 @@ pub fn environ(
 /// narrower than it is not granted itself. Its entries are, one by one -- each as it is, but
 /// one on the way to such a path, which is taken apart the same way, down to the path itself,
 /// which is granted at its own level or not at all. A path granted beneath a carve-out is
-/// granted on its own, being in the fence's grants.
+/// granted on its own, being in the fence's grants -- but one granted to read where the fence
+/// writes, which the grant above it holds as it holds every other entry.
 ///
 /// What is granted is what is there as this is asked: an entry made later in a directory that
 /// was taken apart is in nothing granted, and so out of reach -- the fence failing closed. So
@@ -193,8 +194,14 @@ pub fn expanded(fence: &Fence) -> std::io::Result<(Vec<String>, Vec<String>)> {
         .chain(&fence.keep)
         .chain(&fence.deny)
     {
+        let level = rank(fence.level(one)).unwrap_or(0);
+        // What is read inside what is written is written, as all around it is: an entry like
+        // any other of the grant above it, and no path of its own for a wall to reach.
+        if LEVELS[level] == WRITE && !fence.write.contains(one) {
+            continue;
+        }
         if !ranked.iter().any(|(path, _)| path == one) {
-            ranked.push((one.clone(), rank(fence.level(one)).unwrap_or(0)));
+            ranked.push((one.clone(), level));
         }
     }
     let mut read: Vec<String> = Vec::new();
@@ -872,6 +879,36 @@ mod tests {
         let (read, write) = expanded(&fence).unwrap();
         assert!(read.is_empty(), "{read:?}");
         assert_eq!(write, vec![format!("{w}/x/y")]);
+    }
+
+    #[test]
+    fn expanded_leaves_what_is_read_inside_what_is_written_to_the_grant_above_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let w = tree(
+            &std::fs::canonicalize(dir.path()).unwrap(),
+            &["bin/real", "lib/", "secret/key"],
+        );
+        std::os::unix::fs::symlink(format!("{w}/bin/real"), format!("{w}/bin/cli")).unwrap();
+        std::os::unix::fs::symlink(format!("{w}/lib"), format!("{w}/python")).unwrap();
+        let fence = Fence {
+            read: vec![
+                format!("{w}/bin/cli"),
+                format!("{w}/bin/real"),
+                format!("{w}/python"),
+                format!("{w}/lib"),
+            ],
+            write: vec![w.clone()],
+            deny: vec![format!("{w}/secret")],
+            ..Fence::default()
+        };
+        let (read, write) = expanded(&fence).unwrap();
+        assert!(read.is_empty(), "{read:?}");
+        assert_eq!(
+            sorted(write.clone()),
+            vec![format!("{w}/bin"), format!("{w}/lib")]
+        );
+        // No link among them, so the fence can be put up.
+        fence.ready(Some(&write)).unwrap();
     }
 
     #[test]
