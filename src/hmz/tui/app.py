@@ -5399,10 +5399,12 @@ class Humanize(App[None]):
         turn, self._turn = self._turn, str(message.get("turn") or "")
         if self._turn and self._slot.startswith("chat:"):
             # The chat attached to is this interface's from now on, whichever way it was
-            # reached; what its harness takes is asked again as each turn ends, a turn having
-            # perhaps given it a skill or a command it did not have.
-            self._chat_slot = self._slot
-            self._chat_epic = self._epic_now or self._chat_epic
+            # reached on this machine -- one followed on another daemon stays that daemon's,
+            # and is not carried on from here; what its harness takes is asked again as each
+            # turn ends, a turn having perhaps given it a skill or a command it did not have.
+            if self._afar is None:
+                self._chat_slot = self._slot
+                self._chat_epic = self._epic_now or self._chat_epic
             if self._natives_of != self._slot or (
                 self._turn == "done" and turn != "done"
             ):
