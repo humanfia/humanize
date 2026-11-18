@@ -1084,6 +1084,7 @@ class Desk:
         term = self._term(said)
         with self._lock:
             self._terms.pop(term.id, None)
+        self._soon(term, term.room.set)
         if term.alive:
             with contextlib.suppress(Refused):
                 self._on(term.env, term.pty.kill(), 15.0)
@@ -1143,7 +1144,8 @@ class Desk:
             while True:
                 while True:
                     with self._lock:
-                        roomy = term.roomy
+                        # One closed is read out to its end, whoever has room.
+                        roomy = term.roomy or self._terms.get(term.id) is not term
                     if roomy:
                         break
                     # Woken by whoever makes room (:meth:`_rooms`), from any thread.
@@ -1245,6 +1247,7 @@ class Desk:
             term.alive = False
             if term.status is None:
                 term.status = _HUNG_UP
+        self._soon(term, term.room.set)
         if alive:
             self._killed(term)
         self._told_exit(term)
