@@ -321,7 +321,7 @@ cannot, the CLI runs unattended and the [fence](#the-fence) holds.
 | The fence | What the driver does |
 | --- | --- |
 | none (an agent driven by hand) | nothing is said: the CLI's own defaults |
-| writes nothing (`Fence.writes` is False: no standing rule gives `write`) | the CLI's file-writing tools are withheld, its shell is kept, nothing is asked; the fence refuses any write the shell attempts |
+| writes nothing (`Fence.writes` is False: no rule gives a path `write` once `~` and `.` are resolved on this machine) | the CLI's file-writing tools are withheld, its shell is kept, nothing is asked; the fence refuses any write the shell attempts |
 | writes somewhere | every tool, nothing asked; the fence decides where writes land |
 | `online` False | the CLI's web tools off ([Web search](#whether-an-agent-may-search-the-web)), and the fence cuts the network |
 | a `PERMISSION_REQUEST` or `ASK_USER` hook hung | the CLI's approval routing on, as each row below says |
