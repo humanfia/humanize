@@ -115,6 +115,25 @@ def _start_chat(page: Page, task: str) -> None:
     page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
 
 
+def _details(page: Page) -> None:
+    """Opens the pane of what a chat is, beside it, from its bar; shut until asked for."""
+    button = page.locator("[data-hmz=bar] [data-hmz=pane-details]")
+    if button.get_attribute("aria-pressed") != "true":
+        button.click()
+    expect(page.locator("[data-hmz=inspector]")).to_be_visible()
+
+
+def _side_questions(page: Page) -> None:
+    """Opens a chat's side questions beside it, from its bar's View options."""
+    page.locator("[data-hmz=bar] [data-hmz=chat-view]").click()
+    page.get_by_role("menu", name="View options").get_by_role(
+        "menuitem", name="Side questions"
+    ).click()
+    expect(page.get_by_role("tab", name="Side questions")).to_have_attribute(
+        "aria-selected", "true"
+    )
+
+
 #: A flow of the project's own that talks as chat does, but is a flow: drawn as a graph of its
 #: agents, and stopped from its page.
 _TALK = '''
@@ -350,6 +369,234 @@ def test_a_model_no_cli_would_list_is_typed(
         )
 
 
+def _at(page: Page, selector: str) -> FloatRect:
+    """Where an element is drawn, in CSS pixels."""
+    box = page.locator(selector).bounding_box()
+    assert box is not None, selector
+    return box
+
+
+#: A chat that waits on its person, as `runs.list` lists it.
+_WAITING: dict[str, Any] = {
+    "name": "20261117T000000.000Z-c4a7e0",
+    "workspace": "/nowhere/fake-workspace",
+    "slot": "",
+    "kind": "chat",
+    "flow": "chat",
+    "task": "which colour is the button",
+    "began": "2026-11-17T00:00:00.000Z",
+    "how": "stopped",
+    "held": False,
+    "turn": "",
+    "asking": ["1:q1"],
+    "agents": [],
+    "backed": {},
+}
+
+
+@pytest.mark.parametrize("width", [1296, 390])
+def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
+    project: Path, engine: str, width: int
+) -> None:
+    wire = Wire(
+        faked={"runs.list": lambda _: {"result": {"runs": [_WAITING], "total": 1}}}
+    )
+    with (
+        served() as site,
+        opened(
+            site, engine=engine, width=width, height=792, routed=wire.routes
+        ) as page,
+    ):
+        go(page, "/new/chat")
+        view = page.locator("[data-hmz=new-chat]")
+        expect(view).to_be_visible()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
+
+        # Its bar: 44px, a plain heading at its left, no control of the form's own.
+        bar = _at(page, "[data-hmz=bar]")
+        assert bar["height"] == 44
+        expect(view.locator("[data-hmz=bar] h1")).to_have_text("New chat")
+        expect(view.locator("[data-hmz=bar] .bar-title button")).to_have_count(0)
+        # No greeting, no mark, no box in the middle.
+        expect(view.locator(".greeting, .home-mark")).to_have_count(0)
+
+        # The box is docked at the foot, in the column a conversation is read in: inside
+        # it only Add, what is typed and the button that sends, 28px high in one row.
+        pane = _at(page, "[data-hmz=new-chat]")
+        boxed = _at(page, "[data-hmz=start] .composer-box")
+        under = _at(page, "[data-hmz=start] [data-hmz=composer-under]")
+        expect(view.locator(".composer-box > *")).to_have_count(3)
+        inside = [
+            _at(page, f"[data-hmz=start] {one}")
+            for one in ("[data-hmz=composer-add]", "textarea", ".send")
+        ]
+        assert [one["height"] for one in inside] == [28, 28, 28]
+        assert [one["x"] for one in inside] == sorted(one["x"] for one in inside)
+        assert boxed["width"] <= 780
+        middle = boxed["x"] + boxed["width"] / 2
+        assert abs(middle - (pane["x"] + pane["width"] / 2)) <= 1
+        assert under["y"] >= boxed["y"] + boxed["height"]
+        assert pane["y"] + pane["height"] - (under["y"] + under["height"]) == 8
+        if width > 860:
+            # A chat app's own numbers, in a window 792 high: the row inside the box at
+            # 716 to 744, the chips under it at 760 to 784.
+            assert (inside[0]["y"], inside[0]["height"]) == (716, 28)
+            assert (under["y"], under["height"]) == (760, 24)
+
+        # Under the box: where it runs at the left, how at the right, each 24px high.
+        chips = view.locator("[data-hmz=composer-under] button:visible")
+        assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
+            "environment",
+            "workspace-picker",
+            "pick-model",
+            "permission",
+        ]
+        for at in range(4):
+            box = chips.nth(at).bounding_box()
+            assert box
+            assert box["height"] == 24
+        # Set in from the box's edges, as a chat app's are: on a wide page the first
+        # starts a hair right of the Add button, and the last ends as far from the edge.
+        inset = 12 if width > 860 else 4
+        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + inset
+        if width > 860:
+            assert _at(page, "[data-hmz=environment]")["x"] == inside[0]["x"] + 2
+        last = _at(page, "[data-hmz=start] [data-hmz=permission]")
+        assert (
+            abs(last["x"] + last["width"] - (boxed["x"] + boxed["width"] - inset)) <= 1
+        )
+        expect(view.locator("[data-hmz=environment]")).to_have_text("Local")
+        # Said, to whoever cannot see it, with what it picks.
+        expect(view.locator("[data-hmz=environment]")).to_have_attribute(
+            "aria-label", "Environment: Local"
+        )
+        expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
+
+        # Environment is the daemon the page shows, and offers the others.
+        view.locator("[data-hmz=environment]").click()
+        offered = page.get_by_role("menu", name="Environment")
+        expect(offered.get_by_role("menuitem")).to_have_text(
+            [re.compile("Local"), "New environment"]
+        )
+        expect(offered.locator("[data-daemon=local]")).to_have_class(
+            re.compile("chosen")
+        )
+        # A menu of the desk is a chat app's: a choice of one line is a row of 28px.
+        assert _at(page, "[role=menu] [data-daemon=local]")["height"] == 28
+        page.keyboard.press("Escape")
+        # The folder: the recent ones, then opening one, then none.
+        view.locator("[data-hmz=workspace-picker]").click()
+        folders = page.get_by_role("menu", name="Folders").get_by_role("menuitem")
+        expect(folders.nth(-2)).to_contain_text("Open folder…")
+        expect(folders.nth(-1)).to_contain_text("No workspace")
+        page.keyboard.press("Escape")
+
+        # Before there is a chat, Add offers the one prefix the page completes by
+        # itself: `@`, which completes the folder's files.
+        (project / "notes.md").write_text("notes\n", encoding="utf-8")
+        text = view.locator("[data-hmz=composer-text]")
+        view.locator("[data-hmz=composer-add]").click()
+        adding = page.get_by_role("menu", name="Add")
+        expect(adding.get_by_role("menuitem")).to_have_text(["Add files"])
+        assert _at(page, "[role=menu][aria-label=Add]")["width"] == 218
+        adding.get_by_role("menuitem", name="Add files").click()
+        expect(text).to_have_value("@")
+        expect(page.locator("[data-hmz=completions]")).to_contain_text("@notes.md")
+        text.fill("")
+
+        # In the middle, the chats that wait on their person, as a chat app lists them:
+        # the list alone, 320 wide at most, its rows of 32px set in 4px, each opening
+        # its chat, each dismissed with a 28px button inside the row, at its right.
+        steps = view.locator("[data-hmz=next-steps]")
+        expect(steps).to_have_attribute("aria-label", "Next steps")
+        expect(steps.locator("h2")).to_have_count(0)
+        row = steps.locator("[data-hmz=next-step]")
+        expect(row).to_have_count(1)
+        expect(row).to_contain_text("which colour is the button")
+        expect(row.locator(".next-state")).to_have_text("Asked a question")
+        listed = _at(page, "[data-hmz=next-steps]")
+        assert listed["width"] == min(320, pane["width"] - (40 if width > 860 else 28))
+        assert abs(listed["x"] + listed["width"] / 2 - middle) <= 1
+        lined = _at(page, "[data-hmz=next-step]")
+        assert (lined["x"], lined["width"]) == (listed["x"] + 4, listed["width"] - 8)
+        assert lined["height"] == 32
+        dismiss = _at(page, "[data-hmz=next-dismiss]")
+        assert (dismiss["width"], dismiss["height"]) == (28, 28)
+        assert dismiss["x"] + dismiss["width"] == lined["x"] + lined["width"] - 4
+        expect(row.locator("a")).to_have_attribute(
+            "href", f"#/epics/{_WAITING['name']}"
+        )
+        # Dismissed, it is off the list in this browser, a reload later too.
+        row.locator("[data-hmz=next-dismiss]").click()
+        expect(steps).to_be_hidden()
+        page.reload()
+        expect(page.locator("[data-hmz=new-chat]")).to_be_visible()
+        page.wait_for_timeout(500)
+        expect(page.locator("[data-hmz=next-steps]")).to_be_hidden()
+        # And once the chat has folded away, when its row lists nothing it asks: what
+        # this browser holds it owing is what it was dismissed by.
+        wire.faked["runs.list"] = lambda _: {
+            "result": {"runs": [{**_WAITING, "asking": []}], "total": 1}
+        }
+        asked = len(wire.params("runs.list"))
+        page.reload()
+        expect(page.locator("[data-hmz=new-chat]")).to_be_visible()
+        while len(wire.params("runs.list")) <= asked:
+            page.wait_for_timeout(50)
+        page.wait_for_timeout(500)
+        expect(page.locator("[data-hmz=next-steps]")).to_be_hidden()
+        # It still waits: forgotten as dismissed, it is listed again.
+        page.evaluate("localStorage.removeItem('hmz-next-dismissed')")
+        page.reload()
+        expect(page.locator("[data-hmz=next-step]")).to_have_count(1)
+
+
+def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine, width=1296, height=792) as page:
+        go(page, "/new")
+        view = page.locator("[data-hmz=new-epic]")
+        expect(view.locator("[data-hmz=flow-picker] b")).not_to_have_text("…")
+        # The heading in a 44px bar, the flow picked right beside it.
+        assert _at(page, "[data-hmz=bar]")["height"] == 44
+        expect(view.locator("[data-hmz=bar] h1")).to_have_text("New epic")
+        heading = _at(page, "[data-hmz=bar] h1")
+        picker = _at(page, "[data-hmz=flow-picker]")
+        assert 0 <= picker["x"] - (heading["x"] + heading["width"]) <= 12
+        # The box docked at the foot, as a new chat's: Add, what is typed and the button
+        # that sends in it, where it runs under it at the left, Options and what is set
+        # at the right.
+        pane = _at(page, "[data-hmz=new-epic]")
+        boxed = _at(page, "[data-hmz=start] .composer-box")
+        under = _at(page, "[data-hmz=start] [data-hmz=composer-under]")
+        expect(view.locator(".composer-box > *")).to_have_count(3)
+        assert under["y"] >= boxed["y"] + boxed["height"]
+        assert pane["y"] + pane["height"] - (under["y"] + under["height"]) == 8
+        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + 12
+        # Add offers the files of the folder alone, which `@` completes in a task too.
+        view.locator("[data-hmz=composer-add]").click()
+        expect(
+            page.get_by_role("menu", name="Add").get_by_role("menuitem")
+        ).to_have_text(["Add files"])
+        page.keyboard.press("Escape")
+        assert _at(page, "[data-hmz=workspace-picker]")["x"] < boxed["x"] + 200
+        options = page.get_by_role("button", name="Options")
+        chip = options.bounding_box()
+        assert chip
+        assert chip["height"] == 24
+        assert abs(chip["x"] + chip["width"] - (boxed["x"] + boxed["width"] - 12)) <= 1
+        # Options opens in the middle of the page, over the box.
+        expect(page.locator("[data-hmz=options]")).to_be_hidden()
+        options.click()
+        opened_ = _at(page, "[data-hmz=options]")
+        assert opened_["y"] >= 44
+        assert opened_["y"] < boxed["y"]
+        expect(view.locator(".greeting, .home-mark")).to_have_count(0)
+
+
 def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
     project: Path, engine: str
 ) -> None:
@@ -360,11 +607,23 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         expect(chip).to_have_text("Haiku 4.5")
         expect(chip).to_have_attribute("data-agent", "claude/claude-haiku-4-5")
         expect(page.get_by_role("button", name="Options")).to_have_count(0)
-        # By the button that sends, at the right of the box's bar.
+        # Under the box, at its right, before what the chat may touch: never in it.
         chip_box, send_box = chip.bounding_box(), page.locator(".send").bounding_box()
+        boxed = page.locator("[data-hmz=start] .composer-box").bounding_box()
+        permission = page.locator("[data-hmz=start] [data-hmz=permission]")
+        permission_box = permission.bounding_box()
         assert chip_box
         assert send_box
-        assert 0 <= send_box["x"] - (chip_box["x"] + chip_box["width"]) <= 16
+        assert boxed
+        assert permission_box
+        assert chip_box["y"] >= boxed["y"] + boxed["height"]
+        assert chip_box["height"] == 24
+        assert chip_box["x"] > boxed["x"] + boxed["width"] / 2
+        assert chip_box["x"] + chip_box["width"] <= permission_box["x"]
+        assert (
+            permission_box["x"] + permission_box["width"] <= boxed["x"] + boxed["width"]
+        )
+        assert (send_box["width"], send_box["height"]) == (28, 28)
 
         chip.click()
         menu = page.get_by_role("menu", name="Model")
@@ -383,7 +642,7 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
         efforts.nth(2).click()
-        expect(chip).to_have_text("Opus 4.1 · Max")
+        expect(chip).to_have_text("Opus 4.1 Max")
         expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
 
         # The harness and the account it runs as are under More, in the same menu.
@@ -467,10 +726,15 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(page.locator("[data-hmz=epic] .pill-live")).to_have_count(0)
         say = page.locator("[data-hmz=say] textarea")
         # Its conversation goes by its agent's own name, not by the role it fills.
-        # Its box is as quiet as a chat app's; what else it takes is said on hover.
+        # Its box is as quiet as a chat app's; what else it takes is offered by Add.
         expect(say).to_have_attribute("placeholder", "Reply…")
-        say.hover()
-        expect(page.locator(".tip")).to_contain_text("$ for skills and flows")
+        page.locator("[data-hmz=say] [data-hmz=composer-add]").click()
+        expect(
+            page.get_by_role("menu", name="Add").get_by_role("menuitem")
+        ).to_have_text(
+            ["Add files", "Slash commands", "Skills and flows", "Run a shell command"]
+        )
+        page.keyboard.press("Escape")
         expect(say).not_to_have_attribute("placeholder", "Message assistant/1")
         say.fill("and again")
         say.press("Enter")
@@ -484,7 +748,7 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         # no Exomyth, and nothing to stop it by -- running while it answers, its reply
         # looked at here, else stopped.
         bar = page.locator("[data-hmz=bar]")
-        expect(bar.locator(".badge")).to_have_text(re.compile("running|stopped"))
+        expect(bar.locator(".badge")).to_have_count(0)
         expect(bar.locator(".crumbs")).to_have_count(0)
         expect(page.get_by_role("button", name="Stop")).to_have_count(0)
         expect(page.locator("[data-hmz=exomyth-open]")).to_have_count(0)
@@ -496,10 +760,12 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(row.locator("[data-hmz=epic]")).to_have_attribute("data-kind", "chat")
         expect(page.get_by_role("tab", name="People")).to_have_count(0)
         # Nothing on it is called an epic, a flow or native: its bar holds its title, one
-        # menu and the panel's button, and its panel says what it is in a chat's words.
-        expect(bar.locator(".bar-actions > *")).to_have_count(3)
+        # menu and a button for each pane, and its panel says what it is in a chat's words.
+        expect(bar.locator(".bar-actions button")).to_have_count(6)
         expect(bar.locator("[data-hmz=prefer]")).to_have_count(0)
         expect(bar).not_to_contain_text(re.compile("epic|flow|native", re.IGNORECASE))
+        expect(page.locator("[data-hmz=inspector]")).to_be_hidden()
+        _details(page)
         for tab in ("Details", "Side questions"):
             expect(page.get_by_role("tab", name=tab)).to_be_visible()
         expect(page.get_by_role("tab", name="Epic")).to_have_count(0)
@@ -528,7 +794,7 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(thread).to_contain_text("did: and again")
 
         stop(page)
-        expect(bar.locator(".badge")).to_have_text(re.compile("stopped"))
+        expect(page.locator("[data-hmz=chat-status]")).to_have_count(0)
         expect(page.locator("[data-hmz=epic] [data-hmz=chat-state]")).to_have_count(0)
 
 
@@ -1138,7 +1404,7 @@ def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
 
         # The panel beside the epic, open, is the top right; and shut, the bar is.
         _start_chat(page, "hello there")
-        expect(page.locator("[data-hmz=inspector]")).to_be_visible()
+        _details(page)
         assert page.evaluate(under) == []
         page.locator(".panel-close").click()
         expect(page.locator("[data-hmz=inspector]")).to_be_hidden()
@@ -1431,9 +1697,7 @@ def test_an_epic_backed_up_elsewhere_is_downloaded_and_opened(
         stored.get_by_role("button", name="Download").click()
 
         page.wait_for_url(re.compile(rf".*#/epics/{re.escape(name)}"))
-        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
-            re.compile("stopped")
-        )
+        expect(page.locator("[data-hmz=thread]")).to_be_visible()
         expect(page.locator("[data-hmz=epic]")).to_have_count(1)
 
         go(page, "/download")
@@ -1448,8 +1712,7 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
     with served() as site, opened(site, engine=engine, width=width, dark=dark) as page:
         _start_chat(page, "fit me")
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: fit me")
-        if width < 860:
-            page.locator("[data-hmz=bar] .panel-toggle").click()
+        _details(page)
         inspector = page.locator("[data-hmz=inspector]")
         expect(inspector.locator("[data-hmz=environments]")).to_contain_text(
             re.compile(r"\w+/1 workspace · local")
@@ -1497,7 +1760,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         _start_chat(page, "remember papaya")
         thread = page.locator("[data-hmz=thread]")
         expect(thread).to_contain_text("did: remember papaya")
-        page.get_by_role("tab", name="Side questions").click()
+        _side_questions(page)
         aside = page.locator("[data-hmz=btw]")
         ask = page.locator("[data-hmz=btw-to]")
 
@@ -1558,7 +1821,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 
         # Opened again, both are read back, each with what was said in it.
         page.reload()
-        page.get_by_role("tab", name="Side questions").click()
+        _side_questions(page)
         expect(tabs).to_have_count(2)
         expect(log).to_contain_text("and you, slowly")
         tabs.first.click()
@@ -1692,7 +1955,7 @@ def test_a_composer_built_before_it_is_shown_is_a_line_tall_once_shown(
         expect(page.locator("[data-hmz=thread]")).to_contain_text(
             "did: remember papaya"
         )
-        page.get_by_role("tab", name="Side questions").click()
+        _side_questions(page)
         # Nothing typed yet: typing fires `input`, which would size it either way.
         text = page.locator("[data-hmz=btw] textarea")
         expect(text).to_be_visible()
@@ -1727,7 +1990,7 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
             "did: remember papaya"
         )
 
-        page.get_by_role("tab", name="Side questions").click()
+        _side_questions(page)
         aside = page.locator("[data-hmz=btw]")
         _asks_of(page, "/1")
         aside.locator("textarea").fill("what was the word")
@@ -1893,12 +2156,16 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         # Not looked at, as a page behind another window is not, while the chat answers.
         page.evaluate("document.hasFocus = () => false")
         _start_chat(page, "remember teal")
-        badge = page.locator("[data-hmz=bar] .badge")
-        expect(badge).to_have_text(re.compile("asking"))
+        # A chat says how it stands over its box; a flow's epic, on its bar.
+        status = page.locator("[data-hmz=chat-status]")
+        expect(status).to_have_attribute("data-state", "asking")
+        expect(status).to_have_text("Waiting for you")
 
         # Looked away from, it folds -- and still asks, as nobody has read what it said.
         page.locator("[data-hmz=epic]", has_text="a flow beside").click()
-        expect(badge).to_have_text(re.compile("running|waiting|asking"))
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("running|waiting|asking")
+        )
         page.evaluate("delete document.hasFocus")
         # Folded for good: what folds says it goes a moment yet, and held a moment before.
         folded, deadline = 0, time.monotonic() + 30
@@ -1917,7 +2184,7 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         # Read, it is stopped: its row says nothing beside what was asked.
         row.click()
         expect(state).to_have_count(0)
-        expect(badge).to_have_text(re.compile("stopped"))
+        expect(status).to_have_count(0)
 
 
 @pytest.mark.usefixtures("talking")

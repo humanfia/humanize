@@ -3,7 +3,14 @@
 // Given what to complete with, it offers, over itself, what the word being typed could become,
 // picked with the arrows and taken with Tab or Enter, as a terminal's prompt completes.
 
-import { fill, h, icon, problem } from './dom.js'
+// A box of a chat's -- a new chat's, a chat's, a new epic's -- is drawn as a chat app's desk
+// (`desk`): inside it only the Add button, what is typed and the button that sends; every
+// choice beside it is a quiet chip in the row under it, where it runs at the left and how it
+// runs at the right (Section 3.6.6.15 of protocol/web.md).
+
+import { added, addsOf } from './desk.js'
+import { fill, h, icon, iconButton, problem } from './dom.js'
+import { choice, menu } from './shell.js'
 
 /**
  * @param {object} made
@@ -15,13 +22,27 @@ import { fill, h, icon, problem } from './dom.js'
  * @param {boolean} [made.empty] Whether it may be sent empty.
  * @param {string} [made.busy] What it says over itself while what was sent is being taken.
  * @param {(text: string, caret: number) => Promise<Completing|null>|Completing|null} [made.complete] What the word at the caret could become.
+ * @param {{left?: Node[], right?: Node[], add?: true | string[], able?: (key: string) => string} | null} [made.desk]
+ *   Drawn as a chat's desk: the chips under the box, at its left and at its right; what its Add
+ *   menu offers -- all of it, or the keys of desk.js's `ADDS` it does; and `able`, which says why
+ *   one of them cannot be picked now, or '' where it can. `tools` then stand at the right under
+ *   the box, never in it.
  */
-export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…', complete = null }) {
+export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…', complete = null, desk = null }) {
   const text = h('textarea', { rows: '1', placeholder, 'aria-label': label, 'data-hmz': 'composer-text' }, value)
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': 'Send', title: 'Send' }, icon('send'))
   const said = h('div', { class: 'composer-said', 'aria-live': 'polite' })
-  const tray = h('div', { class: 'composer-tools' }, tools)
-  const form = h('form', { class: 'composer', 'data-hmz': 'composer' }, said, text, h('div', { class: 'composer-bar' }, tray, send))
+  const tray = h('div', { class: desk ? 'under-right' : 'composer-tools' }, desk ? [tools, desk.right || []] : tools)
+  const left = desk ? h('div', { class: 'under-left' }, desk.left || []) : null
+  const form = desk
+    ? h(
+        'form',
+        { class: 'composer composer-desk', 'data-hmz': 'composer' },
+        said,
+        h('div', { class: 'composer-box' }, desk.add ? adder(text, desk.add, desk.able) : null, text, send),
+        h('div', { class: 'composer-under', 'data-hmz': 'composer-under' }, left, tray),
+      )
+    : h('form', { class: 'composer', 'data-hmz': 'composer' }, said, text, h('div', { class: 'composer-bar' }, tray, send))
   const grow = () => {
     text.style.height = 'auto'
     text.style.height = `${Math.min(text.scrollHeight, 320)}px`
@@ -61,7 +82,40 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
   })
   // Measured again whenever its box changes, so one built before it is shown fits once shown.
   new ResizeObserver(() => requestAnimationFrame(grow)).observe(text)
-  return { node: form, text, tray, said, send, again: () => offered?.again() }
+  return { node: form, text, tray, left, said, send, again: () => offered?.again() }
+}
+
+/**
+ * The Add button of a chat's box, and its menu: each choice types the prefix a line of that kind
+ * starts with, and the box then offers what it could become, as it does where the prefix is typed.
+ */
+function adder(text, which, able = () => '') {
+  const button = iconButton('plus', 'Add', { class: 'composer-add', 'data-hmz': 'composer-add' })
+  menu(
+    button,
+    (close) =>
+      addsOf(which).map((one) => {
+        const why = able(one.key)
+        const item = choice({
+          label: one.label,
+          about: why,
+          glyph: one.glyph,
+          close,
+          act: () => {
+            const now = added(text.value, text.selectionStart ?? text.value.length, one.sigil)
+            text.value = now.text
+            text.focus()
+            text.setSelectionRange(now.caret, now.caret)
+            text.dispatchEvent(new Event('input'))
+          },
+        })
+        item.dataset.add = one.key
+        item.disabled = Boolean(why)
+        return item
+      }),
+    { up: true, label: 'Add' },
+  )
+  return h('div', { class: 'menu-holder' }, button)
 }
 
 /**

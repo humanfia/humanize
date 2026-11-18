@@ -1,20 +1,24 @@
-// A new run, as a new chat opens: the flow picked in the bar as a model is picked, the task typed
-// into the box in the middle, and the folder it runs in picked under that box, where a chat app
-// keeps it. The rest a flow is set up with -- an agent for each role,
-// where each environment works, its params, its budget, where it is backed up and whether its flow
-// and its environment are profiled -- is under Options on the box, set up as this directory last
-// ran that flow, the way `/flow` in the terminal interface sets one up. Picking a run up again is
-// the same box, on that run. A new epic is of a flow: a new chat is a form of its own
-// (views/newchat.js), which the sidebar opens beside this one (Section 3.8.17 of protocol/web.md).
+// A new epic, in the frame a new chat opens in: `New epic` in the bar with the flow picked beside
+// it as a model is picked, what the flow is for said in the middle, and the task typed into the
+// box docked at the foot of the page, with where it runs -- the daemon and the folder -- under
+// that box at its left, where a chat app keeps them. The rest a flow is set up with -- an agent
+// for each role, where each environment works, its params, its budget, where it is backed up and
+// whether its flow and its environment are profiled -- is under Options, by the box, set up as
+// this directory last ran that flow, the way `/flow` in the terminal interface sets one up.
+// Picking a run up again is the same box, on that run. A new epic is of a flow: a new chat is a
+// form of its own (views/newchat.js), which the sidebar opens beside this one (Sections 3.8.17
+// and 3.8.24 of protocol/web.md).
 
 import { call, given, hash } from '../api.js'
 import { covered, go, stays } from '../app.js'
+import { environmentChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
+import { NO_FOLDER } from '../desk.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
 import { paramsForm } from '../asking/form.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
-import { firstWorkspace, workspacePicker } from '../places.js'
+import { firstWorkspace, folderFiles, workspacePicker } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
@@ -28,35 +32,42 @@ export function mount(root, { query }) {
   const place = workspacePicker(scratch ? null : workspace, (path) => {
     scratch = path === null
     workspace = path || ''
+    files.clear()
     load(query.get('flow') || '')
-  }, { none: true })
-  const greeting = h('h2', { class: 'greeting' }, resume ? 'Resume epic' : 'What should the agents do?')
+  }, { none: true, plain: true })
+  // A task names a file as a first message does: `@` completes the paths of the folder picked.
+  const files = folderFiles(() => workspace)
   const about = h('p', { class: 'greeting-about' })
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
-  const optionsChip = h('button', { class: 'chip-btn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
+  const optionsChip = h('button', { class: 'chip-btn desk-chip', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
   const summary = h('span', { class: 'composer-summary' })
   const resumed = h('div', { class: 'resumed' })
   const box = composer({
     placeholder: 'Describe the task',
     label: 'Task',
-    tools: [optionsChip, summary],
     empty: true,
     busy: 'Starting…',
     submit: (task) => start(task),
+    complete: files.complete,
+    desk: { add: ['files'], able: () => (workspace ? '' : NO_FOLDER), left: [environmentChip('/new').node, place.node], right: [summary, optionsChip] },
   })
   box.node.dataset.hmz = 'start'
-  box.node.classList.add('composer-home')
   optionsChip.addEventListener('click', () => {
     options.hidden = !options.hidden
     optionsChip.setAttribute('aria-expanded', String(!options.hidden))
+    if (!options.hidden) options.scrollIntoView({ block: 'nearest' })
   })
+  const top = bar({ title: resume ? 'Resume epic' : 'New epic' })
+  // The flow, beside the heading, as a chat's bar keeps what can be done beside its title.
+  top.querySelector('.bar-title').append(h('div', { class: 'pickers' }, pickerHolder))
   fill(
     root,
     h(
       'div',
-      { class: 'view view-new' },
-      bar({ lead: h('div', { class: 'pickers' }, pickerHolder) }),
-      h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, about, resumed, box.node, under(place.node), options)),
+      { class: 'view view-new view-desk', 'data-hmz': 'new-epic' },
+      top,
+      h('div', { class: 'desk-body' }, h('div', { class: 'desk-column' }, about, resumed, options)),
+      h('div', { class: 'dock desk-dock' }, box.node),
     ),
   )
 
@@ -154,7 +165,8 @@ export function mount(root, { query }) {
     picked = read
     reading(false)
     fill(resumed, ran ? h('p', { class: 'note' }, `Picks up ${ran.name}, carrying on from where it stopped.`) : null)
-    greeting.textContent = ran ? 'Resume epic' : `What should ${name} do?`
+    // What the page asked in the middle, asked in the box.
+    box.text.placeholder = ran ? 'Describe the task' : `What should ${name} do?`
     setup = drawOptions(picked, ran)
     if (ran && !box.text.value) {
       box.text.value = ran.task
@@ -286,11 +298,6 @@ export function newOf(kind, { workspace = '', scratch = false } = {}) {
   const query = new URLSearchParams(given(scratch ? { scratch: '1' } : { workspace }))
   const text = query.toString()
   return `/new${kind === 'chat' ? '/chat' : ''}${text ? `?${text}` : ''}`
-}
-
-/** What stands under a new epic's box, at its left: the folder it works in, as a chat app keeps it. */
-export function under(...chips) {
-  return h('div', { class: 'composer-under', 'data-hmz': 'composer-under' }, chips)
 }
 
 /**

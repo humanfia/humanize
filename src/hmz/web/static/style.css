@@ -1905,67 +1905,10 @@ pre.block {
 
 /* ------------------------------------------------------------------ a new run */
 
-.home {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: grid;
-  padding: 24px 20px 40px;
-  /* A poster behind the page, beside the green: a cyan disc in the corner and a fainter cyan band
-     on the diagonal. */
-  background:
-    radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--cyan) 14%, transparent) 0 112px, transparent 113px),
-    linear-gradient(163.6deg, transparent 0 66%, color-mix(in srgb, var(--cyan) 9%, transparent) 66% 72%, transparent 72%);
-}
-
-.home-inner {
-  width: min(100%, var(--column));
-  margin: auto;
-  padding-bottom: 6vh;
-}
-
-.home-mark {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 18px;
-}
-
-.home-mark img {
-  width: 100%;
-  height: 100%;
-}
-
-.greeting {
-  margin: 0;
-  font-size: clamp(26px, 4vw, 38px);
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-}
-
-/* The green, cut on the diagonal under what the page asks, with Hyacine's cyan after it. */
-.greeting::after {
-  content: '';
-  display: block;
-  width: 132px;
-  height: 10px;
-  margin-top: 12px;
-  background: linear-gradient(90deg, var(--green) 0 62%, var(--cyan) 62%);
-  clip-path: polygon(0 0, 100% 0, 94% 100%, 0 100%);
-}
-
 .greeting-about {
   color: var(--ink-2);
   margin: 12px 0 0;
   max-width: 64ch;
-}
-
-.home .composer {
-  margin-top: 24px;
-}
-
-.composer-home textarea {
-  min-height: 84px;
 }
 
 .options {

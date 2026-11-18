@@ -121,7 +121,7 @@ export function markOf(how, { chat = false, turn = '', asked = [], epic = '' } =
       return 'running'
     }
     if (asked.length) owe(epic, asked)
-    const waits = asked.length ? asked : owed()[owedKey(epic)] || []
+    const waits = waitsOn(epic, asked)
     if (waits.some((key) => !looked().has(lookedKey(epic, key)))) return 'asking'
     return how === 'running' && !turn ? 'running' : ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
   }
@@ -134,6 +134,11 @@ const OWED = 'hmz-owed'
 let owes = null
 
 const owedKey = (epic) => `${daemon()} ${epic}`
+
+/** What a chat waits on a person for: what its host lists or, where it lists nothing, what this browser kept it owing. */
+export function waitsOn(epic, asked = []) {
+  return asked.length ? asked : owed()[owedKey(epic)] || []
+}
 
 function owed() {
   if (!owes) {
