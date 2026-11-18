@@ -3050,7 +3050,9 @@ class Humanize(App[None]):
         )
         for typed in self._typed:
             # A number typed at a question is told as the answer it numbers.
-            at = int(typed) if typed.strip().isdigit() else 0
+            # Only a number `int` reads, and never one too long for it to.
+            at = typed.strip()
+            at = int(at) if at.isdecimal() and len(at) < 10 else 0
             if typed == text or (0 < at <= len(options) and options[at - 1] == text):
                 self._typed.remove(typed)
                 return True
