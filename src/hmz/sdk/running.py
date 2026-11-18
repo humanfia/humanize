@@ -62,9 +62,11 @@ BACKING = 60.0
 def backed(client: Client, name: str) -> bool:
     """Whether every backup of an epic has finished, as `backed` of `runs.get` says it.
 
-    Each target it goes to has been backed up to since it ended -- a backup of an earlier
-    time it was open, or one made by hand while it ran, is not the one its end queued. An epic
-    the daemon cannot say, or no longer has, is waited on no longer.
+    Each target its end backs it up to -- one whose policies hold `end`, as the settings the
+    daemon answers say -- has been backed up to since it ended: a backup of an earlier time it
+    was open, or one made by hand while it ran, is not the one its end queued, and a target
+    of no such policy has none queued to wait on. An epic the daemon cannot say, or no longer
+    has, is waited on no longer.
 
     Args:
       client: A session with the daemon that holds the epic.
@@ -72,13 +74,23 @@ def backed(client: Client, name: str) -> bool:
     """
     try:
         row = client.call("runs.get", {"name": name}, seconds=_ANSWERING)
+        ended = str(row.get("ended") or "")
+        done: dict[str, dict[str, Any]] = row.get("backed") or {}
+        left = {
+            one
+            for one in row.get("backup") or ()
+            if one not in done or str(done[one].get("at") or "") < ended
+        }
+        if not left:
+            return True
+        kept = client.call(
+            "settings.get", {"workspace": row.get("workspace")}, seconds=_ANSWERING
+        )
     except (Refused, TimeoutError):
         return True
-    ended = str(row.get("ended") or "")
-    done: dict[str, dict[str, Any]] = row.get("backed") or {}
-    return all(
-        one in done and str(done[one].get("at") or "") >= ended
-        for one in row.get("backup") or ()
+    return not any(
+        one["name"] in left and "end" in one["policies"]
+        for one in kept["backup"]["targets"]
     )
 
 

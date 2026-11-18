@@ -58,6 +58,8 @@ class _Daemon:
         self.called = threading.Condition()
         #: What `runs.get` says each time it is asked, the last for good.
         self.rows: list[dict[str, Any]] = [{}]
+        #: The policies of each backup target `settings.get` says.
+        self.policies: dict[str, list[str]] = {"origin": ["end"]}
         self.gone = threading.Event()
 
     def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None:
@@ -79,6 +81,12 @@ class _Daemon:
             return {"sub": "s1", "slot": "exec:ab12", "client": "c1"}
         if method == "runs.get":
             return self.rows.pop(0) if len(self.rows) > 1 else self.rows[0]
+        if method == "settings.get":
+            targets = [
+                {"name": name, "policies": policies}
+                for name, policies in self.policies.items()
+            ]
+            return {"backup": {"targets": targets, "defaults": []}}
         return {}
 
     def wait(self, timeout: float | None = None) -> bool:
@@ -636,3 +644,26 @@ def test_a_backup_from_before_the_epic_ended_is_not_the_one_its_end_queued(
     assert backed(client, "e")
     daemon.refusing["runs.get"] = Refused("There is no epic e.", code=404)
     assert backed(client, "e")
+
+
+@pytest.mark.parametrize("policies", [[], ["interval"], ["session"], None])
+def test_a_target_the_end_of_an_epic_queues_no_backup_to_is_not_waited_on(
+    daemon: _Daemon, policies: list[str] | None
+) -> None:
+    daemon.rows = [
+        {
+            "workspace": "/w",
+            "ended": "2026-11-17T00:00:01.000Z",
+            "backup": ["origin", "aside"],
+            "backed": {"origin": {"at": "2026-11-17T00:00:02.000Z", "ok": True}},
+        }
+    ]
+    # Backed up to by hand only, or as it runs, or one settings holds no longer.
+    daemon.policies = {"origin": ["end"]} | (
+        {} if policies is None else {"aside": policies}
+    )
+    assert backed(cast("Any", daemon), "e")
+    assert ("settings.get", {"workspace": "/w"}) in daemon.asked
+
+    daemon.policies["aside"] = ["session", "end"]
+    assert not backed(cast("Any", daemon), "e")
