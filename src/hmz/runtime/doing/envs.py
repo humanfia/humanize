@@ -3,9 +3,9 @@
 `hosts.env.list`, `hosts.env.read`, `hosts.env.write`, `hosts.env.exec` and `hosts.env.grep`
 (Section 4.23 of daemon.md): each carried out by the host going with the epic, through the env's
 own driver on the run's own loop, as the epic's flow would carry it out, without the flow
-hearing of it and without attaching. Each env is one the run holds at its root -- a role's, or
-the workspace -- as the run lists them for the env panels (:mod:`hmz.runtime.doing.desk`); what
-is here is the work done in it, which :meth:`hmz.runtime.Host.env` asks for.
+hearing of it and without attaching. Each env is one the run holds at its root -- a role's,
+two roles of one driver each an env of its own, or the workspace no role took; what is here is
+the work done in it, which :meth:`hmz.runtime.Host.env` asks for.
 """
 
 from __future__ import annotations
@@ -15,12 +15,11 @@ import concurrent.futures
 import os
 import posixpath
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from hmz.runtime.doing.desk import Holds
     from hmz.runtime.flowing.spi import EnvDriver
 
 __all__ = ["NO_FLOW", "EnvRefusal", "answered", "carried", "listed"]
@@ -267,6 +266,17 @@ async def carried(
     return await does(driver, env, said)
 
 
+class Holds(Protocol):
+    """A run going, as far as `hosts.env.*` go: its envs by name, and the loop they live on."""
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop: ...
+
+    def env_roles(self) -> Mapping[str, EnvDriver]:
+        """The driver of each env it holds at its root, by name. From any thread."""
+        ...
+
+
 def answered(holds: Holds, said: Mapping[str, Any]) -> dict[str, Any]:
     """Carries out one call of Section 4.23 on what a run going holds, from any other thread.
 
@@ -278,10 +288,7 @@ def answered(holds: Holds, said: Mapping[str, Any]) -> dict[str, Any]:
       EnvRefusal: As Section 4.23 refuses it; 409 where the run's loop has ended.
       EnvError: What the env could not do, as its driver raised it.
     """
-    envs: dict[str, EnvDriver] = {}
-    for one in holds.held_envs():
-        if one.parent is None:
-            envs.setdefault(one.role, one.driver)
+    envs = holds.env_roles()
     method = str(said.get("do"))
     if method == "hosts.env.list":
         return {"envs": listed(envs)}

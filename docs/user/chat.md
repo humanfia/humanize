@@ -244,13 +244,14 @@ hmz chat -a claude/claude-opus-5:high "What does this repository do?"
 
 | Part | Means |
 | --- | --- |
-| `-a`, `--agent` | the agent, as `-a` writes one [after `<role>=`](/user/unattended#name-an-agent-for-each-role): `cli[@account]/model[:effort]`. Without it, the agent this directory remembers; with none remembered, refused |
+| `-a`, `--agent` | the agent, as `-a` writes one [after `<role>=`](/user/unattended#name-an-agent-for-each-role): `cli[@account]/model[:effort]`, or the name of a virtual nous. Without it, the agent this directory remembers; with none remembered, refused |
 | `--resume <epic>` | carry that chat of this directory on, the message as its next turn, with its own agent unless `-a` says another |
 | the message | exactly one argument, not empty; one that starts with `-` goes after `--` |
 
 The message is read as [a line in a chat](#what-a-line-means) is, except that a `$` line
 naming a flow, and the names Humanize keeps, are refused: run a flow with `hmz exec`. The turn
-is drawn on stderr and the answer written to stdout, as `hmz exec` does. It exits `0` once the
+is drawn on stderr and the answer written to stdout, as `hmz exec` does; a `!<command>` takes
+no turn, and what it printed is written to stdout in the answer's place. It exits `0` once the
 turn is done, `1` where the turn failed, `2` where it was refused before it started, and 128
 plus the signal's number where a signal ended it, leaving the chat to its host. It changes
 nothing this directory remembers. See [CLI › `hmz chat`](/reference/cli#hmz-chat).
