@@ -453,7 +453,7 @@ class Homely(Box):
     """A driver whose workdir is under a home that only its machine knows."""
 
     def at(self, path: str) -> str:
-        at = posixpath.join(str(self.workdir), path)
+        at = path if path.startswith("~") else posixpath.join(str(self.workdir), path)
         return posixpath.normpath(f"/home/me{at[1:]}" if at.startswith("~") else at)
 
     async def absolute(self, path: str) -> str:
