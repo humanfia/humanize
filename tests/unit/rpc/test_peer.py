@@ -352,7 +352,9 @@ def test_json_written_is_utf8_without_escapes(pipes: Pipes) -> None:
     assert "日本".encode() in data
 
 
-def test_nan_is_not_json_either_way(pipes: Pipes, received: Received) -> None:
+def test_nan_is_read_as_no_json_and_written_as_its_text(
+    pipes: Pipes, received: Received
+) -> None:
     near, far = pipes()
     Peer(near, lambda call: call.answer(float("nan")))
     far.sendall(
@@ -360,7 +362,7 @@ def test_nan_is_not_json_either_way(pipes: Pipes, received: Received) -> None:
     )
     assert received(far)["error"]["code"] == -32700
     far.sendall(encode({"jsonrpc": "2.0", "id": 2, "method": "a"}))
-    assert received(far)["error"]["code"] == -32603
+    assert received(far)["result"] == "NaN"
 
 
 def test_a_result_json_cannot_hold_is_still_answered(
