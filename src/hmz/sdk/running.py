@@ -635,11 +635,13 @@ class Run:
     def _claims_late(self, roles: list[str]) -> None:
         """Claims the `Outworlder` roles of a flow no check answered, as `started` names them."""
         outworlder = self._outworlder
+        if outworlder is None:
+            return
         with self._lock:
             client = self._client
             new = [role for role in roles if role not in self._claimed]
             self._claimed.update(new)
-        if outworlder is None or client is None or not new:
+        if client is None or not new:
             return
         self._claims.clear()
 
