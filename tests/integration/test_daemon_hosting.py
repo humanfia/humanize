@@ -108,6 +108,21 @@ def test_a_host_nobody_reads_and_nothing_runs_in_goes(held: daemon.Daemon) -> No
     assert daemon.running() is None
 
 
+def test_an_exec_host_whose_epic_ended_with_nobody_attached_goes(
+    workspace: Path,
+) -> None:
+    written(workspace, "waits", WAITS)
+    held = daemon.host(slot="exec:0a1b2c3d4e5f")
+    try:
+        link = held.link(name="starter")
+        link.start("./waits", "forever", budget={"duration": 2})
+        link.close()
+
+        assert until(lambda: not held.alive, 30)
+    finally:
+        held.kill()
+
+
 def test_stopping_the_host_tells_every_frontend_why(held: daemon.Daemon) -> None:
     heard = Heard()
     link = held.link(name="watching")
