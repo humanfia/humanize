@@ -220,7 +220,8 @@ the several-flows-per-module rule are specified in
 
 The rest after `=` is a concrete [nous](/user/settings#nous); one with no `/` is the name of a
 virtual nous written on the Nous page, and the agent is built at the concrete nous its graph
-starts at and walks the graph each turn.
+starts at and walks the graph each turn. The epic's record states that concrete nous as the
+role's harness, model and effort, so a run resumed from the record starts there.
 
 | Part | Rule |
 | --- | --- |
