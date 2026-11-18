@@ -271,3 +271,46 @@ def test_a_host_going_with_a_chat_holds_the_chat_not_a_flow_of_its_name() -> Non
 
     assert list(held) == [chat.at]
     assert held[chat.at]["turn"] == "done"
+
+
+def test_a_list_leaves_out_every_ai_chan_epic_and_one_her_host_holds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import hmz.runtime.epic
+
+    def ends(ran: Any, *, going: bool) -> str:
+        del ran, going
+        return "running"
+
+    monkeypatch.setattr(hmz.runtime.epic, "ending", ends)
+
+    def named(name: str, task: str) -> Any:
+        ran = _ran("", kind="chat")
+        ran.name, ran.at, ran.task = name, Path("/epics") / name, task
+        return ran
+
+    plain, hers, unnamed = named("a", "mine"), named("b", "hers"), named("c", "new")
+
+    def every(workspace: str) -> list[Any]:
+        del workspace
+        return [unnamed, hers, plain]
+
+    def goes(ran: Any) -> bool:
+        del ran
+        return False
+
+    kept = SimpleNamespace(all=every, going=goes)
+    # Her newest conversation's host has named its epic, which no file has yet.
+    going = [
+        {"workspace": "/w", "epic": "c", "slot": "ai:1"},
+        {"workspace": "/w", "epic": "a", "slot": ""},
+    ]
+
+    said = runs.listed(cast("Any", kept), going, hers={"b"})
+
+    assert [one["name"] for one in said["runs"]] == ["a"]
+    assert (said["total"], said["counts"]) == (1, {"running": 1})
+    assert said["flows"] == ["chat"]

@@ -47,6 +47,7 @@ __all__ = [
     "Held",
     "Links",
     "Reach",
+    "conversations",
     "epic_at",
     "epics",
     "holding",
@@ -130,6 +131,13 @@ def epics() -> Callable[[str, str], bool] | None:
     """
     held = holding.get()
     return None if held is None else held.epic
+
+
+def conversations() -> Conversations:
+    """The Ai-chan conversations of this machine: the daemon's own, where this process is it."""
+    from hmz.daemon import routing
+
+    return routing.serving.links.kept if routing.serving else Conversations()
 
 
 def notices() -> Callable[[Mapping[str, Any]], bool] | None:
@@ -354,7 +362,10 @@ def epic_at(name: str) -> Path | None:
 
 
 class Conversations:
-    """Every Ai-chan conversation not forgotten, as `conversations.yaml` keeps them."""
+    """Every Ai-chan conversation not forgotten, as `conversations.yaml` keeps them.
+
+    And the epic of each one forgotten, by its name, as `forgotten.yaml` keeps them.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -373,28 +384,29 @@ class Conversations:
 
     def all(self) -> list[dict[str, Any]]:
         """Every conversation, in the order made."""
-        try:
-            said: object = yaml.safe_load(
-                (self.at / "conversations.yaml").read_text(encoding="utf-8")
-            )
-        except (OSError, yaml.YAMLError, UnicodeDecodeError):
-            return []
-        if not isinstance(said, list):
-            return []
         held = [
             cast("dict[str, Any]", one)
-            for one in cast("list[object]", said)
+            for one in self._listed("conversations.yaml")
             if isinstance(one, dict)
         ]
         return [one for one in held if isinstance(one.get("id"), int)]
+
+    def _listed(self, name: str) -> list[object]:
+        """The YAML list one of its files holds, or none where it holds none."""
+        try:
+            said: object = yaml.safe_load((self.at / name).read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError, UnicodeDecodeError):
+            return []
+        return cast("list[object]", said) if isinstance(said, list) else []
 
     def of(self, slot: str) -> dict[str, Any] | None:
         """The conversation of a slot, or None."""
         return next((one for one in self.all() if one.get("slot") == slot), None)
 
     def epics(self) -> set[str]:
-        """The epic of every conversation that has one."""
-        return {str(one["record"]) for one in self.all() if one.get("record")}
+        """The epic of every conversation that has one, kept or forgotten, by its name."""
+        kept = {str(one["record"]) for one in self.all() if one.get("record")}
+        return kept | {str(one) for one in self._listed("forgotten.yaml")}
 
     def made(self, said: Mapping[str, Any]) -> dict[str, Any]:
         """Records a new conversation, its `id` the next, and makes its scratch directory.
@@ -424,23 +436,31 @@ class Conversations:
                     one.update(said)
             self._writes(held)
 
-    def forgot(self, ident: int) -> dict[str, Any] | None:
-        """Forgets one conversation and its scratch directory; None where there was none."""
+    def forgot(self, ident: int, record: str = "") -> dict[str, Any] | None:
+        """Forgets one conversation and its scratch directory; None where there was none.
+
+        Args:
+          ident: Its `id`.
+          record: Its epic where its entry names none yet, as its host says it, or "".
+        """
         with self._lock:
             held = self.all()
             gone = next((one for one in held if one["id"] == ident), None)
             if gone is None:
                 return None
+            # Its epic is written down first: it is never one no file says is hers.
+            if epic := str(gone.get("record") or record):
+                self._writes([*self._listed("forgotten.yaml"), epic], "forgotten.yaml")
             self._writes([one for one in held if one is not gone])
         shutil.rmtree(self.scratch(ident), ignore_errors=True)
         return gone
 
-    def _writes(self, held: list[dict[str, Any]]) -> None:
+    def _writes(self, held: list[Any], name: str = "conversations.yaml") -> None:
         from hmz.coganchor import atomic
 
         self.at.mkdir(mode=0o700, parents=True, exist_ok=True)
         atomic.writes(
-            self.at / "conversations.yaml",
+            self.at / name,
             yaml.safe_dump(held, sort_keys=False, allow_unicode=True),
             mode=0o600,
         )

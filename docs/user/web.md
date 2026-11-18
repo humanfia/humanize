@@ -316,7 +316,9 @@ to view, until you close it. On a phone it covers the view: close it with its bu
 
 The drawer lists every conversation with her on the daemon shown, newest first: its title, what
 it reaches, its nous, its preset, whether its network is on, and whether she is **Answering**,
-**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm.
+**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm. The
+drawer is the only place her conversations are listed: none is in the sidebar, nor counted among
+a workspace's epics, while it lasts or once forgotten.
 
 **New** asks what the conversation is fixed to:
 
