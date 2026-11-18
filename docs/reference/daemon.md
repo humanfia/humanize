@@ -294,8 +294,9 @@ over a session of its own (5 s) and returns `{}` on any failure.
 `hosts.env.*` work in the envs of the epic a host is going with, through each env's own driver on
 the run's loop, as the flow would; they attach nobody, start no host and tell the epic nothing.
 Each takes `{workspace, slot?}`, and each but `hosts.env.list` an `env`: the name of an env role,
-or `workspace` for the run's own workspace until a `LocalEnv` role takes it. A `path` is relative
-to the env's workdir.
+or `workspace` for the run's own workspace until a `LocalEnv` role takes it. Roles that share one
+env, as every `LocalEnv` role nobody passed shares the workspace, are each listed and each
+named on its own. A `path` is relative to the env's workdir.
 
 | Method | Answer |
 | --- | --- |
