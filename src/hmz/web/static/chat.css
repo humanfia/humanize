@@ -189,3 +189,24 @@
     padding: 0 6px;
   }
 }
+
+/* The pane beside a chat is picked on the chat's bar, as a session's is: it is headed by its
+   name, in the row an epic's panel keeps its tabs in, and its environment by no tabs of its own. */
+.pane-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 46px 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font: 600 13px/20px var(--sans);
+}
+
+.pane-title:empty {
+  display: none;
+}
+
+.chat-pane .envs-tabs {
+  display: none;
+}

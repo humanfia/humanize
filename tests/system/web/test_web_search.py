@@ -13,7 +13,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.integration.doubles_web import served
-from tests.system.web.doubles_browser import ENGINES, Wire, opened
+from tests.system.web.doubles_browser import ENGINES, Wire, go, opened
 
 pytestmark = pytest.mark.parametrize("engine", ENGINES)
 
@@ -269,12 +269,16 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         expect(opener).to_have_attribute("aria-expanded", "true")
         expect(filters.get_by_role("group", name="How it went")).to_be_visible()
         expect(page.locator("[data-hmz=search-workspace]")).to_be_visible()
-        # A chat is of no flow: the flows offered are the flows, and one chosen on the chats
-        # goes over to the epics.
+        # A chat is of no flow: the flows offered are the flows, and the chats offer none
+        # to filter by.
         flows = page.locator("[data-hmz=search-flow]")
         expect(flows.locator("option")).to_have_text(["All flows", "ralph"])
         page.get_by_role("tab", name="Chats").click()
         expect(found).to_have_count(40)
+        expect(flows).to_be_hidden()
+        expect(page.locator("[data-hmz=search-workspace]")).to_be_visible()
+        page.get_by_role("tab", name="Epics").click()
+        expect(flows).to_be_visible()
         flows.select_option("ralph")
         expect(chosen).to_have_text("Epics")
         expect(found).to_have_count(20)
@@ -442,3 +446,136 @@ def test_an_address_and_an_empty_tab_say_what_is_so(engine: str) -> None:
         expect(page.locator("[data-hmz=search-new-chat]")).to_be_visible()
         page.get_by_role("combobox", name="Search").fill("zebra")
         expect(empty).to_contain_text("Nothing is like that")
+
+
+#: A chat going, one that asks, one that failed, one at rest and an epic of a flow.
+_STANDING = [
+    {**_run(1), "task": "Ask going", "how": "running", "turn": "running", "held": True},
+    {**_run(2), "task": "Ask asks", "how": "running", "held": True, "asking": ["1:1"]},
+    {**_run(4), "task": "Ask failed", "how": "failed"},
+    {**_run(5), "task": "Ask rests", "how": "stopped"},
+    {**_run(3), "task": "Fix it", "how": "done"},
+]
+
+
+def _standing(params: Any) -> dict[str, Any]:
+    return {
+        "result": {
+            "runs": _STANDING,
+            "total": len(_STANDING),
+            "offset": 0,
+            "limit": params.get("limit", 60),
+            "counts": {"running": 2, "failed": 1, "stopped": 1, "done": 1},
+            "flows": ["ralph"],
+        }
+    }
+
+
+def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _standing})
+    with (
+        served() as site,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
+    ):
+        side = page.locator("[data-hmz=sidebar] [data-hmz=epic]")
+        expect(side).to_have_count(5)
+        said = {
+            one.locator(".side-label").first.inner_text(): one.locator(
+                ".side-status"
+            ).all_inner_texts()
+            for one in side.all()
+        }
+        page.keyboard.press("Control+k")
+        found = page.locator("[data-hmz=found] [data-hmz=epic]")
+        expect(found).to_have_count(5)
+        # Side by side, the same chat is said to stand the same way: nothing while it rests.
+        for one in found.all():
+            task = one.locator(".result-task").inner_text()
+            assert one.locator("[data-hmz=result-how]").all_inner_texts() == said[task]
+        assert said == {
+            "Ask going": ["Running"],
+            "Ask asks": ["Awaiting input"],
+            "Ask failed": ["Failed"],
+            "Ask rests": [],
+            "Fix it": ["Done"],
+        }
+        # And in the line over the foot, of the one moved to.
+        page.keyboard.press("ArrowDown")
+        expect(
+            page.locator("[data-hmz=search-detail] [data-hmz=result-state]")
+        ).to_have_text("Awaiting input")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowDown")
+        expect(
+            page.locator("[data-hmz=search-detail] [data-hmz=result-state]")
+        ).to_have_count(0)
+
+
+def test_search_keeps_the_keys_and_leaves_the_page_as_it_was(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with (
+        served() as site,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
+    ):
+        # A view before the one Search is opened over, to step back to.
+        go(page, "/flows")
+        go(page, "/new/chat")
+        box = page.locator("[data-hmz=composer-text]")
+        box.click()
+        page.keyboard.type("a draft")
+        # A menu open under it is closed as Search opens over it.
+        page.locator("[data-hmz=permission]").click()
+        expect(page.get_by_role("menu", name="Permissions")).to_be_visible()
+        _search(page)
+        expect(page.get_by_role("menu", name="Permissions")).to_have_count(0)
+        dialog = page.locator("[data-hmz=dialog-search]")
+        expect(page.locator("[data-hmz=found] [data-hmz=epic]")).to_have_count(50)
+
+        # What can be done stays in sight under fifty found, inside the dialog.
+        ends = _box(page, "[data-hmz=dialog-search]")
+        for action in ("search-new-chat", "import"):
+            at = _box(page, f"[data-hmz=dialog-search] [data-hmz={action}]")
+            assert ends[1] < at[1]
+            assert at[1] + at[3] <= ends[1] + ends[3]
+
+        # Tab goes round within it, both ways, and never to the page under it.
+        for key in (*["Tab"] * 9, *["Shift+Tab"] * 9):
+            page.keyboard.press(key)
+            assert page.evaluate(
+                "() => Boolean(document.activeElement.closest('[data-hmz=dialog-search]'))"
+            )
+
+        # One Escape closes it: the page is where it was, the chip the menu was opened
+        # from has the focus it held, and the draft stands.
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
+        expect(page.locator("[data-hmz=permission]")).to_be_focused()
+        expect(box).to_have_value("a draft")
+        assert "#/new/chat" in page.url
+
+        # Opened from the box and closed, the box is typed into again.
+        box.click()
+        _search(page)
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
+        expect(box).to_be_focused()
+        page.keyboard.type(" more")
+        expect(box).to_have_value("a draft more")
+
+        # Search left no step behind: Back goes to what was open before, not to Search.
+        page.locator("[data-hmz=back]").click()
+        expect(page.locator("[data-hmz=new-chat]")).to_have_count(0)
+        expect(dialog).to_have_count(0)
+        assert "#/flows" in page.url
+
+        # What is opened from Search takes its place: Back from it is the view Search
+        # was over.
+        _search(page)
+        expect(page.locator("[data-hmz=found] [data-hmz=epic]")).to_have_count(50)
+        page.locator("[data-hmz=dialog-search] [data-hmz=search-new-chat]").click()
+        expect(dialog).to_have_count(0)
+        expect(page.locator("[data-hmz=new-chat]")).to_be_visible()
+        page.locator("[data-hmz=back]").click()
+        expect(page.locator("[data-hmz=new-chat]")).to_have_count(0)
+        expect(dialog).to_have_count(0)
+        assert "#/flows" in page.url

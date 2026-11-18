@@ -173,10 +173,8 @@ def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new/chat")
         page.locator("[data-hmz=workspace-picker]").click()
-        page.get_by_role("menuitem", name="No workspace").click()
-        expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text(
-            "No workspace"
-        )
+        page.get_by_role("menuitem", name="No folder").click()
+        expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("No folder")
         page.wait_for_url(re.compile(r".*scratch=1.*"))
 
         expect(
@@ -264,9 +262,17 @@ def test_the_folder_is_picked_under_the_box_and_not_in_the_bar(
             "data-tip", str(project)
         )
         expect(menu.get_by_role("menuitem", name="Open folder…")).to_be_visible()
-        menu.get_by_role("menuitem", name="No workspace").click()
-        expect(chip.locator("b")).to_have_text("No workspace")
+        menu.get_by_role("menuitem", name="No folder").click()
+        expect(chip.locator("b")).to_have_text("No folder")
+        # Named, as every chip under the box is, by what it picks and what is picked.
+        expect(chip).to_have_attribute("aria-label", "Folder: No folder")
         page.wait_for_url(re.compile(r".*scratch=1.*"))
+        # With no folder there are no files to name: Add says so, and offers none.
+        page.locator("[data-hmz=composer-add]").click()
+        files = page.get_by_role("menu", name="Add").locator("[data-add=files]")
+        expect(files).to_be_disabled()
+        expect(files).to_contain_text("Pick a folder first")
+        page.keyboard.press("Escape")
 
 
 def test_a_projects_own_flows_are_offered_in_that_project_alone(

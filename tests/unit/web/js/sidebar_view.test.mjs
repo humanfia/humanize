@@ -61,7 +61,17 @@ test('the rows pinned stand first, under Pinned, and in no other group', () => {
   assert.deepEqual(names(groups), [['Pinned', ['b', 'c']], ['/w', ['a']]])
   assert.equal(groups[0].key, ':pinned')
   // Show holds for the pinned as for any row.
-  assert.deepEqual(names(arranged({ runs, view: { ...DEFAULTS, chats: false }, pinned: new Set(['b']), now: NOW })), [])
+  assert.deepEqual(names(arranged({ runs, view: { ...DEFAULTS, chats: false }, pinned: new Set(['b']), workspaces: [{ path: '/w' }], now: NOW })), [['/w', []]])
+})
+
+test('by folder, a list with no folder and nothing to show keeps a heading, where Group and sort is', () => {
+  // A daemon with no workspace, its one chat of no folder, and Show without the chats.
+  const hidden = arranged({ workspaces: [], runs: [run('lone', '', '2026-10-13T10:00:00Z')], view: { ...DEFAULTS, chats: false }, now: NOW })
+  assert.deepEqual(hidden.map((one) => [one.kind, one.key, one.label, one.path, one.runs]), [['folder', ':nowhere', NO_FOLDER, '', []]])
+  assert.deepEqual(names(arranged({ view: DEFAULTS, now: NOW })), [[NO_FOLDER, []]])
+  // Shown again, the chat stands under the same heading; with a folder listed, that folder's is the heading.
+  assert.deepEqual(names(arranged({ runs: [run('lone', '', '2026-10-13T10:00:00Z')], view: DEFAULTS, now: NOW })), [[NO_FOLDER, ['lone']]])
+  assert.deepEqual(names(arranged({ workspaces: [{ path: '/w' }], view: DEFAULTS, now: NOW })), [['/w', []]])
 })
 
 test('by date, the rows stand under how long ago each was last updated, the empty days left out', () => {

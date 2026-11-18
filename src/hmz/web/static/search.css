@@ -101,6 +101,19 @@
   margin-top: 3px;
 }
 
+/* What can be done stays in sight under what was found, however much of that there is: the list
+   scrolls behind it, and a line moved to is brought clear of it. */
+.dialog-search-box .dialog-body {
+  scroll-padding-bottom: 112px;
+}
+
+.search-list > .search-group:last-child:not(:first-child) {
+  position: sticky;
+  bottom: 0;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+
 /* What a group is headed by: a quiet line, 14 in and 14 down, its first row 37 under its top. */
 .search-heading {
   display: flex;

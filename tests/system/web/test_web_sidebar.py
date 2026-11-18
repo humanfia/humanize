@@ -170,6 +170,10 @@ def test_what_the_sidebar_sends_off_says_it_is_going(engine: str) -> None:
         more = group.locator(".side-more")
         expect(rows).to_have_count(20)
         expect(more).to_have_text("Show 2 more")
+        # Told from another group's, by whoever cannot see which it ends, by its group's name.
+        described = more.get_attribute("aria-describedby")
+        assert described
+        expect(page.locator(f"[id='{described}']")).to_have_text("w")
         more.click()
         expect(rows).to_have_count(22)
         expect(more).to_have_text("Loading…")
@@ -203,6 +207,16 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         ]
         assert [box[1:] for box in boxes] == [(8, 28, 28)] * 4
         assert [box[0] for box in boxes] == [84, 112, 140, 238]
+
+        # Hidden and shown again: the button that undoes each has the focus, and the mark,
+        # under the pointer that pressed `Show sidebar`, says nothing over the first entry.
+        top.get_by_role("button", name="Hide sidebar").click()
+        shows = page.get_by_role("button", name="Show sidebar")
+        expect(shows).to_be_focused()
+        shows.click()
+        expect(top.get_by_role("button", name="Hide sidebar")).to_be_focused()
+        page.wait_for_timeout(600)
+        expect(page.locator(".tip")).to_have_count(0)
 
         # The entries: 258 by 32, 2px apart, 8px in, all drawn alike but the one the page is on.
         entries = side.locator(".side-nav a")
@@ -410,7 +424,7 @@ def test_the_list_is_grouped_sorted_and_filtered_as_its_menu_says(engine: str) -
         _named(page, "Today", "Folders")
         expect(
             page.locator("[data-hmz=group][data-group=':date:today'] .side-quiet")
-        ).to_have_text("No chats or epics")
+        ).to_have_text("Nothing here yet")
 
         _group_and_sort(page).get_by_role("menuitem", name="Reset to defaults").click()
         expect(epics).to_have_count(6)
@@ -493,11 +507,42 @@ def test_a_list_by_date_with_nothing_in_it_keeps_a_heading(engine: str) -> None:
     ):
         _named(page, "Today")
         expect(page.locator("[data-hmz=epics] .side-quiet")).to_have_text(
-            "No chats or epics"
+            "Nothing here yet"
         )
         _group_and_sort(page).get_by_role("menuitem", name="Reset to defaults").click()
-        expect(page.locator("[data-hmz=epics] .side-group")).to_have_count(0)
+        # By folder, with no folder either, the group of none is the heading kept.
+        _named(page, "No folder")
         assert page.evaluate("localStorage.getItem('hmz-list')") is None
+
+
+def test_a_list_by_folder_with_nothing_to_show_keeps_a_heading(engine: str) -> None:
+    # A daemon with no workspace, its one chat of no folder, and Show without the chats.
+    wire = Wire(
+        faked={
+            "runs.list": lambda _: {"result": _answers([_row("lone", workspace="")])},
+            "workspaces.list": lambda _: {"result": {"workspaces": []}},
+        }
+    )
+    kept = (
+        "localStorage.setItem('hmz-list',"
+        " JSON.stringify({ group: 'folder', chats: false }))"
+    )
+    with (
+        served() as site,
+        opened(site, engine=engine, routed=wire.routes, init=kept) as page,
+    ):
+        _named(page, "No folder")
+        epics = page.locator("[data-hmz=epics] [data-hmz=epic]")
+        expect(epics).to_have_count(0)
+        expect(page.locator("[data-hmz=epics] .side-quiet")).to_have_text(
+            "Nothing here yet"
+        )
+        # What brings the chat back is on that heading.
+        menu = _group_and_sort(page)
+        menu.get_by_role("menuitem", name="Show").hover()
+        page.get_by_role("menuitemcheckbox", name="Chats").click()
+        expect(epics).to_have_count(1)
+        _named(page, "No folder")
 
 
 def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them(
@@ -687,3 +732,35 @@ def test_on_a_touch_screen_a_chat_says_when_it_began(engine: str) -> None:
         when, state = _box(began), _box(row.locator("[data-hmz=chat-state]"))
         assert state[0] + state[2] <= when[0]
         assert when[0] + when[2] <= _box(more)[0]
+
+
+def test_the_drawer_on_a_phone_holds_the_focus_and_closes_by_escape(
+    engine: str,
+) -> None:
+    wire = _wire(_MIXED)
+    with (
+        served() as site,
+        opened(site, engine=engine, width=390, height=800, routed=wire.routes) as page,
+    ):
+        app = page.locator("[data-hmz=app]")
+        side = page.locator("[data-hmz=sidebar]")
+        shows = page.get_by_role("button", name="Show sidebar")
+        expect(page.locator("[data-hmz=composer-text]")).to_be_visible()
+        shows.click()
+        expect(app).to_have_class(re.compile("side-open"))
+        # The focus is in the drawer, and Tab never reaches the page it covers.
+        expect(side.get_by_role("button", name="Hide sidebar")).to_be_focused()
+        for _ in range(12):
+            page.keyboard.press("Tab")
+            assert page.evaluate(
+                "() => !document.activeElement.closest('[data-hmz=page]')"
+            )
+        # Escape closes it, and the button that opens it has the focus back.
+        page.keyboard.press("Escape")
+        expect(app).not_to_have_class(re.compile("side-open"))
+        expect(page.locator("[data-hmz=scrim]")).to_be_hidden()
+        expect(shows).to_be_focused()
+        # The page under it is typed into again.
+        page.locator("[data-hmz=composer-text]").click()
+        page.keyboard.type("hello")
+        expect(page.locator("[data-hmz=composer-text]")).to_have_value("hello")

@@ -67,6 +67,9 @@ test('before a chat there is, Add offers the files alone', () => {
 test('a chip is called by what it picks and what is picked', () => {
   assert.equal(chipNamed('Environment', 'Local'), 'Environment: Local')
   assert.equal(chipNamed('Usage', '$0.42'), 'Usage: $0.42')
+  assert.equal(chipNamed('Folder', 'No folder'), 'Folder: No folder')
+  assert.equal(chipNamed('Model', 'Haiku 4.5 High'), 'Model: Haiku 4.5 High')
+  assert.equal(chipNamed('Permissions', 'Edit this folder'), 'Permissions: Edit this folder')
   assert.equal(chipNamed('Usage', ''), 'Usage')
 })
 

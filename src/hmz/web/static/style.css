@@ -2633,7 +2633,8 @@ pre.block {
 
 .graph-note {
   position: absolute;
-  top: 16px;
+  /* Under what picks the shape, at the canvas's top right, however narrow the canvas. */
+  top: 60px;
   left: 50%;
   transform: translateX(-50%);
   width: min(calc(100% - 32px), 520px);

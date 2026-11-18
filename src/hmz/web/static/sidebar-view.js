@@ -102,7 +102,8 @@ const NOWHERE = ':nowhere'
  * The list's groups, in their order: the rows pinned first, under `Pinned`, then the rest by
  * folder -- every workspace offered, those with a row a host goes with first, then by their
  * latest, and last the rows of no folder -- by date, or as one group. Grouped by date, a list with
- * nothing to show keeps `Today`, so that a heading is always there; grouped by anything but
+ * nothing to show keeps `Today`, and grouped by folder, with no folder either, `No folder`, so
+ * that a heading is always there; grouped by anything but
  * folder, the folders stand last as a group of their own, `Folders`, each with how many rows it has.
  *
  * @param {{workspaces?: {path: string}[], runs?: object[], view: object, pinned?: Set<string>, now?: number, chat?: (run: object) => boolean}} of
@@ -122,7 +123,9 @@ export function arranged({ workspaces = [], runs = [], view, pinned = new Set(),
   }
   const rank = (group) => (group.runs.some((one) => one.held) ? 1e14 : 0) + Math.max(0, ...group.runs.map((run) => (view.sort === 'created' ? Date.parse(run.began) || 0 : last(run))))
   const ordered = [...folders.values()].sort((a, b) => Number(!a.path) - Number(!b.path) || rank(b) - rank(a))
-  if (view.group === 'folder') return [...groups, ...ordered]
+  // A list with no folder and nothing to show keeps the group of none, so that a heading, and
+  // `Group and sort` on it, is always there.
+  if (view.group === 'folder') return groups.length || ordered.length ? [...groups, ...ordered] : [{ key: NOWHERE, kind: 'folder', label: NO_FOLDER, path: '', runs: [] }]
   // Every folder, reachable though the list is not grouped by them.
   const named = ordered.filter((one) => one.path).map((one) => ({ path: one.path, count: one.runs.length }))
   const places = named.length ? [{ key: ':folders', kind: 'folders', label: 'Folders', path: '', runs: [], folders: named }] : []

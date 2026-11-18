@@ -4,8 +4,9 @@
 // 3.6.6.14 of protocol/web.md). What picking one does is the box's: start the chat with it, set
 // it on the chat's host, or keep it for when the chat is carried on.
 
+import { chipNamed } from '../desk.js'
 import { h, icon } from '../dom.js'
-import { choice, menu, section } from '../shell.js'
+import { choice, menu } from '../shell.js'
 import { toast } from '../ui.js'
 import { modeOf, NOTE, offered, shown } from './permission-modes.js'
 
@@ -27,6 +28,7 @@ export function permissionChip({ value = null, pick = () => {}, up = false } = {
     const mode = modeOf(permission)
     now = mode.value
     said.textContent = mode.label
+    button.setAttribute('aria-label', chipNamed('Permissions', mode.label))
     button.dataset.permission = now
     button.dataset.tip = mode.about
   }
@@ -46,8 +48,8 @@ export function permissionChip({ value = null, pick = () => {}, up = false } = {
 
   menu(
     button,
+    // Under no heading: the menu is named, and holds nothing but the three and the note.
     (close) => [
-      section('Permissions'),
       offered(now).map((one) => {
         const item = choice({ label: one.label, about: one.about, chosen: one.chosen, act: () => choose(one.value), close })
         item.dataset.permission = one.value

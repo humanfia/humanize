@@ -3,6 +3,7 @@
 // runs, whose flows are on offer, and whose settings are read.
 
 import { call, daemon, onDaemon, started } from './api.js'
+import { chipNamed } from './desk.js'
 import { fill, h, icon } from './dom.js'
 import { pathItems, pathParts, typing } from './natives.js'
 import { pathPicker } from './paths.js'
@@ -37,6 +38,9 @@ export async function firstWorkspace() {
   const offered = await workspaces()
   return offered.here || (offered.workspaces[0] && offered.workspaces[0].path) || '~'
 }
+
+/** What picking no workspace is called, as the sidebar calls the group of what has none. */
+const NONE = 'No folder'
 
 /** Where an epic of no workspace works. */
 const NOWHERE = 'A new directory of its own, in the temporary directory'
@@ -103,8 +107,10 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
 
   function set(to) {
     path = to
-    said.textContent = to === null ? 'No workspace' : nameOf(to)
+    said.textContent = to === null ? NONE : nameOf(to)
     button.dataset.tip = to === null ? NOWHERE : to
+    // Said with what it picks, as every chip under a box is: its text alone is only a name.
+    button.setAttribute('aria-label', chipNamed('Folder', said.textContent))
   }
 
   menu(
@@ -118,7 +124,7 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
       }),
       h('hr'),
       choice({ label: 'Open folder…', glyph: 'plus', act: () => open(), close }),
-      none ? tipped(choice({ label: 'No workspace', about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close }), plain ? NOWHERE : '') : null,
+      none ? tipped(choice({ label: NONE, about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close }), plain ? NOWHERE : '') : null,
     ],
     { label: 'Folders', up: plain },
   )

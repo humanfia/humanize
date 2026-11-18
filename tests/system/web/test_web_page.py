@@ -129,8 +129,8 @@ def _side_questions(page: Page) -> None:
     page.get_by_role("menu", name="View options").get_by_role(
         "menuitem", name="Side questions"
     ).click()
-    expect(page.get_by_role("tab", name="Side questions")).to_have_attribute(
-        "aria-selected", "true"
+    expect(page.locator("[data-hmz=inspector] [data-hmz=pane-title]")).to_have_text(
+        "Side questions"
     )
 
 
@@ -461,14 +461,17 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
             assert (under["y"], under["height"]) == (760, 24)
 
         # Under the box: where it runs at the left, how at the right, each 24px high.
-        chips = view.locator("[data-hmz=composer-under] button:visible")
+        chips = view.locator(
+            "[data-hmz=composer-under] button:visible, [data-hmz=composer-under] a"
+        )
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
             "environment",
             "workspace-picker",
             "pick-model",
             "permission",
+            "new-usage",
         ]
-        for at in range(4):
+        for at in range(5):
             box = chips.nth(at).bounding_box()
             assert box
             assert box["height"] == 24
@@ -478,7 +481,9 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + inset
         if width > 860:
             assert _at(page, "[data-hmz=environment]")["x"] == inside[0]["x"] + 2
-        last = _at(page, "[data-hmz=start] [data-hmz=permission]")
+        # The row ends, as a chat app's does, with the ring that says what was used.
+        last = _at(page, "[data-hmz=start] [data-hmz=new-usage]")
+        assert last["width"] == 24
         assert (
             abs(last["x"] + last["width"] - (boxed["x"] + boxed["width"] - inset)) <= 1
         )
@@ -505,7 +510,7 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         view.locator("[data-hmz=workspace-picker]").click()
         folders = page.get_by_role("menu", name="Folders").get_by_role("menuitem")
         expect(folders.nth(-2)).to_contain_text("Open folder…")
-        expect(folders.nth(-1)).to_contain_text("No workspace")
+        expect(folders.nth(-1)).to_contain_text("No folder")
         page.keyboard.press("Escape")
 
         # Before there is a chat, Add offers the one prefix the page completes by
@@ -645,7 +650,15 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         models = menu.locator(".model-menu > [role=menuitem][data-value]")
         expect(models).to_have_count(2)
         expect(models.nth(0)).to_have_class(re.compile("chosen"))
-        expect(models.nth(0)).to_contain_text("claude-haiku-4-5")
+        # One row a model, by the name a person reads; its own is said where pointed at.
+        expect(models.nth(0)).to_have_text("Haiku 4.5")
+        expect(models.nth(0)).to_have_attribute("data-tip", "claude-haiku-4-5")
+        expect(menu.locator(".popover-head")).to_have_count(0)
+        assert set(
+            models.evaluate_all(
+                "all => all.map((one) => Math.round(one.getBoundingClientRect().height))"
+            )
+        ) == {28}
         menu.locator("[data-value=claude-opus-4-1]").click()
         expect(menu).to_have_count(0)
         expect(chip).to_have_text("Opus 4.1")
@@ -660,8 +673,10 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         expect(chip).to_have_text("Opus 4.1 Max")
         expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
 
-        # The harness and the account it runs as are under More, in the same menu.
+        # The harness and the account it runs as are under More, one row of the same menu.
         chip.click()
+        expect(menu.get_by_role("menuitem", name="CLI")).to_have_count(0)
+        menu.get_by_role("menuitem", name="More").click()
         menu.get_by_role("menuitem", name="CLI").click()
         expect(page.locator("[data-hmz=pick-cli] [role=menuitem]")).to_have_text(
             ["claude", "dsh", "litellm"]
@@ -696,6 +711,7 @@ def test_a_chat_model_no_cli_would_list_is_typed_in_the_chip(
         chip.click()
         menu = page.get_by_role("menu", name="Model")
         expect(menu.locator(".hint")).to_contain_text("claude is not answering")
+        menu.get_by_role("menuitem", name="More").click()
         menu.locator("[data-hmz=pick-model-typed]").fill("claude-sonnet-4-5")
         expect(chip).to_have_text("Sonnet 4.5")
         expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
@@ -776,14 +792,16 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(page.get_by_role("tab", name="People")).to_have_count(0)
         # Nothing on it is called an epic, a flow or native: its bar holds its title, one
         # menu and a button for each pane, and its panel says what it is in a chat's words.
-        expect(bar.locator(".bar-actions button")).to_have_count(6)
+        expect(bar.locator(".bar-actions button")).to_have_count(5)
         expect(bar.locator("[data-hmz=prefer]")).to_have_count(0)
         expect(bar).not_to_contain_text(re.compile("epic|flow|native", re.IGNORECASE))
         expect(page.locator("[data-hmz=inspector]")).to_be_hidden()
         _details(page)
-        for tab in ("Details", "Side questions"):
-            expect(page.get_by_role("tab", name=tab)).to_be_visible()
-        expect(page.get_by_role("tab", name="Epic")).to_have_count(0)
+        # The pane is headed by its name: the bar picks it, and no row of tabs does.
+        expect(page.locator("[data-hmz=inspector] [data-hmz=pane-title]")).to_have_text(
+            "Details"
+        )
+        expect(page.locator("[data-hmz=inspector]").get_by_role("tab")).to_have_count(0)
         expect(page.locator("[data-hmz=inspector] dt")).to_contain_text(
             ["Chat ID", "Saved at", "Folder", "Started", "Model"]
         )
