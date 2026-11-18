@@ -16,9 +16,9 @@ import pytest
 from playwright.sync_api import expect
 
 from hmz.rpc import RpcError
-from tests.integration.doubles_core import AGENT, install, write_flow
+from tests.integration.doubles_core import install, write_flow
 from tests.integration.doubles_web import Browser, Session, served
-from tests.system.web.doubles_browser import ENGINES, Wire, go, opened, stop
+from tests.system.web.doubles_browser import ENGINES, Wire, chatted, go, opened, stop
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,35 +45,9 @@ def other(tmp_path: Path) -> Path:
 
 
 def _ran(browser: Browser, workspace: Path, task: str) -> None:
-    """Starts chat in a workspace and stops it once it has answered, as a page would."""
+    """Starts a chat in a workspace and stops it once it has answered, as a page would."""
     with browser.session() as page:
-        # On the workspace's own host, attached to as the page attaches.
-        sub = page.call("epic.attach", workspace=str(workspace))["sub"]
-        page.call(
-            "epic.start",
-            sub=sub,
-            flow="chat",
-            task=task,
-            agents={"assistant": AGENT},
-            idem=uuid.uuid4().hex,
-        )
-        page.until(_of(sub, "asked"), "chat asking")
-        page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
-        page.until(_of(sub, "ended"), "the epic ending")
-        page.call("epic.detach", sub=sub)
-
-
-def _of(sub: str, kind: str) -> Any:
-    """Whether a notification is a history record of `kind` on the subscription `sub`."""
-
-    def wanted(method: str, said: dict[str, Any]) -> bool:
-        return (
-            method == "epic.event"
-            and said["sub"] == sub
-            and said["message"].get("type") == kind
-        )
-
-    return wanted
+        chatted(page, workspace, task)
 
 
 def test_every_workspaces_epics_are_listed_and_found_by_workspace(
@@ -152,6 +126,7 @@ def test_the_sidebar_is_a_folder_of_epics_per_workspace(
             expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("other")
 
             page.keyboard.press("Control+k")
+            page.locator("[data-hmz=search-filtering]").click()
             page.locator("[data-hmz=search-workspace]").select_option(str(other))
             expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
             expect(page.locator("[data-hmz=found] .result")).to_contain_text(
@@ -177,10 +152,9 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         wire.lets_through()
         expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("other")
 
-        page.get_by_role("button", name="Options").click()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("over there")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+$"))
@@ -205,10 +179,9 @@ def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
         )
         page.wait_for_url(re.compile(r".*scratch=1.*"))
 
-        page.get_by_role("button", name="Options").click()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("nowhere in particular")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+$"))

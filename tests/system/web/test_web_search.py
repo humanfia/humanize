@@ -87,9 +87,7 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
     wire = Wire(faked={"runs.list": _listed})
     with (
         served() as site,
-        opened(
-            site, engine=engine, width=1296, height=792, routed=wire.routes
-        ) as page,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
     ):
         _search(page)
         # The box: 672 by 584, in the middle across and 127 down a window 792 tall.
@@ -114,12 +112,18 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
         expect(tabs).to_have_text(["All", "Chats", "Epics"])
         expect(tabs.first).to_have_attribute("aria-selected", "true")
         assert within("[data-hmz=search-tabs] [role=tab]")[:2] == (25, 58)
-        assert {one.bounding_box()["height"] for one in tabs.all()} == {29}  # type: ignore[index]
+        assert set(
+            tabs.evaluate_all(
+                "(all) => all.map((one) => one.getBoundingClientRect().height)"
+            )
+        ) == {29}
         # Then what was found: a quiet heading, and a line apiece, 36 apart.
         expect(page.locator("[data-hmz=found] .search-heading").first).to_contain_text(
             "Recents"
         )
-        expect(page.locator("[data-hmz=search-count]")).to_have_text("1–50 of 60")
+        expect(page.locator("[data-hmz=search-count]")).to_have_text(
+            "1\N{EN DASH}50 of 60"
+        )
         rows = page.locator("[data-hmz=found] [data-hmz=epic]")
         first, second = rows.nth(0).bounding_box(), rows.nth(1).bounding_box()
         assert first is not None
@@ -155,7 +159,7 @@ def test_search_is_moved_through_and_opened_by_the_keys(engine: str) -> None:
         _search(page)
         field = page.get_by_role("searchbox", name="Find")
         expect(field).to_be_focused()
-        active = page.locator("[data-hmz=found] .result.active")
+        active = page.locator("[data-hmz=found] .active")
         expect(active).to_have_attribute("data-key", "e1")
         # Down and up move along what was found, the focus staying in the field.
         page.keyboard.press("ArrowDown")
@@ -250,9 +254,13 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
 
         # A page of fifty, and the one after it, from the foot.
         page.get_by_role("tab", name="All").click()
-        expect(page.locator("[data-hmz=search-count]")).to_have_text("1–50 of 60")
+        expect(page.locator("[data-hmz=search-count]")).to_have_text(
+            "1\N{EN DASH}50 of 60"
+        )
         page.get_by_role("button", name="Older", exact=True).click()
-        expect(page.locator("[data-hmz=search-count]")).to_have_text("51–60 of 60")
+        expect(page.locator("[data-hmz=search-count]")).to_have_text(
+            "51\N{EN DASH}60 of 60"
+        )
         expect(found).to_have_count(10)
 
         # Opened again on an address that names a filter, the filters are open; one of before

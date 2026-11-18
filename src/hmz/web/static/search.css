@@ -112,7 +112,8 @@
   color: var(--ink-3);
 }
 
-.dialog-search-box .result {
+.dialog-search-box .result,
+.search-action {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -122,7 +123,9 @@
   border: 0;
   background: none;
   font: inherit;
+  color: var(--ink);
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -131,7 +134,8 @@
 }
 
 /* The one the arrows, or the pointer, moved to: the one Enter opens. */
-.dialog-search-box .result.active {
+.dialog-search-box .result.active,
+.search-action.active {
   background: var(--hover);
 }
 

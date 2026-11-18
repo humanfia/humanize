@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import expect
 
-from tests.integration.doubles_core import AGENT, install
+from tests.integration.doubles_core import install
 from tests.integration.doubles_web import Browser, Session, served
-from tests.system.web.doubles_browser import ENGINES, go, opened
+from tests.system.web.doubles_browser import ENGINES, chatted, go, opened
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -65,9 +65,12 @@ def _record(sub: str, of: str) -> Callable[[str, dict[str, Any]], bool]:
     )
 
 
-def _stops(page: Session, site: Site) -> None:
-    """Stops the epic going on the workspace's own host, as a page does, until it has ended."""
-    sub = page.call("epic.attach", workspace=str(site.here), replay=False)["sub"]
+def _stops(page: Session, site: Site, name: str) -> None:
+    """Stops a chat going on its own host, as a page does, until it has ended."""
+    slot = page.call("runs.get", name=name)["slot"]
+    sub = page.call("epic.attach", workspace=str(site.here), slot=slot, replay=False)[
+        "sub"
+    ]
     page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
     page.until(_record(sub, "ended"), "the run ending")
 
@@ -77,22 +80,7 @@ def _chatted(site: Site, task: str, *, stopped: bool = True) -> str:
     browser = Browser(site)
     browser.signs_in()
     with browser.session() as page:
-        # On the workspace's own host, attached to as the page attaches.
-        sub = page.call("epic.attach", workspace=str(site.here))["sub"]
-        page.call(
-            "epic.start",
-            sub=sub,
-            flow="chat",
-            task=task,
-            agents={"assistant": AGENT},
-            idem=uuid.uuid4().hex,
-        )
-        page.until(_record(sub, "asked"), "chat asking")
-        if stopped:
-            page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
-            page.until(_record(sub, "ended"), "the run ending")
-        (ran,) = page.call("runs.list")["runs"]
-    return str(ran["name"])
+        return chatted(page, site.here, task, stopped=stopped)
 
 
 def _lengthened(site: Site, tmp_path: Path, name: str, calls: int) -> None:
@@ -254,7 +242,8 @@ def test_an_epic_is_drawn_as_its_processes_moved_over_and_read(
 
 def test_an_epic_going_is_read_again_until_it_ends(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _exomyth(page, _chatted(site, "follow me", stopped=False))
+        name = _chatted(site, "follow me", stopped=False)
+        _exomyth(page, name)
         assert page.evaluate("window.__exomyth.model().live") is True
         expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
             re.compile("running")
@@ -263,7 +252,7 @@ def test_an_epic_going_is_read_again_until_it_ends(project: Path, engine: str) -
         browser = Browser(site)
         browser.signs_in()
         with browser.session() as asked:
-            _stops(asked, site)
+            _stops(asked, site, name)
         page.wait_for_function("() => window.__exomyth.model().live === false")
         expect(page.locator("[data-hmz=bar] .badge")).not_to_have_text(
             re.compile("running")

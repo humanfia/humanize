@@ -174,8 +174,8 @@ export function mount(root, { query }) {
       'div',
       { class: 'search-group', role: 'group', 'aria-label': 'Actions' },
       h('div', { class: 'search-heading', 'aria-hidden': 'true' }, 'Actions'),
-      option(h('a', { class: 'result search-action', href: hash('/new/chat'), 'data-hmz': 'search-new-chat' }, h('span', { class: 'result-task' }, 'New chat')), 'new-chat'),
-      option(h('button', { class: 'result search-action', type: 'button', 'data-hmz': 'import', onclick: pick }, h('span', { class: 'result-task' }, 'Import')), 'import'),
+      option(h('a', { class: 'search-action', href: hash('/new/chat'), 'data-hmz': 'search-new-chat' }, 'New chat'), 'new-chat'),
+      option(h('button', { class: 'search-action', type: 'button', 'data-hmz': 'import', onclick: pick }, 'Import'), 'import'),
     )
 
   function draw(data, error) {
