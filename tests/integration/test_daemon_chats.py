@@ -18,7 +18,7 @@ from hmz.daemon import where
 from hmz.daemon.link import dialed, reached
 from hmz.rpc import RpcError
 from hmz.runtime import Hmz
-from hmz.runtime.epic import every
+from hmz.runtime.epic import Drove, Epic, every, going
 from tests.integration.doubles_core import AGENT, install
 from tests.integration.doubles_daemon import (
     WAITS,
@@ -229,3 +229,21 @@ def test_a_chat_that_cannot_be_started_is_refused_before_anything_starts(
 
     assert every() == []
     assert Hmz(workspace).settings.chat_agent is None
+
+
+def test_a_chat_carried_on_while_it_is_going_elsewhere_is_refused_saying_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The chat itself, not its stand-in: it is the chat that looks at what it carries on.
+    at = install(tmp_path, monkeypatch)
+    backend, _, model = AGENT.partition("/")
+    drove = Drove("assistant", backend, model.partition(":")[0], "")
+    with hosting(), Epic("", "first", at, kind="chat", agents=[drove]) as epic:
+        assert going(epic.path)
+        with (
+            daemon.attach("sdk", workspace=at, slot=where.chat()) as link,
+            pytest.raises(
+                daemon.Refused, match=f"{epic.path.name} is going on already"
+            ),
+        ):
+            link.chat(AGENT, "second voice", resume=str(epic.path))

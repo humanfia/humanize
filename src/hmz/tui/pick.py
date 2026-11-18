@@ -3622,12 +3622,21 @@ class Configures(Drafts["BaseModel"]):
 
         What the model refuses is shown where it was typed rather than raised at the flow:
         a combination the flow will not run is a combination to correct before it starts,
-        and this is the moment it is being said.
+        and this is the moment it is being said. A setting left blank that is unset where
+        nobody gives it a value is left out, for the model to leave it unset: blank is how
+        `None` is shown, and no number is written that way.
         """
         from pydantic import ValidationError
 
+        fields = self._model.model_fields
+        given = {
+            name: text
+            for name, text in self._typed_in.items()
+            if text.strip()
+            or fields[name].get_default(call_default_factory=True) is not None
+        }
         try:
-            self.dismiss(self._model.model_validate(self._typed_in))
+            self.dismiss(self._model.model_validate(given))
         except ValidationError as refused:
             first = refused.errors()[0]
             where = ".".join(str(part) for part in first.get("loc") or ())

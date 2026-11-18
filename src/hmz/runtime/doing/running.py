@@ -409,10 +409,14 @@ class Chatting:
 
     @property
     def epic(self) -> Path | None:
-        """The epic it is written into: the one it carries on, else the one it has opened."""
+        """The epic it is written into, once it has opened it: not the one it is to carry on.
+
+        A chat carried on may yet be refused -- one going on already, an agent it cannot open
+        (Section 8.7.7 of core.md) -- so the epic it names is no epic of its own before then.
+        """
         if self._end is not None:
             return self._end.epic
-        return self._chat.epic or self._chat.spec.resume
+        return self._chat.epic
 
     @property
     def names_epic(self) -> bool:
