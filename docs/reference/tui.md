@@ -1158,7 +1158,9 @@ host: cannot contain spaces, slashes or brackets`.
 | `Literal[…]` | ▾ in declared order. |
 | `int`, `float` | Typed. |
 | `str` | Typed. |
-| other (list, dict, model, `Enum`, `Optional` with `None`) | Shown as Python `str()`; edited as text; not accepted by **Set**. |
+| `Enum` | Typed, as the member's value. |
+| list, tuple, set, dict, model | Typed, as JSON. |
+| `Optional` with `None` | Shown blank; edited as text; left blank, it stays unset. |
 
 <kbd>enter</kbd> on a typed row begins writing it with its whole value selected, drawn
 reversed: the first character typed replaces the value and <kbd>backspace</kbd> clears it.
@@ -1166,7 +1168,8 @@ After that, typing goes after what is there; `←` `→` do nothing. Unlike on a
 a row not begun does nothing -- nor do <kbd>backspace</kbd> and `←`, which on any written row
 are the row's rather than the way up out of the sheet.
 
-**Set** validates with the flow's model; a refusal shows the first error as `<field>: <message>`
+**Set** validates with the flow's model, reading a value the model refuses as text as JSON
+where it is JSON, as `-p` does; a refusal shows the first error as `<field>: <message>`
 under the list. Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 
 ### Budget sheet {#what-a-run-of-it-may-spend}
