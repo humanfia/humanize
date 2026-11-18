@@ -378,6 +378,16 @@ class Chat:
         talk = self._talk
         return talk is not None and talk.taken
 
+    @property
+    def between(self) -> bool:
+        """Whether it is between turns: no turn of its assistant is being taken.
+
+        So it is while the person is waited on and while a `!` command of theirs runs, which
+        opens no turn (Section 8.9.6 of [CORE]); not from a message given it to its answer.
+        """
+        talk = self._talk
+        return not self.spec.task if talk is None else talk.between
+
     def natives(self) -> list[NativeCommand]:
         """The assistant's native catalog, as its conversation stands; empty before it opens."""
         talk = self._talk
@@ -643,6 +653,9 @@ class _Talk:
         self.taken = False
         #: Whether a turn is going, and whether the person stopped the one that was.
         self.turning = False
+        #: Whether it is between turns: until its first where it was opened with nothing said,
+        #: and after each, through every `!` command and line refused, until the next.
+        self.between = not chat.spec.task
         self._interrupted = False
         #: Whether the turn going was shown as failed by its own harness.
         self._failed = False
@@ -964,6 +977,7 @@ class _Talk:
         from hmz.runtime.flowing.spi import TurnRequest
 
         self.turning = True
+        self.between = False
         self._failed = False
         try:
             answered = await handle.turn(
@@ -971,6 +985,7 @@ class _Talk:
             )
         finally:
             self.turning = False
+            self.between = True
             self._noting(handle)
         return str(answered)
 

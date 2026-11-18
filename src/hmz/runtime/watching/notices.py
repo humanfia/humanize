@@ -120,6 +120,8 @@ class Notices:
                     "ended": status.get("ended"),
                     "pending": list(status.get("pending") or []),
                     "turn": status.get("turn"),
+                    # What a chat had spent: a turn taken wholly between two looks spends.
+                    "usage": status.get("usage"),
                 }
             self._stood = stood
             for one in made:
@@ -258,6 +260,17 @@ def _noticed(
     for one in pending:
         kind = _ASKED.get(one.get("mode", ""))
         if kind is None or one.get("question") in asked:
+            continue
+        if (
+            chat
+            and kind == "listening"
+            and same
+            and was.get("turn") == "done"
+            and was.get("usage") == now.get("usage")
+        ):
+            # Asked what to say next with no turn taken since it last was, which would have
+            # shown as running or spent something: after a `!` command or a line refused,
+            # which is no turn done (Section 8.9.6 of core.md).
             continue
         made.append(
             {
