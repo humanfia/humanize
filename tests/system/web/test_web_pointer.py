@@ -244,7 +244,7 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
         # A path browsed for from the folder a new epic opens, in a window too short for it.
         go(page, "/new?flow=chat")
         page.locator("[data-hmz=workspace-picker]").click()
-        _whole(page, page.get_by_role("menu", name="Workdirs"))
+        _whole(page, page.get_by_role("menu", name="Folders"))
         page.get_by_role("menuitem", name="Open folder…").click()
         _whole(page, page.locator(".workdir-open"))
         page.locator("[data-hmz=path-browse]").click()

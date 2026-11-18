@@ -448,6 +448,8 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
             "·web wrote notes.md in workspace"
         )
 
+        # In the chat's menu, with everything else that is done to the chat.
+        page.locator("[data-hmz=chat-menu]").click()
         opener = page.locator("[data-hmz=env-open]")
         expect(opener).to_be_visible()
         opener.click()
@@ -473,8 +475,8 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
         expect(panel.get_by_role("tab", name="Board")).to_be_visible()
         expect(frame_).to_have_attribute("data-marked", "yes")
 
-        # The Epic tab links where the chat works to it, and says what was done in it.
-        panel.get_by_role("tab", name="Epic").click()
+        # The Details tab links where the chat works to it, and says what was done in it.
+        panel.get_by_role("tab", name="Details").click()
         expect(panel.locator("[data-hmz=env-link]")).to_have_attribute(
             "href", f"#/envs/live?{_HOST}&env=1%3Aworkspace"
         )

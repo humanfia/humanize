@@ -36,9 +36,11 @@ test('each entry is tagged with where it comes from', () => {
 
 test('`/` completes native commands and hmz names, grouped by source, those it starts first', () => {
   const groups = completions(entries, typing('/', 1), 'native')
-  assert.deepEqual(groups.map((one) => one.label), ['Native', 'hmz'])
+  assert.deepEqual(groups.map((one) => one.label), ['Commands', 'Humanize'])
   assert.deepEqual(groups[0].items.map((one) => one.insert), ['/model ', '/review ', '/config '])
   assert.equal(groups[0].items[2].refused, true)
+  // The CLI's own `@` entry, offered before a path is begun, is what it can mention.
+  assert.deepEqual(completions(entries, typing('@', 1), 'native').map((one) => one.label), ['Mentions'])
   const found = completions(entries, typing('/e', 2), 'native').flatMap((one) => one.items.map((item) => item.name))
   // Started with first, then those it is within.
   assert.deepEqual(found, ['/model', '/review', '/prefer'])
@@ -49,7 +51,7 @@ test('`$` completes skills and flows, saying which a name that is both goes to',
   assert.deepEqual(
     groups.map((one) => [one.label, one.items.map((item) => [item.name, item.tag])]),
     [
-      ['Native', [['$ralph', 'skill']]],
+      ['Skills', [['$ralph', 'skill']]],
       ['Flows', [['$ralph', 'flow']]],
     ],
   )
@@ -62,7 +64,9 @@ test('the hint for a name that is both follows the preference', () => {
   assert.equal(both(entries, 'swe'), false)
   assert.equal(both(entries, 'lint'), false)
   assert.match(bothHint('ralph', 'native'), /^\$ralph uses the skill/)
-  assert.match(bothHint('ralph', 'flow'), /^\$ralph starts the flow/)
+  assert.match(bothHint('ralph', 'flow'), /^\$ralph starts the flow.*Use the skill/)
+  // Said in plain words: never as a preference for `native`.
+  for (const prefer of ['native', 'flow']) assert.doesNotMatch(bothHint('ralph', prefer), /native|prefer/)
 })
 
 test('`/flow` completes only flows, by name alone', () => {
@@ -103,8 +107,8 @@ test('a line is the page’s where hmz keeps its name or it names a flow; everyt
 })
 
 test('the preference says where it comes from', () => {
-  assert.equal(preferSaid('native', 'settings'), '$ prefers native · from the settings')
-  assert.equal(preferSaid('flow', 'chat'), '$ prefers flows · set for this chat')
+  assert.equal(preferSaid('native', 'settings'), 'Uses the skill · from settings')
+  assert.equal(preferSaid('flow', 'chat'), 'Starts the flow · set for this chat')
 })
 
 test('a `!` command is read off its record and drawn as a shell draws it', () => {

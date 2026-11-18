@@ -59,6 +59,7 @@ H/
 ├── easytier/<version>/                 EasyTier's easytier-core, downloaded for a daemon reached over it
 ├── ai/<machine>/                       Ai-chan: this machine's conversations, and the scratch directory of each
 │   ├── conversations.yaml
+│   ├── forgotten.yaml
 │   └── <id>/
 └── epics/<ws>/<stamp>-<hex6>/          one run
 
@@ -106,8 +107,9 @@ workspace of every conversation of the scope `daemon`.
 | --- | --- |
 | Mode | `0700`, and `0700` for each `<id>/` |
 | `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (its epic's name, `""` before it has one), `created` (UTC). Mode `0600`, replaced atomically, written by the daemon alone |
+| `forgotten.yaml` | a YAML list of the epic names of the conversations forgotten, in the order forgotten, which keeps each off every list of epics. Mode `0600`, replaced atomically, written by the daemon alone |
 | `<id>/` | that conversation's scratch directory, where her CLI works; made with the conversation |
-| Removed | an entry and its `<id>/` by `aichan.forget`, never its epic's records; the whole of `H/ai/` by you, while no daemon of this home runs, forgets every conversation |
+| Removed | an entry and its `<id>/` by `aichan.forget`, never its epic's records; the whole of `H/ai/` by you, while no daemon of this home runs, forgets every conversation, and their epics are then listed as any other |
 
 ### `H/easytier/<version>/` {#h-easytier}
 

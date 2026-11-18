@@ -1,7 +1,8 @@
-// A new chat, as a chat app opens one: the workspace it works in picked in the bar, the model
+// A new chat, as a chat app opens one: the folder it works in picked under the box, the model
 // that answers it picked from the chip on the box, starting from the chat agent that workspace
 // remembers, and the first message typed into the box in the middle, which Enter sends
-// to start it (Section 3.8.18 of protocol/web.md). `Flow` (views/new.js) is a switch away.
+// to start it (Section 3.8.18 of protocol/web.md). A new epic of a flow is a form of its own
+// (views/new.js), which the sidebar opens beside this one.
 
 import { call, given, hash } from '../api.js'
 import { covered, go, stays } from '../app.js'
@@ -12,7 +13,7 @@ import { chatAsk } from '../held.js'
 import { readBackends } from '../pickers.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
 import { bar } from '../shell.js'
-import { newKinds } from './new.js'
+import { under } from './new.js'
 
 export function mount(root, { query }) {
   // Where the chat works: the workspace the address names, or none -- a directory of its own made
@@ -38,8 +39,8 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view view-new', 'data-hmz': 'new-chat' },
-      bar({ lead: h('div', { class: 'pickers' }, newKinds('chat', () => ({ workspace, scratch })), place.node) }),
-      h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, box.node)),
+      bar(),
+      h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, box.node, under(place.node))),
     ),
   )
 

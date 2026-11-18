@@ -12208,10 +12208,18 @@ class Epics(Sheet[Doing]):
           every: Whether of this whole machine.
 
         Returns:
-          Every one that reads as an epic.
+          Every one that reads as an epic, but an Ai-chan conversation's, which is listed
+          among her conversations and not here (Section 14.7.4 of core.md).
         """
+        from hmz.daemon.reach import conversations
+
+        hers = conversations().epics()
         found = self._runs.every() if every else self._runs.all()
-        return [one for one in (self._runs.read(at) for at in reversed(found)) if one]
+        return [
+            one
+            for at in reversed(found)
+            if at.name not in hers and (one := self._runs.read(at))
+        ]
 
     @work(group="epics", exclusive=True)
     async def _rereads(self) -> None:

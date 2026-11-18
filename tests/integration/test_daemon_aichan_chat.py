@@ -125,3 +125,16 @@ def test_ai_chan_calls_the_daemon_through_her_tools_over_her_link(
     # A write is refused her, read-only as she is, and said to her as the tool failing.
     refused = says('tool: settings_set {"values": {"details": true}}')
     assert "Ai-chan is read-only, and settings.set changes things." in refused
+
+    def listed() -> tuple[int, bool]:
+        """How many epics the user is listed, and whether her directory is among the workspaces."""
+        workspaces = user.call("workspaces.list", {}, timeout=30)["workspaces"]
+        return (
+            user.call("runs.list", {}, timeout=30)["total"],
+            made["workspace"] in [one["path"] for one in workspaces],
+        )
+
+    # Her chat is an epic, and nothing of it is on the user's lists, kept or forgotten.
+    assert listed() == (0, False)
+    assert user.call("aichan.forget", {"id": made["id"]}, timeout=30) == {}
+    assert listed() == (0, False)
