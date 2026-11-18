@@ -294,6 +294,16 @@ def test_one_relay_takes_native_joins_beside_webrtc_ones(
     assert until(both)
     paired = code()
     me = device(tmp_path / "afar", monkeypatch)
+
+    def joins() -> bool:
+        try:
+            secured(f"relay:{relay}", me, paired.id).peer.close()
+        except OSError:
+            return False
+        return True
+
+    # A listener's route is said before its registration is made.
+    assert until(joins)
     for _ in range(12):
         secured(f"relay:{relay}", me, paired.id).peer.close()
         time.sleep(0.25)
