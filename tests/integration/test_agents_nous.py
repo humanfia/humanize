@@ -9,6 +9,7 @@ file `fails` beside it says before it answers, and a `claude` that is either abs
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import threading
 from typing import TYPE_CHECKING
@@ -23,11 +24,16 @@ from hmz.coganchor.agents import (
     ClaudeCodeAgentConfig,
     Event,
     Failed,
+    Moment,
+    Occasion,
     OpencodeAgent,
     OpencodeAgentConfig,
+    Question,
     SessionBase,
     Unrecoverable,
+    Verdict,
 )
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.nous import Graph, Node, Nous
 from tests.integration.doubles_agents import (
     CODEX,
@@ -36,6 +42,8 @@ from tests.integration.doubles_agents import (
     serving,
     standins,
 )
+from tests.integration.test_agents_claude import CLAUDE as CLAUDE_RUN
+from tests.integration.test_agents_opencode import OPENCODE as OPENCODE_REACHING
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -113,6 +121,104 @@ def test_a_place_whose_turn_fails_falls_back_along_its_chain(
     assert len(places.calls("claude")) == 1
     assert kinds(said) == ["begins", "notice", "text", "result", "ends"]
     assert "carrying on as opencode/opencode/stand-in" in said[1].text
+
+
+def test_a_hook_is_told_of_the_tool_a_stand_in_reached_for(places: Standins) -> None:
+    places.install("claude", CLAUDE_CRASHING)
+    places.install("opencode", OPENCODE_REACHING)
+    nous.then("claude/claude-stand-in", ["opencode/opencode/stand-in"])
+    agent = ClaudeCodeAgent(CLAUDE)
+    seen: list[tuple[str, str]] = []
+    agent.hooks.on(
+        Moment.PRE_TOOL_USE,
+        lambda occasion: seen.append((occasion.tool, occasion.about)),
+    )
+
+    assert agent.new()("hello") == "hello"
+
+    assert seen == [("bash", "echo hello")]
+
+
+def test_a_hook_gates_the_tool_a_stand_in_of_the_same_harness_reaches_for(
+    places: Standins,
+) -> None:
+    # The original model's CLI is down; the one fallen back to asks its own hook table.
+    places.install(
+        "claude",
+        CLAUDE_RUN.replace(
+            "note()\n",
+            'note()\nif flags.get("--model") == "claude-stand-in":\n    sys.exit(3)\n',
+            1,
+        ),
+    )
+    nous.then("claude/claude-stand-in", ["claude/claude-elsewhere"])
+    agent = ClaudeCodeAgent(CLAUDE)
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="never that")
+
+    agent.hooks.on(Moment.PRE_TOOL_USE, refuse, tool="Bash")
+
+    decided = json.loads(agent.new()("gate"))["hookSpecificOutput"]
+
+    assert decided["permissionDecisionReason"] == "never that"
+    assert [(one.agent, one.about) for one in seen] == [(agent.id, "rm -rf /")]
+
+
+def test_a_permission_a_stand_in_asks_for_is_put_to_the_hook_as_its_agents(
+    places: Standins, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    # A fence is what routes requests over the stream; the wall itself is not put up.
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    places.install(
+        "claude",
+        CLAUDE_RUN.replace(
+            "note()\n",
+            'note()\nif flags.get("--model") == "claude-stand-in":\n    sys.exit(3)\n',
+            1,
+        ),
+    )
+    nous.then("claude/claude-stand-in", ["claude/claude-elsewhere"])
+    agent = ClaudeCodeAgent(
+        dataclasses.replace(CLAUDE, fence=Fence(write=("/w",), online=True))
+    )
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that file")
+
+    agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
+
+    assert agent.new()("ask") == "deny:not that file"
+    assert [(one.agent, one.tool) for one in seen] == [(agent.id, "Write")]
+
+
+def test_a_question_a_stand_in_stops_to_ask_is_put_to_whoever_answers_for_the_agent(
+    places: Standins,
+) -> None:
+    del places
+    agent = ClaudeCodeAgent(CLAUDE)
+    stood_in = agent.stand_in("opencode/opencode/stand-in")
+    assert stood_in is not None
+    told: list[str] = []
+    agent.hooks.on(Moment.NOTIFICATION, lambda occasion: told.append(occasion.said))
+    # Set after the stand-in was made, as a run sets it.
+    agent.ask = lambda question: f"answered {question.text}"
+
+    assert stood_in.asked(Question(text="Which?")) == "answered Which?"
+    assert told == ["Which?"]
 
 
 def test_a_place_with_no_chain_fails_as_a_turn_always_has(places: Standins) -> None:

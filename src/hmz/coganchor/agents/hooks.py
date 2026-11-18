@@ -259,6 +259,24 @@ class Hooks:
         """The moments a hook may be hung on here, which is what this backend runs."""
         return self._moments
 
+    def carried(self, moments: frozenset[Moment]) -> Hooks:
+        """These hooks as a stand-in for their agent fires them, on a backend of its own.
+
+        The same hooks rather than a copy of them: a flow hangs one and takes it down while
+        the agent is running, long after a stand-in was made, and a turn is its agent's turn
+        wherever it is taken. What is not shared is what belongs to the process taking it --
+        the moments that backend runs, and the gate its own CLI is pointed at.
+
+        Args:
+          moments: The moments the stand-in's backend runs.
+
+        Returns:
+          Hooks that fire whatever is hung here, now and later, as this agent's.
+        """
+        made = Hooks(moments, self.agent)
+        made._hung, made._lock = self._hung, self._lock
+        return made
+
     def on(self, moment: Moment, hook: Hook, *, tool: str = "") -> Hung:
         """Hangs a hook on a moment, from now until it is taken down.
 

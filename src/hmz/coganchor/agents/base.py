@@ -1708,7 +1708,9 @@ class SessionBase(ABC):
                             # gating. Where a gate is up the CLI asks first and waits, so the
                             # moment fires from there instead -- and firing it here as well
                             # would be one tool call putting the same hook twice.
-                            if not self._asking(Moment.PRE_TOOL_USE):
+                            # Asked of the conversation that took this round, which is a
+                            # stand-in's where the turn moved: the table is the process's.
+                            if not (self._took or self)._asking(Moment.PRE_TOOL_USE):
                                 named, _, about = event.text.partition(" ")
                                 self._fire(Moment.PRE_TOOL_USE, tool=named, about=about)
                         elif event.kind in ("subagent", "subagent-ends"):
@@ -2405,7 +2407,9 @@ class SessionBase(ABC):
         return self._agent.hooks.fire(
             Occasion(
                 moment=moment,
-                agent=self._agent.id,
+                # The name the hooks go by, which for a stand-in's is that of the agent it
+                # takes this turn for: a hook is told which of its flow's agents it was.
+                agent=self._agent.hooks.agent,
                 session=self._id or "",
                 prompt=prompt,
                 tool=tool,
@@ -4420,6 +4424,9 @@ class AgentBase(ABC):
         #: reached, by that nous -- False for one that names no agent that could, so that
         #: building one is a thing that happens once rather than once a turn.
         self._stand_ins: dict[str, AgentBase | Literal[False]] = {}
+        #: The agent this one takes turns for, for a stand-in, or None for one a flow made.
+        #: Weakly, as it is that agent that holds this one.
+        self._stands_for: weakref.ref[AgentBase] | None = None
         #: The flow's own callbacks this agent's conversations are offering, and the socket
         #: they are served on. The agent's rather than a session's because a CLI is told
         #: about its tools where it is started, and some of these are started once per agent.
@@ -5337,6 +5344,12 @@ class AgentBase(ABC):
                 made.loads(self._loads)
                 made.epic = self.epic
                 made._keeps, made._said = self._keeps, self._said
+                # And what the flow hangs on this agent, whenever it hangs it: a turn taken
+                # by a stand-in is this agent's turn, and a hook that fired only where the
+                # turn was not moved would be a gate a failed account walks round. What a
+                # turn there stops to ask is put to whoever answers for this agent.
+                made._hooks = self._hooks.carried(type(made).moments)
+                made._stands_for = weakref.ref(self)
                 # Watched where this agent is, by nothing of its own: what it says comes back
                 # through this agent's turn and is shown as this agent's. A stand-in that
                 # believed nobody was watching would put its words and its answer on the
@@ -6369,6 +6382,16 @@ class AgentBase(ABC):
             except Exception:  # noqa: BLE001, S112 -- a watcher fails on its own account
                 continue
 
+    def _answering(self) -> AgentBase:
+        """The agent whose `ask` answers what a turn of this one stops to ask.
+
+        Returns:
+          The agent this one takes turns for, for a stand-in whose agent is still held, and
+          otherwise this one. Asked each time rather than kept, since `ask` is set on that
+          agent whenever its flow sets it, which may be after a stand-in was made.
+        """
+        return (self._stands_for() if self._stands_for is not None else None) or self
+
     def asked(self, question: Question) -> str | None:
         """Puts something a turn stopped to ask to whoever is driving this agent.
 
@@ -6384,6 +6407,13 @@ class AgentBase(ABC):
           answered rather than left waiting, since a turn waiting on an answer that is not
           coming is a flow that has stopped.
         """
+        stood_for = self._answering()
+        if stood_for is not self:
+            # A stand-in's turn is that agent's turn, so the question is that agent's: heard
+            # as its own, told to its hooks and put to whoever answers for it now. The clocks
+            # stopped here are this agent's, since it is this one's CLI that is kept waiting.
+            with held(self):
+                return stood_for.asked(question)
         self._heard(Event(kind="asks", text=question.text))
         # An agent that has stopped to ask is an agent that wants a person, which is the one
         # thing a flow running unattended has to be able to hear about.
