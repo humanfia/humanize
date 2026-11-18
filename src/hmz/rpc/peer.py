@@ -17,7 +17,8 @@ The session ends when either end closes its pipe, when a frame arrives of a leng
 has (Section 6.3.2), or when :meth:`Peer.close` is called; each call still waiting for an
 answer then fails with :class:`Closed`, and each call being carried out is marked cancelled.
 Where it was the pipe failing that ended it, that failure is the `__cause__` of the
-:class:`Closed`: what a carrier that ended badly said, such as the last line of its process.
+:class:`Closed`, of a call waiting and of one made later alike: what a carrier that ended badly
+said, such as the last line of its process.
 """
 
 from __future__ import annotations
@@ -225,7 +226,7 @@ class Peer:
         future: Future[Any] = Future()
         with self._lock:
             if self.closed:
-                raise Closed("the session has closed")
+                raise Closed("the session has closed") from self._why
             self._pending[ident] = future
         self._write(frame)
         return Pending(self, ident, future)
@@ -317,13 +318,14 @@ class Peer:
     def _write(self, frame: bytes) -> None:
         """Writes one frame, closing the session where the pipe will not take it."""
         if self.closed:
-            raise Closed("the session has closed")
+            raise Closed("the session has closed") from self._why
         try:
             with self._writing:
                 self._pipe.sendall(frame)
         except OSError as e:
             self.close()
-            raise Closed("the session closed") from e
+            # What the read was told first is why, where the pipe took no more for it.
+            raise Closed("the session closed") from (self._why or e)
 
     def _answer(self, call: Call, answer: dict[str, Any]) -> None:
         """Sends a call's one answer, and nothing for a notification or a call answered."""
