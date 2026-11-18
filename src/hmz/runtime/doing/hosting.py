@@ -2936,12 +2936,13 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     if not agent:
         return _no("an agent for the chat is named", 400)
     try:
-        # Her nous may be a nous by name, which no setting keeps as a chat's agent.
-        runs = None if ai else assistant(agent)
-        if ai:
-            from hmz.runtime.flowing.specs import parse_agents
+        from hmz.coganchor import nous
+        from hmz.runtime.flowing.specs import parse_agents
 
-            parse_agents([f"assistant={agent}"])
+        (named,) = parse_agents([f"assistant={agent}"])
+        # A nous by name is no agent a setting keeps (Section 3.4.1.6 of core.md): hers is
+        # not kept, and a chat's is kept as the concrete nous it starts at.
+        runs = None if ai else assistant(nous.entry(agent) if named.nous else agent)
     except ValueError as why:
         return _no(str(why), 400)
     return _ok(

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 import hmz.coganchor.fence
-from hmz.coganchor import prices, providers
+from hmz.coganchor import nous, prices, providers
 from hmz.coganchor.agents.native import NativeCommand
 from hmz.flows import (
     Access,
@@ -844,6 +844,25 @@ def test_a_chat_carried_on_goes_on_in_its_epic_and_its_conversation(
     ran = _ran(first.epic)
     assert (ran.how, ran.prefer) == ("stopped", "flow")
     assert ran.spent == {"cost": 1.5, "output_tokens": 6, "seconds": 3.0}
+
+
+def test_a_chat_with_a_virtual_nous_is_written_down_at_its_concrete_one(
+    wired: Wired, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def virtual(name: str) -> bool:
+        return name == "smart"
+
+    def entry(name: str) -> str:
+        return "claude/opus:high"
+
+    monkeypatch.setattr(nous, "virtual", virtual)
+    monkeypatch.setattr(nous, "entry", entry)
+
+    ended = _had(wired, Person(), agent="smart")
+
+    (drove,) = _ran(ended.epic).agents
+    assert (drove.backend, drove.model, drove.effort) == ("claude", "opus", "high")
+    assert drove.spec == "claude/opus:high"
 
 
 def test_a_chat_carried_on_with_another_agent_says_so(wired: Wired) -> None:

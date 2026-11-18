@@ -271,8 +271,12 @@ class Holds:
     loop: asyncio.AbstractEventLoop
     held: tuple[Held, ...]
 
-    def held_envs(self) -> tuple[Held, ...]:
-        return self.held
+    def env_roles(self) -> dict[str, Any]:
+        roles: dict[str, Any] = {}
+        for one in self.held:
+            if one.parent is None:
+                roles.setdefault(one.role, one.driver)
+        return roles
 
 
 @pytest.fixture

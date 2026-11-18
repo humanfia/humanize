@@ -269,9 +269,17 @@ def _written() -> tuple[str, ...]:
 
 
 def _temporary() -> tuple[str, ...]:
-    """:data:`TEMPORARY`, and the directory `TMPDIR` names where it is absolute."""
+    """:data:`TEMPORARY`, and the directory `TMPDIR` names where it is absolute.
+
+    Each as it is spelled and with its links followed, which is how the kernel holds it and
+    how a path found beneath it is spelled -- a Mac's `/tmp` is `/private/tmp` -- so that a
+    rule spelled either way is beneath the grant and carves out of it.
+    """
     named = os.environ.get("TMPDIR", "")
-    return (*TEMPORARY, *((named,) if named.startswith(os.sep) else ()))
+    spelled = (*TEMPORARY, *((named,) if named.startswith(os.sep) else ()))
+    return tuple(
+        dict.fromkeys(one for path in spelled for one in (path, os.path.realpath(path)))
+    )
 
 
 def _users() -> tuple[str, ...]:
