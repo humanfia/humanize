@@ -47,7 +47,6 @@ workspaces:
         harness: local
 enable_sentry: false               # this machine
 details: true                      # this machine
-btw: claude/claude-opus-5:high     # this machine
 ai_chan: claude/claude-opus-5:high # this machine
 every_epic: true                   # this machine
 chat:                              # this machine
