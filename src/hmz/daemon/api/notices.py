@@ -1,11 +1,12 @@
 """`notices.*`: what happened to the epics of the daemon's machine worth telling somebody about.
 
 The notices are worked out of how each host stands (:mod:`hmz.runtime.watching.notices`),
-asked of every host every couple of seconds and never by attaching to it, from the moment they
-are first watched: :func:`watched`, which the daemon calls as it starts. A client reads those
-kept, or subscribes and is sent each as `notices.event` `{sub, notice}`, after every one kept
-past the id it last heard where it says one. Which kinds a person is told of is the client's to
-choose: every one is sent.
+asked of every host every couple of seconds and never by attaching to it -- and, of a host
+that went in between, as it said it stood as it went -- from the moment they are first
+watched: :func:`watched`, which the daemon calls as it starts. A client reads those kept, or
+subscribes and is sent each as `notices.event` `{sub, notice}`, after every one kept past the
+id it last heard where it says one. Which kinds a person is told of is the client's to choose:
+every one is sent.
 
 A subscription ends with `notices.unsubscribe`, or with its session: the thread sending it reads
 the session closed when a notice will not go, or at the latest when it next wakes with nothing
@@ -63,9 +64,11 @@ def watched() -> Notices:
         if _held is None:
             from hmz.runtime.watching.notices import Notices
 
-            from .workspaces import statuses
+            from .workspaces import left, statuses
 
-            _held = Notices(statuses)
+            # A host that went since the last look says how it stood as it went, over what
+            # it said while it was up: an `hmz exec`'s goes right after its epic ends.
+            _held = Notices(lambda: {**statuses(), **left()})
             _held.start()
         return _held
 
