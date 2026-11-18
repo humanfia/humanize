@@ -40,16 +40,15 @@ def completed(typed: str) -> list[str]:
     """
     said = typed or "~/"
     spelled, name = os.path.split(said)
-    under = Path(spelled or ".").expanduser()
     try:
         found = sorted(
             one.name
-            for one in os.scandir(under)
+            for one in os.scandir(Path(spelled or ".").expanduser())
             if one.name.startswith(name)
             and (name.startswith(".") or not one.name.startswith("."))
             and one.is_dir()
         )
-    except OSError:
+    except (OSError, RuntimeError):  # RuntimeError: the home of a user there is not
         return []
     lead = spelled if not spelled or spelled.endswith(os.sep) else spelled + os.sep
     return [f"{lead}{one}{os.sep}" for one in found[:_MOST]]
@@ -72,15 +71,13 @@ def listed(at: str, *, files: bool, hidden: bool) -> dict[str, Any]:
       RpcError: 404, if it is not a directory there is.
     """
     home = Path.home()
-    whole = Path(at or "~").expanduser()
-    if not whole.is_absolute():
-        whole = home / whole
     try:
-        whole = whole.resolve()
+        whole = (home / Path(at or "~").expanduser()).resolve()
         found = list(os.scandir(whole))
-    except OSError as why:
+    except (OSError, RuntimeError) as why:  # RuntimeError: as in `completed`
         raise RpcError(
-            Code.NOT_FOUND, f"{at or '~'} cannot be read: {why.strerror or why}"
+            Code.NOT_FOUND,
+            f"{at or '~'} cannot be read: {getattr(why, 'strerror', None) or why}",
         ) from why
     kept = sorted(
         (
