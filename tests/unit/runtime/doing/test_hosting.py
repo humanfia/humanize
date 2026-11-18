@@ -1560,14 +1560,58 @@ def test_an_answer_is_text_or_a_value_and_a_text_question_takes_text(
         "ok": False,
         "why": "an answer is text or a value, not both",
     }
-    assert alice.asks("answer", question=question, value=2) == {
+    others: tuple[Any, ...] = (2, {})
+    for other in others:
+        assert alice.asks("answer", question=question, value=other) == {
+            "ok": False,
+            "why": "the answer does not fit: text is expected",
+            "code": 400,
+            "data": {"errors": [{"path": [], "message": "text is expected"}]},
+        }
+    # A value that is text is read as text, and text that is empty says nothing.
+    assert alice.asks("answer", question=question, value="") == {
         "ok": False,
-        "why": f"{question} is answered in text",
+        "why": "an answer says something",
     }
     # A value is taken as it is, never as the number of an option.
     assert alice.asks("answer", question=question, value="green") == {"ok": True}
     assert asking.done.wait(PATIENCE)
     assert asking.answer == "green"
+    run.released.set()
+
+
+@pytest.mark.parametrize(
+    ("put", "text", "heard"),
+    [
+        (Question("which?", ("red", "blue")), "red", "red"),
+        (Shaped(), '{"verdict": "reject"}', {"verdict": "reject"}),
+    ],
+    ids=["text", "schema"],
+)
+def test_a_value_of_null_is_read_as_not_sent(
+    host: Host,
+    where: Workspace,
+    outworlders: Outworlders,
+    put: Any,
+    text: str,
+    heard: Any,
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, put)
+    question = alice.told("asked", run=1)["question"]
+
+    assert alice.asks("answer", question=question, value=None) == {
+        "ok": False,
+        "why": "an answer says something",
+    }
+    assert alice.asks("answer", question=question, text=text, value=None) == {
+        "ok": True
+    }
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is not None
+    assert asking.answer == heard or json.loads(asking.answer) == heard
     run.released.set()
 
 
