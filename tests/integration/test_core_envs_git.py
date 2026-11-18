@@ -384,3 +384,43 @@ async def test_discarding_a_directory_restores_and_removes_alike(
 
     assert (repo / "dir" / "kept").read_text() == "kept\n"
     assert not (repo / "dir" / "new").exists()
+
+
+async def test_a_path_is_a_file_name_and_not_a_pattern(tmp_path: Path) -> None:
+    repo = tmp_path
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "a@example.com")
+    _git(repo, "config", "user.name", "Ada")
+    _git(repo, "config", "commit.gpgsign", "false")
+    run = Local(repo).exec
+    top = await gitdesk.root(run)
+    names = ("[id].tsx", "i.tsx", "d.tsx")
+    for name in names:
+        (repo / name).write_text("first\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "first")
+    for name in names:
+        (repo / name).write_text("second\n")
+    (repo / "*").write_text("fresh\n")
+    (repo / "fresh").write_text("fresh\n")
+
+    async def changes() -> dict[str, str]:
+        files = (await gitdesk.status(run, top))["files"]
+        return {one["path"]: one["index"] + one["worktree"] for one in files}
+
+    await gitdesk.stage(run, top, ["[id].tsx"])
+    assert await changes() == {
+        "[id].tsx": "M.",
+        "i.tsx": ".M",
+        "d.tsx": ".M",
+        "*": "??",
+        "fresh": "??",
+    }
+
+    await gitdesk.stage(run, top, ["i.tsx"])
+    await gitdesk.unstage(run, top, ["[id].tsx"])
+    assert (await changes())["i.tsx"] == "M."
+
+    await gitdesk.discard(run, top, ["[id].tsx", "*"])
+    assert await changes() == {"i.tsx": "M.", "d.tsx": ".M", "fresh": "??"}
+    assert (repo / "d.tsx").read_text() == "second\n"
