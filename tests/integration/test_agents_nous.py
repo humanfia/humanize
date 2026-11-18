@@ -428,6 +428,31 @@ def test_a_fault_with_no_edge_fails_the_graph(places: Standins) -> None:
     assert places.calls("opencode") == []
 
 
+def test_a_graph_none_of_whose_nous_can_take_the_turn_fails_as_missing(
+    places: Standins,
+) -> None:
+    # opencode has no effort `zzz`, so the only nous the graph reaches names no stand-in and
+    # nothing runs: a failure of the `missing` kind that names it, not a bug.
+    nous.put(
+        Nous(
+            "one",
+            graph=Graph("only", (Node("only", use="opencode/opencode/stand-in:zzz"),)),
+        )
+    )
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="claude-stand-in", effort="high", nous="one")
+    )
+
+    with pytest.raises(Failed) as failed:
+        agent.new()("hello")
+
+    assert failed.value.fault == "missing"
+    assert failed.value.returncode != 127
+    assert "opencode/opencode/stand-in:zzz" in str(failed.value)
+    assert places.calls("opencode") == []
+    assert places.calls("claude") == []
+
+
 def test_a_balance_node_carries_on_to_another_member_and_keeps_it(
     places: Standins,
 ) -> None:
