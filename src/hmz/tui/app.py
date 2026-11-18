@@ -1394,7 +1394,9 @@ class Humanize(App[None]):
           The one this workspace remembers for its chats, else the first agent there is to
           open on (Section 16.5.4 of [TUI]).
         """
-        remembered = self.settings.chat_agent
+        # As the file says now, not as it said when this opened: `/settings`, another
+        # frontend and the last chat here all write it (Section 8.3.8 of [CORE]).
+        remembered = Hmz().settings.chat_agent
         if isinstance(remembered, Runs):
             return remembered
         spare = opens_on(Hmz().installed())
@@ -3921,8 +3923,9 @@ class Humanize(App[None]):
             # its own preference, once the next line starts it (Section 8.8.4 of [CORE]).
             self._chat_slot = self._chat_epic = ""
             self._natives, self._natives_of, self._listed = [], "", False
-            self._prefer, self._prefer_from = self.settings.chat_prefer, "settings"
+            self._prefer, self._prefer_from = Hmz().settings.chat_prefer, "settings"
             self._prefer_own = None
+            self._chat_runs = self._chat_agent()
             if self._epic_as:
                 from hmz.daemon import where
 
@@ -4470,6 +4473,13 @@ class Humanize(App[None]):
         said = event.said
         for one in said.told:
             self.show(one)
+        if not self._chat_epic:
+            # What the pages wrote for themselves is the next chat's, and with no chat had
+            # here yet the next line starts it: a chat that is going keeps its own.
+            self._chat_runs = self._chat_agent()
+            if self._prefer_from == "settings":
+                self._prefer = Hmz().settings.chat_prefer
+            self._draw()
         if said.enable_sentry is not None:
             # Through the same road the first-start question takes, so that the answer is
             # written down, what was read is forgotten, and reporting starts or stops now

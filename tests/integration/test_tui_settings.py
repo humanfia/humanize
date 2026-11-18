@@ -27,6 +27,7 @@ from tests.integration.doubles_tui import (
     rows,
     shows,
     stand_in,
+    started,
     trail,
     typed,
 )
@@ -155,7 +156,38 @@ async def test_the_chat_agent_set_up_on_the_workspace_page_is_remembered_there(
         await on(pilot, Agent)
         await picks(pilot, "effort", "low")
         await leaves(pilot)
+        # No chat was had here yet, so it is the one the next line talks to.
+        await shows(pilot, f"◉ claude/{MODEL}:low")
 
+    workspaces = kept(tmp_path)["workspaces"]
+    assert isinstance(workspaces, dict)
+    assert workspaces[str(workspace)]["chat"] == {"agent": f"claude/{MODEL}:low"}
+
+
+async def test_the_chat_agent_set_on_the_workspace_page_is_the_next_chats(
+    workspace: Path, tmp_path: Path
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "hello there")
+        await shows(pilot, "heard hello there")
+
+        await typed(pilot, "/settings workspace")
+        await on(pilot, Adjusts)
+        await opens(pilot, "chat-agent")
+        await on(pilot, Agent)
+        await picks(pilot, "effort", "low")
+        await leaves(pilot)
+
+        await typed(pilot, "/clear")
+        await shows(pilot, f"◉ claude/{MODEL}:low")
+        await typed(pilot, "second chat")
+        await shows(pilot, "heard second chat")
+
+    was, now = started(workspace)
+    assert was[was.index("--effort") + 1] == "high"
+    assert now[now.index("--effort") + 1] == "low"
+    # And the chat started with it leaves it the one remembered, not the one before it.
     workspaces = kept(tmp_path)["workspaces"]
     assert isinstance(workspaces, dict)
     assert workspaces[str(workspace)]["chat"] == {"agent": f"claude/{MODEL}:low"}
