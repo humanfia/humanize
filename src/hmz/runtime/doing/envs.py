@@ -14,6 +14,7 @@ import asyncio
 import concurrent.futures
 import os
 import posixpath
+import re
 import time
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -34,8 +35,15 @@ _MOST = 1 << 20
 _LINE = 400
 
 #: Searches as `hosts.env.grep` does, with no more lines than `$3`, grep alone being unable to
-#: stop early; then says grep's own exit status as the last line of stderr.
-_GREP = '{ grep -rnIsE --null -e "$1" -- "$2"; echo "$?" >&2; } | head -n "$3"'
+#: stop early; then says grep's own exit status as the last line of stderr. A file's name
+#: ends with a NUL where grep knows `--null`, which BusyBox's does not, and else with the colon.
+_GREP = (
+    'grep --null -q x /dev/null 2>/dev/null; [ "$?" -lt 2 ] && named=--null || named=-H; '
+    '{ grep -rnIsE "$named" -e "$1" -- "$2"; echo "$?" >&2; } | head -n "$3"'
+)
+
+#: A line found by a grep that ends a file's name with a colon: the name, the line, the text.
+_FOUND = re.compile(r"(.*?):(\d+):(.*)", re.DOTALL)
 
 #: Says the workdir with every link followed, then the deepest of `$1` and the directories it
 #: lies in that is there, likewise: where a path is, said on the env's own machine.
@@ -219,8 +227,10 @@ async def _grep(driver: EnvDriver, env: str, said: Mapping[str, Any]) -> dict[st
         raise EnvRefusal(400, said_.strip())
     matches: list[dict[str, Any]] = []
     for one in stdout.split("\n"):
-        path, _, rest = one.partition("\0")
+        path, named, rest = one.partition("\0")
         line, _, text = rest.partition(":")
+        if not named and (found := _FOUND.fullmatch(one)):
+            path, line, text = found.groups()
         if line.isdigit():
             matches.append(
                 {
