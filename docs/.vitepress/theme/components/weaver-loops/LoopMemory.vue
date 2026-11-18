@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // How a loop works, from "Loops": where `spawn` sits decides what the next turn remembers, and
-// four things end a loop. Above, the two built-in loops side by side, a column per round and
+// four things end a loop. Above, the two official loops side by side, a column per round and
 // in it the session's history: `ralph_loop` spawns inside the loop, so every round is a new
 // session holding only this round's turn (it knows the task and the repository), while
 // `stateful_ralph` spawns before it, so one session's history grows a turn a round. Below,
@@ -8,7 +8,8 @@
 // `ctx.state["session"]`, which keeps the conversation as it stands then; the run is stopped
 // and picked up with `--resume`, and since `resumable=True` the session read back carries on
 // round 3's conversation at round 4; a turn that raises `HarnessError` is not caught, so it
-// ends the run. Drawn from src/hmz/flows/builtin/ralph_loop and stateful_ralph, and
+// ends the run. Drawn from https://github.com/humanfia/ralph-loop-flow and
+// https://github.com/humanfia/stateful-ralph-flow, and
 // docs/weaver/loops.md. The answers are simulated.
 import { computed, ref } from 'vue'
 

@@ -541,7 +541,7 @@ any harness that serves them.
 | When a flow calls another | What the caller hands over covers the callee's declaration. | [`RequirementError`](#requirementerror) leaves; see [What the called flow is handed](#what-the-called-flow-is-handed) |
 | At every use | The view's grant contains the mixin for the operation. | [`CapabilityNotGranted`](#capabilitynotgranted) |
 
-Every flow, those Humanize ships included, is granted exactly what its roles declare. A
+Every flow, those of the official flowverse included, is granted exactly what its roles declare. A
 [chat](/user/chat) is not a flow: its one agent has every capability its harness offers.
 
 ## Permissions {#what-each-agent-may-do}
@@ -1764,11 +1764,11 @@ wins:
 | --- | --- | --- |
 | 1 | `local` | `.hmz/flows/` under the current directory |
 | 2 | `user` | `~/.hmz/flows/` (literally `~`, not `HUMANIZE_HOME`) |
-| 3 | `official` | the package's `hmz/flows/builtin/`, then `~/.hmz/flowverses/official/installed/` (under `HUMANIZE_HOME` where it is set) |
+| 3 | `official` | `~/.hmz/flowverses/official/installed/` (under `HUMANIZE_HOME` where it is set) |
 | 4 | other flowverses | `~/.hmz/flowverses/<name>/installed/` (likewise), alphabetically |
 
-Only what is built in, installed or in `local` and `user` is found: never a flow an index only
-lists. `<user>/<flow>` looks in `official` only, and `@<flowverse>/…` in that flowverse only. A
+Only what is installed or in `local` and `user` is found: never a flow an index only
+lists. Humanize ships no flow, so until one is installed or written nothing is found. `<user>/<flow>` looks in `official` only, and `@<flowverse>/…` in that flowverse only. A
 path is taken outright, as `<path>/__init__.py`, `<path>`, `<path>.py` (`~` expanded). A name
 nothing answers to raises `FlowNotFound` (`<ref>: no flow is called '<name>'`; a path,
 `<ref>: there is no flow at <path>`), unless:
@@ -1784,7 +1784,7 @@ nothing answers to raises `FlowNotFound` (`<ref>: no flow is called '<name>'`; a
 
 | Listed as | Is |
 | --- | --- |
-| `rlar`, `flame_chasoid` | built in, or installed from `official`'s `flows/<flow>/` |
+| `rlar`, `flame_chasoid` | installed from `official`'s `flows/<flow>/` |
 | `alice/kernel` | installed from `official`'s `flows/alice/kernel/` |
 | `@theirs/review` | installed from flowverse `theirs` |
 | `@theirs/alice/kernel` | installed from flowverse `theirs`'s `flows/alice/kernel/` |
@@ -1828,7 +1828,7 @@ class Reviewer(Agent):
   literals into the installed flow's own `skills/<name>/`, recorded in its `.installed.json`;
   a run of it reads them from there and fetches nothing. One that cannot be fetched fails the
   install. A URL the source does not spell out is fetched at run time, as below.
-- A flow that was never installed -- yours, a builtin, a `git+` ref -- clones the repository
+- A flow that was never installed -- yours, a `git+` ref -- clones the repository
   into `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>` and fetches it again
   (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed re-fetch uses
   the existing copy.
@@ -1857,7 +1857,7 @@ One that is not a GitHub user name is skipped
 
 | Flowverse | Location | Fetched | Removable |
 | --- | --- | --- | --- |
-| `official` | package `hmz/flows/builtin/` + what is installed from the clone of `https://github.com/humanfia/flowverse` at `~/.hmz/flowverses/official/index/` | in the background each time `hmz` starts (cloned the first time); on demand | no |
+| `official` | what is installed from the clone of `https://github.com/humanfia/flowverse` at `~/.hmz/flowverses/official/index/` | in the background each time `hmz` starts (cloned the first time); on demand | no |
 | `local` | `.hmz/flows` (relative to the current directory) | never | no |
 | `user` | `~/.hmz/flows` | never | no |
 | any other | what is installed from the clone at `~/.hmz/flowverses/<name>/index/` | clone on `add`; in the background each time `hmz` starts; on demand | yes |
@@ -1894,7 +1894,7 @@ dependencies:
 
 | Key | Type | Required | Rule |
 | --- | --- | --- | --- |
-| `name` | `str` | yes | `[a-z][a-z0-9_]*`; equal to the `<flow>` directory; listed bare, not a built-in flow's name |
+| `name` | `str` | yes | `[a-z][a-z0-9_]*`; equal to the `<flow>` directory |
 | `version` | `str` | yes | SemVer 2.0.0; equal to the `<version>` directory |
 | `description` | `str` | no | one line |
 | `repo` | `str` | yes | `owner/repo` (GitHub, fetched from `https://github.com/<owner>/<repo>`) or a URL starting `https://`, `http://`, `ssh://`, `git://` or `file://`. On GitHub, under `flows/<user>/`: `<user>`'s; in `official`, listed bare: `humanfia`'s |
@@ -1907,7 +1907,6 @@ dependencies:
 Other keys are ignored. A manifest that is unreadable, not a mapping, fails a rule above, or is
 missing from a version directory is **skipped**: listed with why (`name: …`,
 `version 0.2.0 is not the directory it is in, 0.1.0`,
-`rlar is built into Humanize; nothing may be installed over it`,
 `bob/kernel-flow is bob's, so it is listed under flows/bob/`,
 `bob/loop-flow is bob's; only humanfia's are listed bare here`) and never an error. Hidden
 directories are not read.
@@ -1966,19 +1965,25 @@ installed flow, and a run executes it. Installing one trusts its repository with
 machine.
 :::
 
-### The flows in the package {#the-flow-in-the-package}
+### The six loops {#the-flow-in-the-package}
 
-`hmz/flows/builtin/`, there with nothing fetched. Every flow here has a `workspace: LocalEnv`
-role.
+Humanize ships no flow in the package: until one is [installed](#installing), or written in
+`local` or `user`, only a [chat](/user/chat) runs. The six loops are flows of the
+[official flowverse](#the-official-flowverse) like any other, each at `0.1.0` and released from
+a repository of its own, whose directory `<flow>/` holds it. Install one in `hmz` from `/flow` →
+**Flowverses** → **official** → the flow → **Install**; `hmz exec` installs nothing, and runs
+one that is not installed by its [`git+` ref](#refs), as
+`-f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop`. Every flow here has a
+`workspace: LocalEnv` role.
 
-| Flow | Agent roles | Roles need | Resumable | Budget | Grant |
-| --- | --- | --- | :-: | --- | --- |
-| [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | `agent` | | | required | what each role declares |
-| [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | `agent` | | ✓ | required | what each role declares |
-| [`continue_loop`](https://humanfia.ai/flows/continue-loop) | `agent` | | | required | what each role declares |
-| [`goal`](https://humanfia.ai/flows/goal) | `worker` | `GoalCommandAgentMixin` | | required | what each role declares |
-| [`flame_chase`](https://humanfia.ai/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
-| [`rlar`](https://humanfia.ai/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
+| Flow | Repository | Agent roles | Roles need | Resumable | Budget | Grant |
+| --- | --- | --- | --- | :-: | --- | --- |
+| [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | [humanfia/ralph-loop-flow](https://github.com/humanfia/ralph-loop-flow) | `agent` | | | required | what each role declares |
+| [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | [humanfia/stateful-ralph-flow](https://github.com/humanfia/stateful-ralph-flow) | `agent` | | ✓ | required | what each role declares |
+| [`continue_loop`](https://humanfia.ai/flows/continue-loop) | [humanfia/continue-loop-flow](https://github.com/humanfia/continue-loop-flow) | `agent` | | | required | what each role declares |
+| [`goal`](https://humanfia.ai/flows/goal) | [humanfia/goal-flow](https://github.com/humanfia/goal-flow) | `worker` | `GoalCommandAgentMixin` | | required | what each role declares |
+| [`flame_chase`](https://humanfia.ai/flows/flame-chase) | [humanfia/flame-chase-flow](https://github.com/humanfia/flame-chase-flow) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
+| [`rlar`](https://humanfia.ai/flows/rlar) | [humanfia/rlar-flow](https://github.com/humanfia/rlar-flow) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
 A [chat](/user/chat), which `hmz` opens on, is not among them: it is an epic of its own kind,
 with no flow.
@@ -1996,7 +2001,7 @@ takes over from what it left; the run's own `budget.*` still ends the run.
 
 ### The official flowverse {#the-official-flowverse}
 
-The flows Humanize offers besides the ones in the package, listed by
+The flows Humanize offers besides the six loops above, listed by
 [humanfia/flowverse](https://github.com/humanfia/flowverse), each released from a repository of
 its own (`humanfia/<name>-flow`), and run once [installed](#installing). Every flow here also
 has a `workspace: LocalEnv` role; `human` is an `Outworlder`. None declares a budget of its own.

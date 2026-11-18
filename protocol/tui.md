@@ -979,9 +979,9 @@ once the menu closes, in the transcript.
 
 ### 16.2. Installed
 
-**16.2.1** The Installed page MUST list every flow that can run here: the built-in flows first, then
-the flows installed from each flowverse, then this project's, then the user's, each under a heading
-of where it came from and by the name `-f` takes.
+**16.2.1** The Installed page MUST list every flow that can run here: the flows installed from each
+flowverse, then this project's, then the user's, each under a heading of where it came from and by
+the name `-f` takes.
 
 **16.2.2** Each installed flow MUST show its release and, where its index lists a newer one, that
 newer release; the flow in force MUST be marked `✔`.

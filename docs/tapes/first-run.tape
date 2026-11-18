@@ -24,7 +24,7 @@ Show
 
 Sleep 600ms
 
-# The flows ready to run here: the built-in ones, then each place the rest came from. The
+# The flows ready to run here, under the place each came from. The
 # cursor opens on the one this directory was last set up on.
 Type@10ms "/flow"
 Sleep 300ms

@@ -3,9 +3,9 @@
 A flow is named rather than pathed: `hmz exec -f ralph_loop` is a name, and a path -- which
 starts with `.`, `/` or `~`, and nothing else does -- is what is left for a flow that is nowhere
 any of them are kept. A name is looked for in the places flows come from, which is every
-[flowverse](verses.py) there is -- Humanize's own, which is `official` and is the flows in the
-package together with whatever was installed out of its index, whatever was installed out of
-the indexes somebody added, and the flows of your own here and in your home directory. Those
+[flowverse](verses.py) there is -- Humanize's own, which is `official` and is whatever was
+installed out of its index, whatever was installed out of the indexes somebody added, and the
+flows of your own here and in your home directory. Those
 last two are `local` and `user`, and are flowverses like the rest of them. A flow an index lists
 and nobody installed is not among them: it is a flow to install (:mod:`index`), and a name that
 only an index answers to says so.
@@ -47,12 +47,10 @@ if TYPE_CHECKING:
     from .verses import Flowverse
 
 __all__ = [
-    "BUILTIN_AT",
     "ENTRY",
     "Offer",
     "about",
     "at",
-    "builtin",
     "entry",
     "find",
     "fork",
@@ -91,15 +89,6 @@ def placed(file: str | os.PathLike[str]) -> Path:
     return Path(os.path.realpath(file.parent)) / ENTRY
 
 
-#: Where the flows Humanize ships in the package are: `hmz/flows/builtin`, beside the flow API
-#: they are written against, rather than beside this file, which is how one is found. They are
-#: the whole of what is there, so there is no `flows/` in it to tell them from the rest. Offered
-#: under `official` along with whatever was installed out of Humanize's index: which of the two
-#: places one of them is kept in is Humanize's business rather than whoever is running it.
-#: Worked out from where this file is rather than by importing the flow API, which a listing
-#: of places has no need to pay for.
-BUILTIN_AT = placed(__file__).parents[2] / "flows" / "builtin"
-
 #: What a flow's own name is separated from the one inside it by. A module that holds one
 #: visible flow is named by itself; one that holds three names the others after it.
 _INSIDE = ":"
@@ -124,20 +113,19 @@ def found() -> list[Offer]:
     """Every flow there is to run, and where each came from.
 
     Every place asked the same question, which is :func:`offers`, and asked it in the order
-    they are offered in: the flows Humanize ships and the ones installed out of its index, then
-    the ones installed out of whatever flowverses have been added, then this project's own
+    they are offered in: the ones installed out of Humanize's own index, then the ones installed
+    out of whatever flowverses have been added, then this project's own
     flows and yours. One place works out what a flow is called and one place lists them,
     because two of either is two things to drift apart -- and a name that has drifted is a name
     `-f` will not take.
 
     Returns:
       One per flow there is to run, which is never one an index merely lists. One of
-      Humanize's is called as its index lists it, whichever of the two places `official` is
-      kept in it is in -- `aot`, `alice/kernel` -- and every other by `@<where it came
-      from>/<name>` -- `@local/scheduler`, `@theirs/loop` -- so a flow of yours that happens to
-      share a name with one of Humanize's is a different flow here rather than the same one,
-      and is written down, offered and remembered under a name of its own. A file that holds
-      several says so, `<name>:<inside>` apiece.
+      Humanize's is called as its index lists it -- `aot`, `alice/kernel` -- and every other
+      by `@<where it came from>/<name>` -- `@local/scheduler`, `@theirs/loop` -- so a flow of
+      yours that happens to share a name with one of Humanize's is a different flow here
+      rather than the same one, and is written down, offered and remembered under a name of
+      its own. A file that holds several says so, `<name>:<inside>` apiece.
     """
     return [one for verse in flowverses() for one in offers(verse)]
 
@@ -167,23 +155,14 @@ def entry(under: Path, name: str) -> Path | None:
 def within(one: Flowverse, name: str) -> Path | None:
     """The file to run for the flow of that name in one flowverse, wherever it keeps them.
 
-    A flowverse keeps its flows in one directory, except `official`, which is Humanize's own
-    and is kept in two: the ones in the package, and the ones installed out of its index. Asked here
-    rather than at each of the places that looks a flow up, so that both are searched in the
-    one order and a flow found while a list is drawn is the flow that runs.
-
     Args:
       one: The flowverse.
       name: The flow, by the name it is offered under.
 
     Returns:
-      The path to run, from the first of its directories to hold one, or None where none does.
+      The path to run, or None where the flowverse holds no such flow.
     """
-    for under in holds(one):
-        beside = entry(under, name)
-        if beside is not None:
-            return beside
-    return None
+    return entry(holds(one), name)
 
 
 def offered(under: Path) -> list[str]:
@@ -226,11 +205,8 @@ def offers(one: Flowverse) -> list[Offer]:
 
     Returns:
       One per flow, by directory, alphabetically: `@<flowverse>/<flow>`, except for Humanize's
-      own, which are called as its index lists them, `aot` and `alice/kernel`. Which of the two
-      places `official` is kept in a flow of Humanize's is in makes no difference to what it is
-      called: the package's `ralph_loop` and an installed `flame_chasoid` are both Humanize's,
-      so both are said the same way and a flow that moves between the two goes on answering to
-      the name it had. Yours are named the same way as anybody else's -- `@local/scheduler`,
+      own, which are called as its index lists them, `aot` and `alice/kernel`. Yours are named
+      the same way as anybody else's -- `@local/scheduler`,
       `@user/scheduler` -- so that a flow of yours sharing a name with one of Humanize's is
       listed beside it under a name of its own rather than instead of it. One an index listed
       under a user is called after the user too, `@theirs/alice/kernel`. The flow a bare ref
@@ -240,11 +216,10 @@ def offers(one: Flowverse) -> list[Offer]:
       directory that holds none is not among them -- a directory of flows has directories
       beside them that are not one.
 
-      Just the ones in the package for `official` before anything is installed out of its
-      index, and nothing at all for any other flowverse nothing has been installed out of.
+      Nothing at all for a flowverse nothing has been installed out of, `official` included.
 
     Note:
-      Reading a flow means importing it, so the entry point of every flow in the directories
+      Reading a flow means importing it, so the entry point of every flow in the directory
       the flowverse holds its flows in is imported to find out what it holds -- and nothing
       outside them, which is what those directories are for. Whoever installed a flow is
       trusting its repository with this machine; this is where that trust is spent.
@@ -421,23 +396,6 @@ def _missing(named_: str) -> str:
         return ""
     which = "flowverse has" if len(waiting) == 1 else "flowverses have"
     return f"the {' and '.join(waiting)} {which} not been fetched yet -- fetch it from /flow"
-
-
-def builtin(flow: FlowImpl) -> bool:
-    """Whether a flow is one Humanize ships in the package.
-
-    Args:
-      flow: The flow.
-
-    Returns:
-      Whether it was defined under :data:`BUILTIN_AT`.
-    """
-    return _made(flow).is_relative_to(BUILTIN_AT)
-
-
-def _made(flow: FlowImpl) -> Path:
-    """The file a flow was defined in, as :func:`placed` says it."""
-    return placed(flow.fn.__code__.co_filename)
 
 
 def _split(named_: str) -> tuple[str, str]:

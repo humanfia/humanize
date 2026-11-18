@@ -3,7 +3,8 @@
 // loop sends each turn to a session -- a fresh one each round, or one kept -- with ordinary
 // code between the turns, and another flow can call it, handing down only the roles it
 // declared. Pick a flow to watch its loop. Each loop is the one the flow really runs, and all
-// three ship with Humanize: `src/hmz/flows/builtin/<name>/__init__.py`. What a called flow is
+// three are flows of the official flowverse, each in a repository of its own
+// (`https://github.com/humanfia/<name>-flow`), run once installed. What a called flow is
 // handed is `protocol/python.md`. The CLIs in the sockets are only examples. Under the lanes, the
 // line of the flow running at each moment, written as the loop is: a session is opened with
 // `spawn()` and is only the conversation; where a turn works is the run's (`run(..., env=None)`,

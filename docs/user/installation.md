@@ -340,7 +340,7 @@ Until it has a key, Humanize lists `dsh` but does not pick it for you. Its model
 hmz chat -a dsh/deepseek-v4-flash:high "say hello"
 ```
 
-The six loops [FlowBench scores](https://humanfia.ai/flows/) ship with Humanize. A flow from a flowverse, such as `flame_chasoid:parallel_git_pr`, runs once you install it
+Humanize ships no flow. A flow from a flowverse, such as `ralph_loop` or `flame_chasoid:parallel_git_pr`, runs once you install it
 from `/flow`; `hmz exec` installs nothing.
 
 A `dsh` agent works with full access whatever its flow declares. See

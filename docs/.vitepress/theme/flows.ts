@@ -2,8 +2,8 @@
 // <HmzFlow flow="…" /> plays it wherever a page embeds one -- the tutorials do, for the flow
 // each one runs. Every flow's own page, its loop played, is at https://humanfia.ai/flows/.
 //
-// Everything is read off the flows themselves: `src/hmz/flows/builtin/` for the six
-// loops it ships, and for the rest the repository each is released from, as the official
+// Everything is read off the flows themselves: Humanize ships none, so each is read from the
+// repository it is released from (`humanfia/<name>-flow` for the six loops), as the official
 // flowverse (https://github.com/humanfia/flowverse) lists it. The visual grammar every scene is
 // drawn in is `components/flow/grammar.ts`.
 

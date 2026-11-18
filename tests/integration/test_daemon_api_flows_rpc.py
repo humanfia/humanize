@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+pytestmark = pytest.mark.usefixtures("loops")
+
 #: An agent run as an account nobody made.
 NOBODY = f"claude@nobody/{MODEL}"
 

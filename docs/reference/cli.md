@@ -195,7 +195,7 @@ path = ( "." | "/" | "~" ) , { character } ;
 
 | Form | Resolves to |
 | --- | --- |
-| `<flow>` | The first flow of that name, looking in `local`, `user`, `official` (built in, then installed), then the flows installed from added flowverses (the order of [`Flowverses.nearest`](/reference/sdk#flowverses)). |
+| `<flow>` | The first flow of that name, looking in `local`, `user`, `official` (what is installed from it), then the flows installed from added flowverses (the order of [`Flowverses.nearest`](/reference/sdk#flowverses)). |
 | `<user>/<flow>` | The flow installed from the official flowverse's `flows/<user>/<flow>/`: `alice/kernel`. |
 | `@<flowverse>/<flow>`, `@<flowverse>/<user>/<flow>` | The flow installed from that flowverse. `@local/…` is `./.hmz/flows/`, `@user/…` is `~/.hmz/flows/`. |
 | `…:<name>` | Another flow defined in the same module. |
@@ -328,7 +328,7 @@ Each limit at most once across every `-p`, among the flow's params or apart from
 | `graceful` | `1` `true` `yes` `on` / `0` `false` `no` `off`, case-insensitive. Default `true`: the turn under way when a limit is reached is let finish. | `bool` |
 | `graceful.duration`, `graceful.cost`, `graceful.output_tokens` | As `graceful`, for that limit alone, over what `graceful` says: `budget.cost=5,budget.output_tokens=200k,budget.graceful.output_tokens=false` cuts a turn off at its 200 000th token but lets one that reaches $5 finish. | `Graceful` |
 
-With no `budget.*`, every flow is refused, the flows Humanize ships included. A flow named
+With no `budget.*`, every flow is refused, the flows of the official flowverse included. A flow named
 `chat` is no exception: it is an ordinary flow. To talk to one agent with no budget, use
 [`hmz chat`](#hmz-chat).
 

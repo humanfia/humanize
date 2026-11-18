@@ -134,7 +134,7 @@ starts without it.
 
 Under `workspaces.<path>.flows.<flow>`, keyed by the flow's listed name (`rlar`,
 `alice/kernel`, `@local/twice`, `@theirs/review`, `humanize1:gen-plan`), so a local flow never
-inherits the setup of the built-in or installed flow it shadows.
+inherits the setup of the installed flow it shadows.
 
 | Key | Type | Meaning | Read back |
 | --- | --- | --- | --- |

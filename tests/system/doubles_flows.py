@@ -1,4 +1,4 @@
-"""Running a builtin flow with `hmz exec` on a real harness, and reading what it left.
+"""Running an installed loop with `hmz exec` on a real harness, and reading what it left.
 
 Each flow test runs the real command line in a child process, in the `workspace` repository,
 on the cheapest model of whichever signed-in CLI is here -- Claude Code first, else Codex --

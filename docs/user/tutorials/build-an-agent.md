@@ -26,7 +26,7 @@ is a flow of its own, and each hands the next a file you can read and edit.
 - **Install Humanize and sign in to a coding agent CLI.** See
   [Installation](/user/installation).
 - **Make one run first.** [Your first run](/user/first-run) shows a flow working in a scratch repository.
-- **Install `humanize1`.** It is not built in: it comes from the official
+- **Install `humanize1`.** Humanize ships no flow: it comes from the official
   [flowverse](/weaver/flowverses). Open `hmz`, type `/flow`, press **Install more…**, open
   `official` and install `humanize1`. `hmz exec` installs nothing. Leave with `/exit`.
 

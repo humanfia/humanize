@@ -325,11 +325,11 @@ ignore = [
 "src/hmz/daemon/api/__init__.py" = ["E501"]
 # What a command line writes, it prints.
 "src/hmz/cli/**" = ["T201"]
-# And so does a flow: what it prints is what its run shows whoever is watching. The flows
-# Humanize ships are written the way anybody's flow is, against what the flow API hands every
-# one of them: the params and context a flow is called with whether or not it reads them, and
-# a state that is read like a dict and has no `.get`.
-"src/hmz/flows/builtin/**" = ["T201", "ARG001", "SIM401"]
+# And so does a flow: what it prints is what its run shows whoever is watching. The stand-in
+# loops are written the way anybody's flow is, against what the flow API hands every one of
+# them: the params and context a flow is called with whether or not it reads them, and a
+# state that is read like a dict and has no `.get`.
+"tests/integration/flows/**" = ["T201", "ARG001", "SIM401"]
 "tests/**" = [
     "S101",    # an assert is what a test is
     "INP001",  # tests are imported by path (`--import-mode=importlib`), not as packages

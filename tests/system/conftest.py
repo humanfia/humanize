@@ -5,7 +5,8 @@ Never in CI and left out of a plain `uv run pytest`; run one by naming it, e.g.
 needs -- a CLI, its sign-in, docker, ssh -- is not on this machine.
 
 The root conftest still keeps each test's Humanize home, daemon and temp dir its own; the
-CLIs' own sign-ins are used in place, never copied.
+CLIs' own sign-ins are used in place, never copied. Humanize ships no flow, so the loops the
+tests run are installed into that home out of the real official index, as anybody's are.
 """
 
 from __future__ import annotations
@@ -24,10 +25,32 @@ if TYPE_CHECKING:
 #: The sample project the tasks are set on, not itself a test.
 collect_ignore = ["sample"]
 
+#: The loops the tests run, each a flow the official index lists.
+LOOPS = ("goal", "ralph_loop", "rlar", "stateful_ralph")
+
 
 @pytest.fixture(autouse=True)
 def _no_real_agents() -> None:
     """Overrides the root's: the agents installed here are what these tests run."""
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _clones_nothing_elsewhere() -> None:
+    """Overrides the root's: the loops are cloned from where the official index says."""
+
+
+@pytest.fixture(autouse=True)
+def _loops_installed(_humanize_home: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fetches the official index and installs the loops out of it, into the test's home."""
+    from hmz.runtime.flowing.index import install
+    from hmz.runtime.flowing.verses import OFFICIAL, fetch
+
+    # What the root sets to make every clone from GitHub fail at once.
+    for name in ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"):
+        monkeypatch.delenv(name)
+    fetch(OFFICIAL)
+    for flow in LOOPS:
+        install(OFFICIAL, flow)
 
 
 @pytest.fixture(autouse=True)

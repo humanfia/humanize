@@ -12,6 +12,9 @@ no flow and no budget, `hmz chat "<message>"` is the line: see [Chat](/user/chat
 
 ## Try it
 
+With [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) installed (see
+[Before you start](#before-you-start)):
+
 ```sh
 hmz exec -f ralph_loop \
     -a agent=claude/claude-opus-5:high \
@@ -32,9 +35,12 @@ a command. What each agent may touch is set by the flow. See [Permissions](/user
 - **Humanize installed**, so `hmz` is on your `PATH`. See [Installation](/user/installation).
 - **A coding agent CLI, installed and signed in** on this machine. `hmz exec` runs it as it is
   signed in, unless you name an [account](/user/settings#accounts).
-- **The flow within reach.** `ralph_loop` ships with Humanize. A flow you install from a
-  [flowverse](/weaver/flowverses) is there once it is installed; on a machine where it is not,
-  name the flow by its repository instead, as [in CI](/user/ci#a-flow-from-a-flowverse).
+- **The flow within reach.** Humanize ships no flow, and `hmz exec` installs nothing. Install
+  `ralph_loop` once from the official [flowverse](/weaver/flowverses#managing-flowverses): open
+  `hmz`, type `/flow`, press **Install more…**, open `official` and install `ralph_loop`. On a
+  machine where it is not installed, name the flow by its repository instead,
+  `-f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop`, as
+  [in CI](/user/ci#a-flow-from-a-flowverse).
 - **A task**, as text. Keeping it in a file such as `TASK.md` lets the line stay short and the
   task be reviewed like any other file.
 

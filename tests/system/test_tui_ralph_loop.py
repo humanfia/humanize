@@ -1,4 +1,4 @@
-"""`hmz` at the prompt, start to finish: a builtin flow set up, run, watched and kept.
+"""`hmz` at the prompt, start to finish: an installed flow set up, run, watched and kept.
 
 The interface is opened in the sample project, `ralph_loop` chosen in `/flow` and its agent
 set to the cheapest model of a CLI signed in here, a budget given, and the task typed. The

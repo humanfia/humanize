@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from textual.pilot import Pilot
 
 #: Every epic here is held by a daemon of the test's own, in this process.
-pytestmark = pytest.mark.usefixtures("daemon")
+pytestmark = pytest.mark.usefixtures("daemon", "loops")
 
 
 @pytest.fixture
