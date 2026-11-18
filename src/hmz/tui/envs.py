@@ -1987,7 +1987,7 @@ class Commit(Form[tuple[str, bool]]):
     def action_done(self) -> None:
         said = self._typed_in.get("message", "").strip()
         amend = self._typed_in.get("amend") == "on"
-        if not said and not amend:
+        if not said:
             self._wrong = "message is required"
             self._fill()
             return

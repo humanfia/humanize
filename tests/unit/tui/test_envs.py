@@ -13,6 +13,7 @@ import pytest
 
 from hmz.tui.envs import (
     ACK_EVERY,
+    Commit,
     Credit,
     Escape,
     Inbox,
@@ -383,3 +384,26 @@ def test_a_reach_asks_the_host_and_tells_whoever_watches() -> None:
     assert asked == [{"do": "env.list", "env": "1:a", "path": ""}]
     assert seen == [1]
     assert reach.envs() == [_env()]
+
+
+@pytest.mark.parametrize("amend", ["off", "on"])
+async def test_a_commit_is_not_answered_without_a_message(amend: str) -> None:
+    from textual.app import App
+    from textual.widgets import Label
+
+    form = Commit()
+    answers: list[tuple[str, bool] | None] = []
+
+    class _Host(App[None]):
+        def on_mount(self) -> None:
+            self.push_screen(form, answers.append)
+
+    async with _Host().run_test() as pilot:
+        await pilot.pause()
+        form.dropped("amend", amend)
+        form.action_done()
+        await pilot.pause()
+        said = "" if answers else str(form.query_one("#tuning", Label).content)
+
+    assert answers == []
+    assert "message is required" in said
