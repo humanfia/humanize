@@ -170,8 +170,8 @@ directory is what decides when it runs: no marker to write.
 
 | | Holds | Rules |
 | --- | --- | --- |
-| `tests/unit/<package>/` <Badge type="tip" text="CI" /> | One package of `src/hmz/` alone, in the directory named for it: `cli`, `coganchor`, `daemon`, `flows`, `runtime`, `sdk` or `tui` | Only the package's public names, never a `_private` name or module. Every other `hmz` package mocked. No subprocess, socket or network. A job of its own must finish in 3 minutes |
-| `tests/integration/test_<topic>_*.py` <Badge type="tip" text="CI" /> | Packages wired together against fakes this repository wrote: a stand-in CLI, a fake app server, a loopback socket, the mock LLM service | Flat, no subdirectories. The topic is one of `core`, `agents`, `tui`, `daemon`, `anchor` and `web`, a job each, which must finish in 10 minutes |
+| `tests/unit/<package>/` <Badge type="tip" text="CI" /> | One package of `src/hmz/` alone, in the directory named for it: `cli`, `coganchor`, `daemon`, `flows`, `reach`, `relay`, `rpc`, `rtc`, `runtime`, `sdk`, `trust`, `tui` or `web` | Only the package's public names, never a `_private` name or module. Every other `hmz` package mocked. No subprocess, socket or network. A job of its own must finish in 3 minutes |
+| `tests/integration/test_<topic>_*.py` <Badge type="tip" text="CI" /> | Packages wired together against fakes this repository wrote: a stand-in CLI, a fake app server, a loopback socket, the mock LLM service | Flat, no subdirectories. The topic is one of `core`, `agents`, `tui`, `daemon`, `anchor`, `web`, `reach` and `relay`, a job each, which must finish in 10 minutes |
 | `tests/system/` <Badge type="warning" text="you" /> | Real agents on real tasks: an installed coding agent CLI, signed in, working on `tests/system/sample/`, with docker or ssh where the test needs them. And in `tests/system/web/`, `hmz web`'s page drawn and clicked in real browsers through Playwright, on the stand-ins integration uses | 5 to 30 minutes and real tokens a test; minutes and no tokens in `web/`. Never in CI |
 
 `ruff`'s `SLF001` and `pyright`'s `reportPrivateUsage` fail a test that reaches a private name.
