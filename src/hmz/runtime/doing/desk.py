@@ -515,13 +515,20 @@ class Desk:
         }
         keys = {known[id(one.driver)].id for one in held if id(one.driver) in known}
         chains: dict[str, str] = {}
+        roots = {one.chain: one for one in held}
         for one in held:
             if loop is None:
                 continue
+            # Its label is its role and what derived it; where its root is, is its id's.
+            root = one
+            while root.parent in roots:
+                root = roots[root.parent]
+            label = one.role + one.chain[len(root.chain) :]
             was = known.get(id(one.driver))
             if was is not None:
                 # The workspace is named by the role that takes it once one does.
                 was.role = one.role
+                was.chain = label
                 was.declared = caps_of(frozenset(one.declared))
                 fresh[was.id] = was
                 chains.setdefault(one.chain, was.id)
@@ -537,7 +544,7 @@ class Desk:
                 id=key,
                 run=run,
                 role=one.role,
-                chain=one.chain,
+                chain=label,
                 parent=None if one.parent is None else chains.get(one.parent),
                 driver=one.driver,
                 loop=loop,
