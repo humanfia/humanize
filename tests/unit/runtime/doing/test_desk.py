@@ -449,6 +449,35 @@ def test_a_directory_is_listed_dirs_first_and_a_file_stated(
     }
 
 
+class Homely(Box):
+    """A driver whose workdir is under a home that only its machine knows."""
+
+    def at(self, path: str) -> str:
+        at = path if path.startswith("~") else super().at(path)
+        return f"/home/me{at[1:]}" if at.startswith("~") else at
+
+    async def absolute(self, path: str) -> str:
+        return self.at(path)
+
+
+def test_a_path_under_a_home_is_answered_as_an_absolute_one(
+    host: tuple[Host, Workspace], holding: Holding
+) -> None:
+    homely = Homely("~/proj", files={"/home/me/proj/src/a.py": b"x = 1\n"})
+    holding.envs[0] = Held("repo", "ssh@box/~/proj", None, homely)
+    alice, _ = _going(host)
+    (env,) = _envs(alice, bool)
+    assert env["workdir"] == "~/proj"
+
+    listed = _ok(alice.asks("env.list", env=env["id"], path=env["workdir"]))
+    assert listed["path"] == "/home/me/proj"
+    assert [one["name"] for one in listed["entries"]] == ["src"]
+    stated = _ok(alice.asks("env.stat", env=env["id"], path="src/a.py"))
+    assert stated["path"] == "/home/me/proj/src/a.py"
+    under = posixpath.join(listed["path"], "src")
+    assert _ok(alice.asks("env.list", env=env["id"], path=under))["path"] == under
+
+
 def test_a_file_is_read_in_chunks_reading_it_once(
     host: tuple[Host, Workspace], box: Box
 ) -> None:
