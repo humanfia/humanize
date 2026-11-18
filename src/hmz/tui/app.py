@@ -5045,6 +5045,9 @@ class Humanize(App[None]):
             self.show(f"hmz: {ran.name} cannot be continued here: {why}", "red")
             return
         self._forgets_prefer()
+        if ran.prefer in _PREFERS:
+            # Its own, as its epic records it, which carrying it on keeps.
+            self._prefer, self._prefer_from = ran.prefer, "chat"
         self._moves(where.chat(), None)
         self._continuing = epic
         self._chat_slot, self._chat_epic = "", epic.name
