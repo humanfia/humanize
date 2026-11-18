@@ -793,6 +793,8 @@ export async function mount(el, ctx) {
       let stat
       try {
         stat = await call('env.stat', { path: doc.path })
+        // A link is open as the file it leads to, whose size and time a read answers.
+        if (stat.kind === 'link') stat = await call('env.read', { path: doc.path, offset: 0, length: 0 })
       } catch (error) {
         if (/^No such file/.test(said(error)) && !doc.gone) {
           doc.gone = true

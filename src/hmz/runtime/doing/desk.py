@@ -115,6 +115,9 @@ _PATIENCE = 120.0
 #: How much of the files read is kept, by bytes, for reading the same one again in chunks.
 _CACHED = 128 << 20
 
+#: How many links are followed from a path to the file it is read as, as many as Linux follows.
+_HOPS = 40
+
 #: Says a chunk of a file too large to hold: its SHA-256 first where asked for, then `.`,
 #: then the chunk in base64. Arguments: the path, the offset, the length, and `1` for the hash.
 _RANGE = (
@@ -705,11 +708,22 @@ class Desk:
         except FileNotFoundError:
             raise Refused(f"No such file: {path}") from None
 
+    def _file(self, env: _Env, driver: Browsable, path: str) -> Entry:
+        """The entry of the file a path is read and written as: where a link leads."""
+        at = path
+        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        for _ in range(_HOPS):
+            if found.kind != "link" or found.target is None:
+                break
+            at = posixpath.join(posixpath.dirname(at), found.target)
+            found = self._missing(path, lambda at=at: self._on(env, driver.stat(at)))
+        return found
+
     def _whole(
         self, env: _Env, driver: Browsable, path: str
     ) -> tuple[bytes, str, Entry]:
         """A file's bytes and etag, read once for every chunk of it while it stays as it is."""
-        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        found = self._file(env, driver, path)
         if found.kind == "dir":
             raise Refused(f"{path} is a directory")
         key = (
@@ -753,7 +767,7 @@ class Desk:
         path = _path(said)
         offset = max(0, _int(said, "offset", 0))
         length = min(READ_MAX, max(0, _int(said, "length", READ_MAX)))
-        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        found = self._file(env, driver, path)
         if found.size > _CACHED:
             return self._ranged(env, path, found, offset, length)
         data, etag, found = self._whole(env, driver, path)
@@ -820,7 +834,7 @@ class Desk:
         expected = said.get("if_match")
         if expected is not None:
             try:
-                found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+                found = self._file(env, driver, path)
                 if found.size > _CACHED:
                     etag = self._ranged(env, path, found, 0, 0)["etag"]
                 else:
@@ -832,7 +846,7 @@ class Desk:
             if etag != expected:
                 raise Refused(f"{path} changed since you read it.")
         self._on(env, env.driver.write(path, data))
-        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        found = self._file(env, driver, path)
         etag = hashlib.sha256(data).hexdigest()
         key = (
             env.id,
