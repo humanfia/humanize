@@ -44,9 +44,10 @@ type Exec = Callable[[Sequence[str]], Awaitable[tuple[int, str, str]]]
 DIFF_CAP = 8 << 20
 
 #: What every script starts with: the environment git is run under, and `g` for git in the
-#: repository the first argument names.
+#: repository the first argument names. A path is a file's name, never a pattern.
 _PRELUDE = (
-    "export GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat GIT_TERMINAL_PROMPT=0 GIT_EDITOR=:; "
+    "export GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat GIT_TERMINAL_PROMPT=0 GIT_EDITOR=: "
+    "GIT_LITERAL_PATHSPECS=1; "
     'root=$1; shift; g() { git --no-optional-locks -c core.quotepath=off -C "$root" "$@"; }; '
 )
 
