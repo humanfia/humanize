@@ -598,6 +598,11 @@ nothing any workspace remembers.
 The turn is drawn on stderr and the answer written to stdout, as
 [`hmz exec`](#watching-a-run) does.
 
+A line the chat serves with no turn ends it the same way, exit `0`: a `!<command>` hmz runs
+itself is drawn on stderr as `! <command>`, with what it wrote as errors and `exit <status>`
+where that is not `0`, and what it printed is written to stdout; a line the chat refuses is
+said why on stderr as `hmz chat: <reason>`.
+
 | Exit | When |
 | --- | --- |
 | `0` | The turn is done. |
