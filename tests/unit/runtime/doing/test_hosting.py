@@ -1809,6 +1809,22 @@ def test_a_chat_that_fails_before_its_epic_is_refused_with_why(
     alice.told("ended", run=1, how="crashed")
 
 
+def test_a_chat_that_is_refused_before_its_epic_is_refused_with_why(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    _, alice = chatting
+    where.failing = Refused("the chat names no claude account called 'nobody'")
+
+    refused = alice.asks("chat.start", agent="claude@nobody/opus", task="hi")
+
+    assert refused == {
+        "ok": False,
+        "why": "the chat names no claude account called 'nobody'",
+        "code": 400,
+    }
+    alice.told("ended", run=1, how="refused")
+
+
 def test_what_is_said_to_a_chat_is_its_next_message_and_its_turn_runs_until_answered(
     chatting: tuple[Host, Told], where: Workspace
 ) -> None:
