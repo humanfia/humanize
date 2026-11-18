@@ -1636,7 +1636,7 @@ codex app-server [--strict-config] [--disable goals] [--enable|--disable <featur
 ```
 
 Threads are `thread/start`, `thread/resume` and `thread/fork`; turns are `turn/start` (model,
-effort, rung, approval, service tier, `outputSchema`); steering is `turn/steer`.
+effort, approval, service tier, `outputSchema`); steering is `turn/steer`.
 A turn ends on `turn/completed`, whose status and error say whether it failed; the thread may
 fall `idle` first, which ends nothing.
 
@@ -1654,12 +1654,12 @@ fall `idle` first, which ends nothing.
 | a non-positive value | `model_context_window must be a positive integer, not '-1'` |
 | wrong order | `model_auto_compact_token_limit must be below model_context_window` |
 | `goals` as a feature | `goals is the flow's to say, as AgentConfig(goals=...) -- a second place for it would be two answers` |
-| a web or browser feature | `web_search_request is what the agent may reach for, which the flow says as AgentConfig(web_search=...) and AgentConfig(permission=...) where it declares the place -- a feature is not a second place for it` |
+| a web or browser feature | `web_search_request is what the agent may reach for, which the flow says as AgentConfig(web_search=...) and AgentConfig(fence=...) where it declares the place -- a feature is not a second place for it` |
 | bad `approvals` | `approvals must be one of '', 'untrusted', 'on-failure', 'on-request', 'never', not 'sometimes'` |
 
 - The server reads `overrides`, `features`, `strict_config`, `web_search`, the account and the
   fence once at start; a change starts a new server for the next turn and each conversation is
-  resumed there by id. Model, effort, rung and `approvals` are per call.
+  resumed there by id. Model, effort and `approvals` are per call.
 - The agent owns every app server it starts until that server is down, including one still
   being introduced to, one an account or callback change let go of while a turn runs on it,
   and one retiring that is still writing its home back. Stopping the agent, a cut and the
