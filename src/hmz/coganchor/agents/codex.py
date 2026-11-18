@@ -327,9 +327,17 @@ _EXTERNAL = {"type": "externalSandbox"}
 #: names of the flow's own callbacks it was told about, the command it was started with and
 #: the fence it was started inside -- and where the agent's shelf was, whose command lines
 #: are on its PATH only if it was anywhere (:meth:`Shelf.where`), and the flow's skills its
-#: virtual home was built carrying. See :meth:`CodexAgent._knowing`.
+#: virtual home was built carrying -- and what of that fence was put around it from outside,
+#: which is none of it where Codex's own sandbox held it (:meth:`CodexAgent.natively`). See
+#: :meth:`CodexAgent._knowing`.
 type _Knows = tuple[
-    str, tuple[str, ...], tuple[str, ...], Fence | None, str, tuple[str, ...]
+    str,
+    tuple[str, ...],
+    tuple[str, ...],
+    Fence | None,
+    str,
+    tuple[str, ...],
+    Fence | None,
 ]
 
 #: What the agent is noted to have been told where its own sandbox holds its fence, beside
@@ -814,7 +822,7 @@ class _AppServer:
         #: has been set up as something its server reads only as it starts, starts another
         #: rather than going on talking to this one. Kept here rather than on the agent, so
         #: that two starting at once cannot leave the agent believing either is the other.
-        self.knows: _Knows = ("", (), (), None, "", ())
+        self.knows: _Knows = ("", (), (), None, "", (), None)
         #: The virtual home it was started in, dropped once it is down.
         self.home = home
         #: Whose turns run here, so that what is teed can be what nobody is watching. Held
@@ -3267,7 +3275,11 @@ class CodexAgent(AgentBase):
         for its next turn to run at them -- a fence cut while the server that searched stayed
         up would be a fence that cut nothing. Restarted as the one that was said to stop
         asking is (:meth:`_down`), the threads staying on disk and each picked back up on the
-        next server by the id it already has.
+        next server by the id it already has. And so is one started with nothing around it,
+        Codex's own sandbox holding its fence (:meth:`holds`), once the agent is moved onto
+        settings under which that sandbox no longer does -- a hook hung on
+        `PERMISSION_REQUEST` between two turns: the fence is then held from outside, which
+        only a server started inside it is.
 
         Returns:
           The account to start one as, the names of the flow's own callbacks to tell it about,
@@ -3282,6 +3294,7 @@ class CodexAgent(AgentBase):
           running on it, and taken down by the last turn that is where one is.
         """
         offering = self.toolbox.names()
+        fence = self.config.fence
         # Read before the environment is built out of it: a fallback landing between the two
         # reads would name the account the new server is *not* signed into, and a server that
         # believes it is already elsewhere is one nothing ever starts again.
@@ -3289,9 +3302,10 @@ class CodexAgent(AgentBase):
             self.node().name,
             offering,
             tuple(self._argv(offering)),
-            self.config.fence,
+            fence,
             self.shelf.where(),
             tuple(one.name for one in self.loaded),
+            None if fence is None else self.natively(fence),
         )
         self._forget_stopped()
         # The LiteLLM gateway every server of an account it holds was pointed at, gone: they

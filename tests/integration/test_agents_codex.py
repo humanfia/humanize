@@ -704,6 +704,54 @@ def test_a_codex_named_in_sandbox_native_is_fenced_where_it_asks_before_a_comman
     assert json.loads(said[-1].text)["policy"] is None
 
 
+def test_a_codex_its_sandbox_held_is_started_again_inside_the_fence_once_it_asks(
+    codex: Standins, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A server started with nothing around it is not the one a granted command runs under."""
+    wrapped: list[Fence] = []
+
+    def wrapper(fence: Fence) -> list[str]:
+        wrapped.append(fence)
+        return []
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    monkeypatch.setattr("hmz.coganchor.agents.codex._starts", lambda: True)
+    settings = Path(os.environ["HUMANIZE_HOME"], "settings.yaml")
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text("sandbox:\n  native: [codex]\n", encoding="utf-8")
+    (tmp_path / "home" / ".codex" / "rules").mkdir(parents=True)
+    fence = Fence.of(
+        rules=[("/", READ), ("~", READ), (".", WRITE)],
+        online=False,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    # The feature named by the flow, so the command a server is started with says the same
+    # whether or not a fence is put around it: only the fence tells the two servers apart.
+    held = dataclasses.replace(
+        CONFIG, fence=fence, features=(("use_legacy_landlock", True),)
+    )
+    agent = CodexAgent(held)
+    try:
+        session = agent.new(tmp_path)
+        list(session.stream("rules"))
+        assert not wrapped
+        # A hook hung on PERMISSION_REQUEST between two turns of a running agent.
+        agent.reconfigure(dataclasses.replace(held, approvals="untrusted"))
+        said = list(session.stream("rules"))
+    finally:
+        agent.stop()
+
+    assert wrapped
+    assert not any(one.open or one.online for one in wrapped)
+    assert json.loads(said[-1].text)["policy"] is None
+
+
 def _natively(session: Any, line: str) -> list[Event]:
     """What a chat's native line said, taken as a native turn."""
     return list(session.stream(line, native=True))
