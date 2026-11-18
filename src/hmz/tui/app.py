@@ -4931,10 +4931,14 @@ class Humanize(App[None]):
         epics = self.hmz.epics
 
         def listed() -> list[tuple[str, str, str]]:
+            from hmz.daemon.reach import conversations
+
+            # Not this one, and not Ai-chan's, which is no chat of yours to carry on.
+            others = {self._chat_epic, *conversations().epics()}
             rows: list[tuple[str, str, str]] = []
             for epic in reversed(epics.all()):
                 ran = epics.read(epic)
-                if ran is None or not _a_chat(ran) or epic.name == self._chat_epic:
+                if ran is None or not _a_chat(ran) or epic.name in others:
                     continue
                 said = " ".join(ran.task.split())
                 rows.append((epic.name, _clipped(said, 60) or epic.name, epic.name))

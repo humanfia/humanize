@@ -162,7 +162,7 @@ override it:
 | To set | Where |
 | --- | --- |
 | every chat's | **Chat prefers for `$`** on the [General page of `/settings`](/user/settings#general), or `chat.prefer` in [the settings file](/reference/settings) |
-| this chat's | `/prefer native` or `/prefer flow` in the chat; the toggle on the chat in `hmz web` |
+| this chat's | `/prefer native` or `/prefer flow` in the chat; **Skill or flow** in the chat's **More** menu in `hmz web`, where `native` reads **Use the skill** and `flow` **Start the flow** |
 
 `/prefer` alone says which is in force and whether it comes from the settings or this chat. A
 chat's own preference is kept in its epic, and carrying the chat on keeps it.

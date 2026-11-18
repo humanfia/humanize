@@ -17,6 +17,7 @@ from hmz import daemon
 from hmz.daemon import where
 from hmz.reach.pipes import SocketPipe
 from hmz.rpc import PROTOCOL, Peer, RpcError
+from hmz.runtime.epic import every
 from tests.integration.doubles_core import AGENT, install
 from tests.integration.doubles_daemon import WAITS, hosting, until, written
 
@@ -112,6 +113,12 @@ def _epics(peer: Peer) -> set[str]:
     return {one["name"] for one in peer.call("runs.list", {}, timeout=30)["runs"]}
 
 
+def _workspaces(peer: Peer) -> dict[str, int]:
+    """How many epics each workspace listed has, by its path."""
+    listed = peer.call("workspaces.list", {}, timeout=30)["workspaces"]
+    return {one["path"]: one["epics"] for one in listed}
+
+
 def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
     workspace: tuple[Path, Path], tmp_path: Path
 ) -> None:
@@ -200,19 +207,33 @@ def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
             one["path"]
             for one in ai.call("workspaces.list", {}, timeout=30)["workspaces"]
         ] == [mine]
-        assert until(lambda: len(_epics(user)) == 3)
+        assert until(lambda: len(every()) == 3)
         ours_epic = ours.asked({"do": "status"})["epic"]
-        # Her own epic is left out once its host has named it, a moment after it starts.
+        theirs_epic = theirs.asked({"do": "status"})["epic"]
+        # Her own epic is an epic, and on nobody's list of them: not hers, not the user's.
         assert until(lambda: _epics(ai) == {ours_epic})
         assert ai.call("runs.list", {}, timeout=30)["total"] == 1
+        assert _epics(user) == {ours_epic, theirs_epic}
+        assert user.call("runs.list", {}, timeout=30)["total"] == 2
+
+        # Nor is anything of hers a workspace's: her epics, her hosts, her own directory.
+        user.call("aichan.create", {"scope": "daemon", "nous": AGENT, "task": "all"})
+        assert until(lambda: len(every()) == 4)
+        assert _epics(user) == {ours_epic, theirs_epic}
+        assert _workspaces(user) == {mine: 1, elsewhere: 1}
 
         # Forgotten: her host goes, her link with it, and her scratch directory.
         assert user.call("aichan.forget", {"id": 1}, timeout=30) == {}
+        assert user.call("aichan.forget", {"id": 2}, timeout=30) == {}
         assert user.call("aichan.list", {}, timeout=30) == {"conversations": []}
         assert until(lambda: not link.exists())
         assert until(lambda: ai.closed)
         with pytest.raises(RpcError, match=r"There is no Ai-chan #1\."):
             user.call("aichan.forget", {"id": 1}, timeout=30)
+        # Her epics are kept, and stay off both lists.
+        assert len(every()) == 4
+        assert _epics(user) == {ours_epic, theirs_epic}
+        assert _workspaces(user) == {mine: 1, elsewhere: 1}
         user.close()
     finally:
         ours.stop()

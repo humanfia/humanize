@@ -1160,11 +1160,17 @@ replacement by the daemon alone.
 **4.16.3** `<home>/ai/<machine>/<id>/` MUST be the scratch directory (Section 14.2.7 of [CORE]) of
 the conversation whose `id` is `<id>`, with mode `0700`, made when the conversation is made.
 
-**4.16.4** Forgetting a conversation MUST remove its entry and its scratch directory, and MUST NOT
+**4.16.4** Forgetting a conversation MUST remove its entry and its scratch directory, MUST first
+add the epic name of its epic, where it has one, to `forgotten.yaml` (Section 4.16.6), and MUST NOT
 remove the records of its epic.
 
 **4.16.5** The **user** MAY delete `<home>/ai/` while no daemon of this home runs, which forgets
-every conversation.
+every conversation, and after which the epic of each is an epic as any other.
+
+**4.16.6** `forgotten.yaml` in it MUST be a YAML list of the epic names of the epics of the
+conversations forgotten, in the order forgotten, with mode `0600`, written by atomic replacement by
+the daemon alone; a reader MUST take each as the epic of an Ai-chan conversation (Section 14.7.4 of
+[CORE]).
 
 ## 5. Workspaces
 

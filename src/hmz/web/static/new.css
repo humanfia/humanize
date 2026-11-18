@@ -1,0 +1,61 @@
+/* A new chat and a new epic: what stands under the box the first message is typed into, and a new
+   chat's greeting. Every colour is a token of style.css. */
+
+/* Under the box, at its left, as a chat app keeps the folder a session works in: clear of the
+   box's shadow, and no wider than the box. */
+.composer-under {
+  width: min(100%, var(--column));
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.composer-under .menu-holder {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The folder, as a chip: its icon, its name and a chevron, quieter than the box over it. */
+.composer-under .flow-picker {
+  align-items: center;
+  max-width: 100%;
+  min-height: var(--control-h-sm);
+  padding: 3px 8px;
+  border-width: 1px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.composer-under .flow-picker b {
+  font-weight: 600;
+  letter-spacing: 0;
+  max-width: min(40ch, 60vw);
+}
+
+.composer-under .flow-picker .icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.composer-under .flow-picker:hover,
+.composer-under .flow-picker[aria-expanded='true'] {
+  color: var(--ink);
+}
+
+/* A new chat opens as a chat app's new session does: its mark and its greeting in the middle, over
+   the box. */
+[data-hmz='new-chat'] .home-mark {
+  margin-inline: auto;
+}
+
+[data-hmz='new-chat'] .greeting {
+  text-align: center;
+}
+
+[data-hmz='new-chat'] .greeting::after {
+  margin-inline: auto;
+}

@@ -2227,17 +2227,6 @@ pre.block {
   color: var(--budget-ink);
 }
 
-/* A chat's preference for a `$` name that is both a skill and a flow, and where it comes from. */
-.prefer-switch {
-  align-items: center;
-}
-
-.prefer-label,
-.prefer-from {
-  padding: 0 8px;
-  font-size: 11.5px;
-}
-
 .chip-select,
 .chip-btn {
   display: inline-flex;

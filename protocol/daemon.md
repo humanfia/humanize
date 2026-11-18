@@ -1299,8 +1299,9 @@ found in the task, flow or epic name), `offset` (default `0`) and `limit` (defau
 **4.16.1.2** `runs.list` MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`,
 `counts` (`{ending: n}` over every epic) and `flows` (every flow, sorted).
 
-**4.16.1.3** `runs.list` MUST leave out the epic of every Ai-chan conversation (Section 14.7.4 of
-[CORE]).
+**4.16.1.3** `runs.list` MUST leave out, whatever session calls it, the epic of every Ai-chan
+conversation, kept or forgotten (Section 14.7.4 of [CORE], Section 4.16.6 of [FILES]), and the epic
+the host of an `ai:` slot holds.
 
 #### 4.16.2. Epic rows
 
@@ -1461,6 +1462,10 @@ and answer `kept` (its absolute path) beside what `workspaces.list` answers.
 and answer as `workspaces.list` does.
 
 **4.17.5.4** `workspaces.add` and `workspaces.forget` MUST be writes.
+
+**4.17.5.5** `workspaces.list` MUST answer as though no Ai-chan conversation, kept or forgotten, had
+an epic, and no `ai:` slot a host (Section 14.7.4 of [CORE]): neither counted in `epics`, `last` or
+`running`, nor a reason to list a directory.
 
 #### 4.17.6. `flowverses.*`
 

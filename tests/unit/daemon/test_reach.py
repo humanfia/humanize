@@ -223,6 +223,28 @@ def test_conversations_are_numbered_kept_and_forgotten(kept: Conversations) -> N
     assert kept.made({"slot": "ai:3"})["id"] == 3
 
 
+def test_the_epic_of_a_conversation_forgotten_stays_an_ai_chan_epic(
+    kept: Conversations,
+) -> None:
+    kept.made({"slot": "ai:1"})
+    kept.made({"slot": "ai:2"})
+    kept.made({"slot": "ai:3"})
+    kept.changed(1, record="e1")
+    kept.changed(3, record="e3")
+
+    # One written down, one its host alone has named yet, and one of no conversation.
+    assert kept.forgot(1) is not None
+    assert kept.forgot(2, "e2") is not None
+    assert kept.forgot(2, "e4") is None
+
+    assert kept.epics() == {"e1", "e2", "e3"}
+    assert (kept.at / "forgotten.yaml").stat().st_mode & 0o777 == 0o600
+    assert kept.forgot(3) is not None
+    again = Conversations()
+    again.at = kept.at
+    assert again.epics() == {"e1", "e2", "e3"}
+
+
 def test_conversations_that_cannot_be_read_are_none(kept: Conversations) -> None:
     kept.at.mkdir(parents=True)
     (kept.at / "conversations.yaml").write_text("{not: a list}")

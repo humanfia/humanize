@@ -164,7 +164,7 @@ What to look at, by number:
   ```
 
 - **Enter first, ask after.** `/btw` on its own enters btw mode with no question yet.
-- **On the web page**, the Aside tab keeps several side conversations at once, one tab each,
+- **On the web page**, the Aside tab (**Side questions** beside a chat) keeps several side conversations at once, one tab each,
   and **New aside** opens another. A new one's **Ask** chip, above its box, picks the session
   it asks: each agent with the role it fills, opening onto its conversations, newest first.
   Type in the box at its top to narrow it to the agents, roles and conversations that match.
