@@ -17,6 +17,7 @@ import { settle } from '../asking/card.js'
 import { call, exported, given, hash } from '../api.js'
 import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, iconButton, lasting, problem, secondsOf, when } from '../dom.js'
+import { modelFact } from '../chips/model.js'
 import { ask, chatAsk, follow } from '../held.js'
 import { composer as composed } from '../composer.js'
 import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
@@ -488,7 +489,8 @@ export function mount(root, { parts, query }) {
     const carried = !going && chat && detail.picks_up && !detail.held && !carryingOn
     if (carried && !carry) carry = carrying(detail)
     // Every line of a chat going is said to it, an answer to what it asks included.
-    if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }))
+    if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), true)
+    talk?.model.again()
     const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
     region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
@@ -897,10 +899,18 @@ export function mount(root, { parts, query }) {
    * The box under a chat: it completes the chat's native input, serves the names hmz keeps and
    * starts the flows a line names, and says every other line as `say` does.
    */
-  function chatBox(first, say) {
+  function chatBox(first, say, going = false) {
     // The epic as it was read last, which the box outlives a reading of.
     const now = () => (seen && seen.detail) || first
+    const model = modelFact({
+      of: () => now().agents?.[0]?.runs || '',
+      fresh: () => hash(`/new/chat?${new URLSearchParams(given({ workspace: now().workspace }))}`),
+      // A chat going takes its CLI's own `/model` and `/effort`; one folded away is said only what carries it on.
+      takes: (name) => going && entries().some((one) => one.source === 'native' && one.sigil === '/' && one.name === name && one.how === 'call'),
+      say: (line) => say(line).catch((error) => toast(error.message)),
+    })
     const box = composed({
+      tools: [model.node],
       placeholder: 'Reply…',
       label: 'What to say',
       complete: (text, caret) => completing(now(), text, caret),
@@ -922,7 +932,7 @@ export function mount(root, { parts, query }) {
     // Typed in, the box is no longer asking what it takes.
     box.text.addEventListener('input', hideTip)
     box.node.dataset.hmz = 'say'
-    return box
+    return Object.assign(box, { model })
   }
 
   /** What the page does for a name hmz keeps, as Section 8.9.8 of protocol/core.md has it done. */

@@ -1,0 +1,72 @@
+/* The chip on a chat's box that says which model answers it (chips/model.js): quiet, at the right
+   of the box's bar, by the button that sends. */
+
+.model-pick {
+  display: inline-flex;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.model-pick[hidden] {
+  display: none;
+}
+
+/* While the agent a workspace remembers is being read. */
+.model-pick.stale {
+  opacity: 0.5;
+}
+
+.model-chip {
+  border-color: transparent;
+  background: none;
+}
+
+.model-chip:hover:not([aria-expanded='true']) {
+  background: var(--hover);
+}
+
+.model-chip .chip-value {
+  font-weight: 500;
+}
+
+.model-chip .icon {
+  color: var(--ink-3);
+}
+
+.model-chip[aria-expanded='true'] .icon {
+  color: inherit;
+}
+
+.model-menu {
+  display: contents;
+}
+
+.model-menu .hint {
+  margin: 2px 8px 6px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.popover .model-menu .menu-filter {
+  margin: 4px 0 2px;
+}
+
+/* A part of a chat's agent that is said, not picked. */
+.model-fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 8px 4px 34px;
+  font-size: 12.5px;
+}
+
+.model-fact .label {
+  color: var(--ink-3);
+}
+
+.model-fact .mono {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
