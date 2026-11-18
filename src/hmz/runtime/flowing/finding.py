@@ -459,8 +459,11 @@ def _path(said: str) -> str:
     In both the shapes a flow is: the directory it is, the file it is for whoever points at one
     outright -- a flow being written, a file a test wrote out -- and the `.py` beside a path
     with the extension left off, which is how a single-file flow is written down anywhere its
-    name is not what it is called by.
+    name is not what it is called by. A relative one is read from the workspace
+    :func:`hmz.working_in` names, where there is one, rather than from wherever the process
+    serving that workspace happens to be run in.
     """
+    said = os.path.join(here().parent, said)
     for shape in (os.path.join(said, ENTRY), said, f"{said}.py"):
         if os.path.isfile(shape):
             return str(placed(shape))
