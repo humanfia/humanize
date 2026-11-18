@@ -158,6 +158,45 @@ def test_a_program_under_bwrap_is_held_to_its_fence(tmp_path: Path) -> None:
 
 @_bwrapped
 @pytest.mark.skipif(sys.platform != "linux", reason="bubblewrap is Linux's")
+def test_a_written_root_keeps_its_devices_under_bwrap(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    (work / "secret").mkdir(parents=True)
+    # The carve-out is what sends a fence that writes `/` to a backend at all.
+    fence = Fence.of(
+        rules=[("/", WRITE), ("./secret", NONE)],
+        online=True,
+        workdir=work,
+        home=tmp_path / "nobody",
+    )
+
+    done = subprocess.run(
+        [
+            sys.executable,
+            "-Pm",
+            "hmz",
+            "internal",
+            "fence",
+            f"--policy={fence.dumps()}",
+            "--sandbox=bwrap",
+            "--",
+            "sh",
+            "-c",
+            "echo x >/dev/null && head -c 4 /dev/urandom | wc -c",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        cwd=work,
+        env=os.environ,
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "4", done.stderr
+
+
+@_bwrapped
+@pytest.mark.skipif(sys.platform != "linux", reason="bubblewrap is Linux's")
 def test_a_carve_out_that_is_not_there_is_refused_under_bwrap(tmp_path: Path) -> None:
     work = tmp_path / "work"
     work.mkdir()
