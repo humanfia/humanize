@@ -516,6 +516,8 @@ def detail(
         "earlier": sum(1 for one in ran.sessions if one.at < ran.reopened),
         # What a chat's assistant may touch, as its epic records it; "" where it does not.
         "permission": ran.permission,
+        # A chat's own preference, as its epic records it; "" where it has none.
+        "prefer": ran.prefer,
         "profile_flow": ran.profile_flow,
         "profile_environment": ran.profile_environment,
         "picks_up": picks_up,
