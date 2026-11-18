@@ -766,6 +766,24 @@ def test_a_search_reads_what_grep_said(host: tuple[Host, Workspace], box: Box) -
     assert box.ran[-1][5:7] == ["E", "i"]
 
 
+def test_a_search_reads_a_path_with_a_colon_from_grep(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    box.answers = _answers(
+        "grep\n"
+        "./a:12:b.txt\x003:the needle\n"  # grep --null
+        "sub/b:c.txt\x001\x00x needle: 1:2\n"  # git grep -z
+        "sub/b:c.txt:1:x needle\n"  # a grep that cannot end a name with a NUL
+    )
+    alice, _ = _going(host)
+
+    assert _ok(alice.asks("env.search", env=ROOT, query="needle"))["matches"] == [
+        {"path": "a:12:b.txt", "line": 3, "column": 5, "text": "the needle"},
+        {"path": "sub/b:c.txt", "line": 1, "column": 3, "text": "x needle: 1:2"},
+        {"path": "sub/b:c.txt", "line": 1, "column": 3, "text": "x needle"},
+    ]
+
+
 # ------------------------------------------------------------------ terminals
 
 

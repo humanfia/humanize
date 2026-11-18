@@ -156,7 +156,8 @@ _FIND = (
 #: search hidden files too and to heed no `.ignore` file, which git knows nothing of, and
 #: outside a repository to heed no ignore file at all and to leave `node_modules` out; else
 #: with `git grep` inside a repository; else with `grep`, which where it knows no long option,
-#: as BusyBox's does not, is given the files `find` lists that hold no NUL byte.
+#: as BusyBox's does not, is given the files `find` lists that hold no NUL byte. A file's name
+#: ends with a NUL where the grep can end it so, and else with the colon.
 #: Arguments: the query, `F` or `E`, `i` or `s`, the glob, and how many lines to print.
 _SEARCH = (
     "q=$1; how=$2; case_=$3; glob=$4; most=$5; set --; "
@@ -170,15 +171,15 @@ _SEARCH = (
     "set -- \"$@\" --no-ignore --glob '!node_modules'; "
     'rg "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; '
     "elif git rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo grep; "
-    'set -- -nI --no-color --untracked --exclude-standard "-$how"; '
+    'set -- -nIz --no-color --untracked --exclude-standard "-$how"; '
     '[ "$case_" = i ] && set -- "$@" -i; '
     'set -- "$@" -e "$q" --; [ -n "$glob" ] && set -- "$@" "$glob"; '
     "GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat git --no-optional-locks -c core.quotepath=off "
     'grep "$@" 2>/dev/null | head -n "$most"; '
     "else echo grep; "
-    "if grep --include=x --exclude-dir=x -q x /dev/null 2>/dev/null; "
+    "if grep --null --include=x --exclude-dir=x -q x /dev/null 2>/dev/null; "
     '[ "$?" -lt 2 ]; then '
-    'set -- -rnI --exclude-dir=.git --exclude-dir=node_modules "-$how"; '
+    'set -- -rnI --null --exclude-dir=.git --exclude-dir=node_modules "-$how"; '
     '[ "$case_" = i ] && set -- "$@" -i; '
     '[ -n "$glob" ] && set -- "$@" "--include=$glob"; '
     'grep "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; '
@@ -189,6 +190,13 @@ _SEARCH = (
     '[ "$#" -eq 0 ] || grep "-Hn$how" -e "$q" -- "$@"\' sh {} + '
     '2>/dev/null | head -n "$most"; fi; fi'
 )
+
+
+#: A line a grep found, after the NUL that ends the file's name: its number, then the text.
+_NUMBERED = re.compile(r"(?P<line>\d+)[\0:](?P<text>.*)")
+
+#: A line found by a grep that ends a file's name with a colon: the name, the line, the text.
+_FOUND = re.compile(r"(?P<path>.*?):(?P<line>\d+):(?P<text>.*)")
 
 
 class Refused(Exception):  # noqa: N818 -- named for what happened, as the runner's is
@@ -1476,7 +1484,7 @@ def _bytes(said: Any) -> bytes:
 def _grep(
     text: str, query: str, *, regex: bool, exact: bool, limit: int
 ) -> list[dict[str, Any]]:
-    """The matches `grep -rn` printed: `./path:line:text`."""
+    """The matches a grep printed: `./path:line:text`, or with a NUL after the path."""
     pattern: re.Pattern[str] | None = None
     with contextlib.suppress(re.error):
         pattern = re.compile(
@@ -1486,10 +1494,14 @@ def _grep(
     for line in text.splitlines():
         if len(found) >= limit:
             break
-        path, sep, rest = line.partition(":")
-        number, sep2, said = rest.partition(":")
-        if not sep or not sep2 or not number.isdigit():
+        path, named, rest = line.partition("\0")
+        # `git grep -z` ends the line's number with a NUL too, `grep --null` with a colon.
+        told = _NUMBERED.fullmatch(rest) if named else _FOUND.fullmatch(line)
+        if told is None:
             continue
+        if not named:
+            path = told["path"]
+        number, said = told["line"], told["text"]
         hit = pattern.search(said) if pattern is not None else None
         found.append(
             {
