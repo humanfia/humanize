@@ -229,7 +229,8 @@ A chat is never stopped: `/stop` and **Stop** are not offered, and `ctrl+c` stop
 it. It is `running` while its agent answers and `done` between turns. A chat nobody has looked
 at for a minute between turns **folds away**: it ends, keeping its conversation. Say something
 in it -- from `/epics` (`continue`), from `/resume` in a chat, or in the browser -- and it is
-carried on, in the same epic, by an agent that remembers what was said. See
+carried on, in the same epic, by an agent that remembers what was said and keeps the name
+the epic wrote it down under, so a side question reaches every session it opened. See
 [Picking a run up](/user/resuming).
 
 ## From the shell {#from-the-shell}
@@ -243,13 +244,14 @@ hmz chat -a claude/claude-opus-5:high "What does this repository do?"
 
 | Part | Means |
 | --- | --- |
-| `-a`, `--agent` | the agent, as `-a` writes one [after `<role>=`](/user/unattended#name-an-agent-for-each-role): `cli[@account]/model[:effort]`. Without it, the agent this directory remembers; with none remembered, refused |
+| `-a`, `--agent` | the agent, as `-a` writes one [after `<role>=`](/user/unattended#name-an-agent-for-each-role): `cli[@account]/model[:effort]`, or the name of a virtual nous. Without it, the agent this directory remembers; with none remembered, refused |
 | `--resume <epic>` | carry that chat of this directory on, the message as its next turn, with its own agent unless `-a` says another |
 | the message | exactly one argument, not empty; one that starts with `-` goes after `--` |
 
 The message is read as [a line in a chat](#what-a-line-means) is, except that a `$` line
 naming a flow, and the names Humanize keeps, are refused: run a flow with `hmz exec`. The turn
-is drawn on stderr and the answer written to stdout, as `hmz exec` does. It exits `0` once the
+is drawn on stderr and the answer written to stdout, as `hmz exec` does; a `!<command>` takes
+no turn, and what it printed is written to stdout in the answer's place. It exits `0` once the
 turn is done, `1` where the turn failed, `2` where it was refused before it started, and 128
 plus the signal's number where a signal ended it, leaving the chat to its host. It changes
 nothing this directory remembers. See [CLI › `hmz chat`](/reference/cli#hmz-chat).

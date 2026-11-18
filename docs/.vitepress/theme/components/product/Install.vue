@@ -32,7 +32,8 @@ const DESKTOP: Partial<Record<OS, { label: string; meta: string; steps: string[]
     meta: 'Universal · macOS 11 or newer · .dmg',
     steps: [
       'Open the .dmg and drag Humanize Desktop onto Applications.',
-      'Open it. The first launch installs the Humanize CLI for you.',
+      "Install the Humanize CLI too (uv tool install hmz): the app reaches this Mac's epics through it.",
+      'Open it.',
     ],
   },
   windows: {
