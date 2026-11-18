@@ -1,7 +1,7 @@
 // A question's face: the HTML app a flow ships for it, run in a sandboxed frame beside the
 // question and spoken to over one MessageChannel port.
 //
-//   mountFace(question, {fetchFace, submit, theme, plain, shown}) -> HTMLElement
+//   mountFace(question, {fetchFace, submit, theme, plain, shown, where}) -> HTMLElement
 //
 // `fetchFace(hash)` gives `{html, title}` (`epic.face`), kept here by hash; `submit(value)`
 // answers the question, resolving where it was taken and rejecting, or resolving
@@ -14,10 +14,12 @@
 //
 // A session keeps one frame across its asks: mounting the next question of the session gives
 // back the same element, its face still in the state the person left it, told the new ask.
-// `showFace(session, context)` pushes context to it with no ask.
+// `showFace(session, context, {where, run})` pushes context to it with no ask. A session is one
+// epic's of one host (`where`, as held.js names it, and the question's `run`): another epic's of
+// the same name is another session, with a frame of its own.
 
 import { h } from '../dom.js'
-import { PATIENCE_MS, SHOWN, TOKENS, askOf, cached, hashOf, heightOf, jsonOf, outcome, overflow, rootRule, sessionOf, titleOf, tokenFor, tokensOf } from './logic.js'
+import { PATIENCE_MS, SHOWN, TOKENS, askOf, cached, hashOf, heightOf, jsonOf, mountOf, outcome, overflow, rootRule, sessionOf, titleOf, tokenFor, tokensOf } from './logic.js'
 
 const FRAME = new URL('./frame.html', import.meta.url).href
 const SHEET = new URL('./host.css', import.meta.url).href
@@ -30,11 +32,11 @@ const mounts = new Map()
 const fetched = cached()
 
 /** Mounts a question's face, or tells the session's mounted one its next ask. */
-export function mountFace(question, { fetchFace, submit, theme, plain, shown } = {}) {
+export function mountFace(question, { fetchFace, submit, theme, plain, shown, where } = {}) {
   const hash = hashOf(question)
   if (!hash) throw new Error('This question has no face.')
   if (typeof fetchFace !== 'function' || typeof submit !== 'function') throw new TypeError('mountFace needs fetchFace and submit.')
-  const session = sessionOf(question)
+  const session = mountOf(where, question.run, sessionOf(question))
   let mount = mounts.get(session)
   if (mount && mount.hash !== hash) {
     mount.drop()
@@ -43,12 +45,15 @@ export function mountFace(question, { fetchFace, submit, theme, plain, shown } =
   const fresh = !mount
   if (fresh) {
     sheet()
-    mount = new Mount(session, hash, titleOf(question))
+    mount = new Mount(sessionOf(question), hash, titleOf(question))
     if (Array.isArray(shown)) mount.shows = shown.slice(-SHOWN)
   }
   mounts.delete(session)
   mounts.set(session, mount)
-  for (const old of overflow([...mounts.keys()])) dropFace(old)
+  for (const old of overflow([...mounts.keys()])) {
+    mounts.get(old).drop()
+    mounts.delete(old)
+  }
   mount.ask(question, { fetchFace, submit, theme, plain })
   if (fresh) mount.start()
   watchTheme()
@@ -56,18 +61,19 @@ export function mountFace(question, { fetchFace, submit, theme, plain, shown } =
 }
 
 /** Pushes context to a session's face, with nothing to answer. Whether a face took it. */
-export function showFace(session, context) {
-  const mount = mounts.get(String(session))
+export function showFace(session, context, { where, run } = {}) {
+  const mount = mounts.get(mountOf(where, run, String(session)))
   if (!mount) return false
   mount.show(Array.isArray(context) ? context : [])
   return true
 }
 
 /** Lets a session's face go, as its outworlder's session ends. */
-export function dropFace(session) {
-  const mount = mounts.get(String(session))
+export function dropFace(session, { where, run } = {}) {
+  const key = mountOf(where, run, String(session))
+  const mount = mounts.get(key)
   if (!mount) return
-  mounts.delete(String(session))
+  mounts.delete(key)
   mount.drop()
 }
 
