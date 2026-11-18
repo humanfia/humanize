@@ -80,11 +80,15 @@ async def run_fake(
       What the flow returned, the object itself.
 
     Raises:
+      RequirementError: If the drivers do not meet what the flow declares. Nothing has run.
+      ParamsError: If the params do not validate.
       BaseException: What the flow raised, the exception itself.
     """
     from pathlib import Path
 
     from hmz.flows import Budget
+    from hmz.runtime import Refused
+    from hmz.runtime.flowing.engine import fits
     from hmz.sdk.private import Fakes
     from hmz.sdk.running import Run, checked
 
@@ -122,6 +126,11 @@ async def run_fake(
 
     try:
         return await asyncio.to_thread(runs)
+    except Refused:
+        # Refused before the flow was called, which a daemon says as a sentence: the flow
+        # API's own exception for it is raised, by the check the engine makes of the same.
+        fits(loaded, agents=drivers, envs=environments, params=params or {})
+        raise
     except asyncio.CancelledError:
         # Given up on: the epic is forced and its daemon goes, rather than going on unread.
         for one in held:
