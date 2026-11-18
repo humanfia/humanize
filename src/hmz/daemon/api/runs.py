@@ -545,6 +545,7 @@ def listed(
     workspace: str = "",
     status: str = "",
     flow: str = "",
+    what: str = "",
     q: str = "",
     offset: int = 0,
     limit: int = 50,
@@ -559,6 +560,7 @@ def listed(
       workspace: Only this workspace's runs, by its path, or "" for every one's.
       status: Only those that ended so, or "" for every one.
       flow: Only those of this flow, or "" for every one.
+      what: Only those of this kind, `chat` or `flow`, or "" for every one.
       q: Only those whose task, flow or epic name holds this, or "" for every one.
       offset: How many of those found to pass over.
       limit: How many to answer at most.
@@ -592,6 +594,7 @@ def listed(
         said
         for ran, said in went
         if found(ran, said["how"], how=status, flow=flow, text=q)
+        and (not what or said["kind"] == what)
     ]
     return {
         "runs": shown[offset : offset + limit],
@@ -762,6 +765,7 @@ def _list(call: Call) -> dict[str, Any]:
         workspace=_workspace_of(call),
         status=params.get("status", ""),
         flow=params.get("flow", ""),
+        what=params.get("kind", ""),
         q=params.get("q", ""),
         offset=offset,
         limit=limit,

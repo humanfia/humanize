@@ -1292,9 +1292,9 @@ starts on that host, and one about an epic the host no longer holds MUST NOT be 
 #### 4.16.1. `runs.list`
 
 **4.16.1.1** `runs.list` MUST take `workspace` (only that workspace's epics; every workspace's where
-absent), `status` (an ending of Section 3 of [CORE], `running` or `unfinished`), `flow`, `q` (text
-found in the task, flow or epic name), `offset` (default `0`) and `limit` (default `50`, at most
-`200`).
+absent), `status` (an ending of Section 3 of [CORE], `running` or `unfinished`), `flow`, `kind` (`chat`
+or `flow`: only the epics of that kind), `q` (text found in the task, flow or epic name), `offset`
+(default `0`) and `limit` (default `50`, at most `200`).
 
 **4.16.1.2** `runs.list` MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`,
 `counts` (`{ending: n}` over every epic) and `flows` (every flow, sorted).

@@ -4542,6 +4542,15 @@
           }
         },
         {
+          "name": "kind",
+          "schema": {
+            "enum": [
+              "chat",
+              "flow"
+            ]
+          }
+        },
+        {
           "name": "q",
           "schema": {
             "type": "string"

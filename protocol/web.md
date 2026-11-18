@@ -841,14 +841,41 @@ machine.
 
 ### 3.10. Search
 
-**3.10.1** `Search` MUST list every epic of the daemon shown, chats among them, a page at a time, with its
-workspace, flow, agents, what it spent, how long it took, how many sessions it opened, whether it
-can be resumed and where it is written down.
+**3.10.1** `Search` MUST list every epic of the daemon shown, chats among them, a page at a time,
+and of the one moved to (Section 3.10.8) MUST say its workspace, flow, agents, what it spent, how
+long it took, how many sessions it opened, whether it can be resumed and where it is written down.
 
 **3.10.2** `Search` MUST let the user filter epics by how they went, by workspace, by flow and
 by words of their task.
 
 **3.10.3** `Search` MUST offer `Import`.
+
+**3.10.4** `Search` MUST be a dialog over the middle of a wide window, 672 pixels wide and 584
+tall where the window has the room, laid out top to bottom as: the search field with `Close` at its
+right; a row of tabs; what was found; a foot. A window too narrow for that it MUST fill.
+
+**3.10.5** The tabs MUST be `All`, `Chats` and `Epics`, in that order, each 29 pixels tall: `Chats`
+MUST list only chats and `Epics` only the epics of flows (`kind` of Section 4.16.1.1 of [DAEMON]). A
+chat MUST NOT be listed under `Epics`, nor named an epic.
+
+**3.10.6** The filters by how it went, by workspace and by flow MUST be one row under the tabs,
+opened and closed by `Filters` at the right of the tabs, and open as `Search` opens where one of
+them is set. A flow chosen on `Chats` MUST move to `Epics`, and `Chats` MUST drop the flow chosen.
+
+**3.10.7** Each epic found MUST be one line: its task, then quietly how it went, its workspace and
+when it began. What was found MUST stand under a quiet heading, `Recents` where nothing narrows the
+list and `Results` otherwise, with which of how many are listed; under it MUST stand `Actions`:
+`New chat` and `Import`.
+
+**3.10.8** One line of what was found or of `Actions` MUST be the one moved to: the first as the
+list is drawn, and the same one while the list is read again. <kbd>↑</kbd> and <kbd>↓</kbd> MUST
+move it, going round at either end; <kbd>Enter</kbd> in the field MUST open it; the pointer over a
+line MUST move to it. <kbd>←</kbd> and <kbd>→</kbd> MUST change the tab, and <kbd>/</kbd> open or
+close the filters, while the field is empty.
+
+**3.10.9** The foot MUST say what the keys do -- `Close`, `Change type`, `Filters`, `Move`, `Open`
+-- and, at its right, offer the page before and after where there is more than one page. A window
+the dialog fills MAY leave the keys unsaid.
 
 ### 3.11. Settings
 
