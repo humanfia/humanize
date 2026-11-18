@@ -19,7 +19,6 @@ from hmz.flows import (
     BashEnvMixin,
     FilesEnvMixin,
     GitEnvMixin,
-    RewindableEnvMixin,
     ShellEnvMixin,
     TemporaryClonedDirEnvMixin,
 )
@@ -41,14 +40,14 @@ if TYPE_CHECKING:
 
     from tests.unit.runtime.doing.test_hosting import Outworlders
 
-#: Every capability a machine has.
+#: Every capability a machine has, as a driver lists them: `RewindableEnvMixin` is not
+#: among them, being served by the `GitEnvMixin` implementing it.
 EVERYTHING = frozenset(
     {
         FilesEnvMixin,
         ShellEnvMixin,
         BashEnvMixin,
         GitEnvMixin,
-        RewindableEnvMixin,
         TemporaryClonedDirEnvMixin,
     }
 )
@@ -386,7 +385,7 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
         "available": True,
         "open": True,
         "caps": ["files", "shell", "bash", "git", "rewind", "temp_clone"],
-        "declared": ["git"],
+        "declared": ["git", "rewind"],
         "facts": {"cpu": 4, "memory": 8 << 30, "gpu_count": 0, "gpu_memory": 0},
     }
 
@@ -770,7 +769,10 @@ def test_a_terminal_needs_a_shell(
     host: tuple[Host, Workspace], holding: Holding
 ) -> None:
     holding.envs[0] = Held(
-        "repo", "local@/work", None, Box(capabilities=EVERYTHING - {ShellEnvMixin})
+        "repo",
+        "local@/work",
+        None,
+        Box(capabilities=EVERYTHING - {ShellEnvMixin, BashEnvMixin}),
     )
     alice, _ = _going(host)
 
@@ -917,6 +919,12 @@ def test_git_refusals_are_said_as_git_said_them(
     }
 
 
+def test_an_env_serving_git_serves_rewinding() -> None:
+    assert desk.caps_of(frozenset({GitEnvMixin})) == ["git", "rewind"]
+    assert desk.caps_of(frozenset({BashEnvMixin})) == ["shell", "bash"]
+    assert desk.caps_of(frozenset({FilesEnvMixin})) == ["files"]
+
+
 def test_an_env_without_git_is_refused_it(
     host: tuple[Host, Workspace], holding: Holding
 ) -> None:
@@ -924,7 +932,7 @@ def test_an_env_without_git_is_refused_it(
         "repo",
         "local@/work",
         None,
-        Box(capabilities=EVERYTHING - {GitEnvMixin, RewindableEnvMixin}),
+        Box(capabilities=EVERYTHING - {GitEnvMixin}),
     )
     alice, _ = _going(host)
 
