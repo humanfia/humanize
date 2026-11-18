@@ -268,6 +268,87 @@ def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
         theirs.close()
 
 
+#: A flow whose module, once loaded, writes down the process that loaded it.
+_MARKS = """
+import os
+from pathlib import Path
+
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow
+
+Path({marker!r}).write_text(str(os.getpid()))
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams, name="marks")
+async def marks(task, *, agents, envs, params, ctx):
+    pass
+"""
+
+
+def test_a_read_only_ai_chan_has_no_flow_loaded_by_its_path(
+    workspace: tuple[Path, Path], tmp_path: Path
+) -> None:
+    project, other = workspace
+    daemon.start()
+    user = _session(where.at() / where.SOCKET)
+
+    def made(preset: str) -> tuple[Peer, Path]:
+        """Ai-chan's session of a new conversation of the project, and its scratch directory."""
+        said = user.call(
+            "aichan.create",
+            {
+                "scope": "workspace",
+                "workspace": str(project),
+                "nous": AGENT,
+                "preset": preset,
+                "task": "hi",
+            },
+            timeout=60,
+        )
+        link = where.at() / f"ai-{said['slot'].removeprefix('ai:')}.sock"
+        assert until(link.exists)
+        (machine,) = (tmp_path / "humanize-home" / "ai").iterdir()
+        return _session(link, "ai-chan"), machine / str(said["id"])
+
+    # Her scratch directory is hers to write, whatever her preset: a flow she wrote there is
+    # not loaded, which would run it as the daemon, outside her confinement.
+    ai, scratch = made("read-only")
+    marker = other / "loaded-by"
+    written(scratch, "marks", _MARKS.format(marker=str(marker)))
+    at = str(scratch / "marks")
+    # However a path is spelled, and a repository too: what the loader strips is not a name.
+    for flow in (
+        at,
+        "~/marks",
+        "./marks",
+        f" {at}",
+        f"\t{at}:marks",
+        f" git+file://{at}",
+    ):
+        assert (
+            _refused(ai, "flows.check", {"workspace": str(project), "flow": flow})
+            == "Ai-chan is read-only, and flows.check changes things."
+        )
+    assert not marker.exists()
+    # A flow by its name is found only among those on offer, and is still checked.
+    with pytest.raises(RpcError) as none:
+        ai.call("flows.check", {"workspace": str(project), "flow": "marks"}, timeout=30)
+    assert none.value.code == 400, none.value.message
+    assert not marker.exists()
+
+    # One who may change her workspace may start an epic of that flow there, and so check it.
+    full, _ = made("danger-full-access")
+    with pytest.raises(RpcError) as checked:
+        full.call(
+            "flows.check",
+            {"workspace": str(project), "flow": str(scratch / "marks")},
+            timeout=30,
+        )
+    assert checked.value.code == 400, checked.value.message
+    assert "requires a budget" in checked.value.message
+    assert marker.exists()
+    user.close()
+
+
 def test_an_epic_scoped_ai_chan_reaches_her_epic_alone(
     workspace: tuple[Path, Path],
 ) -> None:

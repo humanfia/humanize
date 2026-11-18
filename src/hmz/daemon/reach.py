@@ -204,6 +204,17 @@ class Held:
                 scope = "daemon"
             if params.get("slot") in ("chat:", "exec:"):
                 writes = True
+        if method == "flows.check":
+            from hmz.runtime.flowing.loading import parse
+            from hmz.runtime.flowing.verses import pathed
+
+            # A flow named by a path or a repository is loaded, and so run, in the daemon's
+            # own process: only one named as it is on offer is one a `read-only` Ai-chan
+            # cannot have written. Read as the loader reads it, so that no spelling of a
+            # path is a name here; what is no ref at all loads nothing.
+            with contextlib.suppress(ValueError):
+                ref = parse(cast("str", params.get("flow")))
+                writes = ref.url is not None or pathed(ref.where)
         if scope == "never":
             return f"Ai-chan cannot call {method}."
         workspace, slot = self._names(annotated, params)
