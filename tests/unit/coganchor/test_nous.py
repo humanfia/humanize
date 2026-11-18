@@ -557,6 +557,32 @@ def test_strategies_pick_by_what_they_say(
         nous.finished([y], 0.0)
 
 
+def test_a_turn_at_a_member_that_is_a_backend_is_counted_once() -> None:
+    plain, inner = "kimi/counted-once", "opencode/counted-inside"
+    nous.put(Nous("wrapped", graph=nous.chain([inner])))
+    among = ((plain, 1), ("wrapped", 1))
+    nous.put(
+        Nous("pool", graph=Graph("p", (Node("p", balance="least-busy", among=among),)))
+    )
+    taken: list[tuple[str, ...]] = []
+    try:
+        for _ in range(3):
+            walk = nous.walk("pool")
+            step = walk.next()
+            assert isinstance(step, Run)
+            taken.append((*walk.picks(), step.nous))
+            nous.started(taken[-1])
+        # One turn at each member is a tie, which the member written first wins.
+        assert [names[0] for names in taken] == [plain, "wrapped", plain]
+    finally:
+        for names in taken:
+            nous.finished(names, 0.0, 100)
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="usage", among=among),))))
+    nous.finished(("wrapped", inner), 0.0, 150)
+    # 200 tokens over two turns at the backend, 250 over two at the other.
+    assert _walked("pool", {})[0] == plain
+
+
 def test_a_member_that_was_rate_limited_is_picked_last() -> None:
     hot, cold = "kimi/rate-limited", "opencode/cool"
     nous.finished([hot], 1.0, fault="throttled")

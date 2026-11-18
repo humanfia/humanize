@@ -850,9 +850,12 @@ _LATELY = 60.0
 
 
 def started(names: Iterable[str]) -> None:
-    """Counts a turn begun at each of these nous: the concrete one and every pick above it."""
+    """Counts a turn begun at each of these nous: the concrete one and every pick above it.
+
+    A nous named twice, as a concrete one a balance node picked is, is counted once.
+    """
     with _SEEN.lock:
-        for name in names:
+        for name in dict.fromkeys(names):
             _SEEN.busy[name] = _SEEN.busy.get(name, 0) + 1
 
 
@@ -870,7 +873,7 @@ def finished(
     now = time.monotonic()
     names = tuple(names)
     with _SEEN.lock:
-        for name in names:
+        for name in dict.fromkeys(names):
             _SEEN.busy[name] = max(_SEEN.busy.get(name, 0) - 1, 0)
             if fault is None:
                 was = _SEEN.latency.get(name)
