@@ -654,7 +654,7 @@ with (Daemons().here() or Daemons().host()).link(name="ci", replay=False) as lin
 
 | Name | Is |
 | --- | --- |
-| `run_fake(flow, task="", *, agents=None, envs=None, params=None, budget=None, outworlder=None, local=None, journal=None, resume=False)` | Runs a flow on fakes through a private daemon; returns or raises the very object the flow returned or raised. |
+| `run_fake(flow, task="", *, agents=None, envs=None, params=None, budget=None, outworlder=None, local=None, journal=None, resume=False)` | Runs a flow on fakes through a private daemon; returns or raises the very object the flow returned or raised, and raises the flow API's `RequirementError` or `ParamsError`, not `Refused`, for a run refused before the flow is called. |
 | `FakeAgentDriver(harness=HarnessKind.CLAUDE, *, reply=None, model="fake", effort="", provider="", capabilities=None, cost=0.0, output_tokens=1, seconds=0.0, forks=None, names_late=False)` | A scripted agent driver. Also accepted by `Hmz.run(agents=…)`, which then runs the epic on a private daemon. |
 | `FakeSession` | A session of a `FakeAgentDriver`. |
 | `FakeEnvDriver(files=None, *, workdir="/work", backend=EnvBackendKind.LOCAL, provider="", capabilities=None, cpu_count=8, memory=64 GiB, gpu_count=0, gpu_memory=0, run=None, refs=("HEAD", "main"), repo=True)` | An in-memory environment. |

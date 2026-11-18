@@ -20,7 +20,13 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.daemon import where
-from hmz.flows import HarnessKind
+from hmz.flows import (
+    CapabilityMissing,
+    GoalCommandAgentMixin,
+    HarnessKind,
+    ParamsError,
+    RequirementError,
+)
 from hmz.sdk import Client, Hmz, Refused, fakes
 from tests.integration.doubles_core import install, write_flow
 
@@ -237,3 +243,58 @@ async def test_run_fake_runs_through_a_private_daemon_that_leaves_nothing_behind
     assert not (machine / where.SOCKET).exists()
     assert _temporaries() == before
     assert Hmz(project).epics.all() == []
+
+
+#: A flow whose one role asks for a mixin not every CLI serves, and whose params are typed.
+AIMS = """
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowParams,
+    GoalCommandAgentMixin,
+    flow,
+)
+
+
+class Goaler(Agent, GoalCommandAgentMixin):
+    pass
+
+
+class Agents(AgentCollection):
+    worker: Goaler
+
+
+class Rounds(FlowParams):
+    rounds: int = 1
+
+
+@flow(agents=Agents, envs=EnvCollection, params=Rounds)
+async def aims(task, *, agents, envs, params, ctx):
+    return params.rounds
+"""
+
+
+async def test_run_fake_raises_the_flow_apis_exception_for_a_run_refused_before_it_starts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = install(tmp_path, monkeypatch)
+    write_flow(project / ".hmz" / "flows", "aims", AIMS)
+    before = _temporaries()
+    lacking = next(
+        kind
+        for kind in HarnessKind
+        if GoalCommandAgentMixin not in fakes.FakeAgentDriver(kind).capabilities
+    )
+
+    with pytest.raises(CapabilityMissing, match="needs GoalCommandAgentMixin"):
+        await fakes.run_fake(
+            "aims:aims", agents={"worker": fakes.FakeAgentDriver(lacking)}
+        )
+    with pytest.raises(ParamsError, match="rounds"):
+        await fakes.run_fake("aims:aims", params={"rounds": "many"})
+    with pytest.raises(RequirementError, match="no agent role 'nobody'"):
+        await fakes.run_fake("aims:aims", agents={"nobody": "x"})
+
+    assert await fakes.run_fake("aims:aims", params={"rounds": 3}) == 3
+    assert _temporaries() == before
