@@ -278,16 +278,19 @@ read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 
-**New epic** offers two choices: **Chat** and **Flow**.
+A new chat and a new epic of a flow are two forms, each opened from the sidebar. Both keep the
+directory they work in under the box you type into, at its left: a folder chip naming it. Click
+the chip to pick another under **Recent**, **No workspace**, or **Open folder…**.
 
-**Chat** starts a [chat](/user/chat): pick the directory, or **No workspace**, as below; the
+A new chat starts a [chat](/user/chat): pick the directory, or **No workspace**, as below; the
 agent, set up a part at a time as a role's agent is under **Options**, starting from the one
 that directory last chatted with; and type the first message. <kbd>Enter</kbd> starts the chat,
 and the page goes to its conversation. There is no flow, budget or params to set.
 
-**Flow** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
-picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory last ran; pick another of either at the top. A chat is not among
-the flows. **Open folder…**
+**New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
+picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory
+last ran; pick another flow at the top, and another directory from the folder chip under the box.
+A chat is not among the flows. **Open folder…**
 takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
 workspace** works in none of yours: each epic started so gets a new directory of its own in the
 temporary directory, made as it starts, and set up as the directory `hmz web` started in is; the
