@@ -288,6 +288,9 @@ def test_a_chat_tells_its_harness_what_its_permission_grants(
     permission: str | None, writes: bool, tmp_path: Path, project: Path
 ) -> None:
     said = {} if permission is None else {"permission": permission}
+    # The user's own home, as one who has signed in has it: an assistant held to nothing is
+    # put in no fence, which is what makes it for the stand-in to log its start in.
+    (tmp_path / "claude").mkdir(exist_ok=True)
 
     ended = _chat(project, Person(), "hello there", **said)
 
