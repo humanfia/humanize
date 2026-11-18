@@ -10,12 +10,19 @@ export const RESERVED = ['btw', 'chat', 'clear', 'epics', 'exit', 'flow', 'prefe
 /** The sigils a chat's native input starts with. */
 const SIGILS = '/$!@'
 
-/** The order the sources of a catalogue are offered in, and what each is called over its group. */
+/**
+ * The order the sources of a catalogue are offered in, and what each is called over its group,
+ * in plain words: what hmz keeps goes by the product's name, and what the chat's CLI has by
+ * what it is -- its commands, or by its sigil, its skills and what it can mention.
+ */
 export const SOURCES = [
-  ['native', 'Native'],
-  ['hmz', 'hmz'],
+  ['native', 'Commands'],
+  ['hmz', 'Humanize'],
   ['flow', 'Flows'],
 ]
+
+/** What the CLI's own entries are called under a sigil that is not for its commands. */
+const NATIVE = { $: 'Skills', '@': 'Mentions' }
 
 /**
  * The word a completion would replace: the name being typed after a sigil, where the caret is.
@@ -59,13 +66,13 @@ export function both(entries, name) {
  */
 export function bothHint(name, prefer) {
   return prefer === 'flow'
-    ? `$${name} starts the flow, as this chat prefers flows; set the preference to native to use the skill`
-    : `$${name} uses the skill, as this chat prefers native; /flow ${name} starts the flow`
+    ? `$${name} starts the flow here; pick Use the skill in the chat's menu for the skill`
+    : `$${name} uses the skill here; /flow ${name} starts the flow`
 }
 
-/** What a chat's preference is, and where it comes from, as the toggle beside it says it. */
+/** What a chat's preference does, and where it comes from, as the chat's menu says it. */
 export function preferSaid(prefer, from) {
-  return `$ prefers ${prefer === 'flow' ? 'flows' : 'native'} · ${from === 'chat' ? 'set for this chat' : 'from the settings'}`
+  return `${prefer === 'flow' ? 'Starts the flow' : 'Uses the skill'} · ${from === 'chat' ? 'set for this chat' : 'from settings'}`
 }
 
 /**
@@ -84,11 +91,11 @@ export function completions(entries, typed, prefer) {
   const fit = entries.filter((one) => one.sigil === sigil && (typed.sigil !== 'flow' || one.source === 'flow'))
   // `@` names a path, which its entry has no name for: the entry is offered, as it is, only
   // before a path is begun.
-  if (sigil === '@') return word ? [] : grouped(fit.map((one) => item(one, '@', entries, prefer)))
+  if (sigil === '@') return word ? [] : grouped(fit.map((one) => item(one, '@', entries, prefer)), sigil)
   const starts = fit.filter((one) => one.name.toLowerCase().startsWith(word))
   const within = fit.filter((one) => !one.name.toLowerCase().startsWith(word) && one.name.toLowerCase().includes(word))
   const lead = typed.sigil === 'flow' ? '' : sigil
-  return grouped([...starts, ...within].map((one) => item(one, `${lead}${one.name} `, entries, prefer)))
+  return grouped([...starts, ...within].map((one) => item(one, `${lead}${one.name} `, entries, prefer)), sigil)
 }
 
 function item(entry, insert, entries, prefer) {
@@ -103,8 +110,8 @@ function item(entry, insert, entries, prefer) {
   }
 }
 
-function grouped(items) {
-  return SOURCES.map(([source, label]) => ({ source, label, items: items.filter((one) => one.source === source) })).filter((one) => one.items.length)
+function grouped(items, sigil) {
+  return SOURCES.map(([source, label]) => ({ source, label: (source === 'native' && NATIVE[sigil]) || label, items: items.filter((one) => one.source === source) })).filter((one) => one.items.length)
 }
 
 /**

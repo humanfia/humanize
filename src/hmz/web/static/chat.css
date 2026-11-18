@@ -1,0 +1,9 @@
+/* What a chat's view draws that nothing else does. */
+
+/* The line under the choices of a chat's Skill or flow menu, saying where the one in force comes from. */
+.popover-note {
+  margin: 0;
+  padding: 6px 10px 4px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}

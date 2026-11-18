@@ -364,9 +364,10 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(page.locator("[data-hmz=epic] .pill-live")).to_have_count(0)
         say = page.locator("[data-hmz=say] textarea")
         # Its conversation goes by its agent's own name, not by the role it fills.
-        expect(say).to_have_attribute(
-            "placeholder", re.compile(r"^Message · / commands")
-        )
+        # Its box is as quiet as a chat app's; what else it takes is said on hover.
+        expect(say).to_have_attribute("placeholder", "Reply…")
+        say.hover()
+        expect(page.locator(".tip")).to_contain_text("$ for skills and flows")
         expect(say).not_to_have_attribute("placeholder", "Message assistant/1")
         say.fill("and again")
         say.press("Enter")
@@ -389,6 +390,27 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(row.locator(".side-toggle, .side-tree")).to_have_count(0)
         expect(row.locator(".side-mark")).to_have_text(re.compile("[●■]"))
         expect(page.get_by_role("tab", name="People")).to_have_count(0)
+        # Nothing on it is called an epic, a flow or native: its bar holds its title, one
+        # menu and the panel's button, and its panel says what it is in a chat's words.
+        expect(bar.locator(".bar-actions > *")).to_have_count(3)
+        expect(bar.locator("[data-hmz=prefer]")).to_have_count(0)
+        expect(bar).not_to_contain_text(re.compile("epic|flow|native", re.IGNORECASE))
+        for tab in ("Details", "Side questions"):
+            expect(page.get_by_role("tab", name=tab)).to_be_visible()
+        expect(page.get_by_role("tab", name="Epic")).to_have_count(0)
+        expect(page.locator("[data-hmz=inspector] dt")).to_contain_text(
+            ["Chat ID", "Saved at", "Folder", "Started", "Model"]
+        )
+        # What a `$` name that is both a skill and a flow does is picked in that menu, in
+        # plain words, saying where what is in force comes from.
+        bar.locator("[data-hmz=chat-menu]").click()
+        page.get_by_role("menuitem", name="Skill or flow").click()
+        prefer = page.locator("[data-hmz=prefer]")
+        expect(prefer.locator("[data-prefer=native]")).to_have_attribute(
+            "aria-checked", "true"
+        )
+        expect(prefer.locator("[data-hmz=prefer-from]")).to_have_text("From settings")
+        page.keyboard.press("Escape")
         bar.locator(".bar-title").click(button="right")
         expect(page.get_by_role("menuitem", name="Open")).to_be_visible()
         expect(page.get_by_role("menuitem", name="Exomyth")).to_have_count(0)
@@ -1164,8 +1186,12 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         _start_chat(page, "keep me")
         stop(page)
 
+        # A chat's bar is its title, one menu and the panel's button: what is done to the
+        # chat is in that menu.
+        more = page.locator("[data-hmz=chat-menu]")
+        more.click()
         with page.expect_download() as saving:
-            page.get_by_role("button", name="Export").click()
+            page.get_by_role("menuitem", name="Export").click()
         saved = saving.value
         assert saved.suggested_filename.endswith(".hmzepic")
         assert Path(saved.path()).read_bytes()[:2] == b"\x1f\x8b"
@@ -1173,9 +1199,10 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         # WebKit lets a click write unasked, and knows no permission to write by.
         writes = ["clipboard-write"] if engine == "chromium" else []
         page.context.grant_permissions(["clipboard-read", *writes])
-        page.get_by_role("button", name="Copy link").click()
-        expect(page.get_by_role("button", name="Copied")).to_be_visible()
-        assert page.evaluate("navigator.clipboard.readText()") == page.url
+        more.click()
+        page.get_by_role("menuitem", name="Copy link").click()
+        expect(page.locator(".toast")).to_have_text("Link copied")
+        assert page.url.startswith(page.evaluate("navigator.clipboard.readText()"))
 
 
 def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
@@ -1216,9 +1243,12 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         page.locator("[data-hmz=bar] .bar-title").click(button="right")
         page.get_by_role("menuitem", name="Upload").click()
         expect(page.locator(".toast")).to_have_text("Uploading to t")
-        expect(page.locator("[data-hmz=upload]")).to_have_attribute(
+        # How it went is said on the chat's menu, where Upload is.
+        page.locator("[data-hmz=chat-menu]").click()
+        expect(page.get_by_role("menuitem", name="Upload")).to_have_attribute(
             "title", re.compile(r"^t: uploaded")
         )
+        page.keyboard.press("Escape")
         log = subprocess.run(
             ["git", "--git-dir", str(bare), "log", "--format=%s", "main"],
             capture_output=True,
@@ -1309,7 +1339,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         _start_chat(page, "remember papaya")
         thread = page.locator("[data-hmz=thread]")
         expect(thread).to_contain_text("did: remember papaya")
-        page.get_by_role("tab", name="Aside").click()
+        page.get_by_role("tab", name="Side questions").click()
         aside = page.locator("[data-hmz=btw]")
         ask = page.locator("[data-hmz=btw-to]")
 
@@ -1370,7 +1400,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 
         # Opened again, both are read back, each with what was said in it.
         page.reload()
-        page.get_by_role("tab", name="Aside").click()
+        page.get_by_role("tab", name="Side questions").click()
         expect(tabs).to_have_count(2)
         expect(log).to_contain_text("and you, slowly")
         tabs.first.click()
@@ -1504,7 +1534,7 @@ def test_a_composer_built_before_it_is_shown_is_a_line_tall_once_shown(
         expect(page.locator("[data-hmz=thread]")).to_contain_text(
             "did: remember papaya"
         )
-        page.get_by_role("tab", name="Aside").click()
+        page.get_by_role("tab", name="Side questions").click()
         # Nothing typed yet: typing fires `input`, which would size it either way.
         text = page.locator("[data-hmz=btw] textarea")
         expect(text).to_be_visible()
@@ -1539,7 +1569,7 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
             "did: remember papaya"
         )
 
-        page.get_by_role("tab", name="Aside").click()
+        page.get_by_role("tab", name="Side questions").click()
         aside = page.locator("[data-hmz=btw]")
         _asks_of(page, "/1")
         aside.locator("textarea").fill("what was the word")
@@ -1598,8 +1628,9 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
         found = re.search(r"#/epics/([^/]+)", page.url)
         assert found is not None
         name = found[1]
+        page.locator("[data-hmz=chat-menu]").click()
         with page.expect_download() as saving:
-            page.get_by_role("button", name="Export").click()
+            page.get_by_role("menuitem", name="Export").click()
         archive = tmp_path / saving.value.suggested_filename
         saving.value.save_as(archive)
         at = _call(page, "runs.get", {"name": name})["at"]

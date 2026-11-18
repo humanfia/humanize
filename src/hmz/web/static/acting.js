@@ -166,7 +166,9 @@ const WATCHED = 1000
  * opened again reads them back; made once for a page and moved from one drawing of it to the
  * next, so that what is being typed outlives a redraw.
  */
-export function asides(workspace, epic = '') {
+export function asides(workspace, epic = '', { chat = false } = {}) {
+  /** What an aside not yet asked is called: beside a chat, in a chat's words. */
+  const unasked = chat ? 'New question' : 'New aside'
   /** The epic's agents: `{name, role, sessions: [{key, about}]}`, as its graph has them. */
   let agents = []
   /** Every aside, in the order opened: the one not yet asked, if any, last. */
@@ -178,7 +180,7 @@ export function asides(workspace, epic = '') {
   let reading = null
   const strip = h('div', { class: 'aside-strip', 'data-hmz': 'btw-asides' })
   const body = h('div', { class: 'aside-body' })
-  const fresh = h('button', { class: 'chip-btn', type: 'button', 'data-hmz': 'btw-new' }, icon('plus'), 'New aside')
+  const fresh = h('button', { class: 'chip-btn', type: 'button', 'data-hmz': 'btw-new' }, icon('plus'), unasked)
   const query = { workspace, ...(epic ? { epic } : {}) }
 
   /** One aside: `to` is null until its first question fixes the conversation it asks. */
@@ -199,7 +201,7 @@ export function asides(workspace, epic = '') {
     }
     menu(picker, (close) => whom(target, close, pick), { label: 'Ask it of' })
     const box = composer({
-      placeholder: 'Ask about the epic',
+      placeholder: chat ? 'Ask a side question' : 'Ask about the epic',
       label: 'Side question',
       submit: async (question) => {
         if (one.to === null && !target) throw new Error('Pick the conversation to ask first.')
@@ -236,7 +238,7 @@ export function asides(workspace, epic = '') {
     })
     let was = ''
     const draw = () => {
-      const who = one.to === null ? 'New aside' : `btw · ${one.to}`
+      const who = one.to === null ? unasked : `btw · ${one.to}`
       title.textContent = named.textContent = who
       tab.classList.toggle('busy', Boolean(one.question))
       tab.setAttribute('aria-pressed', String(shown === one))
