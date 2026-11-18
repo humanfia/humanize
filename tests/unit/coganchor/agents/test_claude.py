@@ -1295,10 +1295,21 @@ def test_the_catalog_is_what_init_listed_less_what_hmz_keeps(
     ]
     claude.skills = ["code-review", "anthropic-skills:pdf"]
     session = _agent().new(tmp_path)
-    # Before its init, nothing under `/` is known: a chat passes every `/` line as text.
-    assert {(one.sigil, one.how) for one in session.natives()} == {
+    # Before its init, what it passes under `/` is not known: a chat passes such a line as
+    # text. What is called and what is refused is, and is listed from the start.
+    before = session.natives()
+    assert {(one.sigil, one.how) for one in before if one.sigil != "/"} == {
         ("!", "emulate"),
         ("@", "pass"),
+    }
+    slashed = {one.name: one.how for one in before if one.sigil == "/"}
+    assert "pass" not in slashed.values()
+    assert {name for name, how in slashed.items() if how == "call"} == {
+        "model",
+        "effort",
+    }
+    assert {"config", "mcp", "agents", "login", "permissions", "doctor"} <= {
+        name for name, how in slashed.items() if how == "refuse"
     }
     session("one")
     natives = session.natives()

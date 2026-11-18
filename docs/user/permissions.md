@@ -81,7 +81,8 @@ directories every user shares, `/tmp` and `/var/tmp`, and the one `$TMPDIR` name
 `workspace-write` does. They are held like the agent's own paths below: where one of them and a
 rule's path nest, the deeper one decides, and at the same path the more permissive wins. So
 `deny("/tmp")` does not take `/tmp` away, but `deny("/tmp/x")` does keep the agent out of
-`/tmp/x`.
+`/tmp/x`. A rule holds however the directory is spelled: on a Mac `/tmp` is a link to
+`/private/tmp`, and `deny("/private/tmp/x")` keeps the agent out as well.
 A rule that lets the agent write `~` writes whatever your user account may change, wherever it
 is: a disk of yours mounted outside your home, a device your groups may use. The file
 permissions are what hold it. Run as root, it is your home, those temporary directories and
