@@ -126,6 +126,17 @@ async def _inside(driver: EnvDriver, env: str, path: str) -> str:
     return relative
 
 
+def _file(driver: EnvDriver, relative: str) -> str:
+    """A file `_inside` the workdir, as the driver reads and writes it there.
+
+    A driver takes a path that begins `~` from its machine's home, so one that does is given
+    under the workdir's own path, which is absolute or begins `~` itself.
+    """
+    if relative.split("/", 1)[0] == "~":
+        return posixpath.join(str(driver.workdir), relative)
+    return relative
+
+
 def _number(
     said: Mapping[str, Any], key: str, default: int, least: int, most: int
 ) -> int:
@@ -156,7 +167,7 @@ async def _read(driver: EnvDriver, env: str, said: Mapping[str, Any]) -> dict[st
     offset = _number(said, "offset", 0, 0, 1 << 62)
     length = _number(said, "length", _MOST, 1, _MOST)
     try:
-        data = await driver.read(await _inside(driver, env, path))
+        data = await driver.read(_file(driver, await _inside(driver, env, path)))
     except EnvFileNotFound:
         raise EnvRefusal(404, f"There is no file {path} in {env}.") from None
     return {
@@ -170,7 +181,9 @@ async def _write(
     driver: EnvDriver, env: str, said: Mapping[str, Any]
 ) -> dict[str, Any]:
     data = str(said["text"]).encode()
-    await driver.write(await _inside(driver, env, str(said["path"])), data)
+    await driver.write(
+        _file(driver, await _inside(driver, env, str(said["path"]))), data
+    )
     return {"size": len(data)}
 
 
