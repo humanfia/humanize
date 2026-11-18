@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.daemon.reach import Conversations
 from hmz.runtime.epic import Ran, epics, read
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
@@ -221,6 +222,34 @@ async def test_clear_starts_another_chat_and_the_first_goes_on_to_go_back_to(
         await typed(pilot, "now")
         await shows(pilot, "heard wait for it then now")
     assert heard(workspace) == ["wait for it", "again", "now"]
+
+
+async def test_the_epic_of_an_ai_chan_conversation_is_not_among_the_epics(
+    workspace: Path,
+) -> None:
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "wait for it")
+        await shows(pilot, "still on it")
+        await typed(pilot, "/clear")
+        await shows(pilot, f"◉ {RUNS}")
+        await typed(pilot, "again")
+        await shows(pilot, "heard again")
+        first, _ = epics(workspace)
+        # The first is hers, kept; and stays hers once her conversation is forgotten.
+        kept = Conversations()
+        made = kept.made({"slot": "ai:1"})
+        kept.changed(made["id"], record=first.name)
+
+        for forgotten in (False, True):
+            if forgotten:
+                assert kept.forgot(made["id"]) is not None
+            await typed(pilot, "/epics")
+            await on(pilot, Epics)
+            await shows(pilot, "again · ")
+            assert "wait for it · " not in screen(app)
+            await leaves(pilot)
 
 
 async def test_a_chat_folded_away_is_continued_from_epics_in_the_same_epic(

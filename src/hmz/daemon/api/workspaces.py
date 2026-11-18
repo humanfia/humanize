@@ -129,13 +129,29 @@ def _whole(workspace: str) -> str:
 
 def _answer(call: Call) -> dict[str, Any]:
     """What `workspaces.list` answers, `here` as the call says it."""
+    from hmz.daemon.reach import conversations
     from hmz.runtime import Hmz
     from hmz.runtime.epic import every, read
 
     here = _whole(call.params.get("here", ""))
-    ran = [one for at in reversed(every()) if (one := read(at)) is not None]
+    # Nothing of Ai-chan's is a workspace's (Section 4.17.5.5): neither her hosts, nor her
+    # epics, the one a host of hers has named and no file has yet among them.
+    hosts = list(statuses().values())
+    hers = conversations().epics() | {
+        status.get("epic") for status in hosts if status["slot"].startswith("ai:")
+    }
+    ran = [
+        one
+        for at in reversed(every())
+        if at.name not in hers and (one := read(at)) is not None
+    ]
+    running = {
+        status["workspace"]
+        for status in hosts
+        if status.get("state") in _GOING and not status["slot"].startswith("ai:")
+    }
     written = Hmz(Path.home()).settings.workspaces()
-    return {"here": here, "workspaces": listed(here, ran, set(going()), written)}
+    return {"here": here, "workspaces": listed(here, ran, running, written)}
 
 
 def _add(call: Call) -> dict[str, Any]:

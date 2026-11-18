@@ -30,7 +30,7 @@ from hmz.daemon.api import files, workspaces
 from hmz.rpc import Code, RpcError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Collection, Mapping, Sequence
 
     from hmz.rpc import Call, Handler
     from hmz.runtime.epic import Called, Ran
@@ -547,6 +547,7 @@ def listed(
     offset: int = 0,
     limit: int = 50,
     kept: Callable[[str, str], bool] | None = None,
+    hers: Collection[str] = (),
 ) -> dict[str, Any]:
     """One page of the runs written down, newest first, as `runs.list` answers it.
 
@@ -561,12 +562,17 @@ def listed(
       limit: How many to answer at most.
       kept: Whether a run is there at all, by its epic name and workspace, as though no
         other were: Ai-chan's reach (Section 4.21.4 of daemon.md); None for every one.
+      hers: The epic of every Ai-chan conversation, by its name, which is left out, as is
+        one a host of an `ai:` slot says it holds (Section 4.16.1.3).
     """
     from hmz.runtime.epic import found
 
     every = runs.all(workspace)
     if kept is not None:
         every = [ran for ran in every if kept(ran.name, ran.workspace)]
+    # One her host has named and no file has yet is hers as much.
+    hers = {*hers, *(one["epic"] for one in going if one["slot"].startswith("ai:"))}
+    every = [ran for ran in every if ran.name not in hers]
     held = held_by(every, going)
     went = [
         (
@@ -758,6 +764,7 @@ def _list(call: Call) -> dict[str, Any]:
         offset=offset,
         limit=limit,
         kept=reach.epics(),
+        hers=reach.conversations().epics(),
     )
 
 

@@ -1,10 +1,11 @@
-// A new run, as a new chat opens: the flow picked in the bar as a model is picked, and the task
-// typed into the box in the middle. The rest a flow is set up with -- an agent for each role,
+// A new run, as a new chat opens: the flow picked in the bar as a model is picked, the task typed
+// into the box in the middle, and the folder it runs in picked under that box, where a chat app
+// keeps it. The rest a flow is set up with -- an agent for each role,
 // where each environment works, its params, its budget, where it is backed up and whether its flow
 // and its environment are profiled -- is under Options on the box, set up as this directory last
 // ran that flow, the way `/flow` in the terminal interface sets one up. Picking a run up again is
-// the same box, on that run. A new epic is a chat or one of a flow: this is `Flow`, and `Chat`
-// (views/newchat.js) is beside it, the two a switch apart (Section 3.8.17 of protocol/web.md).
+// the same box, on that run. A new epic is of a flow: a new chat is a form of its own
+// (views/newchat.js), which the sidebar opens beside this one (Section 3.8.17 of protocol/web.md).
 
 import { call, given, hash } from '../api.js'
 import { covered, go, stays } from '../app.js'
@@ -54,8 +55,8 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view view-new' },
-      bar({ lead: h('div', { class: 'pickers' }, newKinds('flow', () => ({ workspace, scratch })), place.node, pickerHolder) }),
-      h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, about, resumed, box.node, options)),
+      bar({ lead: h('div', { class: 'pickers' }, pickerHolder) }),
+      h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, about, resumed, box.node, under(place.node), options)),
     ),
   )
 
@@ -287,17 +288,9 @@ export function newOf(kind, { workspace = '', scratch = false } = {}) {
   return `/new${kind === 'chat' ? '/chat' : ''}${text ? `?${text}` : ''}`
 }
 
-/**
- * The switch between the two kinds of a new epic, `Chat` and `Flow` (Section 3.8.17 of
- * protocol/web.md): the other goes to its own form, in the workspace picked here.
- *
- * @param {'chat'|'flow'} chosen The kind this form starts.
- * @param {() => {workspace: string, scratch: boolean}} at Where the form is now.
- */
-export function newKinds(chosen, at) {
-  const kind = (name, label) =>
-    h('button', { type: 'button', 'aria-pressed': String(name === chosen), 'data-hmz': `new-${name}`, onclick: () => name !== chosen && go(newOf(name, at())) }, label)
-  return h('div', { class: 'segmented', role: 'group', 'aria-label': 'New', 'data-hmz': 'new-kind' }, kind('chat', 'Chat'), kind('flow', 'Flow'))
+/** What stands under a new epic's box, at its left: the folder it works in, as a chat app keeps it. */
+export function under(...chips) {
+  return h('div', { class: 'composer-under', 'data-hmz': 'composer-under' }, chips)
 }
 
 /**

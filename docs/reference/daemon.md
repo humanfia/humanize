@@ -467,10 +467,15 @@ budget.
 | --- | --- | --- | --- |
 | `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `network` (`false`), `title` (`""`: the task's first line, cut at 80), `task` (required) | `id`, `workspace`, `slot`, once its host has taken the start | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
 | `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `state` (`running`, `waiting`, `folded`), `created` | — |
-| `aichan.forget` (write) | `id` (required) | `{}`; closes its host, removes its entry and scratch directory, keeps its epic's records | 404 `There is no Ai-chan #<id>.` |
+| `aichan.forget` (write) | `id` (required) | `{}`; closes its host, removes its entry and scratch directory, keeps its epic's records and writes its epic's name in `forgotten.yaml` | 404 `There is no Ai-chan #<id>.` |
 
 `id` counts from 1. Conversations are kept in `H/ai/<machine>/conversations.yaml` across the
-daemon's restarts. `epic.attach` on the `ai:` slot of a conversation whose host has gone starts
+daemon's restarts. A conversation is an epic, and on no list of them: for every session,
+`runs.list` leaves out the epic of every conversation, kept or forgotten
+([`forgotten.yaml`](/reference/files#h-ai)), and whatever epic the host of an `ai:` slot holds,
+and `workspaces.list` neither counts those epics, nor takes that host as running, nor lists a
+directory for them -- `H/ai/<machine>/`, where a `daemon` conversation runs, among them.
+`hosts.running` does list her hosts. `epic.attach` on the `ai:` slot of a conversation whose host has gone starts
 that host again, carrying its epic on (`resume`), and attaches; on an `ai:` slot of no
 conversation it is refused 404, `There is no Ai-chan conversation <slot>.` `epic.stop` on an
 Ai-chan host interrupts her open turn and leaves the conversation between turns, and is refused

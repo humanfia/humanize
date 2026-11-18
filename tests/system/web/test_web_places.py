@@ -165,7 +165,7 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
 ) -> None:
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
-        go(page, "/new?flow=chat")
+        go(page, "/new/chat")
         page.locator("[data-hmz=workspace-picker]").click()
         page.get_by_role("menuitem", name="Open folder…").click()
         page.locator("[data-hmz=workspace-path]").fill(str(other))
@@ -183,7 +183,7 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         ).to_have_value("claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("over there")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+$"))
         folder = page.locator(f"[data-hmz=workspace][data-path='{other}']")
         expect(folder.locator("[data-hmz=epic]")).to_contain_text("over there")
         stop(page)
@@ -197,7 +197,7 @@ def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
     scratch.mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(scratch))
     with served() as site, opened(site, engine=engine) as page:
-        go(page, "/new?flow=chat")
+        go(page, "/new/chat")
         page.locator("[data-hmz=workspace-picker]").click()
         page.get_by_role("menuitem", name="No workspace").click()
         expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text(
@@ -211,7 +211,7 @@ def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
         ).to_have_value("claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("nowhere in particular")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/[^/]+$"))
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+$"))
         # Under a folder of its own, made in the temporary directory.
         made = f"[data-hmz=workspace][data-path^='{scratch.resolve()}/hmz-']"
         expect(page.locator(made).locator("[data-hmz=epic]")).to_contain_text(
@@ -247,6 +247,41 @@ async def mine(
     one = agents["solo"]
     return await one.run(task, session=await one.spawn(), env=envs["workspace"])
 '''
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("form", ["/new/chat", "/new"])
+def test_the_folder_is_picked_under_the_box_and_not_in_the_bar(
+    project: Path, other: Path, form: str, engine: str
+) -> None:
+    """A new chat and a new epic keep the folder under the box, and neither switches kind."""
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, f"{form}?workspace={other}")
+        chip = page.locator("[data-hmz=composer-under] [data-hmz=workspace-picker]")
+        expect(chip.locator("b")).to_have_text("other")
+        expect(
+            page.locator("[data-hmz=bar] [data-hmz=workspace-picker]")
+        ).to_have_count(0)
+        expect(page.locator("[data-hmz=new-kind]")).to_have_count(0)
+        # A new chat's bar holds nothing of the form's; a new epic's, its flow alone.
+        flows = 0 if form == "/new/chat" else 1
+        expect(page.locator("[data-hmz=bar] [data-hmz=flow-picker]")).to_have_count(
+            flows
+        )
+        box = page.locator("[data-hmz=start]").bounding_box()
+        under = chip.bounding_box()
+        assert box is not None
+        assert under is not None
+        assert under["y"] >= box["y"] + box["height"]
+        assert abs(under["x"] - box["x"]) < 4
+
+        chip.click()
+        menu = page.get_by_role("menu", name="Folders")
+        expect(menu.locator(".popover-head")).to_have_text("Recent")
+        expect(menu.get_by_role("menuitem", name="Open folder…")).to_be_visible()
+        menu.get_by_role("menuitem", name="No workspace").click()
+        expect(chip.locator("b")).to_have_text("No workspace")
+        page.wait_for_url(re.compile(r".*scratch=1.*"))
 
 
 def test_a_projects_own_flows_are_offered_in_that_project_alone(

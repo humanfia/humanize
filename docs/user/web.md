@@ -122,7 +122,8 @@ The panel beside it (the button at the top right shows and hides it) holds:
   each session works and where its harness went, each a link into that environment's files, shell
   and changes while the epic is held (see [Into its environments](/features/environments)) -- the
   **Frontends** reading it, the flows going or the flows it called, and how it was set up and
-  where it is written down. A chat has an **Environment** panel beside its conversation instead.
+  where it is written down. A chat calls this tab **Details**, and has an **Environment** tab
+  beside it while a host holds it.
 - **Aside.** A side question, as [`/btw`](/user/btw) asks it, of one session's side copy -- any
   epic's session, an earlier one forked from where that epic kept it, so it answers with that
   session's own history. Keep as many asides as you like: each is a side conversation of its
@@ -187,10 +188,24 @@ The box under a chat takes what the agent's CLI takes at its own prompt, as `hmz
 chat: typing `/`, `$` or `@` offers the CLI's own commands, skills and files, the names
 Humanize keeps, and the flows, each tagged with where it comes from, and each line is
 [served](/user/chat#what-a-line-means) as its CLI would serve it. A `!` line and what it printed
-are drawn as a shell draws them. A toggle on the chat says whether a `$` name that is both a
-skill and a flow is read as the skill (`native`) or the flow, and whether that comes from the
-settings or from this chat; switching it sets this chat's own
-[preference](/user/chat#a-name-that-is-both).
+are drawn as a shell draws them. The box itself says only **Reply…**; hover it for what `/`,
+`$`, `@` and `!` start, and what it offers as you type is grouped as **Commands** and
+**Skills** (the CLI's own), **Humanize** (the names Humanize keeps), **Flows**, and for `@`
+**Files** (the folder's paths) and **Mentions** (what else the CLI takes after `@`).
+
+A chat reads as a chat app's session. Its bar holds its title, one **More** menu (`⋯`) and
+the panel's button, and says how the chat stands only while it is running, asking or has
+failed. The menu holds what a right click on the chat offers -- a new chat like it, copying
+its link, **Export** once it has ended, **Upload** -- with **Environment** while a host
+holds it, and **Skill or flow**: whether a `$` name that is both a skill and a flow uses the
+skill or starts the flow, with a mark on the one in force and whether that comes from the
+settings or from this chat. Picking the other sets this chat's own
+[preference](/user/chat#a-name-that-is-both), as `/prefer` does.
+
+The panel beside a chat has **Details** in place of **Epic** -- its usage, its first
+message, where it works, and under **About this chat** its ID, where it is saved, its
+folder, when it started, its model, options, limits and sessions -- and **Side questions**
+in place of **Aside**, which works the same.
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered, and what the flow showed them without asking. A line typed under one goes to whose it is. There is
@@ -209,9 +224,9 @@ spent, and how long it took, with how much of that was spent working.
 - **Read its turns** reads who handed to whom, and each session's turns, out of the logs it
   kept, as [tracing](/user/tracing) does. It takes a moment on a long epic. Opening a session
   reads its thread the same way.
-- **Export** (the arrow at the top) downloads the epic as one archive, struck of credentials.
-  See [Exporting a run](/user/export).
-- **Upload** (the up arrow at the top, or in the epic's menu) backs it up now to the targets it
+- **Export** (the arrow at the top; in a chat's **More** menu) downloads the epic as one
+  archive, struck of credentials. See [Exporting a run](/user/export).
+- **Upload** (the up arrow at the top, or in the epic's menu; in a chat's **More** menu) backs it up now to the targets it
   was started with, else the defaults, and says which at once; hover it for how its last
   backup to each target went. See [Backing epics up](/user/backups).
 - **Pick it up** opens a new epic on it, where its flow can be picked up. See
@@ -278,16 +293,19 @@ read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 
-**New epic** offers two choices: **Chat** and **Flow**.
+A new chat and a new epic of a flow are two forms, each opened from the sidebar. Both keep the
+directory they work in under the box you type into, at its left: a folder chip naming it. Click
+the chip to pick another under **Recent**, **No workspace**, or **Open folder…**.
 
-**Chat** starts a [chat](/user/chat): pick the directory, or **No workspace**, as below; the
+A new chat starts a [chat](/user/chat): pick the directory, or **No workspace**, as below; the
 agent, set up a part at a time as a role's agent is under **Options**, starting from the one
 that directory last chatted with; and type the first message. <kbd>Enter</kbd> starts the chat,
 and the page goes to its conversation. There is no flow, budget or params to set.
 
-**Flow** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
-picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory last ran; pick another of either at the top. A chat is not among
-the flows. **Open folder…**
+**New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
+picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory
+last ran; pick another flow at the top, and another directory from the folder chip under the box.
+A chat is not among the flows. **Open folder…**
 takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
 workspace** works in none of yours: each epic started so gets a new directory of its own in the
 temporary directory, made as it starts, and set up as the directory `hmz web` started in is; the
@@ -316,7 +334,9 @@ to view, until you close it. On a phone it covers the view: close it with its bu
 
 The drawer lists every conversation with her on the daemon shown, newest first: its title, what
 it reaches, its nous, its preset, whether its network is on, and whether she is **Answering**,
-**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm.
+**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm. The
+drawer is the only place her conversations are listed: none is in the sidebar, nor counted among
+a workspace's epics, while it lasts or once forgotten.
 
 **New** asks what the conversation is fixed to:
 
