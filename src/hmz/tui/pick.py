@@ -3642,22 +3642,32 @@ class Configures(Drafts["BaseModel"]):
 
         What the model refuses is shown where it was typed rather than raised at the flow:
         a combination the flow will not run is a combination to correct before it starts,
-        and this is the moment it is being said. A setting the model refuses as text is
-        read as JSON where it is JSON and the whole asked once more, as `-p` reads params:
-        that is how a list, a mapping or a number among a literal's choices is written.
+        and this is the moment it is being said. A setting left blank that is unset where
+        nobody gives it a value is left out, for the model to leave it unset: blank is how
+        `None` is shown, and no number is written that way. A setting the model refuses as
+        text is read as JSON where it is JSON and the whole asked once more, as `-p` reads
+        params: that is how a list, a mapping or a number among a literal's choices is
+        written.
         """
         from pydantic import ValidationError
 
+        fields = self._model.model_fields
+        given = {
+            name: text
+            for name, text in self._typed_in.items()
+            if text.strip()
+            or fields[name].get_default(call_default_factory=True) is not None
+        }
         try:
             try:
-                taken = self._model.model_validate(self._typed_in)
+                taken = self._model.model_validate(given)
             except ValidationError as first:
                 failed = {str(one["loc"][0]) for one in first.errors() if one["loc"]}
-                read: dict[str, object] = dict(self._typed_in)
+                read: dict[str, object] = dict(given)
                 for name in failed & read.keys():
                     with contextlib.suppress(ValueError):
-                        read[name] = json.loads(self._typed_in[name])
-                if read == self._typed_in:
+                        read[name] = json.loads(given[name])
+                if read == given:
                     raise
                 taken = self._model.model_validate(read)
             self.dismiss(taken)
