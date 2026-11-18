@@ -1550,7 +1550,7 @@ class Host:
                 if self._current is not current and (
                     ended is not None and ended.get("run") == current.number
                 ):
-                    if ended.get("how") in ("failed", "crashed"):
+                    if ended.get("how") in ("refused", "failed", "crashed"):
                         why = str(ended.get("why") or "").strip()
                         return _no(why.splitlines()[-1] if why else "it failed", 400)
                     return _ok(run=current.number, epic="")
