@@ -124,6 +124,7 @@ __all__ = [
     "Run",
     "current",
     "define_flow",
+    "fits",
     "held_by",
     "load_flow",
     "meets",
@@ -1966,19 +1967,7 @@ async def run_flow(
     if not isinstance(budget, Budget):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise TypeError(f"budget={budget!r} is not a Budget")
     roles, eroles = impl.declared()
-    _given(impl, roles, agents, "agent")
-    _given(impl, eroles, envs, "environment")
-    for role in roles:
-        driver = agents.get(role.name)
-        if driver is not None:
-            _serves(impl, role, driver)
-    for role in eroles:
-        driver = envs.get(role.name)
-        if driver is not None:
-            _serves_env(impl, role, driver)
-            if role.resources:
-                meets(role, driver, impl)
-    said = impl.params_of(params)
+    said = fits(impl, agents=agents, envs=envs, params=params)
     loop = asyncio.get_running_loop()
     run = Run(
         person=Source(outworlder, made=False, node=None),
@@ -2075,6 +2064,44 @@ async def _closed(run: Run) -> None:
     closing.result()
     if stopped:
         raise asyncio.CancelledError
+
+
+def fits(
+    flow: FlowImpl,
+    *,
+    agents: Mapping[str, AgentDriver],
+    envs: Mapping[str, EnvDriver],
+    params: FlowParams | Mapping[str, Any],
+) -> FlowParams:
+    """Checks what a flow is about to be run on, as :func:`run_flow` does before it starts.
+
+    Args:
+      flow: The flow.
+      agents: A driver per agent role, less the `Outworlder` roles the runtime fills.
+      envs: A driver per environment role, less the `LocalEnv` roles the runtime fills.
+      params: The params, or a mapping of them to validate.
+
+    Returns:
+      The params, validated.
+
+    Raises:
+      RequirementError: If the drivers do not meet the declaration.
+      ParamsError: If the params do not validate.
+    """
+    roles, eroles = flow.declared()
+    _given(flow, roles, agents, "agent")
+    _given(flow, eroles, envs, "environment")
+    for role in roles:
+        driver = agents.get(role.name)
+        if driver is not None:
+            _serves(flow, role, driver)
+    for role in eroles:
+        driver = envs.get(role.name)
+        if driver is not None:
+            _serves_env(flow, role, driver)
+            if role.resources:
+                meets(role, driver, flow)
+    return flow.params_of(params)
 
 
 def _given(

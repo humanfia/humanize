@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import json
 import os
 import re
 import shlex
@@ -45,6 +46,7 @@ import textwrap
 import threading
 from collections.abc import Mapping
 from dataclasses import replace
+from enum import Enum
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -63,6 +65,7 @@ from urllib.parse import unquote
 from weakref import WeakKeyDictionary
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_core import to_json
 from rich.markup import escape
 from textual import events, on, work
 from textual.await_complete import AwaitComplete
@@ -3246,6 +3249,23 @@ def _shown(value: object) -> str:
     return "" if value is None else str(value)
 
 
+def _written(value: object) -> str:
+    """One setting's value, as the sheet that sets it writes it: the text that reads back.
+
+    Args:
+      value: What it is set to.
+
+    Returns:
+      A member of an `Enum` as its value and a list, a mapping or a model as JSON -- `str()`
+      of one is a spelling no model takes -- and anything else as :func:`_shown` says it.
+    """
+    if isinstance(value, Enum):
+        value = value.value
+    if isinstance(value, (list, tuple, set, frozenset, Mapping, BaseModel)):
+        return to_json(value).decode()
+    return _shown(value)
+
+
 def _grouped(field: FieldInfo) -> str:
     """Which part of the sheet a setting belongs under, if the flow said.
 
@@ -3350,7 +3370,7 @@ class Configures(Drafts["BaseModel"]):
         #: Every value as text, which is what is shown and what is read back: one spelling
         #: of a setting, so that what is on screen is what the model is given.
         self._typed_in: dict[str, str] = {
-            name: _shown(
+            name: _written(
                 getattr(now, name)
                 if now is not None
                 else field.get_default(call_default_factory=True)
@@ -3624,7 +3644,10 @@ class Configures(Drafts["BaseModel"]):
         a combination the flow will not run is a combination to correct before it starts,
         and this is the moment it is being said. A setting left blank that is unset where
         nobody gives it a value is left out, for the model to leave it unset: blank is how
-        `None` is shown, and no number is written that way.
+        `None` is shown, and no number is written that way. A setting the model refuses as
+        text is read as JSON where it is JSON and the whole asked once more, as `-p` reads
+        params: that is how a list, a mapping or a number among a literal's choices is
+        written.
         """
         from pydantic import ValidationError
 
@@ -3636,7 +3659,18 @@ class Configures(Drafts["BaseModel"]):
             or fields[name].get_default(call_default_factory=True) is not None
         }
         try:
-            self.dismiss(self._model.model_validate(given))
+            try:
+                taken = self._model.model_validate(given)
+            except ValidationError as first:
+                failed = {str(one["loc"][0]) for one in first.errors() if one["loc"]}
+                read: dict[str, object] = dict(given)
+                for name in failed & read.keys():
+                    with contextlib.suppress(ValueError):
+                        read[name] = json.loads(given[name])
+                if read == given:
+                    raise
+                taken = self._model.model_validate(read)
+            self.dismiss(taken)
         except ValidationError as refused:
             first = refused.errors()[0]
             where = ".".join(str(part) for part in first.get("loc") or ())

@@ -472,6 +472,28 @@ def test_a_closed_client_refuses_new_requests() -> None:
         client.listdir("/")
 
 
+def test_a_client_whose_target_went_refuses_new_requests() -> None:
+    peer = Peer(hello)
+    client = RemoteClient(peer, timeout=0.5)
+    client.start()
+    ended = threading.Event()
+
+    def on_exit(result: dict[str, Any] | None, error: OSError | None) -> None:
+        ended.set()
+
+    client.start_exec(["sleep"], "/", {}, ignore, on_exit)
+    # The target goes, and a write to it still succeeds: the first one on a socket does.
+    peer.inbox.put(None)
+    assert ended.wait(5)
+    with pytest.raises(ConnectionResetError):
+        client.listdir("/")
+    with pytest.raises(ConnectionResetError):
+        client.start_exec(["sleep"], "/", {}, ignore, ignore)
+    assert not peer.shut
+    client.close()
+    assert peer.shut
+
+
 def test_a_send_that_fails_is_a_connection_reset() -> None:
     peer = Peer(hello)
     client = RemoteClient(peer)

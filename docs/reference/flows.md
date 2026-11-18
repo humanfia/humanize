@@ -2374,7 +2374,9 @@ async def run_fake(
 | `journal` | `None` | Path of a resumable flow's journal. |
 | `resume` | `False` | Pick up `journal`. |
 
-Returns the very object the flow returned, or raises the very exception it raised. The flow
+Returns the very object the flow returned, or raises the very exception it raised. A run
+refused before the flow is called raises what the flow API raises for it -- `RequirementError`
+(`CapabilityMissing`, `MissingRole`, `HarnessMismatch`) or `ParamsError` -- not `Refused`. The flow
 runs through a [private daemon](/reference/sdk#fakes) the test starts in its own process, with
 a temporary home of its own: this machine's daemon is never touched, and the epic it writes is
 removed when `run_fake` returns or raises, so `Hmz().epics` does not list it. A `NotRequired`

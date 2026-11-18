@@ -119,9 +119,10 @@ def _group_and_sort(page: Page) -> Locator:
 def test_what_the_sidebar_sends_off_says_it_is_going(engine: str) -> None:
     wire = Wire(
         faked={
-            # The first page is answered at once; a page more is held until it is given.
+            # A page more is held until it is given; the first page, and what the new chat
+            # form in front reads for itself, are answered at once.
             "runs.list": lambda params: (
-                {"result": _answers(_MANY, 23)} if params.get("limit") == 60 else None
+                None if params.get("limit") == 120 else {"result": _answers(_MANY, 23)}
             ),
             "runs.get": lambda _: None,
             "runs.backup": lambda _: None,
@@ -619,9 +620,10 @@ def test_the_list_reads_no_more_than_it_is_asked_to(engine: str) -> None:
         rows = page.locator("[data-hmz=epics] [data-hmz=epic]")
         expect(rows).to_have_count(60)
         expect(page.locator("[data-hmz=group-more]")).to_have_count(0)
-        # Read again and again as it is, it asks for the one page.
+        # Read again and again as it is, it asks for the one page; the new chat form in front
+        # reads the chats that wait for itself, two hundred at once.
         page.wait_for_timeout(5000)
-        assert {one["limit"] for one in wire.params("runs.list")} == {60}
+        assert {one["limit"] for one in wire.params("runs.list")} - {200} == {60}
         expect(rows).to_have_count(60)
 
         # The list ends with what reads a page more.
@@ -629,7 +631,7 @@ def test_the_list_reads_no_more_than_it_is_asked_to(engine: str) -> None:
         expect(more).to_have_text("Show more")
         more.click()
         expect(rows).to_have_count(120)
-        assert {one["limit"] for one in wire.params("runs.list")} == {60, 120}
+        assert {one["limit"] for one in wire.params("runs.list")} - {200} == {60, 120}
         expect(more).to_have_text("Show more")
 
 

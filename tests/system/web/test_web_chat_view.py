@@ -1,14 +1,17 @@
 """A chat's view: read as a chat app's session, with nothing on it in hmz's own words.
 
 The chat's host is faked on the wire, so the view is drawn with no agent run: its bar is its
-title, one menu and the panel's button; what a `$` name that is both a skill and a flow does is
-picked in that menu; its panel and its box say what they are in plain words. A flow's epic,
-beside it, keeps the bar, the tabs and the words it had. Each in Chromium and in WebKit.
+title with one menu right after it and, at the far right, a button for each pane beside the
+conversation; what a `$` name that is both a skill and a flow does is picked in that menu; its
+box holds only Add, what is typed and the button that sends, with its chips in a row under it;
+its panel and its box say what they are in plain words. A flow's epic, beside it, keeps the bar,
+the tabs and the words it had. Each in Chromium and in WebKit.
 """
 
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -21,7 +24,7 @@ from tests.system.web.doubles_browser import ENGINES, Wire, frame, go, opened
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from playwright.sync_api import Page
+    from playwright.sync_api import FloatRect, Page
 
 pytestmark = [
     pytest.mark.parametrize("engine", ENGINES),
@@ -121,6 +124,13 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Pa
     return project
 
 
+def _box(page: Page, selector: str) -> FloatRect:
+    """Where an element is drawn, in CSS pixels."""
+    box = page.locator(selector).bounding_box()
+    assert box is not None, selector
+    return box
+
+
 class _ChatWire(Wire):
     """The wire, which also tells the page what a faked host says."""
 
@@ -208,14 +218,55 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         _chats(page, wire)
         bar = page.locator("[data-hmz=bar]")
 
-        # Its bar: its title, one menu, the panel's button and Ai-chan's -- no row of
-        # buttons, no switch, and no word of hmz's own.
+        # Its bar, as a chat app's session keeps its toolbar: 45px high, its title a
+        # button with the one menu right after it, and at the far right a 28px button
+        # for each pane, then View options and Ai-chan's -- no word of hmz's own, and
+        # nothing saying how the chat stands.
         expect(bar.locator("h1")).to_have_text("hello there")
-        expect(bar.locator(".bar-actions > *")).to_have_count(3)
-        expect(bar.locator(".badge")).to_have_text(re.compile("running"))
+        assert _box(page, "[data-hmz=bar]")["height"] == 45
+        title = _box(page, "[data-hmz=chat-title]")
+        more_at = _box(page, "[data-hmz=chat-menu]")
+        assert 0 <= more_at["x"] - (title["x"] + title["width"]) <= 4
+        assert bar.locator(".bar-actions button").evaluate_all(
+            "all => all.map((one) => one.getAttribute('aria-label'))"
+        ) == ["Details", "Terminal", "Changes", "Files", "View options", "Ai-chan"]
+        toggles = [
+            _box(page, f"[data-hmz={one}]")
+            for one in (
+                "chat-menu",
+                "pane-details",
+                "pane-terminal",
+                "pane-changes",
+                "pane-files",
+                "chat-view",
+            )
+        ]
+        assert all((one["width"], one["height"]) == (28, 28) for one in toggles)
+        assert [one["x"] for one in toggles] == sorted(one["x"] for one in toggles)
+        expect(bar.locator(".badge")).to_have_count(0)
         expect(bar.locator("[data-hmz=prefer]")).to_have_count(0)
         expect(bar).not_to_contain_text(
             re.compile("epic|flow|native|began", re.IGNORECASE)
+        )
+        # The buttons 4px apart, the last 8px from the edge of the view, which the bar
+        # runs the whole width of.
+        assert {b["x"] - a["x"] for a, b in pairwise(toggles[1:])} == {32}
+        whole = _box(page, ".view-epic")
+        barred = _box(page, "[data-hmz=bar]")
+        assert (barred["x"], barred["width"]) == (whole["x"], whole["width"])
+        ending = _box(page, "[data-hmz=aichan-toggle]")
+        assert whole["x"] + whole["width"] - (ending["x"] + ending["width"]) == 8
+        # Its host holds no environment for it: its three panes are said, cannot open,
+        # and say why.
+        for pane in ("terminal", "changes", "files"):
+            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_be_disabled()
+            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_have_attribute(
+                "title", f"No {pane} in this environment"
+            )
+
+        # How it stands is said over its box, only while there is something to say.
+        expect(page.locator("[data-hmz=chat-status]")).to_have_text(
+            "Haiku 4.5 is responding"
         )
 
         # What was a row of buttons is in the menu, with what a right click offers.
@@ -258,20 +309,91 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         while wire.params("chat.set")[-1]["prefer"] != "native":
             page.wait_for_timeout(50)
 
-        # Its box is as quiet as a chat app's: what else it takes is said on hover, and
-        # offered, under plain names, as it is typed.
+        # Its box is a chat app's: inside it only Add, what is typed and the button
+        # that sends, each 28px high in one row; its chips in a row under it, 24px
+        # high, at its right -- the model and then what the chat may touch.
         expect(say).to_have_attribute("placeholder", "Reply…")
-        say.hover()
-        expect(page.locator(".tip")).to_contain_text("$ for skills and flows")
-        say.fill("/")
+        expect(page.locator("[data-hmz=say] .composer-box > *")).to_have_count(3)
+        inside = [
+            _box(page, f"[data-hmz=say] {one}")
+            for one in ("[data-hmz=composer-add]", "textarea", ".send")
+        ]
+        assert [one["height"] for one in inside] == [28, 28, 28]
+        assert [one["x"] for one in inside] == sorted(one["x"] for one in inside)
+        assert len({one["y"] for one in inside}) == 1
+        boxed = _box(page, "[data-hmz=say] .composer-box")
+        under = _box(page, "[data-hmz=say] [data-hmz=composer-under]")
+        assert under["y"] >= boxed["y"] + boxed["height"]
+        chips = page.locator("[data-hmz=say] [data-hmz=composer-under] button:visible")
+        assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
+            "chat-model",
+            "permission",
+            "chat-usage",
+        ]
+        expect(chips.first).to_have_text("Haiku 4.5")
+        for hook in ("chat-model", "permission", "chat-usage"):
+            assert _box(page, f"[data-hmz=say] [data-hmz={hook}]")["height"] == 24
+        # Usage is a ring 24px square while the chat has spent nothing to say, the last
+        # of the row and set in from the box's edge.
+        used = _box(page, "[data-hmz=say] [data-hmz=chat-usage]")
+        assert used["width"] == 24
+        assert boxed["x"] + boxed["width"] - (used["x"] + used["width"]) == 12
+        expect(page.locator("[data-hmz=say] [data-hmz=chat-usage]")).to_have_attribute(
+            "aria-label", "Usage"
+        )
+        last = _box(page, "[data-hmz=say] [data-hmz=permission]")
+        assert last["x"] > boxed["x"] + boxed["width"] / 2
+        expect(
+            page.locator("[data-hmz=say] [data-hmz=workspace-picker]")
+        ).to_have_count(0)
+
+        # What else it takes is offered by Add, under plain names, and as it is typed.
+        add = page.locator("[data-hmz=say] [data-hmz=composer-add]")
+        add.click()
+        adding = page.get_by_role("menu", name="Add")
+        expect(adding.get_by_role("menuitem")).to_have_text(
+            ["Add files", "Slash commands", "Skills and flows", "Run a shell command"]
+        )
+        adding.get_by_role("menuitem", name="Slash commands").click()
+        expect(say).to_have_value("/")
+        expect(say).to_be_focused()
         offered = page.locator("[data-hmz=completions] .complete-group")
         expect(offered).to_have_text(["Commands", "Humanize"])
-        say.fill("$r")
+        say.fill("r")
+        add.click()
+        adding.get_by_role("menuitem", name="Skills and flows").click()
+        expect(say).to_have_value("$r")
         expect(offered).to_have_text(["Skills", "Flows"])
+        say.fill("see")
+        add.click()
+        adding.get_by_role("menuitem", name="Add files").click()
+        expect(say).to_have_value("see @")
+        say.fill("")
+        add.click()
+        adding.get_by_role("menuitem", name="Run a shell command").click()
+        expect(say).to_have_value("!")
         say.fill("")
 
-        # Its panel says what it is in a chat's words.
+        # No pane is open until one is asked for; Details opens the panel, which says
+        # what it is in a chat's words, and pressed again shuts it.
         panel = page.locator("[data-hmz=inspector]")
+        details = bar.locator("[data-hmz=pane-details]")
+        expect(panel).to_be_hidden()
+        expect(details).to_have_attribute("aria-pressed", "false")
+        before = _box(page, "[data-hmz=pane-details]")
+        details.click()
+        expect(panel).to_be_visible()
+        expect(details).to_have_attribute("aria-pressed", "true")
+        # The bar runs over the pane too: the button stays where it was pressed, so
+        # pressing there again shuts the pane.
+        assert _box(page, "[data-hmz=pane-details]") == before
+        assert _box(page, "[data-hmz=inspector]")["y"] == 45
+        page.mouse.click(before["x"] + 14, before["y"] + 14)
+        expect(panel).to_be_hidden()
+        # The title is a button that opens the same.
+        bar.locator("[data-hmz=chat-title]").click()
+        expect(panel).to_be_visible()
+        expect(details).to_have_attribute("aria-pressed", "true")
         expect(panel.get_by_role("tab")).to_have_text(["Details", "Side questions"])
         expect(panel.locator("h3")).to_contain_text(
             ["Usage", "First message", "About this chat"]
@@ -290,7 +412,15 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
             ]
         )
         expect(panel.locator("dd").nth(4)).to_have_text("claude/claude-haiku-4-5")
-        panel.get_by_role("tab", name="Side questions").click()
+        # Side questions are under View options, and no pane's button is theirs.
+        bar.locator("[data-hmz=chat-view]").click()
+        page.get_by_role("menu", name="View options").get_by_role(
+            "menuitem", name="Side questions"
+        ).click()
+        expect(details).to_have_attribute("aria-pressed", "false")
+        expect(panel.get_by_role("tab", name="Side questions")).to_have_attribute(
+            "aria-selected", "true"
+        )
         expect(panel).to_contain_text("Side questions never reach this chat.")
         expect(panel.locator("[data-hmz=btw-tab]")).to_have_text("New question")
         expect(panel.locator("[data-hmz=btw] textarea")).to_have_attribute(

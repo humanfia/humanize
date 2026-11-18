@@ -91,6 +91,30 @@ test('a field is named in a sentence, its title kept only where it says more tha
   assert.equal(labelOf('reviewerEmail'), 'Reviewer email')
 })
 
+test('a field is named by its own title, never by the title of the type it refers to', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      severity: { $ref: '#/$defs/Level' },
+      confidence: { $ref: '#/$defs/Level' },
+      actor_limits: { $ref: '#/$defs/Limits' },
+      reviewer_limits: { anyOf: [{ $ref: '#/$defs/Limits' }, { type: 'null' }], default: null },
+      shade: { $ref: '#/$defs/Level', title: 'Which shade' },
+    },
+    required: ['severity', 'confidence', 'actor_limits', 'shade'],
+    $defs: {
+      Level: { title: 'Level', type: 'string', enum: ['low', 'high'] },
+      Limits: { title: 'Limits', type: 'object', properties: { turns: { title: 'Turns', type: 'integer' } } },
+    },
+  }
+  const fields = fieldsOf(schema)
+  assert.deepEqual(
+    fields.map((one) => labelOf(one.name, one.node)),
+    ['Severity', 'Confidence', 'Actor limits', 'Which shade', 'Reviewer limits'],
+  )
+  assert.deepEqual(fields.map((one) => kindOf(one.node)), ['choice', 'choice', 'object', 'choice', 'object'])
+})
+
 test('a yes or no is worded from what it is about', () => {
   assert.deepEqual(yesNo('tests', { description: 'Write tests.' }), { yes: 'Yes, write tests', no: 'No' })
   assert.deepEqual(yesNo('dry_run', { title: 'Dry Run' }), { yes: 'Yes, dry run', no: 'No' })

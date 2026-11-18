@@ -285,10 +285,23 @@ export function sidePanel(label, { key = 'hmz-panel', open: first = true, hmz = 
     if (!narrow.matches) keep(key, open === first ? null : open ? 'open' : 'shut')
     told(open)
   }
-  set(!narrow.matches && kept(key, first ? 'open' : 'shut') === 'open')
+  const read = () => set(!narrow.matches && kept(key, first ? 'open' : 'shut') === 'open')
+  read()
   toggle.addEventListener('click', () => set(node.hidden))
   shut.addEventListener('click', () => set(false))
-  return { node, body, toggle, set, open: () => set(true) }
+  return {
+    node,
+    body,
+    toggle,
+    set,
+    open: () => set(true),
+    /** Keeps it from here on by another key, open or shut as that one was last left: a chat's panel, shut where never opened. */
+    keptAs(other, opens) {
+      key = other
+      first = opens
+      read()
+    },
+  }
 }
 
 /**
