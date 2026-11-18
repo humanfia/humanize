@@ -161,6 +161,27 @@ def test_a_line_checks_as_hmz_exec_would_without_starting_anything(
     assert not started(tmp_path)
 
 
+def test_a_relative_path_names_a_flow_of_the_workspace_the_call_names(
+    client: Client, project: Path
+) -> None:
+    # The daemon is run in one directory and holds every workspace of its machine
+    # (Section 3.3.2 of daemon.md), so `./done` is the workspace's and not the daemon's.
+    (project / "done").mkdir()
+    (project / "done" / "__init__.py").write_text(
+        "from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow\n\n\n"
+        "@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams)\n"
+        "async def done(task, *, agents, envs, params, ctx):\n"
+        '    return "did " + task\n'
+    )
+
+    checked = client.call(
+        "flows.check", workspace=str(project), flow="./done", budget={"duration": 3600}
+    )
+
+    assert checked["flow"] == "./done"
+    assert checked["ref"] == "done:done"
+
+
 @pytest.mark.parametrize(
     ("argv", "said"),
     [
