@@ -461,6 +461,44 @@ def test_a_bang_line_is_run_in_the_workspace_and_carried_into_the_next_turn(
     assert len(wired.driver.requests) == 2
 
 
+def test_a_chat_is_between_turns_but_while_its_assistant_answers(
+    wired: Wired, tmp_path: Path
+) -> None:
+    wired.driver.catalog = [BANG]
+    seen: list[tuple[str, bool]] = []
+
+    class Watching(Person):
+        async def next(self, answered: str) -> str:
+            seen.append(("next", chat.between))
+            return await super().next(answered)
+
+        def shell(self, command: str, out: str, err: str, status: int) -> None:
+            seen.append(("shell", chat.between))
+
+    async def reply(session: Session, request: TurnRequest) -> str:
+        seen.append(("turn", chat.between))
+        return "did"
+
+    wired.driver.reply = reply
+    chat = _chat(wired, Watching(["!echo hello", "what did it print?"]))
+    # Given its first message, it is in its first turn from the start.
+    assert chat.between is False
+
+    asyncio.run(chat.run())
+
+    # A `!` command opens no turn: the chat stays between two through it.
+    assert seen == [
+        ("turn", False),
+        ("next", True),
+        ("shell", True),
+        ("next", True),
+        ("turn", False),
+        ("next", True),
+    ]
+    # With nothing said yet, it waits on its person: no turn is going.
+    assert _chat(wired, Person(), task="", role=_role(tmp_path)).between is True
+
+
 def test_what_a_bang_line_ran_waits_out_a_command_for_the_turn_after_it(
     wired: Wired,
 ) -> None:

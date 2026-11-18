@@ -1160,17 +1160,17 @@ class Host:
         """Where a chat is in its turn: "running" while its agent answers, "done" otherwise.
 
         A turn ends where the chat asks what to say next, or where the chat does; what the
-        agent asks its user mid-turn is not the end of one. Nothing for an epic of a flow.
+        agent asks its user mid-turn is not the end of one, and a `!` command or a line
+        refused between two turns is not the start of one. Nothing for an epic of a flow.
         Under the lock.
         """
         if shown is None or shown.run.kind != "chat":
             return {}
+        between = shown is not self._current or shown.run.chat.between
         listening = any(
             one.run == shown.number and one.mode == "listen" for one in self._questions
         )
-        return {
-            "turn": "done" if listening or shown is not self._current else "running"
-        }
+        return {"turn": "done" if between or listening else "running"}
 
     def _name_of(self, client: str) -> str:
         frontend = self._frontends.get(client)

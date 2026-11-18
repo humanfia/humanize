@@ -238,6 +238,8 @@ class FakeChat:
     permission: str | None = "workspace-write"
     catalog: list[Native] = field(default_factory=list[Native])
     listed: bool = True
+    #: Whether it is between turns, where it says so before it asks what to say next.
+    between: bool = False
 
     def prefers(self, prefer: str) -> None:
         self.prefer = prefer
@@ -1889,6 +1891,22 @@ def test_what_a_chats_assistant_asks_mid_turn_is_answered_by_the_next_line(
 
     alice.told("asked", run=1, mode="listen", text="you said go on")
     assert chat.answers == ["blue"]
+
+
+def test_a_chat_between_turns_is_not_in_one_though_it_waits_on_no_line(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    chat.asks.append(("which?", ()))
+    alice.asks("chat.say", text="!make")
+    alice.told("asked", run=1, text="which?")
+    assert host.status()["turn"] == "running"
+
+    # As a chat is while a `!` command of its person's runs: no turn is opened by one.
+    chat.chat.between = True
+
+    assert host.status()["turn"] == "done"
 
 
 def test_an_empty_line_ends_a_chat_stopped(

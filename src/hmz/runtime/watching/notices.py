@@ -259,6 +259,10 @@ def _noticed(
         kind = _ASKED.get(one.get("mode", ""))
         if kind is None or one.get("question") in asked:
             continue
+        if chat and kind == "listening" and same and was.get("turn") == "done":
+            # Asked what to say next with no turn taken since it last was: after a `!`
+            # command or a line refused, which is no turn done (Section 8.9.6 of core.md).
+            continue
         made.append(
             {
                 # A chat asking what to say next is its turn done.
