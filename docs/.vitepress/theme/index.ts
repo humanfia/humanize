@@ -6,6 +6,7 @@
 // and reference render exactly as they did.
 import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
+import { h } from 'vue'
 
 import HmzAccounts from './components/HmzAccounts.vue'
 import HmzAnchor from './components/HmzAnchor.vue'
@@ -28,10 +29,21 @@ import HmzSyscalls from './components/HmzSyscalls.vue'
 import HmzSurfaces from './components/HmzSurfaces.vue'
 import HmzTimeline from './components/HmzTimeline.vue'
 import HmzTurns from './components/HmzTurns.vue'
+import SectionNav from './humanfia/SectionNav.vue'
+import Wordmark from './humanfia/Wordmark.vue'
 import './style.css'
+import './humanfia/chrome.css'
 
 export default {
   extends: DefaultTheme,
+  // humanfia.ai's chrome (humanfia/): its wordmark in the bar's title link, where the config
+  // sets no logo and no title; and this site's own sections at the head of every sidebar, since
+  // the bar names the organisation's.
+  Layout: () =>
+    h(DefaultTheme.Layout, null, {
+      'nav-bar-title-after': () => h(Wordmark),
+      'sidebar-nav-before': () => h(SectionNav),
+    }),
   enhanceApp({ app, router, siteData }) {
     // This site is served under humanfia.ai, at its base (/humanize/), beside the organisation's
     // own site and every other project's: the same origin, and none of them this build. The
