@@ -216,6 +216,32 @@ def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
         assert _epics(user) == {ours_epic, theirs_epic}
         assert user.call("runs.list", {}, timeout=30)["total"] == 2
 
+        # An epic is hers by where it was run, not by the workspace the call names.
+        for method in ("btw.list", "btw.ask"):
+            asked = (
+                {"to": "nobody/1", "aside": "x", "question": "?"}
+                if method == "btw.ask"
+                else {}
+            )
+            assert (
+                _refused(
+                    ai,
+                    method,
+                    {"workspace": str(project), "epic": theirs_epic, **asked},
+                )
+                == f"{method} is out of Ai-chan's scope: the epic {theirs_epic}."
+            )
+            assert (
+                _refused(
+                    ai, method, {"workspace": str(other), "epic": ours_epic, **asked}
+                )
+                == f"{method} is out of Ai-chan's scope: the workspace {elsewhere}."
+            )
+        for epic in (ours_epic, ""):
+            assert ai.call(
+                "btw.list", {"workspace": str(project), "epic": epic}, timeout=30
+            ) == {"asides": []}
+
         # Nor is anything of hers a workspace's: her epics, her hosts, her own directory.
         user.call("aichan.create", {"scope": "daemon", "nous": AGENT, "task": "all"})
         assert until(lambda: len(every()) == 4)
