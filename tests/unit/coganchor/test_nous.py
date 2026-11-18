@@ -324,6 +324,42 @@ def test_the_old_fallbacks_are_read_as_then_and_dropped_at_the_next_write() -> N
     assert list(held["nous"]) == ["claude/a", "grok/c"]
 
 
+def test_old_fallbacks_that_name_one_another_round_do_not_refuse_the_next_write() -> (
+    None
+):
+    _hand_written(
+        {
+            "fallbacks": [
+                {"spec": "claude/a", "to": ["codex/b"], "tries": 2, "policy": "linear"},
+                {"spec": "codex/b", "to": ["claude/a"], "tries": 1, "policy": "linear"},
+            ]
+        }
+    )
+    assert nous.every() == [
+        Nous("claude/a", 2, "linear", 0.0, then=nous.chain(["codex/b"]))
+    ]
+    nous.retrying("grok/c", 1, "constant", 0)
+    held = settings.read()
+    assert "fallbacks" not in held
+    assert list(held["nous"]) == ["claude/a", "grok/c"]
+    with pytest.raises(ValueError, match="comes round"):
+        nous.then("codex/b", ["claude/a"])
+
+
+def test_an_entry_that_names_those_before_it_round_is_ignored_when_read() -> None:
+    _hand_written(
+        {
+            "nous": {
+                "claude/a": {"tries": 1, "then": "codex/b"},
+                "codex/b": {"then": "claude/a:high"},
+            }
+        }
+    )
+    assert [one.name for one in nous.every()] == ["claude/a"]
+    nous.retrying("grok/c", 1, "constant", 0)
+    assert list(settings.read()["nous"]) == ["claude/a", "grok/c"]
+
+
 def test_every_reads_what_somebody_wrote_by_hand_forgivingly() -> None:
     _hand_written(
         {

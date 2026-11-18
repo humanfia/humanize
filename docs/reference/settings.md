@@ -176,8 +176,9 @@ each nous's name -- a concrete nous `CLI[@ACCOUNT]/MODEL[:EFFORT]`, or a virtual
 A graph is one nous, a list of nous tried in turn, or `{start, nodes}`, `nodes` mapping each
 node's id to `{use: <nous>}` or `{balance: <strategy>, among: {<nous>: <weight>}, spread: <n>}`,
 with `on: {<fault class or *>: <node id>}` or `next: <node id>` (the same as `on: {'*': …}`).
-A chain is written back as a list. Invalid entries are dropped on read; a write that would name a
-virtual nous nobody wrote, or let nous name one another round, is refused. A `fallbacks` list an
+A chain is written back as a list. Invalid entries are dropped on read, as is one that names those
+before it round; a write that would name a virtual nous nobody wrote, or let nous name one another
+round, is refused. A `fallbacks` list an
 older Humanize wrote is read as each `spec`'s `then: <to>`, and dropped at the next write.
 
 ### `clis`
