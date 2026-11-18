@@ -506,7 +506,7 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         expect(found).not_to_have_attribute("aria-busy", "true")
         search.fill("nothing like it")
         expect(page.locator("[data-hmz=found]")).to_contain_text(
-            "No epic is like that."
+            "Nothing is like that."
         )
         search.fill("find me")
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
@@ -1614,7 +1614,7 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
             go(page, "/new")
             shutil.rmtree(at)
 
-        # Picked, from Search epics.
+        # Picked, from Search.
         gone()
         page.keyboard.press("Control+k")
         with page.expect_file_chooser() as choosing:

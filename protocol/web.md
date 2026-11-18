@@ -167,8 +167,12 @@ the credentials removed.
 **3.4.1.1** The page MUST consist of a sidebar and, beside it, the current view.
 
 **3.4.1.2** The sidebar MUST show, from top to bottom: the Humanize mark, the notification bell, a
-control that hides the sidebar, the entries `New epic`, `Search epics` and `Flows`, the workspaces
-of the daemon shown as Section 3.5 specifies, and the daemon bar.
+control that hides the sidebar, the entries `New chat`, `New epic`, `Search` and `Flows`, the
+workspaces of the daemon shown as Section 3.5 specifies, and the daemon bar.
+
+**3.4.1.2.1** `New chat` MUST open a new chat (Section 3.8.18) and `New epic` a new epic of a flow
+(Section 3.8.1); the two MUST be separate entries, `New chat` the first. The Humanize mark MUST open
+a new chat.
 
 **3.4.1.3** The `Flows` entry MUST show how many installed flows have a newer release, where at
 least one has.
@@ -197,9 +201,9 @@ daemon, and MUST stop drawing anything of the previous daemon.
 
 #### 3.4.3. Keyboard
 
-**3.4.3.1** Cmd+K, or Ctrl+K, MUST open `Search epics`.
+**3.4.3.1** Cmd+K, or Ctrl+K, MUST open `Search`.
 
-**3.4.3.2** Cmd+Shift+O, or Ctrl+Shift+O, MUST open a new epic.
+**3.4.3.2** Cmd+Shift+O, or Ctrl+Shift+O, MUST open a new chat.
 
 **3.4.3.3** Cmd+., or Ctrl+., MUST hide or show the sidebar.
 
@@ -779,14 +783,14 @@ machine.
 
 ### 3.10. Search
 
-**3.10.1** `Search epics` MUST list every epic of the daemon shown, a page at a time, with its
+**3.10.1** `Search` MUST list every epic of the daemon shown, chats among them, a page at a time, with its
 workspace, flow, agents, what it spent, how long it took, how many sessions it opened, whether it
 can be resumed and where it is written down.
 
-**3.10.2** `Search epics` MUST let the user filter epics by how they went, by workspace, by flow and
+**3.10.2** `Search` MUST let the user filter epics by how they went, by workspace, by flow and
 by words of their task.
 
-**3.10.3** `Search epics` MUST offer `Import`.
+**3.10.3** `Search` MUST offer `Import`.
 
 ### 3.11. Settings
 

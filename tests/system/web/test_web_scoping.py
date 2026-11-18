@@ -45,18 +45,40 @@ def test_an_address_naming_local_draws_every_view_and_keeps_naming_it(
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/@local/new")
-        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
+        expect(page.locator("[data-hmz=flow-picker] b")).to_be_visible()
         nav = page.locator(".side-nav a")
-        expect(nav).to_have_count(3)
+        expect(page.locator(".side-nav a > span:not(.side-badge)")).to_have_text(
+            ["New chat", "New epic", "Search", "Flows"]
+        )
         for one in nav.all():
             expect(one).to_have_attribute("href", re.compile(r"^#/@local/"))
+        # The mark and the first entry open a new chat, the second a new epic.
         expect(page.locator(".side-top .brand")).to_have_attribute(
-            "href", "#/@local/new"
+            "href", "#/@local/new/chat"
         )
+        expect(nav.nth(0)).to_have_attribute("href", "#/@local/new/chat")
+        expect(nav.nth(1)).to_have_attribute("href", "#/@local/new")
+        expect(nav.nth(1)).to_have_attribute("aria-current", "page")
+
+        # A new chat from the first entry, from its keys and from the mark, each its own entry.
+        nav.nth(0).click()
+        expect(page.locator(".view[data-hmz=new-chat]")).to_be_visible()
+        assert page.evaluate("location.hash").startswith("#/@local/new/chat")
+        expect(nav.nth(0)).to_have_attribute("aria-current", "page")
+        expect(nav.nth(1)).not_to_have_attribute("aria-current", "page")
 
         page.locator(".side-nav a[data-nav=flows]").click()
         expect(page.locator("[data-hmz=flows] .card").first).to_be_visible()
         assert page.evaluate("location.hash").startswith("#/@local/flows")
+        page.keyboard.press("Control+Shift+O")
+        expect(page.locator(".view[data-hmz=new-chat]")).to_be_visible()
+        assert page.evaluate("location.hash").startswith("#/@local/new/chat")
+        page.locator(".side-nav a[data-nav=flows]").click()
+        expect(page.locator("[data-hmz=flows] .card").first).to_be_visible()
+        page.locator(".side-top .brand").click()
+        expect(page.locator(".view[data-hmz=new-chat]")).to_be_visible()
+        page.locator(".side-nav a[data-nav=flows]").click()
+        expect(page.locator("[data-hmz=flows] .card").first).to_be_visible()
 
         go(page, "/@local/settings/general")
         dialog = page.locator("[data-hmz=dialog-settings]")
@@ -124,7 +146,7 @@ def test_another_daemon_is_switched_to_and_back(project: Path, engine: str) -> N
         expect(page.locator("[data-hmz=workspace]").first).to_be_visible()
         since = len(wire.calls)
         page.locator(".side-nav a[data-nav=new]").click()
-        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
+        expect(page.locator("[data-hmz=flow-picker] b")).to_be_visible()
         assert page.evaluate("location.hash").startswith("#/@other/new?")
         # Asked of `other` over a session of its own, not over Local's.
         local = wire.over[0]
