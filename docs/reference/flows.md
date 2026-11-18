@@ -692,7 +692,7 @@ directory or file over a carve-out, and cuts the network with a namespace of its
 macOS, a Seatbelt profile for paths and sockets, whose carve-outs follow its grants and so
 win; and on all, a loopback proxy passing only the listed hosts. A machine whose
 `sandbox.native` names `codex` hands Codex's grant to Codex's own sandbox instead, which holds
-the commands it runs and not Codex itself, where that sandbox can say the grant. A session is never run wider than its
+the commands it runs and not Codex itself, where that sandbox can say the grant and no `on_permission_request` hook is hung. A session is never run wider than its
 permission. Where neither the CLI nor the machine can hold the fence, the session is refused
 with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
 

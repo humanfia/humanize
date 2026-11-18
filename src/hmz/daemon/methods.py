@@ -239,7 +239,7 @@ class _Methods:
             raise _refused(
                 503, f"The device could not be written down: {why}"
             ) from None
-        session.device = device
+        router.claimed(session.fingerprint, device)
         return {"daemon_id": router.daemon_id, "device": device}
 
     def devices_list(self, call: Call) -> dict[str, Any]:
@@ -407,13 +407,16 @@ class _Methods:
     def _chat_held(self, call: Call) -> Hosted:
         """The host of the chat a call names (Section 4.25.2.4).
 
+        An Ai-chan conversation is a chat too, on its `ai:` slot (Sections 4.25.3.5 and
+        4.25.4.2).
+
         Raises:
           RpcError: 400 for a slot that is not a chat's, 404 where no host holds it, and
             409 where its chat has folded away and its host gone with it.
         """
         named = workspace(call.params["workspace"])
         slotted = slot(call.params.get("slot"))
-        if not slotted.startswith("chat:"):
+        if not slotted.startswith(("chat:", "ai:")):
             raise _refused(400, f"{slotted or '(the workspace)'} is not a chat slot.")
         hosted = self._router.hosts.get(named, slotted)
         if hosted is None and self._router.hosts.gone(named, slotted):
