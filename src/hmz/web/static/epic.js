@@ -54,10 +54,13 @@ export function watch(name, where, told) {
     // Named by the host once it writes one: the epic going there -- or, on a chat's host, which
     // holds that chat alone, the chat it wrote, over before the page came as it may be.
     const chat = Boolean(run && standing && standing.epic && asked.slot.startsWith('chat:'))
-    if (!name && run && (run.live || chat) && standing.epic && standing.epic !== named) {
-      named = standing.epic
-      call('runs.get', { name: named }).then((found) => {
-        if (named !== found.name) return
+    // Read once for each life of the host's: a chat carried on goes on in the same epic, which
+    // has by then written down what it opened before.
+    const life = !name && run && (run.live || chat) && standing.epic ? `${standing.epic}\n${seen.held.epoch}` : ''
+    if (life && life !== named) {
+      named = life
+      call('runs.get', { name: standing.epic }).then((found) => {
+        if (named !== life) return
         seen.detail = found
         tell()
       }, () => {})

@@ -236,7 +236,8 @@ export function mount(app, where) {
     let saidBy = null
     let saidFor = ''
     let upTo = -1
-    let traced = null
+    /** How many sessions she had opened before she was last carried on, as last read for what they said. */
+    let traced = 0
     /** Why her chat ended failed, once it has: said in the log once, and nothing more said to it. */
     let failed = ''
     const box = composer({
@@ -296,8 +297,9 @@ export function mount(app, where) {
       if (added) log.querySelector(':scope > .thread-empty')?.remove()
       // Carried on: what was said before, read out of the session it carried on from.
       const detail = seen.detail
-      if (detail && detail.earlier && !traced) {
-        traced = call('runs.trace', { name: detail.name }).then(
+      if (detail && detail.earlier && traced !== detail.earlier) {
+        traced = detail.earlier
+        call('runs.trace', { name: detail.name }).then(
           (read) => {
             const before = sessionsOf(detail)[detail.earlier - 1]
             const found = before && read.sessions.find((each) => each.key === before.traced)
