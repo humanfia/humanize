@@ -239,7 +239,7 @@ class _Methods:
             raise _refused(
                 503, f"The device could not be written down: {why}"
             ) from None
-        session.device = device
+        router.claimed(session.fingerprint, device)
         return {"daemon_id": router.daemon_id, "device": device}
 
     def devices_list(self, call: Call) -> dict[str, Any]:
@@ -443,6 +443,11 @@ class _Methods:
         checked = chat_checked(Hmz(Path(named)), params)
         if not checked["ok"]:
             raise _refused(int(checked["code"]), str(checked["why"]))
+        # An Ai-chan conversation is carried on by attaching to its slot (Section 4.22.5.2),
+        # and its epic is none of a workspace's (Section 14.7.4 of core.md).
+        resumed = Path(checked["resume"] or "").name
+        if resumed in self._router.links.kept.epics():
+            raise _refused(404, f"{resumed} is not a chat of {named}.")
         hosted = self._router.hosts.opened(named, slotted)
         started = self._chatted(
             call,

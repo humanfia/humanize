@@ -1281,8 +1281,9 @@ def graph_of(said: object) -> Graph | None:
     for id_, row in cast("dict[object, object]", nodes).items():
         if not isinstance(row, dict):
             raise TypeError("a node is a mapping")
-        row = cast("dict[str, Any]", row)
-        on: object = row.get("on") or {}
+        row = cast("dict[object, Any]", row)
+        # YAML 1.1, which the settings file is read as, takes a plain `on` for true.
+        on: object = row.get("on") or row.get(True) or {}
         edges = (
             [
                 (str(fault), str(to))

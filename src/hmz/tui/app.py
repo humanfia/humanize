@@ -3009,6 +3009,15 @@ class Humanize(App[None]):
             return run.kind == "chat"
         return not self._flow_shown
 
+    def _typed_here(self) -> bool:
+        """Whether a line this interface says is put on the screen as it is typed.
+
+        In its own chat, every line of which goes through `_says_to_chat`. Not in an Ai-chan
+        conversation, drawn as a chat though it is: past its task, a line said there is an
+        answer or a word put into her turn like any flow's, drawn when her host says it.
+        """
+        return self.chatting() and self._ai is None
+
     def refused_chat(self) -> str:
         """Why `/chat` has nothing to do now: the chat is on the screen already."""
         # An Ai-chan conversation is drawn as a chat, but is not this interface's chat.
@@ -5263,9 +5272,9 @@ class Humanize(App[None]):
             self._shows_context(message)
         elif kind == "withdrawn":
             self._withdrawn(message)
-        elif kind == "answered" and not (self.chatting() and not self._by(message)):
+        elif kind == "answered" and not (self._typed_here() and not self._by(message)):
             self._answered(message)
-        elif kind == "said" and not (self.chatting() and not self._by(message)):
+        elif kind == "said" and not (self._typed_here() and not self._by(message)):
             # A line of a chat this interface said is on the screen already, as it was typed.
             self._said_by_you(
                 str(message.get("text") or ""),
