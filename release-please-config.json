@@ -29,6 +29,16 @@
           "jsonpath": "$.package[?(@.name.value=='hmz')].version"
         },
         {
+          "type": "toml",
+          "path": "crates/coganchor/Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "crates/coganchor/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value=='coganchor')].version"
+        },
+        {
           "type": "json",
           "path": "desktop/src-tauri/tauri.conf.json",
           "jsonpath": "$.version"
