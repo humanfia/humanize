@@ -1,4 +1,4 @@
-// Finding a run, as ChatGPT finds a chat: a dialog over the page that lists the runs of this
+// Finding a chat or an epic, as ChatGPT finds a chat: a dialog over the page that lists the runs of this
 // directory newest first -- how each ended or that it is going, its task, flow and agents,
 // what it spent and how long it took -- found by how it went, by flow and by its task, a page
 // at a time. The list `/epics` is in the terminal interface.
@@ -26,12 +26,12 @@ export function mount(root, { query }) {
     q: query.get('q') || '',
     offset: Number(query.get('offset') || 0),
   }
-  const search = h('input', { class: 'dialog-search', type: 'search', placeholder: 'Search epics by task or flow', value: chosen.q, 'aria-label': 'Find', autofocus: true })
-  const statuses = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How the epic went' })
+  const search = h('input', { class: 'dialog-search', type: 'search', placeholder: 'Search chats and epics', value: chosen.q, 'aria-label': 'Find', autofocus: true })
+  const statuses = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How it went' })
   const flows = h('select', { 'aria-label': 'Flow' })
-  const places = h('select', { 'aria-label': 'Workdir', 'data-hmz': 'search-workspace' }, h('option', { value: '' }, 'All workdirs'))
+  const places = h('select', { 'aria-label': 'Folder', 'data-hmz': 'search-workspace' }, h('option', { value: '' }, 'All folders'))
   workspaces().then((answer) => {
-    fill(places, h('option', { value: '' }, 'All workdirs'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === chosen.workspace, title: one.path }, one.name)))
+    fill(places, h('option', { value: '' }, 'All folders'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === chosen.workspace, title: one.path }, one.name)))
   }, () => {})
   places.addEventListener('change', () => {
     chosen.workspace = places.value
@@ -41,7 +41,7 @@ export function mount(root, { query }) {
   const body = h('div', { class: 'dialog-body', 'data-hmz': 'found' }, h('p', { class: 'loading', role: 'status' }, 'Reading the epics…'))
   const foot = h('div', { class: 'dialog-foot', role: 'status' })
   root.classList.add('dialog-search-box')
-  root.setAttribute('aria-label', 'Search epics')
+  root.setAttribute('aria-label', 'Search')
   fill(
     root,
     // The top row of a narrow window, which it fills.
@@ -97,7 +97,7 @@ export function mount(root, { query }) {
     const names = [...new Set([...data.flows, chosen.flow].filter(Boolean))].sort()
     fill(flows, h('option', { value: '' }, 'All flows'), names.map((name) => h('option', { value: name, selected: name === chosen.flow }, name)))
     if (!data.total) {
-      fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : null, empty(chosen.status || chosen.flow || chosen.q ? 'No epic is like that.' : 'No epic here yet.', chosen.status || chosen.flow || chosen.q ? ' Clear the filters to see every epic.' : ' Start a flow, and its epic is written down here as it goes.'))
+      fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : null, empty(chosen.status || chosen.flow || chosen.q ? 'Nothing is like that.' : 'Nothing here yet.', chosen.status || chosen.flow || chosen.q ? ' Clear the filters to see every chat and epic.' : ' Start a chat or an epic, and it is written down here as it goes.'))
       fill(foot)
       return
     }
