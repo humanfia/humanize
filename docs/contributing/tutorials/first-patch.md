@@ -1,24 +1,29 @@
 # Your first patch
 
 In this tutorial you clone Humanize, change one small thing, pass the checks, and open a pull
-request CI agrees with. It takes **half an hour**, most of it the first `uv sync` and the test
-run. Every command is written out, in order.
+request CI agrees with. It takes **half an hour**, most of it the first `uv sync`, the first
+`cargo build` and the test run. Every command is written out, in order.
 
 ::: info Before you start
-`git`, [`uv`](https://docs.astral.sh/uv/), and the [GitHub CLI](https://cli.github.com/)
-(`gh`) signed in, for the last step. Nothing else: `uv sync` brings Python with it.
+`git`, [`uv`](https://docs.astral.sh/uv/), [Rust](https://rustup.rs/), and the
+[GitHub CLI](https://cli.github.com/) (`gh`) signed in, for the last step. `uv sync` brings
+Python with it.
 :::
 
-## Step 1: clone it and install the hooks
+## Step 1: clone it, build it and install the hooks
 
 ```sh
 git clone https://github.com/humanfia/humanize.git
 cd humanize
-uv sync
+uv sync --all-extras
+cargo build --manifest-path crates/coganchor/Cargo.toml
 uv run pre-commit install
 ```
 
-- **`uv sync`** makes the environment in `.venv`, exactly as `uv.lock` pins it.
+- **`uv sync --all-extras`** makes the environment in `.venv`, exactly as `uv.lock` pins it,
+  with the optional harnesses and WebRTC the tests import. A plain `uv sync` leaves them out.
+- **`cargo build`** builds `coganchor`, the Rust program every agent's turn runs through. The
+  tests run it, and fail without it.
 - **`pre-commit install`** runs the checks on every commit from now on, before it is made.
 
 Run tools through `uv run`, not `uvx`, so you get the versions `uv.lock` pins.

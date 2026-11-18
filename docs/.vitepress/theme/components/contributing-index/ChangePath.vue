@@ -18,7 +18,7 @@ import { usePalette } from '../../motion/palette'
 import { useScene } from '../../motion/useScene'
 
 const BEATS = [
-  'Clone, then uv sync: Python and all, pinned',
+  'Clone, uv sync, and coganchor built',
   'Hooks in, an edit, and the fast loop',
   'Before you push: every hook, unit and integration',
   'A push or a pull request: static first',
@@ -31,8 +31,8 @@ const STOPS = ['clone', 'uv sync', 'hooks', 'edit', 'fast loop', 'before push', 
 type Kind = 'cmd' | 'note'
 const TERM: { kind: Kind; text: string }[] = [
   { kind: 'cmd', text: '$ git clone …github.com/humanfia/humanize.git' },
-  { kind: 'cmd', text: '$ uv sync' },
-  { kind: 'note', text: '# .venv, as uv.lock pins it, Python included' },
+  { kind: 'cmd', text: '$ uv sync --all-extras' },
+  { kind: 'cmd', text: '$ (cd crates/coganchor && cargo build)' },
   { kind: 'cmd', text: '$ uv run pre-commit install' },
   { kind: 'note', text: '# checks each commit with the hooks CI runs' },
   { kind: 'note', text: '# edit: a change and its tests, one commit' },
@@ -218,7 +218,7 @@ const scene = useScene({
     tl.set(marker, { x: 0, y: 0, opacity: 0 }, 0)
     tl.set(one('.scroll'), { y: 0 }, 0)
 
-    // 0 · the way laid out; a clone, and `uv sync` makes the environment uv.lock pins.
+    // 0 · the way laid out; a clone, `uv sync` makes the environment uv.lock pins, and coganchor is built.
     tl.addLabel('beat-0', 0)
     tl.fromTo(at('.panel'), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.6, stagger: 0.1 }, 0.05)
     tl.fromTo(one('.track-base'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.2, ease: 'cine' }, 0.1)
@@ -305,7 +305,7 @@ const statusW = Math.round(STATUS.length * 6.6 + 16)
     :beats="BEATS"
     sim
     mobile-ratio="9 / 17"
-    label="A change's way from a clone to main. git clone; uv sync makes .venv exactly as uv.lock pins it, Python included; uv run pre-commit install checks each commit with the hooks CI runs. You edit, a change and its tests in one commit, and run the fast loop, one package's unit tests: uv run pytest tests/unit/flows, seconds. Before you push: uv run pre-commit run --all-files, seconds, and uv run pytest, unit and integration, minutes. Tests sit in three directories: unit tests one package alone, the rest mocked; integration wires packages together against fakes this repository wrote; system runs real agents on real tasks, 5 to 30 minutes each, and is yours to run when your change needs it, never in CI. Then git push. On every push and pull request ci.yml runs static, every pre-commit hook; then the unit tests, each package alone, and the integration tests, each topic alone, on Linux and macOS with Python 3.12; and reports ci-ok when they all passed."
+    label="A change's way from a clone to main. git clone; uv sync --all-extras makes .venv exactly as uv.lock pins it, Python and the extras the tests import included; cargo build in crates/coganchor builds the program the tests run; uv run pre-commit install checks each commit with the hooks CI runs. You edit, a change and its tests in one commit, and run the fast loop, one package's unit tests: uv run pytest tests/unit/flows, seconds. Before you push: uv run pre-commit run --all-files, seconds, and uv run pytest, unit and integration, minutes. Tests sit in three directories: unit tests one package alone, the rest mocked; integration wires packages together against fakes this repository wrote; system runs real agents on real tasks, 5 to 30 minutes each, and is yours to run when your change needs it, never in CI. Then git push. On every push and pull request ci.yml runs static, every pre-commit hook; then the unit tests, each package alone, and the integration tests, each topic alone, on Linux and macOS with Python 3.12; and reports ci-ok when they all passed."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
