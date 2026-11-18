@@ -24,6 +24,7 @@ from hmz.coganchor.agents import (
     CursorAgentConfig,
     FakeCli,
     FakeCommand,
+    FakeTool,
     SessionBase,
 )
 from tests.integration.doubles_agents import standins
@@ -181,6 +182,24 @@ def test_a_command_line_taken_back_is_not_found_and_the_shelf_goes_with_the_agen
     agent.shelf.close()
     assert not Path(where).exists()
     assert agent.shelf.empty()
+
+
+def test_an_agent_stopped_takes_its_shelf_and_its_toolbox_away(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    standins(tmp_path, monkeypatch)
+    agent = CursorAgent(CURSORED)
+    agent.shelf.shelves(1, [_tickets([])])
+    agent.toolbox.offers(1, [FakeTool("shout", "Says a word louder.", lambda: "HI")])
+    shelf = Path(agent.shelf.where())
+    box = Path(agent.toolbox.address()).parent
+    assert shelf.is_dir()
+    assert box.is_dir()
+
+    agent.stop()
+
+    assert not shelf.exists()
+    assert not box.exists()
 
 
 class Helpless(BaseModel):

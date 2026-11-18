@@ -737,6 +737,24 @@ def test_a_fenced_agent_may_not_write_humanizes_own_cache(
     assert fence.allows(tmp_path / "user" / ".claude" / "x", write=True)
 
 
+def test_stopping_a_fenced_agent_takes_its_scratch_and_its_homes_away(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _walled(tmp_path, monkeypatch)
+    fence = agent.fenced()
+    home = agent.homed()
+    assert fence is not None
+    assert home is not None
+    with open(os.path.join(fence.tmp, "left.bin"), "wb") as left:  # noqa: PTH118, PTH123
+        left.write(b"what a turn wrote")
+    assert home.at.parent.name.startswith("hmz-home-")
+
+    agent.stop()
+
+    assert not os.path.exists(fence.tmp)  # noqa: PTH110
+    assert not home.at.parent.exists()
+
+
 def test_a_fenced_agents_home_follows_no_link_it_could_have_planted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
