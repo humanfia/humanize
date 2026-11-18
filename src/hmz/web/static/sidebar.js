@@ -9,7 +9,7 @@ import { call, daemon, exported, given, hash, hello, known, onState, poll, recon
 import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuOn, toast } from './ui.js'
-import { MARKS, ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
+import { MARKS, acting, ago, fill, flowName, h, headline, icon, iconButton, problem, tone, when } from './dom.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { bell, unreadOn } from './notifications.js'
 import { nameOf } from './places.js'
@@ -98,7 +98,7 @@ export function mountSidebar(root, context, where) {
       if (answer) data = answer
       more.disabled = false
       more.textContent = 'Show more'
-      if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Loading…'))
+      if (!data) fill(list, error ? failed(error) : h('p', { class: 'side-quiet', role: 'status' }, 'Loading…'))
       else draw()
     })
   }
@@ -372,6 +372,27 @@ function sign(state) {
   const el = h('span', { class: 'side-chat-state', 'data-state': state, 'data-hmz': 'chat-state', role: 'img', 'aria-label': CHAT_SAID[state] })
   if (TURNS[state]) el.style.animationDelay = `-${Date.now() % TURNS[state]}ms`
   return el
+}
+
+/**
+ * Why the epics of the daemon shown could not be read: the daemon cannot be reached, said as
+ * everywhere else with what to do next, and the two things to do about it here -- reach it again,
+ * or manage the daemons -- or another refusal, as it was said.
+ */
+function failed(error) {
+  if (!error.next) return problem(error)
+  const name = daemon()
+  return h(
+    'div',
+    { class: 'side-unreached', 'data-hmz': 'unreached' },
+    problem(error),
+    h(
+      'p',
+      { class: 'row' },
+      acting('Connect', () => reconnect(name).then(() => refresh('runs.list')), { kind: 'btn small', busy: 'Connecting…' }),
+      h('a', { class: 'btn small quiet', href: hash('/settings/daemons') }, 'Manage'),
+    ),
+  )
 }
 
 /** The mark of a notification unread, on its chat or epic and on the folded workspace of it. */

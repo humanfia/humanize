@@ -71,9 +71,17 @@ export function badge(how) {
   return h('span', { class: `badge tone-${tone(how)}` }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, MARKS[how] || '·'), how || 'unknown')
 }
 
-/** A sentence the server refused with, said where it happened. */
+/**
+ * A sentence the server refused with, said where it happened -- and, for a daemon that cannot be
+ * reached, what to do next under it.
+ */
 export function problem(error) {
-  return h('p', { class: 'error', role: 'alert' }, error instanceof Error ? error.message : String(error))
+  return h(
+    'p',
+    { class: 'error', role: 'alert' },
+    error instanceof Error ? error.message : String(error),
+    error && error.next ? h('span', { class: 'error-next', 'data-hmz': 'next' }, error.next) : null,
+  )
 }
 
 /** Nothing to show yet, and what to do about it. */
