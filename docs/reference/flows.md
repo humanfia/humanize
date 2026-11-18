@@ -2313,7 +2313,7 @@ FlowException
 | <code id="enverror">EnvError</code> | `FlowException` | an environment could not do what it was asked |
 | <code id="envunavailable">EnvUnavailable</code> | `EnvError` | the machine is gone or the workdir does not exist |
 | <code id="envconnectionerror">EnvConnectionError</code> | `EnvError`, `ConnectionError` | the connection to a remote environment failed |
-| <code id="envcommandtimeout">EnvCommandTimeout</code> | `EnvError`, `TimeoutError` | `exec` ran past its `timeout` and was killed |
+| <code id="envcommandtimeout">EnvCommandTimeout</code> | `EnvError`, `TimeoutError` | `exec` ran past its `timeout` and was killed; `stdout` and `stderr` are what it had written by then, `""` where the env's driver did not keep it |
 | <code id="envfilenotfound">EnvFileNotFound</code> | `EnvError`, `FileNotFoundError` | `read` of a missing file |
 | <code id="envpermissiondenied">EnvPermissionDenied</code> | `EnvError`, `PermissionError` | a read, write or command refused for want of permission |
 | <code id="worktreeerror">WorktreeError</code> | `EnvError` | `derive_worktree` failed |

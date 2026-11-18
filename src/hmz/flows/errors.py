@@ -282,7 +282,15 @@ class EnvConnectionError(EnvError, ConnectionError):
 
 
 class EnvCommandTimeout(EnvError, TimeoutError):
-    """A command ran past the `timeout` it was given, and was killed."""
+    """A command ran past the `timeout` it was given, and was killed.
+
+    Attributes:
+      stdout: What it had written to its stdout by then, where the env's driver kept it.
+      stderr: The same of its stderr.
+    """
+
+    stdout: str = ""
+    stderr: str = ""
 
 
 class EnvFileNotFound(EnvError, FileNotFoundError):

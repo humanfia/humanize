@@ -209,8 +209,8 @@ async def _exec(driver: EnvDriver, env: str, said: Mapping[str, Any]) -> dict[st
     seconds = _number(said, "seconds", 120, 1, 3600)
     try:
         code, stdout, stderr = await driver.exec(argv, timeout=seconds)
-    except EnvCommandTimeout:
-        return {"code": None, "stdout": "", "stderr": ""}
+    except EnvCommandTimeout as late:
+        code, stdout, stderr = None, late.stdout, late.stderr
     return {"code": code, "stdout": _tail(stdout), "stderr": _tail(stderr)}
 
 
