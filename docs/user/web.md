@@ -62,7 +62,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first, each marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a [chat](/user/chat) only `●` while its agent answers, the blinking gold `●` while it asks, `✕` failed, else `■` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, newest first. A flow's epic is a row of two lines: its arrow and task, then its flow's name; it is marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a [chat](/user/chat) is one line, what you asked and nothing else, as a chat app lists a conversation: a spinner beside it while its agent answers, a blinking gold dot while it asks, a red dot where it failed, and when it began where you point at it | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; **+** on a directory starts a chat there, and its right-click menu a chat or an epic |
 | **New epic** | Two choices, **Chat** and **Flow**: a box for the first message or the task, the directory, and, for a flow, the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
@@ -83,9 +83,9 @@ Every view is an address: copy it, keep it, or open it in another tab. The addre
 daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same machine; one with no
 `@` is Local's.
 
-**Right-click** anything for what can be done to it: a folder in the sidebar (new epic here, its
+**Right-click** anything for what can be done to it: a folder in the sidebar (new chat here, new epic here, its
 flows, search it, copy its path, settings), an epic (open, its Exomyth, resume, copy its link or task,
-export, stop), an agent or a session, a node on the graph, a flow or flowverse card, a search
+export, stop), a chat (open, a new chat like it, copy its link, first message or ID, export), an agent or a session, a node on the graph, a flow or flowverse card, a search
 result, a line of a thread (copy it, or the whole thread). Only text to read or write -- a thread,
 a task, a path, an error -- is selected as on a web page, and keeps the browser's own menu; the
 page's buttons, tabs, labels and headings are not. What a menu sends off -- stopping or uploading an
@@ -285,8 +285,8 @@ agent, set up a part at a time as a role's agent is under **Options**, starting 
 that directory last chatted with; and type the first message. <kbd>Enter</kbd> starts the chat,
 and the page goes to its conversation. There is no flow, budget or params to set.
 
-**Flow** opens on the directory `hmz web` started in, or the folder whose **+** was pressed,
-and on the flow that directory last ran; pick another of either at the top. A chat is not among
+**Flow** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
+picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory last ran; pick another of either at the top. A chat is not among
 the flows. **Open folder…**
 takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
 workspace** works in none of yours: each epic started so gets a new directory of its own in the
@@ -455,7 +455,8 @@ Start `hmz web` in a project, and open **New epic**:
 ### Check it worked
 
 - The terminal's transcript shows the task you typed in the browser, marked `· by browser`.
-- The sidebar lists the epic, `stopped`: a chat is `running` only while its agent answers;
+- The sidebar lists the chat, with nothing beside it: a chat shows its spinner only while its
+  agent answers;
   **Search epics** shows what it spent.
 
 ## Daemons {#daemons}
