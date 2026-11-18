@@ -1101,6 +1101,33 @@ def test_a_model_or_effort_changed_in_a_chat_is_its_agent_from_then_on(
     assert chosen.spec == "claude/opus:low"
 
 
+def test_a_model_asked_after_in_a_chat_without_an_effort_changes_nothing(
+    wired: Wired,
+) -> None:
+    from types import SimpleNamespace
+
+    from hmz.runtime.kept import Runs
+
+    wired.driver.fence = Fence()
+    wired.driver.catalog = [NativeCommand("/", "model", "the model", "call")]
+    Settings(wired.workspace).chat_agent = Runs("claude/opus:max", "")
+
+    async def asked(session: Session, request: TurnRequest) -> str:
+        assert session.agent is not None
+        # As an agent started without an effort holds it: no rung at all.
+        session.agent.config, session.agent.effort = SimpleNamespace(model="haiku"), ""
+        return "Model: haiku" if request.native else f"did: {request.prompt}"
+
+    wired.driver.reply = asked
+
+    ended = _had(wired, Person(says=["/model", "/model bogus"]), agent="claude/haiku")
+
+    assert not [one for one in _events(ended.epic) if one.get("event") == "set"]
+    chosen = Settings(wired.workspace).chat_agent
+    assert chosen is not None
+    assert chosen.spec == "claude/opus:max"
+
+
 def test_a_model_or_effort_changed_on_the_conversation_alone_is_its_agent_too(
     wired: Wired,
 ) -> None:

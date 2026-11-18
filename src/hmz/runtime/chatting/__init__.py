@@ -808,7 +808,7 @@ class _Talk:
         As the chat's agent from then on: recorded in its epic as a `set` (Section 6.5.21 of
         [FILES]) and remembered for the workspace's next chat (Section 8.9.5 of [CORE]).
         """
-        from hmz.coganchor.backends import written
+        from hmz.coganchor.backends import AUTO, written
         from hmz.runtime.epic import Drove
         from hmz.runtime.kept import Runs
         from hmz.runtime.settings import Settings
@@ -820,7 +820,8 @@ class _Talk:
         # moved the agent: Codex's moves the conversation alone.
         conversation = getattr(handle, "coganchor", None)
         model = str(getattr(conversation, "model", None) or agent.config.model)
-        effort = str(getattr(conversation, "effort", agent.effort))
+        # Spelt as `began` gives it: an agent holds no rung as "", which is written `auto`.
+        effort = written(str(getattr(conversation, "effort", agent.effort)))
         cli = self._as[0]
         if (cli, model, effort) == self._as:
             return
@@ -828,7 +829,7 @@ class _Talk:
         provider = self._driver.provider
         now = Drove(ASSISTANT, cli, model, effort, provider, self._driver.name)
         self._epic.write("set", agents=[now._asdict()])
-        spec = f"{cli}/{model}" + (f":{written(effort)}" if effort else "")
+        spec = f"{cli}/{model}" + (f":{effort}" if effort != AUTO else "")
         with contextlib.suppress(Exception):
             Settings(self._chat.spec.workspace).chat_agent = Runs(spec, provider)
 
