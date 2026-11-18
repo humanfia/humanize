@@ -74,7 +74,14 @@ def test_a_workdir_says_its_whole_path_on_hover_and_offers_it_on_a_right_click(
         menu = _menu(page, folder.locator(".side-folder"))
         expect(menu.locator(".context-head")).to_have_text(str(project.resolve()))
         expect(menu.locator(".choice-label")).to_contain_text(
-            ["New epic here", "Flows here", "Search here", "Copy path", "Collapse"]
+            [
+                "New chat here",
+                "New epic here",
+                "Flows here",
+                "Search here",
+                "Copy path",
+                "Collapse",
+            ]
         )
         menu.get_by_role("menuitem", name="New epic here").click()
         expect(page.locator(".popover.context")).to_have_count(0)

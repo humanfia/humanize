@@ -257,7 +257,8 @@ is typed.
 
 **3.5.1** The sidebar MUST show every workspace of the daemon shown as a folder: each workspace an
 epic ran in, each workspace written down in the settings, and each workspace the user opened by its
-path.
+path. A folder MUST be drawn as a heading over its epics, saying its name, and MUST NOT be drawn as
+one of the rows under it.
 
 **3.5.2** A workspace the user opens by its path MUST be written down in the settings, and MUST stay
 in the sidebar from then on.
@@ -265,20 +266,23 @@ in the sidebar from then on.
 **3.5.3** The sidebar MUST order the workspaces with those that have an epic going first, then by
 their latest epic, newest first.
 
-**3.5.4** Each folder MUST list its epics newest first, and MUST say `No epics` where it has none.
+**3.5.4** Each folder MUST list its epics newest first, chats among the others, and MUST say
+`No chats or epics` where it has none.
 
 **3.5.5** The user MUST be able to fold a folder away and open it again; the page MUST remember
 which folders are folded in this browser.
 
-**3.5.6** Each folder MUST offer `+`, which opens a new epic in that workspace.
+**3.5.6** Each folder MUST offer `+`, which opens a new chat in that workspace.
 
-**3.5.7** The menu of a folder MUST offer: a new epic there, its flows, searching it, copying its
+**3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, its flows, searching
+it, copying its
 path, folding or opening it, its workspace settings, its usage, and, where no epic ran there,
 forgetting it.
 
-**3.5.8** Each epic in the sidebar MUST show a mark of its state, its task's first line, and either
-`live`, where a host is going with it, or how long ago it began; the header of its own page MUST
-show the same mark. The mark MUST be the first of these that holds:
+**3.5.8** Each epic in the sidebar other than a chat MUST show a mark of its state, its task's first
+line, the name of its flow, and either `live`, where a host is going with it, or how long ago it
+began; the header of an epic's own page MUST show the mark of its state. The mark MUST be the first
+of these that holds:
 
 1. `asking`, while its host waits on a question to a person that this browser has not seen;
 2. `waiting`, while its host waits on a question and this browser has seen every one, for an epic
@@ -289,7 +293,8 @@ show the same mark. The mark MUST be the first of these that holds:
    ended;
 6. `unfinished`, where its process went before it ended.
 
-**3.5.9** The `asking` mark MUST blink, and every other mark MUST NOT blink. The page MUST treat a
+**3.5.9** The `asking` mark MUST blink, and every other mark MUST NOT blink; the sign a chat's row
+shows for `asking` (3.5.15) MUST blink likewise. The page MUST treat a
 question as seen once, while the question waits, the page of its epic, `#/epics/<name>`, or of its
 host, `#/live?workspace=…&slot=…`, is shown, visible and focused; the page MUST remember in this
 browser which questions were seen.
@@ -306,13 +311,23 @@ epics are expanded.
 
 **3.5.12** The menu of an epic MUST offer: open it, its Exomyth (not for a chat), resume it where it
 can be resumed, a new epic like it, copying its link, its task and its name, exporting it once it is
-no longer going, uploading it, and stopping it while a host is going with it (not for a chat).
+no longer going, uploading it, and stopping it while a host is going with it (not for a chat). The
+menu of a chat MUST offer a new chat like it in place of a new epic, MUST call its task its first
+message and its name its ID, and MUST NOT say `epic`, `flow` or `task`.
 
 **3.5.13** The sidebar MUST list a bounded number of epics at first and MUST offer `Show more` while
 more exist.
 
 **3.5.14** The sidebar MUST show the epics of the daemon shown as they change, without the user
 asking.
+
+**3.5.15** A chat in the sidebar MUST be drawn as a row of another kind than any other epic: its
+task's first line alone, with no mark of a state, no name of a flow and nothing that opens it out.
+Beside that line its row MUST show a sign that turns while its mark (3.5.10) is `running`, a dot
+while it is `asking`, a dot of the colour of a failure where it is `failed`, and nothing where it is
+`stopped`; it MUST show how long ago the chat began where the row is pointed at or focused, and
+always where the device has nothing to point with. Each sign MUST carry its meaning in words for
+assistive technology. The row, and what it says when pointed at, MUST NOT say `epic` or `flow`.
 
 ### 3.6. An epic
 

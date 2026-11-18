@@ -13,6 +13,7 @@ import { MARKS, ago, fill, flowName, h, headline, icon, iconButton, tone, when }
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { bell, unreadOn } from './notifications.js'
 import { nameOf } from './places.js'
+import { CHAT_SAID, chatState, grouped, rowTitle, wording } from './sidebar-rows.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
 
 /** How many epics a page of the list holds. */
@@ -24,7 +25,7 @@ const PAGE = 60
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
  */
 export function mountSidebar(root, context, where) {
-  const list = h('nav', { class: 'side-runs', 'aria-label': 'Epics', 'data-hmz': 'epics' }, h('p', { class: 'side-quiet', role: 'status' }, 'Reading the epics…'))
+  const list = h('nav', { class: 'side-runs', 'aria-label': 'Chats and epics', 'data-hmz': 'epics' }, h('p', { class: 'side-quiet', role: 'status' }, 'Loading…'))
   const more = h('button', { class: 'side-more', type: 'button', hidden: true }, 'Show more')
   // How many installed flows have a newer release, as the indexes were fetched as it started.
   const updates = h('span', { class: 'side-badge', 'data-hmz': 'updates', hidden: true })
@@ -92,7 +93,7 @@ export function mountSidebar(root, context, where) {
       if (answer) data = answer
       more.disabled = false
       more.textContent = 'Show more'
-      if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Reading the epics…'))
+      if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Loading…'))
       else draw()
     })
   }
@@ -117,14 +118,8 @@ export function mountSidebar(root, context, where) {
       if (link.dataset.nav === parts[0] || (link.dataset.nav === 'new' && (!parts[0] || parts[0] === 'new'))) link.setAttribute('aria-current', 'page')
       else link.removeAttribute('aria-current')
     }
-    // Every workspace offered, each with its epics: those going first, then the latest.
-    const groups = new Map()
-    for (const one of places ? places.workspaces : []) groups.set(one.path, { path: one.path, runs: [] })
-    for (const run of data.runs) {
-      if (!groups.has(run.workspace)) groups.set(run.workspace, { path: run.workspace, runs: [] })
-      groups.get(run.workspace).runs.push(run)
-    }
-    const order = [...groups.values()].sort((a, b) => rank(b) - rank(a))
+    // Every workspace offered, each with its chats and epics: those going first, then the latest.
+    const order = grouped(places ? places.workspaces : [], data.runs)
     const scrolled = list.parentElement.scrollTop
     const chosen = parts[0] === 'new' ? query.get('workspace') || '' : ''
     const unread = unreadOn(daemon())
@@ -132,21 +127,30 @@ export function mountSidebar(root, context, where) {
       list,
       order.map((group) => {
         const open = !shut.has(group.path)
-        const toggle = h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(open), 'aria-label': open ? 'Collapse' : 'Expand' }, icon('folder'), icon('chevron'))
+        const called = nameOf(group.path)
+        // A heading over its rows, not a row: the folder's name, said quietly, which folds them
+        // away where it is pressed -- the arrow after it says which way it stands.
+        const toggle = h(
+          'button',
+          { class: 'side-toggle', type: 'button', 'aria-expanded': String(open) },
+          h('span', { class: 'side-folder-name', title: group.path }, h('span', { class: 'side-label' }, called)),
+          icon('chevron'),
+        )
         toggle.addEventListener('click', () => {
           if (open) shut.add(group.path)
           else shut.delete(group.path)
           keep('hmz-shut', JSON.stringify([...shut].slice(-60)))
           draw()
+          // The list was drawn again: the heading folded is the one that keeps the focus.
+          for (const one of list.querySelectorAll('.side-group')) if (one.dataset.path === group.path) one.querySelector('.side-toggle').focus()
         })
         const folder = h(
-            'div',
-            { class: ['side-folder', chosen === group.path && 'current'] },
-            toggle,
-            h('span', { class: 'side-folder-name', title: group.path }, h('span', { class: 'side-label' }, nameOf(group.path))),
-            !open && unread.workspaces.has(group.path) ? marked() : null,
-            iconButton('plus', `New epic in ${nameOf(group.path)}`, { class: 'side-add', onclick: () => (location.hash = hash(`/new?workspace=${encodeURIComponent(group.path)}`)) }),
-          )
+          'div',
+          { class: ['side-folder', chosen === group.path && 'current'] },
+          h('h3', { class: 'side-folder-head' }, toggle),
+          !open && unread.workspaces.has(group.path) ? marked() : null,
+          iconButton('plus', `New chat in ${called}`, { class: 'side-add', onclick: () => (location.hash = hash(`/new/chat?workspace=${encodeURIComponent(group.path)}`)) }),
+        )
         const where = encodeURIComponent(group.path)
         menuOn(folder, () => [
           { head: group.path },
@@ -166,18 +170,12 @@ export function mountSidebar(root, context, where) {
           'section',
           { class: 'side-group', 'data-hmz': 'workspace', 'data-path': group.path },
           folder,
-          open ? (group.runs.length ? h('ul', { role: 'list' }, group.runs.map((run) => item(run, here, parts, unread.epics.has(run.name)))) : h('p', { class: 'side-quiet nested' }, 'No epics')) : null,
+          open ? (group.runs.length ? h('ul', { role: 'list' }, group.runs.map((run) => item(run, here, parts, unread.epics.has(run.name)))) : h('p', { class: 'side-quiet nested' }, 'No chats or epics')) : null,
         )
       }),
     )
     list.parentElement.scrollTop = scrolled
     more.hidden = data.runs.length >= data.total
-  }
-
-  function rank(group) {
-    const live = group.runs.some((one) => one.held) ? 1e13 : 0
-    const last = group.runs.length ? Date.parse(group.runs[0].began) || 0 : 0
-    return live + last
   }
 
   function item(run, here, parts, unseen) {
@@ -202,19 +200,46 @@ export function mountSidebar(root, context, where) {
     })
     const how = markOf(run.how, { chat, turn: run.turn, asked: run.asking || [], epic: run.name })
     const at = run.name === here && (chat || !parts[2])
-    const row = h(
-      'div',
-      { class: ['side-run', at && 'current'] },
-      toggle,
-      h(
-        'a',
-        { href: link, 'aria-current': at ? 'page' : null, title: `${run.task}\n${chat ? 'chat' : flowName(run.flow)} · ${how} · ${when(run.began)}`, 'data-hmz': 'epic' },
-        h('span', { class: ['side-mark', `tone-${tone(how)}`], 'aria-label': how }, MARKS[how] || '·'),
-        h('span', { class: 'side-label' }, headline(run.task)),
-        unseen ? marked() : null,
-        h('span', { class: 'side-meta' }, run.held && !chat ? h('span', { class: 'pill-live' }, 'live') : ago(run.began)),
-      ),
-    )
+    // A chat's row says how it stands only where there is something to say.
+    const state = chat ? chatState(how) : ''
+    const title = rowTitle(run, { chat, state, how, flow: flowName(run.flow), began: when(run.began) })
+    const row = chat
+      ? // A chat, as a chat app lists one: what was asked, and only where it goes, asks or failed, a sign of it.
+        h(
+          'div',
+          { class: ['side-run', 'side-chat', at && 'current'] },
+          h(
+            'a',
+            { href: link, 'aria-current': at ? 'page' : null, title, 'data-hmz': 'epic', 'data-kind': 'chat' },
+            h('span', { class: 'side-label' }, headline(run.task)),
+            unseen ? marked() : null,
+            state ? sign(state) : null,
+            h('span', { class: 'side-meta' }, ago(run.began)),
+          ),
+        )
+      : // A flow's epic, a row of another kind: what opens it out, its task and mark, and under them its flow.
+        h(
+          'div',
+          { class: ['side-run', 'side-flow', at && 'current'] },
+          toggle,
+          h(
+            'a',
+            { href: link, 'aria-current': at ? 'page' : null, title, 'data-hmz': 'epic', 'data-kind': 'flow' },
+            h(
+              'span',
+              { class: 'side-line' },
+              h('span', { class: 'side-label' }, headline(run.task)),
+              unseen ? marked() : null,
+              h('span', { class: ['side-mark', `tone-${tone(how)}`], role: 'img', 'aria-label': how }, MARKS[how] || '·'),
+            ),
+            h(
+              'span',
+              { class: 'side-line side-sub' },
+              h('span', { class: 'side-tag', 'data-hmz': 'epic-flow' }, icon('flows'), h('span', { class: 'side-label' }, flowName(run.flow) || 'flow')),
+              h('span', { class: 'side-meta' }, run.held ? h('span', { class: 'pill-live' }, 'live') : ago(run.began)),
+            ),
+          ),
+        )
     menuOn(row, () => epicMenu(run))
     return h('li', { class: 'side-item', 'data-epic': run.name }, row, shown ? [tree(run, here, parts), reading(run)] : null)
   }
@@ -323,13 +348,27 @@ export function mountSidebar(root, context, where) {
     places = null
     limit = PAGE
     details.clear()
-    fill(list, h('p', { class: 'side-quiet', role: 'status' }, 'Reading the epics…'))
+    fill(list, h('p', { class: 'side-quiet', role: 'status' }, 'Loading…'))
     watch()
     watchPlaces()
   })
 }
 
-/** The mark of a notification unread, on its epic and on the folded workspace of it. */
+/** How long each sign of a chat takes to come round, in milliseconds, as sidebar-list.css moves it. */
+const TURNS = { working: 800, asking: 1600 }
+
+/**
+ * The sign beside a chat that goes, asks or failed. The list is drawn again as it is read again:
+ * a sign that moves is set where the clock has it, so one drawn anew goes on from where the last
+ * one stood rather than starting over.
+ */
+function sign(state) {
+  const el = h('span', { class: 'side-chat-state', 'data-state': state, 'data-hmz': 'chat-state', role: 'img', 'aria-label': CHAT_SAID[state] })
+  if (TURNS[state]) el.style.animationDelay = `-${Date.now() % TURNS[state]}ms`
+  return el
+}
+
+/** The mark of a notification unread, on its chat or epic and on the folded workspace of it. */
 function marked() {
   return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': 'Unread', title: 'Unread' })
 }
@@ -345,18 +384,20 @@ export function epicMenu(run) {
   const chat = chatting(run)
   const resumes = !chat && run.resumable && !going && run.how !== 'done'
   const assistant = chat ? (run.agents[0] || {}).runs || '' : ''
+  // A chat's menu says chat things: it never names an epic, a flow or a task.
+  const said = wording(chat)
   return [
     { head: run.task.split('\n')[0] },
     { label: 'Open', glyph: 'open', href: base },
     chat ? null : { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
     resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
     chat
-      ? { label: 'New chat like it', glyph: 'thread', href: hash(`/new/chat?${new URLSearchParams(given({ workspace: run.workspace, agent: assistant }))}`) }
-      : { label: 'New epic like it', glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
+      ? { label: said.like, glyph: 'thread', href: hash(`/new/chat?${new URLSearchParams(given({ workspace: run.workspace, agent: assistant }))}`) }
+      : { label: said.like, glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
     '-',
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
-    { label: 'Copy task', glyph: 'copy', act: () => copy(run.task, 'Task copied') },
-    { label: 'Copy name', glyph: 'copy', act: () => copy(run.name, 'Name copied') },
+    { label: said.task, glyph: 'copy', act: () => copy(run.task, said.tasked) },
+    { label: said.name, glyph: 'copy', act: () => copy(run.name, said.named) },
     going ? null : { label: 'Export', glyph: 'download', act: () => working('Exporting', exported(run.name)).catch((error) => toast(error.message)) },
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
     run.held && !chat ? '-' : null,

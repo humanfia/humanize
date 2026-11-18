@@ -148,7 +148,7 @@ def test_the_sidebar_is_a_folder_of_epics_per_workspace(
             expect(second.locator("[data-hmz=epic]")).to_have_text(
                 [re.compile("second task")]
             )
-            second.get_by_role("button", name="New epic in other").click()
+            second.get_by_role("button", name="New chat in other").click()
             expect(page.locator("[data-hmz=workspace-picker] b")).to_have_text("other")
 
             page.keyboard.press("Control+k")
