@@ -188,7 +188,8 @@ def _field(
       The field.
     """
     said = _resolved(node, defs)
-    title = str(said.get("title") or name.replace("_", " ") or "answer")
+    # Named by the title written on the field, never by the one its type is defined under.
+    title = str(node.get("title") or name.replace("_", " ") or "answer")
     about = str(said.get("description") or "")
     has_default = "default" in said
     default = said.get("default")

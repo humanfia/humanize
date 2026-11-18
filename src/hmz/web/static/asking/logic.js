@@ -109,7 +109,9 @@ export function multiline(name, node, value = '') {
 export function fieldsOf(node, root = node) {
   const required = new Set(node.required || [])
   const all = Object.entries(node.properties || {}).map(([name, raw]) => {
-    const { node: field, nullable } = resolved(raw, root)
+    // A field is named by the title written on it, never by the one its type is defined under.
+    const { node: { title, ...typed }, nullable } = resolved(raw, root)
+    const field = 'title' in raw ? { ...typed, title: raw.title } : typed
     const suggested = 'default' in raw || 'default' in field
     const value = 'default' in raw ? raw.default : field.default
     return { name, raw, node: field, nullable, required: required.has(name), suggested, value, folded: !required.has(name) && suggested }
