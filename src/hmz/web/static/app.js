@@ -50,7 +50,7 @@ let shown = ''
 
 /** Where the page is: the parts of the address's path, after the daemon it names, and its query. */
 export function where() {
-  const raw = location.hash.replace(/^#/, '').replace(/^\/?@[^/?]*/, '') || '/new'
+  const raw = location.hash.replace(/^#/, '').replace(/^\/?@[^/?]*/, '') || '/new/chat'
   const url = new URL(raw.startsWith('/') ? raw : `/${raw}`, 'http://page')
   return { parts: url.pathname.split('/').filter(Boolean).map(decodeURIComponent), query: url.searchParams }
 }
@@ -83,7 +83,7 @@ export function covered() {
 
 /** Closes the dialog open, going back to the view under it. */
 export function shut() {
-  go(behind || '/new')
+  go(behind || '/new/chat')
 }
 
 async function route() {
@@ -107,12 +107,12 @@ async function routing(mine) {
   if (parts[0] === 'epics' && parts[2] === 'logs' && !parts[3]) return location.replace(location.hash.replace(/\/logs\/?(?=$|\?)/, ''))
   const dialog = DIALOGS[parts[0]]
   if (dialog) {
-    if (!shown) await view(mine, ['new'], new URLSearchParams(), '/new')
+    if (!shown) await view(mine, ['new', 'chat'], new URLSearchParams(), '/new/chat')
     if (mine !== routed) return
     return open(mine, dialog, parts, query)
   }
   close()
-  behind = location.hash.replace(/^#/, '') || '/new'
+  behind = location.hash.replace(/^#/, '') || '/new/chat'
   const key = `${parts.join('/')}?${query}`
   if (key === shown) return
   await view(mine, parts, query, key)
