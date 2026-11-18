@@ -422,6 +422,7 @@ async def test_a_path_under_home_is_said_as_an_absolute_one() -> None:
     assert await driver.absolute("") == "/home/me/repo"
     assert await driver.absolute("src/../a.py") == "/home/me/repo/a.py"
     assert await driver.absolute("~/y") == "/home/me/y"
+    assert await driver.absolute("~/../x") == "/home/x"
     assert await driver.absolute("/etc/./x") == "/etc/x"
 
 

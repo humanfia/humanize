@@ -663,7 +663,8 @@ class Desk:
         """A path as an absolute one, a home it is under asked of the env machine."""
         at = _absolute(env.driver.workdir, path)
         driver = env.driver
-        if at.startswith("~") and isinstance(driver, Homed):
+        # `~/..` is above the home, and written plainly no longer starts with `~`.
+        if not at.startswith("/") and isinstance(driver, Homed):
             return str(self._on(env, driver.absolute(path)))
         return at
 

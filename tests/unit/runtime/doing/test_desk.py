@@ -453,8 +453,8 @@ class Homely(Box):
     """A driver whose workdir is under a home that only its machine knows."""
 
     def at(self, path: str) -> str:
-        at = path if path.startswith("~") else super().at(path)
-        return f"/home/me{at[1:]}" if at.startswith("~") else at
+        at = posixpath.join(str(self.workdir), path)
+        return posixpath.normpath(f"/home/me{at[1:]}" if at.startswith("~") else at)
 
     async def absolute(self, path: str) -> str:
         return self.at(path)
@@ -474,6 +474,9 @@ def test_a_path_under_a_home_is_answered_as_an_absolute_one(
     assert [one["name"] for one in listed["entries"]] == ["src"]
     stated = _ok(alice.asks("env.stat", env=env["id"], path="src/a.py"))
     assert stated["path"] == "/home/me/proj/src/a.py"
+    above = _ok(alice.asks("env.stat", env=env["id"], path="~/../me/proj/src"))
+    assert above["path"] == "/home/me/proj/src"
+    assert _ok(alice.asks("env.list", env=env["id"], path="../.."))["path"] == "/home"
     under = posixpath.join(listed["path"], "src")
     assert _ok(alice.asks("env.list", env=env["id"], path=under))["path"] == under
 
