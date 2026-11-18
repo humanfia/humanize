@@ -24,7 +24,7 @@ import queue
 import threading
 from typing import TYPE_CHECKING, Any, Self, cast
 
-from hmz.rtc.signals import CHUNK, LABEL, Refused, device, signed
+from hmz.rtc.signals import CHUNK, LABEL, Refused, device, fingerprint, signed
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Mapping, Sequence
@@ -418,6 +418,7 @@ async def _answering(
         early.append(signal)
     sdp = _text(signal, "sdp")
     who = device(sdp)
+    _held(sdp)
     peer = _Peer(_connection(ice_servers))
 
     @peer.connection.on("datachannel")
@@ -455,6 +456,27 @@ async def _answering(
         await peer.close()
         raise
     return peer, who
+
+
+def _held(sdp: str) -> None:
+    """Refuses an offer with a media section DTLS would not hold to its SHA-256 fingerprint.
+
+    aiortc holds a peer to the fingerprints of the media section its transport is of, and to
+    those of other algorithms alone where that section says no SHA-256 one. So the one value
+    the device fingerprint is read from must be said by, or above, every section: the peer is
+    then whoever holds the certificate of that fingerprint, whichever section the channel is of.
+    """
+    from aiortc.sdp import SessionDescription
+
+    value = fingerprint(sdp).upper()
+    for media in SessionDescription.parse(sdp).media:
+        said = media.dtls.fingerprints if media.dtls else []
+        if not any(
+            one.algorithm.lower() == "sha-256" and one.value.upper() == value
+            for one in said
+        ):
+            msg = "Each media section of an offer must say its sha-256 fingerprint."
+            raise Refused(msg)
 
 
 async def _offering(
