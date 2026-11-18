@@ -1828,6 +1828,7 @@ class SessionBase(ABC):
         self._took = None
         walk = nous.walk(self._agent.nous, memo=self._picked)
         last: subprocess.CalledProcessError | None = None
+        skipped = self._agent.nous
         failed_at: SessionBase = self
         answer = nous.answers("")
         step = walk.next()
@@ -1846,6 +1847,7 @@ class SessionBase(ABC):
             ):
                 # A nous that names no agent that could take this turn: a harness nobody
                 # installed, a setting it cannot be told. Failed as it would have failed.
+                skipped = step.nous
                 step = walk.next(answer.fault or "missing")
                 continue
             if last is not None:
@@ -1894,8 +1896,16 @@ class SessionBase(ABC):
                 # ended, not carried on somewhere else.
                 raise Stopped(f"{self._agent.id} was stopped")
             step = walk.next(answer.fault)
-        if last is None:  # nothing ran at all, which is nothing this can raise about
-            raise RuntimeError("no try was taken")
+        if last is None:
+            # Nothing ran at all: no nous the walk reached names an agent that could take
+            # this turn, which is a failure of the `missing` kind with none before it.
+            raise Failed(
+                1,
+                [self._agent.backend],
+                "",
+                f"{skipped} names no agent that can take this turn",
+                fault="missing",
+            )
         raise last
 
     def _tries(
