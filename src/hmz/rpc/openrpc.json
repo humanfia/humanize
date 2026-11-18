@@ -9058,6 +9058,17 @@
           }
         },
         {
+          "name": "permission",
+          "schema": {
+            "enum": [
+              "read-only",
+              "workspace-write",
+              "danger-full-access",
+              null
+            ]
+          }
+        },
+        {
           "name": "remember",
           "schema": {
             "type": "boolean"
@@ -9226,6 +9237,7 @@
             "entries",
             "prefer",
             "prefer_from",
+            "permission",
             "listed"
           ],
           "properties": {
@@ -9286,6 +9298,14 @@
                 "chat"
               ]
             },
+            "permission": {
+              "enum": [
+                "read-only",
+                "workspace-write",
+                "danger-full-access",
+                null
+              ]
+            },
             "listed": {
               "type": "boolean",
               "description": "Whether the catalogue is all its harness lists: once the conversation has taken a turn."
@@ -9331,7 +9351,7 @@
     },
     {
       "name": "chat.set",
-      "summary": "Override a chat's preference for $ names.",
+      "summary": "Override a chat's preference for $ names, or set its permission.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -9350,11 +9370,20 @@
         },
         {
           "name": "prefer",
-          "required": true,
           "schema": {
             "enum": [
               "native",
               "flow"
+            ]
+          }
+        },
+        {
+          "name": "permission",
+          "schema": {
+            "enum": [
+              "read-only",
+              "workspace-write",
+              "danger-full-access"
             ]
           }
         },

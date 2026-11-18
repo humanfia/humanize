@@ -312,6 +312,7 @@ class Link:
         *,
         resume: str | os.PathLike[str] | None = None,
         prefer: str | None = None,
+        permission: str | None = None,
         remember: bool = False,
     ) -> dict[str, Any]:
         """Starts a chat on the chat host this frontend is attached to, or carries one on.
@@ -322,6 +323,8 @@ class Link:
           task: Its first message.
           resume: The epic directory of a chat to carry on, or None for a new one.
           prefer: `native` or `flow`, this chat's own preference, or None for the setting.
+          permission: `read-only`, `workspace-write` or `danger-full-access`, what its
+            assistant may touch, or None for `workspace-write`, or what a chat carried on had.
           remember: Whether to remember `agent` as the workspace's chat agent.
 
         Returns:
@@ -334,6 +337,7 @@ class Link:
                 "task": task,
                 "resume": None if resume is None else str(resume),
                 "prefer": prefer,
+                "permission": permission,
                 "remember": remember,
             }
         )
@@ -346,9 +350,21 @@ class Link:
         """What a line of the chat can start with, and what its `$` names prefer."""
         return self.asked({"do": "chat.commands"})
 
-    def chat_set(self, prefer: str) -> dict[str, Any]:
-        """Sets the chat's own preference for a `$` name that is both: `native` or `flow`."""
-        return self.asked({"do": "chat.set", "prefer": prefer})
+    def chat_set(
+        self, prefer: str | None = None, *, permission: str | None = None
+    ) -> dict[str, Any]:
+        """Sets the chat's own preference, its permission, or both.
+
+        Args:
+          prefer: `native` or `flow`, for a `$` name that is both, or None to leave it.
+          permission: `read-only`, `workspace-write` or `danger-full-access`, what its
+            assistant may touch from its next turn on, or None to leave it.
+        """
+        said = {"prefer": prefer, "permission": permission}
+        return self.asked(
+            {"do": "chat.set"}
+            | {key: value for key, value in said.items() if value is not None}
+        )
 
     def aside(self, **said: Any) -> dict[str, Any]:
         """Opens a side conversation, or takes one turn of one; see `aside` in the protocol."""

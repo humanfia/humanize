@@ -55,6 +55,9 @@ if TYPE_CHECKING:
 #: What `$<name>` means where it names both a native skill and a flow.
 Prefer = Literal["native", "flow"]
 
+#: What a chat's assistant may touch unless it is said otherwise: its workspace to write in.
+PERMISSION = "workspace-write"
+
 #: The `/` commands every frontend keeps for hmz in a chat (Section 8.9 of [CORE]). Those the
 #: harnesses also have -- `clear`, `resume`, `exit`, `quit`, `btw` -- do in a chat what the
 #: harness's own command of that name does.
@@ -187,6 +190,8 @@ class ChatSpec:
       resume: The epic directory of a chat to carry on, or None for a new one.
       prefer: This chat's own preference, or None to go by the person's setting.
       role: What the assistant is beyond its agent, or None for a plain chat's.
+      permission: The preset of what the assistant may touch (Section 8.3.9 of [CORE]), or
+        None for the one a chat carried on had, and `workspace-write` for a new one.
     """
 
     workspace: Path
@@ -195,6 +200,7 @@ class ChatSpec:
     resume: Path | None = None
     prefer: Prefer | None = None
     role: Role | None = None
+    permission: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,7 +261,14 @@ class Chat:
     - The conversation is kept in the epic as it stands when the chat ends, and a chat
       carried on (`spec.resume`) goes on in the same epic and the same conversation, or says
       why it cannot and goes on in a new one.
-    - The epic record says `kind: chat`, and `prefer` where this chat has its own.
+    - The epic record says `kind: chat`, `prefer` where this chat has its own, and
+      `permission` where it is not `workspace-write`.
+    - The assistant is held to the chat's permission, a preset with the web besides. One set
+      while the chat goes on (:meth:`permits`) is taken up ahead of the next turn: the
+      conversation is closed and carried on in one opened under it, as a chat carried on is.
+
+    Raises:
+      ValueError: For a permission that is no preset.
     """
 
     def __init__(self, spec: ChatSpec, *, person: Person) -> None:
@@ -268,6 +281,8 @@ class Chat:
         self.spec = spec
         self.person = person
         self._prefer: Prefer | None = spec.prefer
+        #: The preset the assistant is held to, or None until one is said or carried on.
+        self._permission = None if spec.permission is None else preset(spec.permission)
         #: Held while the preference is set and the epic opened: the host may set one from
         #: any thread while the chat runs on its own.
         self._lock = threading.Lock()
@@ -310,6 +325,41 @@ class Chat:
             # its preference again as it is opened.
             if self._epic is not None and not self._ended:
                 self._epic.write("set", prefer=prefer)
+
+    @property
+    def permission(self) -> str | None:
+        """The preset its assistant is held to, or None where it is held to its role's."""
+        return None if self.spec.role is not None else self._permission or PERMISSION
+
+    def permits(self, permission: str) -> None:
+        """Sets what the assistant may touch from its next turn on, recorded in its epic.
+
+        Args:
+          permission: A preset: `read-only`, `workspace-write` or `danger-full-access`.
+
+        Raises:
+          ValueError: For anything else, and for a chat whose assistant plays a role, which
+            is held to its role's.
+        """
+        if self.spec.role is not None:
+            raise ValueError("this chat keeps the permission it was made with")
+        permission = preset(permission)
+        with self._lock:
+            # One set before a chat carried on has read what it had is not that one unsaid.
+            if permission == self._permission:
+                return
+            self._permission = permission
+            if self._epic is not None and not self._ended:
+                self._epic.write("set", permission=permission)
+
+    def granted(self) -> Permission:
+        """What the assistant may touch now: its role's, else its preset and the web."""
+        from hmz.flows import Permission
+
+        role = self.spec.role
+        if role is not None:
+            return role.permission
+        return Permission(preset=self._permission or PERMISSION, network=True)
 
     @property
     def listed(self) -> bool:
@@ -433,7 +483,13 @@ class Chat:
                     watch(listener)
             local = local_env(spec.role.workdir if spec.role else workspace)
             _priced()
-            await _placeable(driver, local)
+            with self._lock:
+                if self._permission is None:
+                    # What a chat carried on had, where its epic records a preset still.
+                    self._permission = (
+                        PERMISSION if before is None else _recorded(before)
+                    )
+            await _placeable(driver, local, self.granted())
         except BaseException as why:
             # Refused before the chat began: what it was given goes either way.
             await asyncio.shield(closed((driver, local), held))
@@ -454,6 +510,9 @@ class Chat:
                     picked_up=carried,
                     reopened=carried is not None,
                     prefer=self._prefer,
+                    permission=None
+                    if self.permission in (None, PERMISSION)
+                    else self.permission,
                 )
         except BaseException:
             await asyncio.shield(closed((driver, local), held))
@@ -465,7 +524,11 @@ class Chat:
                 if before is not None:
                     with self._lock:
                         _set_again(
-                            epic, before, _drove(said, driver.name), self._prefer
+                            epic,
+                            before,
+                            _drove(said, driver.name),
+                            self._prefer,
+                            self.permission,
                         )
                 if started is not None:
                     started(epic.path)
@@ -548,6 +611,8 @@ class _Talk:
         self._spending = spending
         self._opened = opened
         self._hooks = self._hung()
+        #: The preset the conversation open now is held to: the chat's, as it was opened.
+        self._preset: str | None = None
         #: The conversation last written down for a driver that does not write its own down.
         self._noted = ""
         #: The conversation open now, once one is: what the chat's catalog is asked of.
@@ -577,15 +642,7 @@ class _Talk:
         chat = self._chat
         person = chat.person
         kept, unkept = (None, "") if before is None else _conversation(before)
-        try:
-            handle = await self._open(kept)
-        except HarnessError as why:
-            if kept is None:
-                raise
-            # Said ahead of the first answer, which a new conversation gives.
-            unkept, kept = _restarted(str(why)), None
-            handle = await self._open(None)
-        carrying = kept is not None
+        handle, unkept, carrying = await self._carried(kept, unkept)
         opening = before is None
         #: The `!` commands run since the last turn, carried into the next as blocks.
         ran: list[str] = []
@@ -599,6 +656,9 @@ class _Talk:
             unkept = ""
         try:
             while message:
+                if chat.permission != self._preset:
+                    # Set since this conversation was opened: carried on in one held to it.
+                    handle, unkept, carrying = await self._permitted(handle, unkept)
                 line = message.strip()
                 flows, prefer = (
                     # Off the loop: both are read off disk, and the loop is the turns'.
@@ -739,7 +799,8 @@ class _Talk:
         """
         placement = self._local.placement()
         role = self._chat.spec.role
-        permission = _permission() if role is None else role.permission
+        self._preset = self._chat.permission
+        permission = self._chat.granted()
         offered: dict[str, Any] = (
             {} if role is None else {"tools": role.tools, "clis": role.clis}
         )
@@ -774,6 +835,56 @@ class _Talk:
                     ASSISTANT, agent, conversation, getattr(handle, "placement", None)
                 )
         return handle
+
+    async def _carried(
+        self, kept: Kept | None, unkept: str
+    ) -> tuple[SessionHandle, str, bool]:
+        """Opens a conversation carrying `kept` on, or a new one where that cannot be.
+
+        Returns:
+          The conversation, what the person is told of it ahead of its first answer, and
+          whether it carries `kept` on.
+
+        Raises:
+          HarnessError: Where no conversation can be opened at all.
+        """
+        from hmz.flows import HarnessError
+
+        try:
+            return await self._open(kept), unkept, kept is not None
+        except HarnessError as why:
+            if kept is None:
+                raise
+            # Said ahead of the first answer, which a new conversation gives.
+            return await self._open(None), _said(unkept, _restarted(str(why))), False
+
+    async def _permitted(
+        self, handle: SessionHandle, unkept: str
+    ) -> tuple[SessionHandle, str, bool]:
+        """The conversation carried on in one opened under the permission the chat was set.
+
+        A permission that cannot be held here leaves the chat with the one it had, and says
+        so. As :meth:`_carried` returns.
+        """
+        from hmz.runtime.epic import read
+
+        had = self._preset
+        await self._close(handle)
+        # Off the loop, which is the turns': the whole record is read off disk.
+        ran = await asyncio.to_thread(read, self._epic.path)
+        # A chat that has opened no conversation yet has none to carry on, and none lost.
+        kept, why = (
+            _conversation(ran) if ran is not None and ran.sessions else (None, "")
+        )
+        unkept = _said(unkept, why)
+        try:
+            return await self._carried(kept, unkept)
+        except Exception as refused:
+            if had is None:
+                raise
+            self._chat.permits(had)
+            stays = f"The permission stays {had}: {refused}"
+            return await self._carried(kept, _said(unkept, stays))
 
     async def _renewed(self, handle: SessionHandle) -> SessionHandle:
         """A new conversation in place of one that could not be carried on."""
@@ -923,11 +1034,17 @@ def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | N
     return resume, ran
 
 
-def _set_again(epic: Epic, before: Ran, now: Drove, prefer: Prefer | None) -> None:
+def _set_again(
+    epic: Epic,
+    before: Ran,
+    now: Drove,
+    prefer: Prefer | None,
+    permission: str | None,
+) -> None:
     """Writes what a chat carried on is now, where it is not what its epic said it was.
 
-    Its agent, where it was given another, and its own preference, where this opening
-    overrides the one it had (Section 6.5.21 of [FILES]).
+    Its agent, where it was given another, and its own preference and its permission, where
+    this opening overrides the one it had (Section 6.5.21 of [FILES]).
     """
     agents = (
         {"agents": [now._asdict()]}
@@ -937,8 +1054,13 @@ def _set_again(epic: Epic, before: Ran, now: Drove, prefer: Prefer | None) -> No
     preferring = (
         {"prefer": prefer} if prefer is not None and prefer != before.prefer else {}
     )
-    if agents or preferring:
-        epic.write("set", **agents, **preferring)
+    permitting = (
+        {"permission": permission}
+        if permission is not None and permission != _recorded(before)
+        else {}
+    )
+    if agents or preferring or permitting:
+        epic.write("set", **agents, **preferring, **permitting)
 
 
 def _conversation(before: Ran) -> tuple[Kept | None, str]:
@@ -999,11 +1121,31 @@ def _flows(line: str) -> frozenset[str]:
         return frozenset()
 
 
-def _permission() -> Permission:
-    """What the assistant may touch: its workspace to write in, and the web (8.3.1 of [CORE])."""
-    from hmz.flows import Permission
+def preset(said: object) -> str:
+    """A chat's permission, checked: one of the presets a grant starts from.
 
-    return Permission(preset="workspace-write", network=True)
+    Args:
+      said: What it was said as.
+
+    Returns:
+      It, where it is `read-only`, `workspace-write` or `danger-full-access`.
+
+    Raises:
+      ValueError: For anything else, in the words a frontend is refused with.
+    """
+    from hmz.flows import PRESETS
+
+    if not isinstance(said, str) or said not in PRESETS:
+        raise ValueError(f"permission is {', '.join(PRESETS[:-1])} or {PRESETS[-1]}")
+    return said
+
+
+def _recorded(before: Ran) -> str:
+    """The permission a chat carried on had: what its epic records, else a chat's own."""
+    try:
+        return preset(before.permission)
+    except ValueError:
+        return PERMISSION
 
 
 def _confined(handle: SessionHandle, command: str) -> list[str] | str:
@@ -1041,7 +1183,9 @@ def _priced() -> None:
         prices.refresh()
 
 
-async def _placeable(driver: AgentDriver, local: EnvDriver) -> None:
+async def _placeable(
+    driver: AgentDriver, local: EnvDriver, permission: Permission
+) -> None:
     """Settles where the assistant's harness goes for the workspace, or refuses the chat.
 
     Raises:
@@ -1050,4 +1194,4 @@ async def _placeable(driver: AgentDriver, local: EnvDriver) -> None:
     from hmz.runtime.flowing.harnesses import HarnessDriver
 
     if isinstance(driver, HarnessDriver):
-        await driver.placeable([local.placement()], _permission())
+        await driver.placeable([local.placement()], permission)

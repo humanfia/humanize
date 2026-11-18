@@ -2,7 +2,7 @@
 // its effort where one is set. On a new chat it opens a menu of the models the CLI chosen runs as
 // the account chosen, with the efforts the model takes beside it and, under More, the CLI and the
 // account themselves (Section 3.8.19 of protocol/web.md). On a chat begun it says what the chat
-// runs, and changes what the chat's own `/model` and `/effort` change (Section 3.6.6.10).
+// runs, and changes what the chat's own `/model` and `/effort` change (Section 3.6.6.13).
 
 import { hash } from '../api.js'
 import { fill, h, icon } from '../dom.js'

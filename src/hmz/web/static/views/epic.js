@@ -19,6 +19,7 @@ import { go } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, iconButton, lasting, problem, secondsOf, when } from '../dom.js'
 import { modelFact } from '../chips/model.js'
 import { ask, chatAsk, follow } from '../held.js'
+import { chatPermission } from '../chips/permission.js'
 import { composer as composed } from '../composer.js'
 import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
@@ -489,7 +490,7 @@ export function mount(root, { parts, query }) {
     const carried = !going && chat && detail.picks_up && !detail.held && !carryingOn
     if (carried && !carry) carry = carrying(detail)
     // Every line of a chat going is said to it, an answer to what it asks included.
-    if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), true)
+    if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), permits, true)
     talk?.model.again()
     const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
     region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
@@ -737,13 +738,15 @@ export function mount(root, { parts, query }) {
    * and the page follows that host.
    */
   function carrying(detail) {
-    return chatBox(detail, async (text) => {
-      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.at, prefer: preferring })
+    const box = chatBox(detail, async (text) => {
+      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.at, prefer: preferring, permission: box.permission.picked() })
       carry = null
       carryingOn = true
       stop()
       stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told)
-    }).node
+      // No host holds it: the permission picked is kept for the chat to be carried on with.
+    }, () => null)
+    return box.node
   }
 
   // ------------------------------------------------------------------ a chat's native input
@@ -794,6 +797,7 @@ export function mount(root, { parts, query }) {
     if (here.slot !== slot) return
     catalogue = { ...read, slot }
     preferring = null
+    talk?.permission.host(read)
     pathsListed.clear()
     draw()
   }
@@ -819,6 +823,12 @@ export function mount(root, { parts, query }) {
       followCatalogue(detail, seen.going)
     } else preferring = prefer
     draw()
+  }
+
+  /** Sets the permission of the chat going on its host, which is then asked what it holds. */
+  async function permits(permission) {
+    await chatAsk(here, 'set', { permission })
+    readCatalogue().catch(() => {})
   }
 
   /**
@@ -899,7 +909,7 @@ export function mount(root, { parts, query }) {
    * The box under a chat: it completes the chat's native input, serves the names hmz keeps and
    * starts the flows a line names, and says every other line as `say` does.
    */
-  function chatBox(first, say, going = false) {
+  function chatBox(first, say, sets, going = false) {
     // The epic as it was read last, which the box outlives a reading of.
     const now = () => (seen && seen.detail) || first
     const model = modelFact({
@@ -909,8 +919,10 @@ export function mount(root, { parts, query }) {
       takes: (name) => going && entries().some((one) => one.source === 'native' && one.sigil === '/' && one.name === name && one.how === 'call'),
       say: (line) => say(line).catch((error) => toast(error.message)),
     })
+    const permission = chatPermission(first, sets)
+    if (catalogue && catalogue.slot === here.slot) permission.host(catalogue)
     const box = composed({
-      tools: [model.node],
+      tools: [permission.node, model.node],
       placeholder: 'Reply…',
       label: 'What to say',
       complete: (text, caret) => completing(now(), text, caret),
@@ -932,7 +944,7 @@ export function mount(root, { parts, query }) {
     // Typed in, the box is no longer asking what it takes.
     box.text.addEventListener('input', hideTip)
     box.node.dataset.hmz = 'say'
-    return Object.assign(box, { model })
+    return Object.assign(box, { model, permission })
   }
 
   /** What the page does for a name hmz keeps, as Section 8.9.8 of protocol/core.md has it done. */

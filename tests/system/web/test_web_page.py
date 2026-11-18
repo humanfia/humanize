@@ -553,6 +553,56 @@ def test_a_chat_says_in_its_conversation_that_a_turn_could_not_be_taken(
         stop(page)
 
 
+def test_a_chat_is_started_with_a_permission_and_set_to_another(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new/chat")
+        page.get_by_role("button", name="Options").click()
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_value("claude-haiku-4-5")
+        chip = page.locator("[data-hmz=start] [data-hmz=permission]")
+        expect(chip).to_have_text("Edit this folder")
+        chip.click()
+        menu = page.get_by_role("menu", name="Permissions")
+        expect(menu.get_by_role("menuitem")).to_have_count(3)
+        expect(menu.locator(".choice.chosen")).to_contain_text("Edit this folder")
+        menu.locator("[data-permission=danger-full-access]").click()
+        expect(chip).to_have_text("Full access")
+        page.locator("[data-hmz=composer-text]").fill("hello there")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: hello there")
+        (record,) = project.parent.glob("humanize-home/epics/*/*/epic.jsonl")
+        began = json.loads(record.read_text().splitlines()[0])
+        assert began["permission"] == "danger-full-access"
+
+        # The chat's own chip says what its host does, and sets it there.
+        live = page.locator("[data-hmz=say] [data-hmz=permission]")
+        expect(live).to_have_attribute("data-permission", "danger-full-access")
+        live.click()
+        page.get_by_role("menu", name="Permissions").locator(
+            "[data-permission=read-only]"
+        ).click()
+        expect(live).to_have_text("Read only")
+        say = page.locator("[data-hmz=say] textarea")
+        say.fill("and again")
+        say.press("Enter")
+        expect(thread).to_contain_text("did: and again")
+        sets = [
+            json.loads(line)
+            for line in record.read_text().splitlines()
+            if '"event": "set"' in line
+        ]
+        assert [one["permission"] for one in sets] == ["read-only"]
+        # Held to it from that turn: what it was told then, it could not write down.
+        assert (project / "landed.txt").read_text() == "hello there\n"
+        expect(live).to_have_text("Read only")
+        stop(page)
+
+
 def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
     project: Path, engine: str
 ) -> None:

@@ -393,6 +393,7 @@ class Holding(Hmz):
         resume: str | os.PathLike[str] | None = None,
         prefer: Prefer | None = None,
         role: Role | None = None,
+        permission: str | None = None,
     ) -> Chatting:
         """A chat in this workspace, in this process, set up and ready to be had.
 
@@ -409,6 +410,9 @@ class Holding(Hmz):
             a flow, or None to go by the person's setting.
           role: What its assistant is beyond its agent -- Ai-chan's, for a conversation
             of hers -- or None for a plain chat's.
+          permission: The preset its assistant is held to -- `read-only`,
+            `workspace-write` or `danger-full-access` -- or None for the one a chat carried
+            on had, and `workspace-write` for a new one.
 
         Returns:
           The chat, held as a run is. Nothing has started: `run()` has it, here.
@@ -423,5 +427,6 @@ class Holding(Hmz):
             resume=Path(resume) if resume is not None else None,
             prefer=prefer,
             role=role,
+            permission=permission,
         )
         return Chatting(Chat(spec, person=person))

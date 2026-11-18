@@ -624,6 +624,199 @@ def test_an_agent_that_cannot_be_read_is_refused_before_any_epic(
     assert wired.driver.opened == []
 
 
+# ------------------------------------------------------------------------------ permission
+
+
+@pytest.mark.parametrize(
+    ("preset", "workspace", "elsewhere"),
+    [
+        ("read-only", Access.READ, Access.READ),
+        ("workspace-write", Access.WRITE, Access.READ),
+        ("danger-full-access", Access.WRITE, Access.WRITE),
+    ],
+)
+def test_a_chat_started_with_a_permission_holds_its_assistant_to_it(
+    preset: str, workspace: Access, elsewhere: Access, wired: Wired
+) -> None:
+    chat = _chat(wired, Person(), permission=preset)
+
+    ended = asyncio.run(chat.run())
+
+    (opened,) = wired.driver.opened
+    granted = opened["permission"]
+    assert (granted.preset, granted.network) == (preset, True)
+    assert (granted.access("."), granted.access("/etc")) == (workspace, elsewhere)
+    assert chat.permission == preset
+    assert _ran(ended.epic).permission == (
+        "" if preset == "workspace-write" else preset
+    )
+    # Written down only where it is not what a chat is held to anyway.
+    (began,) = [one for one in _events(ended.epic) if one["event"] == "began"]
+    assert began.get("permission") == (None if preset == "workspace-write" else preset)
+
+
+def test_a_permission_that_is_no_preset_is_refused(wired: Wired) -> None:
+    refused = "permission is read-only, workspace-write or danger-full-access"
+    with pytest.raises(ValueError, match=refused):
+        _chat(wired, Person(), permission="ask")
+    chat = _chat(wired, Person())
+    with pytest.raises(ValueError, match=refused):
+        chat.permits("plan")
+    assert chat.permission == "workspace-write"
+
+
+def test_a_permission_set_mid_chat_carries_the_conversation_on_under_it(
+    wired: Wired,
+) -> None:
+    chat: Chat
+
+    async def sets(session: Session, request: TurnRequest) -> str:
+        if request.prompt == "hi":
+            # Set while a turn goes: taken up ahead of the next.
+            chat.permits("read-only")
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = sets
+    person = Person(["more", "and more"])
+    chat = _chat(wired, person)
+
+    ended = asyncio.run(chat.run())
+
+    first, second = wired.driver.sessions
+    assert [one.prompt for one in first.requests] == ["hi"]
+    assert [one.prompt for one in second.requests] == ["more", "and more"]
+    assert first.closed
+    assert second.carried == Kept(
+        HarnessKind.CLAUDE, "s1", ended.epic / epic.SESSIONS / "claude"
+    )
+    assert [one["permission"].preset for one in wired.driver.opened] == [
+        "workspace-write",
+        "read-only",
+    ]
+    assert person.shown == ["did: hi", "did: more", "did: and more"]
+    sets_ = [one for one in _events(ended.epic) if one["event"] == "set"]
+    assert [one["permission"] for one in sets_] == ["read-only"]
+    assert _ran(ended.epic).permission == "read-only"
+
+
+def test_a_permission_set_to_what_it_is_changes_nothing(wired: Wired) -> None:
+    chat = _chat(wired, Person(["more"]))
+    chat.permits("workspace-write")
+
+    ended = asyncio.run(chat.run())
+
+    assert len(wired.driver.sessions) == 1
+    assert not [one for one in _events(ended.epic) if one["event"] == "set"]
+
+
+def test_a_conversation_that_cannot_go_on_under_a_new_permission_is_a_new_one(
+    wired: Wired,
+) -> None:
+    chat: Chat
+
+    async def sets(session: Session, request: TurnRequest) -> str:
+        if request.prompt == "hi":
+            chat.permits("danger-full-access")
+            wired.driver.refuses_carrying = UnsupportedOperation("cannot fork")
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = sets
+    person = Person(["more"])
+    chat = _chat(wired, person)
+
+    asyncio.run(chat.run())
+
+    assert wired.driver.sessions[-1].carried is None
+    assert wired.driver.opened[-1]["permission"].preset == "danger-full-access"
+    assert person.shown[-1] == (
+        "This conversation could not be carried on (cannot fork), so this is a new "
+        "one.\n\ndid: more"
+    )
+
+
+def test_a_permission_that_cannot_be_held_leaves_the_chat_with_the_one_it_had(
+    wired: Wired,
+) -> None:
+    chat: Chat
+    opens = wired.driver.open
+
+    async def sets(session: Session, request: TurnRequest) -> str:
+        if request.prompt == "hi":
+            chat.permits("read-only")
+        return f"did: {request.prompt}"
+
+    async def refusing(placement: Placement, **said: Any) -> Session:
+        if said["permission"].preset == "read-only":
+            raise HarnessRefused("no fence here")
+        return await opens(placement, **said)
+
+    wired.driver.reply = sets
+    wired.driver.open = refusing  # type: ignore[method-assign]
+    person = Person(["more"])
+    chat = _chat(wired, person)
+
+    ended = asyncio.run(chat.run())
+
+    assert chat.permission == "workspace-write"
+    assert _ran(ended.epic).permission == "workspace-write"
+    assert wired.driver.sessions[-1].carried is not None
+    assert person.shown[-1] == (
+        "The permission stays workspace-write: no fence here\n\ndid: more"
+    )
+
+
+def test_a_permission_set_before_a_turn_was_taken_loses_no_conversation(
+    wired: Wired,
+) -> None:
+    first = _had(wired, Person(), permission="read-only")
+    chat: Chat
+
+    async def fails(session: Session, request: TurnRequest) -> str:
+        if request.prompt == "go":
+            chat.permits("workspace-write")
+            raise HarnessRefused("the model is down")
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = fails
+    person = Person(["more"])
+    chat = _chat(wired, person, task="go", resume=first.epic)
+
+    asyncio.run(chat.run())
+
+    # The turn that failed was the carried conversation's: the next goes on in it still.
+    assert [one.carried is not None for one in wired.driver.sessions[1:]] == [
+        True,
+        True,
+    ]
+    assert person.shown[-1] == "did: more"
+
+
+def test_a_chat_carried_on_keeps_its_permission_unless_given_another(
+    wired: Wired,
+) -> None:
+    first = _had(wired, Person(), permission="read-only")
+
+    _had(wired, Person(), task="go", resume=first.epic)
+
+    assert wired.driver.opened[-1]["permission"].preset == "read-only"
+    assert not [one for one in _events(first.epic) if one["event"] == "set"]
+
+    _had(wired, Person(), task="go", resume=first.epic, permission="workspace-write")
+
+    assert wired.driver.opened[-1]["permission"].preset == "workspace-write"
+    assert _ran(first.epic).permission == "workspace-write"
+
+
+def test_a_chat_with_a_role_keeps_its_roles_permission(
+    wired: Wired, tmp_path: Path
+) -> None:
+    chat = _chat(wired, Person(), role=_role(tmp_path))
+
+    assert chat.permission is None
+    with pytest.raises(ValueError, match="keeps the permission it was made with"):
+        chat.permits("read-only")
+
+
 # ------------------------------------------------------------------------------ carrying on
 
 

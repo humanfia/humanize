@@ -134,7 +134,8 @@ A flow's own page says what its roles are granted.
 ## Example: watch the default grant hold
 
 This is the run from [Try it](#try-it), in full. A [chat](/user/chat) declares nothing, so its
-one agent runs at the default, `workspace-write`: `.` is the directory you started in, the one
+one agent runs at the default, `workspace-write`, unless you pick [another preset for
+it](/user/chat#permission): `.` is the directory you started in, the one
 place it writes, and your home directory beyond it is only read.
 
 ```sh

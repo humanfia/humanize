@@ -16,7 +16,7 @@ the epic already holds.
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -262,3 +262,71 @@ def test_a_chat_carried_on_is_the_same_epic_and_the_same_conversation(
     assert b"papaya" in transcript.read_bytes()
     assert ran.spent is not None
     assert ran.spent["output_tokens"] == 14
+
+
+# ------------------------------------------------------------------- a chat's permission
+
+
+def _withheld(start: dict[str, Any]) -> bool:
+    """Whether a start of the stand-in was withheld its file-writing tools."""
+    argv: list[str] = start["argv"]
+    return "--disallowedTools" in argv and "Write" in " ".join(
+        argv[argv.index("--disallowedTools") + 1 :]
+    )
+
+
+@pytest.mark.parametrize(
+    ("permission", "writes"),
+    [
+        (None, True),
+        ("read-only", False),
+        ("workspace-write", True),
+        ("danger-full-access", True),
+    ],
+)
+def test_a_chat_tells_its_harness_what_its_permission_grants(
+    permission: str | None, writes: bool, tmp_path: Path, project: Path
+) -> None:
+    said = {} if permission is None else {"permission": permission}
+    # The user's own home, as one who has signed in has it: an assistant held to nothing is
+    # put in no fence, which is what makes it for the stand-in to log its start in.
+    (tmp_path / "claude").mkdir(exist_ok=True)
+
+    ended = _chat(project, Person(), "hello there", **said)
+
+    (start,) = started(tmp_path)
+    assert _withheld(start) is not writes
+    assert (project / "landed.txt").exists() is writes
+    ran = read(ended.epic)
+    assert ran is not None
+    recorded = "" if permission in (None, "workspace-write") else permission
+    assert ran.permission == recorded
+
+
+def test_a_chat_set_to_another_permission_goes_on_under_it_in_its_conversation(
+    tmp_path: Path, project: Path
+) -> None:
+    class Sets(Person):
+        async def next(self, answered: str) -> str:
+            if not self.shown:
+                chat.permits("read-only")
+            return await super().next(answered)
+
+    person = Sets("what was the word?")
+    chat = Chat(
+        ChatSpec(workspace=project, agent=AGENT, task="the word is papaya"),
+        person=person,
+    )
+
+    ended = asyncio.run(chat.run())
+
+    assert person.shown == ["did: the word is papaya", "did: what was the word?"]
+    first, second = started(tmp_path)
+    assert (_withheld(first), _withheld(second)) == (False, True)
+    argv = second["argv"]
+    assert argv[argv.index("--resume") + 1] == first["session"]
+    # Only what was said while it could write landed.
+    assert (project / "landed.txt").read_text() == "the word is papaya\n"
+    ran = read(ended.epic)
+    assert ran is not None
+    assert (ran.permission, len(ran.sessions)) == ("read-only", 2)

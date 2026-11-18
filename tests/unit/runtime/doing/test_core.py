@@ -248,6 +248,8 @@ def test_a_chat_is_set_up_in_this_workspace_with_nothing_started(
     )
     assert Holding(tmp_path).chat("claude/opus", "hi", person=person).task == "hi"
     assert made[-1][0].resume is None
+    Holding(tmp_path).chat("claude/opus", "hi", person=person, permission="read-only")
+    assert made[-1][0].permission == "read-only"
 
 
 def test_the_workspace_itself_neither_runs_nor_holds_an_epic() -> None:

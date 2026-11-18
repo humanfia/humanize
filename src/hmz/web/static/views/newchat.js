@@ -9,6 +9,7 @@ import { covered, go, stays } from '../app.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
 import { fill, h, problem } from '../dom.js'
+import { permissionChip } from '../chips/permission.js'
 import { chatAsk } from '../held.js'
 import { readBackends } from '../pickers.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
@@ -26,9 +27,11 @@ export function mount(root, { query }) {
     load('')
   }, { none: true })
   const greeting = h('h2', { class: 'greeting' }, 'What should we talk about?')
+  const permission = permissionChip()
   const box = composer({
     placeholder: 'Message',
     label: 'First message',
+    tools: [permission.node],
     busy: 'Starting…',
     submit: (task) => start(task),
   })
@@ -89,7 +92,7 @@ export function mount(root, { query }) {
       throw new Error('Pick a model for the chat.')
     }
     // A new chat's own host, beside every other epic here; the agent is remembered for the next.
-    const started = await chatAsk(workspace, 'start', { agent, task, remember: !scratch, scratch })
+    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), remember: !scratch, scratch })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 

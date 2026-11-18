@@ -174,6 +174,34 @@ def test_a_chat_is_said_to_set_and_folds_away_to_be_carried_on_in_its_epic(
         again.close()
 
 
+def test_a_chat_is_started_with_a_permission_and_set_to_another(
+    workspace: Path,
+) -> None:
+    link, _, _, _ = _chat(workspace, "look around", permission="read-only")
+    plain, _, _, _ = _chat(workspace, "hello")
+    try:
+        assert link.chat_commands()["permission"] == "read-only"
+        # One started with none named is held as a chat always was.
+        assert plain.chat_commands()["permission"] == "workspace-write"
+
+        link.chat_set(permission="danger-full-access")
+        assert link.chat_commands()["permission"] == "danger-full-access"
+        link.chat_set("flow", permission="workspace-write")
+        commands = link.chat_commands()
+        assert (commands["prefer"], commands["permission"]) == (
+            "flow",
+            "workspace-write",
+        )
+        unpermitted = r"permission is read-only, workspace-write or danger-full-access"
+        with pytest.raises(daemon.Refused, match=unpermitted):
+            link.chat_set(permission="ask")
+        with pytest.raises(daemon.Refused, match=unpermitted):
+            link.chat(AGENT, "again", permission="plan")
+    finally:
+        link.close()
+        plain.close()
+
+
 def test_a_chat_started_remembering_its_agent_is_offered_it_next_time(
     workspace: Path,
 ) -> None:

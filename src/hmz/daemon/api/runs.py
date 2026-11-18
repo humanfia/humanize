@@ -514,6 +514,8 @@ def detail(
         "picked_up": ran.picked_up,
         # The sessions it opened before it was last carried on, which are its earlier ones.
         "earlier": sum(1 for one in ran.sessions if one.at < ran.reopened),
+        # What a chat's assistant may touch, as its epic records it; "" where it does not.
+        "permission": ran.permission,
         "profile_flow": ran.profile_flow,
         "profile_environment": ran.profile_environment,
         "picks_up": picks_up,

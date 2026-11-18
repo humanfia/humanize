@@ -482,13 +482,22 @@ what `/`, `$`, `@` and `!` start there, and MUST name what it completes by what 
 commands, the skills and the mentions of the chat's CLI, the names hmz keeps, the flows, and the
 files.
 
-**3.6.6.10** The box under a chat MUST say, on a chip beside the button that sends, the model the
+**3.6.6.13** The box under a chat MUST say, on a chip beside the button that sends, the model the
 chat's agent runs and its effort where one is set. The chip MUST open a menu saying the agent's
 model, effort, harness and account, and offering a new chat in the chat's workspace. Where the
 chat's catalogue holds the harness's own `/model` or `/effort` as `call` (Section 8.9.5 of [CORE]),
 the menu MUST offer the models known runnable as the agent's account, accepting a typed model, or
 the efforts its model takes, and picking one MUST say that line to the chat. The page MUST NOT
 offer to change the agent of a chat that has begun any other way.
+
+**3.6.6.14** The box under a chat MUST hold a permission chip that names the chat's permission
+(Section 8.3.9 of [CORE]) and opens a menu of the three, each with one line saying what it lets the
+assistant do, the one in force checked: `Read only` for `read-only`, `Edit this folder` for
+`workspace-write` and `Full access` for `danger-full-access`. Picking one MUST set it (`chat.set`,
+Section 4 of [DAEMON]) for a chat a host holds, and MUST be what a chat that has folded away is
+carried on with. The page MUST NOT offer a permission that puts the assistant's actions to the
+user's approval, which no chat has (Section 8.3.9 of [CORE]), and MUST NOT draw the chip for an
+Ai-chan conversation.
 
 #### 3.6.7. An epic written down
 
@@ -797,6 +806,9 @@ chosen marked, asking the harness where none is known yet and accepting a typed 
 the model chosen takes; and, under `More`, the harness, the account it runs as with a way to make
 one, and a way to ask the harness for its models again. What is picked MUST come to what `-a`
 spells, as Section 3.8.10 states.
+
+**3.8.20** The box of the form of a new chat MUST hold the permission chip of Section 3.6.6.14, on `Edit this
+folder` until the user picks another, and the chat MUST be started with the one picked.
 
 ### 3.9. Flows
 

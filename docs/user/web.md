@@ -215,6 +215,11 @@ message, where it works, and under **About this chat** its ID, where it is saved
 folder, when it started, its model, options, limits and sessions -- and **Side questions**
 in place of **Aside**, which works the same.
 
+The chip at the foot of the box names what the chat's agent may touch -- **Read only**, **Edit
+this folder** or **Full access** -- and opens a menu of the three, the one in force checked.
+Picking another sets the chat's [permission](/user/chat#permission) from your next message; on
+a chat that has folded away, it is what the chat is carried on with.
+
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered, and what the flow showed them without asking. A line typed under one goes to whose it is. There is
 no log of every session at once: under an epic in the sidebar are its agents and their
@@ -324,6 +329,9 @@ agent that directory last chatted with. It opens a menu:
 
 What is picked is an agent as `-a` spells one, `cli[@account]/model[:effort]`; resting the
 pointer on the chip says it in full.
+
+The other chip on the box, **Edit this folder** to begin with, is what the agent may touch: its
+[permission](/user/chat#permission).
 
 **New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
 picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory

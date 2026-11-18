@@ -3424,6 +3424,28 @@ session opens, and MUST NOT create an epic directory for the refused request.
 frontend, apart from the remembered setup of every flow, as Section 3.4.1.6 states for a remembered
 agent; a frontend MUST offer that agent when it starts a chat in that workspace.
 
+**8.3.9** A chat MUST have a **permission**, one of the presets of a grant (Section 4.2.6):
+`read-only`, `workspace-write` or `danger-full-access`. Its assistant's grant MUST be that preset
+with `network` true and no granular rule, told to its harness and confined as Section 4.6 states for
+any grant, and Section 4.6.2.2 MUST hold for it: no permission is held by a mode that puts an action
+to approval. The permission MUST be `workspace-write` unless a chat is started with another
+(`chat.start` in Section 4 of [DAEMON]), and MUST be recorded in the chat's epic where it is not
+`workspace-write`.
+
+**8.3.10** The permission of a chat MAY be set while the chat goes on (`chat.set` in Section 4 of
+[DAEMON]). A permission set MUST be recorded in the chat's epic, MUST leave a turn that is open as
+it is, and MUST hold from the chat's next turn: ahead of that turn the chat MUST close its
+conversation and carry it on in one opened under the new permission, as Section 8.7.5 and Section
+8.7.6 state for a chat carried on. Where no conversation can be opened under the new permission, the
+chat MUST say so in the conversation with the reason, MUST record the permission it had again, and
+MUST go on under that one.
+
+**8.3.11** A chat carried on (Section 8.7) MUST keep the permission its epic records unless it is
+carried on with another.
+
+**8.3.12** Section 8.3.9 to Section 8.3.11 MUST NOT apply to an Ai-chan conversation, whose
+permission is that of Section 14.5 and never changes.
+
 ### 8.4. Turns
 
 **8.4.1** The task of a chat MUST be the first message of its conversation.
