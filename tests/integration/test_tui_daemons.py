@@ -305,6 +305,57 @@ async def test_a_chat_followed_on_another_daemon_is_not_this_directorys(
         assert "is not a chat of" not in screen(pilot.app)
 
 
+async def test_chat_while_another_daemons_epic_is_followed_is_this_machines(
+    host: Host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    project = host.home / "project"
+    own_flow(project, ASKS)
+    here = os.environ["HUMANIZE_HOME"]
+    monkeypatch.setenv("HUMANIZE_HOME", str(host.humanize))
+    Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
+    monkeypatch.setenv("HUMANIZE_HOME", here)
+
+    def held() -> list[str]:
+        with pick.remotes().client("box") as client:
+            listed = client.call("hosts.list", {}, seconds=PATIENCE)
+        return [str(one["slot"]) for one in listed["held"]]
+
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "hello local chat")
+        await shows(pilot, "heard hello local chat")
+        await typed(pilot, "/epics @box")
+        await on(pilot, RemoteEpics)
+        await pilot.press("n")
+        await on(pilot, Starting)
+        await pilot.press(*str(project), "enter")
+        await onto(pilot, "flow")
+        await pilot.press(*OWN, "enter")
+        await pilot.press(*"the far plan", "enter")
+        await pilot.click("#act-done")
+        await until(pilot, lambda: len(pilot.app.screen_stack) == 1, "the epic")
+        await shows(pilot, "@box", "plan the far plan?")
+
+        # A line typed there once it has ended is no word to this machine's chat.
+        await typed(pilot, "a plan")
+        await shows(pilot, "is 'a plan' good?")
+        await typed(pilot, "it is")
+        await until(pilot, (project / "result.json").exists, "the epic to end")
+        await shows(pilot, "the flow is done")
+        await typed(pilot, "not from there")
+        await shows(pilot, "start a chat on box")
+
+        # The chat of this frontend is this machine's: back on its own host, here.
+        await typed(pilot, "/chat")
+        await until(pilot, lambda: "@box" not in screen(pilot.app), "this machine's")
+        await shows(pilot, "heard hello local chat")
+        await typed(pilot, "are you there")
+        await shows(pilot, "heard are you there")
+        assert "no chat is going here" not in screen(pilot.app)
+        assert not [slot for slot in await asyncio.to_thread(held) if slot]
+
+
 class _Gated:
     """Another daemon, holding each answer but the list's until it is let go."""
 
