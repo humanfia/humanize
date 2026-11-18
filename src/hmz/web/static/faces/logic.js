@@ -43,6 +43,15 @@ export function sessionOf(question) {
   return `${question?.role || ''}/${question?.key ?? question?.question ?? question?.id ?? ''}`
 }
 
+/**
+ * What a session's frame is kept by: its host and its epic as well as its name, as every epic
+ * of every host names its sessions from one.
+ */
+export function mountOf(where, run, session) {
+  const host = typeof where === 'string' ? `${where}\n` : `${where?.workspace || ''}\n${where?.slot || ''}`
+  return `${host}\n${run || ''}\n${session}`
+}
+
 /** What a face is told of a question: `{prompt, context, schema, errors}`, as the bridge says. */
 export function askOf(question) {
   const list = (value) => (Array.isArray(value) ? value : [])

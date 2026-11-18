@@ -236,7 +236,7 @@ function following(workspace, slot) {
       // Context shown to a person goes to the face their session has open, where it has one.
       if (type === 'shown' && message.session) {
         import('./faces/host.js')
-          .then(({ showFace }) => showFace(message.session, message.context || []))
+          .then(({ showFace }) => showFace(message.session, message.context || [], { where: { workspace, slot }, run: message.run }))
           .catch(() => {})
       }
       weights.push(weighs)
