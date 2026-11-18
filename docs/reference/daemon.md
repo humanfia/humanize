@@ -410,7 +410,8 @@ chat's messages by `epic.attach` on its slot, as any epic's.
   preset its assistant's [grant](/user/permissions) starts from, with the network on:
   `workspace-write` where none is given, or, with `resume`, the one the chat had. With `remember`, `agent`
   is written as the workspace's [chat agent](/reference/settings#chat-agent) once the host has
-  taken the start; a refused start leaves it as it was.
+  taken the start, a virtual nous as the concrete nous it starts at; a refused start leaves it
+  as it was.
 - **`chat.say`** serves `text` as a line in a chat is
   [served](/user/chat#what-a-line-means), and otherwise says it to the chat: the next turn
   between turns, into the open turn where the harness takes a line mid-turn, held for the next
