@@ -702,6 +702,12 @@ thousand spans.
 **3.8.2** The user MUST be able to pick any workspace the daemon shown serves, or to open one by its
 path with completion as it is typed, or to pick `No workspace`.
 
+**3.8.2.1** The form MUST offer that choice under the box of Section 3.8.5, at its left, as a
+control naming the workspace picked, and MUST NOT offer it in the bar over the form.
+
+**3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves under
+`Recent`, and after them `No workspace` and `Open folder…`.
+
 **3.8.3** With `No workspace` picked, the form MUST offer the flows and the set-up of the
 workspace `hmz web` was started in, and starting MUST start the epic in a new directory made for it
 alone in the system's temporary directory.
@@ -742,13 +748,17 @@ what the epic spends.
 **3.8.16** Resuming an epic MUST open the form set up as that epic was started, in that epic's
 workspace.
 
-**3.8.17** `New epic` MUST offer two choices, `Chat` and `Flow`; Section 3.8.1 to Section 3.8.16
-state `Flow`, which MUST NOT offer a chat among its flows.
+**3.8.17** A new chat and a new epic of a flow MUST each be a form of its own, at an address of its
+own, and neither form MUST offer a control that goes to the other; Section 3.8.1 to Section 3.8.16
+state the form of a new epic of a flow, which MUST NOT offer a chat among its flows.
 
-**3.8.18** `Chat` MUST take a workspace, or `No workspace`, as Section 3.8.2 and Section 3.8.3
-state; the assistant's agent, set up a part at a time as Section 3.8.8 states, starting from the
-chat agent that workspace remembers (Section 8.3.8 of [CORE]); and the first message, Enter in its
-box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going to its conversation.
+**3.8.18** The form of a new chat MUST take a workspace, or `No workspace`, as Section 3.8.2 and
+Section 3.8.3 state; the assistant's agent, set up a part at a time as Section 3.8.8 states,
+starting from the chat agent that workspace remembers (Section 8.3.8 of [CORE]); and the first
+message, Enter in its box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page
+going to its conversation.
+
+**3.8.18.1** The bar over the form of a new chat MUST NOT hold a control of the form's own.
 
 ### 3.9. Flows
 
