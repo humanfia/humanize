@@ -565,6 +565,33 @@ def test_a_member_that_was_rate_limited_is_picked_last() -> None:
     assert _walked("pool", {cold: "dropped"}) == [cold, hot]
 
 
+def test_a_member_that_answered_past_a_rate_limit_inside_it_keeps_its_session() -> None:
+    first, second, other = "kimi/inner-hot", "kimi/inner-cool", "opencode/outside"
+    nous.put(Nous("chain", graph=nous.chain([first, second])))
+    among = (("chain", 1), (other, 1))
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
+    memo: dict[str, str] = {}
+    walk = nous.walk("pool", memo=memo)
+    assert walk.next() == Run(first, None)
+    nous.finished((*walk.picks(), first), 1.0, fault="throttled")
+    assert walk.next("throttled") == Run(second, None)
+    nous.finished((*walk.picks(), second), 1.0)
+    walk.landed()
+    assert memo == {"pool>p": "chain"}
+    assert _walked("pool", {first: "dropped"}, memo=memo) == [first, second]
+
+
+def test_a_member_that_was_rate_limited_through_and_through_is_picked_last() -> None:
+    first, second, other = "kimi/all-hot-a", "kimi/all-hot-b", "opencode/spare"
+    nous.put(Nous("spent-chain", graph=nous.chain([first, second])))
+    among = (("spent-chain", 1), (other, 1))
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
+    memo = {"pool>p": "spent-chain"}
+    faults = {first: "throttled", second: "spent", other: "dropped"}
+    assert _walked("pool", faults, memo=memo) == [first, second, other]
+    assert _walked("pool", {}, memo=memo) == [other]
+
+
 def test_a_strategy_of_ones_own_cannot_take_a_built_in_name() -> None:
     with pytest.raises(ValueError, match="cannot name"):
         nous.strategy("shuffle", "", _last)
