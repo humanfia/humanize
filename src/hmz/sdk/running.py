@@ -39,6 +39,9 @@ __all__ = ["BACKING", "Hmz", "Opened", "Run", "Runner", "backed"]
 #: Why a run whose daemon cannot be reached again ended.
 _WENT = "the daemon went away"
 
+#: How a host's `gone` begins for a frontend that fell behind, which attaches again.
+_BEHIND = "too far behind"
+
 #: How long a call to the epic is given to be answered.
 _ANSWERING = 30.0
 
@@ -426,6 +429,8 @@ class Run:
         self._usage: Any = None
         self._sub = ""
         self._over = False
+        # Whether the host let go of this for falling behind, to attach again.
+        self._behind = False
         self._claimed: set[str] = set()
         self._raised: BaseException | None = None
         self._result: Any = None
@@ -663,7 +668,22 @@ class Run:
         while not self._ended.wait(_LOOKING):
             with self._lock:
                 client = self._client
-            if client is None or not client.wait(0):
+                behind, self._behind = self._behind, False
+            if client is None:
+                continue
+            if behind:
+                # Let go of for falling behind (Section 4.9.4 of daemon.md), its roles released.
+                try:
+                    again = self._attaches(self._runner.client())
+                    for role in sorted(self._claimed):
+                        self._asks(again, "epic.claim", role=role)
+                except (OSError, Refused, TimeoutError) as error:
+                    self._ends(RuntimeError(str(error)), None)
+                    return
+                finally:
+                    client.close()
+                continue
+            if not client.wait(0):
                 continue
             if self._runner.fakes is not None:
                 self._ends(RuntimeError(_WENT), None)
@@ -706,6 +726,16 @@ class Run:
             self._snapshot(message)
         elif kind == "ended":
             self._ended_as(message)
+        elif kind == "gone":
+            self._goes(str(message.get("why") or ""))
+
+    def _goes(self, why: str) -> None:
+        """Takes the host letting go of this: to attach again, or as the end of the run."""
+        if why.startswith(_BEHIND):
+            with self._lock:
+                self._behind = True
+        else:
+            self._ends(RuntimeError(why or "the host went away"), None)
 
     def _opens(self, message: dict[str, Any]) -> None:
         opened = Opened(

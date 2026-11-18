@@ -290,6 +290,69 @@ def _started(daemon: _Daemon, person: _Person) -> Run:
     return run
 
 
+@pytest.mark.parametrize("why", ["the host went away", "let go", ""])
+def test_a_host_that_lets_go_before_the_end_ends_the_run_with_why(
+    daemon: _Daemon, why: str
+) -> None:
+    run = Run(_Runner(daemon), "do it")
+    run.start()
+    daemon.tells(type="welcome", epoch="e1")
+    daemon.tells(type="run", seq=1, epic="2026-x")
+
+    daemon.tells(type="gone", why=why)
+
+    assert run.wait(5)
+    assert isinstance(run.raised, RuntimeError)
+    assert str(run.raised) == (why or "the host went away")
+    assert run.result is None
+
+
+def test_a_host_that_lets_go_after_the_end_leaves_what_the_epic_ended_with(
+    daemon: _Daemon,
+) -> None:
+    run = Run(_Runner(daemon), "do it")
+    run.start()
+    daemon.tells(type="ended", seq=1, how="done", why="", result={"ok": 1})
+
+    daemon.tells(type="gone", why="the host was closed")
+
+    assert run.wait(5)
+    assert run.raised is None
+    assert run.result == {"ok": 1}
+
+
+class _Sessions(Runner):
+    """A runner whose every session with the daemon is another stand-in, in turn."""
+
+    def __init__(self, *daemons: _Daemon) -> None:
+        super().__init__("/w", dict(_STARTED), dict(_CHECKED), None)
+        self._daemons = list(daemons)
+
+    def client(self) -> Any:
+        return self._daemons.pop(0)
+
+
+def test_a_run_let_go_of_for_falling_behind_attaches_again_and_claims_again() -> None:
+    first, second = _Daemon(), _Daemon()
+    run = Run(_Sessions(first, second), "do it", outworlder=_Person())
+    run.start()
+    first.tells(type="welcome", epoch="e1")
+    first.tells(type="run", seq=4, epic="2026-x")
+
+    first.tells(type="gone", why="too far behind; attach again")
+
+    (claimed,) = second.calls("epic.claim", 1)
+    assert claimed["role"] == "human"
+    (attached,) = second.calls("epic.attach", 1)
+    assert attached["since"] == {"epoch": "e1", "seq": 4}
+    assert first.gone.wait(5)
+    assert not run.wait(0)
+    second.tells(type="ended", seq=5, how="done", why="", result=7)
+    assert run.wait(5)
+    assert run.result == 7
+    assert run.raised is None
+
+
 def test_an_outworlder_claims_its_roles_and_answers_their_questions(
     daemon: _Daemon,
 ) -> None:
