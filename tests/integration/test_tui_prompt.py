@@ -77,6 +77,10 @@ async def test_with_no_agent_installed_a_line_is_answered_with_why_it_cannot_run
 
 async def test_a_command_that_is_not_one_is_said_so(workspace: Path) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
+        # Past the chat's first turn: before it, such a line is said as text (8.9.13 of [CORE]).
+        await opened(pilot)
+        await typed(pilot, "hello")
+        await shows(pilot, "heard hello", "◉ done")
         await typed(pilot, "/fly")
 
         await shows(pilot, "no such command")
@@ -135,6 +139,9 @@ async def test_what_was_typed_is_kept_and_up_brings_it_back_in_the_next_interfac
 async def test_clear_empties_the_transcript(workspace: Path) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "hello")
+        await shows(pilot, "heard hello", "◉ done")
         await typed(pilot, "/fly")
         await shows(pilot, "no such command")
 
