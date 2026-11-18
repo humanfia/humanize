@@ -18,6 +18,8 @@ test('a concrete nous has a slash and an effort put on it, a virtual one is a na
   assert.equal(withEffort('claude/claude-opus-5', 'high'), 'claude/claude-opus-5:high')
   assert.equal(withEffort('claude/claude-opus-5', ''), 'claude/claude-opus-5')
   assert.equal(withEffort('claude/claude-opus-5', 'auto'), 'claude/claude-opus-5')
+  assert.equal(withEffort('opencode/ollama/qwen3:latest:auto', 'high'), 'opencode/ollama/qwen3:latest:high')
+  assert.equal(withEffort('opencode/ollama/qwen3:latest:auto', ''), 'opencode/ollama/qwen3:latest:auto')
 })
 
 test('a graph is said from its start along its edges, each node once', () => {
