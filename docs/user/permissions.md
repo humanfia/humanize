@@ -310,8 +310,10 @@ they may write and whether they reach the network. It holds nothing of Codex its
 servers and hooks it starts, or what anything reads -- Codex reads everything. Codex is the one
 CLI it applies to; another named there is fenced as before. Codex still falls back to the fence
 where its sandbox cannot say the grant (a rule that takes something back from a wider one),
-where its sandbox will not start here, or where its work lands on another machine. Where it does
-hold the grant, the agent says so once:
+where its sandbox will not start here, where its work lands on another machine, or while a flow
+hangs `on_permission_request` on the agent: a command Codex asks about and is granted runs
+outside Codex's sandbox. Where Codex does hold the grant it is asked nothing, and its thread is
+opened at `workspace-write` rather than `danger-full-access`. The agent says so once:
 
 ```text
 codex: held to its permission by Codex's own sandbox, as sandbox.native asks: that holds the commands the agent runs, reading everything, and not Codex itself, its MCP servers or its hooks

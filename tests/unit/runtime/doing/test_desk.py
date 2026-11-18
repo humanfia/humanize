@@ -439,6 +439,32 @@ def test_the_workspace_is_labelled_by_the_role_that_takes_it(
     assert sub["chain"] == "repo#subdir(s)"
 
 
+def test_envs_sharing_a_chain_are_each_listed_under_an_id_of_their_own(
+    host: tuple[Host, Workspace], holding: Holding
+) -> None:
+    alice, _ = _going(host)
+    chain = "local@/work#worktree(,)"
+    one = Box(workdir="/trees/1", files={"/trees/1/one.txt": b""})
+    two = Box(workdir="/trees/2", files={"/trees/2/two.txt": b""})
+    holding.envs.append(Held("repo", chain, "local@/work", one))
+    holding.envs.append(Held("repo", chain, "local@/work", two))
+
+    listed = _envs(alice, lambda envs: len(envs) == 3)
+    assert [env["workdir"] for env in listed] == ["/work", "/trees/1", "/trees/2"]
+    assert [env["chain"] for env in listed[1:]] == ["repo#worktree(,)"] * 2
+    assert [env["parent"] for env in listed[1:]] == [ROOT, ROOT]
+    first, second = (env["id"] for env in listed[1:])
+    assert len({ROOT, first, second}) == 3
+    for env, name in ((first, "one.txt"), (second, "two.txt")):
+        entries = _ok(alice.asks("env.list", env=env, path=""))["entries"]
+        assert [entry["name"] for entry in entries] == [name]
+
+    # Each keeps its id while it is held, whatever becomes of the other.
+    del holding.envs[1]
+    (_, left) = _envs(alice, lambda envs: len(envs) == 2)
+    assert (left["id"], left["workdir"]) == (second, "/trees/2")
+
+
 def test_an_env_nobody_listed_is_refused(host: tuple[Host, Workspace]) -> None:
     alice, _ = _going(host)
 
@@ -474,6 +500,38 @@ def test_a_directory_is_listed_dirs_first_and_a_file_stated(
         "ok": False,
         "why": "No such file: nope",
     }
+
+
+class Homely(Box):
+    """A driver whose workdir is under a home that only its machine knows."""
+
+    def at(self, path: str) -> str:
+        at = path if path.startswith("~") else posixpath.join(str(self.workdir), path)
+        return posixpath.normpath(f"/home/me{at[1:]}" if at.startswith("~") else at)
+
+    async def absolute(self, path: str) -> str:
+        return self.at(path)
+
+
+def test_a_path_under_a_home_is_answered_as_an_absolute_one(
+    host: tuple[Host, Workspace], holding: Holding
+) -> None:
+    homely = Homely("~/proj", files={"/home/me/proj/src/a.py": b"x = 1\n"})
+    holding.envs[0] = Held("repo", "ssh@box/~/proj", None, homely)
+    alice, _ = _going(host)
+    (env,) = _envs(alice, bool)
+    assert env["workdir"] == "~/proj"
+
+    listed = _ok(alice.asks("env.list", env=env["id"], path=env["workdir"]))
+    assert listed["path"] == "/home/me/proj"
+    assert [one["name"] for one in listed["entries"]] == ["src"]
+    stated = _ok(alice.asks("env.stat", env=env["id"], path="src/a.py"))
+    assert stated["path"] == "/home/me/proj/src/a.py"
+    above = _ok(alice.asks("env.stat", env=env["id"], path="~/../me/proj/src"))
+    assert above["path"] == "/home/me/proj/src"
+    assert _ok(alice.asks("env.list", env=env["id"], path="../.."))["path"] == "/home"
+    under = posixpath.join(listed["path"], "src")
+    assert _ok(alice.asks("env.list", env=env["id"], path=under))["path"] == under
 
 
 def test_a_file_is_read_in_chunks_reading_it_once(

@@ -166,9 +166,9 @@ the credentials removed.
 
 **3.4.1.1** The page MUST consist of a sidebar and, beside it, the current view.
 
-**3.4.1.2** The sidebar MUST show, from top to bottom: the Humanize mark, the notification bell, a
-control that hides the sidebar, the entries `New chat`, `New epic`, `Search` and `Flows`, the
-workspaces of the daemon shown as Section 3.5 specifies, and the daemon bar.
+**3.4.1.2** The sidebar MUST show, from top to bottom: a title row (3.4.1.6), the entries
+`New chat`, `New epic`, `Search` and `Flows`, the chats and epics of the daemon shown as Section 3.5
+specifies, and a foot (3.4.1.8).
 
 **3.4.1.2.1** `New chat` MUST open a new chat (Section 3.8.18) and `New epic` a new epic of a flow
 (Section 3.8.1); the two MUST be separate entries, `New chat` the first. The Humanize mark MUST open
@@ -181,6 +181,24 @@ least one has.
 every view MUST be usable without horizontal scrolling of the page.
 
 **3.4.1.5** The page title MUST name the machine of the daemon shown.
+
+**3.4.1.6** The title row MUST hold, in this order: the Humanize mark, `Hide sidebar`, `Back` and
+`Forward`, and, at its far end, the notification bell. `Back` and `Forward` MUST step back and
+forward through the addresses the page was on, as the browser's own do. In Humanize Desktop's window
+on macOS, outside full screen, the row MUST stand beside the window's traffic lights, `Hide sidebar`
+straight after them, and the mark MUST stand before the bell instead.
+
+**3.4.1.7** The four entries MUST be drawn alike, one row each; the entry of the view shown MUST be
+marked, and no entry MUST be drawn heavier than another otherwise.
+
+**3.4.1.8** The foot MUST be one row: the daemon bar (Section 3.13) and, after it, `Settings`, which
+MUST open the settings (Section 3.11).
+
+**3.4.1.9** On a screen wider than a phone's, the sidebar MUST be 275 CSS pixels wide until the user
+sizes it, and its right edge MUST be a splitter, `Resize sidebar`, that sizes it between 200 and 480
+CSS pixels where it is dragged or moved with the arrow keys, and makes it 275 wide again where it is
+double-clicked. Dragged, it MUST move by as far as the pointer went, and a press that moves nowhere
+MUST NOT size the sidebar. The page MUST remember the width in this browser.
 
 #### 3.4.2. Addresses
 
@@ -261,34 +279,45 @@ is typed.
 
 ### 3.5. Workspaces and the epics list
 
-**3.5.1** The sidebar MUST show every workspace of the daemon shown as a folder: each workspace an
-epic ran in, each workspace written down in the settings, and each workspace the user opened by its
-path. A folder MUST be drawn as a heading over its epics, saying its name, and MUST NOT be drawn as
-one of the rows under it.
+**3.5.1** While its list is grouped by folder (3.5.17), the sidebar MUST show every workspace of
+the daemon shown as a folder: each workspace an epic ran in, each workspace written down in the
+settings, and each workspace the user opened by its path. A folder, as any other group of the list,
+MUST be drawn as a heading over its epics, saying its name, and MUST NOT be drawn as one of the rows
+under it.
+
+**3.5.1.1** While its list is grouped otherwise, the sidebar MUST show the same workspaces as the
+rows of a last group, `Folders`: each row MUST open a new chat in its workspace and MUST offer the
+menu of a folder (3.5.7), bar folding it, by a right click and by `More options` at its end.
+
+**3.5.1.2** The epics of no workspace MUST be listed as the last folder, `No folder`, which has no
+menu of a folder.
 
 **3.5.2** A workspace the user opens by its path MUST be written down in the settings, and MUST stay
 in the sidebar from then on.
 
 **3.5.3** The sidebar MUST order the workspaces with those that have an epic going first, then by
-their latest epic, newest first.
+their latest epic, newest first, as the list is sorted (3.5.17).
 
-**3.5.4** Each folder MUST list its epics newest first, chats among the others, and MUST say
-`No chats or epics` where it has none.
+**3.5.4** Each group MUST list its epics in the order the list is sorted in (3.5.17), chats among the
+others, and MUST say `No chats or epics` where it has none.
 
-**3.5.5** The user MUST be able to fold a folder away and open it again; the page MUST remember
-which folders are folded in this browser.
+**3.5.5** The user MUST be able to fold a group away and open it again by its heading; the page MUST
+remember which groups are folded in this browser.
 
-**3.5.6** Each folder MUST offer `+`, which opens a new chat in that workspace.
+**3.5.6** The heading of each group MUST offer, at its end, `Group and sort` (3.5.17) and `+`, which
+opens a new chat: in that workspace, for a folder. The two MUST be shown where the heading is
+pointed at or holds the focus, and always where the device has nothing to point with.
 
 **3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, its flows, searching
 it, copying its
 path, folding or opening it, its workspace settings, its usage, and, where no epic ran there,
 forgetting it.
 
-**3.5.8** Each epic in the sidebar other than a chat MUST show a mark of its state, its task's first
-line, the name of its flow, and either `live`, where a host is going with it, or how long ago it
-began; the header of an epic's own page MUST show the mark of its state. The mark MUST be the first
-of these that holds:
+**3.5.8** Each epic in the sidebar other than a chat MUST show its task's first line, the mark of
+its state said as a word (`Running`, `Asking`, `Waiting`, `Stopping`, `Done`, `Failed`, `Refused`,
+`Crashed`, `Stopped`, `Budget spent`, `Unfinished`), the name of its flow, and either `live`, where a
+host is going with it, or how long ago it began; the header of an epic's own page MUST show the mark
+of its state. The mark MUST be the first of these that holds:
 
 1. `asking`, while its host waits on a question to a person that this browser has not seen;
 2. `waiting`, while its host waits on a question and this browser has seen every one, for an epic
@@ -299,8 +328,9 @@ of these that holds:
    ended;
 6. `unfinished`, where its process went before it ended.
 
-**3.5.9** The `asking` mark MUST blink, and every other mark MUST NOT blink; the sign a chat's row
-shows for `asking` (3.5.15) MUST blink likewise. The page MUST treat a
+**3.5.9** The `asking` mark MUST blink, as MUST the word a row of the sidebar says it in (3.5.8),
+and every other mark MUST NOT blink; what a chat's row says (3.5.15) MUST NOT blink. The page MUST
+treat a
 question as seen once, while the question waits, the page of its epic, `#/epics/<name>`, or of its
 host, `#/live?workspace=…&slot=…`, is shown, visible and focused; the page MUST remember in this
 browser which questions were seen.
@@ -315,25 +345,65 @@ remember in this browser what each chat last waited on until a turn of it opens.
 sessions it opened; a chat MUST NOT be expandable. The page MUST remember in this browser which
 epics are expanded.
 
-**3.5.12** The menu of an epic MUST offer: open it, its Exomyth (not for a chat), resume it where it
+**3.5.12** The menu of an epic MUST offer, in this order: open it, `Pin` or `Unpin` (3.5.18),
+`Mark as unread` or `Mark as read` (3.5.19), its Exomyth (not for a chat), resume it where it
 can be resumed, a new epic like it, copying its link, its task and its name, exporting it once it is
 no longer going, uploading it, and stopping it while a host is going with it (not for a chat). The
 menu of a chat MUST offer a new chat like it in place of a new epic, MUST call its task its first
 message and its name its ID, and MUST NOT say `epic`, `flow` or `task`.
 
-**3.5.13** The sidebar MUST list a bounded number of epics at first and MUST offer `Show more` while
-more exist.
+**3.5.13** Each group MUST show a bounded number of its epics at first, and with them the epic the
+page is on, and MUST end with `Show N more`, `N` the number of its epics read and not shown, while
+there is one; pressed, it MUST show them, and every epic listed in that group from then on. The
+sidebar MUST read a bounded number of epics at first, and MUST read more only where the user asks:
+where `Show N more` is pressed while the daemon holds more, and where `Show more` is, with which the
+list MUST end while the daemon holds more and every epic read is shown.
 
 **3.5.14** The sidebar MUST show the epics of the daemon shown as they change, without the user
 asking.
 
 **3.5.15** A chat in the sidebar MUST be drawn as a row of another kind than any other epic: its
-task's first line alone, with no mark of a state, no name of a flow and nothing that opens it out.
-Beside that line its row MUST show a sign that turns while its mark (3.5.10) is `running`, a dot
-while it is `asking`, a dot of the colour of a failure where it is `failed`, and nothing where it is
-`stopped`; it MUST show how long ago the chat began where the row is pointed at or focused, and
-always where the device has nothing to point with. Each sign MUST carry its meaning in words for
-assistive technology. The row, and what it says when pointed at, MUST NOT say `epic` or `flow`.
+task's first line alone, with no mark or glyph of a state, no name of a flow and nothing that opens
+it out. After that line, in the same line, its row MUST say `Running` while its mark (3.5.10) is
+`running`, `Awaiting input` while it is `asking`, `Failed` where it is `failed`, and nothing where it
+is `stopped`. What the row says when pointed at MUST say when the chat began, and the row MUST show
+how long ago it began where the device has nothing to point with. The row, and what it says when
+pointed at, MUST NOT say `epic` or `flow`.
+
+**3.5.16** The first line of every epic's row, a chat's or another's, MUST be 32 CSS pixels tall, its
+task's first line at the left, cut short where the line has no room for all of it, and the words for
+its state straight after it. Each row MUST offer
+`More options` at its far end, shown where the row is pointed at or holds the focus, and always
+where the device has nothing to point with; it MUST open the menu of that epic (3.5.12), the one a
+right click on the row opens. `More options` MUST say whether its menu is open, MUST close the menu
+where it is pressed again, and MUST hold the focus once Escape or a choice closes the menu.
+
+**3.5.16.1** Where the sidebar draws its list again, what held the focus in it MUST hold it still;
+after a choice in `Group and sort`, `Group and sort` MUST.
+
+**3.5.17** `Group and sort` MUST open a menu of: `Group by`, one of `Folder`, `Date` and `None`;
+`Sort by`, one of `Last updated` and `Created`; `Show`, `Chats` and `Epics`, each on or off; and
+`Reset to defaults`. Until the user says otherwise the list MUST be grouped by `Folder`, sorted by
+`Last updated`, and show both. The page MUST remember what was chosen in this browser.
+
+**3.5.17.1** Grouped by `Date`, the list MUST show its epics under `Today`, `Yesterday`,
+`Last 7 days`, `Last 30 days` and `Older`, by the moment they are sorted by, and no group that is
+empty, bar `Today` where it has no epic to show; grouped by `None`, it MUST show them as one group.
+
+**3.5.17.2** Sorted by `Last updated`, an epic going MUST stand before one that is not, and the rest
+by when each ended, or began where it has not ended, newest first; sorted by `Created`, each by when
+it began, newest first.
+
+**3.5.17.3** The list MUST leave out every chat while `Chats` is off, and every other epic while
+`Epics` is off.
+
+**3.5.18** `Pin` MUST pin an epic and `Unpin` unpin it. The epics pinned MUST be listed first, under
+`Pinned`, and in no other group, however the list is grouped. The page MUST remember which epics are
+pinned in this browser.
+
+**3.5.19** `Mark as unread` MUST mark an epic as a notification unread of it does (Section 3.15),
+until the page next comes to that epic or `Mark as read` is chosen. `Mark as read` MUST also read
+every notification of that epic. The page MUST remember which epics are marked in this browser.
 
 ### 3.6. An epic
 

@@ -1288,6 +1288,18 @@ class MachineEnvDriver:
 
     # --- what a person looking around it asks, which flows never do
 
+    async def absolute(self, path: str) -> str:
+        """A path as an absolute one, with its `.` and `..` taken out.
+
+        Args:
+          path: The path, relative to the workdir, absolute, or `~/...`.
+
+        Raises:
+          EnvError: If the machine could not be asked where its home is.
+        """
+        machine = self._open()
+        return str(_normal(await machine.absolute(self._at(path))))
+
     async def list(self, path: str) -> builtins.list[EnvEntry]:
         """What a directory holds, directories first and then by name, links not followed.
 

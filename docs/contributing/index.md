@@ -23,7 +23,8 @@ pull request, with every command written out.
 :::
 
 ::: info Before you start
-`git` and [`uv`](https://docs.astral.sh/uv/). Nothing else: `uv sync` brings Python with it.
+`git`, [`uv`](https://docs.astral.sh/uv/) and [Rust](https://rustup.rs/). `uv sync` brings Python
+with it; Rust builds [`coganchor`](#coganchor), which the tests run.
 :::
 
 ## Set up
@@ -31,13 +32,18 @@ pull request, with every command written out.
 ```sh
 git clone https://github.com/humanfia/humanize.git
 cd humanize
-uv sync                    # ①
-uv run pre-commit install  # ②
+uv sync --all-extras                                     # ①
+cargo build --manifest-path crates/coganchor/Cargo.toml  # ②
+uv run pre-commit install                                # ③
 ```
 
-1. **`uv sync`** makes the project's environment in `.venv`, exactly as `uv.lock` pins it,
-   Python included.
-2. **`pre-commit install`** checks each commit before it is made, with the hooks CI runs.
+1. **`uv sync --all-extras`** makes the project's environment in `.venv`, exactly as `uv.lock`
+   pins it, Python included. The extras are the optional harnesses and WebRTC, which the tests
+   import; a plain `uv sync` leaves them out, and takes them out of an environment that has
+   them.
+2. **`cargo build`** builds [`coganchor`](#coganchor), which every agent's turn runs through.
+   The tests find it in `crates/coganchor/target`, and fail without it.
+3. **`pre-commit install`** checks each commit before it is made, with the hooks CI runs.
 
 Run tools through `uv run`, not `uvx`, so you get the versions `uv.lock` pins. To check the
 setup, run one package's unit tests:
@@ -65,8 +71,9 @@ uv run pytest tests/system/test_flows_ralph.py   # real agents, real tokens
 
 :::
 
-Both commands under **Before you push** must pass, and they are what CI runs. `uv run pytest`
-runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
+Both commands under **Before you push** must pass, and they are what CI runs, in the
+environment [Set up](#set-up) makes. `uv run pytest` runs `tests/unit` and `tests/integration`,
+and leaves `tests/system` out.
 
 | | Your machine | CI |
 | --- | --- | --- |
@@ -74,7 +81,7 @@ runs `tests/unit` and `tests/integration`, and leaves `tests/system` out.
 | `tests/unit/` | ✓ | ✓ each package alone, when it changed, on Linux and macOS |
 | `tests/integration/` | ✓ | ✓ each topic alone, when what it runs changed, on Linux and macOS |
 | `tests/system/` | ✓ by hand, a file at a time, when your change needs it | never |
-| [`coganchor`](#coganchor) | ✓ when you change `crates/coganchor/` | ✓ `coganchor`, on Linux and macOS, when `crates/coganchor/` changed |
+| [`coganchor`](#coganchor) | ✓ built once for the tests; its own checks when you change `crates/coganchor/` | ✓ `coganchor`, on Linux and macOS, when `crates/coganchor/` changed |
 | [the macOS app](#the-macos-app) | ✓ on a Mac, when you change `desktop/` | ✓ `desktop`, on macOS, when `desktop/` changed |
 
 [CI](/contributing/ci) has every job, and how to read a run.
@@ -86,7 +93,7 @@ its harness machine (`coganchor cog`), on the machine its work lands on (`coganc
 and wherever two halves that cannot dial each other meet (`coganchor broker`). `hmz internal
 anchor`, `hmz internal fence` and `hmz internal cred` run it, held to
 [its protocol](https://github.com/humanfia/humanize/blob/main/protocol/cli.md#112-hmz-internal-anchor).
-Working on it takes [Rust](https://rustup.rs/). Before you push a change to it, run what CI's
+Before you push a change to it, run what CI's
 `coganchor` job runs:
 
 ```sh
@@ -97,8 +104,8 @@ cargo test --locked
 ```
 
 The anchor runs only as `coganchor`, and a checkout's `hmz` finds the build in
-`crates/coganchor/target/{release,debug}`, so build it before the Python suites; a build
-elsewhere is named by `HUMANIZE_COGANCHOR`:
+`crates/coganchor/target/{release,debug}`, so build it before the Python suites, and again
+after a change to the crate; a build elsewhere is named by `HUMANIZE_COGANCHOR`:
 
 ```sh
 cargo build --manifest-path crates/coganchor/Cargo.toml

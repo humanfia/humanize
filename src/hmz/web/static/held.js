@@ -282,7 +282,7 @@ function following(workspace, slot) {
       // one mounted later is handed it as it is mounted (`shownTo`).
       if (type === 'shown' && message.session) {
         import('./faces/host.js')
-          .then(({ showFace }) => showFace(message.session, message.context || []))
+          .then(({ showFace }) => showFace(message.session, message.context || [], { where: { workspace, slot }, run: message.run }))
           .catch(() => {})
       }
       weights.push(weighs)

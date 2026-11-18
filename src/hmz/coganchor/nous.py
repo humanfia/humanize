@@ -448,10 +448,15 @@ def spec(backend: str, model: str, provider: str = "", effort: str = "") -> str:
       effort: How hard it thinks, or "" for the harness's default.
 
     Returns:
-      `<backend>[@<provider>]/<model>[:<effort>]`.
+      `<backend>[@<provider>]/<model>[:<effort>]`: no effort is left off, but written `:auto`
+      after a model whose own name ends in `:` and a word, which would be read as its effort.
     """
+    from hmz.coganchor.spelling import parted
+
     account = f"@{provider}" if provider else ""
-    rung = f":{effort}" if effort and effort != backends.AUTO else ""
+    if not effort or effort == backends.AUTO:
+        effort = backends.AUTO if parted(model)[1] else ""
+    rung = f":{effort}" if effort else ""
     return f"{backend}{account}/{model}{rung}"
 
 
@@ -487,7 +492,7 @@ def _bare(name: str) -> str:
     from hmz.coganchor.spelling import parted
 
     model, effort = parted(rest)
-    return f"{backend}/{model}" if effort else ""
+    return spec(backend, model) if effort else ""
 
 
 def every() -> list[Nous]:
@@ -857,12 +862,13 @@ def finished(
     """Counts a turn ended at each of these nous: how long it took, what it spent, and how.
 
     Args:
-      names: As :func:`started` was given them.
+      names: As :func:`started` was given them, the concrete one last.
       seconds: How long the turn took.
       tokens: How many tokens it spent.
       fault: The fault it failed with, "" for an unclassified failure, or None for none.
     """
     now = time.monotonic()
+    names = tuple(names)
     with _SEEN.lock:
         for name in names:
             _SEEN.busy[name] = max(_SEEN.busy.get(name, 0) - 1, 0)
@@ -873,8 +879,10 @@ def finished(
                 )
             if tokens:
                 _SEEN.tokens.setdefault(name, deque()).append((now, tokens))
-            if fault in ("throttled", "spent"):
-                _SEEN.cooling[name] = now + _LATELY
+        if names and fault in ("throttled", "spent"):
+            # Only the concrete one failed so: a pick above it may yet answer elsewhere, and
+            # its balance node cools it once it has not.
+            _SEEN.cooling[names[-1]] = now + _LATELY
 
 
 def _members(among: Sequence[tuple[str, int]]) -> list[Member]:
@@ -1084,6 +1092,9 @@ class Walk:
                 fault = yield from self._nous(pick, above, deadline)
             finally:
                 self._picks.pop()
+            if fault in ("throttled", "spent"):
+                with _SEEN.lock:
+                    _SEEN.cooling[pick] = time.monotonic() + _LATELY
         return fault
 
 

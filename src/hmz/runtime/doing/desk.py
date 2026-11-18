@@ -67,6 +67,7 @@ __all__ = [
     "Desk",
     "Held",
     "Holds",
+    "Homed",
     "Pty",
     "Refused",
     "Terminable",
@@ -222,6 +223,15 @@ class Browsable(Protocol):
 
     async def remove(self, path: str) -> None:
         """Removes a file, or a directory and everything in it."""
+        ...
+
+
+@runtime_checkable
+class Homed(Protocol):
+    """A driver whose paths may be under a home, `~/...`, that only its machine knows."""
+
+    async def absolute(self, path: str) -> str:
+        """A path as an absolute one, a leading `~` resolved to the home there."""
         ...
 
 
@@ -488,25 +498,39 @@ class Desk:
                 # Not holding anything yet, or past holding it and not yet over: as it was.
                 return [one for one in before.values() if one.run == run]
         fresh: dict[str, _Env] = {}
-        chains = {one.chain: f"{run}:{one.chain}" for one in held}
+        # An environment is one driver: two may share a chain, as two worktrees of one ref do.
+        known = {
+            id(was.driver): was
+            for was in before.values()
+            if was.open and was.run == run
+        }
+        keys = {known[id(one.driver)].id for one in held if id(one.driver) in known}
+        chains: dict[str, str] = {}
         roots = {one.chain: one for one in held}
         for one in held:
-            key = f"{run}:{one.chain}"
+            if loop is None:
+                continue
             # Its label is its role and what derived it; where its root is, is its id's.
             root = one
             while root.parent in roots:
                 root = roots[root.parent]
             label = one.role + one.chain[len(root.chain) :]
-            was = before.get(key)
-            if key in fresh or loop is None:
-                continue
-            if was is not None and was.open and was.driver is one.driver:
+            was = known.get(id(one.driver))
+            if was is not None:
                 # The workspace is named by the role that takes it once one does.
                 was.role = one.role
                 was.chain = label
                 was.declared = caps_of(frozenset(one.declared))
-                fresh[key] = was
+                fresh[was.id] = was
+                chains.setdefault(one.chain, was.id)
                 continue
+            key = f"{run}:{one.chain}"
+            for n in itertools.count(2):
+                if key not in keys:
+                    break
+                key = f"{run}:{one.chain}~{n}"
+            keys.add(key)
+            chains.setdefault(one.chain, key)
             fresh[key] = _Env(
                 id=key,
                 run=run,
@@ -646,7 +670,7 @@ class Desk:
             (_entry(one) for one in entries),
             key=lambda one: (one["kind"] != "dir", one["name"]),
         )
-        return {"path": _absolute(env.driver.workdir, path), "entries": listed}
+        return {"path": self._whereabouts(env, path), "entries": listed}
 
     def _stat(self, client: str, by: str, said: dict[str, Any]) -> dict[str, Any]:
         del client, by
@@ -654,7 +678,16 @@ class Desk:
         driver = self._browsable(env)
         path = _path(said)
         found = self._missing(path, lambda: self._on(env, driver.stat(path)))
-        return {"path": _absolute(env.driver.workdir, path), **_entry(found)}
+        return {"path": self._whereabouts(env, path), **_entry(found)}
+
+    def _whereabouts(self, env: _Env, path: str) -> str:
+        """A path as an absolute one, a home it is under asked of the env machine."""
+        at = _absolute(env.driver.workdir, path)
+        driver = env.driver
+        # `~/..` is above the home, and written plainly no longer starts with `~`.
+        if not at.startswith("/") and isinstance(driver, Homed):
+            return str(self._on(env, driver.absolute(path)))
+        return at
 
     @staticmethod
     def _missing[T](path: str, doing: Callable[[], T]) -> T:

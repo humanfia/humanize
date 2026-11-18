@@ -14,11 +14,36 @@ const menus = new WeakMap()
  * @param {Element} el The thing.
  * @param {() => (Item|null|false|'-')[]} items What it offers, as `{label, glyph, act, href,
  *   danger, title}`, a `'-'` between groups, or a `{head}` saying what the menu is about.
+ * @param {string} [kind] A class the menu is drawn with, where it is drawn another way.
  * @returns {Element} The thing.
  */
-export function menuOn(el, items) {
-  menus.set(el, items)
+export function menuOn(el, items, kind = '') {
+  menus.set(el, { items, kind })
   return el
+}
+
+/**
+ * Makes a button the popup button of a thing's menu: pressed, it opens that menu under itself,
+ * says it is open, shuts it where pressed again, and has the focus back once Escape shuts it or
+ * a choice is made.
+ *
+ * @param {HTMLElement} button The button.
+ * @param {Element} of The thing whose menu it opens, as `menuOn` gave it.
+ * @returns {HTMLElement} The button.
+ */
+export function menuButton(button, of) {
+  button.setAttribute('aria-haspopup', 'menu')
+  button.setAttribute('aria-expanded', 'false')
+  button.addEventListener('click', () => {
+    if (opener === button) return close()
+    const box = button.getBoundingClientRect()
+    const { items, kind } = menus.get(of)
+    open(items, box.left, box.bottom + 4, kind)
+    if (!opened) return
+    opener = button
+    button.setAttribute('aria-expanded', 'true')
+  })
+  return button
 }
 
 /** Copies text, saying so in a toast where it could and could not. */
@@ -43,10 +68,18 @@ export function toast(said) {
 }
 
 let opened = null
+/** The popup button the menu open was opened by, if by one. */
+let opener = null
 
-function close() {
+/** Shuts the menu open; `back` gives the focus back to the button that opened it. */
+function close(back = false) {
   opened?.remove()
   opened = null
+  const by = opener
+  opener = null
+  if (!by) return
+  by.setAttribute('aria-expanded', 'false')
+  if (back === true) by.focus()
 }
 
 /** Where the browser's own menu is the right one: what is there to be read, copied or written. */
@@ -54,11 +87,11 @@ function readable(target) {
   return Boolean(target.closest('input, textarea, select, [contenteditable], .selectable, .thread, .prose, pre, code, dd, .said, .error, .note, .bar-sub .mono'))
 }
 
-function open(items, x, y) {
+function open(items, x, y, kind = '') {
   close()
   const made = items().filter((one) => one !== null && one !== false && one !== undefined)
   if (!made.length) return
-  const menu = h('div', { class: 'popover context', role: 'menu' })
+  const menu = h('div', { class: ['popover context', kind], role: 'menu' })
   for (const one of made) {
     if (one === '-') {
       if (menu.lastChild && menu.lastChild.tagName !== 'HR') menu.append(h('hr'))
@@ -71,7 +104,7 @@ function open(items, x, y) {
     const kids = [h('span', { class: 'choice-mark', 'aria-hidden': 'true' }, one.glyph ? icon(one.glyph) : null), h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, one.label))]
     const item = one.href ? h('a', { class: ['choice', one.danger && 'danger'], role: 'menuitem', href: one.href, title: one.title || null }, kids) : h('button', { class: ['choice', one.danger && 'danger'], type: 'button', role: 'menuitem', disabled: one.disabled, title: one.title || null }, kids)
     item.addEventListener('click', () => {
-      close()
+      close(true)
       if (one.act) one.act()
     })
     menu.append(item)
@@ -98,7 +131,8 @@ document.addEventListener('contextmenu', (event) => {
     event.preventDefault()
     const x = event.clientX || at.getBoundingClientRect().left + 8
     const y = event.clientY || at.getBoundingClientRect().bottom
-    open(menus.get(at), x, y)
+    const { items, kind } = menus.get(at)
+    open(items, x, y, kind)
     return
   }
   // Nothing to offer here, and nothing to read or write: the browser's menu is no app's.
@@ -106,17 +140,18 @@ document.addEventListener('contextmenu', (event) => {
 })
 
 document.addEventListener('pointerdown', (event) => {
-  if (opened && !opened.contains(event.target)) close()
+  // A press on the button that opened it is that button's to answer: it shuts the menu.
+  if (opened && !opened.contains(event.target) && !opener?.contains(event.target)) close()
 }, true)
 document.addEventListener('keydown', (event) => {
   if (opened && event.key === 'Escape') {
     event.stopPropagation()
-    close()
+    close(true)
   }
 }, true)
-window.addEventListener('blur', close)
-window.addEventListener('hashchange', close)
-document.addEventListener('scroll', close, true)
+window.addEventListener('blur', () => close())
+window.addEventListener('hashchange', () => close())
+document.addEventListener('scroll', () => close(), true)
 
 // ------------------------------------------------------------------ tips
 

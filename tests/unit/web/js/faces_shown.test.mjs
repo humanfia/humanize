@@ -92,8 +92,8 @@ test('a face mounted for a session is handed what the session was shown before i
   assert.deepEqual(shownTo('/elsewhere', 'human/1'), [])
 
   // The card of the session's question mounts its face, as asking/card.js does.
-  const question = { question: 'q1', session: 'human/1', role: 'human', text: 'Ship?', face: { hash: 'ab12', title: 'Review' } }
-  mountFace(question, { fetchFace: async () => ({ html: '<p>face</p>', title: 'Review' }), submit: async () => ({ ok: true }), theme: {}, shown: told })
+  const question = { question: 'q1', run: 1, session: 'human/1', role: 'human', text: 'Ship?', face: { hash: 'ab12', title: 'Review' } }
+  mountFace(question, { fetchFace: async () => ({ html: '<p>face</p>', title: 'Review' }), submit: async () => ({ ok: true }), theme: {}, shown: told, where: '/w' })
   const frame = frames.at(-1)
   frame.heard.load()
   await until(() => frame.contentWindow.posted.length === 1)
@@ -121,7 +121,7 @@ test('a face mounted for a session is handed what the session was shown before i
     )
   } finally {
     port.close()
-    dropFace('human/1')
+    dropFace('human/1', { where: '/w', run: 1 })
     stop()
   }
 })

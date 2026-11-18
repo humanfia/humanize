@@ -54,6 +54,15 @@ def test_policies_and_strategies_are_named_once() -> None:
         (("claude", "claude-opus-5", "work", "high"), "claude@work/claude-opus-5:high"),
         (("claude", "claude-opus-5", "", "auto"), "claude/claude-opus-5"),
         (("kimi", "moonshot/kimi-k3"), "kimi/moonshot/kimi-k3"),
+        (("opencode", "ollama/qwen3:latest"), "opencode/ollama/qwen3:latest:auto"),
+        (
+            ("opencode", "ollama/qwen3:latest", "", "auto"),
+            "opencode/ollama/qwen3:latest:auto",
+        ),
+        (
+            ("opencode", "ollama/qwen3:latest", "", "high"),
+            "opencode/ollama/qwen3:latest:high",
+        ),
     ],
 )
 def test_spec(args: tuple[str, ...], said: str) -> None:
@@ -68,6 +77,8 @@ def test_spec(args: tuple[str, ...], said: str) -> None:
         ("claude/claude-opus-5:auto", "claude/claude-opus-5"),
         ("grok-build/grok-5", "grok/grok-5"),
         ("opencode/ollama/qwen3:8b", "opencode/ollama/qwen3:8b"),
+        ("opencode/ollama/qwen3:latest:auto", "opencode/ollama/qwen3:latest:auto"),
+        ("opencode/ollama/qwen3:latest:", "opencode/ollama/qwen3:latest:auto"),
         ("smart", "smart"),
         ("claude", ""),
         ("claude/", ""),
@@ -93,6 +104,12 @@ def test_a_concrete_nous_with_an_effort_has_what_is_written_without_it() -> None
     nous.retrying("claude/m:high", 5, "constant", 0)
     assert nous.rule("claude/m:high").tries == 5
     assert nous.rule("claude/m:low").tries == 2
+
+
+def test_a_model_ending_in_a_word_keeps_its_name_where_its_effort_is_dropped() -> None:
+    nous.retrying("opencode/ollama/qwen3:latest:auto", 2, "constant", 0)
+    assert nous.rule("opencode/ollama/qwen3:latest:high").tries == 2
+    assert nous.rule("opencode/ollama/qwen3:latest").tries == 0
 
 
 def test_then_writes_a_chain_down_as_a_list() -> None:
@@ -546,6 +563,33 @@ def test_a_member_that_was_rate_limited_is_picked_last() -> None:
     among = ((hot, 1), (cold, 1))
     nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
     assert _walked("pool", {cold: "dropped"}) == [cold, hot]
+
+
+def test_a_member_that_answered_past_a_rate_limit_inside_it_keeps_its_session() -> None:
+    first, second, other = "kimi/inner-hot", "kimi/inner-cool", "opencode/outside"
+    nous.put(Nous("chain", graph=nous.chain([first, second])))
+    among = (("chain", 1), (other, 1))
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
+    memo: dict[str, str] = {}
+    walk = nous.walk("pool", memo=memo)
+    assert walk.next() == Run(first, None)
+    nous.finished((*walk.picks(), first), 1.0, fault="throttled")
+    assert walk.next("throttled") == Run(second, None)
+    nous.finished((*walk.picks(), second), 1.0)
+    walk.landed()
+    assert memo == {"pool>p": "chain"}
+    assert _walked("pool", {first: "dropped"}, memo=memo) == [first, second]
+
+
+def test_a_member_that_was_rate_limited_through_and_through_is_picked_last() -> None:
+    first, second, other = "kimi/all-hot-a", "kimi/all-hot-b", "opencode/spare"
+    nous.put(Nous("spent-chain", graph=nous.chain([first, second])))
+    among = (("spent-chain", 1), (other, 1))
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
+    memo = {"pool>p": "spent-chain"}
+    faults = {first: "throttled", second: "spent", other: "dropped"}
+    assert _walked("pool", faults, memo=memo) == [first, second, other]
+    assert _walked("pool", {}, memo=memo) == [other]
 
 
 def test_a_strategy_of_ones_own_cannot_take_a_built_in_name() -> None:

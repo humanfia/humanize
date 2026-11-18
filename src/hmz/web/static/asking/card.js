@@ -359,6 +359,7 @@ function faced(where, one, context, answer, sending, settle) {
         theme: themeTokens(),
         plain: (on) => showPlain(on),
         shown,
+        where,
       })
       if (!(mounted instanceof Node)) throw new Error('no view')
       if (failed) return
