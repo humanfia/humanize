@@ -237,6 +237,17 @@ def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
     )
 
 
+def test_chat_shows_what_a_command_it_ran_printed_and_takes_no_turn(
+    tmp_path: Path,
+) -> None:
+    ran = _chat("-a", AGENT, "--", "!echo hi-from-bang")
+
+    assert ran.returncode == 0, ran.stderr
+    assert ran.stdout == "hi-from-bang\n"
+    assert "echo hi-from-bang" in ran.stderr
+    assert started(tmp_path) == []
+
+
 def test_a_failed_first_turn_fails_the_chat_with_what_the_cli_said() -> None:
     ran = _chat("-a", AGENT, "--", "fail: it broke")
 

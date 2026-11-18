@@ -23,6 +23,7 @@ import {
   resolved,
   sendLabel,
   summaryOf,
+  untouched,
   draftable,
   widgetOf,
   withdrawnWhy,
@@ -124,6 +125,22 @@ test('what is left to say counts each required field still blank, nested ones to
   assert.equal(requiredLeft(REVIEW, { verdict: 'approve', notes: 'ok', scope: { files: 3 } }), 0)
   assert.equal(sendLabel(2), '2 required left')
   assert.equal(sendLabel(0), 'Send answer')
+})
+
+test('an optional object is untouched while each field is blank, off, or still its suggestion', () => {
+  const inner = { type: 'object', properties: { label: { type: 'string' }, depth: { type: 'integer', default: 1 }, deep: { type: 'boolean', default: true } }, required: ['label'] }
+  const fields = fieldsOf(inner)
+  // What a form reads of it before anybody types: the suggestions it filled in, the rest blank.
+  assert.equal(untouched(fields, { label: '', depth: 1, deep: true }), true)
+  assert.equal(untouched(fields, { depth: 1, deep: false }), true)
+  assert.equal(untouched(fields, { label: '', depth: 2, deep: true }), false)
+  assert.equal(untouched(fields, { label: 'L', depth: 1, deep: true }), false)
+  // A number nobody suggested is somebody's answer.
+  assert.equal(untouched(fieldsOf({ type: 'object', properties: { depth: { type: 'integer' } } }), { depth: 1 }), false)
+  // An object it must hold, itself as first shown, does not make it touched.
+  const outer = { type: 'object', properties: { mid: { $ref: '#/$defs/Inner' } }, required: ['mid'], $defs: { Inner: inner } }
+  assert.equal(untouched(fieldsOf(outer, outer), { mid: { label: '', depth: 1, deep: true } }, outer), true)
+  assert.equal(untouched(fieldsOf(outer, outer), { mid: { label: 'L', depth: 1, deep: true } }, outer), false)
 })
 
 test('an answer is said back in one line, choices plain and text quoted', () => {

@@ -149,8 +149,10 @@ _FIND = (
     "-print0; fi | head -c $1"
 )
 
-#: Searches the files under the workdir: `rg --json` where there is `rg`; else `git grep`
-#: inside a repository, which leaves out what git ignores as `rg` does; else `grep`.
+#: Searches the files `_FIND` lists: with `rg --json` where there is `rg`, which is told to
+#: search hidden files too and to heed no `.ignore` file, which git knows nothing of, and
+#: outside a repository to heed no ignore file at all and to leave `node_modules` out; else
+#: with `git grep` inside a repository; else with `grep`.
 #: Arguments: the query, `F` or `E`, `i` or `s`, the glob, and how many lines to print.
 _SEARCH = (
     "q=$1; how=$2; case_=$3; glob=$4; most=$5; set --; "
@@ -159,6 +161,9 @@ _SEARCH = (
     '[ "$how" = F ] && set -- "$@" --fixed-strings; '
     '[ "$case_" = i ] && set -- "$@" --ignore-case || set -- "$@" --case-sensitive; '
     '[ -n "$glob" ] && set -- "$@" --glob "$glob"; '
+    "set -- \"$@\" --hidden --no-ignore-dot --glob '!.git'; "
+    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || "
+    "set -- \"$@\" --no-ignore --glob '!node_modules'; "
     'rg "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; '
     "elif git rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo grep; "
     'set -- -nI --no-color --untracked --exclude-standard "-$how"; '

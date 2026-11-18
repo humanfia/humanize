@@ -5297,6 +5297,10 @@ input[aria-invalid='true'] {
   color: var(--live-ink);
 }
 
+.aichan-state.failed {
+  color: var(--fail);
+}
+
 .aichan-crumb {
   display: flex;
   flex-wrap: wrap;
