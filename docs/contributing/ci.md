@@ -36,25 +36,26 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 
 | Runs | When the change touched |
 | --- | --- |
-| everything | `pyproject.toml`, `uv.lock`, a file directly in `src/hmz/`, `tests/conftest.py` or `ci.yml` |
+| everything | `pyproject.toml`, `uv.lock`, a file directly in `src/hmz/`, `tests/conftest.py`, `tests/integration/conftest.py`, the stand-in loops in `tests/integration/flows/` or `ci.yml` |
 | `tests/unit/<package>` | `src/hmz/<package>/` or `tests/unit/<package>/`: unit tests mock every other package |
 | the `agents` topic | `runtime`, `flows`, `coganchor` or `cli` |
-| the `daemon` topic | those, `daemon` or `sdk` |
-| the `tui` topic | those of `agents`, `daemon` or `tui` |
+| the `daemon` topic | those, `daemon`, `reach`, `relay`, `rpc`, `sdk`, `trust` or `web` |
+| the `tui` topic | those of `agents`, `daemon`, `reach`, `rpc`, `trust` or `tui` |
 | the `core`, `anchor` and `web` topics | anything in `src/hmz/`: they run `hmz` whole; the `anchor` topic also `crates/coganchor/` |
-| the `reach` topic | `cli`, `daemon`, `reach`, `rpc` or `trust`; `doubles_ssh.py` and `doubles_easytier.py` count for it |
+| the `reach` topic | those of `agents`, `daemon`, `reach`, `rpc`, `rtc` or `trust` |
 | the `relay` topic | `cli`, `reach`, `relay`, `rpc`, `rtc` or `trust` |
 | `tests/unit/rpc` | also anything in `protocol/`: it holds `protocol/openrpc.json` to the protocol's text |
 | `node --test 'tests/unit/web/js/*.test.mjs'` | `src/hmz/web/static/`, `tests/unit/web/js/` or `ci.yml` |
-| a topic | also its own files in `tests/integration/`; `doubles_core.py` counts for `core`, `anchor` and `web` |
+| a topic | also its own files in `tests/integration/`, and the doubles its tests import: `doubles_core.py` counts for `core`, `daemon`, `anchor` and `web`, `doubles_daemon.py` for `daemon`, `core`, `tui` and `web`, `doubles_ssh.py` for `daemon`, `tui`, `web` and `reach`, `doubles_easytier.py` for `daemon`, `anchor` and `reach` |
 | `vendor` | `src/hmz/web/vendor/`, `src/hmz/web/static/vendor/` or `ci.yml` |
 | `coganchor` | `crates/coganchor/` or `ci.yml` |
 | `desktop` and `desktop-windows` | `desktop/`, the page it carries in `src/hmz/web/static/`, or `ci.yml` |
 
 `runtime`, `flows` and `coganchor` import each other, so a topic that runs one runs all three.
 The other topics' rows follow what their tests import, and `hmz`, which loads a package only
-when a command needs it. A test that comes to run a package its row leaves out takes it into
-the row in `ci.yml`'s `changes`.
+when a command needs it. A test that comes to run a package or a double its row leaves out
+takes it into the row in `ci.yml`'s `changes`: `tests/integration/test_core_ci_filters.py`
+fails until it does.
 
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
