@@ -122,9 +122,13 @@ export function placePicker(kept, label, changed = () => {}) {
  * @param {string} kept What fills it now, as `-a` spells it.
  * @param {(offered: ReturnType<typeof offering>) => void} draw Draws what picking it offers now:
  *   as it is made, whenever the CLIs here are read, and whenever asked `again`.
+ * @param {{effort?: boolean, changed?: () => void}} [how] Whether an effort is part of it, and
+ *   who is told a choice that reading the CLIs here changed with nobody picking: the first model
+ *   an account turned out to run.
  */
-export function agentChoice(role, kept, draw, { effort: withEffort = true } = {}) {
+export function agentChoice(role, kept, draw, { effort: withEffort = true, changed = () => {} } = {}) {
   const chosen = parted(kept)
+  const value = () => spelled(withEffort ? chosen : { ...chosen, effort: '' })
 
   function again() {
     if (!backends) return
@@ -140,14 +144,15 @@ export function agentChoice(role, kept, draw, { effort: withEffort = true } = {}
     again()
   }
 
-  told.add(again)
-  return {
-    chosen,
-    again,
-    refresh,
-    value: () => spelled(withEffort ? chosen : { ...chosen, effort: '' }),
-    leave: () => told.delete(again),
+  /** Drawn again as the CLIs here are read, which may settle what nobody picked. */
+  function read() {
+    const was = value()
+    again()
+    if (value() !== was) changed()
   }
+
+  told.add(read)
+  return { chosen, again, refresh, value, leave: () => told.delete(read) }
 }
 
 /**
@@ -170,7 +175,7 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
   const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field('Account', account), field('Model', model, typed), withEffort ? field('Effort', effort) : null, again, said)
   let typing = false
 
-  const picked = agentChoice(role, kept, draw, { effort: withEffort })
+  const picked = agentChoice(role, kept, draw, { effort: withEffort, changed })
   const { chosen } = picked
   const options = (offered, value) => offered.map((one) => h('option', { value: one.value, selected: one.value === value }, one.label))
 
