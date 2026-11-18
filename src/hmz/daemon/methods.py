@@ -239,7 +239,7 @@ class _Methods:
             raise _refused(
                 503, f"The device could not be written down: {why}"
             ) from None
-        session.device = device
+        router.claimed(session.fingerprint, device)
         return {"daemon_id": router.daemon_id, "device": device}
 
     def devices_list(self, call: Call) -> dict[str, Any]:

@@ -147,6 +147,28 @@ def test_a_family_of_methods_is_served_beside_the_daemons_own(workspace: Path) -
     assert "tcp://127.0.0.1:0" in str(client.call("settings.get"))
 
 
+def test_a_code_claimed_pairs_every_session_its_device_holds_open(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listens("tcp://127.0.0.1:0")
+    daemon.start()
+    paired = code()
+    (route,) = paired.routes
+    me = device(tmp_path / "afar", monkeypatch)
+    held = secured(route, me, paired.id)
+    with pytest.raises(RpcError) as unpaired:
+        held.call("hosts.list")
+    assert unpaired.value.code == Code.NOT_PAIRED
+
+    # Paired is the device's fingerprint among the paired devices (Section 4.2.7 of
+    # wire.md), so the claim of one session pairs the other one too.
+    secured(route, me, paired.id).call("pair.claim", token=paired.token, name="afar")
+    assert held.call("hosts.list") == {"held": []}
+    (listed,) = local().call("devices.list")["devices"]
+    assert listed["live"] == 2
+    assert local().call("devices.revoke", name="afar") == {"dropped": 2}
+
+
 def test_a_device_pairs_over_tcp_and_attaches_and_is_dropped_once_revoked(
     workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
