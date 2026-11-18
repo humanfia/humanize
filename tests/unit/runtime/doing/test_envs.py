@@ -157,6 +157,20 @@ def test_a_file_is_written_whole_and_its_size_said() -> None:
     assert driver.files == {"n/é.txt": "é\n".encode()}
 
 
+@pytest.mark.parametrize("workdir", ["/w", "~/w"])
+@pytest.mark.parametrize("path", ["~/x", "a/../~/x"])
+def test_a_path_under_a_tilde_is_one_in_the_workdir_not_in_the_home(
+    workdir: str, path: str
+) -> None:
+    # A driver reads a path that begins `~` from its machine's home: it is given none that does
+    # but under the workdir's own.
+    driver = Driver(workdir=workdir)
+
+    assert _does("write", driver, path=path, text="x") == {"size": 1}
+    assert driver.files == {f"{workdir}/~/x": b"x"}
+    assert _does("read", driver, path=path)["text"] == "x"
+
+
 def test_a_command_says_its_status_and_the_last_of_what_it_wrote() -> None:
     driver = Driver(ran=(3, "x" * (2 << 20), "oops\n"))
 

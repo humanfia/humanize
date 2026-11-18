@@ -116,6 +116,11 @@ def test_the_envs_of_an_epic_are_listed_written_read_run_in_and_searched(
             "more": False,
         }
 
+        assert call("hosts.env.write", **at, path="~/b.txt", text="in")["result"] == {
+            "size": 2
+        }
+        assert (workspace / "~" / "b.txt").read_text() == "in"
+        assert call("hosts.env.read", **at, path="~/b.txt")["result"]["text"] == "in"
         assert call("hosts.env.read", **at, path="../outside")["error"] == {
             "code": 400,
             "message": "../outside is outside the env workspace.",
