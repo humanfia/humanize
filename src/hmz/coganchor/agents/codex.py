@@ -1941,7 +1941,7 @@ class _AppServer:
             self._agents[0].hooks.fire(
                 Occasion(
                     moment=Moment.PERMISSION_REQUEST,
-                    agent=self._agents[0].id,
+                    agent=self._agents[0].hooks.agent,
                     session=str(told.get("threadId") or ""),
                     tool=str(message["method"]).rsplit("/", 2)[-2],
                     about=about,

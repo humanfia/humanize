@@ -1539,7 +1539,7 @@ class KimiCodeCLISession(SessionBase):
             return said
         return (
             self._agent.hooks.hooked(Moment.PERMISSION_REQUEST)
-            or self._agent.ask is not None
+            or self._agent._answering().ask is not None
         )
 
     def _submit(

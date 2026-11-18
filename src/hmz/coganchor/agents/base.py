@@ -2407,7 +2407,9 @@ class SessionBase(ABC):
         return self._agent.hooks.fire(
             Occasion(
                 moment=moment,
-                agent=self._agent.id,
+                # The name the hooks go by, which for a stand-in's is that of the agent it
+                # takes this turn for: a hook is told which of its flow's agents it was.
+                agent=self._agent.hooks.agent,
                 session=self._id or "",
                 prompt=prompt,
                 tool=tool,
@@ -6380,6 +6382,16 @@ class AgentBase(ABC):
             except Exception:  # noqa: BLE001, S112 -- a watcher fails on its own account
                 continue
 
+    def _answering(self) -> AgentBase:
+        """The agent whose `ask` answers what a turn of this one stops to ask.
+
+        Returns:
+          The agent this one takes turns for, for a stand-in whose agent is still held, and
+          otherwise this one. Asked each time rather than kept, since `ask` is set on that
+          agent whenever its flow sets it, which may be after a stand-in was made.
+        """
+        return (self._stands_for() if self._stands_for is not None else None) or self
+
     def asked(self, question: Question) -> str | None:
         """Puts something a turn stopped to ask to whoever is driving this agent.
 
@@ -6395,8 +6407,8 @@ class AgentBase(ABC):
           answered rather than left waiting, since a turn waiting on an answer that is not
           coming is a flow that has stopped.
         """
-        stood_for = self._stands_for() if self._stands_for is not None else None
-        if stood_for is not None:
+        stood_for = self._answering()
+        if stood_for is not self:
             # A stand-in's turn is that agent's turn, so the question is that agent's: heard
             # as its own, told to its hooks and put to whoever answers for it now. The clocks
             # stopped here are this agent's, since it is this one's CLI that is kept waiting.

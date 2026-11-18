@@ -9,6 +9,7 @@ file `fails` beside it says before it answers, and a `claude` that is either abs
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import threading
 from typing import TYPE_CHECKING
@@ -32,6 +33,7 @@ from hmz.coganchor.agents import (
     Unrecoverable,
     Verdict,
 )
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.nous import Graph, Node, Nous
 from tests.integration.doubles_agents import (
     CODEX,
@@ -163,6 +165,44 @@ def test_a_hook_gates_the_tool_a_stand_in_of_the_same_harness_reaches_for(
 
     assert decided["permissionDecisionReason"] == "never that"
     assert [(one.agent, one.about) for one in seen] == [(agent.id, "rm -rf /")]
+
+
+def test_a_permission_a_stand_in_asks_for_is_put_to_the_hook_as_its_agents(
+    places: Standins, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    # A fence is what routes requests over the stream; the wall itself is not put up.
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    places.install(
+        "claude",
+        CLAUDE_RUN.replace(
+            "note()\n",
+            'note()\nif flags.get("--model") == "claude-stand-in":\n    sys.exit(3)\n',
+            1,
+        ),
+    )
+    nous.then("claude/claude-stand-in", ["claude/claude-elsewhere"])
+    agent = ClaudeCodeAgent(
+        dataclasses.replace(CLAUDE, fence=Fence(write=("/w",), online=True))
+    )
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that file")
+
+    agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
+
+    assert agent.new()("ask") == "deny:not that file"
+    assert [(one.agent, one.tool) for one in seen] == [(agent.id, "Write")]
 
 
 def test_a_question_a_stand_in_stops_to_ask_is_put_to_whoever_answers_for_the_agent(

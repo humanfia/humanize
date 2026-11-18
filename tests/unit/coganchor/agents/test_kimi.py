@@ -442,6 +442,29 @@ def test_a_fenced_session_runs_at_yolo_while_somebody_listens_for_what_it_asks(
     assert profile["agent_config"]["permission_mode"] == "yolo"
 
 
+def test_a_fenced_stand_in_runs_at_yolo_while_somebody_answers_for_its_agent(
+    made: Callable[..., KimiCodeCLIAgent],
+    daemon: _Daemon,
+    server: list[Process],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del server
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    agent = made(fence=_WRITES)
+    stood_in = agent.stand_in("kimi/kimi-k3")
+    assert isinstance(stood_in, KimiCodeCLIAgent)
+    # Set after the stand-in was made, as a run sets it.
+    agent.ask = lambda _question: None
+    try:
+        _turn(stood_in.new(tmp_path))
+    finally:
+        stood_in.stop()
+
+    (profile,) = daemon.posted(f"/sessions/{_SESSION}/profile")
+    assert profile["agent_config"]["permission_mode"] == "yolo"
+
+
 def test_asks_said_off_keeps_a_hooked_session_at_auto(
     made: Callable[..., KimiCodeCLIAgent],
     daemon: _Daemon,
