@@ -365,7 +365,7 @@ taking `idem`. `face` is a read.
 
 | `epic.<do>` | Fields | Answer | Refusals |
 | --- | --- | --- | --- |
-| `answer` | `question` (`q<n>`), and exactly one of `text` (str) or `value` (any JSON) | `{}` | 400 `the answer does not fit: <first message>`, with `data: {"errors": [{path, message}]}`; every refusal of a question that is not this frontend's to answer, already answered, or gone |
+| `answer` | `question` (`q<n>`), and exactly one of `text` (str) or `value` (any JSON; `null` reads as not sent) | `{}` | 400 `the answer does not fit: <first message>`, with `data: {"errors": [{path, message}]}`; every refusal of a question that is not this frontend's to answer, already answered, or gone |
 | `face` | `hash` (a face's sha256, as an `asked` record names it) | `html`, `title` | 404 `no face <hash>` |
 
 - **A question with a `schema`** takes `value`, or `text` read as JSON. The value is checked
@@ -373,7 +373,7 @@ taking `idem`. `face` is a read.
   misfit is refused and leaves the question up: `errors` holds every reason, `path` the list of
   keys and indexes to the field (`[]` for the whole value), `message` in words.
 - **A question without one** takes `text`, or a `value` that is a string; any other `value` is
-  refused 409, `q<n> is answered in text`. A number in `text` picks that option, counting from
+  a misfit, refused 400 the same way with `text is expected`. A number in `text` picks that option, counting from
   1, only where the question has options.
 - **Faces** are handed to the host before the first question that names one, and kept for the
   epic's lifetime, so a frontend may fetch one by the hash an `asked` record or the `pending`
