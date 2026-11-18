@@ -476,7 +476,10 @@ class Chat:
         driver: AgentDriver | None = None
         local: EnvDriver | None = None
         try:
-            driver = agent_drivers({ASSISTANT: said}, held)[ASSISTANT]
+            # A chat carried on is the one assistant still, so its sessions go on being
+            # written down under the name its epic gave it.
+            named = before.agents[-1].name if before and before.agents else ""
+            driver = agent_drivers({ASSISTANT: said}, held, named)[ASSISTANT]
             for listener in self._listeners:
                 watch = getattr(driver, "watch", None)
                 if callable(watch):

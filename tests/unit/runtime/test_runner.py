@@ -287,7 +287,7 @@ class Flowing:
         self.named = named
         return self.impl
 
-    def open_agent(self, spec: AgentSpec, harbors: object) -> Agent:
+    def open_agent(self, spec: AgentSpec, harbors: object, name: str = "") -> Agent:
         if self.agent_refuses is not None:
             raise self.agent_refuses
         self.opened_agents.append(spec)
