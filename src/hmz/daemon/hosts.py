@@ -35,6 +35,9 @@ _PATIENCE = 10.0
 #: How long a host is given to say how it stands before it is answered for.
 _ANSWERING = 5.0
 
+#: How many hosts that went are kept as they last stood, where nobody asks: as many as notices.
+_LEFT = 200
+
 #: How often a subscription that asked for figures has them worked out again, at most.
 _FIGURING = 1.0
 
@@ -585,6 +588,9 @@ class Hosts:
                 del self._held[key]
                 if hosted.last is not None:
                     self._left[key] = hosted.last
+                    # Nobody asks a private daemon: the oldest go, rather than all be kept.
+                    while len(self._left) > _LEFT:
+                        del self._left[next(iter(self._left))]
                 if hosted.slot and not hosted.slot.startswith("ai:"):
                     self._gone.add(key)
         if mine and hosted.slot.startswith("ai:") and self.ai is not None:
