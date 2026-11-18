@@ -1,7 +1,7 @@
 // A question's face: the HTML app a flow ships for it, run in a sandboxed frame beside the
 // question and spoken to over one MessageChannel port.
 //
-//   mountFace(question, {fetchFace, submit, theme, plain, where}) -> HTMLElement
+//   mountFace(question, {fetchFace, submit, theme, plain, shown, where}) -> HTMLElement
 //
 // `fetchFace(hash)` gives `{html, title}` (`epic.face`), kept here by hash; `submit(value)`
 // answers the question, resolving where it was taken and rejecting, or resolving
@@ -9,7 +9,8 @@
 // giving them, read off the page where it is not given. `plain(on, reason)`, if given, is told
 // whenever the plain form should be shown instead (`reason`: 'chosen', 'failed' or 'timeout')
 // or no longer; the element also says so as a bubbling `hmz-face` event, `detail: {plain,
-// reason}`.
+// reason}`. `shown` is the contexts the question's session was shown before now, oldest first:
+// a face mounted anew is handed each of them with `show`, after its ask.
 //
 // A session keeps one frame across its asks: mounting the next question of the session gives
 // back the same element, its face still in the state the person left it, told the new ask.
@@ -31,7 +32,7 @@ const mounts = new Map()
 const fetched = cached()
 
 /** Mounts a question's face, or tells the session's mounted one its next ask. */
-export function mountFace(question, { fetchFace, submit, theme, plain, where } = {}) {
+export function mountFace(question, { fetchFace, submit, theme, plain, shown, where } = {}) {
   const hash = hashOf(question)
   if (!hash) throw new Error('This question has no face.')
   if (typeof fetchFace !== 'function' || typeof submit !== 'function') throw new TypeError('mountFace needs fetchFace and submit.')
@@ -45,6 +46,7 @@ export function mountFace(question, { fetchFace, submit, theme, plain, where } =
   if (fresh) {
     sheet()
     mount = new Mount(sessionOf(question), hash, titleOf(question))
+    if (Array.isArray(shown)) mount.shows = shown.slice(-SHOWN)
   }
   mounts.delete(session)
   mounts.set(session, mount)

@@ -6,7 +6,7 @@
 // through it, the plain form a button away.
 
 import { fill, h, problem } from '../dom.js'
-import { ask } from '../held.js'
+import { ask, shownTo } from '../held.js'
 import { blocks } from './blocks.js'
 import { schemaForm } from './form.js'
 import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, summaryOf, withdrawnWhy, draftable } from './logic.js'
@@ -339,6 +339,9 @@ function faced(where, one, context, answer, sending, settle) {
     showPlain(true)
   }
   answer.append(frame, note, plain)
+  // What the session was shown before this card was drawn, read now: what comes later is
+  // handed to the mounted face as it comes.
+  const shown = shownTo(where, one.session)
   import('../faces/host.js')
     .then(async ({ mountFace }) => {
       const mounted = await mountFace(one, {
@@ -355,6 +358,7 @@ function faced(where, one, context, answer, sending, settle) {
         },
         theme: themeTokens(),
         plain: (on) => showPlain(on),
+        shown,
         where,
       })
       if (!(mounted instanceof Node)) throw new Error('no view')

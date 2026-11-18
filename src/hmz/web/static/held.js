@@ -196,6 +196,19 @@ export function current(state) {
   return { number, run, records: number ? state.records.filter((one) => one.run === number) : [] }
 }
 
+/**
+ * What a session of a host's run in front was shown so far, oldest first: the context of each
+ * of its `shown` records held, for a face mounted after they came.
+ */
+export function shownTo(where, session) {
+  const { workspace, slot } = placed(where)
+  const one = followed.get(`${workspace}\n${slot}`)
+  if (!one || !session) return []
+  return current(one.state)
+    .records.filter((record) => record.type === 'shown' && String(record.session) === String(session))
+    .map((record) => record.context || [])
+}
+
 function following(workspace, slot) {
   const state = { workspace, slot, connected: false, gone: '', me: '', epoch: '', standing: {}, records: [], figures: null }
   const listeners = new Set()
@@ -265,7 +278,8 @@ function following(workspace, slot) {
       // Context beside a question, an image's above all, weighs what it is written as.
       const weighs = String(message.text ?? '').length + (message.context ? JSON.stringify(message.context).length : 0) + FRAME
       state.records.push(message)
-      // Context shown to a person goes to the face their session has open, where it has one.
+      // Context shown to a person goes to the face their session has open, where it has one:
+      // one mounted later is handed it as it is mounted (`shownTo`).
       if (type === 'shown' && message.session) {
         import('./faces/host.js')
           .then(({ showFace }) => showFace(message.session, message.context || [], { where: { workspace, slot }, run: message.run }))
