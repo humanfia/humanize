@@ -12,6 +12,7 @@ import {
   secretOf,
   kindOf,
   labelOf,
+  paramLabel,
   multiline,
   opened,
   patchFiles,
@@ -89,6 +90,17 @@ test('a field is named in a sentence, its title kept only where it says more tha
   assert.equal(labelOf('dry_run', { title: 'Dry Run' }), 'Dry run')
   assert.equal(labelOf('max_files', { title: 'How many files at most' }), 'How many files at most')
   assert.equal(labelOf('reviewerEmail'), 'Reviewer email')
+})
+
+test("a flow's param is named by the title the flow gave it, else by its key as -p takes it", () => {
+  const fields = fieldsOf({
+    type: 'object',
+    properties: { first_chaser_cost: { type: 'number', default: 1 }, passes: { type: 'integer', title: 'Review passes', default: 1 }, dryRun: { type: 'boolean', default: false } },
+  })
+  assert.deepEqual(
+    fields.map((one) => paramLabel(one.name, one.node)),
+    ['first_chaser_cost', 'Review passes', 'dryRun'],
+  )
 })
 
 test('a field is named by its own title, never by the title of the type it refers to', () => {
