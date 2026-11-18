@@ -40,7 +40,9 @@ avatar at the right of any view's bar instead: a drawer opens beside it, with **
 ## How it works
 
 Every conversation with Ai-chan is fixed, when you make it, to three things. None of them
-changes while the conversation lasts; to change one, make another conversation.
+changes while the conversation lasts; to change one, make another conversation. A `/model` or
+`/effort` said to her is refused, and leaves the [chat agent](/user/chat) her workspace remembers
+as it was.
 
 | | What it is | Choices | Default |
 | --- | --- | --- | --- |

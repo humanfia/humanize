@@ -239,6 +239,11 @@ ASSISTANT = "assistant"
 
 #: What a turn stopped by the person is answered with, the conversation going on.
 STOPPED = "That turn was stopped."
+#: What a `/model` or `/effort` said to a chat playing a role is answered.
+_KEPT_NOUS = (
+    "Ai-chan's nous does not change while the conversation lasts; "
+    "to change it, make another conversation."
+)
 
 #: How long a `!` command may run before it is killed: long enough for a build or a test run, not
 #: so long that a command waiting on input it will never get holds the chat for good.
@@ -676,6 +681,15 @@ class _Talk:
                 entry = read.entry
                 if read.kind == "refused":
                     message = await person.next(_said(unkept, read.why))
+                    unkept = ""
+                    continue
+                if (
+                    role is not None
+                    and read.kind == "native"
+                    and line.split(maxsplit=1)[0] in ("/model", "/effort")
+                ):
+                    # Her nous is hers while the conversation lasts (Section 14.3.1 of [CORE]).
+                    message = await person.next(_said(unkept, _KEPT_NOUS))
                     unkept = ""
                     continue
                 if (
