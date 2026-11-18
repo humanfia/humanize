@@ -8,6 +8,7 @@ into it; an `abort` stops it.
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 import threading
 from typing import TYPE_CHECKING
@@ -76,6 +77,24 @@ threading.Thread(target=reading, daemon=True).start()
 while (told := take()) is not None:
     if told["type"] == "steer":
         steered(told["message"])
+        continue
+    if told["type"] in ("get_commands", "bash", "compact"):
+        # Answered under the id it came with, as pi answers a command.
+        data = {
+            "get_commands": {"commands": [
+                {"name": "fix-tests", "description": "Fix failing tests",
+                 "source": "prompt"},
+                {"name": "skill:review", "description": "Review", "source": "skill"},
+            ]},
+            "bash": {"output": "ran " + told.get("command", ""), "exitCode": 0},
+            "compact": {"summary": "s", "tokensBefore": 1200, "usage": SPENT},
+        }[told["type"]]
+        if told["type"] != "get_commands":
+            quiet = " quietly" if told.get("excludeFromContext") else ""
+            note(told["type"] + " " + told.get("command", told.get(
+                "customInstructions", "")) + quiet)
+        out({"type": "response", "id": told.get("id"), "command": told["type"],
+             "success": True, "data": data})
         continue
     if told["type"] != "prompt":
         note(told["type"])
@@ -173,6 +192,37 @@ def test_one_process_holds_the_session_across_turns(pi: Standins) -> None:
     assert pi.said() == ["one", "two"]
 
 
+def test_a_chats_native_input_is_served_by_pis_own_commands(pi: Standins) -> None:
+    session = PiAgent(CONFIG).new()
+
+    def native(typed: str) -> str:
+        return list(session.stream(typed, native=True))[-1].text
+
+    assert [one.name for one in session.natives()] == ["", "!", "compact"]
+    assert session("one") == "one"
+    assert [(one.sigil, one.name, one.how) for one in session.natives()] == [
+        ("!", "", "call"),
+        ("!", "!", "call"),
+        ("/", "compact", "call"),
+        ("/", "fix-tests", "pass"),
+        ("/", "skill:review", "pass"),
+    ]
+    assert native("!ls -la") == "ran ls -la"
+    assert native("!!ls") == "ran ls"
+    assert native("/compact keep the tests") == "compacted from 1200 tokens"
+    assert native("/fix-tests") == "/fix-tests"
+    assert session("!ls") == "!ls"  # a flow's prompt is only ever text
+    assert len({one.pid for one in pi.calls()}) == 1
+    assert pi.said() == [
+        "one",
+        "bash ls -la",
+        "bash ls quietly",
+        "compact keep the tests",
+        "/fix-tests",
+        "!ls",
+    ]
+
+
 def test_a_word_put_in_mid_run_reaches_it(pi: Standins) -> None:
     session = PiAgent(CONFIG).new()
     said: list[str] = []
@@ -223,16 +273,35 @@ def test_a_pi_that_exits_mid_session_fails_the_turn(pi: Standins) -> None:
     assert "something broke" in str(failed.value.stderr)
 
 
-def test_an_agent_that_may_change_nothing_is_given_no_tools_that_would(
+@pytest.mark.parametrize(("writes", "withheld"), [(False, "edit,write"), (True, None)])
+def test_a_fence_that_writes_nothing_is_given_no_tools_that_write_and_keeps_its_shell(
     pi: Standins,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    writes: bool,
+    withheld: str | None,
 ) -> None:
-    PiAgent(
-        PiAgentConfig(
-            model="openai-codex/stand-in", effort="high", permission="read-only"
-        )
-    ).new()("hello")
+    from hmz.coganchor.fence import Fence
 
-    assert pi.calls()[0].flag("--exclude-tools") == "bash,edit,write,powershell"
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    # Held by nothing here: what is checked is what pi is told, not what the fence refuses.
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    work = (tmp_path / "work").resolve()
+    work.mkdir()
+    drawn = Fence(read=("/",), write=(str(work),) if writes else ())
+    config = dataclasses.replace(CONFIG, fence=drawn)
+
+    PiAgent(config).new(work)("hello")
+
+    assert pi.calls()[0].flag("--exclude-tools") == withheld
 
 
 #: A `pi --mode rpc` that does what the real one does with `--provider`: finds that provider in

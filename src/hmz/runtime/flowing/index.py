@@ -95,11 +95,11 @@ OURS = "humanfia"
 RECORD = ".installed.json"
 
 #: The flows Humanize ships in the package. Their names are Humanize's own: an index may not
-#: offer one, and nothing installed may stand in for one, so `chat` is the same flow on every
-#: machine whatever anybody has fetched.
+#: offer one, and nothing installed may stand in for one, so `ralph_loop` is the same flow on
+#: every machine whatever anybody has fetched. Not `chat`: a chat is no flow, and a flow of that
+#: name is an ordinary one (Section 8.3.6 of [CORE]).
 RESERVED = frozenset(
     {
-        "chat",
         "continue_loop",
         "flame_chase",
         "goal",

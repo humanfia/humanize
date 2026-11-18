@@ -83,12 +83,13 @@ normative. It is cited by the tag [CORE].
 - [8. Chat](#8-chat)
   - [8.1. Scope](#81-scope)
   - [8.2. Terminology](#82-terminology)
-  - [8.3. The flow](#83-the-flow)
+  - [8.3. The chat](#83-the-chat)
   - [8.4. Turns](#84-turns)
   - [8.5. Status](#85-status)
   - [8.6. Many chats](#86-many-chats)
   - [8.7. Folding away and carrying on](#87-folding-away-and-carrying-on)
   - [8.8. Drawing a chat](#88-drawing-a-chat)
+  - [8.9. Native input](#89-native-input)
 - [9. Side Questions](#9-side-questions)
   - [9.1. Scope](#91-scope)
   - [9.2. Terminology](#92-terminology)
@@ -124,7 +125,7 @@ normative. It is cited by the tag [CORE].
   - [14.1. Scope](#141-scope)
   - [14.2. Terminology](#142-terminology)
   - [14.3. Making a conversation](#143-making-a-conversation)
-  - [14.4. The flow](#144-the-flow)
+  - [14.4. The chat](#144-the-chat)
   - [14.5. Permission and confinement](#145-permission-and-confinement)
   - [14.6. What Ai-chan does](#146-what-ai-chan-does)
   - [14.7. Shown to other frontends](#147-shown-to-other-frontends)
@@ -339,7 +340,7 @@ Out of scope:
 - Where an agent's harness and an environment are placed, and fallback between runtimes (Section 6,
   Section 7).
 - Which agents and accounts exist and how a turn is taken (Section 4, Section 5).
-- The `chat` flow and its conversation semantics (Section 8).
+- Chats, epics of their own kind, and their conversation semantics (Section 8).
 - Live figures, traces, profiles and notices of an epic (Section 10).
 - Backups, export and import of an epic (Section 11).
 
@@ -380,12 +381,16 @@ host's.
 
 **3.2.12** **Price list**: the list of per-token model prices kept on this machine (Section 10.3.3).
 
+**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow, or `chat`, a chat (Section 8).
+Where this section speaks of an epic's flow, roles, parameters, budget, stopping or picking up, it
+speaks of epics of kind `flow` alone; a chat is started, limited and ended as Section 8 states.
+
 ### 3.3. Lifecycle
 
 #### 3.3.1. Starting
 
-**3.3.1.1** hmz MUST start an epic only when a user or a program asks for one through `hmz exec`
-([CLI]), a frontend ([TUI], Section 3 of [WEB]) or the SDK (Section 4 of [PYTHON]).
+**3.3.1.1** hmz MUST start an epic only when a user or a program asks for one through `hmz exec` or
+`hmz chat` ([CLI]), a frontend ([TUI], Section 3 of [WEB]) or the SDK (Section 4 of [PYTHON]).
 
 **3.3.1.2** hmz MUST refuse to start an epic whose flow cannot be found or loaded (Section 3.3.2).
 
@@ -408,8 +413,7 @@ that cannot be read, or that names a **runtime** which is not saved.
 **3.3.1.9** hmz MUST refuse to start an epic that is given a parameter the flow does not declare, or
 a parameter value that cannot be read as the declared type.
 
-**3.3.1.10** hmz MUST refuse to start an epic that is given no budget, unless its flow is `chat` or
-`ai_chan` (Section 3.3.4.2).
+**3.3.1.10** hmz MUST refuse to start an epic of a flow that is given no budget (Section 3.3.4.2).
 
 **3.3.1.11** hmz MUST refuse to start an epic that names a backup target which does not exist
 (Section 11.3.2).
@@ -472,11 +476,11 @@ declares a parameter of that name.
 
 #### 3.3.4. Budget
 
-**3.3.4.1** Every epic MUST execute under a budget that sets at least one limit, and a limit MUST
-NOT be negative.
+**3.3.4.1** Every epic of a flow MUST execute under a budget that sets at least one limit, and a
+limit MUST NOT be negative.
 
-**3.3.4.2** An epic of the `chat` flow or of the `ai_chan` flow that is given no budget MUST execute
-under a budget whose cost limit is unbounded.
+**3.3.4.2** A chat, an Ai-chan conversation among them, MUST execute under no budget, with no
+limit on its spending (Section 8.3, Section 14.4).
 
 **3.3.4.3** The graceful flag of each limit of a budget MUST be true unless it is given as false,
 for that limit or for every limit.
@@ -557,9 +561,6 @@ epic, and MUST exit only after the epic has closed everything it opened.
 
 **3.3.5.9** hmz MUST record an epic ended by stopping or forcing as `stopped`.
 
-**3.3.5.10** A frontend MUST NOT offer a stop for an epic of the `chat` flow; how a chat ends is
-defined in Section 8.
-
 #### 3.3.6. Ending states
 
 **3.3.6.1** hmz MUST read back every epic in exactly one of the endings `running`, `done`, `failed`,
@@ -578,8 +579,8 @@ other than a stop or a budget exhaustion.
 **3.3.6.6** An epic MUST read back as `unfinished` while it has recorded no end and no process on
 this machine holds it.
 
-**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except as Section 3.3.7.10
-provides.
+**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except a chat carried on
+(Section 8.7.9).
 
 **3.3.6.8** Where a frontend reports how the last epic of a host slot ended, it MUST distinguish an
 epic refused before its flow was called, an epic ended by its budget, an error the flow raised and
@@ -611,7 +612,7 @@ and MUST start from a copy of the origin's flow state.
 
 **3.3.7.5** hmz MUST refuse to pick up, stating the reason, where the flow is not resumable as it is
 now, where no epic of the flow in the workspace recorded flow state, or where the origin was
-imported and Section 3.3.7.11 forbids it.
+imported and Section 3.3.7.10 forbids it.
 
 **3.3.7.6** `hmz exec --resume` MUST pick up the newest epic of the named flow in the current
 workspace that can be picked up, and MUST use the agents, envs, parameters and budget given on its
@@ -627,11 +628,7 @@ defines; every other session MUST start fresh.
 
 **3.3.7.9** What the origin spent MUST NOT count against the budget of the epic that picks up.
 
-**3.3.7.10** An epic of the `chat` flow that is carried on MUST continue in the same epic rather
-than a new one; that epic MUST record that it was opened again, MUST read back as `running` until it
-ends again, and MUST read back as having spent the sum of what each opening spent.
-
-**3.3.7.11** hmz MUST refuse to pick up an imported epic unless the workspace it executed in exists
+**3.3.7.10** hmz MUST refuse to pick up an imported epic unless the workspace it executed in exists
 on this machine at the same absolute path and, where that workspace is a git repository and the epic
 recorded a commit, the repository holds that commit; the refusal MUST state which condition failed.
 
@@ -681,22 +678,18 @@ epic, and MUST NOT fail to list the other epics because of it.
 
 #### 3.4.3. Concurrency
 
-**3.4.3.1** At most one epic of a flow other than `chat` MUST execute at a time in a workspace's own
-host slot.
+**3.4.3.1** At most one epic MUST execute at a time in a workspace's own host slot.
 
 **3.4.3.2** hmz MUST refuse a request to start an epic in a workspace's own host slot while another
 epic executes or stops there.
 
-**3.4.3.3** Any number of `chat` epics MAY execute in one workspace, each in a host slot of its own,
-concurrently with the epic of the workspace's own host slot.
-
-**3.4.3.4** An epic started by `hmz exec` MUST execute in an exec host slot of its own, held by the
+**3.4.3.3** An epic started by `hmz exec` MUST execute in an exec host slot of its own, held by the
 daemon (Section 3.2.2 of [DAEMON]), and MUST NOT be refused because another epic executes in the
 same workspace.
 
-**3.4.3.5** Epics of different workspaces MUST execute independently of one another.
+**3.4.3.4** Epics of different workspaces MUST execute independently of one another.
 
-**3.4.3.6** hmz MUST report whether an epic is held by a host on this machine, whichever host holds
+**3.4.3.5** hmz MUST report whether an epic is held by a host on this machine, whichever host holds
 it.
 
 > Informative: a frontend's request to start an epic goes to a host slot, held in a **daemon**
@@ -744,59 +737,56 @@ ladder (Section 4.4.3).
 
 **4.2.5** **Effort ladder**: the ordered list of efforts a harness kind accepts.
 
-**4.2.6** **Rung**: one of the four permission levels `read-only`, `workspace-write`, `auto` and
-`bypass`, ordered from tightest to loosest.
-
-**4.2.7** **Grant**: the permission a flow declares for a role, as Section 3 of [PYTHON] defines
+**4.2.6** **Grant**: the permission a flow declares for a role, as Section 3 of [PYTHON] defines
 it: a `preset` (`read-only`, `workspace-write` or `danger-full-access`), a `network` flag, and
 `granular` rules, each a path and an access `none`, `read` or `write`; its **rules** are the
 preset's rules followed by the granular ones, and the last rule matching a path, which a rule does
 for its own path and everything beneath it, decides that path's access.
 
-**4.2.8** **Confinement**: the restriction hmz places around the harness process and every process
+**4.2.7** **Confinement**: the restriction hmz places around the harness process and every process
 it starts, so that the agent touches no more than its grant allows.
 
-**4.2.9** **Managed item**: an item hmz supplies to a harness at launch that the user did not
+**4.2.8** **Managed item**: an item hmz supplies to a harness at launch that the user did not
 configure: a flow skill, a flow-declared subagent, a flow-declared command, the hmz tool server, a
 hook hmz hangs, a model declaration hmz adds for a flow or for an account, or an execpolicy rule hmz
 adds for a fake command line on `codex`.
 
-**4.2.10** **System level**: the harness machine's system-wide configuration of a harness.
+**4.2.9** **System level**: the harness machine's system-wide configuration of a harness.
 
-**4.2.11** **User level**: the harness machine's per-user configuration of a harness, together with
+**4.2.10** **User level**: the harness machine's per-user configuration of a harness, together with
 the managed items of the agent.
 
-**4.2.12** **Project level**: the configuration of a harness found in the env's workspace.
+**4.2.11** **Project level**: the configuration of a harness found in the env's workspace.
 
-**4.2.13** **Fault class**: the classification hmz assigns to a failed turn, one of `contended`,
+**4.2.12** **Fault class**: the classification hmz assigns to a failed turn, one of `contended`,
 `spent`, `throttled`, `refused`, `unlisted`, `retired`, `missing`, `sandboxed`, `unmirrored`,
 `fenced`, `killed` and `dropped`, or unclassified.
 
-**4.2.14** **Virtual nous**: a name that stands for a nous graph and names an agent as a concrete
+**4.2.13** **Virtual nous**: a name that stands for a nous graph and names an agent as a concrete
 nous does.
 
-**4.2.15** **Stand-in**: an agent at a concrete nous other than its original agent's that takes a
+**4.2.14** **Stand-in**: an agent at a concrete nous other than its original agent's that takes a
 turn its original agent could not.
 
-**4.2.16** **Fake tool**: a tool a flow declares whose calls run in the flow's process.
+**4.2.15** **Fake tool**: a tool a flow declares whose calls run in the flow's process.
 
-**4.2.17** **Fake command line**: a program a flow declares that appears on the agent's `PATH` and
+**4.2.16** **Fake command line**: a program a flow declares that appears on the agent's `PATH` and
 whose runs are answered in the flow's process.
 
-**4.2.18** **Gateway**: a LiteLLM proxy that hmz runs on this machine's loopback interface to carry
+**4.2.17** **Gateway**: a LiteLLM proxy that hmz runs on this machine's loopback interface to carry
 an account the harness has no way in for of its own.
 
-**4.2.19** **ACP harness**: a harness the user adds by command line, driven over the Agent Client
+**4.2.18** **ACP harness**: a harness the user adds by command line, driven over the Agent Client
 Protocol.
 
-**4.2.20** **Human agent**: the agent whose turns are answered by the user at the prompt.
+**4.2.19** **Human agent**: the agent whose turns are answered by the user at the prompt.
 
-**4.2.21** **Watchdog window**: the time a turn is permitted to pass without any output from its
+**4.2.20** **Watchdog window**: the time a turn is permitted to pass without any output from its
 harness before the watchdog acts (Section 4.12).
 
-**4.2.22** **Nous**: a concrete nous or a virtual nous.
+**4.2.21** **Nous**: a concrete nous or a virtual nous.
 
-**4.2.23** **Nous graph**: a directed acyclic graph of use nodes, each naming one nous, and balance
+**4.2.22** **Nous graph**: a directed acyclic graph of use nodes, each naming one nous, and balance
 nodes, each naming several nous and a strategy, whose edges are followed when a node fails
 (Section 4.11.4).
 
@@ -1153,49 +1143,57 @@ where a flow hangs a permission-request hook (Section 4.9.3) or an ask-user hook
 
 **4.6.1.2** What limits an agent MUST be its grant and the hooks its flow hangs.
 
-#### 4.6.2. Rungs
+#### 4.6.2. Telling the harness
 
-**4.6.2.1** hmz MUST derive a rung from a role's grant as follows: a `preset` of `read-only` whose
-rules do not give the workdir `write` gives `read-only`; every other grant gives `bypass`.
+**4.6.2.1** hmz MUST tell each harness what its agent's grant permits, read off the agent's
+confinement (Section 4.6.4): a confinement whose rules give no path `write` **writes nothing**, and
+every other confinement **writes somewhere**. An agent hmz does not confine, one driven by hand,
+MUST be told nothing, and run at its harness's own defaults.
 
-**4.6.2.2** On `kimi`, a rung other than `read-only` MUST become `auto` while a permission-request
-hook or an ask-user hook is hung on the agent.
+**4.6.2.2** hmz MUST NOT hold a grant by a harness's plan mode or by any mode that puts an action to
+approval. Where a harness can withhold a tool, hmz MUST withhold it rather than deny it as it is
+called; where a harness cannot, it MUST run with every request granted, and confinement holds the
+grant.
 
-**4.6.2.3** A rung a harness does not accept MUST become `bypass`; `dsh` and every ACP harness
-accept only `bypass`, and `mcode` does not accept `read-only`.
+**4.6.2.3** A harness whose confinement writes nothing MUST be withheld its file-writing tools where
+the following table names them, MUST keep its shell, whose writes confinement refuses, and MUST be
+asked nothing. A harness whose confinement writes somewhere MUST be given every tool and asked
+nothing. Each harness MUST be launched as the table states:
 
-**4.6.2.4** Each rung MUST launch each harness as the following table states:
+| Kind | Writes nothing | Writes somewhere |
+| --- | --- | --- |
+| `agy` | hmz's reader agent, whose tools are the reading tools and `run_command`, skip permissions | skip permissions |
+| `claude` | `--tools default`, `--disallowedTools` `Edit`, `Write` and `NotebookEdit`, `bypassPermissions` | `bypassPermissions` |
+| `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` |
+| `cursor-agent` | `--force`, sandbox off | `--force`, sandbox off |
+| `grok` | always approve, tools `read_file`, `grep`, `list_dir` and `run_terminal_cmd`, and `web_search` and `web_fetch` unless web search is off | always approve |
+| `kimi` | `auto`, plan mode off, its write and edit tools disabled | `auto` |
+| `mcode` | `full` | `full` |
+| `mimo`, `opencode` | edit denied, bash allowed | nothing denied |
+| `omp` | `yolo` | `yolo` |
+| `pi` | `edit` and `write` withheld | nothing withheld |
+| `qwen` | `edit`, `write_file`, `notebook_edit` and `save_memory` withheld | nothing withheld |
+| `dsh`, ACP | every request granted | every request granted |
+| `litellm` | nothing said | nothing said |
 
-| Kind | `read-only` | `workspace-write` | `auto` | `bypass` |
-| --- | --- | --- | --- | --- |
-| `agy` | plan mode, read tools only | accept-edits mode | skip permissions | skip permissions |
-| `claude` | `plan` | `acceptEdits` | `auto` | `bypassPermissions` |
-| `codex` | sandbox `read-only` | sandbox `workspace-write` | `on-request` | `danger-full-access` |
-| `cursor-agent` | `--mode plan` | sandbox on | `--auto-review` | sandbox off |
-| `grok` | read tools only | web search off | every tool | every tool |
-| `kimi` | `manual`, plan mode | `auto` | `yolo` | `auto` |
-| `mcode` | refused | `full` | `smart` | `full` |
-| `mimo`, `opencode` | edit, bash denied | web tools denied | nothing denied | nothing denied |
-| `omp` | every approval denied | `yolo` | `yolo` | `yolo` |
-| `pi` | write tools withheld | nothing withheld | nothing withheld | nothing withheld |
-| `qwen` | write tools withheld | `web_fetch` withheld | nothing withheld | nothing withheld |
-| `dsh`, ACP | refused | refused | refused | every request granted |
-| `litellm` | nothing said | nothing said | nothing said | nothing said |
+**4.6.2.4** While a permission-request hook is hung on the agent, `claude` MUST run in its `manual`
+permission mode where the table says `bypassPermissions`, and `codex` with the approval policy
+`untrusted` where the table says `never` (Section 4.9.3.3). While a permission-request hook or an ask-user hook is hung, `kimi`
+MUST run at `yolo` where the table says `auto`.
 
 **4.6.2.5** Where Claude Code refuses `bypassPermissions` for the account or because it runs as
-root, hmz MUST run that agent at `acceptEdits` with every request granted, and MUST say so once per
-agent.
+root, hmz MUST run that agent at `acceptEdits` with every request granted and the same tools
+withheld, and MUST say so once per agent.
 
 **4.6.2.6** Where Codex refuses `danger-full-access` on the harness machine, hmz MUST run that agent
-at `auto` with every request granted, and MUST say so once per agent.
+with sandbox `workspace-write` and the approval policy `on-request`, granting every request, and
+MUST say so once per agent.
 
-**4.6.2.7** Codex's approval policy MUST be `never` at every rung but `auto`.
+**4.6.2.7** hmz MUST NOT write what it tells a harness into any configuration file of the user.
 
-**4.6.2.8** hmz MUST NOT write a rung into any configuration file of the user.
-
-**4.6.2.9** A fake command line ruled out of Codex's sandbox (Section 4.10.2.8) MUST NOT widen the
-sandbox of any other command, its network included: at `read-only` the network MUST stay cut unless
-confinement (Section 4.6.4) permits it.
+**4.6.2.8** A fake command line ruled out of Codex's sandbox (Section 4.10.2.8) MUST NOT widen the
+sandbox of any other command, its network included: in sandbox `read-only` the network MUST stay
+cut unless confinement (Section 4.6.4) permits it.
 
 #### 4.6.3. Web search
 
@@ -1251,9 +1249,9 @@ sandbox that prevents applying one, the session MUST be refused with `HarnessSan
 **4.6.4.9** A grant whose `network` is false MUST be refused with `HarnessSandboxed` for an ACP
 harness that declares no hosts, and the message MUST name what to declare.
 
-**4.6.4.10** hmz MUST NOT rely on a rung's own sandbox inside a harness to hold the grant, except
-as Section 4.6.4.19 permits; confinement MUST otherwise hold the grant whatever the harness
-enforces.
+**4.6.4.10** hmz MUST NOT rely on a harness's own sandbox, or on what Section 4.6.2 tells it, to
+hold the grant, except as Section 4.6.4.19 permits; confinement MUST otherwise hold the grant
+whatever the harness enforces.
 
 **4.6.4.11** A turn kept off a host by confinement MUST fail with the fault class `fenced`.
 
@@ -1292,8 +1290,8 @@ the harness machine's loopback.
 
 **4.6.4.19** Where an agent's harness location and env location are both `local`, and its harness
 kind is named in `sandbox.native` (Section 3.4.11 of [FILES]) of that machine and in the following
-table, hmz MUST hold the grant by telling that harness's own sandbox what the table states instead
-of confining the harness, where the grant has no carve-out and that sandbox was found to start on
+table, hmz MUST hold the grant by telling that harness's own sandbox what the table states, in
+place of the sandbox Section 4.6.2.3 names, instead of confining the harness, where the grant has no carve-out and that sandbox was found to start on
 that machine; otherwise hmz MUST confine the harness as this section states.
 
 | Kind | Told |
@@ -1489,16 +1487,16 @@ than this machine.
 
 #### 4.9.3. Permission requests
 
-**4.9.3.1** A permission request that no hook refuses MUST be granted, except on `claude` at
-`read-only`, on `codex` and `grok` with no rung said, and on `kimi` at `read-only` or with no rung
-said, where it MUST be denied.
+**4.9.3.1** A permission request that no hook refuses MUST be granted, except on `codex`, `grok`
+and `kimi` told nothing (Section 4.6.2.1), where it MUST be denied.
 
 **4.9.3.2** A hook MUST be able to turn a grant into a denial and MUST NOT be able to turn a denial
 into a grant.
 
-**4.9.3.3** While a permission-request hook is hung, `claude` at `bypass` MUST run in its manual
-permission mode, so that every tool that changes something reaches the hook, and `codex` MUST run
-with the approval policy `untrusted`; each MUST take effect from the session's next turn.
+**4.9.3.3** While a permission-request hook is hung, `claude` MUST run in its manual permission mode
+where it would run at `bypassPermissions`, so that every tool that changes something reaches the
+hook, and `codex` MUST run with the approval policy `untrusted` where it would run at `never`;
+each MUST take effect from the session's next turn.
 
 #### 4.9.4. Questions
 
@@ -1507,8 +1505,8 @@ to the role's ask-user hook where one is hung.
 
 **4.9.4.2** Where no ask-user hook is hung, hmz MUST tell the harness that nobody answered.
 
-**4.9.4.3** While an ask-user hook is hung on `codex`, Codex MUST be launched able to ask its user
-outside plan mode.
+**4.9.4.3** While an ask-user hook is hung on `codex`, Codex MUST be launched able to ask its
+user.
 
 #### 4.9.5. Timing
 
@@ -1534,7 +1532,7 @@ refused.
 MUST reach the agent as a failed tool call.
 
 **4.10.1.4** On `grok`, a turn that `grok` can take only in print mode (a schema, the first turn of
-a fork, web search off, or a rung that withholds tools) MUST be refused with `HarnessUnrecoverable`
+a fork, web search off, or a confinement that writes nothing, whose tools are withheld) MUST be refused with `HarnessUnrecoverable`
 while any fake tool is offered.
 
 **4.10.1.5** Fake tools MUST be refused to a harness running on a machine other than this machine,
@@ -1570,7 +1568,7 @@ machine.
 outside Codex's sandbox, by an execpolicy rule `prefix_rule(pattern=["<name>"], decision="allow")`
 in `rules/hmz.rules` of its virtual config home, beside links to the user's own rule files; the rule
 MUST be written only for a name the agent shelves, and every other command MUST stay in the sandbox
-the rung puts it in.
+Section 4.6.2.3 puts it in.
 
 ### 4.11. Failures, retries and fallbacks
 
@@ -1829,11 +1827,12 @@ are.
 **4.15.1.2** The human agent MUST run no model, MUST spend nothing, and MUST be outside every
 budget.
 
-**4.15.1.3** Where a turn of the human agent asks for a schema, hmz MUST ask the user one question
-per field, offering a field's literal values or `yes` and `no` for a boolean as options, and
-offering `-` to take a field's default.
+**4.15.1.3** Where a turn of the human agent asks for a schema, hmz MUST ask the user the whole
+schema as one question, with its context, and MUST NOT ask it a field at a time (Section 3.10.4 of
+[PYTHON]).
 
-**4.15.1.4** A value the schema refuses MUST be asked again a bounded number of times.
+**4.15.1.4** A value the schema refuses MUST be refused with what is wrong with it, field by field,
+and the question MUST stay open for another answer (Section 4.8.4 of [DAEMON]).
 
 **4.15.1.5** Where nobody is at the prompt, the human agent MUST answer with nothing rather than
 leave a flow waiting.
@@ -3352,14 +3351,15 @@ a turn open.
 
 ### 8.1. Scope
 
-This section defines the chat: the built-in **flow** named `chat`, in which the **user** talks to
-one **agent**, one turn at a time, in one conversation. It states how a chat starts, takes turns,
-reports its status, runs beside other **epics**, folds away, is carried on and ends, and what every
-**frontend** draws and refuses for it.
+This section defines the chat: a kind of **epic** of its own, apart from the epics of **flows**, in
+which the **user** talks to one **agent**, one turn at a time, in one conversation, in one
+**workspace**. It states how a chat starts, takes turns, reports its status, runs beside other
+epics, folds away, is carried on and ends, what every **frontend** draws and refuses for it, and how
+it takes the input its harness takes natively.
 
 Out of scope:
 
-- The flow API that `chat` is written against: Section 3 of [PYTHON].
+- How each harness is driven: Section 4.
 - How hosts are started, linked and let go: Section 3 of [DAEMON], Section 4 of [DAEMON].
 - The terminal interface's layout outside a chat: [TUI].
 - The web interface's layout outside a chat: Section 3 of [WEB].
@@ -3369,10 +3369,9 @@ Out of scope:
 
 ### 8.2. Terminology
 
-**8.2.1** **Chat**: an epic of the flow `chat`, where a flow is `chat` when its name is `chat` or
-when it is named by a path or reference whose last part is `chat`.
+**8.2.1** **Chat**: an epic of kind `chat` (Section 3.2.13).
 
-**8.2.2** **Assistant**: the one agent **role** of `chat`, and the agent that fills it.
+**8.2.2** **Assistant**: the one agent of a chat.
 
 **8.2.3** **Conversation**: the one **session** of the assistant in a chat.
 
@@ -3387,22 +3386,43 @@ turns, leaving its epic recorded so that it can be carried on.
 
 **8.2.7** **Carrying on**: resuming a chat in its own epic with its own conversation.
 
-### 8.3. The flow
+**8.2.8** **Sigil**: one of `/`, `$`, `!` and `@` at the start of a line said in a chat.
 
-**8.3.1** `chat` MUST declare exactly one agent role, `assistant`, one outworlder role, `human`,
-which is the user, and one environment role, `workspace`, which is the **workspace** on this
-machine.
+**8.2.9** **Native input**: a line said in a chat that the assistant's harness's own interactive
+interface reads by its sigil rather than as a message.
 
-**8.3.2** `chat` MUST take no params.
+**8.2.10** **Catalogue**: the list of native entries that a harness's driver exposes for an open
+conversation (Section 8.9.2).
 
-**8.3.3** `chat` MUST NOT require a budget, and a chat MUST run with no limit on its spending.
+**8.2.11** **Preference**: what a chat takes a `$` name to be where the name is both a native skill
+and a flow: `native` or `flow`.
 
-**8.3.4** The assistant MUST have every capability that its **harness** offers, the web included.
+### 8.3. The chat
 
-**8.3.5** `chat` MUST be resumable.
+**8.3.1** A chat MUST have exactly one role, the assistant, filled by an agent with every capability
+that its **harness** offers, the web included.
 
-**8.3.6** `chat` MUST be the flow the terminal interface opens on in a workspace for which no flow
-is remembered.
+**8.3.2** A chat MUST work in one workspace on this machine.
+
+**8.3.3** A chat MUST take no params and MUST NOT be given a budget, and MUST run with no limit on
+its spending.
+
+**8.3.4** A chat MUST have no flow and no outworlder role.
+
+**8.3.5** hmz MUST record a chat with kind `chat` and every other epic with kind `flow`, and MUST
+read an epic record that gives no kind as kind `flow`, except one whose flow is `chat`, which MUST
+be read as a chat (Section 6 of [FILES]).
+
+**8.3.6** The name `chat` MUST NOT be reserved: a flow named `chat` MUST be an ordinary flow, and an
+epic of it MUST be of kind `flow`.
+
+**8.3.7** hmz MUST refuse to start a chat that is given an agent specification that cannot be read
+or that names a runtime which is not saved, MUST state the reason, MUST make the refusal before any
+session opens, and MUST NOT create an epic directory for the refused request.
+
+**8.3.8** A workspace MUST remember the agent of the last chat started or changed in it through a
+frontend, apart from the remembered setup of every flow, as Section 3.4.1.6 states for a remembered
+agent; a frontend MUST offer that agent when it starts a chat in that workspace.
 
 ### 8.4. Turns
 
@@ -3420,12 +3440,12 @@ harness accepts a message mid-turn, and MUST otherwise be held for the next turn
 **8.4.5** A frontend MUST NOT draw the chat's wait for the next message as a question to the user.
 
 **8.4.6** A question the assistant asks the user mid-turn MUST be shown in the conversation with the
-options it offers, and the user's next message MUST answer it.
+options it offers, and the user's next message MUST answer it; no outworlder takes part.
 
 **8.4.7** An empty next message MUST end the chat.
 
-**8.4.8** Where the **outworlder** `human` is away, the chat MUST take its first turn and then end,
-the next message being empty.
+**8.4.8** Where nobody is at a prompt to say the next message ([CLI]), the chat MUST take its first
+turn and then end, the next message being empty.
 
 **8.4.9** Where the first turn of a chat that is not carried on fails, the epic MUST end failed with
 what the harness said.
@@ -3464,6 +3484,9 @@ workspace.
 **8.6.5** A frontend MUST list every chat among the epics of its workspace, with its status as
 Section 8.5 states it.
 
+**8.6.6** Each chat MUST execute in a chat host slot of its own (`chat:` followed by hexadecimal
+digits, Section 4.2.6 of [DAEMON]), concurrently with the epic of the workspace's own host slot.
+
 ### 8.7. Folding away and carrying on
 
 **8.7.1** A chat MUST fold away once it is between turns and no frontend has followed it for the
@@ -3487,8 +3510,12 @@ message that carried it on in that new conversation.
 **8.7.7** A chat of another workspace, or one that cannot be carried on here, MUST be refused,
 saying that the chat cannot be continued here.
 
-**8.7.8** A chat MUST NOT be carried on by `/resume` or by resuming the workspace's last epic; it
-MUST be carried on only from a list of epics or by saying something in it.
+**8.7.8** A chat MUST NOT be carried on by resuming the workspace's last epic; it MUST be carried on
+only from a list of epics, by `/resume` in a chat (Section 8.9.8) or by saying something in it.
+
+**8.7.9** A chat that is carried on MUST record that it was opened again, MUST read back as
+`running` until it ends again, and MUST read back as having spent the sum of what each opening
+spent.
 
 ### 8.8. Drawing a chat
 
@@ -3512,6 +3539,82 @@ leave a chat that a host holds to that host.
 **8.8.7** Every behaviour of a chat that the web interface offers MUST be offered by the terminal
 interface by keys and commands, and every behaviour of a chat that the terminal interface offers
 MUST be offered by the web interface.
+
+### 8.9. Native input
+
+**8.9.1** A chat MUST take the input its harness takes natively, wherever the way hmz drives that
+harness can carry it, and MUST refuse, saying why, native input that only the harness's own
+interactive interface can serve, such as a settings dialog or a login.
+
+**8.9.2** The driver of each harness MUST expose a catalogue of native entries for an open
+conversation, each entry giving a sigil, a name (empty for `!`), a one-line about, and how hmz
+serves it, which MUST be one of:
+
+| How | Meaning |
+| --- | --- |
+| `pass` | The line goes into the turn unchanged, and the harness expands it. |
+| `call` | hmz calls the harness's own operation for it, such as a compaction or a review. |
+| `emulate` | hmz does what the harness's interactive interface would do. |
+| `refuse` | Only the harness's interactive interface can serve it. |
+
+**8.9.3** The catalogue of each of the following harnesses MUST hold the following entries, served
+as stated:
+
+| Harness | Entries | How |
+| --- | --- | --- |
+| `claude` | `/<name>` for every command or skill in its session's list of slash commands | `pass` |
+| `claude` | `/model`, `/effort` | `call` |
+| `claude` | `!` | `emulate` |
+| `claude` | `@<path>` | `pass` |
+| `claude` | `/config`, `/mcp`, `/agents`, `/login`, `/permissions`, `/doctor` | `refuse` |
+| `codex` | `$<skill>` for every skill in its skills list | `call`, as a skill input item |
+| `codex` | `@<path>` | `call`, as a mention, or as an image for an image file |
+| `codex` | `!` | `call`, as the app server's shell command; `emulate` where Codex's sandbox fences |
+| `codex` | `/compact`, `/review`, `/rename`, `/model`, `/effort` | `call` |
+| `pi`, `omp` | `/<name>` for every command in its own command list | `pass` |
+| `pi`, `omp` | `!`, and `!!`, which runs the command without sending it | `call` |
+| `pi`, `omp` | `/compact` | `call` |
+
+**8.9.4** Where Codex's own sandbox holds the fence (Section 4.6.4), its `!` MUST be emulated. Every
+other built-in harness MUST hold in its catalogue the native entries its transport reaches, every
+other line being passed as text; `litellm` and every ACP harness MUST have no catalogue, every line
+being text.
+
+**8.9.5** `/model` and `/effort` MUST change the model or the effort of the conversation, and the
+agent so changed MUST be the chat's agent from then on, recorded in its epic and remembered as
+Section 8.3.8 states.
+
+**8.9.6** A `!<command>` that hmz emulates MUST run in the chat's workspace under the same
+confinement as the assistant's commands (Section 4.6.4), MUST show the command and its output in the
+conversation, MUST NOT open a turn, and MUST carry the command and its output into the next turn as
+`<bash-input>`, `<bash-stdout>` and `<bash-stderr>` blocks ahead of the message.
+
+**8.9.7** Frontends MUST keep `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`,
+`/settings`, `/chat` and `/prefer` for hmz, and MUST NOT serve them from the catalogue.
+
+**8.9.8** In a chat, each of `/clear`, `/resume`, `/exit`, `/quit` and `/btw` MUST do what the
+harness's own command of that name does: `/clear` starts a new conversation, as a new chat (Section
+8.8.4); `/resume` picks an earlier chat of this workspace to carry on; `/exit` and `/quit` leave
+(Section 8.8.6); and `/btw` asks a side question (Section 9).
+
+**8.9.9** In a chat, `$<name>` MUST name a native skill or a flow: where only one of them exists it
+MUST be that one, where neither exists the line MUST be said to the chat as prose, and where both
+exist the chat's preference MUST decide.
+
+**8.9.10** The preference MUST be `native` unless the user sets it to `flow` in the settings file
+(`chat.prefer`, Section 3 of [FILES]), and MAY be overridden for one chat (`/prefer` in [TUI], a
+toggle in Section 3 of [WEB], `chat.set` in Section 4 of [DAEMON]); the override MUST be recorded in
+that chat's epic and MUST survive carrying on.
+
+**8.9.11** `/flow <name> [task]` MUST always name a flow.
+
+**8.9.12** Any other line of a chat that starts with a sigil and names an entry of the catalogue
+MUST be served as the catalogue says.
+
+**8.9.13** A line of a chat that starts with `/` and names no entry of the catalogue MUST be passed
+to the harness as text where the catalogue holds no entry with sigil `/` or the conversation has
+not yet taken a turn, by when every harness has listed its catalogue, and MUST otherwise be
+refused, naming it; a line that starts with `!` or `@` and names no entry MUST be passed as text.
 
 ## 9. Side Questions
 
@@ -3563,7 +3666,10 @@ steer, a stop or any other input.
 **9.3.3** Asking a side question MUST NOT change the state, the transcript, the board, the budget
 limits or the outcome of the epic.
 
-**9.3.4** Every side conversation MUST run at the `read-only` rung.
+**9.3.4** Every side conversation MUST run inside a confinement of its own that writes nothing
+(Section 4.6.2.1): the confinement of the agent it copies with every `write` read as `read`, or,
+where that agent has none, one whose grant is `read` on `/` with the network; its harness MUST be
+told as Section 4.6.2.3 tells a confinement that writes nothing.
 
 **9.3.5** Every side conversation MUST run with no skills, no goals, no tools of the flow, no hooks
 of the flow and no approval of MCP servers.
@@ -3655,9 +3761,6 @@ question, naming that session.
 
 **9.5.9** A frontend MUST NOT offer a choice of the agent of a session side copy, which is the asked
 session's own (Section 9.5.4, Section 9.5.5).
-
-**9.5.10** A side question whose side conversation would run on a harness that has no read-only rung
-(`mcode`, `dsh`, every ACP harness) MUST be refused, saying that harness has no read-only rung.
 
 ### 9.6. Whom a side question is asked of
 
@@ -3902,12 +4005,12 @@ by its budget, or is refused by hmz after a frontend asked to start it.
 
 **10.4.2.5** hmz MUST raise a notice of kind `asked` when a flow asks a person a question.
 
-**10.4.2.6** hmz MUST raise a notice of kind `listening` when a flow other than `chat` waits for the
-next thing a person says.
+**10.4.2.6** hmz MUST raise a notice of kind `listening` when a flow waits for the next thing a
+person says.
 
-**10.4.2.7** For a `chat` epic, hmz MUST raise a notice of kind `done` when a turn of its agent is
+**10.4.2.7** For a chat, hmz MUST raise a notice of kind `done` when a turn of its assistant is
 done, MUST raise a notice of its end only where it failed or ended during a turn not yet noticed,
-and MUST NOT raise a notice of kind `stopped`.
+and MUST NOT raise a notice of kind `stopped` or `listening`.
 
 **10.4.2.8** hmz MUST NOT raise a notice for anything that stood before hmz began working notices
 out, and MUST NOT raise a second notice for a question already noticed.
@@ -4121,7 +4224,7 @@ Out of scope:
 - The layout of an epic directory and of the git clones hmz keeps (Section 6 of [FILES], Section 7
   of [FILES]).
 - How a frontend offers export, import, backup and download ([TUI], Section 3 of [WEB]).
-- Whether an imported epic can be picked up (Section 3.3.7.11).
+- Whether an imported epic can be picked up (Section 3.3.7.10).
 
 ### 11.2. Terminology
 
@@ -4730,17 +4833,16 @@ Out of scope:
   Section 3 of [FILES] and Section 4.16 of [FILES].
 - How the terminal interface and the page offer Ai-chan: Section 7.19 of [TUI] and Section 3.16 of
   [WEB].
-- The flow API the flow `ai_chan` is written against, and the session it speaks: Section 3 of
-  [PYTHON] and Section 4.21 of [PYTHON].
+- The session Ai-chan speaks: Section 4.21 of [PYTHON].
 - Questions about one session of an epic: Section 9.
 
 ### 14.2. Terminology
 
-**14.2.1** **Ai-chan**: the agent of the built-in flow `ai_chan`, which operates hmz through the
+**14.2.1** **Ai-chan**: the assistant of an Ai-chan conversation, which operates hmz through the
 methods of Section 4 of [DAEMON], as a frontend of kind `ai-chan`.
 
-**14.2.2** **Ai-chan conversation**: one epic of the flow `ai_chan`, held by a host of its own, of
-the slot `ai:<hex>` (Section 4.2.6 of [DAEMON]).
+**14.2.2** **Ai-chan conversation**: one chat (Section 8), held by a host of its own, of the slot
+`ai:<hex>` (Section 4.2.6 of [DAEMON]).
 
 **14.2.3** **Scope**: what one Ai-chan conversation may reach: `daemon`, every workspace and epic of
 the daemon; `workspace`, one workspace and its epics; or `epic`, one epic of one workspace.
@@ -4779,27 +4881,23 @@ which that epic was run.
 several; making, taking a turn of, folding or forgetting one MUST NOT end, stop or wait on any other
 conversation, any chat or any epic.
 
-### 14.4. The flow
+### 14.4. The chat
 
-**14.4.1** `ai_chan` MUST declare exactly one agent role, `ai_chan`, one outworlder role, `human`,
-which is the user, and one environment role, `scratch`, which, in place of the workspace (Section
-7.5.3), is the conversation's scratch directory.
+**14.4.1** An Ai-chan conversation MUST be a chat (Section 8) whose assistant is the conversation's
+nous, read as the rest of an `-a` item is read after its `=` (Section 7.4 of [CLI]), and whose
+assistant works in the conversation's scratch directory in place of the workspace (Section 8.3.1).
 
-**14.4.2** `ai_chan` MUST take the params `id`, `scope`, `workspace`, `epic`, `preset` and
-`network`, with which the daemon starts it (Section 4.22 of [DAEMON]), and MUST refuse to start
-where `HUMANIZE_AICHAN_LINK` (Section 3.11.2 of [FILES]) is unset.
+**14.4.2** Its host MUST start the chat with the conversation's `id`, `scope`, `workspace`,
+`epic`, `preset` and `network` (Section 4.22 of [DAEMON]), and MUST refuse to start it where
+`HUMANIZE_AICHAN_LINK` (Section 3.11.2 of [FILES]) is unset.
 
-**14.4.3** `ai_chan` MUST NOT require a budget, and an Ai-chan conversation MUST run with no limit
-on its spending.
-
-**14.4.4** `ai_chan` MUST be resumable.
-
-**14.4.5** The agent of `ai_chan` MUST be the conversation's nous, read as the rest of an `-a` item
-is read after its `=` (Section 7.4 of [CLI]).
+**14.4.3** An Ai-chan conversation carried on with nothing said MUST wait, between turns, for what is
+said next.
 
 ### 14.5. Permission and confinement
 
-**14.5.1** Ai-chan's harness MUST run at the `bypass` rung (Section 4.6.2), whatever the preset.
+**14.5.1** Ai-chan's harness MUST be told its grant as Section 4.6.2.3 tells a confinement that
+writes somewhere, whatever the preset, her scratch directory being writable (Section 14.5.2).
 
 **14.5.2** Ai-chan's harness, and every process it starts, MUST be confined (Section 4.6.4) by these
 rules, each narrowing the one before: `/` denied; the scope root read-only under the preset
@@ -4896,8 +4994,8 @@ document on which the security of a user's machine, credentials and work depends
   permission-request or ask-user hook, and a hook turns a grant into a denial but never a denial
   into a grant (Section 4.6.1.1 and Section 4.9.3.2).
 - hmz never writes the system level of a harness, the user's real configuration of a harness, a
-  managed item into the workspace, or a rung into a configuration file of the user (Section
-  4.5.1.2, Section 4.5.1.6, Section 4.5.2.8 and Section 4.6.2.8).
+  managed item into the workspace, or what it tells a harness into a configuration file of the
+  user (Section 4.5.1.2, Section 4.5.1.6, Section 4.5.2.8 and Section 4.6.2.7).
 - Credential files read through a virtual config home are the user's or the account's real files
   and are never copied into it (Section 4.5.2.9).
 - Configuration in a workspace that runs a program is enumerated per harness, an unreadable or
@@ -4908,7 +5006,7 @@ document on which the security of a user's machine, credentials and work depends
   can read, never appear on a command line, and are removed with the gateway (Section 4.13.2.3
   and Section 4.13.2.4).
 - On `codex`, a fake command line that runs outside Codex's sandbox does so only by a rule for its
-  own name, and widens the sandbox of no other command (Section 4.6.2.9 and Section 4.10.2.8).
+  own name, and widens the sandbox of no other command (Section 4.6.2.8 and Section 4.10.2.8).
 - The value of an account variable is never printed, displayed, logged or sent to a frontend page,
   and a secret typed at a way in is neither shown back nor placed on a command line (Section
   5.5.1.4, Section 5.11.1.1 and Section 5.11.1.2).
@@ -4939,8 +5037,8 @@ document on which the security of a user's machine, credentials and work depends
   hmz removes as leftovers only what names this user and this host; mirrors under harness location
   standalone remain in the harness machine's cache between turns (Section 6.6.1.3, Section 7.7.1.9
   and Section 7.12).
-- A side question never reaches a session of the epic's flow, and every side conversation runs at
-  the `read-only` rung, modifies no file of the workspace, and is told to treat what it
+- A side question never reaches a session of the epic's flow, and every side conversation runs
+  inside a confinement of its own that writes nothing, modifies no file of the workspace, and is told to treat what it
   observes about the epic as data and not as instructions (Section 9.3).
 - Ai-chan acts on hmz only through her one session to the daemon, which holds every call to her
   reach: nothing outside her scope, no write under `read-only`, no pairing, device or credential,

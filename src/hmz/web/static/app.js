@@ -1,5 +1,5 @@
 // The page itself, laid out as Codex and Claude lay theirs out: the sidebar of every workspace's
-// epics on the left, and whichever view the address names beside it -- a new epic, its graph, one session's
+// epics on the left, and whichever view the address names beside it -- a new chat or epic, its graph, one session's
 // thread, the flows -- and Ai-chan's drawer beside it, with finding a run and the settings opened
 // over it as dialogs. Routed by the address's fragment, so that every view of the page is an
 // address that can be kept, shared or opened again, and the server serves one page for all of
@@ -121,8 +121,18 @@ async function routing(mine) {
 /** An epic read back in by its path: an address under `epics` no epic is named. */
 const IMPORT = () => import('./views/import.js')
 
+/** A new chat, `new/chat`, beside a new epic of a flow, `new` (Section 3.8.17 of protocol/web.md). */
+const CHAT = () => import('./views/newchat.js')
+
+/** What draws the view an address names. */
+function loader(parts) {
+  if (parts[0] === 'epics' && parts[1] === 'import' && parts.length === 2) return IMPORT
+  if (parts[0] === 'new' && parts[1] === 'chat') return CHAT
+  return VIEWS[parts[0]] || VIEWS.new
+}
+
 async function view(mine, parts, query, key) {
-  const load = parts[0] === 'epics' && parts[1] === 'import' && parts.length === 2 ? IMPORT : VIEWS[parts[0]] || VIEWS.new
+  const load = loader(parts)
   const named = VIEWS[parts[0]] ? parts : ['new']
   // A view that can move within itself -- a run's graph to one of its sessions -- does.
   if (mounted && mounted.load === load && mounted.moved && mounted.moved({ parts: named, query })) {

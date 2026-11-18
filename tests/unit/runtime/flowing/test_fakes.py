@@ -58,6 +58,7 @@ from hmz.runtime.flowing.fakes import (
 from hmz.runtime.flowing.spi import (
     ENV_CAPABILITIES,
     HARNESS_CAPABILITIES,
+    Ask,
     HookTable,
     Kept,
     Limits,
@@ -883,11 +884,33 @@ async def test_a_fake_outworlder_answers_from_its_script_or_is_away() -> None:
     here = FakeOutworlder(["yes", Answer(answer="a")])
     away = FakeOutworlder(away=True)
 
-    assert await here.run("ok?", None) == "yes"
-    assert await here.run("which?", Answer, "reviewer") == Answer(answer="a")
+    asked = Ask(prompt="which?", schema={}, model=Answer, session="reviewer/1")
+
+    assert await here.run(Ask(prompt="ok?", schema=None)) == "yes"
+    assert await here.run(asked, "reviewer") == Answer(answer="a")
     assert here.asked == ["ok?", "which?"]
+    assert here.asks[1] is asked
     assert not here.away_for("anyone")
     assert away.away_for("anyone")
+
+
+async def test_a_fake_outworlder_answers_a_mapping_as_the_schema_asked() -> None:
+    here = FakeOutworlder({"answer": "b"})
+
+    assert await here.run(Ask(prompt="which?", schema={}, model=Answer)) == Answer(
+        answer="b"
+    )
+
+
+def test_a_fake_outworlder_keeps_what_it_was_shown_and_its_faces() -> None:
+    here = FakeOutworlder()
+    face = object()
+
+    here.show(({"kind": "markdown", "text": "hi"},), "human/1", "human")
+    here.mount(face)
+
+    assert here.shown == [("human/1", ({"kind": "markdown", "text": "hi"},))]
+    assert here.faces == [face]
 
 
 # ----------------------------------------------------------------------------------- a run

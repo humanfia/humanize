@@ -244,29 +244,30 @@ def test_partial_messages_stream_their_deltas_rather_than_the_whole(
     ]
 
 
+_WRITERS = "edit,notebook_edit,save_memory,write_file"
+_WRITES = ("/somewhere",)
+
+
 @pytest.mark.parametrize(
     ("said", "approval", "excluded"),
     [
+        # No fence: an agent driven by hand is told nothing.
         ({}, None, None),
+        ({"web_search": False}, None, "web_search,web_fetch"),
+        # A fence that writes nothing: the writers withheld, the shell and monitor kept.
+        ({"fence": Fence(online=True)}, "yolo", _WRITERS),
         (
-            {"permission": "read-only"},
+            {"fence": Fence(online=False)},
             "yolo",
-            "edit,monitor,notebook_edit,run_shell_command,save_memory,write_file",
+            f"{_WRITERS},web_search,web_fetch",
         ),
-        ({"permission": "workspace-write"}, "yolo", "web_fetch"),
-        ({"fence": Fence(online=False)}, None, "web_search,web_fetch"),
+        # A fence that writes somewhere: every tool, the web decided by the network alone.
+        ({"fence": Fence(write=_WRITES, online=True)}, "yolo", None),
+        ({"fence": Fence(write=_WRITES, online=False)}, "yolo", "web_search,web_fetch"),
         (
-            {"permission": "workspace-write", "fence": Fence(online=False)},
+            {"fence": Fence(write=_WRITES, online=True), "web_search": False},
             "yolo",
-            "web_fetch,web_search",
-        ),
-        ({"fence": Fence(online=True)}, None, None),
-        ({"permission": "auto"}, "yolo", None),
-        ({"permission": "bypass", "web_search": False}, "yolo", "web_search,web_fetch"),
-        (
-            {"permission": "workspace-write", "web_search": False},
-            "yolo",
-            "web_fetch,web_search",
+            "web_search,web_fetch",
         ),
     ],
 )
@@ -531,3 +532,56 @@ def test_a_harness_on_another_machine_has_the_run_s_settings_merged_there(
     assert json.loads((far / ".qwen" / "settings.json").read_text()) == {
         "model": {"name": "theirs"}
     }
+
+
+def test_before_a_turn_the_catalog_is_a_file_alone(tmp_path: Path) -> None:
+    catalog = _agent().new(tmp_path).natives()
+
+    assert [(one.sigil, one.name, one.how) for one in catalog] == [("@", "", "pass")]
+
+
+def test_the_catalog_is_the_commands_the_last_turn_opened_on(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    opened = {"type": "system", "subtype": "init", "session_id": "qs-1"}
+    turns = iter(
+        [
+            (line({**opened, "slash_commands": ["init", "review", "", 3]}), _result()),
+            (line({**opened, "slash_commands": ["review"]}), _result()),
+        ]
+    )
+
+    def answers(told: str) -> Iterable[str]:
+        del told
+        return next(turns)
+
+    spawning(monkeypatch, answers=answers)
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+
+    _turn(session)
+    first = session.natives()
+    _turn(session)
+
+    assert [(one.sigil, one.name, one.how) for one in first] == [
+        ("/", "init", "pass"),
+        ("/", "review", "pass"),
+        ("@", "", "pass"),
+    ]
+    assert [one.name for one in session.natives() if one.sigil == "/"] == ["review"]
+
+
+def test_a_native_line_is_written_as_it_was_typed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_answering(*_TURN))
+    agent = _agent()
+    heard(agent)
+
+    list(agent.new(tmp_path).stream("/review @a.py", native=True))
+
+    (process,) = spawned
+    assert [json.loads(one)["message"]["content"] for one in process.told] == [
+        "/review @a.py"
+    ]

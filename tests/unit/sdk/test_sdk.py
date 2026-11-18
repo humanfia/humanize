@@ -7,6 +7,7 @@ import pytest
 import hmz.daemon
 import hmz.runtime
 import hmz.runtime.flowing.fakes
+import hmz.runtime.flowing.spi
 import hmz.sdk
 import hmz.sdk.client
 import hmz.sdk.daemons
@@ -17,6 +18,7 @@ import hmz.sdk.running
     ("name", "layer"),
     [
         ("Accounts", hmz.runtime),
+        ("Ask", hmz.runtime.flowing.spi),
         ("Epics", hmz.runtime),
         ("NousBook", hmz.runtime),
         ("Flows", hmz.runtime),
@@ -35,9 +37,10 @@ def test_each_name_is_the_object_its_layer_holds(name: str, layer: object) -> No
     assert getattr(hmz.sdk, name) is getattr(layer, name)
 
 
-def test_all_is_exactly_the_fourteen_names() -> None:
+def test_all_is_exactly_the_fifteen_names() -> None:
     assert hmz.sdk.__all__ == [
         "Accounts",
+        "Ask",
         "Client",
         "Daemon",
         "Daemons",

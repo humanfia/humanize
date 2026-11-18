@@ -12,6 +12,7 @@ from hmz.runtime.watching.monitor import Monitor
 from hmz.tui import Humanize
 from hmz.tui.monitoring import Details, Halts, Monitoring
 from tests.integration.doubles_tui import (
+    OWN,
     RUNS,
     SIZE,
     TALKS,
@@ -25,6 +26,7 @@ from tests.integration.doubles_tui import (
     shows,
     stand_in,
     started,
+    talks_set_up,
     typed,
     until,
 )
@@ -34,21 +36,47 @@ if TYPE_CHECKING:
 
     from textual.pilot import Pilot
 
+    from hmz.coganchor.fence import Fence
+
 #: Every epic here is held by a daemon of the test's own, in this process.
 pytestmark = pytest.mark.usefixtures("daemon")
+
+#: The fences the stand-ins were spawned inside, none of them put up.
+FENCES: list[Fence] = []
 
 
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Path:
-    """The stand-in `claude` on `PATH`, really asked what it runs as the interface opens."""
+    """The stand-in `claude` on `PATH`, really asked what it runs as the interface opens.
+
+    A side conversation runs inside a fence that writes nothing, which is not put up here: the
+    stand-in writes what it was asked where the tests read it.
+    """
     del asking
-    return stand_in(tmp_path, monkeypatch)
+    FENCES.clear()
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        FENCES.append(fence)
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    workspace = stand_in(tmp_path, monkeypatch)
+    talks_set_up(workspace)
+    return workspace
 
 
-async def working(pilot: Pilot[None]) -> None:
-    """Starts chat, under another name, on a turn held open until it is told more."""
+async def working(pilot: Pilot[None], flow: str = TALKS) -> None:
+    """Starts chat, under another name, on a turn held open until it is told more.
+
+    Or, with no flow named, a chat itself: what a line said starts.
+    """
     await opened(pilot)
-    await typed(pilot, "wait a moment")
+    await typed(pilot, f"/flow {flow} wait a moment" if flow else "wait a moment")
     await shows(pilot, "still on it")
 
 
@@ -83,7 +111,7 @@ async def test_the_monitor_counts_the_tokens_a_finished_turn_spent(
 ) -> None:
     async with Humanize(flow=TALKS).run_test(size=SIZE) as pilot:
         await opened(pilot)
-        await typed(pilot, "hello")
+        await typed(pilot, f"/flow {TALKS} hello")
         await shows(pilot, "heard hello")
 
         await pilot.press("left")
@@ -156,6 +184,8 @@ async def test_btw_asks_a_side_copy_of_the_session_and_leaves_the_run_alone(
     assert said[-1] == "carry on"
     # The question went to a side copy of the session, and never into the run's own.
     assert any("what is it doing" in one for one in said)
+    # Which ran inside a fence of its own that writes nothing.
+    assert any(not fence.writes for fence in FENCES)
 
 
 async def test_btw_with_no_session_read_is_refused(workspace: Path) -> None:
@@ -164,7 +194,7 @@ async def test_btw_with_no_session_read_is_refused(workspace: Path) -> None:
 
         await typed(pilot, "/btw hey")
 
-        await shows(pilot, "a side question is asked of a session", "/ai")
+        await shows(pilot, "/btw is only available on one agent's", "/ai asks")
 
 
 async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
@@ -173,7 +203,7 @@ async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
     own_flow(workspace)
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "wait a moment")
+        await typed(pilot, f"${OWN} wait a moment")
         await shows(pilot, "still on it")
         # Over the monitor, where there is no session a side question is of.
         await pilot.press("left")
@@ -181,13 +211,16 @@ async def test_btw_over_the_monitor_is_refused_and_opens_nothing(
 
         await typed(pilot, "/btw what is it doing")
 
-        await shows(pilot, "a side question is asked of a session", "/ai")
+        await shows(pilot, "/btw is only available on one agent's", "/ai asks")
     assert _asides(workspace) == []
 
 
 def _asides(workspace: Path) -> list[list[str]]:
-    """The stand-ins started read-only for a side question, oldest first."""
-    return [one for one in started(workspace) if "plan" in one]
+    """The stand-ins started read-only for a side question, oldest first.
+
+    Told `--tools`, which is said only where the file-writing tools are withheld.
+    """
+    return [one for one in started(workspace) if "--tools" in one]
 
 
 async def test_the_epic_opens_from_the_monitor_and_is_stopped_there(
@@ -197,7 +230,7 @@ async def test_the_epic_opens_from_the_monitor_and_is_stopped_there(
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "wait a moment")
+        await typed(pilot, f"${OWN} wait a moment")
         await shows(pilot, "still on it")
         await pilot.press("left")
         await on(pilot, Monitoring)

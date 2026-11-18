@@ -31,7 +31,9 @@ if TYPE_CHECKING:
     import pydantic
 
     from .agents import Session
+    from .asking import Block
     from .defining import FlowContext
+    from .faces import Face
 
 __all__ = [
     "HOOK_TYPES",
@@ -348,11 +350,17 @@ class OutworlderRunHookParams(HookParams):
 
     Attributes:
       prompt: What it was asked.
-      output_schema: The schema its answer must be an instance of, or None for text.
+      output_schema: The schema its answer must be an instance of, or None for text. The
+        whole of it is asked at once.
+      context: What the asker showed alongside the question, to decide by.
+      face: The face the session was spawned with, which a person would have been asked
+        in, or None for the form.
     """
 
     prompt: str
     output_schema: type[pydantic.BaseModel] | None = None
+    context: tuple[Block, ...] = ()
+    face: Face | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

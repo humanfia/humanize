@@ -226,6 +226,63 @@ def test_a_picture_of_the_page_is_served_as_one(
         assert avatar.body == b"\x89PNG\r\n\x1a\n"
 
 
+def test_a_face_is_framed_by_the_page_alone_and_reaches_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from hmz.web import site as serving
+
+    real = serving.resources.files("hmz.web")
+    package = tmp_path / "web"
+    (package / "static" / "faces").mkdir(parents=True)
+    (package / "static" / "vendor").mkdir()
+    for name in ("index.html", "app.js"):
+        (package / "static" / name).write_bytes(
+            real.joinpath("static", name).read_bytes()
+        )
+    (package / "static" / "faces" / "frame.html").write_bytes(
+        real.joinpath("static", "faces", "frame.html").read_bytes()
+    )
+    (package / "static" / "vendor" / "markdown.js").write_text("export {}\n")
+
+    def files(_: str) -> Path:
+        return package
+
+    monkeypatch.setattr(serving, "resources", SimpleNamespace(files=files))
+    with served() as site:
+        browser = Browser(site)
+
+        # The page may frame its own files, and is framed by nothing.
+        page = browser.get("/")
+        assert "frame-src 'self'" in page.headers["content-security-policy"]
+        assert "frame-ancestors 'none'" in page.headers["content-security-policy"]
+        assert page.headers["x-frame-options"] == "DENY"
+
+        # The face's document: its own policy, framed by the page's origin alone.
+        frame = browser.get("/faces/frame.html")
+        assert frame.status == 200
+        assert frame.headers["content-security-policy"] == (
+            "default-src 'none'; script-src 'unsafe-inline' 'self'; "
+            "style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; "
+            "connect-src 'none'; frame-ancestors 'self'"
+        )
+        assert frame.headers["x-frame-options"] == "SAMEORIGIN"
+        assert "access-control-allow-origin" not in frame.headers
+        # Said in the file too, for a server that gives every page one policy.
+        assert b"connect-src 'none'" in frame.body
+
+        # A library a face imports from its opaque origin is shared with that origin alone;
+        # nothing else is.
+        library = browser.get("/vendor/markdown.js", Origin="null")
+        assert library.headers["access-control-allow-origin"] == "null"
+        elsewhere = browser.get("/vendor/markdown.js", Origin="https://example.com")
+        assert "access-control-allow-origin" not in elsewhere.headers
+        script = browser.get("/app.js", Origin="null")
+        assert "access-control-allow-origin" not in script.headers
+        assert script.headers["x-frame-options"] == "DENY"
+
+
 def test_what_another_site_left_in_the_cookie_jar_is_not_this_ones_business(
     project: Path,
 ) -> None:

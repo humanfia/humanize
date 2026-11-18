@@ -42,7 +42,8 @@ uvx --from 'hmz[all]' hmz web
 
 ## Usage
 
-Open the terminal interface in a repository:
+Open the terminal interface in a repository, on a chat with your coding agent; `$<flow>` or
+`/flow <flow> <task>` starts a flow from there, and `/chat` comes back to the chat:
 
 ```sh
 hmz
@@ -54,10 +55,16 @@ Or open every epic on this machine in a browser:
 hmz web
 ```
 
-Or run a flow from your shell:
+Or say one thing to an agent from your shell:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-opus-5:high "What does this repository do?"
+hmz chat -a claude/claude-opus-5:high "What does this repository do?"
+```
+
+Or run a flow from your shell, under a budget:
+
+```sh
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 "Make the tests pass"
 ```
 
 Agents run with approvals bypassed, so start in a scratch repository. The

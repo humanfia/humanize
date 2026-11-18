@@ -33,6 +33,10 @@ if TYPE_CHECKING:
 
 _GATEWAY = ("GROK_GATEWAY_API_BACKEND", "GROK_XAI_API_BASE_URL", "XAI_API_KEY")
 
+#: A fence that writes nothing, and one that writes somewhere.
+_READS = Fence(online=True)
+_WRITES = Fence(write=("/somewhere",), online=True)
+
 
 @pytest.fixture(autouse=True)
 def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -202,19 +206,30 @@ def test_the_leader_is_joined_only_where_the_config_says(
     assert ("--leader" in argv) == bool(leader)
 
 
-@pytest.mark.parametrize("permission", ["auto", "bypass"])
-def test_a_rung_that_approves_is_held_open_with_the_approval(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, permission: str
+@pytest.mark.parametrize(
+    ("said", "approved"),
+    [
+        ({"fence": _WRITES}, True),
+        ({}, False),
+    ],
+)
+def test_a_fence_that_writes_is_held_open_with_the_approval(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    said: dict[str, Any],
+    approved: bool,
 ) -> None:
     spawned = spawning(monkeypatch, answers=_acp())
-    agent = _agent(permission=permission)
+    agent = _agent(**said)
     heard(agent)
 
     _turn(agent.new(tmp_path))
 
     (process,) = spawned
-    assert process.args[:2] == ["grok", "agent"]
-    assert "--always-approve" in process.args
+    at = process.args.index("grok")
+    assert process.args[at : at + 2] == ["grok", "agent"]
+    assert ("--always-approve" in process.args) == approved
+    assert "--tools" not in process.args
     assert process.args[-1] == "stdio"
 
 
@@ -227,21 +242,24 @@ _EVERY = [
 
 
 @pytest.mark.parametrize(
-    ("permission", "options", "chosen"),
+    ("said", "options", "chosen"),
     [
-        ("auto", _EVERY, "allow"),
-        ("bypass", _EVERY, "allow"),
-        ("", _EVERY, "reject"),
-        ("bypass", _EVERY[:1], "always"),
-        ("bypass", [_EVERY[2], {"kind": "other", "optionId": "other"}], "other"),
-        ("bypass", _EVERY[2:3], None),
-        ("", _EVERY[:3], None),
+        ({"fence": _WRITES}, _EVERY, "allow"),
+        ({}, _EVERY, "reject"),
+        ({"fence": _WRITES}, _EVERY[:1], "always"),
+        (
+            {"fence": _WRITES},
+            [_EVERY[2], {"kind": "other", "optionId": "other"}],
+            "other",
+        ),
+        ({"fence": _WRITES}, _EVERY[2:3], None),
+        ({}, _EVERY[:3], None),
     ],
 )
-def test_a_permission_asked_mid_turn_is_answered_by_the_rung(
+def test_a_permission_asked_mid_turn_is_granted_under_a_fence(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    permission: str,
+    said: dict[str, Any],
     options: list[dict[str, str]],
     chosen: str | None,
 ) -> None:
@@ -258,7 +276,7 @@ def test_a_permission_asked_mid_turn_is_answered_by_the_rung(
         }
     )
     spawned = spawning(monkeypatch, answers=_acp([asked, *_SAID]))
-    agent = _agent(permission=permission)
+    agent = _agent(**said)
     heard(agent)
 
     _turn(agent.new(tmp_path))
@@ -304,6 +322,11 @@ def test_a_session_grok_will_not_open_fails_the_turn(
     assert "no session for you" in str(failed.value.stderr)
 
 
+#: The tools a fence that writes nothing starts Grok Build with: the readers and its shell,
+#: and its web tools where it may search the web.
+_READERS = "read_file,grep,list_dir,run_terminal_cmd"
+_SEARCHERS = f"{_READERS},web_search,web_fetch"
+
 #: What `grok --single` writes with `--output-format streaming-json`.
 _SINGLE = (
     line({"type": "thought", "data": "hmm"}),
@@ -319,22 +342,25 @@ _SINGLE = (
     ("said", "flags"),
     [
         (
-            {"permission": "read-only"},
-            ["--always-approve", "--tools", "read_file,grep,list_dir"],
+            {"fence": _READS},
+            ["--always-approve", "--tools", _SEARCHERS],
         ),
         (
-            {"permission": "workspace-write"},
+            {"fence": _READS, "web_search": True},
+            ["--always-approve", "--tools", _SEARCHERS],
+        ),
+        (
+            {"fence": Fence(online=False)},
+            ["--always-approve", "--tools", _READERS, "--disable-web-search"],
+        ),
+        (
+            {"fence": Fence(write=("/somewhere",), online=False)},
             ["--always-approve", "--disable-web-search"],
         ),
         ({"web_search": False}, ["--disable-web-search"]),
         (
-            {"permission": "read-only", "web_search": False},
-            [
-                "--always-approve",
-                "--tools",
-                "read_file,grep,list_dir",
-                "--disable-web-search",
-            ],
+            {"fence": _READS, "web_search": False},
+            ["--always-approve", "--tools", _READERS, "--disable-web-search"],
         ),
         ({"sandbox": "strict"}, ["--sandbox", "strict"]),
         ({"max_turns": 3}, ["--max-turns", "3"]),
@@ -357,6 +383,7 @@ def test_what_acp_cannot_carry_is_a_single_run_of_its_own(
 
     (process,) = spawned
     argv = process.args
+    argv = argv[argv.index("grok") :]
     assert argv[:7] == [
         "grok",
         "--output-format",
@@ -383,7 +410,7 @@ def test_a_single_run_resumes_the_session_the_first_one_opened(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     spawned = spawning(monkeypatch, opening=_SINGLE)
-    agent = _agent(permission="read-only")
+    agent = _agent(fence=_READS)
     heard(agent)
     session = agent.new(tmp_path)
 
@@ -401,7 +428,7 @@ def test_an_error_line_fails_a_single_run(
         monkeypatch,
         opening=[line({"type": "error", "message": "it went sideways"})],
     )
-    agent = _agent(permission="read-only")
+    agent = _agent(fence=_READS)
     heard(agent)
 
     with pytest.raises(Failed) as failed:

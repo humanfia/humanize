@@ -27,15 +27,16 @@ declared so a flow can ask beforehand: ``-c web_search=`` in both directions, wh
 ``--disable goals`` when :attr:`~hmz.coganchor.agents.config.AgentConfig.goals` is off, which
 `pursue` and `goal` name; a ``serviceTier`` of ``priority`` when
 :attr:`~hmz.coganchor.agents.config.AgentConfig.service_tier` is ``fast``, which `tier:fast`
-names; and the sandbox and approval policy of the rung
-:attr:`~hmz.coganchor.agents.config.AgentConfig.permission` asks for, which defaults to
-`bypass` for every backend here rather than for this one. Two of those have a third answer
-that is neither on nor off: a `web_search` nobody said writes no ``-c`` at all, and a
-`permission` nobody said opens the thread with no sandbox and no approval policy -- which is
-this driver saying nothing, and the app server left wherever it leaves itself. Codex's own
-settings that none of those already answer are :class:`CodexAgentConfig`'s, and every one of
-them defaults to whatever the bare CLI does: an install that sets nothing runs the command
-line Codex would have run for itself.
+names; and a sandbox and approval policy read off the grant
+:attr:`~hmz.coganchor.agents.config.AgentConfig.fence` holds (:func:`sandboxing`):
+`read-only` for a fence that writes nothing, `danger-full-access` for one that writes
+somewhere, and approval `never` at both, the fence holding where the writes land. Two of those
+have a third answer that is neither on nor off: a `web_search` nobody said writes no ``-c`` at
+all, and an agent with no fence -- one driven by hand -- opens the thread with no sandbox and
+no approval policy, which is this driver saying nothing, and the app server left wherever it
+leaves itself. Codex's own settings that none of those already answer are
+:class:`CodexAgentConfig`'s, and every one of them defaults to whatever the bare CLI does: an
+install that sets nothing runs the command line Codex would have run for itself.
 
 A fence (:attr:`~hmz.coganchor.agents.config.AgentConfig.fence`) is held from outside, all of
 it, although Codex is the one CLI here with a sandbox that speaks of writable roots, read
@@ -58,13 +59,20 @@ both off, whatever `web_search` says -- ``-c web_search="disabled"``, which is t
 that does, and ``--disable apps``. And at `read-only` a fence that grants it is not cut by
 Codex instead: that sandbox cuts a command's
 network with its writes, so a `read-only` turn whose fence grants the network is sent that
-sandbox with the network left on (:data:`_REACHING`). On Linux and macOS a rung under a fence
-held around Codex is left to that fence (:func:`_abroad`): Codex's own sandbox cannot start
-inside it.
+sandbox with the network left on (:data:`_REACHING`). On Linux and macOS a sandbox under a
+fence held around Codex is left to that fence (:func:`_abroad`): Codex's own sandbox cannot
+start inside it.
 
 What the app server is started with -- the web search, the fence, the features, the overrides
 -- it reads once, so an agent set up as something else there runs its next turn on a server
 started again, as :meth:`CodexAgent._knowing` says.
+
+A chat's native input (:mod:`hmz.coganchor.agents.native`) is the app server's too, which has
+a call for most of what Codex's own prompt does with a line: a `$` skill and an `@` file go
+into the turn as input items of their own, `!` is `thread/shellCommand`, and `/compact`,
+`/review` and `/rename` are `thread/compact/start`, `review/start` and `thread/name/set`
+(:meth:`CodexSession.natives`). What it has no call for is a dialog of Codex's interactive
+interface, and is refused.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -75,11 +83,13 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import dataclasses
 import functools
 import itertools
 import json
 import os
 import queue
+import re
 import signal
 import subprocess
 import sys
@@ -87,15 +97,17 @@ import threading
 import weakref
 from collections import Counter, deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor import prices
 from hmz.coganchor.homes import merged, merger
 
 from .base import AgentBase, SessionBase
-from .config import PERMISSIONS, UNSAID, AgentConfig
+from .config import AgentConfig
 from .event import Event, Failed, Question, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, SUBAGENTS, Moment, Occasion
+from .native import NativeCommand
 from .watchdog import Watchdog
 
 if TYPE_CHECKING:
@@ -107,7 +119,6 @@ if TYPE_CHECKING:
         Mapping,
         Sequence,
     )
-    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -117,7 +128,7 @@ if TYPE_CHECKING:
     from .skills import Loaded
 
 #: `-c` keys this driver may take. They are process configuration of the app server, and
-#: none of them is already a field of AgentConfig -- model, effort and permission are asked
+#: none of them is already a field of AgentConfig -- model, effort and the fence are asked
 #: elsewhere, and a second place for them would be two answers.
 #:
 #: Both are still keys codex-cli 0.153.4 knows: `codex app-server --strict-config -c KEY=...`
@@ -140,7 +151,7 @@ _FEATURE_MAX_CHARS = 64
 
 #: What a feature may not be about, each of them a question the flow has already been asked
 #: somewhere else. Whether the agent may reach out of the machine is `web_search` and what it
-#: may do at all is `permission`, both said where the flow declares the place an agent fills
+#: may do at all is `fence`, both said where the flow declares the place an agent fills
 #: -- and both of them tightened onto an agent handed down to a subflow, which a setting that
 #: travelled beside them untouched would tighten around. A flow that declared no web and was
 #: given an agent with a browser switched on is a setting that lies, which is the failure
@@ -153,7 +164,8 @@ _FEATURE_MAX_CHARS = 64
 #: same thing straight through.
 _ANSWERED = ("browser_use", "computer_use", "standalone_web_search", "web_search")
 
-#: The approval policies a config may put in place of its rung's, "" being the rung's own.
+#: The approval policies a config may put in place of the one its grant is told with, "" being
+#: that one (:func:`sandboxing`).
 _APPROVAL_POLICIES = ("", "untrusted", "on-failure", "on-request", "never")
 
 #: What the server calls a turn stopping to ask its user something. Every other request it
@@ -209,51 +221,30 @@ _APPROVALS = (
     "item/permissions/requestApproval",
 )
 
-#: What Codex is run under at each rung of the ladder, said where the thread is opened and
-#: again when it is picked back up: a thread resumed does not carry the settings it was
-#: started with. Codex is the one backend here with a sandbox of its own, so its rungs are the
-#: real thing rather than an approximation of one -- and the only rung that lets it ask for
-#: more is `auto`, which is the rung that means the asking is granted. Everywhere else it is
-#: never asked, because a turn waiting on an approval nobody is there to give is a flow that
-#: has stopped.
-#:
-#: `bypass` is the loudest rung this layer asks Codex for, and above it is the row that asks
-#: for nothing at all. An agent no flow said a rung for sends neither `sandbox` nor
-#: `approvalPolicy`, which is `codex app-server` told nothing: it opens each thread at whatever
-#: its own client default is, exactly as it would for somebody running the CLI by hand. The way
-#: to anything else is the same for every backend -- `AgentConfig(permission=...)`, declared
-#: beside the place a flow gives an agent -- so it is not a setting of Codex's own and has no
-#: field here.
-_PERMITTED = {
-    "read-only": {"approvalPolicy": "never", "sandbox": "read-only"},
-    "workspace-write": {"approvalPolicy": "never", "sandbox": "workspace-write"},
-    "auto": {"approvalPolicy": "on-request", "sandbox": "workspace-write"},
-    "bypass": {"approvalPolicy": "never", "sandbox": "danger-full-access"},
-    UNSAID: {},
-}
+#: What Codex is run under for a fence that writes nothing, said where the thread is opened and
+#: again when it is picked back up: a thread resumed does not carry the settings it was started
+#: with. Its `read-only` sandbox keeps the shell -- a command reads what it likes -- and refuses
+#: every write, which is the grant; Codex has no file-writing tool that is not held by the same
+#: sandbox, so there is nothing to withhold besides. And it is never asked, because a turn
+#: waiting on an approval nobody is there to give is a flow that has stopped.
+_READING = {"approvalPolicy": "never", "sandbox": "read-only"}
 
-#: The rungs at which an approval this client is asked for is answered yes, which is every row
-#: that names an approval policy at all. At `auto` that policy is `on-request` and the yes is
-#: the rung's own meaning. Everywhere else it is `never` and nothing is asked, so what those
-#: rows are doing here is saying what happens to a request that arrives anyway -- which is the
-#: behaviour they have always had, kept rather than changed, this commit being about the row
-#: that has no policy at all. A `never` thread that asks is a Codex doing something 0.153.4
-#: does not, and the honest answer to it is a rung of its own to settle, not one to infer.
-#:
-#: The row above the ladder names no policy, and that is what this set exists to keep out of
-#: the yes. `codex app-server` asked for no `approvalPolicy` does not fall silent: run against
-#: codex-cli 0.153.4 with a `CODEX_HOME` that configures nothing, a `thread/start` carrying
-#: neither `sandbox` nor `approvalPolicy` opens at the client's own defaults -- a read-only
-#: filesystem sandbox and `on-request` -- and the first command out of the turn arrives here
-#: as `item/commandExecution/requestApproval`, reason `Allow writing the requested text to
-#: /tmp/...? The filesystem sandbox is read-only.` So the silence does reach this route, and
-#: granting it would be Humanize saying yes for an agent nobody configured.
-#:
-#: Refusing it is a legible turn and not a wedge, which is the thing that had to be checked
-#: rather than assumed: the same run answered `{"decision": "decline"}` completes the item
-#: with status `declined` and ends the turn on `The command wasn't run because permission was
-#: denied.` -- an outcome a flow reads, in the CLI's own words.
-_GRANTED = frozenset(rung for rung, settings in _PERMITTED.items() if settings)
+#: What Codex is run under for a fence that writes somewhere: every tool and nothing asked,
+#: the fence holding where the writes land. Codex's own sandbox is the one thing left out --
+#: the fence is what says where a write may land, and around Codex here, on Linux and macOS,
+#: Codex's sandbox cannot start at all (:func:`_abroad`).
+_WRITING = {"approvalPolicy": "never", "sandbox": "danger-full-access"}
+
+#: What Codex is run under in place of :data:`_WRITING` where this machine's Codex refuses
+#: `danger-full-access` (:data:`_FORBIDDEN`): `workspace-write`, with the asking turned on, so
+#: that whatever the agent wants past the workspace is put to this client -- which grants it
+#: unless a hook refuses (:meth:`_AppServer._approve`). The same freedom, the fence still
+#: holding it, and said once per agent (:meth:`CodexSession._steps`).
+_ASKING = {"approvalPolicy": "on-request", "sandbox": "workspace-write"}
+
+#: The sandbox an installation's requirements may forbid, and the one this driver steps down
+#: from to :data:`_ASKING`.
+_FULL = _WRITING["sandbox"]
 
 #: The one of those a turn does not take. `thread/start` and `thread/resume` take `sandbox` as
 #: one of Codex's three mode names; `turn/start` has no `sandbox` at all -- its field is
@@ -262,8 +253,8 @@ _GRANTED = frozenset(rung for rung, settings in _PERMITTED.items() if settings)
 #: 0.153.4, where `turn/start` given `sandboxPolicy: "no"` answers `invalid type: string ...
 #: expected internally tagged enum SandboxPolicyDeserialize` and the same turn given
 #: `sandbox: "no"` answers as though the key were not there. Which it is not, so it is not
-#: sent: the rung a turn runs at is the rung its thread was opened or picked up at, and this
-#: driver says that at every thread call. What a turn does still carry is the approval policy
+#: sent: the sandbox a turn runs in is the one its thread was opened or picked up in, and
+#: this driver says that at every thread call. What a turn does still carry is the approval policy
 #: and the service tier, both of which `turn/start` names and reads.
 _THREAD_ONLY = ("sandbox",)
 
@@ -278,7 +269,7 @@ _THREAD_ONLY = ("sandbox",)
 #: runtime enforcement are incompatible with --use-legacy-landlock` -- which is no worse than
 #: the bubblewrap error it would have answered with, and a thread stepped down from it to
 #: `read-only` is then held. So it is asked for only where bubblewrap cannot start: inside a
-#: fence, or at a rung with a sandbox where :func:`_landlocked` found it cannot.
+#: fence, or for a sandbox Codex holds itself where :func:`_landlocked` found it cannot.
 _LANDLOCK = "use_legacy_landlock"
 
 #: The feature that offers the agent the ChatGPT apps its account has connected, as tools
@@ -306,13 +297,13 @@ _SYSTEM_PROXY = "respect_system_proxy"
 #: that machine, which is the state a capture taken there would have restored.
 _SHELL_SNAPSHOT = "shell_snapshot"
 
-#: A turn's `sandboxPolicy` for a `read-only` rung whose fence grants the network: the
-#: filesystem read-only, as the rung says, and the network the permission grants left to the
-#: commands. `turn/start` takes it and keeps it for every turn after, and it is sent with each.
+#: A turn's `sandboxPolicy` for a `read-only` sandbox whose fence grants the network: the
+#: filesystem read-only, as the fence writes nothing, and the network the fence grants left to
+#: the commands. `turn/start` takes it and keeps it for every turn after, and it is sent with each.
 _REACHING = {"type": "readOnly", "networkAccess": True}
 
-#: A turn's `sandboxPolicy` for a rung with a sandbox whose turns land on another machine, where
-#: the fence holds what the rung does: Codex's own sandbox left out, and the model told the
+#: A turn's `sandboxPolicy` for a sandbox whose turns land on another machine, where the
+#: fence holds what that sandbox would: Codex's own sandbox left out, and the model told the
 #: commands it runs are held by one from outside. Codex wraps a sandboxed command in a helper
 #: -- `bwrap`, or itself as `codex-linux-sandbox` -- and under an anchor that helper is a
 #: command like any other, run on the target where it may not be installed, cannot start, and
@@ -320,7 +311,7 @@ _REACHING = {"type": "readOnly", "networkAccess": True}
 #: `read-only` thread under a supervised anchor answered `bwrap: setting up uid map:
 #: Permission denied` and never ran. The anchor holds the fence on both machines instead
 #: (:meth:`~hmz.coganchor.agents.AgentBase._abroad`), and :func:`_abroad` says where that holds
-#: the rung -- and where a fence around Codex here does, Codex's own sandbox being one that
+#: the sandbox -- and where a fence around Codex here does, Codex's own sandbox being one that
 #: cannot start inside it. `networkAccess` is filled in from the fence.
 _EXTERNAL = {"type": "externalSandbox"}
 
@@ -334,47 +325,42 @@ type _Knows = tuple[
 ]
 
 #: What the agent is noted to have been told where its own sandbox holds its fence, beside
-#: the rungs it has been told it runs below (:meth:`CodexAgent._stepped`).
+#: the sandbox it has been told it runs below (:meth:`CodexAgent._stepped`).
 _NATIVE = "sandbox.native"
 
-#: The sandboxes a rung may ask for that confine a command at all, and so the ones
+#: The sandboxes this driver may ask for that confine a command at all, and so the ones
 #: :data:`_LANDLOCK` has anything to do with.
 _SANDBOXED = ("read-only", "workspace-write")
 
 
 def _abroad(config: AgentConfig, sandbox: object) -> bool:
-    """Whether a rung's sandbox is held by the fence rather than by Codex.
+    """Whether a sandbox a turn runs in is held by the fence rather than by Codex.
 
     Where the agent's turns land on another machine and its fence -- held there by the
-    anchor, on both machines -- is at least as narrow as the rung: no rule it was drawn from
-    writing anything at `read-only`, none writing anything but the workdir at
-    `workspace-write`. A fence wider than the rung, or none, leaves the rung to Codex's own
-    sandbox, which is what it always was.
+    anchor, on both machines -- is at least as narrow as the sandbox: writing nothing at
+    `read-only`, and nothing but the workdir at `workspace-write`. A fence wider than the
+    sandbox, or none, leaves it to Codex's own, which is what it always was.
 
-    And on Linux or a Mac wherever a fence is held around Codex here, at a rung with a
-    sandbox, whatever its width: Codex's own sandbox cannot start inside it. On Linux Landlock
-    forbids the mounts bubblewrap makes (`bwrap: Failed to make / slave: Operation not
-    permitted`), and codex-cli 0.163.0 with :data:`_LANDLOCK` on panics with
-    `filesystem-restricted execution requires bubblewrap`, so every command of a sandboxed
-    turn failed. On a Mac the fence is Seatbelt, and Codex's own sandbox is Seatbelt too,
-    which cannot be applied inside another -- on codex-cli 0.154.0 every command of a
-    `read-only` thread inside a fence answered `sandbox-exec: sandbox_apply: Operation not
-    permitted` and never ran. What is held there is the fence, which is the permission, its
-    network included; a rung narrower than it -- `workspace-write` that a Codex refusing
-    `danger-full-access` stepped `bypass` down to, under a fence that writes the home -- is
-    not held beyond it.
+    And on Linux or a Mac wherever a fence is held around Codex here, in a sandbox, whatever
+    its width: Codex's own sandbox cannot start inside it. On Linux Landlock forbids the
+    mounts bubblewrap makes (`bwrap: Failed to make / slave: Operation not permitted`), and
+    codex-cli 0.163.0 with :data:`_LANDLOCK` on panics with `filesystem-restricted execution
+    requires bubblewrap`, so every command of a sandboxed turn failed. On a Mac the fence is
+    Seatbelt, and Codex's own sandbox is Seatbelt too, which cannot be applied inside another
+    -- on codex-cli 0.154.0 every command of a `read-only` thread inside a fence answered
+    `sandbox-exec: sandbox_apply: Operation not permitted` and never ran. What is held there
+    is the fence, which is the grant, its network included; a sandbox narrower than it --
+    `workspace-write` that a Codex refusing `danger-full-access` stepped down to, under a
+    fence that writes the home -- is not held beyond it.
 
     Args:
       config: What the agent runs at.
-      sandbox: The sandbox of the rung a turn runs at, as the server may have stepped it
-        down.
+      sandbox: The sandbox a turn runs in, as the server may have stepped it down.
 
     Returns:
       True where the turn is to be told its commands are sandboxed from outside
       (:data:`_EXTERNAL`).
     """
-    from hmz.coganchor.fence import WRITE
-
     fence = config.fence
     if fence is None or fence.open or sandbox not in _SANDBOXED:
         return False
@@ -382,8 +368,8 @@ def _abroad(config: AgentConfig, sandbox: object) -> bool:
         return sys.platform in ("darwin", "linux")
     if not fence.drawn:
         return False
-    if sandbox == "read-only":
-        return all(access != WRITE for _, access in fence.standing)
+    if sandbox == _READING["sandbox"]:
+        return not fence.writes
     return not fence.outward
 
 
@@ -431,8 +417,8 @@ def _runs(mode: str, *flags: str) -> bool:
 def _landlocked() -> bool:
     """Whether this machine's Codex holds a read-only command only with :data:`_LANDLOCK` on.
 
-    One sandboxed `true` as the rung would run it, and again with the feature on where that
-    one failed.
+    One sandboxed `true` as a `read-only` thread would run it, and again with the feature on
+    where that one failed.
 
     Returns:
       True where bubblewrap cannot start and Landlock can, and False where bubblewrap starts
@@ -655,25 +641,29 @@ def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
     return cast("dict[str, Any]", held(schema, frozenset()))
 
 
-def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]:
-    """What a thread is opened with, at the rung the agent was configured for.
+def sandboxing(fence: Fence | None, service_tier: str = "default") -> dict[str, Any]:
+    """What a thread is opened with, read off the grant the agent's fence holds.
 
-    ``priority`` is Codex's own word for the common ``fast`` tier and is the only thing said
-    here that a bare app server would not have said for itself; ``default`` is what it runs at
-    when nobody asks, and is what an agent nobody configured a tier for asks for.
+    :data:`_READING` for a fence that writes nothing (:attr:`~hmz.coganchor.fence.Fence.writes`),
+    :data:`_WRITING` for one that writes somewhere, and no sandbox and no approval policy at
+    all for an agent with no fence -- one driven by hand, which is Codex left at its own
+    defaults, exactly as it would be for somebody running the CLI themselves.
+
+    ``priority`` is Codex's own word for the common ``fast`` tier and is the only other thing
+    said here that a bare app server would not have said for itself; ``default`` is what it
+    runs at when nobody asks, and is what an agent nobody configured a tier for asks for.
 
     Args:
-      permission: One of :data:`hmz.coganchor.agents.config.PERMISSIONS`, or
-        :data:`~hmz.coganchor.agents.config.UNSAID` for an agent nobody said a rung for --
-        which sends no sandbox and no approval policy, and is what a word no rung answers to
-        falls back to for the same reason.
+      fence: The agent's fence, or None for an agent with none.
       service_tier: The common provider service tier requested for this agent.
 
     Returns:
       The settings to send with the thread. :func:`turning` is what a turn of it takes.
     """
     service = "priority" if service_tier == "fast" else "default"
-    return {"serviceTier": service} | _PERMITTED.get(permission, _PERMITTED[UNSAID])
+    if fence is None:
+        return {"serviceTier": service}
+    return {"serviceTier": service} | (_WRITING if fence.writes else _READING)
 
 
 def _thinking(effort: str) -> dict[str, str]:
@@ -693,82 +683,33 @@ def _thinking(effort: str) -> dict[str, str]:
     return {"effort": effort} if effort else {}
 
 
-def turning(rung: Mapping[str, Any]) -> dict[str, Any]:
+def turning(settings: Mapping[str, Any]) -> dict[str, Any]:
     """The same settings, less the ones only a thread call takes.
 
     Args:
-      rung: What :func:`unattended` said, as the server may have stepped it down.
+      settings: What :func:`sandboxing` said, as the server may have stepped it down.
 
     Returns:
       What `turn/start` names and reads, which is everything of that but :data:`_THREAD_ONLY`.
     """
-    return {key: value for key, value in rung.items() if key not in _THREAD_ONLY}
+    return {key: value for key, value in settings.items() if key not in _THREAD_ONLY}
 
 
-#: What a Codex somebody else settled the rules for says when it will not run at the rung it
-#: was asked for. An installation can be given requirements -- an enterprise policy delivered
-#: with the account, a `requirements.toml` the platform the machine belongs to put there -- and
-#: one that forbids the sandbox a rung is refuses the whole call rather than running it
+#: What a Codex somebody else settled the rules for says when it will not run in the sandbox
+#: it was asked for. An installation can be given requirements -- an enterprise policy
+#: delivered with the account, a `requirements.toml` the platform the machine belongs to put
+#: there -- and one that forbids a sandbox refuses the whole call rather than running it
 #: tighter: `approval_policy = "never"` cannot be used because requirements do not allow
-#: `sandbox_mode = "danger-full-access"`. Which is every turn declared at a rung those
-#: requirements forbid failing on such a machine -- `bypass` on the one quoted above. An agent
-#: nobody was asked about is the one turn this cannot happen to, since the row above the
-#: ladder asks for no sandbox at all: there is nothing there for requirements to forbid, and
-#: nothing to step down from either, which is why :func:`_rung` reads such a call as naming no
-#: rung.
+#: `sandbox_mode = "danger-full-access"`. Which is every turn of a fence that writes somewhere
+#: failing on such a machine (:data:`_WRITING`). An agent with no fence is the one turn this
+#: cannot happen to, since it asks for no sandbox at all: there is nothing there for
+#: requirements to forbid, and nothing to step down from either.
 #:
 #: Still word for word what codex-cli 0.153.4 says: that whole sentence is in the binary this
-#: machine has, and the fragment matched here is the part of it that names no rung -- so a
-#: refusal about `workspace-write` on an installation that forbids that instead is caught by
-#: the same line, and the rung to step down from is read off the call rather than off the text.
+#: machine has, and the fragment matched here is the part of it that names no sandbox -- what
+#: was refused is read off the call rather than off the text, and only `danger-full-access`
+#: is stepped down from (:meth:`_AppServer._stepped`): `read-only` has nothing below it.
 _FORBIDDEN = "requirements do not allow"
-
-
-def _rung(params: Mapping[str, Any]) -> str | None:
-    """Which rung of the ladder a call's parameters are asking for.
-
-    Read off the sandbox, which is what an installation's requirements forbid: an approval
-    policy said in place of the rung's (:attr:`CodexAgentConfig.approvals`, `untrusted` while
-    a hook is hung on `PERMISSION_REQUEST`) does not hide the rung it was said at. Of two rows
-    with one sandbox, the one whose policy the call carries too.
-
-    Args:
-      params: What the call was made with.
-
-    Returns:
-      The rung they name, or None for a call that says nothing about what the agent may do.
-    """
-    # The row that names nothing is skipped rather than read: it is the absence of a rung
-    # rather than one of them. So a call Humanize sent no sandbox with names no rung to step
-    # down from, and a Codex refusing one is refusing something it was never asked -- its own
-    # error to report, rather than ours to retry a rung quieter.
-    named = [
-        rung
-        for rung, settings in _PERMITTED.items()
-        if settings and params.get("sandbox") == settings["sandbox"]
-    ]
-    policy = params.get("approvalPolicy")
-    return next(
-        (rung for rung in named if _PERMITTED[rung]["approvalPolicy"] == policy),
-        next(iter(named), None),
-    )
-
-
-def _tighter(permission: str) -> str | None:
-    """The rung below one this machine's Codex will not take.
-
-    Args:
-      permission: The rung that was refused.
-
-    Returns:
-      The next rung down, and None for the bottom of the ladder -- where a refusal is a
-      machine that will not run an agent at all rather than one to be met halfway. None
-      rather than "", which is no longer a spare word for nothing: "" is :data:`UNSAID`, the
-      silence above the whole ladder, and a step down that landed there would answer a refused
-      sandbox by asking for no sandbox at all -- which is looser than what was refused.
-    """
-    at = PERMISSIONS.index(permission) if permission in PERMISSIONS else 0
-    return PERMISSIONS[at - 1] if at else None
 
 
 #: How long a server being taken down is given to go before it is left to the operating system,
@@ -898,9 +839,10 @@ class _AppServer:
         self._draining.start()
         self._pending = itertools.count(1)
         self._writing = threading.Lock()  # a line is written whole or not at all
-        #: What each rung asked for actually runs at here, which is itself until this machine's
-        #: Codex has refused it. Written the once, by the call that found out.
-        self._instead: dict[str, str] = {}
+        #: Whether this machine's Codex has refused `danger-full-access`, so that every call
+        #: after the one that found out asks for :data:`_ASKING` in its place. Written the
+        #: once, by the call that found out.
+        self._forbids = False
         #: What each thread has spent so far, by kind, as the server counts it: a running
         #: total, so what one turn cost is the rise across it.
         self._counted: dict[str, Counter[str]] = {}
@@ -1028,59 +970,61 @@ class _AppServer:
         if last:
             self.stop()
 
-    def holds(self, thread: str, rung: Mapping[str, Any]) -> bool:
-        """Whether this server already has that thread open, at that rung.
+    def holds(self, thread: str, settings: Mapping[str, Any]) -> bool:
+        """Whether this server already has that thread open, under those settings.
 
         Args:
           thread: The thread to ask about.
-          rung: What a turn of it would be run at.
+          settings: What a turn of it would be run under.
 
         Returns:
-          Whether it is open here at exactly that, which is the case where picking it up
+          Whether it is open here under exactly that, which is the case where picking it up
           again would say nothing this server has not already been told.
         """
-        return self._holding.get(thread) == dict(rung)
+        return self._holding.get(thread) == dict(settings)
 
     def holding(
-        self, thread: str, rung: Mapping[str, Any], session: SessionBase
+        self, thread: str, settings: Mapping[str, Any], session: SessionBase
     ) -> None:
-        """Remembers that this server has that thread open at that rung, for that session.
+        """Remembers that this server has that thread open under those settings, for a session.
 
         Args:
           thread: The thread just started or picked back up here.
-          rung: What it was started or picked up under.
+          settings: What it was started or picked up under.
           session: The conversation the thread is, whether a turn or a goal opened it: what
             the thread spends while none of its turns is reading it is charged there.
         """
-        self._holding[thread] = dict(rung)
+        self._holding[thread] = dict(settings)
         self._owners[thread] = weakref.ref(session)
 
-    def permitted(self, permission: str, service_tier: str) -> dict[str, Any]:
-        """What a call of this server is told an agent at that rung may do.
+    def permitted(self, fence: Fence | None, service_tier: str) -> dict[str, Any]:
+        """What a call of this server is told an agent held to that fence may do.
 
-        The rung asked for, until this machine's Codex has refused it: an installation given
-        requirements that forbid the sandbox a rung is takes none of that rung's calls, and
-        what it will take instead is remembered here -- so one refusal is the whole cost of
-        finding out, rather than one per turn.
+        What :func:`sandboxing` reads off the fence, until this machine's Codex has refused
+        `danger-full-access`: an installation given requirements that forbid it takes none of
+        the calls that ask for it, and :data:`_ASKING` is asked for in its place from then on
+        -- so one refusal is the whole cost of finding out, rather than one per turn.
 
         Args:
-          permission: One of :data:`hmz.coganchor.agents.config.PERMISSIONS`, or
-            :data:`~hmz.coganchor.agents.config.UNSAID` for an agent nobody said a rung for --
-            which names no rung to be stepped down from, and is sent as it stands.
+          fence: The agent's fence, or None for an agent with none, which names no sandbox to
+            be stepped down from and is sent as it stands.
           service_tier: The common provider service tier requested for this agent.
 
         Returns:
-          The settings to send, at the loosest rung this Codex will take of the one asked for.
+          The settings to send, as this Codex will take them.
         """
-        return unattended(self._instead.get(permission, permission), service_tier)
+        settings = sandboxing(fence, service_tier)
+        if self._forbids and settings.get("sandbox") == _FULL:
+            settings |= _ASKING
+        return settings
 
     def call(self, method: str, params: dict[str, Any]) -> Any:
         """Makes one call and reads until it is answered.
 
-        A call naming a rung this machine's Codex will not take is made again a rung down: an
-        installation whose requirements forbid full access refuses `bypass` outright, and the
-        rung below is `auto` -- the same freedom with the asking turned back on, which this
-        client grants. So a flow nobody was asked about goes on running unattended there.
+        A call asking for `danger-full-access` on a machine whose Codex will not take it is
+        made again under :data:`_ASKING`: the same freedom with the asking turned back on,
+        which this client grants. So a flow nobody was asked about goes on running unattended
+        there.
 
         Args:
           method: The method to call.
@@ -1090,8 +1034,8 @@ class _AppServer:
           What the server answered with.
 
         Raises:
-          subprocess.CalledProcessError: If it refused the call for anything but the rung it
-            named, or stopped before answering.
+          subprocess.CalledProcessError: If it refused the call for anything but the sandbox
+            it named, or stopped before answering.
         """
         while True:
             try:
@@ -1104,35 +1048,29 @@ class _AppServer:
     def _stepped(
         self, params: dict[str, Any], refused: Failed
     ) -> dict[str, Any] | None:
-        """The same call a rung down, where Codex refused the rung this one named.
+        """The same call under :data:`_ASKING`, where Codex refused the full access it named.
 
         Args:
           params: What the call was made with.
           refused: What the server said about it.
 
         Returns:
-          Those parameters at the next rung down, or None where the refusal was about
-          something else or there is no rung left below the one it named.
+          Those parameters stepped down, or None where the refusal was about something else
+          or the call named no `danger-full-access` to step down from -- `read-only` has
+          nothing below it, and a call that named no sandbox was refused something it was
+          never asked, which is Codex's own error to report.
         """
-        if _FORBIDDEN not in str(refused.stderr or ""):
-            return None
-        asked = _rung(params)
-        if asked is None or not (instead := _tighter(asked)):
-            return None
-        # Every rung that was already running at the refused one runs at this one now: a
-        # ladder walked down twice must not leave the first step pointing at the second.
-        for rung, taken in list(self._instead.items()):
-            if taken == asked:
-                self._instead[rung] = instead
-        self._instead[asked] = instead
-        stepped = params | _PERMITTED[instead]
-        if params.get("approvalPolicy", "") not in (
-            "",
-            _PERMITTED[asked]["approvalPolicy"],
+        if (
+            _FORBIDDEN not in str(refused.stderr or "")
+            or params.get("sandbox") != _FULL
         ):
-            # An approval policy the caller said in place of the rung's goes down with it:
+            return None
+        self._forbids = True
+        stepped = params | _ASKING
+        if params.get("approvalPolicy", "") not in ("", _WRITING["approvalPolicy"]):
+            # An approval policy the caller said in place of `never` goes down with it:
             # `untrusted` while a hook is hung on `PERMISSION_REQUEST` is every command put to
-            # that hook, at whichever rung this Codex will take.
+            # that hook, in whichever sandbox this Codex will take.
             stepped["approvalPolicy"] = params["approvalPolicy"]
         return stepped
 
@@ -1355,7 +1293,12 @@ class _AppServer:
                 text=f"{_CALLED.get(kind, kind)} {about}".strip()[:120],
             )
 
-    def turn(self, params: dict[str, Any], running: _Running) -> Iterator[Event]:
+    def turn(
+        self,
+        params: dict[str, Any],
+        running: _Running,
+        method: str = "turn/start",
+    ) -> Iterator[Event]:
         """Runs one turn on a thread and says what the agent says as it says it.
 
         The turn is the one `turn/start` answers with, and nothing else on the thread is: a
@@ -1368,6 +1311,8 @@ class _AppServer:
           running: Told the turn's own id as the start answers with it, and told again when
             the turn is over -- which is what lets a word put in mid-turn say which turn it is
             for.
+          method: What starts it: `turn/start`, or `review/start`, which answers with the turn
+            its review runs as on the same thread and is read exactly as a turn is.
 
         Yields:
           What the agent said, and the answer it ended on.
@@ -1383,7 +1328,7 @@ class _AppServer:
                 {
                     "jsonrpc": "2.0",
                     "id": ident,
-                    "method": "turn/start",
+                    "method": method,
                     "params": params,
                 }
             )
@@ -1399,7 +1344,7 @@ class _AppServer:
                         if not _turn_id(message.get("result")):
                             # Nothing on the stream could then be told apart as this turn's.
                             raise Unrecoverable(
-                                1, self._argv, "", "codex: turn/start named no turn"
+                                1, self._argv, "", f"codex: {method} named no turn"
                             )
                         continue
                     # Whose a message is was settled where it was read: one that names a
@@ -1410,6 +1355,11 @@ class _AppServer:
                     told: dict[str, Any] = message.get("params") or {}
                     match message.get("method"):
                         case "item/started" | "item/completed":
+                            reviewed: dict[str, Any] = told.get("item") or {}
+                            if reviewed.get("type") == "exitedReviewMode":
+                                # A review's findings, which the message after it repeats
+                                # on codex-cli 0.163.0 and which are the answer without one.
+                                said = str(reviewed.get("review") or said)
                             for event in self._shown(
                                 message["method"], told, started, running.took
                             ):
@@ -1477,6 +1427,96 @@ class _AppServer:
                 else {},
                 spent=costing,
             )
+
+    def operate(
+        self,
+        method: str,
+        params: dict[str, Any],
+        spends: Callable[[Usage], None] | None = None,
+    ) -> Iterator[Event]:
+        """Asks the server for one operation of a thread that it runs as a turn of its own.
+
+        `thread/shellCommand` and `thread/compact/start` are answered at once, with nothing,
+        and what they do arrives afterwards as a turn the server starts on the thread: the
+        command as a `commandExecution` item whose `source` is `userShell`, the compaction as
+        a `contextCompaction` item, each ended by `turn/completed` (codex-cli 0.163.0). No
+        answer names that turn, so it is read as a goal's turns are -- everything of the
+        thread -- and the first turn to end on it is this one.
+
+        Args:
+          method: The operation.
+          params: What to ask it with, naming the thread.
+          spends: Told what each request of it cost as the server says it, or None to tell
+            nobody: a compaction is a request of the model like any other.
+
+        Yields:
+          What the turn showed, as a turn shows it, and one `result`: the output of a shell
+          command -- with the status it exited on, where that was not 0 -- or what Codex's own
+          interface says of a compaction.
+
+        Raises:
+          subprocess.CalledProcessError: If the server refused the operation, the turn it ran
+            as failed, or the server stopped.
+        """
+        thread = str(params["threadId"])
+        ident = next(self._pending)
+        with self._mailbox(ident=ident, thread=thread) as mailbox:
+            self._write(
+                {"jsonrpc": "2.0", "id": ident, "method": method, "params": params}
+            )
+            said = ""
+            started: set[Any] = set()
+            answered = False
+            #: The turn it runs as: the first to start on the thread once it is answered.
+            mine = ""
+            while (message := self._take(mailbox)) is not None:
+                if message.get("id") == ident and "method" not in message:
+                    self._answer(message, said)
+                    answered = True
+                    continue
+                told: dict[str, Any] = message.get("params") or {}
+                named: dict[str, Any] = told.get("turn") or {}
+                turn = str(told.get("turnId") or named.get("id") or "")
+                if message.get("method") == "turn/started" and answered and not mine:
+                    mine = turn
+                if not mine or (turn and turn != mine):
+                    # Before it began, or of another turn: one Codex started by itself, or
+                    # what is said late of one already over, is not this operation's.
+                    continue
+                match message.get("method"):
+                    case "item/started" | "item/completed":
+                        yield from self._shown(message["method"], told, started, None)
+                        item: dict[str, Any] = told.get("item") or {}
+                        if (
+                            message["method"] == "item/completed"
+                            and item.get("type") == "commandExecution"
+                        ):
+                            said = str(item.get("aggregatedOutput") or "")
+                            if (code := item.get("exitCode")) not in (None, 0):
+                                said = f"{said.rstrip()}\n(exit {code})".lstrip()
+                    case "thread/tokenUsage/updated" if spends is not None:
+                        if (risen := self._rose(thread, told)) is not None:
+                            spends(risen)
+                    case "turn/completed":
+                        ended: dict[str, Any] = told.get("turn") or {}
+                        if ended.get("error") is not None or ended.get(
+                            "status"
+                        ) not in (
+                            None,
+                            "completed",
+                        ):
+                            raise Failed(
+                                1,
+                                self._argv,
+                                said,
+                                json.dumps(ended.get("error") or ended.get("status")),
+                            )
+                        break
+                    case _:  # the rest of the stream is not this operation's to show
+                        pass
+            with self._routing:  # remembered as over, as a turn is
+                self._ended.setdefault(thread, deque(maxlen=_RECENT_TURNS)).append(mine)
+            yield Event(kind="result", text=said or _DONE.get(method, ""))
 
     def _rose(self, thread: str, told: Mapping[str, Any]) -> Usage | None:
         """What one `thread/tokenUsage/updated` says the thread has spent since the last.
@@ -1863,21 +1903,22 @@ class _AppServer:
         )
 
     def _approve(self, message: dict[str, Any]) -> None:
-        """Answers something the agent asked to be allowed to do, as its rung says.
+        """Answers something the agent asked to be allowed to do, as its grant says.
 
-        At a rung this layer named -- :data:`_GRANTED` -- the answer is yes: the server asks
-        at all only at `auto`, which is the rung that means the asking is granted, and the one
-        place a refusal actually stops an agent doing something is the moment the backend
-        waits on, which is this one. A hook hung on `PERMISSION_REQUEST` gets it first and may
-        say no.
+        For an agent held to a fence the answer is yes: the server asks at all only where it
+        was told to -- :data:`_ASKING` on a machine that forbids full access, `untrusted`
+        while a hook is hung on `PERMISSION_REQUEST` -- and the fence, not the asking, is what
+        holds the grant. The one place a refusal actually stops an agent doing something is
+        the moment the backend waits on, which is this one, so a hook hung on
+        `PERMISSION_REQUEST` gets it first and may say no.
 
-        At no rung the answer is no. Codex opened that thread at its own defaults and asks
-        over them, and Humanize -- told nothing about this agent -- has nothing to say yes
-        with. The hook is still fired there, so a flow watching its agent sees the moment and
-        can put its own words on the refusal; what it cannot do is turn one round, `Verdict`
-        carrying a refusal and no yes at all. So the answer at that rung is no either way, in
-        the hook's words where it gave any, which Codex ends as a turn that ran and did not do
-        the thing.
+        For an agent with no fence the answer is no. Codex opened that thread at its own
+        defaults and asks over them, and Humanize -- told nothing about this agent -- has
+        nothing to say yes with. The hook is still fired there, so a flow watching its agent
+        sees the moment and can put its own words on the refusal; what it cannot do is turn
+        one round, `Verdict` carrying a refusal and no yes at all. So the answer there is no
+        either way, in the hook's words where it gave any, which Codex ends as a turn that ran
+        and did not do the thing.
 
         The three requests take two shapes of answer: a decision for a command and for a file
         change, and the permissions themselves for a request to widen the sandbox -- where
@@ -1910,10 +1951,10 @@ class _AppServer:
             if self._agents
             else None
         )
-        # A hook's no, or a rung nobody named -- and where there are no agents left to ask,
-        # the rung is unreadable too, which is a request nothing here is driving and so one
-        # more thing not to grant.
-        granted = bool(self._agents) and (self._agents[0].config.permission in _GRANTED)
+        # A hook's no, or an agent with no fence -- and where there are no agents left to
+        # ask, the grant is unreadable too, which is a request nothing here is driving and so
+        # one more thing not to grant.
+        granted = bool(self._agents) and self._agents[0].config.fence is not None
         refused = not granted or (asking is not None and asking.refused)
         if message["method"] == _APPROVALS[2]:
             answer: dict[str, Any] = (
@@ -2072,7 +2113,7 @@ def _features(given: Sequence[tuple[str, bool]]) -> tuple[tuple[str, bool], ...]
       ValueError: If a name is empty, too long, not a bare lower-case identifier, repeated,
         or one the flow has already been asked -- `goals`, which is
         :attr:`hmz.coganchor.agents.config.AgentConfig.goals`, or anything beginning with one
-        of :data:`_ANSWERED`, which is what `web_search` and `permission` say.
+        of :data:`_ANSWERED`, which is what `web_search` and `fence` say.
     """
     held: list[tuple[str, bool]] = []
     seen: set[str] = set()
@@ -2096,7 +2137,7 @@ def _features(given: Sequence[tuple[str, bool]]) -> tuple[tuple[str, bool], ...]
         if name.startswith(_ANSWERED):
             raise ValueError(
                 f"{name} is what the agent may reach for, which the flow says as "
-                "AgentConfig(web_search=...) and AgentConfig(permission=...) where it "
+                "AgentConfig(web_search=...) and AgentConfig(fence=...) where it "
                 "declares the place -- a feature is not a second place for it"
             )
         if name in seen:
@@ -2128,14 +2169,16 @@ class CodexAgentConfig(AgentConfig):
         :attr:`~hmz.coganchor.agents.config.AgentConfig.goals`, and the browser, the computer
         and the web families are
         :attr:`~hmz.coganchor.agents.config.AgentConfig.web_search` and
-        :attr:`~hmz.coganchor.agents.config.AgentConfig.permission` -- see :data:`_ANSWERED`.
-      approvals: Codex's own approval policy, in place of the one the rung comes with, or ""
-        for the rung's. Asked for by a caller that wants every command put to it first while
-        the sandbox stays where the rung puts it -- `untrusted` at `bypass` is full access
-        with nothing but a known-safe read run unasked, and every request answered by this
-        client, which grants it unless a hook hung on `PERMISSION_REQUEST` refuses. A policy
-        said here is kept on an installation that refuses the rung's sandbox, at the rung the
-        sandbox is stepped down to.
+        :attr:`~hmz.coganchor.agents.config.AgentConfig.fence` -- see :data:`_ANSWERED`.
+      approvals: Codex's own approval policy, in place of the `never` the fence is told with
+        (:func:`sandboxing`), or "" for that. Asked for by a caller that wants every command
+        put to it first while the sandbox stays where the fence puts it -- `untrusted` under a fence
+        that writes somewhere is full access with nothing but a known-safe read run unasked,
+        and every request answered by this client, which grants it unless a hook hung on
+        `PERMISSION_REQUEST` refuses. A policy said here is kept on an installation that
+        refuses `danger-full-access`, in the sandbox it is stepped down to -- but for `never`,
+        which is read as "" there and everywhere; an agent with no fence is told nothing,
+        this included.
       unsandboxed: The fake command lines (:meth:`~hmz.coganchor.agents.SessionBase.shelves`)
         Codex runs outside its own sandbox, each by an execpolicy rule in the virtual home
         (:func:`_ruled`). Codex's `read-only` sandbox refuses the socket a fake command line
@@ -2187,6 +2230,117 @@ class CodexAgentConfig(AgentConfig):
         object.__setattr__(self, "features", _features(self.features))
 
 
+#: What an operation that prints nothing is answered with, in the words Codex's own interface
+#: says it in.
+_DONE = {"thread/compact/start": "Context compacted"}
+
+#: The `/` commands of Codex's own prompt that hmz serves by calling the app server, with what
+#: each does, in the words of Codex's own list where it has one (codex-cli 0.163.0).
+_CALLED_COMMANDS = (
+    ("compact", "summarize conversation to prevent hitting the context limit"),
+    ("review", "review my current changes and find issues"),
+    ("rename", "rename the current thread"),
+    ("model", "choose what model to use from the next turn on"),
+    ("effort", "choose what reasoning effort to use from the next turn on"),
+)
+
+#: The `/` commands of Codex's own prompt that are a dialog, a picker or a setting of its own
+#: interactive interface, which the app server has no call for (codex-cli 0.163.0). The ones a
+#: frontend keeps for hmz -- `/clear`, `/resume`, `/exit`, `/quit`, `/btw` and the rest of
+#: `protocol/core.md` 8.9.7 -- and the ones that are a conversation of their own rather than a
+#: turn of this one -- `/new`, `/fork`, `/archive` -- are no entry of the catalogue at all.
+_INTERACTIVE = (
+    "permissions",
+    "approvals",
+    "mcp",
+    "apps",
+    "plugins",
+    "hooks",
+    "memories",
+    "skills",
+    "experimental",
+    "status",
+    "diff",
+    "theme",
+    "statusline",
+    "title",
+    "keymap",
+    "vim",
+    "logout",
+    "feedback",
+)
+
+#: What a refused command is said to be.
+_REFUSED = "served only by Codex's own interactive interface"
+
+#: The files an `@` names that go as an image rather than as a mention, by suffix.
+_IMAGES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"})
+
+#: A `/` command as typed: its name, and whatever follows it. A first word with another `/` in
+#: it is a path rather than a command, and is not matched.
+_SLASH = re.compile(r"/([A-Za-z0-9_-]+)(?:\s+(.*))?", re.DOTALL)
+
+#: A `$` skill and an `@` path, each at the start of a word.
+_DOLLAR = re.compile(r"(?<!\S)\$([A-Za-z0-9_.:-]+)")
+_AT = re.compile(r"(?<!\S)@(\S+)")
+
+
+@dataclass(frozen=True)
+class _Skill:
+    """One skill of Codex's own, as `skills/list` says it."""
+
+    name: str
+    path: str
+    about: str
+
+
+@dataclass(frozen=True)
+class _Served:
+    """How one native line is served.
+
+    Attributes:
+      method: The app server's call that serves it -- `turn/start`, `review/start`,
+        `thread/shellCommand`, `thread/compact/start` or `thread/name/set` -- or "" for a line
+        answered with :attr:`said` and nothing called.
+      params: What that call is made with, besides the thread.
+      said: What a line nothing is called for is answered with.
+      line: What a turn of the model is given.
+      native: Whether that turn is a native line, whose skills and files go beside it as
+        items of their own.
+    """
+
+    method: str
+    params: dict[str, Any] = field(default_factory=dict[str, Any])
+    said: str = ""
+    line: str = ""
+    native: bool = False
+
+
+def _target(args: str) -> dict[str, Any]:
+    """What `/review` is to review, out of what was typed after it.
+
+    Codex's own `/review` offers four targets in a picker, and typed they are its entries'
+    words: nothing for the working tree's uncommitted changes, `base <branch>` for the changes
+    against a base branch, `commit <sha>` for one commit, and anything else as the review's
+    own instructions.
+
+    Args:
+      args: What followed `/review`.
+
+    Returns:
+      The `target` of `review/start`.
+    """
+    words = args.split()
+    if not words:
+        return {"type": "uncommittedChanges"}
+    head = words[0].lower().lstrip("-")
+    if len(words) == 2 and head in ("base", "branch"):  # noqa: PLR2004
+        return {"type": "baseBranch", "branch": words[1]}
+    if len(words) == 2 and head == "commit":  # noqa: PLR2004
+        return {"type": "commit", "sha": words[1]}
+    return {"type": "custom", "instructions": args.strip()}
+
+
 class CodexSession(SessionBase):
     """A Codex conversation, held as a thread by the app server the agent runs.
 
@@ -2232,6 +2386,252 @@ class CodexSession(SessionBase):
         #: Where this conversation was last picked up, asked for again by name when the next
         #: turn wants a server: a thread taken to another one is read back off the disk there.
         self._on: _AppServer | None = None
+        #: The model this conversation was moved to by a `/model` of a chat, or None for the
+        #: agent's own.
+        self._model: str | None = None
+        #: Codex's own skills for this conversation's workspace, by name, as `skills/list`
+        #: last said them; None until asked, and again whenever a conversation opens.
+        self._listed: dict[str, _Skill] | None = None
+        #: Where this conversation's last turn of the model was sent, and the sandbox policy
+        #: it was sent, which the thread keeps for the turns after -- a review's included.
+        self._policed: tuple[_AppServer, str, str] | None = None
+
+    @property
+    def model(self) -> str:
+        """The model the next turn of this conversation runs on.
+
+        The agent's, unless a `/model` said in a chat has moved this conversation to another.
+        """
+        return self._model or self._agent.config.model
+
+    def fork(
+        self,
+        *,
+        into: AgentBase | None = None,
+        cwd: str | os.PathLike[str] | None = None,
+    ) -> SessionBase:
+        """A second conversation carrying this one's history, on the model this one is on.
+
+        As :meth:`SessionBase.fork`, which carries the effort a conversation has got to: the
+        model a `/model` moved it to goes with it too.
+        """
+        made = super().fork(into=into, cwd=cwd)
+        if isinstance(made, CodexSession):
+            made._model = self._model
+        return made
+
+    def natives(self) -> list[NativeCommand]:
+        """Codex's native input, as its app server can be asked for it.
+
+        Its skills for this conversation's workspace as `$`, each sent as a skill input item;
+        `@` for a file, sent as a mention or, for an image, as the image; `!` for a command,
+        run by the app server's own `thread/shellCommand` -- unless Codex's own sandbox is what
+        holds this agent's fence (:meth:`CodexAgent.holds`), where nothing around Codex holds
+        a command that call runs unsandboxed, and `!` is left to the chat to emulate inside
+        the fence; the `/` commands the app server has a call for; and its interactive
+        interface's own `/` commands, refused.
+
+        Returns:
+          The catalogue. The skills are listed once and again after a conversation opens; a
+          Codex that cannot be asked for them yet has none listed.
+        """
+        fence = self._agent.config.fence
+        held = fence is not None and self._agent.holds(fence)
+        return [
+            *(
+                NativeCommand(sigil="$", name=one.name, about=one.about, how="call")
+                for one in self._listing().values()
+            ),
+            NativeCommand(sigil="@", name="", about="mention a file", how="call"),
+            NativeCommand(
+                sigil="!",
+                name="",
+                about="run a shell command",
+                how="emulate" if held else "call",
+            ),
+            *(
+                NativeCommand(sigil="/", name=name, about=about, how="call")
+                for name, about in _CALLED_COMMANDS
+            ),
+            *(
+                NativeCommand(sigil="/", name=name, about=_REFUSED, how="refuse")
+                for name in _INTERACTIVE
+            ),
+        ]
+
+    def _listing(self) -> dict[str, _Skill]:
+        """Codex's own skills for this conversation's workspace, by name.
+
+        Asked of the server this conversation is on, or of any of the agent's where it is on
+        none yet; and asked again once a conversation opens (:meth:`_thread`), which is where
+        Codex reads a workspace's skills afresh.
+
+        Returns:
+          Every enabled skill, the first of a name where two scopes have one; none where the
+          server cannot be asked, which is not remembered.
+        """
+        if self._listed is not None:
+            return self._listed
+        try:
+            server = self._on or self._agent.server
+            answered: dict[str, Any] = (
+                server.call("skills/list", {"cwds": [self._workspace()]}) or {}
+            )
+        except (Failed, OSError, ValueError):
+            return {}
+        listed: dict[str, _Skill] = {}
+        entries: list[dict[str, Any]] = answered.get("data") or []
+        for entry in entries:
+            skills: list[dict[str, Any]] = entry.get("skills") or []
+            for one in skills:
+                name = str(one.get("name") or "")
+                if not name or one.get("enabled") is False or name in listed:
+                    continue
+                interface: dict[str, Any] = one.get("interface") or {}
+                about = str(
+                    interface.get("shortDescription")
+                    or one.get("shortDescription")
+                    or one.get("description")
+                    or ""
+                )
+                listed[name] = _Skill(name, str(one.get("path") or ""), about)
+        self._listed = listed
+        return listed
+
+    def _served(self, prompt: str) -> _Served:
+        """How a turn's prompt is served: as text, or -- in a native turn -- as Codex would.
+
+        A native line is read as Codex's own prompt reads it. `!<command>` is the app server's
+        shell command, run on the thread with no turn of the model; `/compact`, `/review`,
+        `/rename`, `/model` and `/effort` are the server's own calls or this conversation's
+        settings; a `/` command only Codex's interactive interface serves is refused, and one
+        Codex has never heard of is answered as Codex answers it. Anything else is a turn whose
+        input carries, beside the line itself, a skill item for every `$<skill>` in it and a
+        mention -- or an image -- for every `@<path>` that names a file.
+
+        What a command reads is the line's first paragraph: whatever the turn was handed after
+        it -- words put in while nobody was working, or what a hook added -- is not a command,
+        and is not run as one.
+
+        Args:
+          prompt: What the turn was given.
+
+        Returns:
+          How to serve it.
+        """
+        if not self.native_turn:
+            return _Served("turn/start", line=prompt)
+        line = prompt.split("\n\n", 1)[0].strip()
+        fence = self._agent.config.fence
+        if line.startswith("!") and line[1:].strip():
+            if fence is None or not self._agent.holds(fence):
+                return _Served("thread/shellCommand", {"command": line[1:].strip()})
+        elif (slash := _SLASH.fullmatch(line)) is not None:
+            return self._commanded(slash[1], (slash[2] or "").strip())
+        return _Served("turn/start", line=prompt, native=True)
+
+    def _commanded(self, name: str, args: str) -> _Served:
+        """How one `/` command of a native line is served.
+
+        Args:
+          name: The command, without its `/`.
+          args: What followed it.
+
+        Returns:
+          How to serve it.
+        """
+        match name:
+            case "compact":
+                return _Served("thread/compact/start")
+            case "review":
+                return _Served(
+                    "review/start", {"target": _target(args), "delivery": "inline"}
+                )
+            case "rename" if args:
+                return _Served("thread/name/set", {"name": args})
+            case "rename":
+                return _Served("", said="/rename needs the thread's new name")
+            case "model":
+                return self._shifted(*args.split(maxsplit=1))
+            case "effort":
+                return self._shifted(self.model, args) if args else self._shifted()
+            case _ if name in _INTERACTIVE:
+                return _Served("", said=f"/{name} is {_REFUSED}")
+            case _:
+                # What Codex's own prompt answers a command it has no entry for with, rather
+                # than sending it to the model.
+                return _Served(
+                    "",
+                    said=f"Unrecognized command '/{name}'. "
+                    'Type "/" for a list of supported commands.',
+                )
+
+    def _shifted(self, model: str = "", effort: str = "") -> _Served:
+        """Moves this conversation to another model or effort, from the next turn on.
+
+        Args:
+          model: The model, or "" to say what it is now rather than move it.
+          effort: The effort, in Codex's own words, or "" to leave it.
+
+        Returns:
+          What the line is answered with: what the conversation now runs at.
+        """
+        if model:
+            if effort:
+                try:
+                    self.effort = effort
+                except ValueError as refused:
+                    return _Served("", said=str(refused))
+            self._model = None if model == self._agent.config.model else model
+        said = f"model {self.model}, effort {self.effort or 'Codex default'}"
+        return _Served("", said=f"{said}, from the next turn on" if model else said)
+
+    def _inputs(self, prompt: str, text: dict[str, Any]) -> list[dict[str, Any]]:
+        """The input of a native turn: the line, and an item for each skill and file it names.
+
+        Ordered as Codex's own prompt orders them: the images, the text, the skills, the
+        mentions. The text is the line whole, `$` and `@` included, as Codex's own prompt
+        sends it beside the items it names.
+
+        Only the line's own first paragraph is read for them: what the turn was handed after
+        it -- words put in while nobody was working, or what a hook added -- names nothing on
+        the person's behalf.
+
+        Args:
+          prompt: The line, and whatever the turn was handed after it.
+          text: The text item of it.
+
+        Returns:
+          The `input` of `turn/start`.
+        """
+        images: list[dict[str, Any]] = []
+        mentions: list[dict[str, Any]] = []
+        named: set[str] = set()
+        line = prompt.split("\n\n", 1)[0]
+        for word in _AT.findall(line):
+            raw = str(word).rstrip(",.;:!?)]}'\"")
+            given = local = Path(raw)
+            try:
+                given = Path(raw).expanduser()
+                local = given if given.is_absolute() else Path(self.cwd, given)
+                there = bool(raw) and local.exists()
+            except (OSError, RuntimeError):  # `~nobody`, or a name no file could have
+                there = False
+            if not there or raw in named:
+                continue  # not a file: an `@` that names none is text
+            named.add(raw)
+            sent = str(local if given.is_absolute() else Path(self._workspace(), given))
+            if local.suffix.lower() in _IMAGES:
+                images.append({"type": "localImage", "path": sent})
+            else:
+                mentions.append({"type": "mention", "name": local.name, "path": sent})
+        listed = self._listing() if _DOLLAR.search(line) is not None else {}
+        skills = [
+            {"type": "skill", "name": skill.name, "path": skill.path}
+            for name in dict.fromkeys(_DOLLAR.findall(line))
+            if (skill := listed.get(str(name))) is not None
+        ]
+        return [*images, text, *skills, *mentions]
 
     def _stream(
         self, prompt: str, *, schema: type[BaseModel] | None = None
@@ -2249,6 +2649,11 @@ class CodexSession(SessionBase):
         Raises:
           subprocess.CalledProcessError: If the turn was refused, or the server stopped.
         """
+        served = self._served(prompt)
+        if not served.method:
+            # Answered here: a setting of this conversation, or a command Codex would not run.
+            yield Event(kind="result", text=served.said)
+            return
         with self._lock:  # a conversation is a sequence: one turn at a time
             # Taken once and held for the whole turn: asking the agent for a server again may
             # be starting another one, and the thread this turn is on is the first one's.
@@ -2290,21 +2695,7 @@ class CodexSession(SessionBase):
                 # says this one is shared, so the watchdog puts it down through `_lets_go`
                 # rather than signalling it out from under the agent's other conversations.
                 with Watchdog(self, riding=lambda: server._proc) as watch:
-                    for event in server.turn(
-                        {
-                            "threadId": thread,
-                            "input": [{"type": "text", "text": prompt}],
-                            "model": self._agent.config.model,
-                            **_thinking(self.effort),
-                            **(
-                                {"outputSchema": strict(schema.model_json_schema())}
-                                if schema is not None
-                                else {}
-                            ),
-                            **self._turned(server),
-                        },
-                        self._running,
-                    ):
+                    for event in self._served_on(server, thread, served, schema):
                         watch.saw()
                         if event.kind == "result":
                             said, spent, costing = event.text, event.tokens, event.spent
@@ -2337,6 +2728,77 @@ class CodexSession(SessionBase):
             self._adopt(thread)  # a turn has landed, so the session is open
             yield Event(kind="result", text=said, tokens=spent, spent=costing)
 
+    def _served_on(
+        self,
+        server: _AppServer,
+        thread: str,
+        served: _Served,
+        schema: type[BaseModel] | None,
+    ) -> Iterator[Event]:
+        """Makes the call a turn is served by, saying what it says.
+
+        Args:
+          server: The server the turn is taken on.
+          thread: The thread it is on.
+          served: How it is served.
+          schema: The shape to answer in, which only a turn of the model is asked for.
+
+        Yields:
+          What the call said, ending on its `result`.
+        """
+        params = {"threadId": thread, **served.params}
+        turned = self._turned(server)
+        policy = json.dumps(turned.get("sandboxPolicy"), sort_keys=True)
+        match served.method:
+            case "turn/start":
+                text = {"type": "text", "text": served.line}
+                yield from server.turn(
+                    params
+                    | {
+                        "input": self._inputs(served.line, text)
+                        if served.native
+                        else [text],
+                        "model": self.model,
+                        **_thinking(self.effort),
+                    }
+                    | (
+                        {"outputSchema": strict(schema.model_json_schema())}
+                        if schema is not None
+                        else {}
+                    )
+                    | turned,
+                    self._running,
+                )
+                # Kept by the thread for every turn after, a review's among them.
+                self._policed = (server, thread, policy)
+            case "review/start" if "sandboxPolicy" in turned and self._policed != (
+                server,
+                thread,
+                policy,
+            ):
+                # `review/start` takes no sandbox of its own: it runs at what the thread's
+                # last turn was sent. A thread no turn has yet been held to the fence on
+                # would run it at the bare rung, which is wider than the fence.
+                yield Event(
+                    kind="result",
+                    text="/review runs at what this conversation's last turn was held to, "
+                    "and no turn of it here has been held to its fence yet: say something "
+                    "first, then review",
+                )
+            case "review/start":
+                # A review is a turn of the thread's own, on what the thread last ran on.
+                for event in server.turn(params, self._running, served.method):
+                    if event.kind == "result" and event.tokens:
+                        event = dataclasses.replace(  # noqa: PLW2901
+                            event, tokens={self.model: sum(event.tokens.values())}
+                        )
+                    yield event
+            case "thread/name/set":
+                server.call(served.method, params)
+                yield Event(kind="result", text=f"renamed to {served.params['name']}")
+            case _:
+                yield from server.operate(served.method, params, self._spends)
+
     def interject(self, text: str) -> None:
         """Steers the turn under way, which the server takes into the turn it is running.
 
@@ -2365,10 +2827,13 @@ class CodexSession(SessionBase):
     def _permitted(self, server: _AppServer) -> dict[str, Any]:
         """What this session's calls tell the server the agent may do, and who is asked.
 
-        The rung's own settings, as the server will take them, with the approval policy the
-        config says in place of the rung's where it says one: a sandbox is the rung's, and
-        whether the server asks before a command is something a flow may want a say in
-        without the sandbox moving.
+        What the fence says (:meth:`_AppServer.permitted`), as the server will take it, with
+        the approval policy the config says in place of `never` where it says one: the
+        sandbox is the fence's, and whether the server asks before a command is something a
+        flow may want a say in without the sandbox moving. A config saying `never` says what
+        the fence is told already, and is read as saying nothing -- so that on a machine that
+        forbids full access every turn asks as :data:`_ASKING` does, the first that found
+        out (:meth:`_AppServer._stepped`) and every one after it alike.
 
         Args:
           server: The server the call is made on.
@@ -2377,25 +2842,28 @@ class CodexSession(SessionBase):
           The settings to send.
         """
         config = self._agent.config
-        rung = server.permitted(config.permission, config.service_tier)
+        settings = server.permitted(config.fence, config.service_tier)
         asked = str(getattr(config, "approvals", ""))
-        if asked and "approvalPolicy" in rung:
-            rung["approvalPolicy"] = asked
-        return rung
+        if (
+            asked not in ("", _WRITING["approvalPolicy"])
+            and "approvalPolicy" in settings
+        ):
+            settings["approvalPolicy"] = asked
+        return settings
 
     def _turned(self, server: _AppServer) -> dict[str, Any]:
         """What a turn of this session tells the server the agent may do.
 
-        The rung's settings less those only a thread takes (:func:`turning`), and one more
-        where the turn lands on another machine whose fence holds the rung, or on this Linux
-        or Mac one where a fence is held around Codex at all -- the sandbox left to that fence
-        (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
-        fence it is held to grants the network. Codex's
-        `read-only` sandbox cuts a command's network as well as its writes, which is narrower
-        than a permission that reads its workdir and reaches the web: so such a turn is sent
-        :data:`_REACHING`, the same sandbox with the network left to its commands. Held by the
-        Landlock sandbox a fenced thread runs (:data:`_LANDLOCK`) as it holds the bare rung --
-        on codex-cli 0.153.4 a `curl` under it answers 200 and a `touch` is refused.
+        The thread's settings less those only a thread takes (:func:`turning`), and one more
+        where the turn lands on another machine whose fence holds the sandbox, or on this
+        Linux or Mac one where a fence is held around Codex at all -- the sandbox left to that
+        fence (:data:`_EXTERNAL`) -- or where the sandbox is `read-only` and the fence it is
+        held to grants the network. Codex's `read-only` sandbox cuts a command's network as
+        well as its writes, which is narrower than a fence that writes nothing and reaches the
+        web: so such a turn is sent :data:`_REACHING`, the same sandbox with the network left
+        to its commands. Held by the Landlock sandbox a fenced thread runs (:data:`_LANDLOCK`)
+        as it holds the bare sandbox -- on codex-cli 0.153.4 a `curl` under it answers 200 and
+        a `touch` is refused.
 
         Args:
           server: The server the turn is taken on.
@@ -2403,8 +2871,8 @@ class CodexSession(SessionBase):
         Returns:
           The settings to send with `turn/start`.
         """
-        rung = self._permitted(server)
-        said = turning(rung)
+        settings = self._permitted(server)
+        said = turning(settings)
         config = self._agent.config
         fence = config.fence
         if fence is not None and self._agent.holds(fence):
@@ -2415,13 +2883,16 @@ class CodexSession(SessionBase):
                     "asks: that holds the commands the agent runs, reading everything, and "
                     "not Codex itself, its MCP servers or its hooks"
                 )
-        # Read off the rung as this server runs it, after any step down: a rung stepped down
-        # to `read-only` is one whose network the permission may still grant.
-        elif _abroad(config, rung.get("sandbox")) and fence is not None:
+        # Read off the sandbox as this server runs it, after any step down.
+        elif _abroad(config, settings.get("sandbox")) and fence is not None:
             said["sandboxPolicy"] = _EXTERNAL | {
                 "networkAccess": "enabled" if fence.online else "restricted"
             }
-        elif rung.get("sandbox") == "read-only" and fence is not None and fence.online:
+        elif (
+            settings.get("sandbox") == _READING["sandbox"]
+            and fence is not None
+            and fence.online
+        ):
             said["sandboxPolicy"] = dict(_REACHING)
         return said
 
@@ -2435,15 +2906,15 @@ class CodexSession(SessionBase):
         Returns:
           The thread's id, which is also the session's.
         """
-        rung = self._permitted(server)
+        settings = self._permitted(server)
         # A thread opened for a turn that failed is still this conversation, though no turn
         # has landed on it yet: taken again on it rather than on another -- a fork's child
         # rather than another child -- so that what that turn did is still in it.
         if (thread := self._id or self._running.thread) is None:
             opened = {
                 "cwd": self._workspace(),
-                "model": self._agent.config.model,
-                **rung,
+                "model": self.model,
+                **settings,
             }
             started = str(
                 server.call(
@@ -2456,36 +2927,38 @@ class CodexSession(SessionBase):
                 if self._forked_from is not None
                 else server.call("thread/start", opened)["thread"]["id"]
             )
-            server.holding(started, rung, self)
+            server.holding(started, settings, self)
+            self._listed = None  # a conversation opens: its skills are asked for afresh
             return started
-        if server.holds(thread, rung):
-            # Already open here, at exactly the rung this turn asks for -- which is the whole
+        if server.holds(thread, settings):
+            # Already open here, under exactly what this turn asks for -- which is the whole
             # of what `holds` says, so there is nothing left to tell it. Picking a thread up
             # reads it off the disk again, minutes of conversation read back to say what it
             # already says, and saying it again here would change nothing but the wait.
             return thread
         # Said again on the way back in: a thread picked up is picked up under the settings it
-        # was left with, and this session's rung is what its agent is configured for now.
-        server.call("thread/resume", {"threadId": thread, **rung})
-        server.holding(thread, rung, self)
+        # was left with, and this session's are what its agent's fence says now.
+        server.call("thread/resume", {"threadId": thread, **settings})
+        server.holding(thread, settings, self)
+        self._listed = None
         return thread
 
     def _steps(self, server: _AppServer) -> None:
-        """Says, once for the agent, that this machine's Codex runs it a rung down.
+        """Says, once for the agent, that this machine's Codex will not give it full access.
 
-        Where the server has stepped the agent's rung down -- for this call or for another
-        agent's on it -- and nobody has said so for this agent yet: on a server it started
-        before, or one it starts after, the agent is told once and no more.
+        Where the server has stepped the agent down from `danger-full-access` to
+        :data:`_ASKING` -- for this call or for another agent's on it -- and nobody has said
+        so for this agent yet: on a server it started before, or one it starts after, the
+        agent is told once and no more.
 
         Args:
           server: The server the thread was just opened or picked up on.
         """
-        asked = self._agent.config.permission
-        instead = server._instead.get(asked, asked)
-        if instead != asked and self._agent._stepped(asked):
+        wanted = sandboxing(self._agent.config.fence).get("sandbox")
+        if wanted == _FULL and server._forbids and self._agent._stepped(_FULL):
             self._narrates(
-                f"codex: this machine will not run an agent at {asked}, so it runs at"
-                f" {instead}, where what it asks for is granted"
+                f"codex: this machine will not run an agent at {_FULL}, so it runs at "
+                f"{_ASKING['sandbox']}, where what it asks for is granted"
             )
 
     def _lets_go(self) -> None:
@@ -2516,7 +2989,6 @@ class CodexSession(SessionBase):
             server = self._agent._taken(self._on)
             try:
                 self._on = server
-                config = self._agent.config
                 thread = self._thread(server)
                 self._steps(server)
                 if self._id is None:
@@ -2535,7 +3007,7 @@ class CodexSession(SessionBase):
                         {
                             "threadId": thread,
                             "input": [{"type": "text", "text": objective}],
-                            "model": config.model,
+                            "model": self.model,
                             **_thinking(self.effort),
                             **self._turned(server),
                         },
@@ -2601,10 +3073,11 @@ def _ruled(home: Path, names: list[str]) -> None:
 class CodexAgent(AgentBase):
     """Codex, driven over the app server so that a turn can be steered while it runs.
 
-    Every moment a turn passes through, and one more: at the rung where the agent may ask for
-    more than it has, the server asks and waits for the answer -- so that is the one place a
-    hook here can say no to something and have the agent hear it. At every other rung it is
-    never asked, and a hook hung on that moment never fires.
+    Every moment a turn passes through, and one more: where the agent may ask for more than
+    it has -- approval `untrusted` while a hook is hung on `PERMISSION_REQUEST`, or
+    :data:`_ASKING` on a machine that forbids full access -- the server asks and waits for the
+    answer, so that is the one place a hook here can say no to something and have the agent
+    hear it. Everywhere else it is never asked, and a hook hung on that moment never fires.
     """
 
     moments: ClassVar[frozenset[Moment]] = (
@@ -2648,23 +3121,24 @@ class CodexAgent(AgentBase):
         #: one dropped for an account that moved is still up and still holding conversations.
         self._ever = False
         self._serving = threading.Lock()
-        #: The rungs this machine's Codex was found to refuse that the agent has been told it
-        #: runs below, so that it is told once whatever server found it out.
+        #: The sandboxes this machine's Codex was found to refuse that the agent has been told
+        #: it runs below, and :data:`_NATIVE`, so that it is told once whatever server found
+        #: it out.
         self._stepping: set[str] = set()
 
-    def _stepped(self, permission: str) -> bool:
-        """Notes that the agent has been told its rung is run a rung down here.
+    def _stepped(self, refused: str) -> bool:
+        """Notes that the agent has been told it runs below what it was meant to here.
 
         Args:
-          permission: The rung refused.
+          refused: The sandbox refused, or :data:`_NATIVE`.
 
         Returns:
           Whether this is the first it has been told of it, and so something to say.
         """
         with self._serving:
-            if permission in self._stepping:
+            if refused in self._stepping:
                 return False
-            self._stepping.add(permission)
+            self._stepping.add(refused)
             return True
 
     def disable_goals(self) -> None:
@@ -2984,7 +3458,7 @@ class CodexAgent(AgentBase):
             # system proxy would reach.
             if not self._native() and _offered(_SYSTEM_PROXY):
                 argv += ["--disable", _SYSTEM_PROXY]
-        sandboxed = _PERMITTED.get(self.config.permission, {}).get("sandbox")
+        sandboxed = sandboxing(fence).get("sandbox")
         if (
             self.config.machine is None
             and _LANDLOCK not in dict(features)
@@ -2993,11 +3467,11 @@ class CodexAgent(AgentBase):
                 or (sandboxed in _SANDBOXED and _landlocked())
             )
         ):
-            # Inside the fence, at every rung: a process Landlock holds may not mount
+            # Inside the fence, whatever it writes: a process Landlock holds may not mount
             # anything, and bubblewrap cannot build its sandbox without mounting, so there it
-            # fails wherever it runs -- at the rung asked for, or at the one a Codex whose
-            # requirements forbid it steps a thread down to, `bypass` included. Outside it,
-            # at a rung with a sandbox, where this machine lends bubblewrap no user namespace.
+            # fails wherever it runs -- in the sandbox asked for, or in the one a Codex whose
+            # requirements forbid full access steps a thread down to. Outside it, in a sandbox
+            # Codex holds itself, where this machine lends bubblewrap no user namespace.
             # Either way a `read-only` thread would otherwise refuse every command it holds.
             # Not said where the flow named the feature either way, nor for a turn that lands
             # on another machine, whose sandbox is that machine's to start.

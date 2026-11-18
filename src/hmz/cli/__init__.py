@@ -2,11 +2,13 @@
 
     hmz
     hmz exec -f ralph_loop -a coder=claude/MODEL:high -p budget.cost=5 "$(cat TASK.md)"
+    hmz chat -a claude/MODEL:high "what does this repository do?"
 
-A few commands anybody types -- running a flow, serving the web interface, backing an epic up
-to git repositories, and moving Humanize itself to its newest release -- and everything else
-Humanize keeps is walked at the prompt: a listing with a noun in it for every store would be a
-second interface to learn, and the one with the sheets in it is the interface.
+A few commands anybody types -- running a flow, saying one message to an agent, serving the web
+interface, backing an epic up to git repositories, and moving Humanize itself to its newest
+release -- and everything else Humanize keeps is walked at the prompt: a listing with a noun in
+it for every store would be a second interface to learn, and the one with the sheets in it is
+the interface.
 
 The other command in the listing is `hmz internal`, which is the six lines Humanize spawns
 for itself gathered under one name. They are listed rather than hidden because a command
@@ -19,11 +21,11 @@ A command imports what it needs when it is the one asked for, and no earlier: `h
 not pay for the terminal interface it is not opening.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
-one of them costs nothing for the others -- which is what `web.py`, `update.py`, `backup.py`,
-and `cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are. The other
-three -- `anchor`, `cred` and `fence` -- are `coganchor`'s, which this process becomes. `exec`
-has none: the line it takes is read by :func:`hmz.runtime.runner.read_line`, since the
-terminal interface starts a flow from the same parts.
+one of them costs nothing for the others -- which is what `chat.py`, `web.py`, `update.py`,
+`backup.py`, and `cli.py`, `hook.py` and `tools.py`, three of the six under `hmz internal`, are.
+The other three -- `anchor`, `cred` and `fence` -- are `coganchor`'s, which this process
+becomes. `exec` has none: the line it takes is read by :func:`hmz.runtime.runner.read_line`,
+since the terminal interface starts a flow from the same parts.
 
 :mod:`hmz.cli.output` is the one module every command may reach: who is reading -- somebody at
 a terminal, or a program -- is one question rather than one per command, and it costs nothing
@@ -135,7 +137,7 @@ def _executes(argv: list[str]) -> int:
     from hmz.runtime import Refused
     from hmz.sdk import Hmz
 
-    from .output import Out, Shown
+    from .output import Out, Shown, unreached
 
     hmz = Hmz()
     # If it has been answered yes, and never otherwise: a run with nobody at a terminal is a
@@ -170,7 +172,7 @@ def _executes(argv: list[str]) -> int:
             print(f"hmz exec: error: {error}", file=sys.stderr)
             raise SystemExit(2) from error
         except OSError as error:
-            print(_unreached(error), file=sys.stderr)
+            print(unreached(error), file=sys.stderr)
             raise SystemExit(1) from error
         ended: list[int] = []
         running.watch(shown.heard)
@@ -194,7 +196,7 @@ def _executes(argv: list[str]) -> int:
             print(f"hmz exec: error: {error}", file=sys.stderr)
             raise SystemExit(2) from error
         except OSError as error:
-            print(_unreached(error), file=sys.stderr)
+            print(unreached(error), file=sys.stderr)
             raise SystemExit(1) from error
         except (KeyboardInterrupt, SystemExit):
             # Somebody stopping a run is not a run that went wrong.
@@ -265,15 +267,6 @@ def _backs_up(running: Run, say: Callable[[str], object]) -> None:
         return
     finally:
         running.close()
-
-
-def _unreached(error: OSError) -> str:
-    """What `hmz exec` says of a daemon it could not reach, or one of another version."""
-    import errno
-
-    if error.errno == errno.EADDRINUSE:
-        return f"hmz: {error.strerror or error}"
-    return f"hmz: the daemon cannot be reached: {error}"
 
 
 @contextlib.contextmanager
@@ -452,6 +445,20 @@ def _hook(argv: list[str]) -> int:
     from .hook import hook
 
     return hook(argv)
+
+
+def _chat(argv: list[str]) -> int:
+    """Says one message to an agent in this directory, and prints what it answered.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero once the turn is done; one where it failed or the daemon could not be reached.
+    """
+    from .chat import chat
+
+    return chat(argv)
 
 
 def _web(argv: list[str]) -> int:
@@ -701,17 +708,18 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Six are for
-#: anybody: running a flow in a directory, serving the web interface, running, reaching and
-#: pairing this machine's daemon, serving a relay daemons and devices meet through, moving
-#: Humanize itself to its newest release, and backing an epic up from a script -- everything
-#: else Humanize keeps is walked at the prompt rather than typed, a run already held here
-#: included, which `hmz` with no command opens.
+#: Each command, as what carries it out and the line a listing shows it as. Seven are for
+#: anybody: running a flow in a directory, saying one message to an agent there, serving the
+#: web interface, running, reaching and pairing this machine's daemon, serving a relay daemons
+#: and devices meet through, moving Humanize itself to its newest release, and backing an
+#: epic up from a script -- everything else Humanize keeps is walked at the prompt rather
+#: than typed, a run already held here included, which `hmz` with no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
 #: person may type stays short while what Humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
 COMMANDS = {
     "exec": (_exec, "run an agent flow in this directory"),
+    "chat": (_chat, "say one message to an agent in this directory"),
     "web": (_web, "open this machine's epics in a browser on it"),
     "daemon": (_daemon, "run, reach, pair and install this machine's daemon"),
     "relay": (_relay, "relay daemons and the devices that reach them"),

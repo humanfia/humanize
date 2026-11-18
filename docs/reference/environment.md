@@ -175,12 +175,13 @@ watch, and never set.
 | `TERM` | a command run on a target with a terminal | `xterm-256color` unless set |
 | `HUMANIZE_SHADOW` | `coganchor cog` started for a harness on another machine | its mirror: `$HOME/.cache/humanize-mirrors/<sha16>` on an `ssh` machine, `/tmp/humanize-mirrors/<sha16>` in a container (`/tmp/humanize-mirrors-<UID>/<sha16>` for a target naming `user=UID`) |
 | `HUMANIZE_TOKEN` | a local `coganchor anchor --stdio` child | the token |
+| `HUMANIZE_AICHAN_LINK` | the host of an [Ai-chan](/user/ai-chan) conversation, for her conversation on its `ai:` host, which refuses to start without it | the path of the conversation's [scoped link](/reference/daemon#scoped-links) |
 | `COGANCHOR_BINARIES` | every `coganchor` Humanize starts | the package's `hmz/coganchor/bin/` directory, whose `<os>-<arch>/coganchor` builds it copies to other machines |
 | the account's `env` | every turn, sign-in and model listing under an account | from `providers/<cli>/<name>/provider.json` ([Files](/reference/files)); includes fixed values a sign-in way sets (e.g. `CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION=us-east-1`) |
 | a CLI's home variable and `XDG_CONFIG_HOME` | a native turn on another machine under an account whose credential files live in the CLI's home | a per-session `mktemp -d` directory on the target holding copies of those files, removed after the turn |
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | every `claude` turn | `1` |
 | `CLAUDE_CODE_NO_MODEL_FALLBACK` | every `claude` turn, overriding an inherited value | `1`: a refused turn stays on the requested model |
-| `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a rung, web switch or fence to express | a JSON permission table |
+| `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a fence or web switch to express | a JSON permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` turns whose fence does not allow reading `~/.claude.json` | `1` |
 | `MIMO_GATEWAY_MODEL` | `mimo` turns under a gateway account | the turn's model, without a leading `humanize/` |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` turns on this machine, unless already set | `$TMPDIR/humanize-<uid>/compiled/pi`, `…/compiled/qwen` |

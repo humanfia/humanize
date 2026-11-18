@@ -75,9 +75,11 @@ async def test_flow_lists_the_built_in_flows_and_the_workspace_s_own(
         await into_flows(pilot)
 
         listed = rows(app)
-        assert {"chat", "goal", "ralph_loop", OWN} <= set(listed)
+        assert {"goal", "ralph_loop", OWN} <= set(listed)
+        # A chat is no flow, and is set up on the Workspace page of /settings instead.
+        assert "chat" not in listed
         drawn = screen(app)
-        assert "Talks to one agent for as long as you keep answering it." in drawn
+        assert "Takes one turn on the task, and writes down what came of it." in drawn
 
 
 async def test_walking_out_of_flow_without_saving_changes_nothing(
@@ -91,7 +93,7 @@ async def test_walking_out_of_flow_without_saving_changes_nothing(
 
         await leaves(pilot, saving=False)
 
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"◉ {RUNS}")
     assert remembered(tmp_path, workspace) == {}
 
 
@@ -100,16 +102,17 @@ async def test_an_own_flow_given_a_budget_and_saved_runs_and_is_opened_on_next_t
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await shows(pilot, f"coder · {RUNS}")
 
-        await typed(pilot, "make it so")
+        await typed(pilot, f"${OWN} make it so")
         drawn = await shows(pilot, "the flow is done")
 
     assert "heard make it so" in drawn
     assert (workspace / "said.txt").read_text() == "started: heard make it so\n"
     assert remembered(tmp_path, workspace)["flow"] == OWN
     async with Humanize().run_test(size=SIZE) as pilot:
-        await shows(pilot, f"◉ {OWN}", f"coder · {RUNS}")
+        # Set up as it was saved: it starts at once.
+        await typed(pilot, f"/flow {OWN} again")
+        await shows(pilot, "heard again", "the flow is done")
 
 
 async def test_an_effort_picked_for_an_agent_is_what_its_next_turn_starts_at(
@@ -117,22 +120,24 @@ async def test_an_effort_picked_for_an_agent_is_what_its_next_turn_starts_at(
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
-        await into_flows(pilot)
-        await opens(pilot, "chat")
+        await set_up_own_flow(pilot)
+        await typed(pilot, "/flow")
+        await on(pilot, Flows)
+        await opens(pilot, OWN)
         await opens(pilot, "0")  # its one agent
         await on(pilot, Agent)
         await picks(pilot, "effort", "low")
         await shows(pilot, "unsaved changes")
         await leaves(pilot)
-        await shows(pilot, f"claude/{MODEL}:low")
+        await shows(pilot, f"set up: /flow {OWN} <task> starts it")
 
-        await typed(pilot, "hello")
-        await shows(pilot, "heard hello")
+        await typed(pilot, f"/flow {OWN} make it so")
+        await shows(pilot, "heard make it so")
 
     (argv,) = started(workspace)
     assert argv[argv.index("--effort") + 1] == "low"
-    assert remembered(tmp_path, workspace)["flows"] == {
-        "chat": {"agents": {"assistant": f"claude/{MODEL}:low"}}
+    assert remembered(tmp_path, workspace)["flows"][OWN]["agents"] == {
+        "coder": f"claude/{MODEL}:low"
     }
 
 
@@ -142,7 +147,7 @@ async def test_the_cli_and_model_pickers_offer_what_the_installed_agent_said_it_
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await into_flows(pilot)
-        await opens(pilot, "chat")
+        await opens(pilot, OWN)
         await opens(pilot, "0")
         await on(pilot, Agent)
 
@@ -191,23 +196,25 @@ async def test_both_profiling_switches_are_remembered_and_sent_with_the_start(
 
     monkeypatch.setattr(Link, "asked", spied)
     async with Humanize().run_test(size=SIZE) as pilot:
-        await into_flows(pilot)
-        await opens(pilot, "chat")
+        await set_up_own_flow(pilot)
+        await typed(pilot, "/flow")
+        await on(pilot, Flows)
+        await opens(pilot, OWN)
         await shows(pilot, "profile flow", "profile environment")
         await picks(pilot, "\x1eprofile-flow", "on")
         await picks(pilot, "\x1eprofile-environment", "on")
         await shows(pilot, "samples the flow's own Python")
         await leaves(pilot)
-        await shows(pilot, "◉ chat")
+        await shows(pilot, f"set up: /flow {OWN} <task> starts it")
 
-        await typed(pilot, "hello")
-        await shows(pilot, "heard hello")
+        await typed(pilot, f"/flow {OWN} make it so")
+        await shows(pilot, "heard make it so")
 
     (start,) = [one for one in asked if one.get("do") == "start"]
     assert (start["profile_flow"], start["profile_environment"]) == (True, True)
-    kept = remembered(tmp_path, workspace)["flows"]["chat"]
+    kept = remembered(tmp_path, workspace)["flows"][OWN]
     assert (kept["profile_flow"], kept["profile_environment"]) == (True, True)
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_flows(pilot)
-        await opens(pilot, "chat")
+        await opens(pilot, OWN)
         await shows(pilot, "samples the flow's own Python")

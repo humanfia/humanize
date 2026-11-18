@@ -95,6 +95,54 @@ async def waits(task, *, agents, envs, params, ctx):
         await asyncio.sleep(0.05)
 """
 
+#: Shows the reviewer where it stands, asks for a `Review` whole beside a diff, and writes it down.
+REVIEWS = """
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel
+
+from hmz.flows import (
+    AgentCollection,
+    Diff,
+    EnvCollection,
+    FlowParams,
+    LocalEnv,
+    Outworlder,
+    Table,
+    flow,
+)
+
+
+class Review(BaseModel):
+    verdict: Literal["approve", "reject"]
+    notes: str = ""
+
+
+class Agents(AgentCollection):
+    reviewer: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, name="reviews")
+async def reviews(task, *, agents, envs, params, ctx):
+    reviewer = await agents["reviewer"].spawn()
+    await agents["reviewer"].show(
+        [Table(columns=("step", "state"), rows=(("lint", "passed"),), title="checks")],
+        session=reviewer,
+    )
+    review = await agents["reviewer"].run(
+        f"review {task}",
+        session=reviewer,
+        output_schema=Review,
+        context=[Diff(patch="--- a/x\\n+++ b/x\\n@@ -1 +1 @@\\n-old\\n+new\\n")],
+    )
+    Path("result.json").write_text(review.model_dump_json())
+"""
+
 #: A frontend in a process of its own: claims one role and answers what it is asked for it.
 ANSWERS = """
 import sys
@@ -163,6 +211,104 @@ def folds(seconds: float, monkeypatch: pytest.MonkeyPatch) -> None:
         f"    hosting.FOLD = {seconds!r}\n"
     )
     monkeypatch.setenv("PYTHONPATH", str(at))
+
+
+#: A chat standing in for :class:`hmz.runtime.chatting.Chat`: every message answered `you said:
+#: <it>`, in an epic of kind chat it writes as a chat does -- carried on in the one it is
+#: given -- with a native catalogue of `/compact` and `!`.
+CHAT = """
+from hmz.coganchor.agents.native import NativeCommand
+from hmz.runtime import chatting
+from hmz.runtime.epic import Drove, Epic
+
+
+class StandIn(chatting.Chat):
+    def __init__(self, spec, *, person):
+        super().__init__(spec, person=person)
+        self._at = None
+
+    @property
+    def epic(self):
+        return self._at
+
+    def prefers(self, prefer):
+        self._prefer = prefer
+
+    def natives(self):
+        return [
+            NativeCommand("/", "compact", "compacts the conversation", "call"),
+            NativeCommand("!", "", "runs a shell command", "emulate"),
+        ]
+
+    async def run(self, *, opened=None, started=None):
+        carried = self.spec.resume
+        backend, _, model = self.spec.agent.partition("/")
+        with Epic(
+            "",
+            self.spec.task,
+            self.spec.workspace,
+            kind="chat",
+            agents=[Drove("assistant", backend, model.partition(":")[0], "")],
+            picked_up=carried,
+            reopened=carried is not None,
+        ) as epic:
+            self._at = epic.path
+            if started is not None:
+                started(epic.path)
+            said = self.spec.task
+            while said:
+                said = await self.person.next(f"you said: {said}")
+        return chatting.ChatEnd(epic.path, "stopped")
+
+
+chatting.Chat = StandIn
+"""
+
+
+def chats(seconds: float, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Has every chat from here on be :data:`CHAT`'s, folding `seconds` after its turn.
+
+    In this process and, as :func:`folds` tells them, in every daemon and host process started
+    from here: the chat runner itself is another unit's, and what is tested here is the host
+    and the daemon around it.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from hmz.runtime import chatting
+    from hmz.runtime.doing import hosting
+
+    at = Path(tempfile.mkdtemp(prefix="chats-"))
+    (at / "standin_chat.py").write_text(CHAT)
+    monkeypatch.setattr(chatting, "Chat", _standin(at))
+    monkeypatch.setattr(hosting, "FOLD", seconds)
+    (at / "sitecustomize.py").write_text(
+        "import sys\n"
+        "if 'hmz.daemon.detached' in sys.orig_argv:\n"
+        "    from hmz.runtime.doing import hosting\n"
+        f"    hosting.FOLD = {seconds!r}\n"
+        "    import standin_chat\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(at))
+
+
+def _standin(at: Path) -> Any:
+    """The stand-in chat class written at `at`, loaded without leaving it set in."""
+    import importlib.util
+
+    from hmz.runtime import chatting
+
+    held = chatting.Chat
+    found = importlib.util.spec_from_file_location(
+        "standin_chat", at / "standin_chat.py"
+    )
+    assert found is not None
+    assert found.loader is not None
+    module = importlib.util.module_from_spec(found)
+    found.loader.exec_module(module)
+    standin = chatting.Chat
+    chatting.Chat = held
+    return standin
 
 
 def _ends(pid: int) -> None:

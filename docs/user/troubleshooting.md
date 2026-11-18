@@ -49,9 +49,8 @@ hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-so
 
 **Cause.** The line names a role the flow does not have: a typo, or another flow's role.
 
-**Fix.** Use a name from the list at the end of the message. `chat` has `assistant`,
-`ralph_loop` has `agent`, and `rlar` has `actor` and `reviewer`. Each flow's page lists its
-roles.
+**Fix.** Use a name from the list at the end of the message. `ralph_loop` has `agent`, and
+`rlar` has `actor` and `reviewer`. Each flow's page lists its roles.
 
 **Verify.** The line is refused for nothing, or for the next thing it is missing.
 
@@ -100,7 +99,8 @@ unattended](/user/unattended#name-an-agent-for-each-role) to see how it is read.
 
 **Symptom.** `hmz exec` refuses the line before anything runs.
 
-**Cause.** Every flow except `chat` runs under a budget, and the line gives none.
+**Cause.** Every flow runs under a budget, and the line gives none. To talk to one agent with
+no budget, run [`hmz chat`](/user/chat#from-the-shell) instead.
 
 **Fix.** Give it one with `-p budget.<limit>=`:
 
@@ -215,7 +215,7 @@ past the check.
 
 **Symptom.** `hmz exec` refuses a flow by name, on a machine that has not fetched the official
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
-that is misspelled. The flows Humanize ships, such as `chat` and `ralph_loop`, never do.
+that is misspelled. The flows Humanize ships, such as `ralph_loop` and `rlar`, never do.
 
 **Cause.** The flowverse's index has not been downloaded yet. `hmz` and this machine's daemon
 each fetch every flowverse in the background as they start; `hmz exec` never does itself, so a
@@ -244,7 +244,7 @@ flow is not installed.
 **Symptom.** `hmz exec` refuses the `-p`, with the lines after it naming the key:
 
 ```
-hmz exec: error: chat:chat: 1 validation error for Params
+hmz exec: error: ralph_loop:ralph_loop: 1 validation error for Params
 foo
   Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]
 ```
@@ -340,7 +340,7 @@ unpriced, and a `cost` limit warns as above.
 **Fix.** Put `--` before it:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-opus-5:high -- "--force is not a flag here"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 -- "--force is not a flag here"
 ```
 
 **Verify.** The run starts.
@@ -405,7 +405,7 @@ now.
 **Cause.** There was nothing to stop. `/stop` is listed only while a flow runs and has not
 already been told to stop; typed out otherwise, it says why it did nothing. The same goes for
 every command the list leaves out: `/resume` with a flow going or nothing here to carry on,
-`/btw` with nobody to ask.
+`/btw` with no conversation on the screen to ask.
 
 **Fix.** Nothing to do. Wait for a flow that is stopping to finish its turn.
 
@@ -506,16 +506,16 @@ of. The run is untouched.
 
 **Verify.** It opens on the run, read from the top.
 
-### `/btw requires a coding agent` {#btw-needs-a-coding-agent-to-ask}
+### `/btw is only available on …` {#btw-needs-a-conversation}
 
-**Symptom.** A [`/btw`](/user/btw) on the monitor is refused.
+**Symptom.** A [`/btw`](/user/btw) on the monitor, or on the home transcript, is refused.
 
-**Cause.** There, `/btw` asks the btw agent. None is set in `/settings`, and no flow is set up to
-copy one from. `btw is still answering the last question` means the side conversation has not
-answered yet.
+**Cause.** A side question is asked of one session, and no conversation is on the screen to
+copy. `btw is still answering the last question` means the side conversation has not answered
+yet.
 
-**Fix.** Choose a flow, or set the **/btw agent** on the General page of `/settings`. For the
-second message, wait for the answer.
+**Fix.** Read a conversation and ask again. To ask about the epic as a whole, ask
+[Ai-chan](/user/ai-chan) with `/ai`. For the second message, wait for the answer.
 
 **Verify.** `/btw` opens the side conversation.
 
@@ -807,20 +807,21 @@ HUMANIZE_WATCHDOG=3600 hmz
 
 **Verify.** Long quiet turns finish instead of being stopped.
 
-### `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks for is granted` {#codex-this-machine-will-not-run-an-agent-at-bypass-so-it-runs-at-auto}
+### `codex: this machine will not run an agent at danger-full-access, so it runs at workspace-write, where what it asks for is granted` {#codex-this-machine-will-not-run-an-agent-at-danger-full-access}
 
 **Symptom.** A note when a Codex agent starts. The work goes on.
 
 **Cause.** This Codex has requirements set by whoever manages it, an enterprise policy or the
-machine's own, and they forbid full access. So the agent runs one
-[permission](/user/permissions) rung down, at `auto`: Codex asks before it reaches past the
-workspace, and Humanize says yes.
+machine's own, and they forbid full access. So an agent whose grant writes somewhere runs in
+Codex's `workspace-write` sandbox with approval `on-request`, not `danger-full-access`: Codex
+asks before it reaches past the workspace, and Humanize says yes. Its
+[permission](/user/permissions) is held by the fence either way.
 
 **Fix.** Nothing to do.
 
 **Verify.** The agent's turns go through as usual.
 
-### `claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted` {#claude-this-account-will-not-run-an-agent-at-bypass-so-it-runs-at-acceptedits}
+### `claude: this account will not run an agent at bypassPermissions, so it runs at acceptEdits, where what it asks for is granted` {#claude-this-account-will-not-run-an-agent-at-bypasspermissions-so-it-runs-at-acceptedits}
 
 **Symptom.** A note during a Claude Code agent's first turn. The work goes on.
 

@@ -96,7 +96,6 @@ const MOVED_AGAIN: Record<string, string> = {
 // the rest of it.
 const HUMANFIA_FLOWS = 'https://humanfia.ai/flows/'
 const MOVED_TO_HUMANFIA = [
-  'chat',
   'ralph-loop',
   'stateful-ralph',
   'continue-loop',
@@ -124,6 +123,8 @@ const MOVED: Record<string, string> = {
   'tutorials/build-an-agent': 'user/tutorials/build-an-agent',
   ...Object.fromEntries(MOVED_TO_HUMANFIA.map((page) => [`flows/${page}`, `${HUMANFIA_FLOWS}${page}`])),
   'flows/': HUMANFIA_FLOWS,
+  // `chat` was a flow, and is a kind of epic of its own now, with a page in the User Guide.
+  'flows/chat': 'user/chat',
   // One page here once held both cleanup flows; each has its own now, and the first is where
   // it went.
   'flows/agent-cleanup': `${HUMANFIA_FLOWS}ralph-loop-agent-cleanup`,
@@ -279,6 +280,7 @@ export default defineConfig({
           text: 'Ways to use it',
           collapsed: false,
           items: [
+            { text: 'Chat', link: '/user/chat' },
             { text: 'Humanize Desktop', link: '/user/desktop' },
             { text: 'In a browser (hmz web)', link: '/user/web' },
             { text: 'At the prompt (hmz)', link: '/reference/tui' },
@@ -292,6 +294,7 @@ export default defineConfig({
           items: [
             { text: 'Talking to a running turn', link: '/user/steering' },
             { text: 'Side questions (/btw)', link: '/user/btw' },
+            { text: 'Ai-chan (/ai)', link: '/user/ai-chan' },
             { text: 'Many conversations at once', link: '/user/conversations' },
             { text: 'Watching a run (the monitor)', link: '/user/monitor' },
             { text: 'The mission board', link: '/user/board' },
@@ -381,6 +384,7 @@ export default defineConfig({
             { text: 'Hooks', link: '/weaver/hooks' },
             { text: 'The agent asking the flow', link: '/weaver/tools' },
             { text: 'The person as an agent', link: '/weaver/human-agent' },
+            { text: 'A face for the person', link: '/weaver/faces' },
           ],
         },
         {

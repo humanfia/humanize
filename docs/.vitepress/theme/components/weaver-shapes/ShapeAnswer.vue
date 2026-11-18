@@ -7,7 +7,10 @@
 // prompt and the answer is read back out of what they say (`SessionBase` in base.py). Either way
 // the answer is validated into an instance of the model, or the turn raises `OutputSchemaError`,
 // a `HarnessError` (src/hmz/flows/errors.py). The flow then branches on `review.done`: the notes
-// go back to the actor and a new round starts, or it returns True. The answers are drawn.
+// go back to the actor and a new round starts, or it returns True. Handed to a person -- an
+// `Outworlder` role, "Ask a person instead" on that page -- the same Review is one whole form,
+// `done` as two buttons worded from its description and `notes` as a text box, checked against
+// the same model. The answers are drawn.
 import { computed, ref } from 'vue'
 
 import HmzStage from '../../motion/HmzStage.vue'
@@ -24,6 +27,7 @@ const BEATS = [
   'Some CLIs enforce it, the rest are prompted',
   'Validated: a Review, or a schema error',
   'The flow branches on review.done',
+  'A person gets the same Review as one form',
 ]
 
 type Tok = [cls: '' | 'kw' | 'fn' | 'str' | 'key' | 'dim', text: string]
@@ -110,6 +114,8 @@ interface Layout {
   check: { x: number; y: number }
   inst: Box
   err: Box
+  /** Where a person's form is drawn, over the two roads. */
+  pform: Box
   /** Where the round's outcome is written. */
   out: { x: number; y: number; anchor: 'start' | 'end' }
   open: { x: number; y: number; s: number }
@@ -142,6 +148,7 @@ const WIDE: Layout = {
   check: { x: 556, y: 62 },
   inst: { x: 490, y: 74, w: 136 },
   err: { x: 490, y: 172, w: 136 },
+  pform: { x: 266, y: 14, w: 212 },
   out: { x: 618, y: 308, anchor: 'end' },
   open: { x: 260, y: 292, s: 1.45 },
   whole: { x: 320, y: 180, s: 1 },
@@ -166,10 +173,15 @@ const NARROW: Layout = {
   check: { x: 180, y: 404 },
   inst: { x: 14, y: 414, w: 162 },
   err: { x: 184, y: 414, w: 162 },
+  pform: { x: 14, y: 258, w: 332 },
   out: { x: 14, y: 504, anchor: 'start' },
   open: { x: 180, y: 70, s: 1.06 },
   whole: { x: 180, y: 280, s: 1 },
 }
+
+// To a person, the same model is one form: both fields at once.
+const PFORM_H = 136
+const PFORM_YES = ['Yes, done', 'Not yet']
 
 const palette = usePalette()
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -202,9 +214,19 @@ const holdChips = computed(() => row(L.value.hold, L.value.holdRows))
 const askChips = computed(() => row(L.value.ask, L.value.askRows))
 const saidY = (box: Box) => box.y + 26 + (box === L.value.hold ? L.value.holdRows : L.value.askRows).length * 22 + 16
 const roadH = (box: Box) => saidY(box) - box.y + 14
+const pOpts = computed(() => {
+  let x = L.value.pform.x + 12
+  return PFORM_YES.map((n) => {
+    const o = { n, x, w: chipW(n) }
+    x += o.w + 8
+    return o
+  })
+})
+const submitW = chipW('Submit')
 
 const scene = useScene({
-  still: 'rest',
+  // Held still on the two roads and the outcome, before a person's form takes the roads' place.
+  still: 'summary',
   repeatDelay: 1.2,
   tick: (dt) => fx?.step(dt),
   build(tl, q) {
@@ -238,7 +260,7 @@ const scene = useScene({
 
     tl.set(one('.world'), { autoAlpha: 1 }, 0)
     tl.set(at('.code-line, .k-line, .s-line, .chip, .said, .road-head, .check-word, .inst, .err, .or, .outcome'), { opacity: 0 }, 0)
-    tl.set(at('.klass, .schema, .road'), { opacity: 0 }, 0)
+    tl.set(at('.klass, .schema, .road, .pform, .p-row, .p-on, .p-submit'), { opacity: 0 }, 0)
     tl.set(at('.k-hl, .s-hl, .os-hl'), { opacity: 0 }, 0)
     tl.set(at('.wire'), { drawSVG: '0%' }, 0)
     tl.set(caret, { opacity: 0, attr: { y: codeY(c.run) - 12 } }, 0)
@@ -340,9 +362,23 @@ const scene = useScene({
     cam.flare({ x: l.out.x + (l.out.anchor === 'end' ? -30 : 30), y: l.out.y + 18 }, ok, T4 + 4.9, 26, 90)
     tl.to(caret, { opacity: 0.35, duration: 0.6 }, T4 + 5.4)
 
-    tl.addLabel('rest', T4 + 6)
-    cam.shot({ ...l.whole, s: l.whole.s * 1.03 }, T4 + 5.4, 3, 'sine.inOut')
-    tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 8.6)
+    // 5 · a person is asked the same Review as one form, and their answer is checked the same.
+    const T5 = T4 + 6
+    tl.addLabel('summary', T5)
+    tl.addLabel('beat-5', T5)
+    tl.to(at('.road'), { opacity: 0, duration: 0.4 }, T5)
+    tl.fromTo(one('.pform'), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 }, T5 + 0.3)
+    tl.to(at('.p-row'), { opacity: 1, duration: 0.4, stagger: 0.2 }, T5 + 0.6)
+    tl.to(one('.p-submit'), { opacity: 1, duration: 0.4 }, T5 + 1)
+    tl.to(one('.p-on'), { opacity: 1, duration: 0.25 }, T5 + 1.6)
+    cam.flare({ x: pOpts.value[0].x + 20, y: l.pform.y + 53 }, warm, T5 + 1.6, 12, 50)
+    tl.fromTo(one('.p-submit'), { opacity: 1 }, { opacity: 0.5, duration: 0.15, yoyo: true, repeat: 1 }, T5 + 2.3)
+    cam.beam({ x: l.pform.x + l.pform.w - 12, y: l.pform.y + PFORM_H - 18 }, instIn, ok, T5 + 2.6, { duration: 0.8, bend: -0.2, burst: 16 })
+    cam.flare({ x: l.inst.x + 50, y: l.inst.y + 36 }, ok, T5 + 3.4, 16, 60)
+
+    tl.addLabel('rest', T5 + 4)
+    cam.shot({ ...l.whole, s: l.whole.s * 1.03 }, T5 + 3.6, 3, 'sine.inOut')
+    tl.to(one('.world'), { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T5 + 6.6)
 
     gsap.set(caret, { opacity: 0 })
   },
@@ -355,7 +391,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 14"
-    label="A turn asked for a shape, from the flow's side. The flow runs reviewer.run with output_schema=Review. The pydantic model is the question: its fields, done a bool and notes a str, which are required, and each field's description reach the agent as a JSON Schema sent with the prompt. Two roads: claude, codex, agy, grok, mcode and qwen enforce the schema themselves; cursor-agent, dsh, kimi, mimo, omp, opencode, pi and an ACP CLI are prompted with it, and the answer is read back out of what they say. Either way the answer is validated into a Review instance, here done=False with notes, or the turn raises OutputSchemaError, a HarnessError. The flow branches on review.done: not done, so the notes go back to the actor and a new round starts; the next review is done, and the flow returns True."
+    label="A turn asked for a shape, from the flow's side. The flow runs reviewer.run with output_schema=Review. The pydantic model is the question: its fields, done a bool and notes a str, which are required, and each field's description reach the agent as a JSON Schema sent with the prompt. Two roads: claude, codex, agy, grok, mcode and qwen enforce the schema themselves; cursor-agent, dsh, kimi, mimo, omp, opencode, pi and an ACP CLI are prompted with it, and the answer is read back out of what they say. Either way the answer is validated into a Review instance, here done=False with notes, or the turn raises OutputSchemaError, a HarnessError. The flow branches on review.done: not done, so the notes go back to the actor and a new round starts; the next review is done, and the flow returns True. Handed to a person instead, the same Review is one form: Nothing left to do or fix?, with the buttons Yes, done and Not yet, and What to say to the agent, a text box. The person presses Yes, done and Submit, and the answer is validated against Review as an agent's is."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <g class="world">
@@ -413,6 +449,28 @@ const scene = useScene({
           </g>
           <rect class="read-hl" :x="L.ask.x + 8 + L.readCol * CW" :y="saidY(L.ask) - 12" :width="(L.askSaid.length - L.readCol) * CW + 4" height="16" rx="3" />
           <text class="said said-ask" :x="L.ask.x + 10" :y="saidY(L.ask)">{{ L.askSaid }}</text>
+        </g>
+
+        <!-- to a person: the same model, one form -->
+        <g class="pform">
+          <rect class="card-box pform-box" :x="L.pform.x" :y="L.pform.y" :width="L.pform.w" :height="PFORM_H" rx="10" />
+          <text class="pform-head":x="L.pform.x + 10" :y="L.pform.y + 17">to a person: one form</text>
+          <g class="p-row">
+            <text class="p-label" :x="L.pform.x + 12" :y="L.pform.y + 38">Nothing left to do or fix?</text>
+            <g v-for="o in pOpts" :key="o.n">
+              <rect class="p-box" :x="o.x" :y="L.pform.y + 44" :width="o.w" height="18" rx="5" />
+              <text class="chip-word" :x="o.x + o.w / 2" :y="L.pform.y + 57" text-anchor="middle">{{ o.n }}</text>
+            </g>
+            <rect class="p-on" :x="pOpts[0].x" :y="L.pform.y + 44" :width="pOpts[0].w" height="18" rx="5" />
+          </g>
+          <g class="p-row">
+            <text class="p-label" :x="L.pform.x + 12" :y="L.pform.y + 80">What to say to the agent</text>
+            <rect class="p-box" :x="L.pform.x + 12" :y="L.pform.y + 86" :width="L.pform.w - 24" height="18" rx="5" />
+          </g>
+          <g class="p-submit">
+            <rect class="p-submit-box" :x="L.pform.x + L.pform.w - 12 - submitW" :y="L.pform.y + 110" :width="submitW" height="20" rx="5" />
+            <text class="chip-word p-submit-word" :x="L.pform.x + L.pform.w - 12 - submitW / 2" :y="L.pform.y + 124" text-anchor="middle">Submit</text>
+          </g>
         </g>
 
         <!-- checked against the model -->
@@ -625,5 +683,43 @@ svg {
 
 .out-done text {
   fill: var(--hmz-accent);
+}
+
+.pform-box {
+  stroke: var(--hmz-warm);
+  stroke-opacity: 0.7;
+}
+
+.pform-head {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--hmz-warm);
+}
+
+.p-label {
+  font-size: 11px;
+  fill: var(--hmz-stage-ink);
+}
+
+.p-box {
+  fill: none;
+  stroke: var(--hmz-stage-line);
+  stroke-width: 1.1;
+}
+
+.p-on {
+  fill: var(--hmz-warm);
+  fill-opacity: 0.18;
+  stroke: var(--hmz-warm);
+  stroke-width: 1.4;
+}
+
+.p-submit-box {
+  fill: var(--hmz-accent);
+}
+
+.chip-word.p-submit-word {
+  font-weight: 700;
+  fill: #fff;
 }
 </style>

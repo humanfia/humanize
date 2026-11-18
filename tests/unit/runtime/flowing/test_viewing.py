@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any, cast
 
@@ -45,7 +46,6 @@ from hmz.flows import (
     flow,
 )
 from hmz.runtime.flowing.declaring import Grant
-from hmz.runtime.flowing.engine import full_view
 from hmz.runtime.flowing.fakes import (
     FakeAgentDriver,
     FakeEnvDriver,
@@ -62,7 +62,6 @@ from hmz.runtime.flowing.viewing import (
     OutworlderView,
     SessionView,
     Source,
-    away_answer,
     limits_of,
 )
 
@@ -589,7 +588,6 @@ async def test_a_sessions_tools_run_as_its_flow_and_answer_the_agent() -> None:
         await coder.sessions[0].use("count")
 
 
-@full_view
 @flow(agents=Scribes, envs=NoEnvs, params=Prompt)
 async def fully(
     task: str, *, agents: Scribes, envs: NoEnvs, params: Prompt, ctx: FlowContext
@@ -630,9 +628,7 @@ async def widely(
     return await fully(task, agents={"scribe": agents["coder"]}, envs={}, params=params)
 
 
-async def test_a_full_flow_called_runs_under_its_roles_permission_not_the_callers() -> (
-    None
-):
+async def test_a_flow_called_runs_under_its_roles_permission_not_the_callers() -> None:
     coder = FakeAgentDriver()
 
     await run_fake(widely, agents={"coder": coder})
@@ -806,6 +802,120 @@ async def test_an_outworlder_a_flow_made_is_answered_by_its_hook() -> None:
         await made.run("x", session=session, output_schema=Required)
 
 
+@dataclass(frozen=True)
+class Markdown:
+    """A context block, as :mod:`hmz.flows` writes one."""
+
+    text: str
+
+    def as_json(self) -> dict[str, Any]:
+        return {"kind": "markdown", "text": self.text}
+
+
+@dataclass(frozen=True)
+class Look:
+    """A face, as :mod:`hmz.flows` writes one."""
+
+    html: str
+    title: str = ""
+
+    @property
+    def hash(self) -> str:
+        return f"#{self.html}"
+
+
+async def test_an_outworlder_is_asked_the_whole_schema_with_its_context() -> None:
+    person = FakeOutworlder({"note": "n"})
+    view = OutworlderView(Source(person, made=False, node=None), None, "r", "lead")
+    face = Look("<p>")
+
+    first = await view.spawn(face)
+    second = await view.spawn()
+    said = await view.run(
+        "why?",
+        session=first,
+        output_schema=Away,
+        context=[Markdown("the diff"), {"kind": "json", "value": 1}],
+    )
+    await view.run("and?", session=second)
+
+    assert said == Away(note="n")
+    assert person.faces == [face]
+    one, two = person.asks
+    assert (one.prompt, one.schema, one.model) == (
+        "why?",
+        Away.model_json_schema(),
+        Away,
+    )
+    assert one.context == (
+        {"kind": "markdown", "text": "the diff"},
+        {"kind": "json", "value": 1},
+    )
+    assert (one.face, one.session, one.errors) == ("#<p>", "lead/1", ())
+    assert (two.schema, two.model, two.context, two.face, two.session) == (
+        None,
+        None,
+        (),
+        "",
+        "lead/2",
+    )
+
+
+async def test_what_is_not_a_block_or_a_face_is_refused() -> None:
+    view = OutworlderView(Source(FakeOutworlder(), made=False, node=None), None, "r")
+    session = await view.spawn()
+
+    with pytest.raises(TypeError, match="not a context block"):
+        await view.run("x", session=session, context=[42])
+    with pytest.raises(TypeError, match="is text"):
+        await view.show("hello", session=session)
+    with pytest.raises(TypeError, match="not a Face"):
+        await view.spawn("<p>")
+
+
+async def test_an_outworlder_is_shown_context_only_where_somebody_looks() -> None:
+    person = FakeOutworlder()
+    view = OutworlderView(Source(person, made=False, node=None), None, "r", "lead")
+    session = await view.spawn()
+    other = await OutworlderView(
+        Source(FakeOutworlder(), made=False, node=None), None, "r"
+    ).spawn()
+
+    await view.show([Markdown("50%")], session=session)
+    await view.show([], session=session)
+    person.away = True
+    await view.show([Markdown("gone")], session=session)
+
+    assert person.shown == [("lead/1", ({"kind": "markdown", "text": "50%"},))]
+    with pytest.raises(SessionError, match="not one of this outworlder's"):
+        await view.show([Markdown("x")], session=other)
+    made = OutworlderView.new()
+    await made.show([Markdown("nobody")], session=await made.spawn())
+
+
+async def test_a_hook_answering_an_outworlder_is_told_its_context_and_face() -> None:
+    made = OutworlderView.new()
+    face = Look("<form>")
+    session = await made.spawn(face)
+    told: list[Any] = []
+
+    async def answer(params: Any) -> OutworlderRunHookResult:
+        told.append(params)
+        return OutworlderRunHookResult(output={"note": "seen"})  # pyright: ignore[reportArgumentType]
+
+    made.on_outworlder_run(answer)
+    blocks = [Markdown("the diff")]
+
+    said = await made.run("x", session=session, output_schema=Away, context=blocks)
+
+    assert said == Away(note="seen")
+    (params,) = told
+    assert params.output_schema is Away
+    # Told as the flow wrote them, where the params have room for them.
+    assert getattr(params, "context", tuple(blocks)) == tuple(blocks)
+    assert getattr(params, "face", face) is face
+
+
 def test_no_flow_call_is_running_outside_one() -> None:
     assert CALLING.get() is None
 
@@ -842,10 +952,3 @@ def test_a_turn_is_told_its_limits_with_infinity_as_none(
         True,
         True,
     )
-
-
-def test_an_away_answer_is_empty_text_or_the_schemas_defaults() -> None:
-    assert away_answer(None) == ""
-    assert away_answer(Away) == Away()
-    with pytest.raises(OutworlderAway, match="no default"):
-        away_answer(Required)

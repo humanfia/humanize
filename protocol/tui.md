@@ -19,7 +19,7 @@ It is normative. It is cited by the tag [TUI].
 - [5. Views](#5-views)
 - [6. Input](#6-input)
 - [7. Commands](#7-commands)
-  - [7.9. `/flow [flow]`](#79-flow-flow)
+  - [7.9. `/flow [flow] [task]`](#79-flow-flow-task)
   - [7.10. `/btw [question]`](#710-btw-question)
   - [7.11. `/epics [@daemon]`](#711-epics-daemon)
   - [7.12. `/resume`](#712-resume)
@@ -31,6 +31,8 @@ It is normative. It is cited by the tag [TUI].
   - [7.18. `/exit`](#718-exit)
   - [7.19. `/ai`](#719-ai)
   - [7.20. `/env [role]`](#720-env-role)
+  - [7.21. `/chat`](#721-chat)
+  - [7.22. `/prefer [native|flow]`](#722-prefer-nativeflow)
 - [8. `$` lines](#8--lines)
 - [9. Saying something](#9-saying-something)
 - [10. Questions](#10-questions)
@@ -96,7 +98,7 @@ This document does not define the following, each of which the document cited de
 
 - The command line that opens the interface and where its epics are held: Section 6 of [CLI].
 - What each setting means and where it is stored: Section 3 of [FILES].
-- The chat flow's behaviour common to every frontend: Section 8 of [CORE].
+- A chat's behaviour common to every frontend, its native input included: Section 8 of [CORE].
 - Side questions' behaviour common to every frontend: Section 9 of [CORE].
 - Ai-chan's behaviour common to every frontend: Section 14 of [CORE].
 - Agents, harnesses, models and efforts: Section 4 of [CORE].
@@ -180,18 +182,20 @@ buttons.
 **2.24** **Idle**: the state in which no epic is going or stopping on the host this interface
 follows.
 
-**2.25** **Chat**: an epic of the flow `chat` (Section 8 of [CORE]).
+**2.25** **Chat**: an epic of kind `chat` (Section 8 of [CORE]).
 
 **2.26** **In the background**: said of work the interface does while it goes on drawing and
 taking input, neither of which waits for that work.
 
 ## 3. Launch
 
-**3.1** The interface MUST open on the flow remembered for the working directory, or on `chat` where
-none is remembered, unless its arguments name a flow.
+**3.1** The interface MUST open on a new chat, its assistant the chat agent remembered for the
+working directory (Section 8.3.8 of [CORE]) or, where none is remembered, as Section 16.5.4 fills
+it.
 
-**3.2** The interface MUST open set up, so that a line typed is enough to start an epic, with each
-agent role as remembered for the flow or, where nothing is remembered, as Section 16.5.4 fills it.
+**3.2** The interface MUST open set up, so that a line typed is enough to start the chat, and with
+the flow remembered for the working directory set up for `/flow` and `$` lines, each agent role as
+remembered for the flow or, where nothing is remembered, as Section 16.5.4 fills it.
 
 **3.3** The interface MUST draw in the terminal's own palette, MUST NOT query the terminal for its
 colours, MUST draw failures in red and warnings in yellow, MUST use the theme named by
@@ -316,16 +320,19 @@ the ends.
 in this order:
 
 1. a line not starting with `/` while btw mode is on is a side question (Section 12);
-2. a `$` line (Section 8) while no question is answerable here starts a flow;
-3. a line not starting with `/` is said (Section 9);
-4. a line starting with `/` is a command (Section 7).
+2. a line starting with `/` that names a command of Section 7.1 is that command (Section 7);
+3. in a chat on the screen, a line starting with `$`, `/`, `!` or `@` is served as Section 8.9 of
+   [CORE] states, a `$` line that names a flow starting it as Section 8 states;
+4. a `$` line (Section 8) while no question is answerable here starts a flow;
+5. any other line starting with `/` is a command (Section 7);
+6. any other line is said (Section 9), to the chat where the chat is on the screen.
 
 **6.2** A blank line MUST NOT be sent.
 
 ## 7. Commands
 
 **7.1** The interface MUST offer exactly these commands: `/flow`, `/btw`, `/epics`, `/resume`,
-`/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`, `/ai`, `/env`.
+`/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`, `/quit`, `/ai`, `/env`, `/chat`, `/prefer`.
 
 **7.2** The interface MUST echo a command line as typed, MUST split its arguments as a POSIX shell
 splits words, and MUST refuse a line it cannot split, saying why.
@@ -345,7 +352,7 @@ every change of the view, of the epic and of the question waiting.
 
 **7.8** A refused command and `/stop` MUST reset the `ctrl+c` count (Section 14).
 
-### 7.9. `/flow [flow]`
+### 7.9. `/flow [flow] [task]`
 
 **7.9.1** `/flow` MUST open the flow menu (Section 16) on its Installed page.
 
@@ -358,6 +365,14 @@ the next epic.
 
 **7.9.4** While an epic is going, `/flow <flow>` MUST be refused, saying a flow cannot be chosen
 while one is running.
+
+**7.9.5** `/flow <flow> <task>` MUST start an epic of that flow with that task at once where the
+flow is set up here (Section 8.8), and MUST otherwise open the flow menu on its roles holding the
+task, as Section 8.7 states for a `$` line.
+
+**7.9.6** The flow menu MUST NOT offer a chat, which is not a flow; the chat's agent is set on the
+Workspace page of `/settings` (Section 19.11) or by `/model` and `/effort` in the chat (Section
+8.9.5 of [CORE]).
 
 ### 7.10. `/btw [question]`
 
@@ -386,8 +401,8 @@ naming the daemons it takes.
 
 ### 7.12. `/resume`
 
-**7.12.1** `/resume` MUST pick up the newest epic of this directory whose flow can be picked up, as
-Section 18 states.
+**7.12.1** Outside a chat, `/resume` MUST pick up the newest epic of this directory whose flow can
+be picked up, as Section 18 states.
 
 **7.12.2** `/resume` with any argument MUST be refused, saying `/epics` chooses another epic.
 
@@ -395,6 +410,9 @@ Section 18 states.
 
 **7.12.4** `/resume` MUST NOT be offered while the last background look found nothing to pick up,
 and MUST look again for itself when typed.
+
+**7.12.5** In a chat, `/resume` MUST open a pick list of the earlier chats of this directory, newest
+first, and MUST carry on the one picked (Section 8.9.8 of [CORE]).
 
 ### 7.13. `/settings [page]`
 
@@ -484,6 +502,8 @@ away as it is; `hmz` run again in the directory MUST read that epic from its sta
 **7.18.8** Once the interface has closed, `hmz` MUST give the backups this process queued at most 15
 seconds to finish, saying so where it waits and where one was left unfinished.
 
+**7.18.9** `/quit` MUST do what `/exit` does.
+
 ### 7.19. `/ai`
 
 **7.19.1** `/ai` MUST open a menu (Section 15) listing, under an entry **New**, every Ai-chan
@@ -562,6 +582,24 @@ it (`env.term.input`), what it prints is drawn as it comes and acknowledged as d
 interface and leave the terminal running; the terminal ending MUST give it back too, saying its exit
 status.
 
+### 7.21. `/chat`
+
+**7.21.1** `/chat` MUST put back on the screen the chat of this frontend, which went on on its own
+host while a flow was on the screen; a chat that has folded away meanwhile MUST be drawn as Section
+8.7.4 of [CORE] states, and carried on when the next line is said.
+
+**7.21.2** `/chat` MUST be refused where the chat is already on the screen, and with any argument.
+
+### 7.22. `/prefer [native|flow]`
+
+**7.22.1** `/prefer` MUST work only in a chat.
+
+**7.22.2** `/prefer` alone MUST say the chat's preference (Section 8.9.10 of [CORE]) and whether it
+comes from the settings file or from this chat.
+
+**7.22.3** `/prefer native` and `/prefer flow` MUST set this chat's override, and `/prefer` MUST
+refuse any other argument, naming those it takes.
+
 ## 8. `$` lines
 
 **8.1** A line of the form `$<name>[ <task>]` MUST be a `$` line, where `<name>` is a flow as the
@@ -576,7 +614,7 @@ question while btw mode is on.
 
 **8.4** A `$` line naming a flow not offered MUST be refused, naming it.
 
-**8.5** A `$` line MUST be refused while an epic is going, leaving that epic untouched.
+**8.5** A `$` line MUST be refused while an epic of a flow is going, leaving that epic untouched.
 
 **8.6** A `$` line naming a flow that is set up here MUST choose that flow and, with a task, start
 an epic of it at once; without a task, the interface MUST ask for one.
@@ -587,7 +625,11 @@ that the flow was not set up and nothing was started.
 
 **8.8** A flow MUST count as set up here where every agent role it declares has a remembered agent,
 every environment role it requires has a remembered environment, its remembered params are valid,
-and it has a budget unless it is `chat`.
+and it has a budget.
+
+**8.9** In a chat, a line starting with `$` MUST first be resolved as Section 8.9.9 of [CORE]
+states: a `$<name>` that names a native skill MUST be served by the chat, and one that names a flow
+MUST be a `$` line of this section.
 
 ## 9. Saying something
 
@@ -599,7 +641,9 @@ outworlder, and where that outworlder asks nothing.
 **9.3** A line said while an epic is going MUST be sent to the session read, or to whichever session
 of the agent read has a turn open, and MUST otherwise be held for that agent's next turn.
 
-**9.4** A line said while no epic is going MUST start the flow set up, with the line as its task.
+**9.4** A line said while no epic of a flow is going MUST be said to the chat of this frontend,
+putting it on the screen: as its task where it has not started, and as its next turn otherwise,
+carrying it on where it has folded away.
 
 **9.5** The interface MUST pin each line said and not yet taken at the left above the editor, the
 ones put into a turn first, then the held ones oldest first, each with the agent it is with and the
@@ -649,10 +693,67 @@ closes.
 
 **10.10** The monitor MUST list every frontend reading the epic where there is more than one.
 
+**10.11** A question with a schema MUST be shown on its outworlder view and on the view read, as
+the first line of its text, the rest of its text as Markdown, its context blocks (Section 10.15),
+then the line `form · <n> fields — press Enter to open`, or `Waiting for <name>` where another
+frontend, `<name>`, holds its role; it MUST NOT take the focus from the editor while a line is being
+typed.
+
+**10.12** Where a question with a schema is the answerable question, `enter` with nothing typed MUST
+open its sheet. A line typed that is a JSON object, or any JSON value for a schema that is not an
+object, MUST be sent as `value` (Section 4.8.4 of [DAEMON]); any other line MUST open the sheet with
+the line put where it fits: in the first unanswered choice one of whose values it names, by its
+words or its number, else in the first empty text field, a required one first, else said on the
+message line as answering none of the fields.
+
+**10.13** The sheet MUST be a form of Section 15 laid along the bottom of the screen over the view
+it was opened from, which stays readable above it and which `pageup` and `pagedown` MUST scroll. It
+MUST be headed with the first line of the question's text, and MUST hold one row per field of the
+whole schema, named by its `title`, else its name, with its `description` beneath: the required
+fields first, in the schema's order, then the others, filled with their defaults, marked `suggested`
+while they hold them, and folded under one row, `More options (<n>)`, `<n>` being how many, where
+there are both. Beside the keys of Section 15.2.1, and in place of Section 15.2.4, a choice of at
+most 5 values and a boolean MUST show their values side by side in their row, the one picked marked,
+the digits `1` to `9` picking the value of that number and `←` and `→` moving the pick, a boolean's
+values being `Yes, <description>` where its `description` is one line of at most 40 characters, else
+`Yes`, and `No`; a choice of more values MUST be picked from a list under its row, by `1` to `9` as
+well, on a row of a choice. A `string` with `hmz:widget` `secret` MUST be hidden as it is typed; one
+with `hmz:widget` `markdown` or `code`, or `format` `textarea`, MUST take several lines; an array of
+strings, integers or numbers MUST take one value a line; and anything else -- an object, any other
+array, a union of several types -- MUST take JSON. Its button MUST say `answer`, and `answer · <n>
+required left` while `<n>` required fields are empty, and MUST send the whole form as `value`, or,
+where a field cannot be read, say what is wrong beside it and put the cursor on the first.
+
+**10.14** Where an answer is refused as one that does not fit, the sheet MUST stay open and put each
+of the refusal's `errors` beside the row of the first key of its `path`, the rest of the path
+before its message, else on the message line, the cursor on the first. `esc` MUST close the sheet
+and keep what it holds for the next time it is opened, until the question is answered or
+withdrawn; a question withdrawn while its sheet is open MUST close it, saying why.
+
+**10.15** Context blocks (Section 3.10.5 of [PYTHON]) MUST be written under their `title`:
+`markdown` as Markdown, `code` and `diff` highlighted as their language and as a diff, `table` as a
+table, `json` indented, and `image` and `chart` as one line naming the block and saying that the web
+page shows it, with the address of the epic's page where it is known: where this machine runs the
+epic and `<home>/web-port` (Section 4.15 of [FILES]) holds a port. The first block MUST show at
+most 40 lines, and each after it at most 12, and a table at most 10 rows, followed by how many
+more there are and, where it is known, that address.
+
+**10.16** Blocks shown with no question (`shown`) MUST be written to the outworlder view of their
+role, under a line saying `<role> was shown`, with no means to answer.
+
+**10.17** A question naming a face MUST say that a richer view of it is in the web page, with that
+address where it is known, and MUST be answered here by the sheet.
+
+**10.18** A question with a schema answered MUST be shown under it as one line of the answer, `❯
+<answer>`, `<answer>` being the values given joined by ` · `, a choice as its words, text quoted
+the rest as JSON and a `secret` value as `***`, followed by ` · by <name>` where another frontend, `<name>`, answered it; one
+withdrawn MUST be shown as `withdrawn: <why>`, `<why>` the record's (Section 4.9.2.4 of
+[DAEMON]).
+
 ## 11. Chat
 
-**11.1** The interface MUST treat as a chat an epic of `chat` going, and, with none going, the flow
-`chat` set up.
+**11.1** The interface MUST hold one chat of its own at a time, and MUST treat as a chat the chat
+on the screen.
 
 **11.2** In a chat, the interface MUST read the chat's session alone, with no header naming the
 view, no round, no outworlder line, and no `reading` or `unread` mark on the agent line.
@@ -671,6 +772,16 @@ starts another.
 
 **11.8** `/epics` MUST offer `continue` on a chat's epic in place of resuming it (Section 8.7 of
 [CORE]).
+
+**11.9** Starting a flow from the chat MUST put the flow on the screen and leave the chat going on
+its own host; `/chat` MUST bring it back (Section 7.19).
+
+**11.10** In a chat, completion MUST offer, for the sigil typed, the entries of the chat's
+catalogue and the names Section 8.9.7 of [CORE] keeps, and, for `$`, the native skills and the
+flows grouped apart, each tagged with where it comes from; where a `$` name is both, it MUST say
+which one the preference picks and that `/flow <name>` starts the flow.
+
+**11.11** In a chat, a `!` line and its output MUST be drawn dim, in the style of a shell.
 
 ## 12. Btw mode
 
@@ -718,7 +829,7 @@ details are on; the state; and ` · copied` for 2 seconds after a copy.
 4. with a turn open or an epic going, a spinner, the agents working (or the flows running, innermost
    last, where no agent works), the seconds since the oldest open turn began (or since the epic
    began), and that `ctrl+c` twice stops it;
-5. otherwise, the flow set up and the working directory, the home directory written `~`.
+5. otherwise, the chat's agent and the working directory, the home directory written `~`.
 
 **13.3** The right of the status line MUST show, joined by ` · `, the hints that hold now: what
 `enter` does; `shift+tab switch view` where the round holds another view; `/ commands`; `shift+enter
@@ -928,7 +1039,7 @@ targets are switched on and saved.
 **16.4.5** **Save** MUST be refused for a flow with an agent role that names no harness or model, or
 a required environment role unset, naming those roles.
 
-**16.4.6** **Save** MUST be refused for a flow other than `chat` that has no budget.
+**16.4.6** **Save** MUST be refused for a flow that has no budget.
 
 **16.4.7** A saved setup MUST take effect from the next epic.
 
@@ -1060,7 +1171,7 @@ profiling switches and task, saying which epic it resumes.
 an epic that cannot be read, a flow that will not load, a flow that is not resumable, or an epic
 with no saved state.
 
-**18.3** `/resume` MUST NOT pick up a chat.
+**18.3** Outside a chat, `/resume` MUST NOT pick up a chat (Section 7.12.5).
 
 ## 19. `/settings`
 
@@ -1091,8 +1202,9 @@ Ai-chan conversation made.
 **19.2.1** The General page MUST hold, for this machine: **Details**, whether turns show tool calls,
 thinking and harness output; **Ai-chan**, the nous a new Ai-chan conversation defaults to (Section
 14.3.2 of [CORE]): `none`, the current one, another nous, or an agent set up on the agent sheet
-titled `Set up Ai-chan`; **Error reports**, on or off; and **What is sent**, which says what error reports include
-and exclude.
+titled `Set up Ai-chan`; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
+whose own is not overridden (Section 8.9.10 of [CORE]); **Error reports**, on or off; and **What is
+sent**, which says what error reports include and exclude.
 
 **19.2.2** Once answered, **Error reports** MUST NOT return to unanswered.
 
@@ -1106,7 +1218,7 @@ transcript; details off MUST show the agents' answers only.
 ### 19.4. Notifications
 
 **19.4.1** The Notifications page MUST offer, each on or off, the kinds Done, Failed, Stopped,
-Questions and Chat turns, and **System**, whether the terminal's bell rings and a system
+Questions and Waiting, and **System**, whether the terminal's bell rings and a system
 notification is shown too, kept in the settings file (Section 3.4.5 of [FILES]); the page keeps
 its own (Section 3.15 of [WEB]).
 
@@ -1214,8 +1326,9 @@ download one as an import does, saying where it landed and, where it cannot be r
 
 ### 19.11. Workspace
 
-**19.11.1** The Workspace page MUST name this directory, show the flow it opens on, and offer
-**Forget**, which on save clears what this directory remembers from the next launch.
+**19.11.1** The Workspace page MUST name this directory, show the flow last set up in it, offer
+**Chat agent**, the chat agent it remembers (Section 8.3.8 of [CORE]), set on the agent sheet, and
+offer **Forget**, which on save clears what this directory remembers from the next launch.
 
 ### 19.12. Usage
 
@@ -1330,7 +1443,8 @@ the epic goes, keeping what is on screen, and MUST stay responsive at fifty thou
 
 **22.1** The offer list MUST offer, for a `/` and part of one word, the commands available now whose
 name starts with it; for `/flow ` and a part, the flows; for `/settings ` and a part, the nine pages
-in order; for `$` and a part, `$` and each flow; and nothing for three or more words.
+in order; for `$` and a part, `$` and each flow; in a chat, also what Section 11.10 states; and
+nothing for three or more words.
 
 **22.2** The offer list MUST offer nothing for a word that is already whole, MUST be reconsidered as
 the cursor moves as well as the text, and MUST keep the focus in the editor.
@@ -1435,6 +1549,8 @@ states where its row's context holds.
 | 24.1.67 | Exomyth | `r` | read again |
 | 24.1.68 | Exomyth | `esc` | out of search, range, pane, then back |
 | 24.1.69 | anywhere | drag, double click, triple click | copy (Section 23) |
+| 24.1.70 | editor, empty, the answerable question has a schema | `enter` | open its sheet (Section 10.12) |
+| 24.1.71 | question sheet, a row of values side by side | `←`, `→` | previous or next value (Section 10.13) |
 
 **24.2** `esc` MUST NOT open the monitor, and `←` MUST NOT stop anything.
 

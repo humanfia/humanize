@@ -17,14 +17,15 @@ import os
 import secrets
 import threading
 import time
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from hmz.runtime import Hmz as Workspace
 from hmz.runtime import Refused
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Iterable
     from pathlib import Path
 
     from hmz.flows import Budget, FlowParams, Usage
@@ -40,6 +41,13 @@ _WENT = "the daemon went away"
 
 #: How long a call to the epic is given to be answered.
 _ANSWERING = 30.0
+
+#: How many answers a question is given before its role is set away for it: the first, and
+#: one more for each the daemon refused as not fitting (Section 4.8.4 of daemon.md).
+_TRIES = 3
+
+#: The code an answer that does not fit its question is refused with.
+_MISFIT = 400
 
 #: How often a run looks at whether its session is still open.
 _LOOKING = 0.5
@@ -274,7 +282,7 @@ class Hmz(Workspace):
             driver -- or the specs a line read.
           envs: What each environment role is, likewise with `-e`.
           params: The flow's params, or None for its defaults.
-          budget: What the epic may spend; only `chat` runs without one.
+          budget: What the epic may spend, which every flow must be given.
           profile_flow: Whether to sample the flow's own Python while it runs.
           profile_environment: Whether to profile the programs its agents start, as well as
             trace them.
@@ -328,7 +336,7 @@ class Hmz(Workspace):
           agents: What each agent role runs; see :meth:`runner`.
           envs: What each environment role is; see :meth:`runner`.
           params: The flow's params, or None for its defaults.
-          budget: What the epic may spend; only `chat` runs without one.
+          budget: What the epic may spend, which every flow must be given.
           profile_flow: Whether to sample the flow's own Python while it runs.
           profile_environment: Whether to profile the programs its agents start, as well as
             trace them.
@@ -434,11 +442,6 @@ class Run:
     def ref(self) -> str:
         """The flow's canonical ref, as the daemon's check answered it."""
         return str(self._runner.checked.get("ref") or "")
-
-    @property
-    def chats(self) -> bool:
-        """Whether the flow is the built-in `chat`, as the daemon's check answered it."""
-        return bool(self._runner.checked.get("chats"))
 
     @property
     def task(self) -> str:
@@ -697,6 +700,8 @@ class Run:
                 one(str(message.get("text") or ""))
         elif kind == "asked":
             self._answers(message)
+        elif kind == "shown":
+            self._shows(message)
         elif kind in ("started", "run", "sessions", "usage"):
             self._snapshot(message)
         elif kind == "ended":
@@ -737,34 +742,76 @@ class Run:
         role, outworlder = str(message.get("role") or ""), self._outworlder
         if outworlder is None or role not in self._claimed:
             return
+        from hmz.runtime.flowing.spi import Ask
+
+        face = _object(message.get("face")) or {}
+        first = Ask(
+            prompt=str(message.get("text") or ""),
+            schema=_object(message.get("schema")),
+            context=_objects(message.get("context")),
+            face=str(face.get("hash") or ""),
+            session=str(message.get("session") or ""),
+        )
 
         def answers() -> None:
             with self._lock:
                 client = self._client
             if client is None:
                 return
-            try:
-                said = asyncio.run(
-                    outworlder.run(str(message.get("text") or ""), None, role)
-                )
-            except Exception:  # noqa: BLE001 -- answered with nothing, as away is
-                said = ""
-            text = said if isinstance(said, str) else _spelled(said)
+            ask = first
+            # One loop for every try, so that what the driver holds of it lasts between them.
+            with asyncio.Runner() as loop:
+                for _ in range(_TRIES):
+                    try:
+                        said = _answer(
+                            loop.run(outworlder.run(ask, role)),
+                            shaped=ask.schema is not None,
+                        )
+                    except Exception:  # noqa: BLE001 -- answered with nothing, as away is
+                        said = None
+                    if said is None:
+                        break
+                    try:
+                        self._asks(
+                            client,
+                            "epic.answer",
+                            question=message.get("question"),
+                            **said,
+                        )
+                    except Refused as refused:
+                        errors = _misfits(refused)
+                        if not errors:
+                            return
+                        # Asked again, told what did not fit the last time.
+                        ask = replace(ask, errors=errors)
+                    except TimeoutError:
+                        return
+                    else:
+                        return
+            # Nothing said, or nothing that fits, is the question answered as an away role's.
             with contextlib.suppress(Refused, TimeoutError):
-                if text:
-                    self._asks(
-                        client,
-                        "epic.answer",
-                        question=message.get("question"),
-                        text=text,
-                    )
-                else:
-                    # Nothing to say is the question answered as an away role's is.
-                    self._asks(client, "epic.afk", on=True, role=role)
-                    if not outworlder.away_for(role):
-                        self._asks(client, "epic.afk", on=False, role=role)
+                self._asks(client, "epic.afk", on=True, role=role)
+                if not outworlder.away_for(role):
+                    self._asks(client, "epic.afk", on=False, role=role)
 
         threading.Thread(target=answers, daemon=True, name="hmz-answers").start()
+
+    def _shows(self, message: dict[str, Any]) -> None:
+        """Hands context pushed to a role the outworlder claims to its `show`, if it has one."""
+        role, outworlder = str(message.get("role") or ""), self._outworlder
+        if outworlder is None or role not in self._claimed:
+            return
+        show: Any = getattr(outworlder, "show", None)
+        if not callable(show):
+            return
+        try:
+            show(
+                _objects(message.get("context")),
+                str(message.get("session") or ""),
+                role,
+            )
+        except Exception:  # noqa: BLE001 -- shown to nobody, as a driver without `show` is
+            return
 
     def _ended_as(self, message: dict[str, Any]) -> None:
         """Takes the `ended` record: what the epic returned or raised."""
@@ -869,8 +916,38 @@ class Run:
         self._lets_go()
 
 
-def _spelled(said: Any) -> str:
-    """An answer that is not text, as its JSON."""
-    if hasattr(said, "model_dump_json"):
-        return str(said.model_dump_json())
-    return json.dumps(said, default=str)
+def _object(said: Any) -> dict[str, Any] | None:
+    """A JSON object of a record, or None where it is not one."""
+    return dict(said) if isinstance(said, dict) else None  # pyright: ignore[reportUnknownArgumentType]
+
+
+def _objects(said: Any) -> tuple[dict[str, Any], ...]:
+    """The JSON objects of a record's array, nothing where it is not one."""
+    if not isinstance(said, list):
+        return ()
+    return tuple(one for one in map(_object, said) if one is not None)  # pyright: ignore[reportUnknownArgumentType]
+
+
+def _answer(said: Any, *, shaped: bool = True) -> dict[str, Any] | None:
+    """The params of `epic.answer` saying an answer, or None where nothing was said.
+
+    Text is sent as `text`; a model or a mapping is a value of the question's schema, sent as
+    `value` -- or, for a question asked in text (not `shaped`), as its JSON in `text`.
+    """
+    if isinstance(said, str):
+        return {"text": said} if said else None
+    if isinstance(said, Mapping):
+        # Raised where it is not JSON, rather than sent as what it is not.
+        value: Any = json.loads(json.dumps(dict(said)))  # pyright: ignore[reportUnknownArgumentType]
+    else:
+        # A pydantic model, told by its method: pydantic is not imported to ask.
+        dump = getattr(said, "model_dump", None)
+        if not callable(dump):
+            return None
+        value = dump(mode="json")
+    return {"value": value} if shaped else {"text": json.dumps(value)}
+
+
+def _misfits(refused: Refused) -> tuple[dict[str, Any], ...]:
+    """What did not fit of a refused answer; nothing where it was refused for another reason."""
+    return _objects(refused.data.get("errors")) if refused.code == _MISFIT else ()

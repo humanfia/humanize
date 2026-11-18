@@ -7,7 +7,7 @@ Each is coganchor's own driver for its CLI, held so that it keeps what
 :mod:`hmz.runtime.flowing.harnessing`.
 
 A session is a coganchor agent of its own and one conversation of it. The agent is what
-coganchor settles everything a session runs by on -- the rung, the web, the skills, the
+coganchor settles everything a session runs by on -- the fence, the web, the skills, the
 machine, the hooks and the person a question goes to -- and two sessions of one flow agent may
 differ in every one of those, so each has its own; they share the CLI, the account and the
 model, which is the driver.
@@ -25,7 +25,7 @@ except the few that decide how a CLI is started, which take hold from the next t
 PRE_TOOL_USE on a CLI that gates its tools with a hook table of its own, and the hooks
 :mod:`~hmz.runtime.flowing.harnessing` starts a CLI asking for -- Codex's `untrusted`
 approvals and its asking feature, whose app server is started again between two turns for
-it, and Kimi Code's asking rung.
+it, and Kimi Code's `yolo`.
 
 What a hook answers is done where the CLI waits for it. A PRE_TOOL_USE hook refuses a tool on
 a CLI that gates its tools (Claude Code, Qwen Code) and watches one already reached for on
@@ -67,6 +67,7 @@ import contextvars
 import dataclasses
 import datetime
 import functools
+import json
 import math
 import os
 import threading
@@ -74,7 +75,6 @@ import time
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from hmz.flows import (
-    Access,
     AskUserHookAgentMixin,
     CostExceeded,
     DurationExceeded,
@@ -86,6 +86,7 @@ from hmz.flows import (
     HarnessSandboxed,
     HarnessUnrecoverable,
     HookKind,
+    OutputSchemaError,
     OutputTokensExceeded,
     OutworlderAway,
     PermissionRequestHookAgentMixin,
@@ -102,7 +103,7 @@ from hmz.flows import (
 
 from . import harnessing
 from .specs import spelled
-from .spi import HARNESS_CAPABILITIES, HookBridge, Kept
+from .spi import HARNESS_CAPABILITIES, HookBridge, Kept, away_answer
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -115,13 +116,13 @@ if TYPE_CHECKING:
         AgentBase,
         AgentConfig,
         Event,
-        HumanAgent,
         Hung,
         Occasion,
         Question,
         SessionBase,
         Verdict,
     )
+    from hmz.coganchor.agents.native import NativeCommand
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import AnchoredConfig, MachineConfig
@@ -136,6 +137,7 @@ if TYPE_CHECKING:
     from .harbors import Harbors
     from .specs import AgentSpec
     from .spi import (
+        Ask,
         HookTable,
         Limits,
         OutworlderDriver,
@@ -206,7 +208,7 @@ _ASKING: Final = 300.0
 #: The moments whose hook decides whether a tool runs.
 _GATES: Final = frozenset({HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST})
 
-#: The hooks whose being hung decides how a session's CLI is started or its rung.
+#: The hooks whose being hung decides how a session's CLI is started.
 _STARTING: Final = frozenset(
     {HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST, HookKind.ASK_USER}
 )
@@ -257,8 +259,8 @@ def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver
             nous=spec.nous,
             **identifying(made, spec.cli),
         )
-        # Built once and let go, which is where coganchor refuses an effort, a rung or a
-        # tier the CLI has no word for -- said here rather than at the first session.
+        # Built once and let go, which is where coganchor refuses an effort or a tier the
+        # CLI has no word for -- said here rather than at the first session.
         kind(config)
     except ValueError as refused:
         raise HarnessUnrecoverable(f"{spec}: {refused}") from refused
@@ -944,7 +946,6 @@ class HarnessDriver:
         return settled(
             self._config,
             self.harness,
-            self._kind,
             permission,
             hung,
             tellable=self.tellable,
@@ -1097,7 +1098,6 @@ def _native(machine: AnchoredConfig) -> AnchoredConfig:
 def settled(
     config: AgentConfig,
     harness: HarnessKind,
-    kind: type[AgentBase],
     permission: Permission,
     hung: frozenset[HookKind],
     *,
@@ -1111,7 +1111,6 @@ def settled(
     Args:
       config: The driver's own config.
       harness: The CLI.
-      kind: coganchor's agent class for it, whose rungs the rung is one of.
       permission: What the session may touch.
       hung: The hooks among :data:`_STARTING` hung on the agent.
       tellable: Whether the CLI can be told about the web.
@@ -1127,7 +1126,11 @@ def settled(
     Raises:
       HarnessUnrecoverable: If the CLI cannot be configured so.
     """
-    from hmz.coganchor.agents import ClaudeCodeAgentConfig, CodexAgentConfig
+    from hmz.coganchor.agents import (
+        ClaudeCodeAgentConfig,
+        CodexAgentConfig,
+        KimiCodeCLIAgentConfig,
+    )
     from hmz.coganchor.machines import AnchoredConfig
 
     here = os.path.expanduser(workdir or os.getcwd())  # noqa: PTH109, PTH111
@@ -1150,7 +1153,6 @@ def settled(
     except ValueError as refused:
         raise HarnessUnrecoverable(str(refused)) from refused
     changes: dict[str, Any] = {
-        "permission": harnessing.rung(harness, permission, rungs=kind.rungs, hung=hung),
         "web_search": harnessing.searching(permission, tellable=tellable),
         "machine": machine,
         "fence": fence,
@@ -1161,7 +1163,7 @@ def settled(
         asks = ((feature, True),) if HookKind.ASK_USER in hung else ()
         changes["features"] = rest + asks
         changes["approvals"] = harnessing.approvals(harness, hung)
-    if isinstance(config, ClaudeCodeAgentConfig):
+    if isinstance(config, (ClaudeCodeAgentConfig, KimiCodeCLIAgentConfig)):
         changes["asks"] = harnessing.prompting(harness, hung)
     try:
         return dataclasses.replace(config, **changes)
@@ -1210,6 +1212,7 @@ class HarnessSession:
         "_limits",
         "_lock",
         "_loop",
+        "_native",
         "_over",
         "_permission",
         "_placement",
@@ -1293,6 +1296,7 @@ class HarnessSession:
         self._rose: dict[str, float] = {}
         # The turn in flight, if one is.
         self._flying = False
+        self._native = False
         self._sink: UsageSink | None = None
         self._limits: Limits | None = None
         self._last = 0.0
@@ -1542,16 +1546,20 @@ class HarnessSession:
                 raise SessionError("a turn is already in flight in this session")
         limits = request.limits
         _refuse_spent(limits)
+        fence = self._agent.config.fence
         if (
             self._driver.harness is HarnessKind.GROK
             and self._tools
-            and self._permission.access(".") != Access.WRITE
+            and fence is not None
+            and not fence.writes
         ):
-            # Grok Build's own driver refuses the turns its read-only rung sends to `grok -p`;
-            # a workdir held from writing by a rule over a wider preset is refused the same,
-            # so that whether the flow's tools reach grok turns on the permission alone.
+            # Grok Build takes the flow's tools only over the conversation it holds open, and
+            # holds open only a fence that writes somewhere: one that writes nothing is an
+            # allowlist of tools, which only `grok -p` carries, and `grok -p` takes no MCP
+            # server. Refused here, before the turn, so that whether the flow's tools reach
+            # grok turns on the fence alone.
             raise HarnessUnrecoverable(
-                f"{self._driver.harness}: a turn that may not write its workdir cannot be "
+                f"{self._driver.harness}: a turn whose fence writes nothing cannot be "
                 "offered the flow's own callbacks"
             )
         goal = (
@@ -1559,6 +1567,7 @@ class HarnessSession:
             and GoalCommandAgentMixin in self._driver.capabilities
         )
         body = request.prompt.removeprefix(_GOAL) if goal else request.prompt
+        self._native = request.native and not goal
         # Asked again before every turn and not only as the session opened: the CLI reads its
         # project's settings as each turn starts it, and a turn before may have written some.
         await asyncio.to_thread(
@@ -1745,7 +1754,9 @@ class HarnessSession:
         if goal:
             return self._session.pursue(body)
         said = ""
-        for event in self._session.stream(body, schema=schema):
+        # Said only where it is so, so that a session written before chats were is still one.
+        natively = {"native": True} if self._native else {}
+        for event in self._session.stream(body, schema=schema, **natively):
             if event.kind == "result":
                 said = event.text
         return said.strip()
@@ -1780,7 +1791,6 @@ class HarnessSession:
         now = settled(
             was,
             driver.harness,
-            type(self._agent),
             self._permission,
             hung,
             tellable=driver.tellable,
@@ -2025,6 +2035,10 @@ class HarnessSession:
                     return
             raise SessionError("the turn ended before it could be steered") from missed
 
+    def natives(self) -> list[NativeCommand]:
+        """The native input its harness takes in a chat; see :meth:`SessionHandle.natives`."""
+        return self._session.natives()
+
     def interrupt(self) -> None:
         """Stops the turn in flight, if any, from any thread. Idempotent."""
         with self._lock:
@@ -2169,47 +2183,84 @@ def open_outworlder(
     *,
     ask: Callable[[Question], str | None] | None = None,
     away: Callable[[str], bool] | None = None,
+    show: Callable[[str, str, tuple[dict[str, Any], ...]], None] | None = None,
+    faces: Callable[[Any], None] | None = None,
 ) -> HumanOutworlder:
     """Makes the driver for whoever is outside the run.
 
     Args:
       ask: Asks the person one question and waits for the answer, on a thread of its own:
         the question's text, the answers it offers where it offers any, and the `Outworlder`
-        role asking as its `asker`. Answers None when nobody answered -- they walked away, or
-        the interface closed. A text turn is one question; a turn asked for a schema is one
-        question per field, as :class:`hmz.coganchor.agents.HumanAgent` asks them. None for
-        nobody at all, which is `hmz exec`.
+        role asking as its `asker`. A turn asked for a schema is one question carrying the
+        whole schema, the context, the face and the session, answered with the JSON text of
+        a value its `check` passed. Answers None when nobody answered -- they walked away,
+        or the interface closed. None for nobody at all, which is `hmz exec`.
       away: Whether nobody is there now for one `Outworlder` role -- `/afk` -- asked whenever
         it matters. None for away exactly when there is nobody to `ask`.
+      show: Pushes context nobody answers to the person, as `(role, session, context)`, on
+        the loop: it must not block. None to drop it.
+      faces: Hands a session's face over before any question names it by its hash, on the
+        loop. None to drop it.
 
     Returns:
       The driver.
     """
-    return HumanOutworlder(ask=ask, away=away)
+    return HumanOutworlder(ask=ask, away=away, show=show, faces=faces)
+
+
+def _misfits(
+    model: type[pydantic.BaseModel], value: object
+) -> tuple[dict[str, Any], ...]:
+    """Why a value does not fit a model, field by field, read as its JSON is.
+
+    Args:
+      model: The model the value is to be an instance of.
+      value: The candidate, as JSON parsed it.
+
+    Returns:
+      Each reason as `{"path": [...], "message": ...}`, the path the field's place in the
+      value; nothing where it fits.
+    """
+    import pydantic
+
+    try:
+        model.model_validate_json(json.dumps(value))
+    except pydantic.ValidationError as refused:
+        return tuple(
+            {"path": list(wrong["loc"]), "message": wrong["msg"]}
+            for wrong in refused.errors()
+        )
+    except (TypeError, ValueError) as unwritable:
+        return ({"path": [], "message": f"not JSON: {unwritable}"},)
+    return ()
 
 
 class HumanOutworlder:
-    """Whoever is outside the run, asked through the person-shaped agent coganchor has.
+    """Whoever is outside the run, asked through whatever interface the run has.
 
-    One person per `Outworlder` role, each stamping what it asks with the role, so that an
-    interface holding several can say which of them is asking and take each one's answer.
+    Every turn is one question, the whole of it: a schema is asked at once, with what to read
+    before answering, never a field at a time. Stamped with the `Outworlder` role asking, so
+    that an interface holding several can say which of them is asking and take each one's
+    answer.
 
     Implements :class:`~hmz.runtime.flowing.spi.OutworlderDriver`.
     """
 
-    __slots__ = ("_ask", "_away", "_lock", "_people")
+    __slots__ = ("_ask", "_away", "_faces", "_show")
 
     def __init__(
         self,
         *,
         ask: Callable[[Question], str | None] | None,
         away: Callable[[str], bool] | None,
+        show: Callable[[str, str, tuple[dict[str, Any], ...]], None] | None = None,
+        faces: Callable[[Any], None] | None = None,
     ) -> None:
         """Initializes the driver; see :func:`open_outworlder`."""
         self._ask = ask
         self._away = away
-        self._people: dict[str, HumanAgent] = {}
-        self._lock = threading.Lock()
+        self._show = show
+        self._faces = faces
 
     def away_for(self, role: str) -> bool:
         """Whether nobody is there to answer as one role. It may change at any time."""
@@ -2217,75 +2268,86 @@ class HumanOutworlder:
             return True
         return self._away(role) if self._away is not None else False
 
+    def show(
+        self, context: tuple[dict[str, Any], ...], session: str, role: str
+    ) -> None:
+        """Pushes context to the person, who answers nothing; dropped with nobody to show."""
+        if self._show is not None and not self.away_for(role):
+            self._show(role, session, context)
+
+    def mount(self, face: Any) -> None:
+        """Hands a session's face to the interface, before any question names it."""
+        if self._faces is not None:
+            self._faces(face)
+
     async def run(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
-    ) -> str | pydantic.BaseModel:
+        self, ask: Ask, role: str
+    ) -> str | pydantic.BaseModel | dict[str, Any]:
         """Asks, and waits for the answer.
 
         Returns:
-          The answer. An away outworlder answers at once: "" for text, and the schema built
-          with no arguments where every field has a default.
+          The answer: text, or for a schema an instance of `ask.model` -- or, asked with no
+          model, the value as JSON read it. An away outworlder answers at once: "" for text,
+          and the model built with no arguments where every field has a default.
 
         Raises:
           OutworlderAway: If it is away and the schema cannot be answered by default, or went
             away -- answered nothing -- while this was waiting.
+          OutputSchemaError: If what came back is not a value of the schema, which an
+            interface that ran the question's `check` never sends.
         """
         if self.away_for(role):
-            return away_answer(output_schema)
-        said = await _threaded(lambda: self._asked(prompt, output_schema, role))
+            return away_answer(ask.model)
+        said = await _threaded(lambda: self._asked(ask, role))
         if said is None:
             raise OutworlderAway("nobody answered")
-        return said
+        if ask.schema is None:
+            return said
+        return _read(said, ask)
 
-    def _person(self, role: str) -> HumanAgent:
-        """The person asked as one role, made the first time that role asks."""
-        from hmz.coganchor.agents import HumanAgent
-
-        ask = self._ask
-        with self._lock:
-            person = self._people.get(role)
-            if person is None:
-                person = self._people[role] = HumanAgent(name="outworlder")
-                person.ask = (
-                    None
-                    if ask is None
-                    else lambda question: ask(dataclasses.replace(question, asker=role))
-                )
-            return person
-
-    def _asked(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
-    ) -> str | pydantic.BaseModel | None:
-        """Puts the prompt to the person, on a thread of its own."""
+    def _asked(self, ask: Ask, role: str) -> str | None:
+        """Puts the whole of an ask to the person as one question, on a thread of its own."""
         from hmz.coganchor.agents import Question
 
-        person = self._person(role)
-        if output_schema is None:
-            return person.asked(Question(text=prompt))
-        return person.new()(prompt, suppress=True, schema=output_schema)
+        asking = self._ask
+        if asking is None:
+            return None
+        model = ask.model
+        return asking(
+            Question(
+                text=ask.prompt,
+                asker=role,
+                schema=ask.schema,
+                context=ask.context,
+                face=ask.face,
+                session=ask.session,
+                check=None
+                if model is None or ask.schema is None
+                else functools.partial(_misfits, model),
+            )
+        )
 
 
-def away_answer(
-    output_schema: type[pydantic.BaseModel] | None,
-) -> str | pydantic.BaseModel:
-    """What an outworlder that is away answers.
-
-    Args:
-      output_schema: The model asked for, or None for text.
-
-    Returns:
-      "" for text, and the model built with no arguments where every field has a default.
+def _read(said: str, ask: Ask) -> pydantic.BaseModel | dict[str, Any]:
+    """The JSON text a schema question was answered with, as a value of the schema.
 
     Raises:
-      OutworlderAway: For a model some field of which has no default.
+      OutputSchemaError: For text that is not one.
     """
-    if output_schema is None:
-        return ""
-    if any(field.is_required() for field in output_schema.model_fields.values()):
-        raise OutworlderAway(
-            f"nobody is there to answer a {output_schema.__name__}, and it has no default"
-        )
-    return output_schema()
+    import pydantic
+
+    model = ask.model
+    try:
+        if model is not None:
+            return model.model_validate_json(said)
+        value = json.loads(said)
+    except (pydantic.ValidationError, ValueError) as wrong:
+        raise OutputSchemaError(
+            f"the outworlder did not answer a value: {wrong}"
+        ) from None
+    if not isinstance(value, dict):
+        raise OutputSchemaError("the outworlder did not answer an object")
+    return cast("dict[str, Any]", value)
 
 
 async def _threaded[T](work: Callable[[], T]) -> T:

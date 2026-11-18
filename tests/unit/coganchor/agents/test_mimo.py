@@ -8,6 +8,7 @@ Claude Code's settings left alone under a fence -- each through a turn of a scri
 from __future__ import annotations
 
 import json
+import subprocess
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -117,10 +118,11 @@ def test_the_next_turn_resumes_the_session_it_was_given(
     assert session.id == "ses-9"
 
 
-def test_a_rung_is_its_own_table_and_its_own_flag(
-    spawner: Spawner, tmp_path: Path
+def test_a_fence_is_its_own_table_and_its_own_flag(
+    spawner: Spawner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _mimo(permission="bypass").new(tmp_path)("go")
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    _mimo(fence=Fence(read=("/",), write=("/",)), web_search=True).new(tmp_path)("go")
     proc = spawner.last
     assert proc.args[-1] == "--dangerously-skip-permissions"
     assert "--auto" not in proc.args
@@ -134,6 +136,22 @@ def test_a_rung_is_its_own_table_and_its_own_flag(
     assert "OPENCODE_PERMISSION" not in (proc.env or {})
 
 
+def test_a_fence_that_writes_nothing_withholds_the_edit_and_keeps_the_shell(
+    spawner: Spawner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    _mimo(fence=Fence(read=("/",), online=False)).new(tmp_path)("go")
+    proc = spawner.last
+    assert proc.args[-1] == "--dangerously-skip-permissions"
+    assert _permitted(proc.environ) == {
+        "edit": "deny",
+        "bash": "allow",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "codesearch": "deny",
+    }
+
+
 def test_no_web_takes_its_code_search_too(spawner: Spawner, tmp_path: Path) -> None:
     _mimo(web_search=False).new(tmp_path)("go")
     proc = spawner.last
@@ -143,7 +161,7 @@ def test_no_web_takes_its_code_search_too(spawner: Spawner, tmp_path: Path) -> N
     assert "--dangerously-skip-permissions" not in proc.args
 
 
-def test_an_agent_nobody_set_a_rung_for_is_told_nothing(
+def test_an_agent_nobody_fenced_is_told_nothing(
     spawner: Spawner, tmp_path: Path
 ) -> None:
     _mimo().new(tmp_path)("go")
@@ -240,3 +258,34 @@ def test_an_error_line_fails_the_turn(spawner: Spawner, tmp_path: Path) -> None:
     )
     with pytest.raises(Failed, match="the model refused"):
         _mimo().new(tmp_path)("go")
+
+
+def test_the_catalog_is_mimo_s_built_ins_listed_by_mimo_itself(
+    monkeypatch: pytest.MonkeyPatch, spawner: Spawner, tmp_path: Path
+) -> None:
+    del spawner
+    asked: list[list[str]] = []
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        asked.append(list(argv))
+        said = {"command": {"ship": {"description": "ship it"}}}
+        return subprocess.CompletedProcess(argv, 0, json.dumps(said), "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    catalog = _mimo().new(tmp_path).natives()
+
+    assert [one.name for one in catalog if one.sigil == "/"] == [
+        "init",
+        "review",
+        "dream",
+        "distill",
+        "goal",
+        "rebuild",
+        "ship",
+    ]
+    assert [one[-3:] for one in asked] == [
+        ["mimo", "debug", "config"],
+        ["mimo", "debug", "skill"],
+    ]

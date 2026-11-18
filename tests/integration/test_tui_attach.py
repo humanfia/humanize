@@ -58,14 +58,23 @@ def running(host: Host, workspace: Path) -> Iterator[Link]:
 
 
 @pytest.fixture
-def chatting(host: Host, workspace: Path) -> Iterator[Link]:
-    """Another frontend of the runs, which has started chat on a turn held open."""
-    yield from _started(host, workspace, "chat")
+def chatting(workspace: Path) -> Iterator[tuple[Host, Link]]:
+    """A chat's host, and another frontend of it, which has started a turn held open."""
+    held = Host(Holding(workspace), slot="chat:0a1b2c3d4e5f")
+    try:
+        with linked(held, kind="sdk") as other:
+            other.chat(RUNS, "wait for it")
+            _waits(lambda: heard(workspace) == ["wait for it"], "the turn to start")
+            yield held, other
+    finally:
+        held.close()
 
 
 def _started(host: Host, workspace: Path, flow: str) -> Iterator[Link]:
     with linked(host, kind="sdk") as other:
-        other.start(flow, "wait for it", agents={"assistant": RUNS})
+        other.start(
+            flow, "wait for it", agents={"assistant": RUNS}, budget={"cost": 100}
+        )
         _waits(lambda: heard(workspace) == ["wait for it"], "the turn to start")
         yield other
 
@@ -122,8 +131,9 @@ async def test_leaving_an_attached_interface_detached_leaves_the_run_going(
 
 
 async def test_exit_leaves_a_chat_a_host_holds_going_without_asking(
-    host: Host, chatting: Link, workspace: Path
+    chatting: tuple[Host, Link], workspace: Path
 ) -> None:
+    host, other = chatting
     app = Humanize(link=linked(host))
     async with app.run_test(size=SIZE) as pilot:
         await shows(pilot, "still on it", "running…")
@@ -133,7 +143,7 @@ async def test_exit_leaves_a_chat_a_host_holds_going_without_asking(
         await until(pilot, lambda: not app.is_running, "the interface to close")
 
     assert host.status()["state"] == "running"
-    await asyncio.to_thread(chatting.say, "still there?")
+    await asyncio.to_thread(other.chat_say, "still there?")
     await asyncio.to_thread(
         _waits, lambda: heard(workspace)[-1:] == ["still there?"], "the run to hear"
     )

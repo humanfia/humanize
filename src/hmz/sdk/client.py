@@ -27,19 +27,28 @@ class Client(Session):
     def local(cls, *, name: str = "", kind: Kind = "sdk") -> Client:
         """A session with this machine's daemon over `unix:`, started where none runs.
 
+        Ai-chan (`kind` `ai-chan`) reaches it over the scoped link `HUMANIZE_AICHAN_LINK`
+        names instead, and starts no daemon (Section 4.21.8 of python.md).
+
         Args:
           name: What this client is called, "" for this machine's host name.
-          kind: What it is: `sdk`, `cli`, `tui`.
+          kind: What it is: `sdk`, `cli`, `tui`, `ai-chan`.
 
         Raises:
           OSError: If the daemon cannot be reached or started, or speaks another protocol --
-            `EADDRINUSE`, saying so.
+            `EADDRINUSE`, saying so -- and, for `ai-chan`, where no scoped link is named.
         """
-        from hmz import daemon
-        from hmz.daemon import where
         from hmz.reach.pipes import SocketPipe
 
-        daemon.start()
-        one = where.connects(where.at(), _PATIENCE)
+        if kind == "ai-chan":
+            from hmz.runtime.doing.aichan import linked
+
+            one = linked()
+        else:
+            from hmz import daemon
+            from hmz.daemon import where
+
+            daemon.start()
+            one = where.connects(where.at(), _PATIENCE)
         one.settimeout(None)
         return cls.over(SocketPipe(one, trusted=True), name=name, kind=kind)

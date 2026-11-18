@@ -65,6 +65,7 @@ mount would list each machine's daemon on every other.
 | File | Written | Mode | Content | Removed |
 | --- | --- | --- | --- | --- |
 | `daemon.sock` | when the daemon binds | `0600` | Unix stream socket, backlog 64. A stale one is unlinked only after the lock is held. | when the daemon closes |
+| `ai-<hex>.sock` | before the host of the Ai-chan conversation of slot `ai:<hex>` starts | `0600` | Unix stream socket: that conversation's [scoped link](#scoped-links). | when that host goes, and when the daemon closes |
 | `daemon.json` | after binding, atomically (`.daemon.json.<random>.new`, fsync → rename) | `0600` | See below. | when the daemon closes |
 | `daemon.lock` | at start | `0600` | Empty. Held with `flock(LOCK_EX \| LOCK_NB)` for the daemon's lifetime; the kernel releases it when the process ends. | never |
 | `daemon.log` | at start; append | `0600` | What belongs to no run: the daemon's file descriptors 1 and 2, a host process's before it has held a run, start failures, socket-path `chdir` failures. Never rotated. | never |
@@ -188,7 +189,7 @@ object, at most 32 MiB), whichever carrier it came over:
 | Calls the daemon makes | None. |
 
 The methods served here are `session.*`, `rpc.discover`, `pair.*`, `devices.*`, [`hosts.*`](#control-requests),
-[`epic.*`](#requests) and `btw.*`; every other family (settings, epics written down, flows, …)
+[`epic.*`](#requests), `btw.*` and [`aichan.*`](#ai-chan); every other family (settings, epics written down, flows, …)
 is a module of `hmz.daemon.api` naming its own in `METHODS`, found by `pkgutil` as the daemon
 starts. A method `protocol/openrpc.json` lists that nothing serves is refused -32601.
 
@@ -236,9 +237,9 @@ up as `told` `{tag, message}`.
 A workspace's runs are held by more than one host: its own, slot `""`, which runs its flows one
 at a time and refuses a second (`a flow is already running`), and one per chat, slot
 `chat:<hex>` (12 hex digits from `hmz.daemon.where.chat()`), and one per `hmz exec`, slot
-`exec:<hex>`, beside it. `epic.attach` and `hosts.open` with `chat:` or `exec:` alone make a new
-slot of that kind; one whose host has gone is refused 409 (`This chat has folded away.`, `This
-epic has ended.`). A chat started on a slot
+`exec:<hex>`, and one per [Ai-chan](#ai-chan) conversation, slot `ai:<hex>`, beside it. `epic.attach`, `hosts.open` and [`chat.start`](#chats) with `chat:`
+(`chat.start` only) or `exec:` alone make a new slot of that kind; one whose host has gone is
+refused 409 (`This chat has folded away.`, `This epic has ended.`). A chat started on a slot
 of its own never waits on a flow, nor a flow on it, and a second chat is a second slot. Every
 call that reaches a host -- `attach`, `running`, `host`, `epic.attach`, `hosts.*` --
 takes `slot`, and without one means the workspace's own. `where.slot(said)` checks one,
@@ -246,10 +247,10 @@ raising `ValueError` (`<slot> is not a slot`) for anything but `""`, `chat:<hex>
 
 A chat's host **folds** its chat away once the chat has waited for its next line with no
 frontend attached for **60 s** (`hmz.runtime.doing.hosting.FOLD`): every role is made away, the
-question waiting is answered with nothing, and the chat ends `done`, keeping its conversation;
-the host is then idle, and goes. A folded host refuses a start (`this chat has folded away;
-carry it on from its epic`): the chat is carried on by starting `chat` on a new slot with
-`resume` its epic, which goes on in that same epic.
+question waiting is answered with nothing, and the chat ends as an empty next message ends it,
+keeping its conversation; the host is then idle, and goes. A folded host refuses `chat.say`
+(`this chat has folded away; carry it on from its epic`): the chat is carried on by
+`chat.start` on a new slot with `resume` its epic, which goes on in that same epic.
 
 Each host process checks every **0.5 s**. The host closes itself, and its process
 exits, when it is **idle** and either a
@@ -281,7 +282,7 @@ over a session of its own (5 s) and returns `{}` on any failure.
 | Method | Answer |
 | --- | --- |
 | `hosts.list` | `held`: `[{pid, workspace, started, slot}]`, in the order taken on. |
-| `hosts.running` | `running`: every host whose epic is going or stopping, with `state`, `run`, `flow`, `epic`, `task`, `turn` (a chat's), `workspace`, `slot`, `asking` (`<run>:<question>`). |
+| `hosts.running` | `running`: every host whose epic is going or stopping, with `state`, `run`, `kind` (the epic's: `flow` or `chat`), `flow`, `epic`, `task`, `turn` (a chat's), `workspace`, `slot`, `asking` (`<run>:<question>`). |
 | `hosts.open` `{workspace, slot?}` | Starts the host where none is: `pid`, `workspace`, `started`, `kind`, `protocol`, `slot`. |
 | `hosts.status` `{workspace, slot?}` | The [status keys](#status). |
 | `hosts.detach` `{workspace, slot?}` | `let_go`, after telling each frontend `gone` (`let go`). |
@@ -323,9 +324,11 @@ cut to that length plus `… (<n> more characters)`.
 | `slot` | string | Which of its workspace's [hosts](#slots): `""` its own, `chat:<hex>` a chat's, `exec:<hex>` an `hmz exec`'s. |
 | `state` | string | `running`, `stopping` or `idle`. |
 | `run` | int | The run going, else the one stopping, else the last; `0` for none. |
-| `flow` | string | That run's flow, or `""`. |
+| `epic_kind` | string | That epic's kind: `flow`, `chat`, or `""` for none. |
+| `flow` | string | That run's flow, or `""`, as it is for a chat. |
 | `epic`, `task` | string | That run's epic (its directory's name, `""` before it has one) and task, or `""`. |
 | `pending` | list | `[{question, role, text, mode}]`: the questions waited on, as the [`pending` snapshot](#snapshots) says them. |
+| `turn` | string | Of a chat only: `running` while its agent answers, `done` between turns and once it is over. Absent where the host holds no chat. |
 | `ended` | object \| null | How the last run to end here ended: `how` (`done`, `stopped`, `refused`, `budget`, `failed` or `crashed`), `why`, `epic`, `at` (Unix seconds), `run`, `flow`, `task`; `null` before one has. |
 | `budget`, `usage` | object \| null | As JSON, for the run going; `null` while stopping or idle. An infinite cost is the JSON string `"Infinity"`. |
 | `flows` † | list[string] | Canonical refs of the flow calls in progress. |
@@ -345,7 +348,7 @@ also sends `figures`, at most once a second; `scratch` attaches to a new directo
 Every other call to an epic is `epic.<do>` `{sub, …}`, answered with the host's fields, or
 refused 409 with its `why`; a `sub` not open on the session is refused 410. `epic.start`,
 `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board` and `quit` are writes,
-taking `idem`.
+taking `idem`. `face` is a read.
 
 | Any call | Refusal |
 | --- | --- |
@@ -354,15 +357,67 @@ taking `idem`.
 | `epic.<do>` | Fields (type, default) | Answer | Refusals |
 | --- | --- | --- | --- |
 | `attach` | as above | `sub`, `client`, `workspace`, `slot` | `the frontend went while it was saying hello`, `this host has closed`, `This chat has folded away.`, `This epic has ended.` |
-| `start` | `flow` (str, required), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup`, `remember` (bool, `false`) | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a flow is already running`, `a flow is already starting`, `this host has closed`, `an exec host runs one epic` (an exec host that has started one), any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. The daemon checks the epic as `flows.check` does before the host is asked -- so a refusal starts nothing -- and with `remember` checks it as `flows.setup` does, writing it down once the host has taken the start, so that a start refused leaves the set-up there was. A run that is only *stopping* does not block `start`. |
+| `start` | `flow` (str, required; a chat is started by [`chat.start`](#chats) instead), `task` (str), `agents` (`{role: -a spec}`), `envs` (`{role: -e spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool; whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run)), `resume` (`false`, `true`, or an epic path), `backup`, `remember` (bool, `false`) | `run` (int), `slot`, `workspace` | `a flow to start is named`, `a chat is started with chat.start` (on a chat host), `a flow is already running`, `a flow is already starting`, `this host has closed`, `an exec host runs one epic` (an exec host that has started one), any [`Refused`](/reference/cli#what-is-refused-before-anything-runs) message. The daemon checks the epic as `flows.check` does before the host is asked -- so a refusal starts nothing -- and with `remember` checks it as `flows.setup` does, writing it down once the host has taken the start, so that a start refused leaves the set-up there was. A run that is only *stopping* does not block `start`. |
+### Answering {#answering}
+
+| `epic.<do>` | Fields | Answer | Refusals |
+| --- | --- | --- | --- |
+| `answer` | `question` (`q<n>`), and exactly one of `text` (str) or `value` (any JSON) | `{}` | 400 `the answer does not fit: <first message>`, with `data: {"errors": [{path, message}]}`; every refusal of a question that is not this frontend's to answer, already answered, or gone |
+| `face` | `hash` (a face's sha256, as an `asked` record names it) | `html`, `title` | 404 `no face <hash>` |
+
+- **A question with a `schema`** takes `value`, or `text` read as JSON. The value is checked
+  against the schema by the host, with the flow's own model, before the flow is handed it. A
+  misfit is refused and leaves the question up: `errors` holds every reason, `path` the list of
+  keys and indexes to the field (`[]` for the whole value), `message` in words.
+- **A question without one** takes `text`, or a `value` that is a string; any other `value` is
+  refused 409, `q<n> is answered in text`. A number in `text` picks that option, counting from
+  1, only where the question has options.
+- **Faces** are handed to the host before the first question that names one, and kept for the
+  epic's lifetime, so a frontend may fetch one by the hash an `asked` record or the `pending`
+  snapshot names, as often as it likes.
+
 ### Routing of `say` {#say-routing}
 
 | `to` | The line |
 | --- | --- |
 | `""` | Answers a pending *listen* question the sender may answer, else goes to the first conversation with a turn open (in opening order). |
-| `<agent>` | That agent's newest conversation with a turn open; with none open, in `chat` only, answers a pending listen question the sender may answer. |
-| `<agent>/<n>` | That conversation; with no turn open in it, in `chat` only, answers a pending listen question the sender may answer. |
+| `<agent>` | That agent's newest conversation with a turn open. |
+| `<agent>/<n>` | That conversation. |
 | `outworlder:<role>` | Answers that role's pending listen question only; never put into a turn. |
+
+On a chat host, `epic.say` and `epic.answer` are refused, `say it to the chat with chat.say`:
+every line of a chat, an answer to what its assistant asks included, goes by
+[`chat.say`](#chats).
+
+### Chats {#chats}
+
+A [chat](/user/chat) is started and talked to by calls of its own, each with `workspace` and
+`slot`. `chat.start`, `chat.say` and `chat.set` are writes, taking `idem`; a frontend follows a
+chat's messages by `epic.attach` on its slot, as any epic's.
+
+| Method | Fields | Answer | Refusals |
+| --- | --- | --- | --- |
+| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required, not empty), `resume` (an epic directory name, or `null`), `prefer` (`native`, `flow` or `null`), `remember` (bool, `false`) | `slot`, `epic` (the chat's epic directory name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, or why the agent is refused; 404 `<epic> is not a chat of <workspace>.`; 409 `a chat is already going on <slot>` |
+| `chat.say` | `workspace`, `slot`, `text` | `{}` | 400 naming the line, for a `$` line naming a flow or a name hmz keeps, which the frontend serves; 404 where no host holds the slot; 409 `this chat has folded away; carry it on from its epic` |
+| `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`), `listed` (whether the catalogue is all the CLI lists: once a turn was taken) | as `chat.say` |
+| `chat.set` | `workspace`, `slot`, `prefer` (`native` or `flow`) | `{}` | 400 for any other `prefer`; else as `chat.say` |
+
+- **`chat.start`** starts the slot's host as `epic.attach` does, without attaching, and starts
+  the chat there with `agent` as its assistant and `task` as its first message. With `resume`
+  it carries that chat on, in the same epic, `task` its next turn, with its own agent unless
+  `agent` is given. `prefer` is recorded as the chat's own preference. With `remember`, `agent`
+  is written as the workspace's [chat agent](/reference/settings#chat-agent) once the host has
+  taken the start; a refused start leaves it as it was.
+- **`chat.say`** serves `text` as a line in a chat is
+  [served](/user/chat#what-a-line-means), and otherwise says it to the chat: the next turn
+  between turns, into the open turn where the harness takes a line mid-turn, held for the next
+  turn otherwise. An empty `text` ends the chat. A line delivered, held, refused or dropped is
+  recorded as for `epic.say`.
+- **`chat.commands`** answers the assistant's [catalogue](/user/chat#native-input-by-cli) for
+  its conversation -- or, before it has opened, what its harness's catalogue holds without one
+  -- each with `source` `native`; then each name hmz keeps, `source` `hmz` and `how` `""`; then
+  each flow on offer in the workspace, sigil `$`, `source` `flow` and `how` `""`.
+- **`chat.set`** records `prefer` as the chat's own preference, in its epic.
 
 A line enters a conversation only while a turn is open, one line per agent at a time; it
 waits otherwise, and the next turn to start takes the oldest matching line into its prompt. A
@@ -372,15 +427,18 @@ to the head of the queue).
 
 ### Asides {#asides}
 
-An aside is a read-only side session: `permission` read-only, no goals, no skills, no allowed
-tools, MCP approval off, watched by nothing. Only the newest 256 conversations of the last run
+An aside is a read-only side session: inside a fence of its own that writes nothing (the
+read-only twin of its agent's fence, `Fence.reading()`, or one reading `/` for an agent that has
+none), its CLI told as for any such fence, no goals, no skills, no allowed tools, MCP approval
+off, watched by nothing. Only the newest 256 conversations of the last run
 can be forked. An aside about a session an earlier run kept is a fork of it carried on from
 where that run kept it -- into a directory of the aside's own in this machine's directory,
 removed as the aside is closed, never where that run keeps its sessions nor the CLI's own home --
 and a fresh copy of its agent where its CLI does not fork or the session was not kept. An aside
 is closed on `unaside`, when its frontend detaches, when a run starts, and when the host closes.
-No message announces asides. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused:
-`<harness> cannot answer a side question: it has no read-only rung`.
+No message announces asides. Every harness can answer one, `mcode`, `dsh` and ACP included; a
+machine that cannot hold the fence refuses the aside with the `Unfenced` message
+(`<Agent> cannot be held to its permission on this machine: ...`).
 
 The daemon's `btw.*` asks each side question of a session through a frontend of its own, of
 kind `btw`, on the host holding that session: the workspace's own host for the epic in view
@@ -390,6 +448,92 @@ end such an aside, whose next question opens its side copy again. The daemon rea
 replayed to it on attaching as the epic going, not as one starting, and lets go of a host a
 minute after the last aside on it closed or its last question was asked. An aside whose first
 question fails is not kept.
+
+## Ai-chan {#ai-chan}
+
+Each [Ai-chan](/user/ai-chan) conversation is a [chat](/user/chat) whose one agent plays
+her role, held by a host of its own on the slot `ai:<hex>`: in the workspace of its scope, or,
+for the scope `daemon`, in `H/ai/<machine>/`. Only the daemon starts it, with the
+conversation's own scope, preset and network; `epic.stop` there stops her open turn only. Its harness runs at `bypass`, confined: `/` denied, the scope
+root (`/` for `daemon`, the workspace otherwise) read-only under `read-only` and writable under
+`danger-full-access`, its scratch directory `H/ai/<machine>/<id>/` writable, and this machine's
+directory -- the daemon's socket and every scoped link -- denied beneath all of it. A
+conversation whose confinement cannot be held is refused rather than run wider. It has no
+budget.
+
+### `aichan.*` {#aichan-methods}
+
+| Method | Fields (default) | Answer | Refusals |
+| --- | --- | --- | --- |
+| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `network` (`false`), `title` (`""`: the task's first line, cut at 80), `task` (required) | `id`, `workspace`, `slot`, once its host has taken the start | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
+| `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `state` (`running`, `waiting`, `folded`), `created` | — |
+| `aichan.forget` (write) | `id` (required) | `{}`; closes its host, removes its entry and scratch directory, keeps its epic's records | 404 `There is no Ai-chan #<id>.` |
+
+`id` counts from 1. Conversations are kept in `H/ai/<machine>/conversations.yaml` across the
+daemon's restarts. `epic.attach` on the `ai:` slot of a conversation whose host has gone starts
+that host again, carrying its epic on (`resume`), and attaches; on an `ai:` slot of no
+conversation it is refused 404, `There is no Ai-chan conversation <slot>.` `epic.stop` on an
+Ai-chan host interrupts her open turn and leaves the conversation between turns, and is refused
+with `Ai-chan is not answering, so there is nothing to stop` while none is open. A host folds
+its conversation as it folds a chat, and then goes.
+
+### Scoped links {#scoped-links}
+
+Before it starts a conversation's host, the daemon listens on `<mdir>/ai-<hex>.sock` (`0600`),
+the conversation's **scoped link**, whose path the host gives the flow as
+`HUMANIZE_AICHAN_LINK`; it is removed when the host goes. A session over it is admitted as one
+over the socket, says `session.hello` with kind `ai-chan`, and is named `Ai-chan#<id>` by every
+host, whatever it says. A `session.hello` of another kind over a scoped link is refused 403,
+`This link is Ai-chan's.`; one of kind `ai-chan` over any other carrier, 403 `Only Ai-chan
+says hello as ai-chan.`
+
+### Reach {#reach}
+
+A session over a scoped link carries its conversation's **reach**: `scope`, `workspace`,
+`epic`, `preset`, `network`. Every call it makes is held to it before it is carried out, by the
+`x-hmz-reach` and `x-hmz-writes` extensions each method carries in `openrpc.json`:
+
+| `x-hmz-reach` `scope` | The method acts on | Reached by |
+| --- | --- | --- |
+| `any` | nothing of one workspace, or what its answer lists | every reach; the answer filtered |
+| `daemon` | the daemon, its machine, every workspace | the scope `daemon` |
+| `workspace` | the workspace named | `daemon`, or `workspace` of that workspace |
+| `epic` | the epic or host named | `daemon`; `workspace` where it ran or stands there; `epic` where it is that epic, or the host's epic going, stopping or last is |
+| `never` | pairing, devices, credentials, the network's secrets, `aichan.*` | nobody |
+
+A call with no `workspace` where the method names one is held as `daemon`, and so is
+`epic.attach` with `scratch`. A call is refused 403, with no effect, by the first that holds:
+
+1. `never`: `Ai-chan cannot call <method>.`
+2. it names a host of an `ai:` slot: `Ai-chan cannot reach an Ai-chan conversation.`
+3. out of reach: `<method> is out of Ai-chan's scope: <what>.`, `<what>` being `the daemon`,
+   `the workspace <workspace>`, `the epic <epic>` or `the host <slot> of <workspace>`
+4. `x-hmz-writes` and the preset `read-only`: `Ai-chan is read-only, and <method> changes
+   things.`
+
+`hosts.list`, `hosts.running`, `workspaces.list`, `runs.list` and `notices.*` answer such a
+session only with what its reach reaches, counts and totals included, and never an `ai:` slot.
+An `epic` reach's subscription ends `gone` (`out of Ai-chan's scope`) once another epic starts
+on its host.
+
+### Envs of an epic {#envs}
+
+Ai-chan reads, writes, searches and runs commands in the envs of an epic going on a host, as its
+flow would, without attaching and without telling the epic. Each takes `workspace`, `slot` and
+(but `hosts.env.list`) `env`, a role of the epic; a `path` is relative to the env's workdir.
+
+| Method | Fields (default) | Answer |
+| --- | --- | --- |
+| `hosts.env.list` | — | `envs`: `name`, `kind`, `workdir`, `can` (of `read`, `write`, `exec`, `grep`) |
+| `hosts.env.read` | `path`, `offset` (`0`), `length` (`1048576`, the most) | `text` (UTF-8, bad bytes as U+FFFD), `size`, `eof` |
+| `hosts.env.write` (write) | `path`, `text` | `size`; makes the directories |
+| `hosts.env.exec` (write) | `argv` (non-empty), `seconds` (1–3600, `120`) | `code` (`null` where killed at `seconds`), `stdout`, `stderr` (each the last 1 MiB) |
+| `hosts.env.grep` | `pattern` (POSIX ERE), `path` (`.`), `limit` (1–2000, `200`) | `matches` (`path`, `line`, `text` cut at 400), `more` |
+
+Refusals: 400 `<path> is outside the env <env>.` (by `..`, an absolute path or a symbolic
+link), 400 `hosts.env.exec runs a command: give argv.`; 404 `The epic has no env <env>.`, `There is
+no file <path> in <env>.`; 409 `no flow is running, so no env is open`, `The env <env> cannot <what>.`,
+`<what>` being `read files`, `write files`, `run commands` or `search files`.
 
 ## Messages {#messages}
 
@@ -413,8 +557,9 @@ first (counted in `elided`), the newest always kept. Every record but `printed` 
 | `started` | `flow`, `ref`, `task`, `by` (frontend name), `client`, `roles` (declared agent roles the line fills), `names` (`{role: agent name}`: what the agent filling each is called, which its conversations are keyed by), `outworlders` (runtime-filled roles), `agents` (`{role: spec}`), `envs` (`{role: spec}`), `params` (object), `budget` (Budget JSON), `profile_flow`, `profile_environment` (bool), `resume` (`""`, or `str()` of what was given: `"True"`, an epic path), `began` (host monotonic), `at` (Unix time) |
 | `opened` | `role` (the role its agent fills), `key` (`<agent>/<n>`), `agent` (the agent's own name, such as `NeiKos496`), `cli`, `model`, `counts` (sorted token kinds the backend reports), `forks` (bool), `person` (bool), `kept` (directory of the session's logs; `""` for a person or the CLI's own home), `env`, `harness`, `mono`, `wall` (Unix time) |
 | `event` | `key`, `session` (`key` where the event names a conversation, else `""`), `agent`, `cli`, `model`, `ident` (backend's conversation id, `""` until named), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono`. Same fields as [`hmz exec --json`](/reference/cli#ndjson). |
-| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<agent>/<n>` of the one conversation with a turn open, else `""`) |
-| `answered` | `question`, `role`, `by`, `client`, `text` (the option chosen, or the text) |
+| `asked` | `question` (`q<n>`, host-wide), `role` (default `outworlder`), `text`, `options` (list; `[]` for a question with a `schema`), `mode` (`ask` where there are options or a turn is open, else `listen`), `key` (`<agent>/<n>` of the one conversation with a turn open, else `""`), `schema` (the JSON Schema the answer must fit, or `null` for text), `context` (list of [block](/reference/flows#context-blocks) JSON forms, `[]`), `face` (`{hash, title}` of the session's [face](/reference/flows#face), or `null`), `session` (`<role>/<n>` of the outworlder session asking, `""` for an agent's question) |
+| `answered` | `question`, `role`, `by`, `client`, `text` (the option chosen, or the text; for a `schema` question, the accepted value as JSON text) |
+| `shown` | `role`, `session`, `context`: blocks the flow put in front of that outworlder with nothing to answer (`Outworlder.show`). Not recorded while the role is away. |
 | `withdrawn` | `question`, `why`: `away` (the role went afk) or `over` (the run ended, stopped, was forced or the host closed) |
 | `said` | `text`, `key`, `by`, `client`: a line a conversation took |
 | `refused` | `agent`, `text`, `because` (the backend's error text, or `the agent refused it`) |
@@ -468,7 +613,7 @@ The latest of each type is kept and re-sent on attach; a changed one is broadcas
 | `sessions` | `run`, `open` (keys still open), `working` (keys with a turn open) | `0`, `[]`, `[]` |
 | `calls` | `calls`: `[{ref, name, depth, since (host monotonic), id, parent (index or null)}]` | `[]` |
 | `waiting` | `queued` `[{text, by, client, to}]`, `given` `[{agent, text, by, client}]` | `[]`, `[]` |
-| `pending` | `pending`: `[{question, run, role, text, options, mode, key, owner (client id or null)}]` | `[]` |
+| `pending` | `pending`: `[{question, run, role, text, options, mode, key, schema, context, face, session, owner (client id or null)}]`, the fields as the [`asked`](#history-records) record's | `[]` |
 | `usage` | `run`, `usage` (Usage JSON or `null`), `budget`; refreshed at most once a second | `0`, `null`, `null` |
 | `board` | `items`: `[{key, value, about, whose (both, user, flow), by, at}]`, or `null` for a run with no board; reset to `null` on start | `null` |
 

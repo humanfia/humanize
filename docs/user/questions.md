@@ -1,13 +1,14 @@
 # Questions
 
 An agent can stop in the middle of a turn to ask you something, and a flow can ask you
-directly. Either way the question appears in the transcript, and the next line you type is the
-answer. Use this page to answer a question at the prompt, to know what happens to one when
-nobody is there, and to count them from a script.
+directly. Either way the question appears in the transcript. A question asking for text is
+answered by the next line you type; a flow's form is answered by filling it in, at the prompt
+or in the browser. Use this page to answer a question, to know what happens to one when nobody
+is there, and to count them from a script.
 
 ## Try it
 
-Start the interface, which opens on [`chat`](https://humanfia.ai/flows/chat) with one agent, and ask for a
+Start the interface, which opens on a [chat](/user/chat) with one agent, and ask for a
 question:
 
 ```sh
@@ -26,28 +27,29 @@ type next is the answer.
 
 - A coding agent CLI that can stop to ask: Claude Code, Codex, Kimi Code, pi or Oh My Pi. See
   [Which agents ask](#which-agents-ask).
-- A flow that passes its agents' questions on to you. `chat`, the flow `hmz` opens on, passes
-  every one on.
+- A flow that passes its agents' questions on to you, or a [chat](/user/chat), which `hmz`
+  opens on and which puts every one to you.
 
 ## Two kinds of question
 
 - **An agent's question** comes from the coding agent itself, part-way through a turn: its CLI
   has a tool for asking its user something. The turn waits for your answer, then carries on
   with it.
-- **A flow's question** comes from the flow, between turns: a flow that needs a setting from
-  you asks for it. The flow waits, then goes on with what you said.
+- **A flow's question** comes from the flow, between turns: a flow that needs a decision from
+  you asks for it, as a line of text or as one form, often with something to read with it, a
+  diff or a table. The flow waits, then goes on with what you said.
 
-In `chat` the second kind is the conversation itself rather than a question beside it. After
-every answer `chat` waits for your next message, and whatever you type in the conversation,
-a follow-up or a steer, is that message. There is no separate question to answer. The agent's
-own questions still show in the conversation, with the choices it offered.
+A chat has no flow, so it has no second kind: after every answer it waits for your next
+message, and whatever you type, a follow-up or a steer, is that message. Its wait is never
+drawn as a question. The agent's own questions show in the conversation, with the choices it
+offered, and your next line answers them.
 
-Both are shown the same way, a `●` line in yellow with `type an answer, or /afk to stop being
-asked` under it, and both are answered the same way: type a line and press <kbd>enter</kbd>.
-`chat` asking what next is the exception: its question is the answer already on the screen,
-so nothing more is shown. Nothing times out. A question is put to **you** as the flow's
-`human` role, its [outworlder](/user/concepts), which is why its own transcript is headed
-`outworlder human`.
+Both are shown the same way, a `●` line in yellow. One asking for text has
+`type an answer, or /afk to stop being asked` under it: type a line and press <kbd>enter</kbd>.
+One asking for a form has `form · <n> fields — press Enter to open` under it instead.
+Nothing times out. In a flow, a question is put to **you** as the flow's `human` role, its
+[outworlder](/user/concepts), which is why its own transcript is headed `outworlder human`. A
+chat has no outworlder: its questions are put to you in its conversation.
 
 ## Example: answer an agent's question at the prompt
 
@@ -63,14 +65,13 @@ stops on the question:
 ● Should the old /v1 API be kept alongside the new /v2, or should it be dropped entirely? (Keep /v1 / Drop /v1)   ②
    type an answer, or /afk to stop being asked                                              ③
 
-                                        assistant · claude/claude-haiku-4-5-20251001:low · ● 1
-                                                           human · outworlder · asking   ④
+                                    assistant · claude/claude-haiku-4-5-20251001:low · ● 1   ④
                                     input 20 · output 620 · cache_read 27.7k · cache_write 13.9k
                                                                            $0.02 · 118 out/s
 ─────────────────────────────────────────────────────────────────────────────────────────────
 ❯ keep, until the next release                                                              ⑤
 ─────────────────────────────────────────────────────────────────────────────────────────────
-  ·\· assistant… (9s · ctrl+c twice to stop)    enter answer · shift+tab switch view · / commands · …   ⑥
+  ·\· running… (9s)                                       enter answer · / commands · …   ⑥
 ```
 
 Press <kbd>enter</kbd>, and the same turn goes on with your answer:
@@ -89,40 +90,134 @@ Press <kbd>enter</kbd>, and the same turn goes on with your answer:
 2. **The same question put to you**, in the same conversation. The choices the agent offered
    follow it in brackets. They are suggestions: type one, or anything else.
 3. **`type an answer, or /afk to stop being asked`** marks a question that is waiting.
-4. **`human · outworlder · asking`** on the agent lines above the prompt says a question is up,
-   even when it has scrolled out of sight.
+4. **The agent line**, `●` while its turn is open, waiting on your answer. In a flow, an
+   outworlder line under it, `human · outworlder · asking`, says a question is up even when
+   it has scrolled out of sight; a chat has none.
 5. **Your answer**, typed at the prompt like any other line.
 6. **`enter answer`** on the status line says what <kbd>enter</kbd> will do: it answers
    the question rather than steering the turn. On a narrow terminal the status line drops its
    leftmost keys first, so this one may not be shown.
 7. **The turn carries on** with your answer, in the same session.
-8. **`chat` waiting for your next message**: the reply is the question, so nothing more is
-   shown. Type the next thing to say, here or in the assistant's own conversation, where it is
-   the next message rather than a steer. Or leave it for as long as you like.
+8. **The chat waiting for your next message**: nothing more is shown. Type the next thing to
+   say, and it is the next turn. Or leave it for as long as you like.
 
-## Example: a flow's question with choices
+## Example: a flow's form
 
-A flow that needs a setting from you asks for it with the choices under it, numbered:
+A flow that needs a decision from you asks for it as one form: every field at once, with what
+it suggests already picked. At the prompt, the question comes up with what to read under it,
+and a line to open the form:
 
 ```text
-● Which way should this be built?
-      1. fast
-      2. careful
-   type an answer, or /afk to stop being asked
+● How should I do this: add a subtract function to calc.py?                     ①
+
+  The change · diff · +2 −0 in 1 file                                           ②
+    diff --git a/calc.py b/calc.py
+    +def subtract(a, b):
+    +    return a - b
+
+  Checks · table · 1 row
+    check   result
+    tests   pass
+
+  form · 2 fields — press Enter to open                                         ③
 ```
 
-Type `careful`, or just `2`. What the question looks like tells you what it takes:
+Press <kbd>enter</kbd> on an empty prompt, and the form opens as a sheet along the bottom of the
+screen, over the transcript, which stays readable above it:
 
-| The question reads | Type |
+```text
+ How should I do this: add a subtract function to calc.py?
+ human asks; the context is in the transcript above
+
+ Approach                                                                       ④
+   1 fast  [ 2 careful ]
+   suggested · Which way should this be built?
+ Tests
+   [ 1 Yes, write tests for it? ]  2 No
+   suggested · Write tests for it?
+
+                                                                     answer     ⑤
+ 1-9 pick · ←/→ move · pgup/pgdn read above · esc close, keeping the draft      ⑥
+```
+
+These two are drawn after the interface, not recorded.
+
+### What each part means
+
+1. **The prompt**, the headline of the question.
+2. **What the flow handed you to read**: a diff, a table, text, code, each under a line saying
+   what it is. The first is drawn at length and the rest shorter, each saying how many more
+   lines there are and where to read them whole. An image or a chart is a line saying it is in
+   the web page, with the page's address where `hmz web` has been run on this machine.
+3. **The form waiting.** It does not open by itself, so a question coming up never takes the
+   line you are typing. Where another interface holds it, the line says `Waiting for <name>`.
+4. **One row per field**, required fields first. A few choices are laid out side by side,
+   picked by their number or with <kbd>←</kbd>/<kbd>→</kbd>, and a yes or no is two of them,
+   never a box to tick. What the flow suggests is already picked and marked `suggested`, so if
+   you agree, the button is all it takes. Where some fields are required and some not, the rest
+   fold under **More options (n)**.
+5. **The button**, `answer`, which says `answer · 2 required left` while required fields are
+   empty.
+6. **The keys**, at the foot of the sheet. <kbd>pgup</kbd>/<kbd>pgdn</kbd> scroll the
+   transcript behind it, to read the diff while you decide. <kbd>esc</kbd> closes it and keeps
+   what you filled in, to open again with <kbd>enter</kbd>.
+
+An answer that does not fit, a word where a number goes, is not sent on: what is wrong is said
+under the field, and the sheet stays open with what you typed, until it fits.
+
+| A field that is | Is |
 | --- | --- |
-| a list of choices under it | one of them, or its number |
-| `yes` and `no` under it | `yes` or `no` |
-| `(a number)` | a number |
-| `(several, separated by commas)` | a list on one line: `api, cli, docs` |
-| ``-- or `-` for 3`` | `-` to keep the flow's default |
+| one of up to five words | those words, side by side; one of more: a list to pick from |
+| yes or no | two words, `Yes, <its description>` and `No` |
+| a number | a number, checked as you send |
+| text | a line, or several for Markdown or code |
+| a list of words or numbers | one per line |
+| anything else | JSON |
+| given a default | already filled in, and marked `suggested` |
 
-If an answer is not one the flow can take, the question comes back with what was wrong, up to
-three times.
+Words typed at the prompt instead of opening the form are not lost: the form opens with them
+where they fit, in the choice they name or the first empty text field. A JSON object typed
+there, `{"approach": "fast", "tests": false}`, is sent as the answer itself. Once answered, the
+question closes with one line of what you said, `❯ careful · Yes, write tests for it?`.
+
+A question asking for text has no form: type a line and press <kbd>enter</kbd>, as for an
+agent's question.
+
+## Example: the same form in the browser {#in-the-browser}
+
+In [the web page](/user/web), the question is one card under the epic's graph, laid out to be
+read top to bottom: the prompt, then what to read, then the form, then **Send answer**.
+
+- **Few choices, large.** Up to five choices are a row of buttons; more are a list to search.
+  <kbd>1</kbd>–<kbd>9</kbd> picks one while you are not typing in a field.
+- **The suggested answer, ready.** Defaults are picked and marked `suggested`. Required fields
+  come first; in a form of more than three fields, the optional ones with a default fold under
+  **More options (n)**.
+- **What is left, on the button.** **Send answer** says what is still needed, `2 required
+  left`, until nothing is. <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd> sends from anywhere
+  in the card.
+- **A question in words.** The choices it offers are buttons, numbered, each sending its own
+  words; or type your own in the line under them.
+- **Errors where you look.** A field is checked when you leave it and when you submit, never
+  while you type. What does not fit is said beside the field, and the cursor goes to the first.
+- **Nothing lost.** What you have typed is kept in this browser until you send it, so a reload
+  brings it back. A question that goes away folds to why: `Withdrawn: human went away` when
+  it was answered as nobody, `Withdrawn: the run ended` when the run did.
+- **A closing line.** Once sent, the card folds to one line of what you answered:
+  `You answered: approve · ‘LGTM’`.
+- **Somebody else's.** A question another window holds is shown, but not to be answered:
+  `Waiting for <name> to answer`.
+
+A flow may bring a [face](/weaver/faces) of its own for a question: a page made for that one
+decision, a review of a diff file by file, say. It sits in the card where the form would be.
+**Plain form**, above it, swaps it for the form at any time, and **Back to …** swaps it back. A
+face that fails to load, or does not answer within five seconds, is replaced by the form by
+itself, with a note saying why and **Try again**. At the prompt in a terminal there is no
+face: the question says a richer view of it is in the web page, and its form is the one shown
+here.
+
+What a flow shows you without asking, its progress, a result, a chart, goes into the asking
+outworlder's own transcript, in the terminal and in the browser alike.
 
 ## Example: the same question under `hmz exec`
 
@@ -130,7 +225,7 @@ Under `hmz exec` nobody is at a prompt, so every question is answered by nobody.
 task:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Before anything else, use your question tool to ask me whether to keep the old /v1 API beside /v2, offering keep and drop. Then reply with one sentence."
 ```
 
@@ -144,30 +239,30 @@ The error indicates "nobody to ask" - this likely means the user isn't available
 ✻ Worked for 5s · assistant
 ```
 
-With `--json`, the question is an object of kind `asks`, so a script can count them:
+Under `hmz exec`, with `--json`, the question is an object of kind `asks`, so a script can
+count them:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" \
+hmz exec -f goal -a worker=claude/claude-haiku-4-5-20251001:low -p budget.cost=1 --json "…" \
     | jq -c 'select(.kind == "asks")'
 ```
 
 ```json
-{"at":1790746636.0548427,"agent":"assistant","cli":"claude","model":"claude-haiku-4-5-20251001","session":"","kind":"asks","text":"Should we keep the old /v1 API alongside /v2, or deprecate it completely?","whose":"","tokens":{},"spent":{}}
+{"at":1790746636.0548427,"agent":"worker","cli":"claude","model":"claude-haiku-4-5-20251001","session":"","kind":"asks","text":"Should we keep the old /v1 API alongside /v2, or deprecate it completely?","whose":"","tokens":{},"spent":{}}
 ```
 
 ### What each part means
 
 1. **The question is still printed**, in yellow, so a log shows what the agent wanted to know.
 2. **The agent is told nobody answered**, and carries on as best it can: here it wrote the
-   question into its answer instead. `chat` then ends, since nobody is there to send a next
-   message.
-   The command exits `0`.
+   question into its answer instead. The `hmz chat` above then ends its chat, since nobody is
+   there to send a next message, and exits `0`.
 
 ## Check that it worked
 
 - At the prompt, the `●` question and its `type an answer` line are followed by your line, and
   the agent's next words take your answer into account.
-- `human · outworlder · asking` is gone from the agent lines once nothing is waiting.
+- In a flow, `human · outworlder · asking` is gone from the agent lines once nothing is waiting.
 - Under `hmz exec --json`, count the `asks` objects to see how often a run wanted you.
 
 ## Answering, in detail
@@ -175,8 +270,8 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 - **Where you answer.** A question is shown on whichever transcript you are reading and on the
   asking outworlder's own, which <kbd>shift+tab</kbd> reaches and which holds nothing but what
   it asks you. A line typed on either answers it: the oldest question up on the first, the
-  oldest that outworlder asks on the second. One the agent stopped mid-turn to ask, and
-  `chat` asking what next, are shown and answered in that agent's conversation instead. On one
+  oldest that outworlder asks on the second. One the agent stopped mid-turn to ask, and every
+  question in a [chat](/user/chat), are shown and answered in that agent's conversation instead. On one
   agent's transcript any other line goes to the agent. See [Many conversations at once](/user/conversations).
 - **Somebody else's.** Where [another interface](/features/daemon#several-people-on-one-run)
   reads the same run, a question nobody has claimed goes to whoever answers first, and an
@@ -186,8 +281,8 @@ hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low --json "…" 
 
 ## Which agents ask
 
-An agent asks only if its CLI can, and only if the flow passes its questions on to you. `chat`
-passes every one on.
+An agent asks only if its CLI can, and only if the flow passes its questions on to you. A chat
+puts every one to you.
 
 | `claude` | `codex` | `kimi` | `pi` | `omp` | every other |
 | --- | --- | --- | --- | --- | --- |
@@ -207,18 +302,19 @@ off with `/afk off`. On an outworlder's own transcript it says so for that outwo
 ```text
 ❯ /afk on
 away: agents that ask are told nobody is here
-— the flow is done —
 ```
 
-Here `chat` was waiting for your next message, so being away ended it.
+`/afk` is about a flow's outworlders. A chat has none, so being away changes nothing in one:
+it waits for your next message for as long as you leave it, and
+[folds away](/user/chat#leaving-and-carrying-on) if nobody reads it.
 
 | | While you are away |
 | --- | --- |
 | An agent's question | shown, and the agent is told nobody answered; it carries on |
 | A flow's question | answered with nothing, or with the flow's defaults |
-| `chat` waiting for your next message | answered with nothing, so the conversation ends |
+| What a flow shows you | not shown, and the flow is not held up |
 | A flow's question that has no default | the flow fails with `nobody is there to answer …`, unless it handles that |
-| A question already up | answered by nobody, at once |
+| A question already up | answered by nobody, at once; its card says `Withdrawn: human went away`, the prompt `withdrawn: away` |
 
 See [Being away](/user/afk).
 
@@ -233,8 +329,12 @@ See [Being away](/user/afk).
   transcript.
 - **A run under `hmz exec` fails with `nobody is there to answer …`.** The flow asked for
   something it has no default for. Pass it with `-p`, or run it at the prompt.
+- **`the answer does not fit: …`.** Something in the form is not what the flow takes. The
+  field it names says why; fix it and send again.
+- **A form in the browser shows no face.** The face failed to load, or you pressed **Plain
+  form**. The form asks the very same thing.
 - **Your agent never asks.** Its CLI cannot, or the flow does not pass its questions on. Use
-  one of the four CLIs above in `chat`.
+  one of the five CLIs above in a [chat](/user/chat).
 
 ## Next steps
 
@@ -242,4 +342,5 @@ See [Being away](/user/afk).
 - [Side questions](/user/btw): asking an agent something without stopping it
 - [Run it unattended](/user/unattended): questions under `hmz exec`
 - [The person as an agent](/weaver/human-agent): how a flow asks you, for whoever writes one
+- [A face for the person](/weaver/faces): a flow's own page for a question
 - [TUI reference](/reference/tui): every key and command at the prompt

@@ -11,12 +11,12 @@ what `grok agent` carries of an agent is a short list: a model, an effort, an ap
 profile, a plugin directory and the leader, beside the debugging and the endpoints. It has no
 `--tools`, no `--disable-web-search`, no `--json-schema`, no `--sandbox`, no `--max-turns`, no
 `--no-subagents` and no `--rules` -- each of those seven refused outright, `error: unexpected
-argument` -- so a rung that takes tools away, an agent told not to search the web or fenced off
-the network, a turn held to a shape and four of the five settings on `GrokBuildAgentConfig` are
-settings only `grok -p` carries. Those run the command they always did, resuming the same
-conversation with `--resume` -- the id is Grok Build's own either way, and each transport picks
-up what the other opened. Nothing is served looser for the transport's sake: what moves is
-which of the two a turn is taken on.
+argument` -- so a fence that writes nothing, whose tools are an allowlist, an agent told not to
+search the web or fenced off the network, a turn held to a shape and four of the five settings
+on `GrokBuildAgentConfig` are settings only `grok -p` carries. Those run the command they
+always did, resuming the same conversation with `--resume` -- the id is Grok Build's own either
+way, and each transport picks up what the other opened. Nothing is served looser for the
+transport's sake: what moves is which of the two a turn is taken on.
 
 The prompt goes on the command line for that run because that is the only way in: Grok Build
 does not read a piped stdin as the prompt, and the two other ways it offers are a JSON literal
@@ -56,6 +56,12 @@ fence, reached over a Unix socket the fence does not govern -- so a fenced conve
 joined it would run its tools unfenced. Grok Build's own sandbox refuses the leader for the
 same reason; a fenced conversation here is always started with `--no-leader`, and one told to
 join the leader is refused (:meth:`GrokBuildAgent._serves`).
+
+In a chat every line is said as text, there being no catalog of native input: Grok Build is
+driven over the Agent Client Protocol, a turn being a text block of `session/prompt` (or the
+prompt of a `grok -p` for a turn that needs a flag), and a harness spoken to that way has none.
+Its own `/` commands, `@` file picker and `!` shell mode are its terminal interface's, which
+neither transport goes through.
 """
 
 # pyright: reportPrivateUsage=false
@@ -84,7 +90,7 @@ from .base import (
     StreamSessionBase,
     _ended,
 )
-from .config import UNSAID, AgentConfig, Unfenced
+from .config import AgentConfig, Unfenced
 from .event import Event, Failed, Saying, Unrecoverable, Usage
 from .hooks import EVERYWHERE, Moment
 
@@ -99,11 +105,11 @@ if TYPE_CHECKING:
 #: What the CLI is installed as.
 _COMMAND = "grok"
 
-#: Everything is approved without being asked, at every rung: nobody is at a prompt here, and
-#: a turn waiting on an approval is a flow that stopped. `--always-approve` rather than
-#: `--yolo`, which is a hidden alias for it that `grok agent` still takes and neither command
-#: documents: a spelling the help does not list is one release away from disappearing, and
-#: this one is the same flag under the name Grok Build actually publishes.
+#: Everything is approved without being asked, wherever there is a fence: nobody is at a
+#: prompt here, and a turn waiting on an approval is a flow that stopped. `--always-approve`
+#: rather than `--yolo`, which is a hidden alias for it that `grok agent` still takes and
+#: neither command documents: a spelling the help does not list is one release away from
+#: disappearing, and this one is the same flag under the name Grok Build actually publishes.
 _APPROVAL = "--always-approve"
 
 #: The one flag on that list a turn told not to search the web is given, which Grok Build
@@ -113,82 +119,75 @@ _APPROVAL = "--always-approve"
 #: two, so the general flag was spelling out what the CLI has a name for.
 _NO_WEB = "--disable-web-search"
 
-#: What a turn at each rung of the ladder is run as, said as the command line says it.
+#: The tools an agent whose fence writes nothing is started with, as `--tools` takes them: the
+#: three that read and `run_terminal_cmd`, Grok Build's shell. An allowlist rather than a list
+#: of what to take away, since a tool the process was not started with cannot run at all and a
+#: tool a later release adds is one this list never let in -- `--tools read_file,grep,list_dir`
+#: leaves those three and the two by which an MCP server is looked up, and a turn asked to
+#: write a file under it reaches for a writer that is not there and writes nothing.
 #:
-#: Grok Build's own `--permission-mode` is deliberately not among them, and that is the
-#: finding this table is written around. It has six modes -- `default`, `acceptEdits`,
-#: `auto`, `dontAsk`, `bypassPermissions`, `plan` -- and on 1.0.24 a headless `grok -p` run
-#: at every one of them, `plan` included, ran the same `echo`, wrote the same file into the
-#: workspace and wrote the same file outside it. A mode governs how the permission *rules*
-#: this machine has are applied, and a machine with no rules -- which is what `grok inspect`
-#: reports of a fresh one -- has nothing for a mode to apply; headless has nobody to ask, so
-#: what is left is approved. Naming a mode would be a rung that looks enforced and enforces
-#: nothing, which is the one way a rung must not fail.
+#: The shell by its tool id and not by the name a tool call is reported under. Over ACP the
+#: shell's calls are titled `run_terminal_command`; but `--tools` takes ids, and run against
+#: 1.0.62 an allowlist naming `run_terminal_command` warns `--tools "run_terminal_command"
+#: names no tool, so other tools stay available` and starts with the whole toolset, writers
+#: included -- one wrong name and the allowlist is no allowlist at all. `run_terminal_cmd` is
+#: the id its own help gives the shell, and the one 1.0.62 takes without a word.
+#: The shell is kept: a `git log` or a test run is most of what an agent that may change
+#: nothing is for, and a write it attempts is refused by the fence around the process rather
+#: than by anything Grok Build is told.
 #:
-#: So a rung here is made of what actually bites: the tools the process is started with. An
-#: allowlist for the rung that may change nothing, since a tool the process was not started
-#: with cannot run at all -- `--tools read_file,grep,list_dir` leaves five tools in the
-#: process, those three and the two by which an MCP server is looked up, and a turn asked to
-#: write a file under it reaches four times and writes nothing. `--disable-web-search` above
-#: it, where what is taken away is the reaching outside the workspace, Grok Build having no
-#: sandbox of its own until somebody writes a profile for it.
-#:
-#: And the silence above the ladder says nothing whatever: no approval, no allowlist, no word
-#: about the web. An agent nobody was asked about is one `grok` decides for itself -- its own
-#: prompting, the permission rules this machine carries, the tools it starts with -- which is
-#: exactly what `grok -p` does when nobody hands it a flag. It is the loosest row here only in
-#: the sense that Humanize withholds nothing: what it comes to is 1.0.24's own answer rather
-#: than Humanize's.
-_PERMITTED = {
-    "read-only": (_APPROVAL, "--tools", "read_file,grep,list_dir"),
-    "workspace-write": (_APPROVAL, _NO_WEB),
-    "auto": (_APPROVAL,),
-    "bypass": (_APPROVAL,),
-    UNSAID: (),
-}
+#: Grok Build's own `--permission-mode` is deliberately not how this is said, and that is the
+#: finding this list is written around. It has six modes -- `default`, `acceptEdits`, `auto`,
+#: `dontAsk`, `bypassPermissions`, `plan` -- and on 1.0.24 a headless `grok -p` run at every
+#: one of them, `plan` included, ran the same `echo`, wrote the same file into the workspace
+#: and wrote the same file outside it. A mode governs how the permission *rules* this machine
+#: has are applied, and a machine with no rules -- which is what `grok inspect` reports of a
+#: fresh one -- has nothing for a mode to apply; headless has nobody to ask, so what is left
+#: is approved. A mode is a grant that looks held and holds nothing, and the fence is what
+#: holds it in any case: what the CLI is told is only which tools it has.
+_READERS = ("read_file", "grep", "list_dir", "run_terminal_cmd")
 
-#: The rungs the held-open transport can serve, which is every rung that says nothing `grok
-#: agent` would refuse -- and of the three flags above only `--always-approve` is one it
-#: takes: `--tools` and `--disable-web-search` are both refused there outright, `error:
-#: unexpected argument`. The row that says nothing at all is in by that same reading, an empty
-#: saying being nothing for `grok agent` to refuse, so an agent nobody was asked about is
-#: served on the process its conversation is already held open on.
-#:
-#: A rung outside this set is not refused, though, the way a backend with no way of saying it
-#: at all refuses one. It falls to the command line, which says it exactly and resumes the
-#: same conversation, so what moves is which transport the turn is taken on rather than what
-#: the agent is allowed. Nothing here is a rung quietly served a rung looser.
-_HELD_OPEN = frozenset(
-    rung for rung, said in _PERMITTED.items() if set(said) <= {_APPROVAL}
-)
+#: The web tools by their `--tools` ids, added to :data:`_READERS` where the agent may search the
+#: web (:func:`_searches`). An allowlist leaves out what it does not name, so a fence that writes
+#: nothing would otherwise take web search away from an agent whose grant is online -- and
+#: Section 4.6.3.1 of the protocol has a grant on the network switch its web search on, whatever
+#: it may write. 1.0.62 takes both ids without a word, as it does not a name that is no tool.
+_SEARCHERS = ("web_search", "web_fetch")
 
-#: The rungs at which a tool call this client is asked about is answered yes, which is every
-#: rung that carries `--always-approve` -- the flag is the whole of what makes a grant here
-#: Humanize's to give. At those rungs the CLI approves for itself and a request reaching the
-#: client at all is one a hook of Grok Build's own put in front of it, so granting is saying
-#: again what the flag already said; a flow watches its agent there rather than gating it.
-#:
-#: The row above the ladder carries no flag, and that is the whole reason this set is derived
-#: rather than assumed. An agent nobody was asked about is one `grok` decides for itself, and
-#: on 1.0.24 what it decides is read out of `[ui] permission_mode` in that person's
-#: `~/.grok/config.toml`: a machine set to `always-approve` never asks, and one left at
-#: `default` asks over the protocol, tool call by tool call. Answering those yes would be
-#: Humanize granting what nobody told it to grant -- the silence settling the rung it exists
-#: not to settle -- so the silence is not in here and :func:`_permits` refuses for it.
-#:
-#: Derived from the same table :data:`_HELD_OPEN` is, and the two say different things about
-#: it: that one is about which rungs `grok agent` will take as flags, this one about which
-#: rungs make a yes ours to say. The silence is in that set and not in this one, which is the
-#: point -- a turn at no rung is served on the held-open process and refused there.
-_GRANTED = frozenset(rung for rung, said in _PERMITTED.items() if _APPROVAL in said)
+
+def _granted(config: AgentConfig) -> tuple[str, ...]:
+    """What a turn at this config is run as, said as the command line says it.
+
+    Read off the fence and nothing else. A fence that writes nothing is approved its tools and
+    started with :data:`_READERS` only, and :data:`_SEARCHERS` beside them where the agent may
+    search the web; one that writes somewhere is approved every tool, the
+    fence deciding where its writes land. And an agent with no fence -- one driven by hand --
+    is told nothing whatever: no approval, no allowlist. It is one `grok` decides for itself
+    -- its own prompting, the permission rules this machine carries, the tools it starts with
+    -- which is exactly what `grok -p` does when nobody hands it a flag.
+
+    Args:
+      config: What the agent is to run at.
+
+    Returns:
+      The flags, to go on the command line as they are.
+    """
+    if config.fence is None:
+        return ()
+    if config.fence.writes:
+        return (_APPROVAL,)
+    allowed = _READERS + (_SEARCHERS if _searches(config) else ())
+    return (_APPROVAL, "--tools", ",".join(allowed))
+
 
 #: How a tool call is refused, as `_GRANTS` is how one is permitted: the kind rather than the
 #: id, for the reason ACP gives that field. One kind rather than the two the protocol has,
 #: because the other one is not the same refusal. Run against 1.0.24, `reject_always` writes
 #: the refusal into that project's own configuration -- `User rejected the execution and
 #: excluded 'echo hello-from-grok' from future runs in this project` -- which is one refused
-#: turn leaving a rule behind it on somebody's machine, and the rung this is reached at is the
-#: one whose whole meaning is that Humanize settles nothing about this machine. So a request
+#: turn leaving a rule behind it on somebody's machine -- where a refusal is reached for an
+#: agent driven by hand, whose whole meaning is that Humanize settles nothing about this
+#: machine, or for one whose hook said no to a single call, not to every call like it. So a request
 #: offering no `reject_once` falls through to `cancelled` instead of to that: refusing without
 #: writing anything down is worth more than refusing in the agent's preferred words.
 #:
@@ -340,7 +339,7 @@ class GrokBuildSession(StreamSessionBase):
     ) -> Iterator[Event]:
         """Keeps ordinary turns warm, and runs the rest as the command that carries them.
 
-        A shape, a rung that takes tools away and everything :func:`_extras` writes are
+        A shape, a fence that writes nothing and everything :func:`_extras` writes are
         settings of `grok -p` and of nothing else: `grok agent` has a flag for none of them,
         so a turn that needs one is a run of the command line rather than a line written to
         the process. The conversation is not ended by that -- the run resumes it, and the
@@ -411,12 +410,13 @@ class GrokBuildSession(StreamSessionBase):
         on the process already up.
 
         Returns:
-          Whether the rung takes a tool away, the agent is told not to search the web -- or
-          is fenced off the network, which says the same whatever it was told -- or any
-          of the settings only the top-level command has been asked for -- a sandbox profile,
-          a cap on the turns under this one, subagents switched off, rules to append. Every
-          one of them is refused by `grok agent` with `error: unexpected argument`, and an
-          agent given one that the transport could not carry would be a setting that lies.
+          Whether the fence writes nothing, its tools an allowlist, the agent is told not to
+          search the web -- or is fenced off the network, which says the same whatever it was
+          told -- or any of the settings only the top-level command has been asked for -- a
+          sandbox profile, a cap on the turns under this one, subagents switched off, rules to
+          append. Every one of them is refused by `grok agent` with `error: unexpected
+          argument`, and an agent given one that the transport could not carry would be a
+          setting that lies.
         """
         config = self._agent.config
         # `is False` rather than `not`: the web is three answers, and None is the agent nobody
@@ -424,7 +424,7 @@ class GrokBuildSession(StreamSessionBase):
         # shorter test would send every turn of every such conversation to the command line
         # for a flag it was never going to write.
         return bool(
-            config.permission not in _HELD_OPEN
+            (config.fence is not None and not config.fence.writes)
             or not _searches(config)
             or _extras(config)
         )
@@ -506,10 +506,12 @@ class GrokBuildSession(StreamSessionBase):
     def _command(self) -> list[str]:
         """The `grok agent stdio` this conversation is held open on.
 
-        The rung goes on whole rather than as the approval alone: `_HELD_OPEN` is derived
-        from which rungs say nothing `grok agent` would refuse, and a turn at any other one
-        never reaches this transport at all -- :meth:`_stream` has already sent it to the
-        command line. So whatever the rung says here is a flag this process takes.
+        What the fence grants goes on whole rather than as the approval alone: of what
+        :func:`_granted` says, only `--always-approve` is a flag `grok agent` takes --
+        `--tools` is refused there outright, `error: unexpected argument` -- and a turn that
+        needs anything else never reaches this transport at all: :meth:`_stream` has already
+        sent it to the command line. So whatever is said here is a flag this process takes,
+        and a fence that writes somewhere is held open as well as one that is not there.
 
         Returns:
           The command, carrying what the protocol's process is configured by: the model, how
@@ -525,7 +527,7 @@ class GrokBuildSession(StreamSessionBase):
             # until the first shaped turn goes out on the command line, so an agent at no rung
             # is better off saying nothing than saying "".
             *(["--effort", self.effort] if self.effort else []),
-            *_PERMITTED[self._agent.config.permission],
+            *_granted(self._agent.config),
             *_LEADING.get(_leads(self._agent), ()),
             "stdio",
         ]
@@ -692,19 +694,21 @@ class GrokBuildSession(StreamSessionBase):
     def _answers(self, at: object, method: str, params: dict[str, Any]) -> None:
         """Answers something the agent asked us, rather than leaving it waiting on us.
 
-        A tool call it asks permission for is answered by the rung it runs at, which is
-        :data:`_GRANTED`. At a rung that carries `--always-approve` the answer is yes: the
-        flag has already approved what the rung leaves, and a request arriving anyway is one
-        a hook of Grok Build's own put in front of the client, which a flow watches rather
-        than gates. At no rung at all the flag is not sent, so the asking is `grok`'s own and
-        the answer is no -- Humanize, told nothing about this agent, does not grant on its
-        behalf. Answered either way by the *kind* of the option rather than by its id, which
-        is the agent's own word for it.
+        A tool call it asks permission for is answered by whether there is a fence. Under one
+        the answer is yes, whatever the fence lets it write: `--always-approve` has already
+        approved every tool the process was started with, a request arriving anyway is one a
+        hook of Grok Build's own put in front of the client, which a flow watches rather than
+        gates, and the fence is what holds the grant. With no fence the flag is not sent, so
+        the asking is `grok`'s own and the answer is no -- Humanize, told nothing about this
+        agent, does not grant on its behalf: a machine whose `[ui] permission_mode` is left at
+        `default` asks tool call by tool call, and answering yes there would be Humanize
+        settling what it exists not to settle. Answered either way by the *kind* of the option
+        rather than by its id, which is the agent's own word for it.
 
         A hook hung on `PERMISSION_REQUEST` is told either way and may refuse either way,
         this being the one moment `grok agent` waits on and so the one place a refusal here
         stops the agent doing something. What it may say is no: `Verdict` carries a refusal
-        and a reason and no yes at all, so at no rung a hook gives the refusal its words
+        and a reason and no yes at all, so with no fence a hook gives the refusal its words
         rather than turning it round.
 
         Args:
@@ -720,7 +724,7 @@ class GrokBuildSession(StreamSessionBase):
                 about=json.dumps(called.get("rawInput") or {}),
                 called=called,
             )
-            granted = not asking.refused and self._agent.config.permission in _GRANTED
+            granted = not asking.refused and self._agent.config.fence is not None
             self._send(
                 json.dumps(
                     {
@@ -927,14 +931,14 @@ class GrokBuildSession(StreamSessionBase):
             self._model(),
             "--effort",
             self.effort,
-            *_PERMITTED[config.permission],
+            *_granted(config),
         ]
-        # Said once however it was asked for: a rung that already takes the reaching outside
-        # the workspace away has said it, and the flag is a switch rather than a list. `is
-        # False` rather than `not`, since None is the agent nobody was asked about and `not
-        # None` is true: an agent nothing was said about would otherwise be told not to search
-        # the web, which is Humanize settling the one thing it was meant to leave alone.
-        if not _searches(config) and _NO_WEB not in argv:
+        # Decided by the network alone, whatever the fence lets the agent write. `is False`
+        # rather than `not`, inside `_searches`, since None is the agent nobody was asked
+        # about and `not None` is true: an agent nothing was said about would otherwise be
+        # told not to search the web, which is Humanize settling the one thing it was meant to
+        # leave alone.
+        if not _searches(config):
             argv.append(_NO_WEB)
         argv += _extras(config)
         if (schema := self._shaping) is not None:
@@ -1103,12 +1107,12 @@ def _permits(params: dict[str, Any], *, granted: bool) -> dict[str, Any]:
 
     Args:
       params: What was asked, which carries the options the agent offers.
-      granted: Whether the rung this agent runs at is one Humanize says yes at, which is
-        :data:`_GRANTED`. Where it is not, the asking is the CLI's own and so is the tool
-        that does not run.
+      granted: Whether Humanize says yes: under a fence, unless a hook refused. Where it
+        does not, the asking is the CLI's own or the hook's, and so is the tool that does
+        not run.
 
     Returns:
-      The outcome to answer with: the best option of the kind the rung calls for, and a
+      The outcome to answer with: the best option of the kind called for, and a
       cancellation where the agent offered nothing of that kind. Answered either way, and
       never left, because a `session/request_permission` nobody answers is a turn that waits
       until the watchdog puts the process down -- which is a worse outcome than a refusal,
@@ -1130,7 +1134,7 @@ def _permits(params: dict[str, Any], *, granted: bool) -> dict[str, Any]:
     )
     if chosen is None and granted:
         # Whatever was offered, an agent that named no kind this client knows being better
-        # answered with one of its own options than with none. Only where the rung grants:
+        # answered with one of its own options than with none. Only where it is granted:
         # the first option of a list is the agent's own best answer, which every 1.0.24
         # request starts with an `allow_always`, and a refusal that fell through to it would
         # be a no said as a yes. Never an `always` either way, which is a rule written down.
@@ -1413,8 +1417,8 @@ class GrokBuildAgentConfig(AgentConfig):
 
     Every one of the five is off by default, and off means the flag is not written at all: an
     install that says nothing here runs exactly the command line the bare CLI runs. Four of
-    them are the top-level command's, which is the transport a shaped turn, a fork and a rung
-    that takes tools away already go to -- so naming one of them sends *every* turn of the
+    them are the top-level command's, which is the transport a shaped turn, a fork and a fence
+    that writes nothing already go to -- so naming one of them sends *every* turn of the
     conversation that way rather than applying to some turns and not others. That is the
     whole reason they are gathered in :func:`_extras` and asked about in `_commanded`.
 
@@ -1440,8 +1444,9 @@ class GrokBuildAgentConfig(AgentConfig):
         the name `--sandbox` takes, or "" for the CLI's own -- which is none. Grok Build has
         no built-in ladder of profiles to pick from: `workspace` is a base to extend, and a
         profile is otherwise a `[profiles.<name>]` in the `sandbox.toml` of whoever is at this
-        machine. So it is named here rather than being what a rung is made of: writing a
-        profile to enforce a rung would be Humanize writing the CLI's own settings.
+        machine. So it is named here rather than being what a grant is made of: writing a
+        profile to hold a grant would be Humanize writing the CLI's own settings, and the
+        fence holds it in any case.
       max_turns: How many turns of its own one run may take under this turn, or 0 for as many
         as it takes, which is the CLI's own answer. Its own setting rather than anything
         :class:`~hmz.coganchor.agents.config.Budget` reaches: a budget is per turn of *this*
@@ -1481,8 +1486,8 @@ class GrokBuildAgent(AgentBase):
     #: tool call to its client as `session/request_permission` and holds the tool until the
     #: answer comes back, so this is a moment a hook can actually refuse something at rather
     #: than one it is told about after the fact. Reached on the held-open transport only, a
-    #: `grok -p` run having no client to ask; a rung that falls to the command line is a rung
-    #: `--always-approve` already settled, so there is nothing there to be asked about.
+    #: `grok -p` run having no client to ask; a fenced turn that falls to the command line is
+    #: one `--always-approve` already settled, so there is nothing there to be asked about.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
     def environment(self) -> Mapping[str, str]:

@@ -22,6 +22,7 @@ from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import Does, Epics, Exporting, ImportingEpic
 from tests.integration.doubles_tui import (
     OWN,
+    RUNS,
     SIZE,
     claude_logged,
     folds_fast,
@@ -63,7 +64,7 @@ async def chatted(pilot: Pilot[None]) -> None:
     await typed(pilot, "hello")
     await shows(pilot, "heard hello")
     await typed(pilot, "/clear")
-    await shows(pilot, "◉ chat")
+    await shows(pilot, f"◉ {RUNS}")
     workspace = Path.cwd()
     await until(
         pilot,
@@ -116,7 +117,7 @@ async def test_a_run_another_process_holds_is_listed_as_still_going(
     workspace: Path,
 ) -> None:
     # Held as `hmz exec` holds the run it goes with, which no host here speaks for.
-    with Epic("chat", "elsewhere", workspace):
+    with Epic("", "elsewhere", workspace, kind="chat"):
         async with Humanize().run_test(size=SIZE) as pilot:
             await opened(pilot)
             await typed(pilot, "/epics")
@@ -156,7 +157,7 @@ async def test_resume_picks_the_last_run_of_a_resumable_flow_back_up(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "make it so")
+        await typed(pilot, f"${OWN} make it so")
         await shows(pilot, "the flow is done")
 
         await typed(pilot, "/resume")
@@ -176,7 +177,7 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
     # Under home, so that it is said short enough not to be wrapped: `~/elsewhere`.
     elsewhere = Path.home() / "elsewhere"
     elsewhere.mkdir(parents=True)
-    with Epic("chat", "here", workspace) as here:
+    with Epic("", "here", workspace, kind="chat") as here:
         pass
     with Epic(OWN, "there", elsewhere, resumable=True) as there:
         pass
@@ -214,7 +215,7 @@ async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each
     async with app.run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
         began = time.time()
-        await typed(pilot, "make it so")
+        await typed(pilot, f"${OWN} make it so")
         await shows(pilot, "the flow is done")
         (epic,) = epics(workspace)
         (session,) = Kept(workspace).sessions(epic)
@@ -266,13 +267,32 @@ async def test_a_chat_has_no_exomyth_to_open(workspace: Path) -> None:
         assert "Exomyth" not in screen(_app_of(pilot))
 
 
+async def test_a_chat_written_down_here_is_continued_rather_than_resumed(
+    workspace: Path,
+) -> None:
+    with Epic("", "hello", workspace, kind="chat") as chat:
+        pass
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await until(pilot, lambda: listed(app) == [chat.path.name], "the chat")
+        await shows(pilot, " · chat")
+
+        await pilot.press("enter")
+        await shows(pilot, "continue", "carry the conversation on", "graph")
+        assert "resume epic" not in screen(app)
+        assert "Exomyth" not in screen(app)
+
+
 async def test_the_epic_going_opens_in_exomyth_from_the_monitor(
     workspace: Path,
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await set_up_own_flow(pilot)
-        await typed(pilot, "wait for it")
+        await typed(pilot, f"${OWN} wait for it")
         await shows(pilot, "still on it")
 
         await pilot.press("left")
@@ -318,9 +338,9 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
 ) -> None:
     elsewhere = Path.home() / "elsewhere"
     elsewhere.mkdir(parents=True)
-    with Epic("chat", "here", workspace) as here:
+    with Epic("", "here", workspace, kind="chat") as here:
         pass
-    with Epic("chat", "there", elsewhere) as there:
+    with Epic("", "there", elsewhere, kind="chat") as there:
         pass
     _exported(here.path, "a.hmzepic")
     _exported(there.path, "b.hmzepic")
@@ -362,7 +382,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
 ) -> None:
     downloads = Path.home() / "Downloads"
     downloads.mkdir(parents=True)
-    with Epic("chat", "here", workspace) as here:
+    with Epic("", "here", workspace, kind="chat") as here:
         pass
     archive = downloads / f"{here.path.name}.hmzepic"
     app = Humanize()
@@ -406,7 +426,7 @@ async def test_epics_are_found_by_status_flow_workspace_and_task_a_page_at_a_tim
     elsewhere.mkdir(parents=True)
     chats: list[str] = []
     for at in range(50):
-        with Epic("chat", f"chat {at}", workspace) as chat:
+        with Epic("", f"chat {at}", workspace, kind="chat") as chat:
             chats.append(chat.path.name)
     with Epic(OWN, "own", workspace) as stopped:
         stopped.stopped()

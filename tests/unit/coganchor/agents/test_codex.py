@@ -28,7 +28,7 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.agents.base import KEEPING
-from hmz.coganchor.agents.codex import strict, turning, unattended
+from hmz.coganchor.agents.codex import sandboxing, strict, turning
 from hmz.coganchor.fence import READ, WRITE, Fence
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.coganchor.providers import Provider
@@ -44,6 +44,12 @@ type _Turn = Callable[[Process, str, str], None]
 
 #: What every agent here is made with unless a test says otherwise.
 _DEFAULTS: dict[str, Any] = {"model": "gpt-x", "effort": ""}
+
+
+def _holding(self: CodexAgent, fence: Fence) -> bool:
+    """`CodexAgent.holds` as it answers where Codex's own sandbox holds the fence."""
+    del self, fence
+    return True
 
 
 def _item(method: str, thread: str, turn: str, **item: Any) -> dict[str, Any]:
@@ -119,6 +125,11 @@ class _Server:
         self.replies: list[dict[str, Any]] = []
         #: What to do once the driver has answered something the server asked, by its id.
         self.after: dict[int, Callable[[], None]] = {}
+        #: What `skills/list` lists, and what a shell command prints and exits on.
+        self.skills: list[dict[str, Any]] = []
+        self.output: tuple[str, int] = ("", 0)
+        #: Whether an operation's turn is preceded by a stray completion of another turn.
+        self.stray = False
         self._threads = 0
         self._turned = 0
         spawner.replying(self._heard)
@@ -140,12 +151,44 @@ class _Server:
         if method in ("thread/start", "thread/fork"):
             self._threads += 1
             proc.say({"id": ident, "result": {"thread": {"id": f"th-{self._threads}"}}})
-        elif method == "turn/start":
+        elif method in ("turn/start", "review/start"):
             self._turned += 1
             turn = f"tu-{self._turned}"
             proc.say({"id": ident, "result": {"turn": {"id": turn}}})
             answer = self.turns.pop(0) if self.turns else _says(_message("done"))
             answer(proc, str(params["threadId"]), turn)
+        elif method == "skills/list":
+            listed = {"cwd": params["cwds"][0], "skills": self.skills, "errors": []}
+            proc.say({"id": ident, "result": {"data": [listed]}})
+        elif method in ("thread/shellCommand", "thread/compact/start"):
+            # Answered with nothing, and done as a turn of the server's own that no answer
+            # names, as codex-cli 0.163.0 does both.
+            proc.say({"id": ident, "result": {}})
+            if self.stray:
+                # Said late of a turn already over, before the operation's own turn begins.
+                proc.say(
+                    {
+                        "method": "turn/completed",
+                        "params": {
+                            "threadId": params["threadId"],
+                            "turn": {"id": "tu-old", "status": "completed"},
+                        },
+                    }
+                )
+            self._turned += 1
+            item = (
+                {
+                    "type": "commandExecution",
+                    "id": "sh",
+                    "command": f"/bin/zsh -lc {params['command']!r}",
+                    "source": "userShell",
+                    "aggregatedOutput": self.output[0],
+                    "exitCode": self.output[1],
+                }
+                if method == "thread/shellCommand"
+                else {"type": "contextCompaction", "id": "cc"}
+            )
+            _says(item)(proc, str(params["threadId"]), f"tu-{self._turned}")
         else:
             proc.say({"id": ident, "result": {}})
 
@@ -175,6 +218,23 @@ def _servers(spawner: Spawner) -> list[Process]:
 
 def _agent(**given: Any) -> CodexAgent:
     return CodexAgent(CodexAgentConfig(**_DEFAULTS | given))
+
+
+def _fence(where: Path, local: str = WRITE, *, online: bool = True) -> Fence:
+    """A fence reading everything and giving the workdir `local`."""
+    return Fence.of(
+        rules=[("/", READ), (".", local)],
+        online=online,
+        workdir=where,
+        home=where / "home",
+    )
+
+
+@pytest.fixture
+def fenced(monkeypatch: pytest.MonkeyPatch) -> Callable[..., Fence]:
+    """Fences this machine is taken to be able to put up, made as :func:`_fence` makes them."""
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    return _fence
 
 
 class _Shape(BaseModel):
@@ -284,28 +344,24 @@ def test_strict_ends_on_a_definition_nested_in_the_one_it_names() -> None:
 
 
 @pytest.mark.parametrize(
-    ("permission", "tier", "expected"),
+    ("local", "tier", "expected"),
     [
-        ("read-only", "default", {"approvalPolicy": "never", "sandbox": "read-only"}),
+        (READ, "default", {"approvalPolicy": "never", "sandbox": "read-only"}),
         (
-            "auto",
-            "default",
-            {"approvalPolicy": "on-request", "sandbox": "workspace-write"},
-        ),
-        (
-            "bypass",
+            WRITE,
             "fast",
             {"approvalPolicy": "never", "sandbox": "danger-full-access"},
         ),
-        ("", "default", {}),
-        ("no such rung", "default", {}),
+        (None, "default", {}),
+        (None, "fast", {}),
     ],
 )
-def test_unattended_is_the_rung_and_the_tier(
-    permission: str, tier: str, expected: dict[str, str]
+def test_sandboxing_is_read_off_the_fence_beside_the_tier(
+    tmp_path: Path, local: str | None, tier: str, expected: dict[str, str]
 ) -> None:
+    """A fence writing nothing is `read-only`, one that writes is full access, none silence."""
     service = "priority" if tier == "fast" else "default"
-    held = unattended(permission, tier)
+    held = sandboxing(None if local is None else _fence(tmp_path, local), tier)
     assert held == {"serviceTier": service} | expected
     assert "sandbox" not in turning(held)
     assert turning(held) == {
@@ -428,33 +484,40 @@ def test_goals_cannot_be_disabled_once_a_server_ran_with_them(
 
 
 @pytest.mark.parametrize(
-    ("permission", "sandbox", "policy"),
-    [
-        ("bypass", "danger-full-access", "never"),
-        ("auto", "workspace-write", "on-request"),
-    ],
+    ("local", "sandbox"), [(WRITE, "danger-full-access"), (READ, "read-only")]
 )
-def test_the_rung_goes_with_the_thread_and_the_policy_with_each_turn(
+def test_the_sandbox_goes_with_the_thread_and_the_policy_with_each_turn(
     spawner: Spawner,
     server: _Server,
+    fenced: Callable[..., Fence],
     tmp_path: Path,
-    permission: str,
+    local: str,
     sandbox: str,
-    policy: str,
 ) -> None:
-    _agent(permission=permission, service_tier="fast").new(tmp_path)("hi")
+    _agent(fence=fenced(tmp_path, local), service_tier="fast").new(tmp_path)("hi")
     (opened,) = server.called("thread/start")
-    assert (opened["sandbox"], opened["approvalPolicy"]) == (sandbox, policy)
+    assert (opened["sandbox"], opened["approvalPolicy"]) == (sandbox, "never")
     (turned,) = server.called("turn/start")
     assert "sandbox" not in turned
-    assert turned["approvalPolicy"] == policy
+    assert turned["approvalPolicy"] == "never"
     assert turned["serviceTier"] == "priority"
 
 
-def test_an_approval_policy_of_its_own_replaces_the_rungs(
+def test_an_agent_with_no_fence_is_told_nothing_of_what_it_may_do(
     spawner: Spawner, server: _Server, tmp_path: Path
 ) -> None:
-    _agent(permission="bypass", approvals="untrusted").new(tmp_path)("hi")
+    """Driven by hand: Codex is left at its own defaults, an approval policy said or not."""
+    _agent(approvals="untrusted").new(tmp_path)("hi")
+    (opened,) = server.called("thread/start")
+    (turned,) = server.called("turn/start")
+    for said in (opened, turned):
+        assert not {"sandbox", "sandboxPolicy", "approvalPolicy"} & set(said)
+
+
+def test_an_approval_policy_of_its_own_replaces_never(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    _agent(fence=fenced(tmp_path), approvals="untrusted").new(tmp_path)("hi")
     (opened,) = server.called("thread/start")
     assert opened["approvalPolicy"] == "untrusted"
     assert opened["sandbox"] == "danger-full-access"
@@ -673,14 +736,14 @@ def test_a_refused_call_is_a_failed_turn(
         _agent().new(tmp_path)("hi")
 
 
-def test_a_rung_the_installation_forbids_is_stepped_down_and_remembered(
-    spawner: Spawner, server: _Server, tmp_path: Path
+def test_full_access_the_installation_forbids_is_stepped_down_and_remembered(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
     server.refusing["thread/start"] = {
         "code": -1,
         "message": "approval_policy cannot be used because requirements do not allow it",
     }
-    agent = _agent(permission="bypass")
+    agent = _agent(fence=fenced(tmp_path))
     agent.new(tmp_path)("hi")
     refused, stepped = server.called("thread/start")
     assert refused["sandbox"] == "danger-full-access"
@@ -698,12 +761,12 @@ _FORBIDS = {
 }
 
 
-def test_a_forbidden_rung_is_stepped_down_under_an_approval_policy_of_its_own(
-    spawner: Spawner, server: _Server, tmp_path: Path
+def test_forbidden_full_access_is_stepped_down_under_an_approval_policy_of_its_own(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
-    """`untrusted`, as while a permission-request hook is hung, goes down with the rung."""
+    """`untrusted`, as while a permission-request hook is hung, goes down with the sandbox."""
     server.refusing["thread/start"] = dict(_FORBIDS)
-    agent = _agent(permission="bypass", approvals="untrusted")
+    agent = _agent(fence=fenced(tmp_path), approvals="untrusted")
     agent.new(tmp_path)("hi")
     agent.new(tmp_path)("again")
     refused, stepped, again = server.called("thread/start")
@@ -721,11 +784,37 @@ def test_a_forbidden_rung_is_stepped_down_under_an_approval_policy_of_its_own(
     }
 
 
+def test_never_said_as_its_own_asks_alike_on_every_turn_once_stepped_down(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    """`never` is what the fence is told already, so a step down asks on every turn."""
+    server.refusing["thread/start"] = dict(_FORBIDS)
+    agent = _agent(fence=fenced(tmp_path), approvals="never")
+    agent.new(tmp_path)("hi")
+    agent.new(tmp_path)("again")
+    _, *stepped = server.called("thread/start")
+    assert {one["approvalPolicy"] for one in stepped} == {"on-request"}
+    assert {one["approvalPolicy"] for one in server.called("turn/start")} == {
+        "on-request"
+    }
+
+
+def test_a_refused_read_only_sandbox_is_not_stepped_down(
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
+) -> None:
+    """`read-only` has nothing below it: the refusal is the turn's."""
+    server.refusing["thread/start"] = dict(_FORBIDS)
+    with pytest.raises(Failed, match="requirements do not allow"):
+        _agent(fence=fenced(tmp_path, READ)).new(tmp_path)("hi")
+    (refused,) = server.called("thread/start")
+    assert refused["sandbox"] == "read-only"
+
+
 def test_a_step_down_is_told_once_to_each_agent_watching(
-    spawner: Spawner, server: _Server, tmp_path: Path
+    spawner: Spawner, server: _Server, fenced: Callable[..., Fence], tmp_path: Path
 ) -> None:
     told: dict[str, list[str]] = {}
-    agents = [_agent(permission="bypass") for _ in range(2)]
+    agents = [_agent(fence=fenced(tmp_path)) for _ in range(2)]
     for agent in agents:
         agent.watch(
             lambda who, _session, event: (
@@ -738,8 +827,8 @@ def test_a_step_down_is_told_once_to_each_agent_watching(
         agent.new(tmp_path)("hi")
         agent.new(tmp_path)("again")
     said = (
-        "codex: this machine will not run an agent at bypass, so it runs at auto,"
-        " where what it asks for is granted"
+        "codex: this machine will not run an agent at danger-full-access, so it runs"
+        " at workspace-write, where what it asks for is granted"
     )
     assert told == {agent.id: [said] for agent in agents}
 
@@ -758,9 +847,7 @@ def test_a_native_codex_cut_off_the_network_is_not_configured_from_this_machines
         workdir=tmp_path,
         home=tmp_path / "home",
     )
-    agent = _agent(
-        permission="bypass", machine=AnchoredConfig(anchor=anchor), fence=offline
-    )
+    agent = _agent(machine=AnchoredConfig(anchor=anchor), fence=offline)
     with contextlib.suppress(Exception):
         agent.new(tmp_path)("hi")
     assert spawner.started
@@ -776,14 +863,20 @@ def test_a_server_that_goes_away_fails_the_turn(
 
 
 @pytest.mark.parametrize(
-    ("permission", "refuse", "decision"),
-    [("bypass", False, "accept"), ("bypass", True, "decline"), ("", False, "decline")],
+    ("local", "refuse", "decision"),
+    [
+        (WRITE, False, "accept"),
+        (READ, False, "accept"),
+        (WRITE, True, "decline"),
+        (None, False, "decline"),
+    ],
 )
-def test_an_approval_is_granted_at_a_named_rung_unless_a_hook_refuses(
+def test_an_approval_is_granted_under_a_fence_unless_a_hook_refuses(
     spawner: Spawner,
     server: _Server,
+    fenced: Callable[..., Fence],
     tmp_path: Path,
-    permission: str,
+    local: str | None,
     refuse: bool,
     decision: str,
 ) -> None:
@@ -808,7 +901,7 @@ def test_an_approval_is_granted_at_a_named_rung_unless_a_hook_refuses(
         server.after[900] = lambda: _says(_message("done"))(proc, thread, turn)
 
     server.turns = [asks]
-    agent = _agent(permission=permission)
+    agent = _agent(fence=None if local is None else fenced(tmp_path, local))
     agent.hooks.on(Moment.PERMISSION_REQUEST, hook)
     agent.new(tmp_path)("hi")
     (reply,) = [one for one in server.replies if one.get("id") == 900]
@@ -1087,3 +1180,253 @@ def test_a_recalled_thread_is_forked_by_a_codex_run_here_for_another_machine(
     (forked,) = server.called("thread/fork")
     assert (forked["threadId"], forked["cwd"]) == ("told", str(mirror / "desk"))
     assert (home / rollout).read_text() == (kept / rollout).read_text()
+
+
+def _native(session: CodexSession, line: str) -> str:
+    """What a native turn of `line` answered with."""
+    *_, result = session.stream(line, native=True)
+    assert result.kind == "result"
+    return result.text
+
+
+def test_the_catalogue_is_the_skills_the_sigils_and_the_commands_codex_serves(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.skills = [
+        {"name": "lint", "path": "/s/lint/SKILL.md", "description": "lints"},
+        {
+            "name": "off",
+            "path": "/s/off/SKILL.md",
+            "description": "x",
+            "enabled": False,
+        },
+    ]
+    listed = {
+        (one.sigil, one.name): one.how for one in _agent().new(tmp_path).natives()
+    }
+    assert listed[("$", "lint")] == "call"
+    assert ("$", "off") not in listed
+    assert listed[("@", "")] == listed[("!", "")] == "call"
+    for name in ("compact", "review", "rename", "model", "effort"):
+        assert listed[("/", name)] == "call"
+    for name in ("permissions", "mcp", "logout", "status"):
+        assert listed[("/", name)] == "refuse"
+    for name in ("clear", "resume", "exit", "quit", "btw"):
+        assert ("/", name) not in listed
+    (asked,) = server.called("skills/list")
+    assert asked["cwds"] == [str(tmp_path)]
+
+
+def test_the_skills_are_listed_again_once_a_conversation_opens(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    session.natives()
+    session.natives()
+    assert len(server.called("skills/list")) == 1
+    server.skills = [{"name": "new", "path": "/s/new/SKILL.md", "description": "x"}]
+    session("hi")
+    assert ("$", "new") in {(one.sigil, one.name) for one in session.natives()}
+
+
+def test_a_shell_command_is_the_servers_own_and_answers_with_its_output(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.output = ("hi\nerr\n", 3)
+    session = _agent().new(tmp_path)
+    assert _native(session, "!echo hi; exit 3") == "hi\nerr\n(exit 3)"
+    (ran,) = server.called("thread/shellCommand")
+    assert ran == {"threadId": "th-1", "command": "echo hi; exit 3"}
+    assert not server.called("turn/start")
+    assert session.id == "th-1"
+
+
+def test_a_shell_command_is_left_to_the_chat_where_codex_s_sandbox_holds_the_fence(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The server's shell command runs unsandboxed, and nothing else is around Codex."""
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
+    held = Fence.of(
+        rules=[(".", WRITE)], online=True, workdir=tmp_path, home=tmp_path / "home"
+    )
+    session = _agent(fence=held).new(tmp_path)
+    shell = [one for one in session.natives() if one.sigil == "!"]
+    assert [one.how for one in shell] == ["emulate"]
+    _native(session, "!rm -rf /")
+    assert not server.called("thread/shellCommand")
+    (turned,) = server.called("turn/start")
+    assert turned["input"] == [{"type": "text", "text": "!rm -rf /"}]
+
+
+def test_a_skill_and_a_file_named_in_a_line_go_as_items_beside_it(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.skills = [{"name": "lint", "path": "/s/lint/SKILL.md", "description": "x"}]
+    (tmp_path / "a.py").write_text("x = 1\n")
+    (tmp_path / "shot.png").write_bytes(b"\x89PNG")
+    line = "$lint @a.py, @shot.png and @nowhere $unknown"
+    _native(_agent().new(tmp_path), line)
+    (turned,) = server.called("turn/start")
+    assert turned["input"] == [
+        {"type": "localImage", "path": str(tmp_path / "shot.png")},
+        {"type": "text", "text": line},
+        {"type": "skill", "name": "lint", "path": "/s/lint/SKILL.md"},
+        {"type": "mention", "name": "a.py", "path": str(tmp_path / "a.py")},
+    ]
+
+
+def test_a_line_that_is_not_native_is_text_whatever_it_starts_with(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    (tmp_path / "a.py").write_text("")
+    session = _agent().new(tmp_path)
+    lines = ("/compact", "!ls", "@a.py", "$lint")
+    for line in lines:
+        session(line)
+    assert [one["input"] for one in server.called("turn/start")] == [
+        [{"type": "text", "text": line}] for line in lines
+    ]
+    assert not server.called("skills/list")
+
+
+def test_compact_is_the_servers_own_and_waits_for_it_to_finish(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    session("hi")
+    events = list(session.stream("/compact", native=True))
+    assert server.called("thread/compact/start") == [{"threadId": "th-1"}]
+    assert events[-1].kind == "result"
+    assert any(one.text.startswith("contextCompaction") for one in events)
+    assert len(server.called("turn/start")) == 1
+
+
+@pytest.mark.parametrize(
+    ("line", "target"),
+    [
+        ("/review", {"type": "uncommittedChanges"}),
+        ("/review base main", {"type": "baseBranch", "branch": "main"}),
+        ("/review commit abc123", {"type": "commit", "sha": "abc123"}),
+        ("/review look at auth", {"type": "custom", "instructions": "look at auth"}),
+    ],
+)
+def test_review_is_a_turn_of_the_servers_own_review(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    line: str,
+    target: dict[str, str],
+) -> None:
+    server.turns = [_says(_message("no findings"))]
+    assert _native(_agent().new(tmp_path), line) == "no findings"
+    (asked,) = server.called("review/start")
+    assert asked == {"threadId": "th-1", "target": target, "delivery": "inline"}
+
+
+def test_a_review_answers_with_its_findings_and_is_priced_at_the_model(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.turns = [
+        _says(
+            {"type": "exitedReviewMode", "id": "x", "review": "one finding"},
+            total=(10, 5),
+        )
+    ]
+    *_, result = _agent().new(tmp_path).stream("/review", native=True)
+    assert result.text == "one finding"
+    assert dict(result.tokens) == {"gpt-x": 15}
+
+
+def test_a_review_waits_for_a_turn_held_to_a_fence_codex_s_sandbox_holds(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`review/start` takes no sandbox: it runs at what the thread's last turn was sent."""
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
+    held = Fence.of(
+        rules=[(".", WRITE)], online=False, workdir=tmp_path, home=tmp_path / "home"
+    )
+    session = _agent(fence=held).new(tmp_path)
+    assert "held to its fence yet" in _native(session, "/review")
+    assert not server.called("review/start")
+    session("hi")
+    _native(session, "/review")
+    assert len(server.called("review/start")) == 1
+
+
+def test_an_operation_ends_on_its_own_turn_not_on_one_said_late(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    server.output, server.stray = ("hi\n", 0), True
+    assert _native(_agent().new(tmp_path), "!echo hi") == "hi\n"
+
+
+def test_a_fork_runs_on_the_model_a_chat_moved_its_parent_to(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    session("hi")
+    _native(session, "/model gpt-z")
+    session.fork()("go on")
+    assert server.called("thread/fork")[0]["model"] == "gpt-z"
+    assert server.called("turn/start")[-1]["model"] == "gpt-z"
+
+
+def test_rename_names_the_thread(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent().new(tmp_path)
+    assert "auth work" in _native(session, "/rename auth work")
+    assert server.called("thread/name/set") == [
+        {"threadId": "th-1", "name": "auth work"}
+    ]
+
+
+def test_model_and_effort_move_the_next_turns(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent(effort="low").new(tmp_path)
+    assert "gpt-y" in _native(session, "/model gpt-y high")
+    assert "medium" in _native(session, "/effort medium")
+    assert not spawner.started  # nothing of Codex's was asked
+    session("hi")
+    (turned,) = server.called("turn/start")
+    assert (turned["model"], turned["effort"]) == ("gpt-y", "medium")
+    assert session.model == "gpt-y"
+    assert _native(session, "/model") == "model gpt-y, effort medium"
+
+
+def test_an_effort_codex_has_no_word_for_is_refused_and_left(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    session = _agent(effort="low").new(tmp_path)
+    assert "ultracode" in _native(session, "/effort ultracode")
+    assert session.effort == "low"
+
+
+@pytest.mark.parametrize(
+    ("line", "said"),
+    [
+        ("/permissions", "/permissions is served only by Codex's own interactive"),
+        ("/nope now", "Unrecognized command '/nope'"),
+        ("/rename", "/rename needs"),
+    ],
+)
+def test_a_command_codex_would_not_send_is_answered_without_a_turn(
+    spawner: Spawner, server: _Server, tmp_path: Path, line: str, said: str
+) -> None:
+    assert _native(_agent().new(tmp_path), line).startswith(said)
+    assert not server.called("turn/start")
+
+
+def test_a_path_is_not_a_command(
+    spawner: Spawner, server: _Server, tmp_path: Path
+) -> None:
+    _native(_agent().new(tmp_path), "/usr/bin/env is odd")
+    (turned,) = server.called("turn/start")
+    assert turned["input"] == [{"type": "text", "text": "/usr/bin/env is odd"}]

@@ -58,13 +58,13 @@ That has three consequences:
 The page is laid out as a desktop chat app is. In it, every run of a flow is an **epic**, the
 way every conversation of an agent is a session: the sidebar lists your epics as a chat app
 lists its chats, and an epic opens out into its agents and the sessions each opened -- but a
-`chat`, which is its one conversation and opens into nothing.
+[chat](/user/chat), which is its one conversation and opens into nothing.
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first, each marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a `chat` only `●` while its agent answers, the blinking gold `●` while it asks, `✕` failed, else `■` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
-| **New epic** | A box for the task, the directory and the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
-| **An epic** | Its graph: who handed to whom -- a `chat` is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
+| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a folder per directory -- every one an epic ran in or that was opened here -- with its epics newest first, each marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a [chat](/user/chat) only `●` while its agent answers, the blinking gold `●` while it asks, `✕` failed, else `■` | Open an epic; press its arrow to open it out into its agents, and each agent into its sessions; **+** on a folder starts an epic there |
+| **New epic** | Two choices, **Chat** and **Flow**: a box for the first message or the task, the directory, and, for a flow, the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
+| **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search epics** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
@@ -142,10 +142,17 @@ The panel beside it (the button at the top right shows and hides it) holds:
 
 And under the graph, while it goes:
 
-- **Waiting for you.** A question the epic put to a person, with its offered answers as buttons
-  and a field for your own. A question another window holds says whose it is. A `chat` waiting
-  for your next line puts nothing here, and what its agent asks is asked in its conversation. See
-  [Questions](/user/questions).
+- **Waiting for you.** A question the epic put to a person, as a card: the prompt, then what
+  the flow handed you to read -- a diff file by file, a table, text, code, a picture, a chart,
+  each long one folded behind a line that sums it up -- then how to answer. A question asking
+  for text has its offered answers as buttons and a field for your own; one asking for a shape
+  is one whole form, its suggested answers already picked, and **Send answer** saying what is
+  left. A flow may draw a question with a [face](/weaver/faces) of its own instead, which
+  **Plain form** swaps for the form. What you type is kept in this browser until it is sent,
+  and a sent card folds to `You answered: …`. A question another window holds says `Waiting
+  for <name> to answer`.
+  A chat waiting for your next line puts nothing here, and what its agent asks is asked in its
+  conversation. See [Questions](/user/questions#in-the-browser).
 - **Say something.** <kbd>Enter</kbd> sends a line to the epic as a line typed in `hmz` goes
   (`the next turn`), to a role, to one session (marked `working` while it has a turn open), or
   to a person the flow has; <kbd>Shift</kbd>+<kbd>Enter</kbd> starts a new line. In a session's
@@ -159,7 +166,8 @@ And under the graph, while it goes:
 A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
 lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
 
-A `chat` is only its conversation, as a chat app's is, wherever it is opened: your task, then
+A [chat](/user/chat) is only its conversation, as a chat app's is, wherever it is opened: your
+first message, then
 each reply and each line you typed under it, on the right. The box under it is how you answer --
 between turns it is your next turn, and while the agent asks something mid-turn it answers
 that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
@@ -175,8 +183,17 @@ conversation itself cannot be carried on, the chat says why and answers what you
 new one. A chat that kept nothing to carry on from -- one an earlier Humanize wrote down --
 says it cannot be continued here, and offers no box.
 
+The box under a chat takes what the agent's CLI takes at its own prompt, as `hmz` does in a
+chat: typing `/`, `$` or `@` offers the CLI's own commands, skills and files, the names
+Humanize keeps, and the flows, each tagged with where it comes from, and each line is
+[served](/user/chat#what-a-line-means) as its CLI would serve it. A `!` line and what it printed
+are drawn as a shell draws them. A toggle on the chat says whether a `$` name that is both a
+skill and a flow is read as the skill (`native`) or the flow, and whether that comes from the
+settings or from this chat; switching it sets this chat's own
+[preference](/user/chat#a-name-that-is-both).
+
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
-opens what they were asked and answered. A line typed under one goes to whose it is. There is
+opens what they were asked and answered, and what the flow showed them without asking. A line typed under one goes to whose it is. There is
 no log of every session at once: under an epic in the sidebar are its agents and their
 sessions.
 
@@ -261,8 +278,16 @@ read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 
-**New epic** opens on the directory `hmz web` started in, or the folder whose **+** was pressed,
-and on the flow that directory last ran; pick another of either at the top. **Open folder…**
+**New epic** offers two choices: **Chat** and **Flow**.
+
+**Chat** starts a [chat](/user/chat): pick the directory, or **No workspace**, as below; the
+agent, set up a part at a time as a role's agent is under **Options**, starting from the one
+that directory last chatted with; and type the first message. <kbd>Enter</kbd> starts the chat,
+and the page goes to its conversation. There is no flow, budget or params to set.
+
+**Flow** opens on the directory `hmz web` started in, or the folder whose **+** was pressed,
+and on the flow that directory last ran; pick another of either at the top. A chat is not among
+the flows. **Open folder…**
 takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
 workspace** works in none of yours: each epic started so gets a new directory of its own in the
 temporary directory, made as it starts, and set up as the directory `hmz web` started in is; the
@@ -279,9 +304,8 @@ directory last set it up:
   for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
 - **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
   up to, the defaults ticked until a choice is saved -- and **Profile flow** and **Profile environment**. **Save** keeps them all for that directory
-  without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set. Every flow but `chat`
-needs at least one limit. The page goes to the epic once it starts -- a `chat` to its
-conversation.
+  without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set. Every flow
+needs at least one limit. The page goes to the epic once it starts.
 
 ### Ai-chan {#ai-chan}
 
@@ -327,7 +351,7 @@ daemon:
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
 | **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
 | **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
-| **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Chat turns**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
+| **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 
 Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
 until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
@@ -417,12 +441,12 @@ and drops the rest: an unknown token, a value that is not a colour, a picture th
 
 Start `hmz web` in a project, and open **New epic**:
 
-1. Pick `chat` at the top. Open **Options** and give `assistant` an agent such as
-   `claude/claude-haiku-4-5:high`. Type a task and press <kbd>Enter</kbd>. The page goes to
-   the conversation, `assistant/1`.
-2. When the agent has answered, `chat` waits for your next line, typed in the box under it.
-3. In a terminal in the same directory, run `hmz`. It opens on the same run, waiting for you
-   to say what next.
+1. Choose **Chat**. Give it an agent such as `claude/claude-haiku-4-5:high`, type a first
+   message and press <kbd>Enter</kbd>. The page goes to the conversation, `assistant/1`.
+2. When the agent has answered, the chat waits for your next line, typed in the box under it.
+3. In a terminal in the same directory, run `hmz`, which opens on a new chat of its own. Type
+   `/epics`, press <kbd>enter</kbd> on the chat you started, and choose `continue`: it is still
+   going, so it is read where it is, waiting for you to say what next.
 4. Answer it in the terminal. In the browser, your answer is a line of yours in the
    conversation, and the agent's reply follows it.
 5. Type `/clear` in the terminal. A chat is never stopped: `/clear` starts another, and the
@@ -580,11 +604,11 @@ not only the one showing:
 
 | Kind | When |
 | --- | --- |
-| **done** | An epic ended, done. |
+| **done** | An epic ended, done, or a [chat](/user/chat) finished a turn. |
 | **failed** | An epic failed, crashed, ran out of its budget, or was refused. |
-| **stopped** | An epic was stopped. Never a `chat`: leaving one is no news. |
+| **stopped** | An epic was stopped. Never a chat: leaving one is no news. |
 | **asked** | A flow put a question to a person: the outworlder. See [Questions](/user/questions). |
-| **listening** | A `chat` finished a turn and waits for your next line, or another flow waits for what to say next. |
+| **listening** | A flow waits for what to say next. A chat that finished a turn is **done**, never this. |
 
 Each says which daemon, which directory and which epic it came from, and what was asked or how
 it ended.
@@ -657,6 +681,9 @@ answered only where it was meant to be:
   key off the browser's command line.
 - **No secret on the page.** Accounts are shown by the names of what they set, never by a
   value.
+- **A flow's face fenced in.** A [face](/weaver/faces) a flow brings runs in a sandboxed frame
+  of its own origin, with no cookies, no network and no way to the daemon. All it can do is
+  answer the question it was handed, and that answer is checked as any other is.
 
 The key changes every time `hmz web` starts, so an address from an earlier one lets nobody in.
 

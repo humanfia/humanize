@@ -116,17 +116,33 @@ carries:
 ```text
 Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:;
   style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:;
-  frame-ancestors 'none'; base-uri 'none'; form-action 'self'
+  frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 ```
 
-`'self'` lets the page reach the server's own `/rpc` and `/dial`; `ws:` and `wss:` the relay
-of a `webrtc:` route, whose host the server cannot know. `'unsafe-inline'` in `style-src` lets
-the editor and the terminal style what they draw from their own scripts; scripts stay the
-server's own files only.
+`'self'` lets the page reach the server's own `/rpc` and `/dial`, and frame its own
+`faces/frame.html`; `ws:` and `wss:` the relay of a `webrtc:` route, whose host the server
+cannot know. `'unsafe-inline'` in `style-src` lets the editor and the terminal style what they
+draw from their own scripts; scripts stay the server's own files only.
 
-The editor (CodeMirror 6) and the terminal (xterm.js) are the page's only third-party code,
-served from `/vendor/codemirror.js`, `/vendor/xterm.js` and `/vendor/xterm_css.css`. They are
-built from the pinned packages in `src/hmz/web/vendor/`; see
+`faces/frame.html`, the document a [face](/weaver/faces) runs in, is the one file the page may
+frame: it carries `X-Frame-Options: SAMEORIGIN` and a policy of its own, which it also says in
+a `<meta>` of its own:
+
+```text
+Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'self';
+  style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:;
+  connect-src 'none'; frame-ancestors 'self'
+```
+
+A file under `vendor/` asked for with `Origin: null`, as a face's opaque origin asks, is
+answered with `Access-Control-Allow-Origin: null`, so a face can import it; no other answer
+says `Access-Control-Allow-Origin`.
+
+The page's only third-party code is served from `/vendor/`: the editor (CodeMirror 6) at
+`codemirror.js`, the terminal (xterm.js) at `xterm.js` and `xterm_css.css`, Markdown (marked
+and DOMPurify) at `markdown.js`, and charts (Vega-Lite through vega-embed, its expressions
+interpreted rather than compiled, so no `eval` is needed) at `vega.js`. They are built from the
+pinned packages in `src/hmz/web/vendor/`; see
 [Rebuilding the vendored code](/contributing/architecture#vendored-web-code).
 
 ## `/here` {#here}
@@ -185,7 +201,8 @@ The page speaks one JSON-RPC session to each daemon it reaches -- Local over `/r
 daemon over `/dial`, or over the browser's own WebRTC for a `webrtc:` route -- saying
 `session.hello` as `kind` `web` (`desktop` in [Humanize Desktop](/user/desktop)). Everything it
 shows and does is the [daemon's methods](/reference/daemon), the same any client calls:
-`hosts.running` and `epic.attach` for the epics going, `runs.*` for those written down,
+`hosts.running` and `epic.attach` for the epics going, [`chat.*`](/reference/daemon#chats) to
+start, talk to and complete a chat, `runs.*` for those written down,
 `flows.*`, `settings.*`, `accounts.*`, `notices.subscribe` and the rest. Section 4.20 of
 [`protocol/daemon.md`](https://github.com/humanfia/humanize/blob/main/protocol/daemon.md#420-methods-and-the-interfaces-they-replace)
 maps every route of the HTTP interface `hmz web` served before to the method that serves it now.
@@ -194,10 +211,10 @@ Each view is an address after `#`, so it can be kept and opened again:
 
 | Address | View |
 | --- | --- |
-| `#/new[?workspace=&flow=&resume=<name>]` | A new epic: in the workspace picked (where `hmz web` started by default), the flow picked, or the epic named picked up. The page opens here. |
-| `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own, or a chat's; its address becomes `#/epics/<name>` once it is written down -- a `chat`'s, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
+| `#/new[?workspace=&flow=&resume=<name>]` | A new epic, **Chat** or **Flow**: in the workspace picked (where `hmz web` started by default), a [chat](/user/chat) with the agent that workspace remembers, the flow picked, or the epic named picked up. The page opens here. |
+| `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own, or a chat's; its address becomes `#/epics/<name>` once it is written down -- a chat's, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
 | `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path -- in Humanize Desktop as it is opened, read from the app and sent in chunks to the daemon shown, as one picked is; in a browser, from the daemon's machine as `runs.import` `{path}` does, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
-| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A `chat`, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
+| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A chat, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs/<role>` | One agent's log, across its sessions; or one person's, what they are asked and answer. `#/epics/<name>/logs`, with neither, opens `#/epics/<name>`. |
@@ -214,6 +231,13 @@ daemon its address names: every link it draws keeps the `@<name>` the address ca
 to another daemon's address draws the view and the sidebar again, of that daemon, letting go of
 what the page followed of the last. The notifications, the daemons and the page's own settings
 are the same whichever daemon is shown.
+
+Every view's bar carries Ai-chan's avatar at its right, the page's file `ai-chan/avatar.png`, a button that
+opens and closes the [Ai-chan drawer](/user/web#ai-chan) beside it, kept open from view to view
+of one daemon. The drawer lists that daemon's conversations (`aichan.list`), makes one
+(`aichan.create`) from its **New** form, forgets one (`aichan.forget`) after asking, and draws
+one as a chat attached to its `ai:` slot (`epic.attach`), its **Stop** being `epic.stop`. On a
+phone's width it covers the view.
 
 ### What the page keeps {#kept}
 

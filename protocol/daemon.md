@@ -50,6 +50,7 @@ It is normative. It is cited by the tag [DAEMON].
   - [4.22. Ai-chan conversations](#422-ai-chan-conversations)
   - [4.23. Envs of an epic](#423-envs-of-an-epic)
   - [4.24. Environments](#424-environments)
+  - [4.25. Chats](#425-chats)
 - [5. Security Considerations](#5-security-considerations)
 - [6. References](#6-references)
   - [6.1. Normative References](#61-normative-references)
@@ -141,7 +142,8 @@ host per Ai-chan conversation a host holds and one exec host per `hmz exec` besi
 MUST run in a process of its own, standing in its workspace.
 
 **3.3.4** A chat host, an Ai-chan host, an exec host and the workspace host of one workspace MUST
-NOT wait on each other; how many epics each runs at a time is stated in Section 3.4.3 of [CORE].
+NOT wait on each other; how many epics each runs at a time is stated in Section 3.4.3 of [CORE] and
+Section 8.6 of [CORE].
 
 **3.3.5** Two spellings of one directory MUST name one workspace, and two directories MUST name two
 workspaces.
@@ -249,8 +251,8 @@ frontend once the frontend that claimed its role detaches.
 **3.6.8** A frontend that falls too far behind what it is told MUST be told so and detached, and
 MUST NOT hold up the epic or another frontend.
 
-**3.6.9** The terminal interface MUST offer, on leaving while a flow other than a chat is going, to
-stop the flow or to detach, as [TUI] specifies.
+**3.6.9** The terminal interface MUST offer, on leaving while a flow is going, to stop the flow or
+to detach, as [TUI] specifies.
 
 **3.6.10** Running the terminal interface again in the same workspace MUST attach it to that
 workspace's host, and MUST show the epic from its start.
@@ -573,8 +575,8 @@ whole path, not <workspace>.`, and one naming no directory 404, `There is no dir
 except where a method states it reads an epic of a workspace since removed.
 
 **4.5.3** `slot` absent or `""` MUST mean the workspace's own host; one that is not a slot, nor
-`chat:` or `exec:` alone where Section 4.7.1.2 permits it, MUST be refused 400, `<slot> is not a
-slot.`
+`chat:` or `exec:` alone where Section 4.7.1.2 or Section 4.25.1.1 permits it, MUST be refused 400,
+`<slot> is not a slot.`
 
 **4.5.4** `idem` MUST be taken by every write as Section 6.7 of [WIRE] states.
 
@@ -598,9 +600,9 @@ for <slot>` appended where `slot` is not `""`.
 order taken on, each with `pid`, `workspace`, `started` and `slot`.
 
 **4.6.2.2** `hosts.running` MUST answer `running`, holding, for every host whose epic is going or
-stopping, `state`, `run`, `flow`, `epic`, `task` and, of a chat or an Ai-chan conversation, `turn`
-from its status, each with
-`workspace`, `slot` and `asking` (the questions it waits on, each `<run>:<question>`).
+stopping, `state`, `run`, `kind`, `flow`, `epic`, `task` and, of a chat or an Ai-chan conversation,
+`turn` from its status, each with `workspace`, `slot` and `asking` (the questions it waits on, each
+`<run>:<question>`).
 
 **4.6.2.3** `hosts.open` `{workspace, slot}` MUST start the host of that workspace and slot where
 none is, as `epic.attach` does (Section 4.7.1.2 to Section 4.7.1.4), MUST NOT attach to it, and MUST
@@ -627,7 +629,9 @@ an absent `turn` as the host holding neither a chat nor an Ai-chan conversation.
 - `slot`: The host's slot.
 - `state`: `running`, `stopping` or `idle`.
 - `run`: The epic number of the epic going, else stopping, else the last; `0` for none.
-- `flow`: That epic's flow as named, or `""`.
+- `epic_kind`: That epic's kind, `flow` or `chat` (Section 3.2.13 of [CORE]), or `""` for none;
+  `hosts.running` answers it as `kind`.
+- `flow`: That epic's flow as named, or `""`, as it is for a chat.
 - `epic`: That epic's directory name, `""` before it has one.
 - `task`: That epic's task, or `""`.
 - `pending`: `[{question, role, text, mode}]`: every question waiting on a person.
@@ -678,7 +682,8 @@ where the session closed meanwhile, and `this host has closed` once the host is 
 #### 4.7.2. Replies
 
 **4.7.2.1** Every call to an epic MUST be answered with exactly one reply, as a result where the
-host carries it out and as the error 409 with its `why` where it refuses it.
+host carries it out and as the error 409 with its `why` where it refuses it, but where its paragraph
+states another code.
 
 **4.7.2.2** A call to an epic that fails for any other reason MUST be refused with the text of the
 failure, or the name of its type where the text is empty.
@@ -712,7 +717,8 @@ close every aside it opened.
 the stated types and defaults; a field not sent MUST take its default.
 
 **4.8.1.2** `epic.start`, `epic.say`, `epic.answer`, `epic.stop`, `epic.force`, `epic.afk`,
-`epic.claim`, `epic.release`, `epic.board` and `epic.quit` MUST be writes.
+`epic.claim`, `epic.release`, `epic.board` and `epic.quit` MUST be writes. `epic.face` MUST be a
+read.
 
 #### 4.8.2. `epic.start`
 
@@ -735,10 +741,10 @@ refused start MUST leave the set-up as it was.
 **4.8.2.4** `epic.start` MUST be refused with `a flow to start is named` for a missing `flow`;
 `backup is a list of backup target names` for a `backup` that is not one; `this host has closed`; `a
 flow is already running` while an epic is going; `a flow is already starting` while another start is
-under way; `this chat has folded away; carry it on from its epic` on a chat host that has folded
-(Section 4.13.8); `an exec host runs one epic` on an exec host that has started one; `an Ai-chan
-host runs its own conversation` on an Ai-chan host; and with the
-`Refused` message of Section 4.6 of [PYTHON] for everything `flows.check` refuses.
+under way; `a chat is started with chat.start` on a chat host (Section 4.25.1); `an exec host runs
+one epic` on an exec host that has started one; `an Ai-chan host runs its own conversation` on an
+Ai-chan host; and with the `Refused` message of Section 4.6 of [PYTHON] for everything
+`flows.check` refuses.
 
 **4.8.2.5** An epic that is stopping MUST NOT prevent `epic.start`.
 
@@ -753,16 +759,32 @@ where `to` is `outworlder:<role>` and another frontend claims `role`.
 
 #### 4.8.4. `epic.answer`
 
-**4.8.4.1** `epic.answer` MUST take `question` (text, a question id) and `text` (text, required, not
-empty).
+**4.8.4.1** `epic.answer` MUST take `question` (text, a question id) and exactly one of `text`
+(text, not empty) and `value` (any JSON value); a `value` of `null` MUST be read as not sent.
 
-**4.8.4.2** Where `text`, stripped, is a decimal number `n` from 1 to the number of the question's
-options and is not itself an option, the answer MUST be the `n`-th option; otherwise it MUST be
-`text`.
+**4.8.4.2** Where the question has options and `text`, stripped, is a decimal number `n` from 1 to
+the number of its options and is not itself an option, the answer MUST be the `n`-th option;
+otherwise it MUST be `text`.
 
-**4.8.4.3** `epic.answer` MUST be refused with `an answer says something`; `already answered by
-<name>` for a question answered; `no question <id> is waiting`; and `<role> is <name>'s` where
-another frontend claims the question's role.
+**4.8.4.3** Where the question has a `schema`, the answer MUST be `value`, or `text` read as JSON,
+and MUST be taken only where it fits the schema, as the flow validates it (Section 3.10.4.3 of
+[PYTHON]); `answered.text` MUST then be the value taken, as JSON text, with the value of every
+field its schema marks `"hmz:widget": "secret"` written `***`.
+
+**4.8.4.4** Where the question has no `schema`, a `value` that is text MUST be read as `text`, and
+any other `value` MUST NOT fit.
+
+**4.8.4.5** An answer that does not fit -- a value the schema refuses, `text` that is not JSON, or a
+`value` that is not text where text is asked -- MUST be refused 400 with `the answer does not fit:
+<message>`, `<message>` being the `message` of its first error, and with `data` `{"errors":
+[{"path": [...], "message": ...}]}`: one entry per error, `path` the keys and indexes from the
+value's root to what is wrong, `[]` for the whole value. The question MUST stay waiting.
+
+**4.8.4.6** `epic.answer` MUST be refused with the first of these that holds: `an answer says
+something` where neither `text` nor `value` is sent, or `text` is empty; `an answer is text or a
+value, not both`; `already answered by <name>` for a question answered; `no question <id> is
+waiting`; `<role> is <name>'s` where another frontend claims the question's role; and an answer
+that does not fit (Section 4.8.4.5).
 
 #### 4.8.5. `epic.stop` and `epic.force`
 
@@ -838,9 +860,10 @@ still answering the last question`.
 **4.8.8.11** `epic.unaside` MUST take `side`, MUST close that side conversation, and MUST be refused
 with `no aside <side> is open`.
 
-**4.8.8.12** Every side conversation MUST run at the `read-only` rung, MUST carry no skills (Section
-9.3.5 of [CORE]), MUST NOT be seen by the epic, MUST be answered only to the frontend that opened
-it, and MUST NOT write where any epic keeps its sessions nor into the harness's own home.
+**4.8.8.12** Every side conversation MUST run inside a confinement of its own that writes nothing
+(Section 9.3.4 of [CORE]), MUST carry no skills (Section 9.3.5 of [CORE]), MUST NOT be seen by the
+epic, MUST be answered only to the frontend that opened it, and MUST NOT write where any epic keeps
+its sessions nor into the harness's own home.
 
 **4.8.8.13** A side conversation MUST be closed by `epic.unaside`, when its frontend leaves, when an
 epic starts on the host, and when the host closes; no message announces side conversations.
@@ -853,6 +876,18 @@ epic starts on the host, and when the host closes; no message announces side con
 `{}`.
 
 **4.8.9.3** `epic.quit` MUST close the host as Section 4.13.6 states.
+
+#### 4.8.10. `epic.face`
+
+**4.8.10.1** `epic.face` MUST take `hash` (text, required) and MUST be answered with `html` and
+`title`, the face (Section 3.10.7 of [PYTHON]) of the epic going or the last one whose hash is
+`hash`.
+
+**4.8.10.2** A host MUST keep every face the flow made known to it for as long as it keeps the
+history records of that epic (Section 4.9.2.2).
+
+**4.8.10.3** `epic.face` MUST be refused 404 with `no face <hash>` where the host keeps no face of
+that hash.
 
 ### 4.9. Messages
 
@@ -887,30 +922,39 @@ of history records dropped from the front.
 across the host's life.
 
 **4.9.2.2** A host MUST keep the history records of the epic going or the last, starting afresh with
-each `epic.start`, up to 32 MiB of JSON, dropping the oldest whole records first and counting them
-in `elided`.
+each `epic.start` and `chat.start`, up to 32 MiB of JSON, dropping the oldest whole records first
+and counting them in `elided`.
 
 **4.9.2.3** Every history record other than `printed` MUST carry `run`, its epic number.
 
 **4.9.2.4** The history records MUST be those of the following list, with those fields.
 
-- `started`: `flow`, `ref`, `task`, `by`, `client`, `roles` (agent roles not filled by the runtime),
-  `names` (`{role: agent name}`), `outworlders`, `agents`, `envs` (`{role: spec}`), `params`,
-  `budget`, `profile_flow`, `profile_environment`, `backup`, `resume` (`""`, or the text given),
-  `began` (host monotonic seconds), `at` (Unix seconds).
+- `started`: `kind` (`flow` or `chat`; of a chat, `flow` and `ref` are `""` and `params` and
+  `budget` `null`), `flow`, `ref`, `task`, `by`, `client`, `roles` (agent roles not filled by the
+  runtime), `names` (`{role: agent name}`), `outworlders`, `agents`, `envs` (`{role: spec}`),
+  `params`, `budget`, `profile_flow`, `profile_environment`, `backup`, `resume` (`""`, or the text
+  given), `began` (host monotonic seconds), `at` (Unix seconds).
 - `opened`: `role`, `key` (`<agent>/<n>`), `agent`, `cli`, `model`, `counts` (token kinds the
   backend reports, sorted), `forks`, `person`, `kept` (directory of the session's logs, `""` for a
   person or the harness's own home), `env`, `harness`, `mono`, `wall`.
 - `event`: `key`, `session`, `agent`, `cli`, `model`, `ident`, `kind`, `text`, `whose`, `tokens`,
   `spent`, `at`, `mono`: the record `hmz exec --json` writes ([CLI]).
-- `asked`: `question` (`q<n>`), `role`, `text`, `options`, `mode` (`ask` or `listen`), `key`.
+- `asked`: `question` (`q<n>`), `role`, `text`, `options` (`[]` for a question with a schema),
+  `mode` (`ask` or `listen`), `key`, `schema` (the JSON Schema of the answer, or `null` for text),
+  `context` (the blocks put beneath the question, each in the JSON form of Section 3.10.5.2 of
+  [PYTHON], `[]` for none), `face` (`{hash, title}`, or `null` for none) and `session` (the
+  outworlder session asking, `<role>/<n>`, `""` for none).
 - `answered`: `question`, `role`, `by`, `client`, `text`.
 - `withdrawn`: `question`, `why` (`away` or `over`).
+- `shown`: `role`, `session`, `context`: blocks an outworlder session was shown with no question
+  (Section 3.10.6 of [PYTHON]), as `asked` carries them.
 - `said`: `text`, `key`, `by`, `client`.
 - `refused`: `agent`, `text`, `because`.
 - `unheld`: `agent`, `texts`.
 - `dropped`: `given` (`[{agent, text, by, client}]`), `queued` (`[{text, by, client, to}]`),
   `because` (`stopped` or `ended`).
+- `shell`: `key`, `command`, `out`, `err`, `status`: a `!` command a chat ran for its user
+  (Section 8.9.6 of [CORE]).
 - `printed`: `text`: one line printed in the host process.
 - `notice`: `text`: a notice of **hmz** about the epic, as Section 3 of [CORE] defines notices.
 - `stopping`: `by`, `client`.
@@ -957,7 +1001,8 @@ MUST send a snapshot to every frontend whenever it changes.
 - `calls`: `calls`: `[{ref, name, depth, since, id, parent}]`; initially `[]`.
 - `waiting`: `queued` (`[{text, by, client, to}]`), `given` (`[{agent, text, by, client}]`);
   initially `[]`, `[]`.
-- `pending`: `pending`: `[{question, run, role, text, options, mode, key, owner}]`; initially `[]`.
+- `pending`: `pending`: `[{question, run, role, text, options, mode, key, schema, context, face,
+  session, owner}]`, each as its `asked` record says it; initially `[]`.
 - `usage`: `run`, `usage`, `budget`; sent at most once a second; initially `0`, `null`, `null`.
 - `board`: `items`: `[{key, value, about, whose, by, at}]`, or `null` for an epic with no board;
   initially `null`.
@@ -991,8 +1036,9 @@ them.
 **4.10.1.2** A line said with `to` an agent's name MUST go into that agent's newest session with a
 turn open; a line said with `to` `<agent>/<n>` MUST go into that session.
 
-**4.10.1.3** In a chat, a line said to an agent or session with no turn open MUST answer the waiting
-`listen` question this frontend is permitted to answer, and MUST go into no turn.
+**4.10.1.3** On a chat host, `epic.say` and `epic.answer` MUST be refused with `say it to the chat
+with chat.say`; every line of a chat, an answer to what its assistant asks included, is said by
+`chat.say` (Section 4.25.2).
 
 **4.10.1.4** A line said with `to` `outworlder:<role>` MUST only answer that role's waiting `listen`
 question and MUST NOT go into any turn.
@@ -1022,11 +1068,14 @@ role is not away; otherwise the flow MUST receive no answer at once.
 **4.10.2.4** A question MUST be answerable by its role's claimant, or by any frontend where the role
 is unclaimed, the first answer winning; it MUST stay waiting with no frontend attached.
 
-**4.10.2.5** A question MUST be `ask` where it has options or a turn is open, else `listen`; a
-question asked while exactly one session has a turn open MUST carry that session's key.
+**4.10.2.5** A question MUST be `ask` where it has options or a schema or a turn is open, else
+`listen`; a question asked while exactly one session has a turn open MUST carry that session's key.
 
 **4.10.2.6** A question MUST be withdrawn with `away` when its role goes away, and with `over` when
 its epic stops or ends, is forced, or the host closes.
+
+**4.10.2.7** `shown` MUST be recorded only where a question of its role would be (Section
+4.10.2.3), MUST NOT wait on any frontend, and MUST make no notice.
 
 #### 4.10.3. Away
 
@@ -1042,7 +1091,8 @@ the value of every role another frontend claims unchanged.
 Section 6.10.1 of [WIRE] states.
 
 **4.11.2** Every text longer than 262 144 characters in a history record or a snapshot MUST be cut
-to that length followed by `… (<n> more characters)`, `n` the characters cut.
+to that length followed by `… (<n> more characters)`, `n` the characters cut, but the texts of
+`schema` and `context`, which MUST be sent whole (Section 3.10.5.3 of [PYTHON]).
 
 ### 4.12. Protocol versions
 
@@ -1114,8 +1164,8 @@ release what they made, and the host process MUST then exit.
 
 #### 4.13.7. Failures
 
-**4.13.7.1** Whatever a frontend sends, other than `epic.stop`, `epic.force`, `epic.quit` and
-`hosts.stop`, MUST NOT end an epic.
+**4.13.7.1** Whatever a frontend sends, other than `epic.stop`, `epic.force`, `epic.quit`,
+`hosts.stop` and an empty `chat.say`, MUST NOT end an epic.
 
 **4.13.7.2** A failure that belongs to an epic MUST be written to that epic's `host.log` (Section 6
 of [FILES]), and one that belongs to none to `daemon.log` in the daemon directory (Section 7 of
@@ -1124,12 +1174,11 @@ of [FILES]), and one that belongs to none to `daemon.log` in the daemon director
 #### 4.13.8. Folding a chat
 
 **4.13.8.1** A chat's host MUST fold its chat once the chat has waited between turns with no
-frontend attached for 60 seconds; folding MUST set every role away, MUST answer the waiting
-question with nothing, and MUST end the chat `done`.
+frontend attached for 60 seconds; folding MUST end the chat as an empty next message does (Section
+8.4.7 of [CORE]), keeping its conversation to be carried on.
 
-**4.13.8.2** A folded chat host MUST refuse `epic.start` (Section 4.8.2.4); a folded chat is carried
-on by starting the `chat` flow on a new slot with `resume` its epic directory, which continues in
-that same epic.
+**4.13.8.2** A folded chat host MUST refuse `chat.say` (Section 4.25.2); a folded chat is carried on
+by `chat.start` on a new slot with `resume` its epic directory, which continues in that same epic.
 
 **4.13.8.3** An Ai-chan host MUST fold its conversation as Section 4.13.8.1 states for a chat; a
 folded conversation is carried on as Section 4.22.5.2 states.
@@ -1255,7 +1304,8 @@ found in the task, flow or epic name), `offset` (default `0`) and `limit` (defau
 
 #### 4.16.2. Epic rows
 
-**4.16.2.1** An epic row MUST hold `name`, `workspace`, `flow`, `task` (its first line, cut at 240
+**4.16.2.1** An epic row MUST hold `name`, `workspace`, `kind` (`flow` or `chat`), `flow` (`""` for
+a chat), `task` (its first line, cut at 240
 characters with `…`), `began`, `ended`, `how` (its ending, `running` while going, `unfinished` where
 its process went before it ended; of a chat, as Section 8.5 of [CORE] says it), `agents` (`[{name,
 role, runs}]`), `sessions` (a count), `resumable`, `spent`, `held` (whether a host is going with
@@ -1356,7 +1406,8 @@ and MUST answer `days_back`, `days` (per UTC day, oldest first), `flows` (costli
 #### 4.17.1. `flows.list`
 
 **4.17.1.1** `flows.list` MUST take `workspace` and answer `flows` (`[{whose, name, about}]`),
-`flow` (the flow that workspace opens on) and `running` (`[{ref, name, depth, since, task}]`).
+`flow` (the flow last set up in that workspace, or `""`) and `running`
+(`[{ref, name, depth, since, task}]`).
 
 #### 4.17.2. `flows.get`
 
@@ -1387,8 +1438,8 @@ workspace runs the flow with, as Section 3 of [FILES] defines it, and MUST answe
 does.
 
 **4.17.4.2** `flows.setup` MUST be refused 404 for a flow not on offer or that will not load; 400
-for an agent that is not an agent spec, a role left without an agent, a flow other than `chat` with
-no budget limit, and a `backup` naming an unknown target.
+for an agent that is not an agent spec, a role left without an agent, a flow with no budget limit,
+and a `backup` naming an unknown target.
 
 **4.17.4.3** `flows.fork` MUST take `flow` and `workspace`, copy the flow as `Flows.fork` of Section
 4.7.7 of [PYTHON] does, and answer `said` and `at`; what that raises MUST be refused 400.
@@ -1450,10 +1501,9 @@ check everything `hmz exec` checks before an epic starts (Section 7.7 of [CLI]) 
 can be reached, without starting the epic, any agent CLI or any env, and without reaching another
 machine.
 
-**4.17.8.2** `flows.check` MUST answer `flow` (as named), `ref`, `chats` (whether it is the built-in
-`chat` flow), `declared` (as `flows.get` answers), `names` (`{role: agent name}`), `budget`,
-`backup` (the targets it would go to) and `unreadable` (every limit of the budget nothing the epic
-drives can enforce, in words, or `""`).
+**4.17.8.2** `flows.check` MUST answer `flow` (as named), `ref`, `declared` (as `flows.get`
+answers), `names` (`{role: agent name}`), `budget`, `backup` (the targets it would go to) and
+`unreadable` (every limit of the budget nothing the epic drives can enforce, in words, or `""`).
 
 **4.17.8.3** `flows.check` MUST refuse 400 with the `Refused` message of Section 4.6 of [PYTHON],
 the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
@@ -1463,17 +1513,20 @@ the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
 #### 4.18.1. `settings.*`
 
 **4.18.1.1** `settings.get` MUST take `workspace`, for a workspace that need not exist, and answer
-`workspace`, `flow`, `ai_chan`, `details`, `reports` (`null` where never answered), `flows` (the flows
-set up there), `backup` (`targets`, each `name`, `url` without credentials, `branch`, `policies`,
-`every`; and `defaults`), `listen` and `ice_servers`.
+`workspace`, `flow`, `chat` (the chat agent remembered there, or `""`), `prefer` (`native` or
+`flow`, Section 3.4.13 of [FILES]), `ai_chan`, `details`, `reports` (`null` where never answered),
+`flows` (the flows set up there), `backup` (`targets`, each `name`, `url` without credentials,
+`branch`, `policies`, `every`; and `defaults`), `listen` and `ice_servers`.
 
-**4.18.1.2** `settings.set` MUST take `workspace` and any of `ai_chan` (text), `details` (boolean),
+**4.18.1.2** `settings.set` MUST take `workspace` and any of `chat` (an agent spec), `prefer`
+(`native` or `flow`), `ai_chan` (text), `details` (boolean),
 `reports` (boolean), `backup` (`{targets, defaults}`, every target), `listen` (a list of listener
 specs) and `ice_servers` (a list of `{urls, username, credential}`), MUST be a write, and MUST
 answer as `settings.get` does.
 
-**4.18.1.3** `settings.set` MUST write `ai_chan`, `details`, `backup`, `listen` and `ice_servers` as
-Section 3 of [FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of [FILES];
+**4.18.1.3** `settings.set` MUST write `chat` as `chat.agent` of the workspace, `prefer` as
+`chat.prefer`, and `ai_chan`, `details`, `backup`, `listen` and `ice_servers` as Section 3 of
+[FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of [FILES];
 a change of `listen` MUST open and close listeners at once.
 
 **4.18.1.4** A target whose `url` equals the credential-free URL `settings.get` answered MUST keep
@@ -1587,11 +1640,11 @@ community nodes could not be read: <why>`.
 
 | Kind | When |
 | --- | --- |
-| `done` | An epic ended done; or a chat finished a turn |
+| `done` | An epic of a flow ended done; or a chat finished a turn |
 | `failed` | An epic failed, crashed, ran out of budget or was refused |
-| `stopped` | An epic other than a chat was stopped |
+| `stopped` | An epic of a flow was stopped |
 | `asked` | A flow asked a person a question |
-| `listening` | A flow other than a chat waits for what to say next |
+| `listening` | A flow waits for what to say next |
 
 **4.19.1.2** A notice MUST hold `id` (an integer greater than every earlier one, across restarts of
 the daemon), `kind`, `workspace`, `slot`, `epic`, `flow`, `task`, `role`, `text` and `at` (Unix
@@ -1732,8 +1785,8 @@ that holds, and MUST then have no effect:
 2. the call names a host of an `ai:` slot, by `slot` or by `sub`: `Ai-chan cannot reach an Ai-chan
    conversation.`;
 3. the reach does not reach what the call acts on: `<method> is out of Ai-chan's scope: <what>.`,
-   `<what>` being `the daemon`, `the workspace <workspace>`, `the epic <epic>` or `the host <slot>
-   of <workspace>`;
+   `<what>` being `the daemon`, `the workspace <workspace>`, `the epic <epic>`, `the host <slot>
+   of <workspace>`, or `the host of <workspace>` for the slot `""`;
 4. `x-hmz-writes` is `true` and the reach's preset is `read-only`: `Ai-chan is read-only, and
    <method> changes things.`
 
@@ -1822,11 +1875,11 @@ conversation's host where one holds it (Section 4.13.6), MUST forget it as Secti
 
 #### 4.22.5. Ai-chan hosts
 
-**4.22.5.1** The host of an `ai:` slot MUST, as it starts, run its conversation's epic of the flow
-`ai_chan`, with the params of Section 14.4.2 of [CORE] from the conversation's record, the agent of
-the role `ai_chan` its `nous`, and `HUMANIZE_AICHAN_LINK` naming the socket of its scoped link
+**4.22.5.1** The host of an `ai:` slot MUST, as it starts, have its conversation's chat (Section
+14.4 of [CORE]), with what Section 14.4.2 of [CORE] names from the conversation's record, its
+assistant the conversation's `nous`, and `HUMANIZE_AICHAN_LINK` naming the socket of its scoped link
 (Section 3.11.2.17 of [FILES]): anew, with the task of `aichan.create` as the first message, the
-first time; and carrying on its recorded epic (`resume`), waiting between turns, every later time.
+first time; and carrying on its recorded epic, waiting between turns, every later time.
 
 **4.22.5.2** `epic.attach` naming the `ai:` slot of a conversation whose host has gone MUST start
 that host as Section 4.22.5.1 states and attach to it; `epic.attach` and `hosts.open` naming an
@@ -2107,6 +2160,80 @@ them, MUST rewind the env to it as `rewind` does, and MUST answer `{}`.
 **4.24.5.8** `env.git.rewind` MUST be refused with `<role> is working here; stop it first`, `<role>`
 the role of the session, while a session working in that env has a turn open.
 
+### 4.25. Chats
+
+#### 4.25.1. `chat.start`
+
+**4.25.1.1** `chat.start` MUST take `workspace`, `slot` (a chat slot, or `chat:` alone for a new
+one, `chat:`), `agent` (an agent spec, as `epic.start` takes one for a role), `task` (text,
+required, not empty), `resume` (the text of an epic directory, `null`), `prefer` (`native`, `flow`
+or `null`) and `remember` (boolean, `false`), and MUST be a write.
+
+**4.25.1.2** `chat.start` MUST start the host of that slot as `epic.attach` does (Section 4.7.1.2),
+without attaching to it, MUST start a chat there (Section 8 of [CORE]) with `agent` as its assistant
+and `task` as its first message, and MUST be answered with `slot` and `epic`, the chat's epic
+directory name.
+
+**4.25.1.3** With `resume`, `chat.start` MUST carry on the chat of that epic directory in that same
+epic (Section 8.7 of [CORE]), `task` being its next turn, with `agent` where given and the chat's
+own agent otherwise.
+
+**4.25.1.4** With `prefer`, `chat.start` MUST record it as the chat's override (Section 8.9.10 of
+[CORE]).
+
+**4.25.1.5** With `remember` `true`, `chat.start` MUST write `agent` as the chat agent of the
+workspace (Section 3.5.1.9 of [FILES]) once the host has taken the start; a refused start MUST
+leave it as it was.
+
+**4.25.1.6** `chat.start` MUST be refused 400 with `a chat starts with something said` for an empty
+`task`, `<slot> is not a chat slot.` for a slot that is not one, `an agent for the chat is named`
+for a missing `agent` without `resume`, and the reason of Section 8.3.7 of [CORE] for an agent it
+refuses; 404 with `<epic> is not a chat of <workspace>.` for a `resume` that names none; and 409
+with `a chat is already going on <slot>` for a slot whose host holds one.
+
+#### 4.25.2. `chat.say`
+
+**4.25.2.1** `chat.say` MUST take `workspace`, `slot` and `text` (text, required), MUST be a write,
+and MUST be answered `{}`.
+
+**4.25.2.2** `chat.say` MUST serve `text` as Section 8.9 of [CORE] states, and MUST otherwise say
+it to the chat: as the next turn between turns, into the open turn where its harness accepts a
+message mid-turn, and held for the next turn otherwise (Section 8.4 of [CORE]); an empty `text`
+MUST end the chat (Section 8.4.7 of [CORE]).
+
+**4.25.2.3** A line `chat.say` delivers, holds, has refused or drops MUST be recorded as Section
+4.10.1.6 states for `epic.say`.
+
+**4.25.2.4** `chat.say` MUST be refused 400, naming the line, for a `$` line that names a flow and
+for a name Section 8.9.7 of [CORE] keeps, which the frontend serves; 404 as Section 4.6.1.1 states
+where no host holds the slot; and 409 with `this chat has folded away; carry it on from its epic`
+on a chat host that has folded (Section 4.13.8).
+
+#### 4.25.3. `chat.commands`
+
+**4.25.3.1** `chat.commands` MUST take `workspace` and `slot`, and MUST answer `entries`,
+`prefer`, `prefer_from` and `listed`.
+
+**4.25.3.2** `entries` MUST hold the catalogue of the chat's conversation (Section 8.9.2 of [CORE]),
+or, before it has opened, what the catalogue of its harness holds without one, each `sigil`,
+`name`, `about`, `how` and `source` `native`; then each name Section 8.9.7 of [CORE] keeps, with
+`source` `hmz` and `how` `""`; then each flow on offer in the workspace, with sigil `$`, `source`
+`flow` and `how` `""`.
+
+**4.25.3.3** `prefer` MUST be the chat's preference, `native` or `flow`, and `prefer_from` MUST be
+`chat` where the chat overrides it and `settings` otherwise.
+
+**4.25.3.4** `listed` MUST be whether the catalogue is all its harness lists, which it is once the
+chat's conversation has taken a turn (Section 8.9.13 of [CORE]).
+
+#### 4.25.4. `chat.set`
+
+**4.25.4.1** `chat.set` MUST take `workspace`, `slot` and `prefer` (`native` or `flow`), MUST record
+it as the chat's override (Section 8.9.10 of [CORE]), MUST be a write, and MUST be answered `{}`.
+
+**4.25.4.2** `chat.set` MUST be refused 400 for a `prefer` that is neither, and as `chat.say` is
+for a slot no host holds or a chat that has folded.
+
 ## 5. Security Considerations
 
 Who can connect. Over its socket the daemon is reached only by the user of its machine: the daemon
@@ -2137,6 +2264,10 @@ types into one, only where the setting `envs.paired_terminals` of the daemon's m
 (Section 4.24.4.10). Every change a frontend makes to an environment, and every terminal it opens,
 is written in the epic's history with the frontend's name; what a terminal is told and prints never
 is (Section 4.24.1.8).
+
+Answers and faces. An answer to a question with a schema is taken only where the host finds it fits
+that schema, whichever frontend or face gave it (Section 4.8.4.3). A face is HTML the flow made;
+`epic.face` hands it over as text and the daemon runs none of it (Section 4.8.10).
 
 Secrets. The daemon answers no value of an account's variables, no EasyTier secret, no TURN
 credential and no credential of a URL (Section 4.18.1.1, Section 4.18.1.7, Section 4.18.2.2, Section

@@ -31,7 +31,7 @@ from hmz.runtime import epic, flowing
 from hmz.runtime.flowing import environments, harnesses
 from hmz.runtime.flowing import specs as flowing_specs
 from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
-from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
+from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES, Ask
 from hmz.runtime.runner import Line, Refused, Runner, read_line
 
 if TYPE_CHECKING:
@@ -264,7 +264,6 @@ class Flowing:
     """Everything a runner asks of the engine and its drivers, answered here."""
 
     impl: Impl
-    privileged: bool = False
     refuses: BaseException | None = None
     opened_agents: list[AgentSpec] = field(default_factory=list[AgentSpec])
     opened_envs: list[EnvSpec] = field(default_factory=list[EnvSpec])
@@ -307,9 +306,6 @@ class Flowing:
             return "returned"
         return self.flow(said)
 
-    def is_privileged(self, impl: Impl) -> bool:
-        return self.privileged
-
     def local_env(self, at: Path) -> Env:
         return self.local
 
@@ -342,7 +338,6 @@ def declared() -> Declaration:
 def engine_(declared: Declaration, monkeypatch: pytest.MonkeyPatch) -> Flowing:
     made = Flowing(Impl(declared))
     monkeypatch.setattr(flowing, "resolved", made.resolved, raising=False)
-    monkeypatch.setattr(flowing, "privileged", made.is_privileged, raising=False)
     monkeypatch.setattr(flowing, "run_flow", made.run_flow, raising=False)
     monkeypatch.setattr(flowing, "probe", made.probe, raising=False)
     monkeypatch.setattr(flowing, "local_env", made.local_env, raising=False)
@@ -573,12 +568,11 @@ def test_params_left_out_are_the_flows_defaults(engine_: Flowing) -> None:
     assert _runner(params=Params(rounds=7)).params == Params(rounds=7)
 
 
-def test_a_run_with_no_budget_is_refused_unless_it_is_chat(engine_: Flowing) -> None:
-    with pytest.raises(Refused, match="requires a budget"):
-        _runner(budget=None)
-
-    engine_.privileged = True
-    assert _runner(budget=None).budget == Budget(cost=math.inf)
+def test_a_run_of_any_flow_with_no_budget_is_refused(engine_: Flowing) -> None:
+    del engine_
+    for flow in ("ralph", "chat"):
+        with pytest.raises(Refused, match=f"{flow} requires a budget"):
+            Runner(flow, agents=cast("Any", {"builder": Agent()}), budget=None)
 
 
 def test_a_budget_is_read_off_json_or_refused(engine_: Flowing) -> None:
@@ -771,11 +765,20 @@ class Clock:
 
 
 class Asked:
+    def __init__(self) -> None:
+        self.shown: list[tuple[object, ...]] = []
+
     def away_for(self, role: str) -> bool:
         return False
 
-    async def run(self, prompt: str, output_schema: object, role: str) -> str:
-        return f"{role}: {prompt}"
+    async def run(self, ask: Ask, role: str) -> str:
+        return f"{role}: {ask.prompt}"
+
+    def show(self, context: object, session: str, role: str) -> None:
+        self.shown.append((context, session, role))
+
+    def mount(self, face: object) -> None:
+        self.shown.append((face,))
 
 
 def test_a_watched_run_is_timed_by_what_its_agents_say_and_not_by_its_waits(
@@ -794,13 +797,16 @@ def test_a_watched_run_is_timed_by_what_its_agents_say_and_not_by_its_waits(
         cast("Any", builder.watched[0])("agent", None, "event")
         # On a loop of its own: the flow is called on the run's.
         with concurrent.futures.ThreadPoolExecutor(1) as aside:
-            asking = said["outworlder"].run("ok?", None, "human")
+            asking = said["outworlder"].run(Ask(prompt="ok?", schema=None), "human")
             answered.append(aside.submit(asyncio.run, asking).result())
         assert said["outworlder"].away_for("human") is False
+        said["outworlder"].show((), "human/1", "human")
+        said["outworlder"].mount("face")
         return "returned"
 
     engine_.flow = flow
-    runner.run("task", outworlder=cast("Any", Asked()))
+    person = Asked()
+    runner.run("task", outworlder=cast("Any", person))
 
     (clock,) = Clock.made
     assert (clock.doing, clock.stirs, clock.waits, clock.held) == (
@@ -810,6 +816,8 @@ def test_a_watched_run_is_timed_by_what_its_agents_say_and_not_by_its_waits(
         False,
     )
     assert answered == ["human: ok?"]
+    # What is pushed to the person goes through the clock's wrapper untouched.
+    assert person.shown == [((), "human/1", "human"), ("face",)]
 
 
 def test_an_unwatched_run_is_not_timed(
@@ -949,17 +957,16 @@ def test_a_report_made_during_a_run_says_what_was_running_and_on_what(
     assert cast("dict[str, Any]", telemetry.held()["flow"])["agents"] == []
 
 
-def test_a_run_of_chat_writes_down_a_cost_that_reads_back(
+def test_a_run_with_no_limit_on_cost_writes_down_a_cost_that_reads_back(
     engine_: Flowing, tmp_path: Path
 ) -> None:
-    engine_.privileged = True
-    runner = Runner(
-        "chat", agents=cast("Any", {"builder": Agent()}), workspace=tmp_path
-    )
+    del engine_
+    runner = _runner(budget=Budget(cost=math.inf), workspace=tmp_path)
 
     runner.run("hello")
 
     assert _ran(runner)["budget"]["cost"] == "Infinity"
+    assert _ran(runner)["kind"] == "flow"
 
 
 def test_a_resumable_flow_keeps_its_journal_in_the_epic(

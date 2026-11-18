@@ -3,7 +3,10 @@
 // how long it worked -- read off the records of a run going, or off the trace of one that is
 // written down.
 
+import { blocks } from './asking/blocks.js'
+import { fieldsOf, kindOf, resolved, summaryOf } from './asking/logic.js'
 import { h, lasting } from './dom.js'
+import { refusedSaid, shellOf, shellParts } from './natives.js'
 import { copy, menuOn } from './ui.js'
 
 /** How much of a long line is shown before the rest is folded away. */
@@ -25,6 +28,7 @@ const GLYPHS = {
   you: '❯',
   btw: '●',
   turn: '❯',
+  refused: '✕',
 }
 
 /** One line of a transcript. */
@@ -47,6 +51,26 @@ export function line(kind, body, { who = '', folded = false } = {}) {
   ])
 }
 
+/**
+ * A `!` command run in a chat and what it printed, drawn as a shell draws them: the command on
+ * its prompt, its output under it, what it complained of set apart, and how it exited where it
+ * failed.
+ */
+export function shellLine(ran) {
+  const parts = shellParts(ran)
+  const text = parts.map((one) => one.text).join('\n')
+  const said = h(
+    'div',
+    { class: 'said shell', 'data-hmz': 'said-shell' },
+    h('span', { class: 'g', 'aria-hidden': 'true' }, '!'),
+    h('div', { class: 'body' }, parts.map((one) => h('pre', { class: `shell-${one.part}` }, one.text))),
+  )
+  return menuOn(said, () => [
+    { label: 'Copy', glyph: 'copy', act: () => copy(text, 'Copied') },
+    { label: 'Copy output', glyph: 'copy', act: () => copy([ran.out, ran.err].filter(Boolean).join('\n'), 'Copied') },
+  ])
+}
+
 /** A thread as text: each line, whose it is where it says, one after another. */
 function threadOf(one) {
   const thread = one.closest('.thread')
@@ -65,7 +89,8 @@ function threadOf(one) {
  * every answer the person gave as a line of theirs, and what to say next is never drawn as
  * asked, since it is only the reply said back. Anything else said in asking it -- that a turn
  * could not be taken, or that the conversation could not be carried on -- is the flow's own
- * word in the conversation, and is drawn there, as the terminal interface draws it.
+ * word in the conversation, and is drawn there, as the terminal interface draws it. A `!`
+ * command the chat ran is drawn as a shell draws it, and a line it refused with why.
  *
  * Given `folded`, every tool is one line to open, as Ai-chan's are drawn.
  *
@@ -78,6 +103,8 @@ export function sayer(key, { chat = false, folded = false } = {}) {
   const whose = (record) => (kind === 'agent' ? of(record).split('/')[0] === whom : kind === 'person' ? false : of(record) === key)
   // The answer the last turn ended on, which a chat says back to ask what next.
   let answer = ''
+  // What each question asked for, so that its answer is said back as its fields.
+  const schemas = new Map()
   return (record) => {
     const mine = whose(record)
     switch (record.type) {
@@ -100,12 +127,21 @@ export function sayer(key, { chat = false, folded = false } = {}) {
                 ? kind === 'session'
                 : record.role && (kind === 'agent' ? record.role === whom : key.startsWith(`${record.role}/`))
         )
-          ? [line('asks', record.text, { who: `${record.role || 'the flow'} asks` })]
+          ? [asked(record, schemas)]
           : []
       case 'answered':
+        if (kind === 'person' && record.role === whom) return [line('you', answeredText(record, schemas), { who: record.by ? `${record.by} answered` : 'answered' })]
         return chat && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+      // What a flow showed a person with nothing asked, in their thread.
+      case 'shown':
+        return (kind === 'person' && record.role === whom) || (kind === 'session' && (of(record) === key || key === `outworlder:${record.role}`)) ? [shown(record)] : []
       case 'started':
         return chat && kind !== 'person' && record.task ? [line('you', record.task)] : []
+      // A chat's own: what its person ran, or said and it would not take.
+      case 'shell':
+        return chat && kind === 'session' ? [shellLine(shellOf(record))] : []
+      case 'refused':
+        return chat && kind === 'session' ? [line('refused', refusedSaid(record))] : []
       case 'event':
         if (mine && record.kind === 'result') answer = String(record.text || '')
         return mine ? said(record, kind === 'agent' ? record.session || record.agent : '', began, folded) : []
@@ -113,6 +149,43 @@ export function sayer(key, { chat = false, folded = false } = {}) {
         return []
     }
   }
+}
+
+/** A question asked, with what it showed beside it and, for a form, how much it asks. */
+function asked(record, schemas) {
+  const one = line('asks', record.text, { who: `${record.role || 'the flow'} asks` })
+  const body = one.querySelector('.body')
+  const context = blocks(record.context)
+  if (context) body.append(context)
+  if (record.schema && typeof record.schema === 'object') {
+    schemas.set(record.question, record.schema)
+    const top = resolved(record.schema).node
+    const n = kindOf(top) === 'object' ? fieldsOf(top, record.schema).length : 1
+    body.append(h('div', { class: 'ask-form-note dim', 'data-hmz': 'ask-form-note' }, `form · ${n} ${n === 1 ? 'field' : 'fields'}`))
+  }
+  return one
+}
+
+/** An answer, as one line: a form's as its fields, text as it was said. */
+function answeredText(record, schemas) {
+  const text = String(record.text ?? '')
+  const schema = schemas.get(record.question)
+  if (!schema) return text
+  try {
+    return summaryOf(JSON.parse(text), schema, schema, 400)
+  } catch {
+    return text
+  }
+}
+
+/** Context a flow showed a person, as blocks under who it was shown to. */
+function shown(record) {
+  const one = line('notice', '', { who: `shown to ${record.role || 'you'}` })
+  one.classList.add('shown')
+  one.dataset.hmz = 'said-shown'
+  const context = blocks(record.context)
+  if (context) one.querySelector('.body').append(context)
+  return one
 }
 
 function said(record, who, began, folded = false) {

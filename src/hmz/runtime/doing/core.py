@@ -26,13 +26,14 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.backends import Model, Profile
     from hmz.flows import Budget, FlowParams
+    from hmz.runtime.chatting import Person, Prefer, Role
     from hmz.runtime.doing.accounts import Accounts
     from hmz.runtime.doing.backups import Backups
     from hmz.runtime.doing.daemons import Daemons
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.flows import Flows, Flowverses
     from hmz.runtime.doing.nous import NousBook
-    from hmz.runtime.doing.running import Run
+    from hmz.runtime.doing.running import Chatting, Run
     from hmz.runtime.doing.runtimes import Runtimes
     from hmz.runtime.flowing import AgentDriver, AgentRole, EnvDriver, OutworlderDriver
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
@@ -298,7 +299,7 @@ class Holding(Hmz):
             driver -- or the specs a line read.
           envs: What each environment role is, likewise with `-e`.
           params: The flow's params, or None for its defaults.
-          budget: What the run may spend; only `chat` runs without one.
+          budget: What the run may spend.
           profile_flow: Whether to sample the flow's own Python while it runs.
           profile_environment: Whether to profile the programs its agents start, as well as
             trace them.
@@ -350,7 +351,7 @@ class Holding(Hmz):
           agents: What each agent role runs; see :meth:`runner`.
           envs: What each environment role is; see :meth:`runner`.
           params: The flow's params, or None for its defaults.
-          budget: What the run may spend; only `chat` runs without one.
+          budget: What the run may spend.
           profile_flow: Whether to sample the flow's own Python while it runs.
           profile_environment: Whether to profile the programs its agents start, as well as
             trace them.
@@ -382,3 +383,45 @@ class Holding(Hmz):
             task,
             outworlder=outworlder,
         )
+
+    def chat(
+        self,
+        agent: str,
+        task: str,
+        *,
+        person: Person,
+        resume: str | os.PathLike[str] | None = None,
+        prefer: Prefer | None = None,
+        role: Role | None = None,
+    ) -> Chatting:
+        """A chat in this workspace, in this process, set up and ready to be had.
+
+        A chat is no flow (Section 8 of core.md): one assistant, one conversation, and the
+        person it is had with, who is whatever holds it -- a host, whose every frontend is
+        that person.
+
+        Args:
+          agent: The assistant, as `-a` spells an agent after `<role>=`.
+          task: Its first message.
+          person: Who it is had with.
+          resume: The epic directory of a chat to carry on, or None for a new one.
+          prefer: This chat's own preference for a `$` name that is both a native skill and
+            a flow, or None to go by the person's setting.
+          role: What its assistant is beyond its agent -- Ai-chan's, for a conversation
+            of hers -- or None for a plain chat's.
+
+        Returns:
+          The chat, held as a run is. Nothing has started: `run()` has it, here.
+        """
+        from hmz.runtime.chatting import Chat, ChatSpec
+        from hmz.runtime.doing.running import Chatting
+
+        spec = ChatSpec(
+            self.workspace,
+            agent,
+            task,
+            resume=Path(resume) if resume is not None else None,
+            prefer=prefer,
+            role=role,
+        )
+        return Chatting(Chat(spec, person=person))

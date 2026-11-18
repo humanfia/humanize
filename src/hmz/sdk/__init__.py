@@ -3,7 +3,9 @@
     from hmz.sdk import Hmz
 
     hmz = Hmz()
-    hmz.run("chat", "say hello", agents={"assistant": "claude/claude-haiku-4-5:low"}).run()
+    hmz.run(
+        "goal", "win", agents={"worker": "claude/claude-haiku-4-5:low"}, budget={"cost": 1}
+    ).run()
 
 :class:`Hmz` is a workspace and everything that can be done in it: what was set up to run
 there, the accounts, the runtimes, the epics already written. Its epics are run by a daemon
@@ -21,6 +23,10 @@ interface reaches them, claiming the roles a tool answers for and saying what th
         link.claim("reviewer")
         for said in link:
             ...
+
+An `Outworlder` role is answered by an :class:`hmz.runtime.flowing.OutworlderDriver` given to
+:meth:`Hmz.run`, asked each question as one :class:`Ask`: its prompt, the JSON Schema its answer
+is a value of, and the context shown with it -- the same question a person is shown.
 
 What runs an epic in a host is internal to Humanize, and is not offered here.
 
@@ -44,6 +50,7 @@ if TYPE_CHECKING:
         Refused,
         Runtimes,
     )
+    from hmz.runtime.flowing.spi import Ask
     from hmz.sdk import faking as fakes
     from hmz.sdk.client import Client
     from hmz.sdk.daemons import Daemons
@@ -51,6 +58,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Accounts",
+    "Ask",
     "Client",
     "Daemon",
     "Daemons",
@@ -71,6 +79,7 @@ __all__ = [
 #: Hmz` costs the modules `Hmz` needs rather than every layer Humanize has.
 _WRITTEN = {
     "Accounts": "hmz.runtime",
+    "Ask": "hmz.runtime.flowing.spi",
     "Client": "hmz.sdk.client",
     "Daemon": "hmz.daemon",
     "Daemons": "hmz.sdk.daemons",

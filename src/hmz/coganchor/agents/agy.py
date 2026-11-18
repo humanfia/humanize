@@ -3,6 +3,15 @@
 Slash commands and shaped turns use finite commands, preserving the CLI's print-mode
 behavior. Native cumulative usage follows the conversation across both transports and
 process restarts; each result here reports only its own turn's cost.
+
+In a chat, a `/` line is the one native input it carries, and it carries it without a catalog:
+a line whose first word is a command's shape (`/name`, `/name:sub`) is taken down the print
+transport like any such prompt, and print mode is where `agy` expands its own commands and
+skills (unless `disable_slash_commands` says otherwise). The catalog is left empty because
+`agy` lists its commands nowhere a driver can read, and an empty catalog is what has a chat pass
+every `/` line through as typed rather than refuse the ones it cannot name. Its `!` shell mode
+and `@` file picker belong to its interactive prompt; neither the print nor the stream-json
+transport is documented to read them, so a line opening with either is the words it is.
 """
 
 # pyright: reportPrivateUsage=false
@@ -23,7 +32,7 @@ from hmz.coganchor.homes import merged, merger
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
-from .config import UNSAID, AgentConfig, Unserved
+from .config import AgentConfig, Unserved
 from .event import Event, Failed, Saying, Usage
 
 if TYPE_CHECKING:
@@ -46,60 +55,39 @@ _COMMAND = "agy"
 #: names: the gateway holds a wildcard, and has no list of its own to say instead.
 _SERVED = "AGY_LLM_GATEWAY_MODELS"
 
-#: What a turn is run as at each rung of the ladder, in the CLI's own flags. Read off `agy
-#: --help` and the CLI's own wording for its modes, last checked against agy 1.2.2 on
-#: 2026-09-15: `--mode plan` is "research and plan without making changes", `--mode
-#: accept-edits` is "auto-approve file edits, prompt for commands", and
-#: `--dangerously-skip-permissions` is the one where nothing is asked at all.
+#: What a fenced turn is run with, whatever its fence writes, and said to no other turn:
+#: `--dangerously-skip-permissions`,
+#: the one flag of agy's where nothing is asked at all. Read off `agy --help`, last checked
+#: against agy 1.2.2 on 2026-09-15. Nobody is there to answer in print mode, which soft-denies
+#: every tool it would have asked about and names it under `denied_actions` instead -- so a turn
+#: told anything less would be one whose commands are refused rather than held by its fence.
+#: What the turn may change is the fence's to hold, put around agy from outside
+#: (:meth:`AntigravityCLIAgent.natively`); what it may reach for is the agent it is started as
+#: (:func:`_defined`). Neither of its modes is reached for: `--mode plan` writes the file it is
+#: asked to all the same, checked against agy 1.2, and `--mode accept-edits` is one that asks.
 #:
-#: `plan` is not what holds `read-only` to reading, though: agy 1.2 in plan mode writes the
-#: file it is asked to. What does is :data:`_READER`, the agent a turn at that rung is started
-#: as, whose tools read and do nothing else.
-#:
-#: The prompting is nobody's to answer here, and that is what makes the two tighter rungs real
-#: rungs rather than turns that hang on them: a print-mode run soft-denies the tool it was not
-#: permitted to take and names it under `denied_actions` instead of waiting for an answer. So
-#: `workspace-write` lands tighter than the word -- its edits go through and its commands are
-#: refused -- which is the safe direction for a rung to be wrong in, and it is said here out
-#: loud rather than covered up by running the rung above it.
-#:
-#: `auto` reaches for the same flag as `bypass`, which is the one place this ladder collapses
-#: two rungs into one. `auto` is the rung where what the agent asks for is granted, granting is
-#: the whole of what that flag does, and agy has no hook seam for anything else to have a say
-#: -- so there is nothing between the two to reach for. Given `--mode accept-edits` instead,
-#: `auto` would have its commands denied and so be stricter than the `workspace-write` under
-#: it, which is a ladder with a rung upside down.
-#:
-#: The last row is the absence of a rung rather than another one below them. A turn nobody has
-#: said anything about is one this driver says nothing about either -- no `--mode`, no
-#: `--dangerously-skip-permissions` -- so it runs at whatever `agy --print` runs at when it is
-#: started here by hand, which is this CLI's own default approval and the soft-denials its
-#: print mode makes in place of the questions it would have asked. Written into the table
-#: rather than answered around it, so that every word a config may carry is answered where the
-#: flags are; splatting nothing is the whole of what saying nothing takes.
-_PERMITTED = {
-    "read-only": ("--mode", "plan"),
-    "workspace-write": ("--mode", "accept-edits"),
-    "auto": ("--dangerously-skip-permissions",),
-    "bypass": ("--dangerously-skip-permissions",),
-    UNSAID: (),
-}
+#: A turn nobody fenced, one driven by hand, is not given this or any other flag, and runs at
+#: whatever `agy --print` runs at when it is started by hand: the CLI's own default approval and
+#: the soft-denials its print mode makes in place of the questions it would have asked.
+_UNASKED = ("--dangerously-skip-permissions",)
 
-#: The agent a turn at `read-only` is started as (`--agent`): one of Humanize's own, whose
-#: toolset is the reading tools alone and none of the CLI's built-in ones
-#: (`excludeDefaultComponents`), so that nothing it can reach for writes. Put where agy finds
-#: its own agents, `agents/` under its home (:func:`_agents`). An `--agent` agy cannot find is
-#: run as its default agent without a word, which is every tool there is -- so a turn landing on
-#: another machine, where that file is not, is refused rather than started, and the file is
-#: written again before every turn that names it rather than trusted to still be there. Checked
-#: against agy 1.2.12 on 2026-09-27: its model says it has `view_file`, `grep_search`,
-#: `find_by_name`, `list_dir` and `manage_task`.
+#: The agent a turn is started as (`--agent`) where its fence writes nothing: one of Humanize's
+#: own, whose toolset is the reading tools and the shell, and none of the CLI's other built-in
+#: ones (`excludeDefaultComponents`) -- so that no tool it can reach for writes a file, and the
+#: commands it runs are refused every write by the fence around it. Put where agy finds its own
+#: agents, `agents/` under its home (:func:`_agents`). An `--agent` agy cannot find is run as its
+#: default agent without a word, which is every tool there is -- so a turn landing on another
+#: machine, where that file is not, is refused rather than started, and the file is written
+#: again before every turn that names it rather than trusted to still be there. Checked against
+#: agy 1.5.9 on 2026-11-17: under a fence that writes nothing it ran a command and wrote no
+#: file when asked to write one.
 _READER = "hmz-read-only"
 
-#: The same reader with the web to read as well, for a `read-only` turn told it may search.
+#: The same reader with the web to read as well, for a turn told it may search.
 _BROWSER = "hmz-read-only-web"
 
-#: The agent a turn that may not reach the web is started as at every other rung. agy has no
+#: The agent a turn that may not reach the web is started as wherever it may write, or is not
+#: fenced at all. agy has no
 #: flag or setting that takes a tool away, and no fence around its process holds its web
 #: tools: from inside one whose proxy refuses every host but its model API's, `read_url_content`
 #: still fetched the page, the fetch being made at the far end of that API rather than here. So
@@ -119,10 +107,13 @@ _WEB = "read_url_content, search_web"
 #: The tools that read this machine, which every agent of Humanize's has.
 _READS = "view_file, grep_search, find_by_name, list_dir"
 
+#: The shell, which a reader keeps: what it writes, the fence around agy refuses.
+_SHELL = "run_command"
+
 #: The rest of its default tools that stay this agent's own work: its commands, its edits, its
 #: task list, its images and its questions.
 _WORKS = (
-    "run_command, write_to_file, replace_file_content, manage_task, generate_image, "
+    f"{_SHELL}, write_to_file, replace_file_content, manage_task, generate_image, "
     "ask_question"
 )
 
@@ -130,28 +121,29 @@ _WORKS = (
 _DEFINED = {
     _READER: f"""---
 name: {_READER}
-description: Reads, and changes nothing.
-tools: [{_READS}]
+description: Reads, and runs commands that change nothing.
+tools: [{_READS}, {_SHELL}]
 excludeDefaultComponents: true
 subagent: false
 ---
 # Reader
 
-You may read files and search them. You have no way of changing anything: no tool here writes
-a file or runs a command. When asked to change something, say that you cannot.
+You may read files, search them, and run commands. You may not change anything: no tool here
+writes a file, and any command that tries to write is refused. When asked to change something,
+say that you cannot.
 """,
     _BROWSER: f"""---
 name: {_BROWSER}
-description: Reads, the web included, and changes nothing.
-tools: [{_READS}, {_WEB}]
+description: Reads, the web included, and runs commands that change nothing.
+tools: [{_READS}, {_SHELL}, {_WEB}]
 excludeDefaultComponents: true
 subagent: false
 ---
 # Reader
 
-You may read files and search them, and read and search the web. You have no way of changing
-anything: no tool here writes a file or runs a command. When asked to change something, say
-that you cannot.
+You may read files, search them, run commands, and read and search the web. You may not change
+anything: no tool here writes a file, and any command that tries to write is refused. When
+asked to change something, say that you cannot.
 """,
     _OFFLINE: f"""---
 name: {_OFFLINE}
@@ -173,15 +165,15 @@ def _defined(config: AgentConfig) -> str | None:
       config: What the agent is configured with.
 
     Returns:
-      :data:`_READER` at `read-only`, or :data:`_BROWSER` there where web search was turned on
-      and the agent is not fenced off the network; :data:`_OFFLINE` at any other rung where it
-      was turned off or the agent is fenced off the network, whose web tools no fence can hold;
-      and None -- the CLI's own default agent -- otherwise.
+      :data:`_READER` where its fence writes nothing, or :data:`_BROWSER` there where web
+      search was turned on and the fence does not cut the network; :data:`_OFFLINE` wherever
+      else web search was turned off or the fence cuts the network, whose web tools no fence
+      can hold; and None -- the CLI's own default agent -- otherwise, a turn nobody fenced
+      included.
     """
-    offline = config.web_search is False or (
-        config.fence is not None and not config.fence.online
-    )
-    if config.permission == "read-only":
+    fence = config.fence
+    offline = config.web_search is False or (fence is not None and not fence.online)
+    if fence is not None and not fence.writes:
         return _BROWSER if config.web_search and not offline else _READER
     return _OFFLINE if offline else None
 
@@ -345,7 +337,7 @@ def _carried(model: str) -> bool:
 #: What a turn held by one of Humanize's agents is refused with under an account naming a
 #: home of its own, where that agent is not.
 _OWN_HOME = (
-    f"{_COMMAND} cannot run at read-only or off the web under an account naming its own "
+    f"{_COMMAND} cannot be held to reading or off the web under an account naming its own "
     "--app_data_dir: what holds it there is an agent of Humanize's, which is in a home of "
     "Humanize's"
 )
@@ -468,9 +460,9 @@ def _plug(root: Path, toolbox: Toolbox) -> None:
     plugin is written into a directory of this session's own and that directory is added to the
     turn. Checked against agy 1.3.2 on 2026-10-12, which started the server, listed its tools
     (`server/discover`, `initialize`, `tools/list`) and had the model reach for one as
-    `CallMcpTool` -- denied at the default rung, as print mode denies every tool it would have
-    asked about, and allowed at the rungs that skip asking. A file already saying what it is to
-    say is left alone, so that a turn changing nothing rewrites nothing.
+    `CallMcpTool` -- denied where nothing was said, as print mode denies every tool it would
+    have asked about, and allowed where asking is skipped (:data:`_UNASKED`). A file already
+    saying what it is to say is left alone, so that a turn changing nothing rewrites nothing.
 
     Args:
       root: The directory added to the turn.
@@ -654,7 +646,7 @@ class AntigravityCLISession(StreamSessionBase):
             # wide enough value in exponents, which is not a duration anything can parse.
             "--print-timeout",
             f"{config.print_timeout:.3f}s",
-            *_PERMITTED[config.permission],
+            *(_UNASKED if config.fence is not None else ()),
         ]
         # How hard to think is said one of two ways here and the model chooses which: a name
         # that already carries the rung refuses the flag, and one that does not requires it.
@@ -929,8 +921,8 @@ class AntigravityCLIAgentConfig(AgentConfig):
     project whose directory `add_workspace` exists to stop replacing the session's, so a field
     for them would be a field for undoing the one above it. `--agent` picks a custom agent
     definition, which is a system prompt and a toolset chosen behind the flow's back -- the one
-    Humanize picks itself is the one that holds a `read-only` turn to reading. `--log-file`
-    moves the log a failed turn's real reason is read out of, and what reads it --
+    Humanize picks itself is the one that holds a turn whose fence writes nothing to reading.
+    `--log-file` moves the log a failed turn's real reason is read out of, and what reads it --
     :func:`hmz.coganchor.backends.journalled` -- finds the newest under this backend's home
     rather than being told a path per turn, so naming one would move the log away from the
     only thing that looks at it.
@@ -953,9 +945,9 @@ class AntigravityCLIAgentConfig(AgentConfig):
         routing that sends a commanded prompt down the finite transport, there being no
         expansion left there to want.
       sandbox: Whether the turn runs under the CLI's own sandbox, which restricts what its
-        terminal may do. Off, which is the CLI's own default, and orthogonal to `permission`:
-        the rung says what the agent is allowed to ask for, and this says what the machine
-        will carry out. Not what a `fence` is held with, and no stand-in for one: see
+        terminal may do. Off, which is the CLI's own default, and orthogonal to the fence's
+        grant: the agent it is started as says what it may reach for, and this says what the
+        machine will carry out. Not what a `fence` is held with, and no stand-in for one: see
         :meth:`AntigravityCLIAgent.natively`.
 
     Raises:
@@ -990,10 +982,10 @@ class AntigravityCLIAgent(AgentBase):
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
     def _serves(self, config: AgentConfig) -> None:
-        """Refuses a rung one of this CLI's own settings would quietly undo.
+        """Refuses an agent of Humanize's where no home of Humanize's would carry it.
 
         Here rather than in the config, because what an agent may do is the flow's: a flow
-        declaring a reviewer that may not write settles that rung onto whatever agent it was
+        declaring a reviewer that may not write settles a fence onto whatever agent it was
         handed, which is a `reconfigure` rather than a config anybody wrote out. A refusal
         raised where the config is built would come out of that settling as something the
         flow layer does not answer for; raised here, it is the refusal every other backend's
@@ -1003,24 +995,15 @@ class AntigravityCLIAgent(AgentBase):
           config: What its turns are to run at.
 
         Raises:
-          Unserved: If slash command expansion is off at `read-only`. agy answers that
-            pairing with `--mode plan has no effect while slash command expansion is
-            disabled` and goes on running, which is an agent that may write under a rung
-            saying it may not -- and a rung that lies is worse than one that is refused. Only
-            `plan`: the CLI names that mode alone, and `--mode accept-edits` is unaffected.
-            And a turn started as one of Humanize's agents -- at `read-only`, or kept off the
-            web -- where no virtual home of Humanize's carries that agent, and agy would run
-            its default agent in its place: the target's own agy, driven natively, which runs
-            in its own home there; and an account naming a home of its own with
-            `--app_data_dir` (:meth:`virtual`), refused here as well as where a turn is
-            spawned, so that it is said before the first turn rather than at it.
+          Unserved: If a turn would be started as one of Humanize's agents -- under a fence
+            that writes nothing, or kept off the web -- where no virtual home of Humanize's
+            carries that agent, and agy would run its default agent in its place: the target's
+            own agy, driven natively, which runs in its own home there; and an account naming
+            a home of its own with `--app_data_dir` (:meth:`virtual`), refused here as well as
+            where a turn is spawned, so that it is said before the first turn rather than at
+            it.
         """
         super()._serves(config)
-        if _settled(config).disable_slash_commands and config.permission == "read-only":
-            raise Unserved(
-                f"{_COMMAND} cannot run at read-only with disable_slash_commands: "
-                f"its plan mode has no effect while expansion is off"
-            )
         if _defined(config) is None:
             return
         from hmz.coganchor import providers
@@ -1029,7 +1012,7 @@ class AntigravityCLIAgent(AgentBase):
         machine = config.machine
         if isinstance(machine, AnchoredConfig) and machine.anchor.native:
             raise Unserved(
-                f"{_COMMAND} cannot run at read-only or off the web natively on another "
+                f"{_COMMAND} cannot be held to reading or off the web natively on another "
                 "machine: what holds it there is an agent of Humanize's, which is in a home "
                 "of Humanize's, and a native turn runs in the target's own"
             )

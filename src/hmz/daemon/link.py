@@ -3,8 +3,10 @@
 A frontend -- an interface or a program -- reaches the runs of a workspace through this
 machine's daemon: a session of `protocol/wire.md` over its socket, saying `session.hello` and
 then `epic.attach`, whose `epic.event` notifications are the messages and whose calls to the
-epic are the requests (Section 4.18 of python.md). A frontend still holding runs in its own
-process (:func:`linked`) is handed the same :class:`Link`, so that it is written once.
+epic are the requests (Section 4.18 of python.md). What is said to a chat is said by `chat.*`
+(Section 4.25 of daemon.md) of the workspace and slot attached to, rather than to the epic. A
+frontend still holding runs in its own process (:func:`linked`) is handed the same
+:class:`Link`, so that it is written once.
 
 What it is told arrives in order, on a thread that is not the caller's: handed to a listener
 once one is set, and read by iterating the link until then. What it asks is answered on the
@@ -54,6 +56,9 @@ _WRITES = frozenset(
     }
 )
 
+#: The calls to a chat that are writes, which carry an `idem` of their own.
+_CHAT_WRITES = frozenset({"chat.start", "chat.say", "chat.set"})
+
 #: The calls to an environment of the epic that are writes, which carry an `idem` too. An
 #: `env.*` call is named as it is, rather than as one more `epic.<do>`: it is a method of its
 #: own, made with the epic's `sub` as every call to the epic is.
@@ -75,6 +80,16 @@ _ENV_WRITES = frozenset(
 def _method(do: str) -> str:
     """The method one request is: `env.*` as it is, anything else the epic's `epic.<do>`."""
     return do if do.startswith("env.") else f"epic.{do}"
+
+
+def _no(why: str, code: int, data: dict[str, Any] | None) -> dict[str, Any]:
+    """A refusal as the daemon said it: why, its code, and its data where it has any."""
+    return {
+        "ok": False,
+        "why": why,
+        "code": code,
+        **({"data": data} if data is not None else {}),
+    }
 
 
 #: Why a link whose session ended without a `gone` is let go.
@@ -185,7 +200,12 @@ class Link:
         if not answer.get("ok"):
             from hmz.runtime import Refused
 
-            raise Refused(str(answer.get("why") or "refused"))
+            code, data = answer.get("code"), answer.get("data")
+            raise Refused(
+                str(answer.get("why") or "refused"),
+                code=code if isinstance(code, int) else 0,
+                data=cast("dict[str, Any]", data) if isinstance(data, dict) else None,
+            )
         return answer
 
     def start(
@@ -240,8 +260,25 @@ class Link:
         """Says a line to the run: into the turn on view `to`, or the next one to start."""
         return self.asked({"do": "say", "text": text, "to": to})
 
-    def answer(self, question: str, text: str) -> dict[str, Any]:
-        """Answers one question an `Outworlder` is waiting on."""
+    def answer(
+        self, question: str, text: str | None = None, value: Any = None
+    ) -> dict[str, Any]:
+        """Answers one question an `Outworlder` is waiting on, in text or as a value.
+
+        Args:
+          question: The question, by its id.
+          text: The answer typed: an option, its number, words, or the JSON of a value.
+          value: The answer as the value of the question's schema, given in place of `text`.
+
+        Returns:
+          The answer, which says `ok`.
+
+        Raises:
+          Refused: If it was refused: a value that does not fit is refused 400, with every
+            way it does not as `data["errors"]`.
+        """
+        if text is None:
+            return self.asked({"do": "answer", "question": question, "value": value})
         return self.asked({"do": "answer", "question": question, "text": text})
 
     def stop(self) -> dict[str, Any]:
@@ -267,6 +304,51 @@ class Link:
     def board(self, key: str, value: str) -> dict[str, Any]:
         """Writes one line of the run's board, or takes it off with `value` empty."""
         return self.asked({"do": "board", "key": key, "value": value})
+
+    def chat(
+        self,
+        agent: str,
+        task: str,
+        *,
+        resume: str | os.PathLike[str] | None = None,
+        prefer: str | None = None,
+        remember: bool = False,
+    ) -> dict[str, Any]:
+        """Starts a chat on the chat host this frontend is attached to, or carries one on.
+
+        Args:
+          agent: The assistant, as `-a` spells an agent after `<role>=`; "" for a chat
+            carried on, to go on with its own.
+          task: Its first message.
+          resume: The epic directory of a chat to carry on, or None for a new one.
+          prefer: `native` or `flow`, this chat's own preference, or None for the setting.
+          remember: Whether to remember `agent` as the workspace's chat agent.
+
+        Returns:
+          The answer, with the chat's `slot` and its `epic`.
+        """
+        return self.asked(
+            {
+                "do": "chat.start",
+                "agent": agent,
+                "task": task,
+                "resume": None if resume is None else str(resume),
+                "prefer": prefer,
+                "remember": remember,
+            }
+        )
+
+    def chat_say(self, text: str) -> dict[str, Any]:
+        """Says one line to the chat: its next message, an answer, or "" to end it."""
+        return self.asked({"do": "chat.say", "text": text})
+
+    def chat_commands(self) -> dict[str, Any]:
+        """What a line of the chat can start with, and what its `$` names prefer."""
+        return self.asked({"do": "chat.commands"})
+
+    def chat_set(self, prefer: str) -> dict[str, Any]:
+        """Sets the chat's own preference for a `$` name that is both: `native` or `flow`."""
+        return self.asked({"do": "chat.set", "prefer": prefer})
 
     def aside(self, **said: Any) -> dict[str, Any]:
         """Opens a side conversation, or takes one turn of one; see `aside` in the protocol."""
@@ -438,20 +520,29 @@ def reached(
                 delivers(told)
 
     peer, _ = dialed(at, _named(name, kind), kind, serve=heard)
+    #: The slot attached to, which a chat's calls name.
+    slotted: list[str] = []
 
     def asks(said: dict[str, Any], seconds: float | None) -> dict[str, Any]:
         do = str(said.pop("do", ""))
         if gone:
             return {"ok": False, "why": gone[0]}
-        params = {**said, "sub": sub[0]}
-        if do in _WRITES or do in _ENV_WRITES:
-            params["idem"] = secrets.token_urlsafe(12)
+        if do.startswith("chat."):
+            method = do
+            params = {**said, "workspace": workspace, "slot": slotted[0]}
+            if do in _CHAT_WRITES:
+                params["idem"] = secrets.token_urlsafe(12)
+        else:
+            method = _method(do)
+            params = {**said, "sub": sub[0]}
+            if do in _WRITES or do in _ENV_WRITES:
+                params["idem"] = secrets.token_urlsafe(12)
         try:
-            pending = peer.request(_method(do), params)
+            pending = peer.request(method, params)
         except (Closed, OSError) as why:
             return {"ok": False, "why": f"the host could not be reached: {why}"}
         except RpcError as why:
-            return {"ok": False, "why": why.message}
+            return _no(why.message, why.code, why.data)
         try:
             result: Any = pending.result(seconds)
         except TimeoutError:
@@ -459,7 +550,7 @@ def reached(
                 pending.cancel()
             raise TimeoutError(f"no answer to {do!r} in {seconds}s") from None
         except RpcError as why:
-            return {"ok": False, "why": why.message}
+            return _no(why.message, why.code, why.data)
         except Closed:
             return {"ok": False, "why": gone[0] if gone else _WENT}
         return {"ok": True, **(result if isinstance(result, dict) else {})}
@@ -484,6 +575,7 @@ def reached(
         peer.close()
         raise OSError(str(why) or type(why).__name__) from why
     link.client = str(attached.get("client") or "")
+    slotted.append(str(attached.get("slot") or slot))
     with lock:
         sub.append(str(attached["sub"]))
         for named, told in early:
@@ -546,17 +638,29 @@ def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Lin
             elif params.get("sub") == sub[0]:
                 delivers(told)
 
+    #: The slot attached to, which a chat's calls name.
+    slotted: list[str] = []
+
     def asks(said: dict[str, Any], seconds: float | None) -> dict[str, Any]:
         do = str(said.pop("do", ""))
         if gone:
             return {"ok": False, "why": gone[0]}
-        idem = secrets.token_urlsafe(12) if do in _WRITES or do in _ENV_WRITES else None
-        try:
-            result: Any = client.call(
-                _method(do), {**said, "sub": sub[0]}, idem=idem, seconds=seconds
+        if do.startswith("chat."):
+            method, params = do, {**said, "workspace": workspace, "slot": slotted[0]}
+            idem = secrets.token_urlsafe(12) if do in _CHAT_WRITES else None
+        else:
+            method, params = _method(do), {**said, "sub": sub[0]}
+            idem = (
+                secrets.token_urlsafe(12)
+                if do in _WRITES or do in _ENV_WRITES
+                else None
             )
+        try:
+            result: Any = client.call(method, params, idem=idem, seconds=seconds)
         except Refused as why:
-            return {"ok": False, "why": gone[0] if gone else str(why)}
+            if gone:
+                return {"ok": False, "why": gone[0]}
+            return _no(str(why), why.code, why.data)
         return {"ok": True, **(result if isinstance(result, dict) else {})}
 
     left = threading.Event()
@@ -580,6 +684,7 @@ def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Lin
         client.close()
         raise OSError(str(why)) from why
     link.client = str(attached.get("client") or "")
+    slotted.append(str(attached.get("slot") or slot))
     with lock:
         sub.append(str(attached["sub"]))
         for named, told in early:

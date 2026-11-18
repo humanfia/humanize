@@ -24,7 +24,9 @@ symlink-resolved path.
 ```yaml
 workspaces:
   /home/you/code:                  # one entry per workspace
-    flow: rlar                     # the flow the TUI opens on here
+    flow: rlar                     # the flow last set up here
+    chat:
+      agent: claude/claude-opus-5:high  # the agent a new chat here starts with
     flows:
       rlar:                        # one entry per flow set up here, by listed name
         agents:
@@ -46,7 +48,10 @@ workspaces:
 enable_sentry: false               # this machine
 details: true                      # this machine
 btw: claude/claude-opus-5:high     # this machine
+ai_chan: claude/claude-opus-5:high # this machine
 every_epic: true                   # this machine
+chat:                              # this machine
+  prefer: native                   # native or flow: what `$<name>` is in a chat where both
 sandbox:                           # this machine; written by hand
   backend: auto                    # auto, landlock or bwrap: what holds a grant on Linux
   native: [codex]                  # CLIs whose own sandbox holds their grant instead
@@ -100,8 +105,9 @@ backup:                            # this machine
 | --- | --- | --- | --- | --- | --- |
 | <span id="enable-sentry"></span>`enable_sentry` | `bool` | absent: *nobody has been asked*; the TUI asks at its first start; everything else reports nothing | the first-start question; `/settings` › General › **Error reports** | every process that could report (read once per process) | immediately in the process that changed it; at start elsewhere. [`HUMANIZE_SENTRY`](/reference/environment#humanize-sentry) overrides it for one process without writing it. Reading never writes it. |
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
-| `btw` | `str`: `cli[@account]/model:effort` | `""`: nobody answers The Epic | `/settings` › General › **/btw The Epic**; web **Settings › General › The Epic** | the TUI, the web page | the next side conversation of The Epic opened; the one agent that answers The Epic, for every epic: no epic keeps one of its own, and no agent of a run stands in |
+| <span id="ai-chan"></span>`ai_chan` | `str`: a nous's name, or `cli[@account]/model:effort` | `""`: no default, `/ai` asks for one | `/settings` › General › **Ai-chan**; web **Settings › General › Ai-chan** | the TUI and the web page, as their forms' default; the daemon, as `aichan.create` is given no `nous` | the next Ai-chan conversation made; one made keeps its nous |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
+| <span id="chat-prefer"></span>`chat.prefer` | `str`: `native` or `flow` (any other value reads as `native`) | `native` | `/settings` › General › **Chat prefers for `$`**; `settings.set` `prefer` | every chat, through its host | the next `$` line of every [chat](/user/chat#a-name-that-is-both) that has no preference of its own (`/prefer`, the web's toggle, `chat.set`), which is kept in that chat's epic |
 | `daemons` | list of `{name, id, routes}`: `id` the daemon id pinned, 52 base32 characters, or `""` until it first answers over a trusted route, which pins it; `routes` the routes it is reached by (Section 3.3 of `protocol/wire.md`), in the order they are raced, the first a trusted one (`stdio:ssh://…`, `stdio:local`, `stdio:wsl`) where `id` is `""`. An entry an earlier release wrote, `{via, host, user, port, identity_file, proxy_jump, options, alias}` or `{via: easytier, secret, peers}`, is read as the `stdio:ssh` or `easytier:<name>` route it reached, and written so at the next write, an EasyTier one's secret and nodes moving to `easytier` | `[]`: Local alone | `Remotes.pair` from a pairing code, the terminal interface's [Daemons](/user/settings#daemons) page and its **Import…** | the terminal interface, `hmz exec`, the SDK; never the web page, which keeps [its own](/reference/web#kept) | at once: a daemon added is reached the first time it is asked for, one removed is let go of |
 | `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page) | `hmz`; never the web page, which keeps [its own](/reference/web#kept) | immediately: the next notice of a kind is told or not |
 | <span id="sandbox"></span>`sandbox` | `{backend: str, native: [str]}` | `backend`: `auto` (any value but `landlock` and `bwrap` reads as it); `native`: `[]` (an entry that is not a string is ignored) | nobody: written by hand | every process that fences an agent: `backend` where the fence is put up, on that machine; `native` by the Codex driver | at the next turn fenced. `backend` picks Landlock or bubblewrap on Linux, `auto` being Landlock where it can hold the grant and bubblewrap otherwise; `native` names CLIs whose own sandbox holds their grant around the commands they run alone, of which only `codex` is honoured. See [Permissions](/user/permissions#choose-how-this-machine-holds-a-grant) |
@@ -116,10 +122,11 @@ Under `workspaces.<path>`.
 
 | Key | Type | Default | Written by | Read by | Takes effect |
 | --- | --- | --- | --- | --- | --- |
-| `flow` | `str`, a listed flow name | absent (`Settings.flow` is `""`); the TUI then opens on `chat` | `/flow` when saved | the TUI at start | next launch |
+| `flow` | `str`, a listed flow name | absent (`Settings.flow` is `""`): no flow set up here | `/flow` when saved | the TUI at start, as the flow `/flow` and `$` lines start from; the TUI always opens on a new [chat](/user/chat) | next launch |
+| <span id="chat-agent"></span>`chat.agent` | `str`, an agent as `-a` spells one after `<role>=` | absent (`Settings.chat_agent` is `None`; one an earlier Humanize wrote as the `assistant` of `flows.chat.agents` is read in its place); the TUI then [fills it by default](/reference/tui#default-fill) | starting a chat from the TUI or the web, `/model` or `/effort` in one, `/settings` › Workspace › **Chat agent**, `settings.set` `chat`; never `flow` or a flow's entry | the TUI, the web's **New epic › Chat**, and `hmz chat` given no `-a` | the next chat started here |
 | `flows.<flow>` | mapping | absent | `/flow` when saved | the TUI | see below |
 
-`/settings` › Workspace also shows **Default flow** (read-only), and **Forget**: on save it
+`/settings` › Workspace also shows **Default flow** (read-only), **Chat agent**, and **Forget**: on save it
 deletes this workspace's entry; the TUI already open keeps what it loaded, and the next launch
 starts without it.
 
@@ -146,11 +153,10 @@ written as given, carried over from the file where the caller passes none, and a
 key -- but an empty `backup`, which is kept as none. A `harness` key an older
 Humanize wrote is dropped at the next save.
 
-**Reading.** When the TUI starts a flow without opening `/flow` (a `$flow` line, the default
-flow), it uses the remembered setup only if it is complete: the remembered agent roles equal
-the flow's declared agent roles; every required environment role is remembered; the params
-still validate; a budget is remembered unless the flow runs without one. Otherwise `/flow`
-opens to ask. `profile_flow` and `profile_environment` go with the rest. `hmz exec` and `Hmz().run` never read `flows`; they
+**Reading.** When the TUI starts a flow without opening `/flow` (a `$flow` line, or
+`/flow <flow> <task>`), it uses the remembered setup only if it is complete: the remembered
+agent roles equal the flow's declared agent roles; every required environment role is
+remembered; the params still validate; a budget is remembered. Otherwise `/flow` opens to ask. `profile_flow` and `profile_environment` go with the rest. `hmz exec` and `Hmz().run` never read `flows`; they
 use only their own arguments (`--profile-flow`, `--profile-environment`, `profile_flow=True`,
 `profile_environment=True`).
 
@@ -298,10 +304,12 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | Page | Row | Key | Kind |
 | --- | --- | --- | --- |
 | General | Details | `details` | switch |
-| General | /btw The Epic | `btw` | pick |
+| General | Ai-chan | `ai_chan` | pick |
+| General | Chat prefers for $ | `chat.prefer` | pick: `native`, `flow` |
 | General | Error reports | `enable_sentry` | switch |
 | General | What is sent | — | shows the lists |
 | Workspace | Default flow | `workspaces.<path>.flow` | read-only |
+| Workspace | Chat agent | `workspaces.<path>.chat.agent` | agent sheet |
 | Workspace | Forget | deletes `workspaces.<path>` | switch |
 
 Changes are held until saved (the save button, or the question asked on leaving). The pages

@@ -17,7 +17,8 @@ it drives the real CLI. It answers a prompt as a model would be asked to:
 - asked what it runs, before any session, it runs `claude-haiku-4-5` and `claude-opus-4-1`;
 - every prompt and every answer is logged to its transcript as Claude Code logs them, with when;
 - anything else is answered `did: <prompt>`, after writing the prompt into `landed.txt` in the
-  directory it was started in -- the work, wherever the workspace is.
+  directory it was started in -- the work, wherever the workspace is -- unless its `Write` tool
+  was withheld, as a side conversation's is.
 
 Every turn reports 10 input and 7 output tokens. Each start is written as one JSON line to
 `standin.log` in its home -- the user's own, which `$CLAUDE_CONFIG_DIR` names a virtual copy
@@ -161,8 +162,9 @@ def answer(said):
         return ""
     if schema:
         return json.dumps({"done": True, "notes": "reviewed"})
-    with pathlib.Path("landed.txt").open("a") as landed:
-        landed.write(said + "\n")
+    if "Write" not in flags.get("--disallowedTools", "").split(","):
+        with pathlib.Path("landed.txt").open("a") as landed:
+            landed.write(said + "\n")
     return "did: " + said
 
 

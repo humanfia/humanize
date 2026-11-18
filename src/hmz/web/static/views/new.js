@@ -3,13 +3,15 @@
 // where each environment works, its params, its budget, where it is backed up and whether its flow
 // and its environment are profiled -- is under Options on the box, set up as this directory last
 // ran that flow, the way `/flow` in the terminal interface sets one up. Picking a run up again is
-// the same box, on that run.
+// the same box, on that run. A new epic is a chat or one of a flow: this is `Flow`, and `Chat`
+// (views/newchat.js) is beside it, the two a switch apart (Section 3.8.17 of protocol/web.md).
 
 import { call, given, hash } from '../api.js'
 import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
+import { paramsForm } from '../asking/form.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
@@ -52,7 +54,7 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view view-new' },
-      bar({ lead: h('div', { class: 'pickers' }, place.node, pickerHolder) }),
+      bar({ lead: h('div', { class: 'pickers' }, newKinds('flow', () => ({ workspace, scratch })), place.node, pickerHolder) }),
       h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, about, resumed, box.node, options)),
     ),
   )
@@ -198,7 +200,8 @@ export function mount(root, { query }) {
       const wants = [role.cpu && `${role.cpu} CPU`, role.memory && `${Math.ceil(role.memory / 2 ** 30)} GiB`, role.gpu && `${role.gpu} GPU`, role.image && role.image].filter(Boolean)
       return h('div', { class: 'role', 'data-hmz': 'env', 'data-role': role.name }, h('h3', {}, role.name, h('span', { class: 'dim' }, wants.join(' · '))), places[role.name].node)
     })
-    const params = schemaForm(flow.params, kept.params || {})
+    // The same form a person answers a question with: a field for each param, by its type.
+    const params = paramsForm(flow.params, kept.params || {})
     const budget = budgetFields(kept.budget || {}, summarise)
     const profileFlow = h('input', { type: 'checkbox', checked: Boolean(kept.profile_flow), 'data-hmz': 'profile-flow' })
     const profileEnvironment = h('input', { type: 'checkbox', checked: Boolean(kept.profile_environment), 'data-hmz': 'profile-environment' })
@@ -209,12 +212,17 @@ export function mount(root, { query }) {
     function readAll() {
       const agentsSaid = {}
       for (const [role, one] of Object.entries(pickers)) if (one.value()) agentsSaid[role] = one.value()
+      // Neither saved nor started with a role nobody fills, or with nothing bounding what it spends.
+      const unfilled = agents.find((role) => role.required && !agentsSaid[role.name])
+      if (unfilled) throw new Error(`Pick an agent for ${unfilled.name}.`)
+      const budgetSaid = budget.read()
+      if (!budgetSaid) throw new Error('Set at least one limit of the budget.')
       const envsSaid = {}
       for (const [role, one] of Object.entries(places)) if (one.value()) envsSaid[role] = one.value()
       const backupSaid = targets.map((one) => one.firstChild).filter((one) => one.checked).map((one) => one.value)
       // The defaults left as they are go on following the defaults, rather than being kept.
       const followed = kept.backup == null && backupSaid.length === backup.defaults.length && backupSaid.every((one) => backup.defaults.includes(one))
-      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budget.read(), profile_flow: profileFlow.checked, profile_environment: profileEnvironment.checked, backup: targets.length && !followed ? backupSaid : undefined }
+      return { agents: agentsSaid, envs: envsSaid, params: params.read(), budget: budgetSaid, profile_flow: profileFlow.checked, profile_environment: profileEnvironment.checked, backup: targets.length && !followed ? backupSaid : undefined }
     }
     for (const one of Object.values(leaving)) one()
     leaving = Object.values(pickers).map((one) => one.leave)
@@ -224,7 +232,7 @@ export function mount(root, { query }) {
         roles.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Agents'), h('div', { class: 'stack' }, roles)) : null,
         rooms.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Environments'), h('div', { class: 'stack' }, rooms)) : null,
         params.fields.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Parameters'), h('div', { class: 'grid' }, params.fields)) : null,
-        h('section', { class: 'option-group' }, h('h3', {}, 'Budget'), budget.fields, h('span', { class: 'hint' }, flow.name === 'chat' ? 'Optional for chat.' : 'At least one limit.')),
+        h('section', { class: 'option-group' }, h('h3', {}, 'Budget'), budget.fields, h('span', { class: 'hint' }, 'At least one limit.')),
         targets.length ? h('section', { class: 'option-group', 'data-hmz': 'backup' }, h('h3', {}, 'Backup'), h('div', { class: 'row' }, targets)) : null,
         h('div', { class: 'row' }, h('label', { class: 'check' }, profileFlow, 'Profile flow'), h('label', { class: 'check' }, profileEnvironment, 'Profile environment')),
         // Set up without starting, as `/flow` saves it: what a new epic here opens on.
@@ -252,8 +260,7 @@ export function mount(root, { query }) {
       optionsChip.setAttribute('aria-expanded', 'true')
       throw error
     }
-    // A chat is a new chat's, on a host of its own beside every other epic here, as a chat app's
-    // new chat leaves the last one going; the answer says which host, which the page follows.
+    // The answer says which host the epic went to, which the page follows.
     const started = await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false, ...(scratch ? { scratch } : {}) })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
@@ -271,6 +278,26 @@ export function mount(root, { query }) {
     window.removeEventListener('hashchange', back)
     for (const one of leaving) one()
   }
+}
+
+/** The address of a new epic of a kind, `chat` or `flow`, in a workspace -- or in none, `scratch`. */
+export function newOf(kind, { workspace = '', scratch = false } = {}) {
+  const query = new URLSearchParams(given(scratch ? { scratch: '1' } : { workspace }))
+  const text = query.toString()
+  return `/new${kind === 'chat' ? '/chat' : ''}${text ? `?${text}` : ''}`
+}
+
+/**
+ * The switch between the two kinds of a new epic, `Chat` and `Flow` (Section 3.8.17 of
+ * protocol/web.md): the other goes to its own form, in the workspace picked here.
+ *
+ * @param {'chat'|'flow'} chosen The kind this form starts.
+ * @param {() => {workspace: string, scratch: boolean}} at Where the form is now.
+ */
+export function newKinds(chosen, at) {
+  const kind = (name, label) =>
+    h('button', { type: 'button', 'aria-pressed': String(name === chosen), 'data-hmz': `new-${name}`, onclick: () => name !== chosen && go(newOf(name, at())) }, label)
+  return h('div', { class: 'segmented', role: 'group', 'aria-label': 'New', 'data-hmz': 'new-kind' }, kind('chat', 'Chat'), kind('flow', 'Flow'))
 }
 
 /**
@@ -321,65 +348,4 @@ function budgetFields(kept, changed) {
 function minutesOf(duration) {
   const seconds = secondsOf(duration)
   return seconds === null ? '' : String(Math.round(seconds / 60))
-}
-
-/**
- * A form for a flow's params, read off the JSON schema its params model gives: a field for
- * each, by its type, and JSON for whatever has no field of its own. A field is labelled with
- * the title the flow gave it, or its name where it gave none.
- */
-function schemaForm(schema, kept) {
-  const fields = []
-  const readers = {}
-  for (const [name, property] of Object.entries(schema.properties || {})) {
-    const value = name in kept ? kept[name] : property.default
-    const shown = property.title || name
-    const id = `param-${name}`
-    let input
-    let read
-    const kind = typeOf(property)
-    if (property.enum) {
-      input = h('select', { id }, property.enum.map((one) => h('option', { value: JSON.stringify(one), selected: one === value }, String(one))))
-      read = () => JSON.parse(input.value)
-    } else if (kind === 'boolean') {
-      input = h('input', { id, type: 'checkbox', checked: Boolean(value) })
-      read = () => input.checked
-    } else if (kind === 'integer' || kind === 'number') {
-      input = h('input', { id, type: 'number', step: kind === 'integer' ? '1' : 'any', value: value ?? '', min: property.minimum, max: property.maximum })
-      read = () => (input.value === '' ? null : Number(input.value))
-    } else if (kind === 'string') {
-      input = (value || '').length > 60 ? h('textarea', { id, rows: '3' }, value || '') : h('input', { id, type: 'text', value: value ?? '' })
-      read = () => input.value
-    } else {
-      input = h('textarea', { id, rows: '3', class: 'mono' }, value === undefined ? '' : JSON.stringify(value, null, 2))
-      read = () => {
-        if (!input.value.trim()) return null
-        try {
-          return JSON.parse(input.value)
-        } catch {
-          throw new Error(`${shown} is not JSON.`)
-        }
-      }
-    }
-    readers[name] = read
-    fields.push(h('div', { class: 'field' }, h('label', { for: id, title: shown === name ? undefined : name }, shown), input, property.description ? h('span', { class: 'hint' }, property.description) : null))
-  }
-  return {
-    fields,
-    read() {
-      const said = {}
-      for (const [name, read] of Object.entries(readers)) {
-        const value = read()
-        if (value !== null && value !== '') said[name] = value
-      }
-      return said
-    },
-  }
-}
-
-function typeOf(property) {
-  if (property.type) return Array.isArray(property.type) ? property.type.find((one) => one !== 'null') : property.type
-  const branches = property.anyOf || property.oneOf || []
-  const found = branches.find((one) => one.type && one.type !== 'null')
-  return found ? found.type : ''
 }

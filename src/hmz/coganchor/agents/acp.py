@@ -13,9 +13,9 @@ added CLI runs as it was configured to, which is what `as configured` means wher
 an effort are asked for. What the protocol does say is that a client is asked to permit each
 tool call, and nobody is at a prompt here -- so every request is granted, by the *kind* of the
 option rather than by its id, which is the agent's own to name. That is the whole of the
-permission there is: `bypass` and the silence of a config that settles no rung come to one
-agent here -- the one whoever installed the CLI configured -- and a rung below them is refused
-where the agent is made rather than promised here and not kept.
+permission there is, and it is the same whatever the agent's fence says: the protocol has no
+way of withholding a tool, so every request is granted and the fence holds the grant
+(protocol/core.md Section 4.6.2.2).
 
 What a client offers the agent is the other half of the handshake, and this one offers nothing
 it was not asked for: the agent has a machine of its own to read files and run commands on,
@@ -34,6 +34,14 @@ the network from a CLI nobody declared a host for is refused rather than run int
 cannot reach its own model. What this client does itself for the agent is held to the same
 fence: a file it reads or writes, and a tool call it permits, that the fence would not let the
 agent reach is refused, and a command it holds as a terminal is run inside the fence too.
+
+In a chat such a CLI has no catalog of native input, and every line is said to it as text: a
+`session/prompt` carries a text block, and what the agent does with one opening on `/`, `!` or
+`@` is its own business, unknown here. The protocol lets an agent advertise slash commands, in
+`available_commands_update` notifications on a session already open, but nothing says what an
+added CLI does with the line once it is sent, and this client offers no terminal of the
+person's for a `!`, so none is promised: the line goes as typed and the agent answers it as it
+answers any.
 """
 
 # The teardown every driver shares is base's, and reaching for it is what grok, agy, qwen
@@ -1311,28 +1319,6 @@ class AcpAgentConfig(AgentConfig):
 
 class AcpAgent(AgentBase):
     """A CLI of your own that speaks the Agent Client Protocol."""
-
-    #: `bypass` and nothing below it, which is what
-    #: :meth:`~hmz.coganchor.agents.base.AgentBase._serves` refuses a config for. The
-    #: protocol's only word about permission is a request a client answers one tool call at a
-    #: time, and nobody is at a prompt here -- so a narrower rung would be an agent nothing was
-    #: given the chance to refuse.
-    #:
-    #: The silence above them is the one other answer this backend can honestly give, and the
-    #: base class lets it through: a config that settles no rung asks for nothing to be said
-    #: about what the agent may do, and an added CLI doing what whoever installed it allowed
-    #: it to do is exactly that. `bypass` is the flow saying it wants the same thing out loud.
-    #: Neither is Humanize allowing anything, because there is nothing here to allow it with.
-    #:
-    #: Said here as well as refused there because this is the class's own answer to the
-    #: question :attr:`~hmz.coganchor.agents.base.AgentBase.rungs` asks, and a subclass that
-    #: refuses a rung and goes on claiming it would be a claim nothing holds it to. The
-    #: catalogue does not reach it: this one class drives every CLI anybody adds and none of
-    #: them is in `DRIVEN`, so what says a hand-added backend takes `bypass` and no more is
-    #: the same convention that says it takes every universal capability -- a rung named
-    #: against nobody is every backend, and the three narrower ones are named against exactly
-    #: the driven CLIs that take them.
-    rungs: ClassVar[tuple[str, ...]] = ("bypass",)
 
     @property
     def backend(self) -> str:

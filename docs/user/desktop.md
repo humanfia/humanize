@@ -41,6 +41,8 @@ in a browser does.
   [Your epics and WSL](#your-epics-and-wsl).
 - **The page is the whole window**, up to its top edge. Drag the window by any empty part of
   the top row, and double-click it to zoom or maximize.
+- **Ai-chan is in the window too**: her avatar, at the right of every view's bar, opens the
+  [drawer](/user/web#ai-chan) of your conversations with [Ai-chan](/user/ai-chan).
 - **Links to elsewhere open in your browser**, and an export is saved to **Downloads** and shown
   in the Finder or Explorer.
 
@@ -115,7 +117,7 @@ machine says why on its own page, as any [imported epic](/user/web#importing-an-
 ## Notifications {#notifications}
 
 The page's [notifications](/user/web#notifications) -- an epic done, failed or stopped, a question
-for you, a `chat` waiting for your next line, on any daemon -- show in the window's bell and toasts
+for you, a [chat](/user/chat) waiting for your next line, on any daemon -- show in the window's bell and toasts
 as in a browser, and, while the window is hidden or not in front, as system notifications from
 Humanize Desktop. Click one: the window comes to the front, on the epic it is about.
 

@@ -178,7 +178,7 @@ To the conversation you are reading. <kbd>shift+tab</kbd> changes which one that
 | a conversation with a turn open | into that turn |
 | an agent, which is where a run lands | into whichever of its conversations has a turn open |
 | a conversation between turns, or nothing is working | onto the pin, then into the next turn to start |
-| [`chat`](https://humanfia.ai/flows/chat)'s conversation between turns | the next message, which starts the next turn |
+| a [chat](/user/chat) between turns, or no flow going | the chat's next message, which starts its next turn |
 | an outworlder, or any view where a [question](/user/questions) is up | the answer to it |
 
 Lines go **one at a time, in order**. The next one goes only after the agent has taken the one
@@ -212,7 +212,7 @@ same way it would locally. Between its turns, your line waits on the pin like an
 ## Variations
 
 - **Ask without steering.** To ask how the run is going without the agent hearing it, use
-  [`/btw`](/user/btw).
+  [`/btw`](/user/btw). To have the line said for you, ask [Ai-chan](/user/ai-chan).
 - **Several lines at once.** <kbd>shift+enter</kbd> starts a new line in the editor, so a
   paragraph goes as one message rather than as several.
 - **Steer one agent of several.** Press <kbd>shift+tab</kbd> until that agent's conversation is

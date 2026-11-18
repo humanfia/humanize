@@ -142,9 +142,7 @@ def test_a_turn_runs_in_a_virtual_home_of_humanizes_agents_and_the_flows_skills(
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text("---\nname: review\n---\n")
     agent = AntigravityCLIAgent(
-        AntigravityCLIAgentConfig(
-            model="gemini-stand-in", effort="high", permission="read-only"
-        )
+        AntigravityCLIAgentConfig(model="gemini-stand-in", effort="high")
     )
     agent.loads([Loaded("review", skill)])
 

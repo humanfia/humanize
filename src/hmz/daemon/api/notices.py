@@ -19,10 +19,11 @@ import threading
 from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary
 
+from hmz.daemon import reach
 from hmz.rpc import Closed, Code, RpcError
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Callable, Iterator, Mapping
 
     from hmz.rpc import Call, Handler, Peer
     from hmz.runtime.watching.notices import Notices
@@ -107,7 +108,7 @@ def _subscribe(call: Call) -> dict[str, Any]:
     events = notices.events(str(last if after is None else after), held.ended)
     threading.Thread(
         target=_sends,
-        args=(call.peer, sub, held, events),
+        args=(call.peer, sub, held, events, reach.notices()),
         name=f"hmz-{sub}",
         daemon=True,
     ).start()
@@ -119,13 +120,17 @@ def _sends(
     sub: str,
     held: _Sub,
     events: Iterator[tuple[str, str, Any] | None],
+    kept: Callable[[Mapping[str, Any]], bool] | None = None,
 ) -> None:
-    """Sends each notice to one subscription, until it ends or its session closes."""
+    """Sends each notice to one subscription, until it ends or its session closes.
+
+    Those of a host Ai-chan's reach does not reach, where `kept` is it, are not sent.
+    """
     try:
         for one in events:
             if peer.closed:
                 return
-            if one is None:
+            if one is None or (kept is not None and not kept(one[2])):
                 continue
             with held.sending:
                 if held.ended.is_set():

@@ -76,9 +76,13 @@ It is normative. It is cited by the tag [CLI].
   - [14.1. Synopsis](#141-synopsis)
   - [14.2. Behaviour](#142-behaviour)
   - [14.3. Exit](#143-exit)
-- [15. Security Considerations](#15-security-considerations)
-- [16. References](#16-references)
-  - [16.1. Normative References](#161-normative-references)
+- [15. `hmz chat`](#15-hmz-chat)
+  - [15.1. Synopsis](#151-synopsis)
+  - [15.2. Output](#152-output)
+  - [15.3. Exit](#153-exit)
+- [16. Security Considerations](#16-security-considerations)
+- [17. References](#17-references)
+  - [17.1. Normative References](#171-normative-references)
 
 ## 1. Introduction
 
@@ -114,8 +118,8 @@ Section 2 of [CORE].
 **2.1** A **command line** is the sequence of arguments the operating system hands to `hmz`,
 excluding the program name.
 
-**2.2** A **command** is the first argument of a command line where it is one of `exec`, `web`,
-`daemon`, `relay`, `update`, `backup` and `internal`.
+**2.2** A **command** is the first argument of a command line where it is one of `exec`, `chat`,
+`web`, `daemon`, `relay`, `update`, `backup` and `internal`.
 
 **2.3** A **usage error** is a refusal of a command line in which the refusing parser writes its
 usage text and the line `<prog>: error: <reason>` to standard error and exits with status 2, where
@@ -176,6 +180,7 @@ epilog MUST each be at most thirty words long.
 
 ```text
 exec      run an agent flow in this directory
+chat      say one message to an agent in this directory
 web       open this machine's epics in a browser on it
 daemon    serve, reach, pair or install this machine's daemon
 relay     relay daemons and the devices that reach them
@@ -256,6 +261,9 @@ or after it has ended, as Section 7.15.5 specifies.
 **5.2.9** `coganchor cog`, `coganchor anchor`, `coganchor broker`, `coganchor internal fence` and
 `coganchor internal cred` MUST exit with the statuses Section 5.2.2 to Section 5.2.6 assign to the
 `hmz internal` command each stands for (Section 11.2.12), in the same cases.
+
+**5.2.10** `hmz chat` MUST exit with status 128 plus the signal number where a signal ended it, as
+Section 15.3.5 specifies.
 
 ## 6. The terminal interface (`hmz` with no command)
 
@@ -396,6 +404,9 @@ for an existing flowverse MUST be refused with a message that gives the name as 
 
 **7.3.10** A relative path written without its leading `./` MUST be refused with a message that
 gives it with its `./`.
+
+**7.3.11** The name `chat` MUST name a flow as any other name does; a chat is not a flow, and is
+started by `hmz chat` (Section 15).
 
 ### 7.4. Writing an agent
 
@@ -548,8 +559,7 @@ every limit is graceful, and `budget.graceful.<name>` whether the limit `<name>`
 
 **7.6.12** A budget that sets none of `duration`, `cost` and `output_tokens` MUST be a usage error.
 
-**7.6.13** A line with no `budget.` limit MUST be refused under Section 7.7 for every flow but
-`chat` and `ai_chan`, which MUST then run with no cost limit.
+**7.6.13** A line with no `budget.` limit MUST be refused under Section 7.7.
 
 ### 7.7. Refusals before the epic starts
 
@@ -1249,7 +1259,62 @@ machine, and MUST NOT start or reach a daemon.
 **14.3.2** Where it cannot listen, `hmz relay serve` MUST write `hmz: the relay cannot listen:
 <why>` to standard error and exit with status 1.
 
-## 15. Security Considerations
+## 15. `hmz chat`
+
+### 15.1. Synopsis
+
+```text
+hmz chat [-a <agent>] [--resume <epic>] [--] <message>
+```
+
+**15.1.1** `hmz chat` MUST take one turn of a chat (Section 8 of [CORE]) in the current directory as
+its workspace, with nobody at a prompt: it MUST start the chat on a new chat slot of that workspace
+on this machine's daemon (`chat.start` with `slot` `chat:`, Section 4.25 of [DAEMON]), starting the
+daemon where none runs, follow its messages (`epic.attach`) until the turn is done, and then end the
+chat with an empty next message (Section 8.4.8 of [CORE]).
+
+**15.1.2** `-a` and `--agent` MUST be the same option, MUST take one agent written as the text of an
+`-a` item of Section 7.4 after `<role>=`, and, where given more than once, the last occurrence MUST
+be the one used.
+
+**15.1.3** Without `-a`, `hmz chat` MUST use the chat agent the workspace remembers (Section 3.5.1.9
+of [FILES]), and MUST refuse where none is remembered, saying to give one with `-a`.
+
+**15.1.4** `--resume <epic>` MUST carry on the chat of that epic name in this workspace, in that
+same epic (Section 8.7 of [CORE]), with `<message>` as its next turn and with its own agent unless
+`-a` is given.
+
+**15.1.5** `<message>` MUST be exactly one positional argument and MUST NOT be empty; a message that
+begins with `-` MUST be given after `--`.
+
+**15.1.6** `<message>` MUST be served as Section 8.9 of [CORE] states, except that a `$` line that
+names a flow and a name Section 8.9.7 of [CORE] keeps MUST be refused, naming it.
+
+**15.1.7** `hmz chat` MUST NOT change the remembered setup of any workspace.
+
+### 15.2. Output
+
+**15.2.1** `hmz chat` MUST draw the turn on standard error and write its answer to standard output
+as Section 7.12.1 to Section 7.12.5 state for `hmz exec`.
+
+### 15.3. Exit
+
+**15.3.1** `hmz chat` MUST exit with status 0 once the turn is done.
+
+**15.3.2** Every refusal before the chat starts MUST be written to standard error as `hmz chat:
+error: <reason>` and MUST exit with status 2; a refusal of `chat.start` MUST be written so, its
+message as `<reason>`.
+
+**15.3.3** Where the turn fails, `hmz chat` MUST write what the harness said to standard error and
+exit with status 1 (Section 8.4.9 of [CORE]).
+
+**15.3.4** Where the daemon cannot be reached or started, `hmz chat` MUST write and exit as Section
+7.1.9 states for `hmz exec`.
+
+**15.3.5** On `SIGINT`, `SIGTERM` or `SIGHUP`, `hmz chat` MUST leave the chat to its host (Section
+8.8.6 of [CORE]) and exit with status 128 plus the number of the signal.
+
+## 16. Security Considerations
 
 This section states no requirement; it summarises the security-relevant properties the rest of this
 document states.
@@ -1297,9 +1362,9 @@ document states.
   (Section 3.8.5.6 of [DAEMON]). `hmz web` opens a browser unless `--no-open` is given (Section
   8.2.5).
 
-## 16. References
+## 17. References
 
-### 16.1. Normative References
+### 17.1. Normative References
 
 - **[RFC2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.

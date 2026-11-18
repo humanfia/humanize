@@ -135,13 +135,6 @@ def test_written(effort: str, written: str) -> None:
     assert backends.written(effort) == written
 
 
-@pytest.mark.parametrize(
-    ("permission", "said"), [("", backends.AS_CONFIGURED), ("read", "read")]
-)
-def test_permitted(permission: str, said: str) -> None:
-    assert backends.permitted(permission) == said
-
-
 def _profile(**given: object) -> Profile:
     fields: dict[str, object] = {
         "name": "x",

@@ -50,3 +50,34 @@ def test_local_cannot_reach_a_daemon_that_will_not_start(reached: mock.Mock) -> 
     with pytest.raises(OSError, match="no fork"):
         Client.local()
     reached.over.assert_not_called()
+
+
+def test_ai_chan_speaks_over_her_scoped_link_and_starts_no_daemon(
+    reached: mock.Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import socket
+
+    held = mock.Mock()
+    monkeypatch.setattr(socket, "socket", held.socket)
+    monkeypatch.setenv("HUMANIZE_AICHAN_LINK", "/tmp/humanize-1/ai-ab.sock")
+
+    made = Client.local(kind="ai-chan")
+
+    assert made is reached.over.return_value
+    reached.start.assert_not_called()
+    held.socket.return_value.connect.assert_called_once_with(
+        "/tmp/humanize-1/ai-ab.sock"
+    )
+    reached.over.assert_called_once_with(
+        reached.pipe.return_value, name="", kind="ai-chan"
+    )
+
+
+def test_ai_chan_with_no_link_named_is_refused(
+    reached: mock.Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("HUMANIZE_AICHAN_LINK", raising=False)
+
+    with pytest.raises(OSError, match="HUMANIZE_AICHAN_LINK is unset"):
+        Client.local(kind="ai-chan")
+    reached.start.assert_not_called()

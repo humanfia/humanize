@@ -38,11 +38,13 @@ import pydantic
 from typing_extensions import ReadOnly, TypedDict
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from hmz.coganchor.faking import FakeCli, FakeTool
 
+    from .asking import Block
     from .envs import Env
+    from .faces import Face
     from .hooks import (
         AskUserHookParams,
         AskUserHookResult,
@@ -455,9 +457,8 @@ class Budget(pydantic.BaseModel):
     remains of its caller's: `duration` is a deadline shared by everything under it, while
     cost and tokens spent anywhere under a flow count against every flow above it.
 
-    `Budget(cost=math.inf)` is what "unlimited" is written as -- the `chat` flow runs under
-    it -- and survives `model_dump_json` and `model_validate_json`, infinity being written as
-    the string `"Infinity"`.
+    `Budget(cost=math.inf)` is what "unlimited" is written as, and survives `model_dump_json`
+    and `model_validate_json`, infinity being written as the string `"Infinity"`.
 
     Attributes:
       duration: How long it may take, counted from when it started.
@@ -738,6 +739,17 @@ class Outworlder(Agent, Protocol):
     steering: steering puts words into an agent's turn, while an outworlder takes turns of
     its own, as an agent of the flow.
 
+    A turn is a question, and its answer is text or, given an `output_schema`, an instance
+    of it: the whole schema is asked at once -- as one form, or as one value a caller hands
+    back -- never field by field. `context` is what the person reads to decide, and `show`
+    tells them something with nothing to answer::
+
+        session = await human.spawn(face=Face.file("review.html"))
+        await human.show((Markdown(text="tests pass; asking for review"),), session=session)
+        review = await human.run(
+            "Merge this?", session=session, output_schema=Review, context=(Diff(patch=p),)
+        )
+
     While it is `away`, `run` answers at once: `""` for text, the schema's defaults where
     every field has one, and :class:`~hmz.flows.errors.OutworlderAway` otherwise.
     """
@@ -765,6 +777,60 @@ class Outworlder(Agent, Protocol):
         self, fn: HookFn[OutworlderRunHookParams, OutworlderRunHookResult] | None
     ) -> None:
         """Hangs a hook that answers every `run` of an outworlder made with :meth:`new`."""
+        ...
+
+    async def spawn(self, *, face: Face | None = None) -> Session:
+        """Opens a new session: one conversation with whoever is outside, asked in one place.
+
+        Args:
+          face: The page the session's questions are asked in where a person answers on the
+            web, mounted for as long as the session lasts and keeping its state across them;
+            or None for the form made from each question's schema. A caller answering for
+            the person is told which face it would have been.
+
+        Returns:
+          The session, with no turns taken yet.
+        """
+        ...
+
+    @overload
+    async def run(
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        env: Env | None = None,
+        budget: Budget | None = None,
+        context: Sequence[Block] = (),
+    ) -> str: ...
+
+    @overload
+    async def run[TOutput: pydantic.BaseModel](
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        env: Env | None = None,
+        output_schema: type[TOutput],
+        budget: Budget | None = None,
+        context: Sequence[Block] = (),
+    ) -> TOutput: ...
+
+    async def show(self, context: Sequence[Block], *, session: Session) -> None:
+        """Tells whoever is outside something, with nothing to answer.
+
+        It is shown in the session's place -- beside its questions, or in its face -- and a
+        caller answering for the person through an SDK driver is handed it too where it
+        listens. It never waits: nothing is held up for it to be read. While `away`, and on
+        an outworlder made with :meth:`new`, it does nothing.
+
+        Args:
+          context: What to show.
+          session: The session it belongs to.
+
+        Raises:
+          SessionError: If `session` is not one of this outworlder's.
+        """
         ...
 
 
@@ -933,7 +999,7 @@ class GrokBuildAgent(Agent, FakeToolAgentMixin, Protocol):
 
     Its `_tools` reach it over ACP, the one way grok is given a tool of the flow's, and a turn
     that only `grok -p` can take is refused while any are offered: an `output_schema`, the
-    first turn of a fork, web search off, and a permission whose rung takes tools away each
+    first turn of a fork, web search off, and a permission whose fence writes nothing each
     raise :class:`~hmz.flows.errors.HarnessUnrecoverable` there.
     """
 

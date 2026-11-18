@@ -1,11 +1,11 @@
-"""`hmz.flows`: the whole of what a flow imports, gathered from its four modules."""
+"""`hmz.flows`: the whole of what a flow imports, gathered from its modules."""
 
 from __future__ import annotations
 
 import hmz.flows
-from hmz.flows import agents, defining, envs, errors, hooks
+from hmz.flows import agents, asking, defining, envs, errors, faces, hooks
 
-MODULES = (agents, defining, envs, errors, hooks)
+MODULES = (agents, asking, defining, envs, errors, faces, hooks)
 
 #: What it hands on from coganchor rather than writes: the fake tool and command line types.
 FAKES = {"FakeCli", "FakeCommand", "FakeTool"}

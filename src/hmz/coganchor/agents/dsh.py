@@ -1,4 +1,9 @@
-"""DeepSeek Harness, driven through its Python SDK."""
+"""DeepSeek Harness, driven through its Python SDK.
+
+In a chat every line is said as text, with no catalog of native input: a turn is a call into
+the harness's Python SDK with the message, and there is no interactive prompt on that path to
+read a `/`, `!` or `@` -- those would be its terminal interface's, which this driver never runs.
+"""
 
 # A session and the agent holding it are two halves of one object declared here.
 # pyright: reportPrivateUsage=false
@@ -53,7 +58,23 @@ _PROFILE = "sdk"
 _PATCH = "humanize.patch.yml"
 
 #: The permission preset `dsh-base` reads for its sandbox policy and its approval policy,
-#: and the one preset this driver can start a runtime at (see :attr:`DshAgent.rungs`).
+#: and the one preset this driver can start a runtime at.
+#:
+#: The `sdk` profile does carry a confining shell -- `dsh-base` mounts `dsh-bash-sandbox` under
+#: `dsh-sandbox-policy` and `dsh-permission-presets`, at `workspace-write` -- but every one of
+#: its presets below `danger-full-access` asks `dsh-user-approval` before it lets a command
+#: past the sandbox, and nobody here can answer: the SDK's JSON-RPC surface is `initialize`,
+#: `session/prompt` and `shutdown`, and an approval nobody answers fails closed. So a runtime
+#: is started at `danger-full-access`, where the policy is `never` and the sandbox confines
+#: nothing: every request granted, whatever its fence says (protocol/core.md Section 4.6.2.3).
+#:
+#: None of which leaves a flow's grant unenforced, because the grant is held by the fence
+#: (:attr:`AgentConfig.fence`), and dsh enforces none of a fence itself:
+#: :meth:`~AgentBase.natively` is left as the base class has it, and the whole fence is put
+#: around the runtime the SDK launches -- the runtime's own file and web tools and every shell
+#: it starts alike. So a flow at `local=read` runs here with every request granted inside a
+#: fence whose workdir is readable and not writable, which is a read-only agent in fact rather
+#: than in name.
 _PERMISSION_ENV = "DSH_PERMISSION_MODE"
 _UNCONFINED = "danger-full-access"
 
@@ -271,36 +292,6 @@ class DshAgent(AgentBase):
 
     #: The official goal service keeps the session working until its objective is complete.
     pursues: ClassVar[bool] = True
-
-    #: `bypass` and nothing below it, which is what
-    #: :meth:`~hmz.coganchor.agents.base.AgentBase._serves` refuses a config for. Refused where
-    #: the config arrives rather than where the first turn runs, because what an agent may do
-    #: is the flow's: a flow declaring a reviewer that may not write is refused this backend
-    #: before the run starts, rather than an hour into one by a turn that could never have run.
-    #:
-    #: The `sdk` profile does carry a confining shell now -- `dsh-base` mounts
-    #: `dsh-bash-sandbox` under `dsh-sandbox-policy` and `dsh-permission-presets`, at
-    #: `workspace-write` -- but every one of its presets below `danger-full-access` asks
-    #: `dsh-user-approval` before it lets a command past the sandbox, and nobody here can
-    #: answer: the SDK's JSON-RPC surface is `initialize`, `session/prompt` and `shutdown`,
-    #: and an approval nobody answers fails closed. So a runtime is started at
-    #: `danger-full-access` (:data:`_UNCONFINED`), where the policy is `never` and the sandbox
-    #: confines nothing, and that is `bypass` -- the rung this backend has always taken. A
-    #: narrower one is a matter of putting `read-only` and `workspace-write` to the runtime on
-    #: every platform it ships for, not of composing them here.
-    #:
-    #: Which is also why the silence above the ladder is taken, as the base class takes it
-    #: everywhere: the silence asks for nothing to be said about what the agent may do, and
-    #: this driver says the one thing it can.
-    #:
-    #: None of which leaves a flow's permission unenforced, because a flow's permission is not
-    #: held by the rung. It is held by the fence (:attr:`AgentConfig.fence`), and dsh enforces
-    #: none of a fence itself: :meth:`~AgentBase.natively` is left as the base class has it,
-    #: and the whole fence is put around the runtime the SDK launches -- the runtime's own
-    #: file and web tools and every shell it starts alike. So a flow at `local=read` runs here
-    #: at `bypass` inside a fence whose workdir is readable and not writable, which is a
-    #: read-only agent in fact rather than in name.
-    rungs: ClassVar[tuple[str, ...]] = ("bypass",)
 
     #: What it counts. Its reasoning is already inside the output on the dsh contract, so
     #: it is not a kind of its own here.
@@ -665,7 +656,7 @@ class DshSession(SessionBase):
             environment |= self._agent.shelf.environ()
         else:
             environment = dict(self._agent.environment())
-        # The one preset this driver can start a runtime at (see `DshAgent.rungs`), said
+        # The one preset this driver can start a runtime at (see `_UNCONFINED`), said
         # rather than left to the profile, whose own default is `workspace-write` behind an
         # approval nobody here could give.
         environment[_PERMISSION_ENV] = _UNCONFINED

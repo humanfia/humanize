@@ -13,10 +13,10 @@ import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import PurePath
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Callable, Iterator, Sequence
 
 __all__ = [
     "KINDS",
@@ -385,11 +385,29 @@ class Question:
       asker: The `Outworlder` role of a run that is asking, where one is -- so that an
         interface holding several can say which of them wants the answer and hand it to that
         one -- or "" for a question an agent put through no such role.
+      schema: The JSON Schema the answer is a value of, asked whole, or None for a question
+        answered in words. A question with one offers no `options`, and its answer is the
+        JSON text of the value.
+      context: What to read before answering, each block in its JSON form: `{"kind": ...}`
+        with the fields of its kind.
+      face: The hash of the face the asker's session was opened with, or "" for none.
+      session: The asker's session, as `<role>/<n>`, the same across its questions, or "".
+      check: Whether a candidate value fits `schema`: the reasons it does not, each as
+        `{"path": [...], "message": ...}`, and nothing where it fits. Whoever takes the
+        answer runs it before accepting one, so the person is told what is wrong while they
+        are still there; None where there is no schema.
     """
 
     text: str
     options: tuple[str, ...] = ()
     asker: str = ""
+    schema: Mapping[str, Any] | None = None
+    context: tuple[Mapping[str, Any], ...] = ()
+    face: str = ""
+    session: str = ""
+    check: Callable[[Any], tuple[dict[str, Any], ...]] | None = field(
+        default=None, compare=False, repr=False
+    )
 
 
 class Saying:

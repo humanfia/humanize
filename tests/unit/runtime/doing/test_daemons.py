@@ -248,7 +248,7 @@ def test_a_batch_carries_the_pages_asked_for_as_settings_calls() -> None:
         then=None,
     )
     hmz = SimpleNamespace(
-        settings=SimpleNamespace(btw="", details=True, enable_sentry=False),
+        settings=SimpleNamespace(ai_chan="", details=True, enable_sentry=False),
         nous=SimpleNamespace(
             all=lambda: [concrete, virtual],
             shown=_shown,
@@ -261,7 +261,7 @@ def test_a_batch_carries_the_pages_asked_for_as_settings_calls() -> None:
     sent = carried(hmz, CARRIED)
 
     assert sent == [
-        ("settings.set", {"btw": "", "details": True, "reports": False}),
+        ("settings.set", {"ai_chan": "", "details": True, "reports": False}),
         (
             "nous.set",
             {

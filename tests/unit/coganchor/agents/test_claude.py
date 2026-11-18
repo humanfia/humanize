@@ -45,6 +45,11 @@ if TYPE_CHECKING:
 #: What every agent here is made with unless a test says otherwise.
 _DEFAULTS: dict[str, Any] = {"model": "claude-x", "effort": ""}
 
+#: A fence that writes nothing, and one that writes somewhere: the two grants a driver reads
+#: off the fence, each with the network open so that the web tools stay out of it.
+_READS = Fence(online=True)
+_WRITES = Fence(write=("/w",), online=True)
+
 
 def _flag(argv: list[str], name: str) -> str:
     return argv[argv.index(name) + 1]
@@ -62,9 +67,32 @@ class _Claude:
         self.answers: list[Callable[[Process, str], None]] = []
         self.model = "claude-x"
         self.mode = ""
+        #: What its `system/init` lists as slash commands and as skills.
+        self.commands: list[str] = []
+        self.skills: list[str] = []
+        #: The models `set_model` takes, by what each resolves to.
+        self.models = {"claude-y": "claude-y", "sonnet": "claude-sonnet-9"}
         spawner.replying(self._heard)
 
     def _heard(self, proc: Process, said: Any) -> None:
+        request: dict[str, Any] = said.get("request") or {}
+        if (
+            said.get("type") == "control_request"
+            and request.get("subtype") == "set_model"
+        ):
+            asked = str(request.get("model"))
+            answer: dict[str, Any] = (
+                {"subtype": "success", "response": {"model": self.models[asked]}}
+                if asked in self.models
+                else {"subtype": "error", "error": f"Model '{asked}' not found"}
+            )
+            proc.say(
+                {
+                    "type": "control_response",
+                    "response": {"request_id": said["request_id"], **answer},
+                }
+            )
+            return
         if said.get("type") != "user" or _text(said) == "also this":
             return
         session = (
@@ -81,10 +109,12 @@ class _Claude:
                 "session_id": session,
                 "model": self.model,
                 "permissionMode": self.mode or "default",
+                "slash_commands": self.commands,
+                "skills": self.skills,
             }
         )
-        answer = self.answers.pop(0) if self.answers else _says("done")
-        answer(proc, session)
+        answering = self.answers.pop(0) if self.answers else _says("done")
+        answering(proc, session)
 
 
 def _result(text: str = "done", **more: Any) -> dict[str, Any]:
@@ -203,26 +233,58 @@ def test_a_turn_never_lets_claude_fall_back_to_another_model(
     assert spawner.last.environ["CLAUDE_CODE_NO_MODEL_FALLBACK"] == "1"
 
 
-@pytest.mark.parametrize(
-    ("permission", "mode"),
-    [
-        ("read-only", "plan"),
-        ("workspace-write", "acceptEdits"),
-        ("auto", "auto"),
-        ("bypass", "bypassPermissions"),
-    ],
-)
-def test_each_rung_is_a_permission_mode(
-    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str, mode: str
+def test_an_agent_with_no_fence_is_told_nothing_of_a_grant(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
-    claude.mode = mode
-    _agent(permission=permission).new(tmp_path)("go")
+    _agent().new(tmp_path)("go")
     argv = spawner.last.args
-    assert _flag(argv, "--permission-mode") == mode
-    routed = permission in ("read-only", "bypass")
-    assert ("--permission-prompt-tool" in argv) is routed
-    if routed:
-        assert _flag(argv, "--permission-prompt-tool") == "stdio"
+    for absent in (
+        "--permission-mode",
+        "--tools",
+        "--permission-prompt-tool",
+        "--disallowedTools",
+    ):
+        assert absent not in argv
+
+
+def test_a_fence_that_writes_nothing_withholds_the_writing_tools_and_keeps_the_shell(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.mode = "bypassPermissions"
+    _agent(fence=_READS).new(tmp_path)("go")
+    argv = spawner.last.args
+    assert _flag(argv, "--permission-mode") == "bypassPermissions"
+    assert _flag(argv, "--tools") == "default"
+    denied = _flag(argv, "--disallowedTools").split(",")
+    assert denied == ["Edit", "Write", "NotebookEdit"]
+    assert _flag(argv, "--permission-prompt-tool") == "stdio"
+    assert "plan" not in argv
+
+
+def test_a_fence_that_writes_somewhere_gives_every_tool(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.mode = "bypassPermissions"
+    _agent(fence=_WRITES).new(tmp_path)("go")
+    argv = spawner.last.args
+    assert _flag(argv, "--permission-mode") == "bypassPermissions"
+    assert _flag(argv, "--permission-prompt-tool") == "stdio"
+    assert "--tools" not in argv
+    assert "--disallowedTools" not in argv
+
+
+def test_the_writing_tools_withheld_join_the_others_on_one_list(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    claude.mode = "bypassPermissions"
+    agent = _agent(fence=Fence(online=False))
+    agent.disable_goals()
+    agent.new(tmp_path)("go")
+    argv = spawner.last.args
+    assert argv.count("--disallowedTools") == 1
+    denied = set(_flag(argv, "--disallowedTools").split(","))
+    assert {"Edit", "Write", "NotebookEdit", "WebSearch", "WebFetch", "Agent"} <= denied
+    assert "Bash" not in denied
 
 
 def test_what_the_config_says_reaches_the_command_line(
@@ -314,6 +376,22 @@ def test_a_turn_says_what_the_agent_did(
         ("text", "found it", ""),
     ]
     assert (events[-1].kind, events[-1].text) == ("result", "found it")
+
+
+def test_a_user_message_of_plain_text_is_read_past(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    # What Claude says back in the user's place after a `/compact`: text, not tool answers.
+    claude.answers = [
+        _says(
+            {"type": "user", "message": {"content": "This session is being continued"}},
+            "compacted",
+        )
+    ]
+
+    events = list(_agent().new(tmp_path).stream("/compact", native=True))
+
+    assert (events[-1].kind, events[-1].text) == ("result", "compacted")
 
 
 def test_a_reach_is_said_once_as_it_starts(
@@ -661,20 +739,18 @@ def _replied(proc: Process) -> dict[str, Any]:
     return reply["response"]["response"]
 
 
-@pytest.mark.parametrize(
-    ("permission", "behavior"), [("bypass", "allow"), ("read-only", "deny")]
-)
-def test_a_permission_is_granted_unless_the_rung_changes_nothing(
-    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str, behavior: str
+@pytest.mark.parametrize("fence", [_READS, _WRITES])
+def test_a_permission_is_granted_whatever_the_fence_writes(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, fence: Fence
 ) -> None:
-    claude.mode = "bypassPermissions" if permission == "bypass" else "plan"
+    claude.mode = "acceptEdits"
     seen: list[Occasion] = []
 
     def watch(occasion: Occasion) -> Verdict:
         seen.append(occasion)
         return Verdict()
 
-    agent = _agent(permission=permission)
+    agent = _agent(fence=fence, asks=False)
     agent.hooks.on(Moment.PERMISSION_REQUEST, watch)
     claude.answers = [
         _asking(
@@ -683,14 +759,13 @@ def test_a_permission_is_granted_unless_the_rung_changes_nothing(
     ]
     agent.new(tmp_path)("go")
     replied = _replied(spawner.last)
-    assert replied["behavior"] == behavior
+    assert replied == {"behavior": "allow", "updatedInput": {"command": "ls"}}
     assert [(one.tool, one.about) for one in seen] == [("Bash", "ls")]
-    if behavior == "allow":
-        assert replied["updatedInput"] == {"command": "ls"}
 
 
+@pytest.mark.parametrize("fence", [_READS, _WRITES])
 def test_a_hook_on_permission_request_asks_and_may_refuse(
-    spawner: Spawner, claude: _Claude, tmp_path: Path
+    spawner: Spawner, claude: _Claude, tmp_path: Path, fence: Fence
 ) -> None:
     claude.mode = "manual"
     seen: list[Occasion] = []
@@ -699,7 +774,7 @@ def test_a_hook_on_permission_request_asks_and_may_refuse(
         seen.append(occasion)
         return Verdict(refused=True, because="not that")
 
-    agent = _agent(permission="bypass")
+    agent = _agent(fence=fence)
     agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
     claude.answers = [
         _asking(
@@ -708,17 +783,18 @@ def test_a_hook_on_permission_request_asks_and_may_refuse(
     ]
     agent.new(tmp_path)("go")
     assert _flag(spawner.last.args, "--permission-mode") == "manual"
+    assert ("--tools" in spawner.last.args) is (fence is _READS)
     assert _replied(spawner.last) == {"behavior": "deny", "message": "not that"}
     assert [(one.tool, one.about) for one in seen] == [("Bash", "rm")]
 
 
-@pytest.mark.parametrize("permission", ["read-only", "bypass"])
+@pytest.mark.parametrize("fence", [_READS, _WRITES])
 @pytest.mark.parametrize(("answer", "behavior"), [("blue", "allow"), (None, "deny")])
 def test_a_question_for_its_user_is_put_to_whoever_is_driving(
     spawner: Spawner,
     claude: _Claude,
     tmp_path: Path,
-    permission: str,
+    fence: Fence,
     answer: str | None,
     behavior: str,
 ) -> None:
@@ -728,8 +804,8 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
         asked.append(question)
         return answer
 
-    claude.mode = "plan" if permission == "read-only" else "bypassPermissions"
-    agent = _agent(permission=permission)
+    claude.mode = "bypassPermissions"
+    agent = _agent(fence=fence)
     agent.ask = ask
     question = {"question": "Which?", "options": [{"label": "blue"}, {"label": "red"}]}
     claude.answers = [
@@ -749,9 +825,8 @@ def test_a_question_for_its_user_is_put_to_whoever_is_driving(
         assert replied["updatedInput"]["answers"] == {"Which?": "blue"}
 
 
-@pytest.mark.parametrize("permission", ["", "workspace-write", "auto"])
-def test_a_rung_humanize_does_not_answer_for_routes_nothing(
-    spawner: Spawner, claude: _Claude, tmp_path: Path, permission: str
+def test_an_agent_with_no_fence_routes_nothing(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
     asked: list[Question] = []
 
@@ -759,7 +834,7 @@ def test_a_rung_humanize_does_not_answer_for_routes_nothing(
         asked.append(question)
         return "blue"
 
-    agent = _agent(permission=permission)
+    agent = _agent()
     agent.ask = ask
     question = {"question": "Which?", "options": [{"label": "blue"}]}
     claude.answers = [
@@ -780,7 +855,7 @@ def test_a_rung_humanize_does_not_answer_for_routes_nothing(
 def test_web_search_not_switched_off_leaves_the_web_tools_alone(
     spawner: Spawner, claude: _Claude, tmp_path: Path, web_search: bool | None
 ) -> None:
-    _agent(permission="read-only", web_search=web_search).new(tmp_path)("go")
+    _agent(fence=_READS, web_search=web_search).new(tmp_path)("go")
     argv = spawner.last.args
     if "--disallowedTools" in argv:
         denied = set(_flag(argv, "--disallowedTools").split(","))
@@ -790,10 +865,12 @@ def test_web_search_not_switched_off_leaves_the_web_tools_alone(
 def test_an_account_that_forbids_bypass_is_moved_and_remembered(
     spawner: Spawner, claude: _Claude, tmp_path: Path
 ) -> None:
-    agent = _agent(permission="bypass")
+    agent = _agent(fence=_WRITES)
     assert not agent.declines()
     events = list(agent.new(tmp_path).stream("go"))
-    assert any("will not run an agent at bypass" in one.text for one in events)
+    assert any(
+        "will not run an agent at bypassPermissions" in one.text for one in events
+    )
     assert spawner.last.stdin is not None
     (moved,) = [
         one for one in spawner.last.stdin.said if one["type"] == "control_request"
@@ -816,7 +893,7 @@ def test_bypass_refused_as_root_is_taken_again_at_accept_edits(
 
     spawner.script = script
     claude.mode = "acceptEdits"
-    events = list(_agent(permission="bypass").new(tmp_path).stream("go"))
+    events = list(_agent(fence=_READS).new(tmp_path).stream("go"))
     assert events[-1].text == "done"
     assert [_flag(one.args, "--permission-mode") for one in spawner.started] == [
         "bypassPermissions",
@@ -1175,3 +1252,213 @@ def test_a_cli_run_on_another_machine_is_refused_an_account_through_a_gateway(
     with pytest.raises(Unserved, match="local LiteLLM gateway"):
         _agent(provider="gw", machine=machine)
     assert routed == []
+
+
+def _natively(session: ClaudeCodeSession, line: str) -> str:
+    """Takes a turn of `line` as a person's native input, answering with its result."""
+    (answer,) = [
+        one.text for one in session.stream(line, native=True) if one.kind == "result"
+    ]
+    return answer
+
+
+def _users(proc: Process) -> list[str]:
+    """The user messages written to a process, in order."""
+    assert proc.stdin is not None
+    return [_text(one) for one in proc.stdin.said if one.get("type") == "user"]
+
+
+def _controls(proc: Process) -> list[dict[str, Any]]:
+    """The control requests written to a process, in order."""
+    assert proc.stdin is not None
+    return [
+        one["request"]
+        for one in proc.stdin.said
+        if one.get("type") == "control_request"
+    ]
+
+
+def test_the_catalog_is_what_init_listed_less_what_hmz_keeps(
+    claude: _Claude, tmp_path: Path
+) -> None:
+    claude.commands = [
+        "compact",
+        "context",
+        "clear",
+        "resume",
+        "model",
+        "effort",
+        "config",
+        "mcp",
+        "__remote-workflow",
+        "code-review",
+    ]
+    claude.skills = ["code-review", "anthropic-skills:pdf"]
+    session = _agent().new(tmp_path)
+    # Before its init, nothing under `/` is known: a chat passes every `/` line as text.
+    assert {(one.sigil, one.how) for one in session.natives()} == {
+        ("!", "emulate"),
+        ("@", "pass"),
+    }
+    session("one")
+    natives = session.natives()
+    passed = {
+        one.name: one for one in natives if one.how == "pass" and one.sigil == "/"
+    }
+    assert list(passed) == ["compact", "context", "code-review", "anthropic-skills:pdf"]
+    assert passed["code-review"].about == "a skill"
+    assert passed["compact"].about == "a Claude Code command"
+    assert {one.name for one in natives if one.how == "call"} == {"model", "effort"}
+    refused = {one.name: one.about for one in natives if one.how == "refuse"}
+    assert {"config", "mcp", "agents", "login", "permissions", "doctor"} <= set(refused)
+    assert set(refused.values()) == {
+        "served only by Claude Code's own interactive interface"
+    }
+    assert {(one.sigil, one.how) for one in natives if one.sigil in "!@"} == {
+        ("!", "emulate"),
+        ("@", "pass"),
+    }
+    named = [one.name for one in natives if one.sigil == "/"]
+    assert len(named) == len(set(named))
+    for kept in ("clear", "resume", "__remote-workflow"):
+        assert kept not in named
+
+
+@pytest.mark.parametrize(
+    "line", ["/compact keep the tests", "@notes.txt what is in it?", "/code-review"]
+)
+def test_a_native_line_claude_expands_goes_into_the_message_unchanged(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, line: str
+) -> None:
+    del claude
+    session = _agent().new(tmp_path)
+    assert _natively(session, line) == "done"
+    assert _users(spawner.last) == [line]
+
+
+def test_a_native_model_moves_the_conversation_without_a_turn(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    said = _natively(session, "/model sonnet")
+    assert said == "Set model to sonnet (claude-sonnet-9)"
+    assert agent.config.model == "sonnet"
+    session("two")
+    (proc,) = spawner.started  # moved over the control protocol, not by a restart
+    assert _controls(proc) == [{"subtype": "set_model", "model": "sonnet"}]
+    assert _users(proc) == ["one", "two"]
+
+
+def test_a_native_model_before_any_turn_is_the_model_the_first_turn_starts_on(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    assert _natively(session, "/model claude-y") == "Set model to claude-y"
+    assert spawner.started == []
+    session("one")
+    (proc,) = spawner.started
+    assert _flag(proc.args, "--model") == "claude-y"
+    assert _users(proc) == ["one"]
+    assert _controls(proc) == []
+    assert agent.config.model == "claude-y"
+
+
+def test_a_model_moved_by_hand_starts_the_next_turn_on_it(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    agent.reconfigure(replace(agent.config, model="claude-y"))
+    session("two")
+    first, second = spawner.started
+    assert _flag(first.args, "--model") == "claude-x"
+    assert _flag(second.args, "--model") == "claude-y"
+    assert _flag(second.args, "--resume") == session.id
+
+
+def test_a_model_claude_does_not_know_is_refused_and_nothing_moves(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    assert _natively(session, "/model nonsense") == "Model 'nonsense' not found"
+    assert _natively(session, "/model") == "Model: claude-x"
+    assert agent.config.model == "claude-x"
+    session("two")
+    (proc,) = spawner.started
+    assert _users(proc) == ["one", "two"]
+
+
+def test_a_native_effort_resumes_the_conversation_at_the_new_rung(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("one")
+    first = spawner.last
+    assert _natively(session, "/effort low") == "Set effort to low"
+    assert agent.config.effort == "low"
+    assert _natively(session, "/effort") == "Effort: low"
+    session("two")
+    second = spawner.last
+    assert second is not first
+    assert _users(first) == ["one"]
+    assert _flag(second.args, "--effort") == "low"
+    assert _flag(second.args, "--resume") == session.id
+
+
+def test_a_native_effort_outranks_a_rung_a_flow_set_on_the_agent(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent(effort="high")
+    agent.effort = "low"
+    session = agent.new(tmp_path)
+    assert _natively(session, "/effort max") == "Set effort to max"
+    session("one")
+    assert _flag(spawner.last.args, "--effort") == "max"
+
+
+def test_a_rung_claude_has_no_word_for_is_refused(
+    claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent(effort="high")
+    session = agent.new(tmp_path)
+    assert "warp" in _natively(session, "/effort warp")
+    assert agent.config.effort == "high"
+
+
+@pytest.mark.parametrize("line", ["/model sonnet", "/effort low"])
+def test_a_flow_s_prompt_is_text_whatever_it_starts_with(
+    spawner: Spawner, claude: _Claude, tmp_path: Path, line: str
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    assert session(line) == "done"
+    assert _users(spawner.last) == [line]
+    assert _controls(spawner.last) == []
+    assert (agent.config.model, agent.config.effort) == ("claude-x", "")
+
+
+def test_a_native_model_line_saying_more_is_passed_as_it_was(
+    spawner: Spawner, claude: _Claude, tmp_path: Path
+) -> None:
+    del claude
+    agent = _agent()
+    session = agent.new(tmp_path)
+    line = "/model sonnet\nand then fix the bug"
+    assert _natively(session, line) == "done"
+    assert _users(spawner.last) == [line]
+    assert agent.config.model == "claude-x"

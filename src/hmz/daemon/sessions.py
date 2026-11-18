@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from hmz.daemon.reach import Reach
     from hmz.rpc import Peer, Pipe
 
 __all__ = ["BEHIND", "Idems", "Outgoing", "Session"]
@@ -169,10 +170,18 @@ class Session:
       kind: What the client is, as `session.hello` said it.
       subs: Its epic subscriptions, by `sub`.
       notices: The notices subscriptions it opened, by `sub`.
+      reach: The reach of the Ai-chan conversation whose scoped link it came over, or None
+        (Section 4.21.1.1 of daemon.md).
     """
 
     def __init__(
-        self, out: Outgoing, *, trusted: bool, fingerprint: str, device: str
+        self,
+        out: Outgoing,
+        *,
+        trusted: bool,
+        fingerprint: str,
+        device: str,
+        reach: Reach | None = None,
     ) -> None:
         self.peer: Peer | None = None
         self.out = out
@@ -184,6 +193,7 @@ class Session:
         self.lock = threading.Lock()
         self.subs: dict[str, Any] = {}
         self.notices: set[str] = set()
+        self.reach = reach
         self._count = 0
 
     @property

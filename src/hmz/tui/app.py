@@ -13,13 +13,17 @@ of its own, all of its conversations running on down it, and a run lands on the 
 first conversation it opens -- the monitor being where somebody watches a flow rather than an
 agent. tab and shift+tab step between whichever agents are working.
 
-It opens on the flow that is only talking to one agent, so that saying something is all it
-takes to start. A flow is what you reach for once talking to one agent is not the shape of
-the work, and nobody knows that before they have said anything.
+It opens on a chat -- one conversation with one agent, no flow around it -- so that saying
+something is all it takes to start. A flow is what you reach for once talking to one agent is
+not the shape of the work, and nobody knows that before they have said anything: `$<flow>` or
+`/flow <flow> <task>` starts one, the chat goes on on a host of its own meanwhile, and `/chat`
+comes back to it.
 
-The editor means three things at once: a line starting with `/` is a command, a line starting
-with `$` names a flow to start and what to start it on, and any other line is the task if
-nothing is running yet, or is said to the conversation being read.
+The editor means several things at once: a line starting with `/` is a command, a line starting
+with `$` names a flow to start and what to start it on, and any other line is said -- to the
+chat, or to the conversation of a flow being read. In a chat, a line starting with `/`, `$`, `!`
+or `@` is first what the chat's harness makes of it at its own prompt (Section 8.9 of [CORE]):
+one of its commands or skills, a shell command, a file.
 
 Drawn in the terminal's own colours: every surface is the terminal's background and every
 colour is one of the sixteen it already has a setting for, so nothing is read from it and
@@ -30,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import os
 import queue
 import re
@@ -38,14 +43,16 @@ import sys
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
 import pyfiglet
 from rich.box import ROUNDED
 from rich.console import Group
+from rich.markdown import Markdown
 from rich.markup import escape
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 from textual import events, on, work
@@ -59,16 +66,19 @@ from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
 from hmz.coganchor import releases
+from hmz.coganchor.agents.native import NativeCommand
 from hmz.coganchor.prices import refresh
 from hmz.daemon import Hmz
 from hmz.runtime import telemetry
+from hmz.runtime.chatting import resolve
 from hmz.runtime.kept import read_back, written
 from hmz.runtime.watching.btw import Btw, FlowSnapshot, Left
 from hmz.runtime.watching.following import Following
 from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
 
-from .complete import Command, hinted, offered
+from .asking import Asks, blocks, fields, summary
+from .complete import Command, flow_names, hinted, offered, tagged
 from .envs import Reach, opens_env, used
 from .flows import INSTALLED, VERSES, Flows, Lists
 from .history import History
@@ -83,27 +93,35 @@ from .monitoring import (
     place_key,
 )
 from .pick import (
+    AI_NEW,
     CONTINUES,
     DETACHES,
     FOLLOWS,
     LOCAL_DAEMON,
     RESUMES,
     STOPS,
+    AiAsked,
+    AiChanNew,
+    AiChans,
     Chosen,
     Declared,
     Epics,
     Held,
     Leaves,
+    Picks,
     RemoteEpics,
     Reports,
     Runs,
+    ai_chan,
+    ai_scope,
     asks,
     budget_of,
-    chatting,
     daemon_names,
     declared_of,
     let_go,
     named_as,
+    nous_named,
+    opens_on,
     params_model,
     params_of,
     reads,
@@ -121,6 +139,7 @@ if TYPE_CHECKING:
 
     from hmz.daemon import Link
     from hmz.flows import Budget
+    from hmz.runtime.chatting import Prefer
     from hmz.runtime.epic import Ran
     from hmz.runtime.flowing import Update
     from hmz.runtime.watching.monitor import Monitor
@@ -142,6 +161,7 @@ class _RunSeen:
 
     Attributes:
       number: Which run of the host it is.
+      kind: `chat` for a chat, `flow` for an epic of a flow.
       flow: The flow, as it was named.
       ref: The flow's canonical ref.
       task: What it was started on.
@@ -155,6 +175,7 @@ class _RunSeen:
     """
 
     number: int
+    kind: str = "flow"
     flow: str = ""
     ref: str = ""
     task: str = ""
@@ -166,11 +187,24 @@ class _RunSeen:
     envs: Mapping[str, str] = field(default_factory=dict[str, str])
 
     @classmethod
-    def of(cls, said: Mapping[str, Any]) -> _RunSeen:
-        """A run as a `started` record or a `run` snapshot says it."""
+    def of(cls, said: Mapping[str, Any], slot: str = "") -> _RunSeen:
+        """A run as a `started` record or a `run` snapshot says it.
+
+        Its kind as the host says it, and, where an older host says none, a chat where it
+        is held on a chat's own host or is of the flow a chat was before chats were a kind
+        of their own (Section 8.3.5 of [CORE]), and a flow otherwise.
+
+        Args:
+          said: The record or the snapshot.
+          slot: The host it was told by, as a slot names it.
+        """
+        flow = str(said.get("flow") or "")
+        held = str(said.get("slot") or slot)
+        chat = held.startswith("chat:") or _old_chat(flow)
         return cls(
             int(said.get("run") or 0),
-            str(said.get("flow") or ""),
+            str(said.get("kind") or ("chat" if chat else "flow")),
+            flow,
             str(said.get("ref") or ""),
             str(said.get("task") or ""),
             str(said.get("by") or ""),
@@ -225,6 +259,10 @@ _VIEWED = {
     "outworlder": "an outworlder's transcript",
 }
 
+#: What a `/btw` refused off a session says beside where it works: a side question is of a
+#: session, and the epic as a whole is Ai-chan's to answer (Section 7.10.3 of tui.md).
+_ABOUT_EPIC = "; /ai asks Ai-chan about the epic"
+
 #: How long a second ctrl+c has to arrive in for the two to be one gesture. Long enough to
 #: read the line that says what the next press does and then press it, and short enough that
 #: a press minutes later is a first press rather than half of one nobody remembers making.
@@ -236,8 +274,11 @@ _AGAIN = 3.0
 #: prompt, and each of them one somebody has to work out for themselves.
 _UNWINDING = "it is finishing the turn it was in"
 
-#: The flow the interface opens on, which is the one that is only talking to one agent.
-_STARTS_ON = "chat"
+#: What the one agent of a chat is called as a role: the assistant (Section 8.2.2 of [CORE]).
+_ASSISTANT = "assistant"
+
+#: What `/prefer` takes, in the order it names them.
+_PREFERS = ("native", "flow")
 
 #: What a `$` may name, which is a flow by the name it is offered under: `@<where it came
 #: from>/` for one that is not Humanize's, or else a letter, or a GitHub user -- who may begin
@@ -258,6 +299,81 @@ _PATIENCE = 10.0
 #: What a line left waiting when a run went is said to have been stopped by, as the host says
 #: why it let go of it.
 _FIRST = {"stopped": "the flow stopped", "ended": "the flow ended"}
+
+
+#: What the flow a chat was before chats were a kind of their own is called, as a record of
+#: one that gives no kind names it (Section 8.3.5 of [CORE]), and as this workspace's flow was
+#: written down while a chat was had in it.
+_OLD_CHAT = "chat"
+
+
+def _a_chat(ran: Ran) -> bool:
+    """Whether an epic as it was written down is a chat: of kind `chat`, or of the old flow.
+
+    Read off what was written: a record that gives no kind is a chat where its flow is the
+    one a chat was (Section 8.3.5 of [CORE]), and a record that gives one is believed.
+    """
+    kind = str(getattr(ran, "kind", "") or "")
+    return kind == "chat" if kind else _old_chat(ran.flow)
+
+
+def _old_chat(flow: str) -> bool:
+    """Whether a flow, as a record that gives no kind names it, is the flow a chat was."""
+    return bool(flow) and re.split(r"[/#]", flow.rstrip("/#"))[-1] == _OLD_CHAT
+
+
+def _chats(
+    afar: tuple[str, str] | None, method: str, params: dict[str, Any]
+) -> dict[str, Any]:
+    """Makes one call of the chats a daemon holds (Section 4.25 of [DAEMON]), and answers it.
+
+    Over a session of its own rather than the link: a chat is reached by its workspace and
+    slot, as `chat.*` takes it, where the link's calls are those of the one epic it attached
+    to. This machine's daemon over its socket, or another's over the session it is reached by.
+
+    Args:
+      afar: The daemon of another machine and its workspace, or None for this machine's.
+      method: `chat.start`, `chat.say`, `chat.commands` or `chat.set`.
+      params: What it takes, `workspace` and `slot` included.
+
+    Returns:
+      What it answered.
+
+    Raises:
+      Refused: Where it was refused, saying why.
+      OSError: Where the daemon could not be reached.
+    """
+    import secrets
+
+    from hmz.daemon import Refused
+
+    idem = secrets.token_urlsafe(12) if method != "chat.commands" else None
+    if afar is not None:
+        with remotes().client(afar[0]) as client:
+            answered: Any = client.call(
+                method, params, idem=idem, seconds=_PATIENCE * 3
+            )
+        return dict(answered or {})
+    from hmz import daemon
+    from hmz.daemon import where
+    from hmz.daemon.link import dialed
+    from hmz.rpc import Closed, RpcError
+
+    daemon.start()
+    peer, _ = dialed(where.at(), kind="tui")
+    try:
+        answered = peer.call(
+            method,
+            {**params, **({"idem": idem} if idem else {})},
+            timeout=_PATIENCE * 3,
+        )
+    except RpcError as why:
+        raise Refused(why.message) from why
+    except Closed as why:
+        raise OSError("the daemon went away") from why
+    finally:
+        peer.close()
+    return dict(answered or {})
 
 
 def _escaped(text: str) -> list[str]:
@@ -332,7 +448,7 @@ _TOLD = {
     "failed": "Failed",
     "stopped": "Stopped",
     "asked": "Question",
-    "listening": "Chat turn",
+    "listening": "Waiting",
 }
 
 #: The frames Claude Code spins while a turn is running, and the words it spins them beside.
@@ -520,8 +636,8 @@ class Editor(TextArea):
                 self.take(whole)
                 return
         said, self.text = self.text.strip(), ""
-        if said:
-            self.post_message(self.Sent(said))
+        # Sent empty as well: enter on an empty prompt opens the form a question waits on.
+        self.post_message(self.Sent(said))
 
     def action_newline(self) -> None:
         """Breaks the line, which is what enter would do anywhere else.
@@ -934,10 +1050,13 @@ class Humanize(App[None]):
     ) -> None:
         """Initializes an interface holding no agents, because nothing is running yet.
 
+        It opens on a chat, whatever it is handed: the flow is what `/flow` and a `$` line
+        start, set up and waiting, and the chat is what a line said starts.
+
         Args:
-          flow: The flow to open on, which is what a run being picked up names -- or "" to
-            open on what this workspace was last set up to run, and on the one that only
-            talks to one agent where it has run nothing.
+          flow: The flow to hold set up, which is what a run being picked up names -- or ""
+            for what this workspace was last set up to run, and for none where it has run
+            nothing.
           agents: What each of that flow's agent roles runs, by role, or None to open on
             what was remembered.
           params: What that flow is set up with, or None to open on what was remembered.
@@ -967,6 +1086,12 @@ class Humanize(App[None]):
         #: a time, or `chat:<hex>` for one chat's -- every conversation is a host of its own,
         #: and so an epic of its own, beside the flows and beside every other conversation.
         self._slot = ""
+        #: The Ai-chan conversation the log screen follows, as `aichan.list` answers one, or
+        #: None while it follows a workspace's own host or a chat's (Section 7.19 of tui.md).
+        self._ai: dict[str, Any] | None = None
+        #: A new Ai-chan conversation set up on `/ai` and waiting for the first line said,
+        #: which is its task and makes it, or None.
+        self._ai_new: AiAsked | None = None
         #: The link whose messages are taken, which is the one attached to -- or None while
         #: this interface is moving from one host to another: what the one let go of still
         #: says on its way out is about runs nobody here is reading any more.
@@ -974,6 +1099,27 @@ class Humanize(App[None]):
         #: The chat epic the next line typed carries on, as `/epics` was asked to continue it,
         #: or None for a line that starts a conversation of its own.
         self._continuing: Path | None = None
+        #: Whether a flow is on the screen rather than this interface's chat: from the moment
+        #: one is started or found running on the host attached to, until the chat is put
+        #: back on it. The chat is what this opens on (Section 3.1 of [TUI]).
+        self._flow_shown = False
+        #: This interface's chat, once it has started: the host holding it, and its epic by
+        #: name. It goes on there while a flow is on the screen, and `/chat` comes back to it.
+        self._chat_slot = ""
+        self._chat_epic = ""
+        #: Where the chat on the screen is in its turn, as its host says it: `running`,
+        #: `done`, or "" where the host attached to holds no chat (Section 4.6 of [DAEMON]).
+        self._turn = ""
+        #: What the chat's harness takes at its own prompt (Section 8.9 of [CORE]), as the
+        #: host last said it, and of which host: asked as the chat starts and again after each
+        #: turn, since a turn may have given it a skill or a command.
+        self._natives: list[NativeCommand] = []
+        self._natives_of = ""
+        #: Whether that catalogue is all its harness lists, which it is once a turn was taken.
+        self._listed = False
+        #: The task of a chat this interface asked to start and has not yet seen start, which
+        #: its host tells as said by the session that asked rather than by this link.
+        self._mine = ""
         #: The epic the run in front of us writes, once it has one: what a notice is told
         #: apart from the one on the screen by.
         self._epic_now = ""
@@ -1025,6 +1171,8 @@ class Humanize(App[None]):
         self._afar: tuple[str, str] | None = None
         #: Which host the link held is attached to, as `(slot, afar)`.
         self._linked_to: tuple[str, tuple[str, str] | None] = ("", None)
+        #: And the Ai-chan conversation that host is, or None.
+        self._linked_ai: dict[str, Any] | None = None
         #: Requests waiting to be asked, in order, on the one thread that asks them: a line
         #: typed twice is two lines in the order they were typed -- and moving to another host
         #: is one of them, so that what is asked after it is asked of that one.
@@ -1034,6 +1182,7 @@ class Humanize(App[None]):
                 Callable[[dict[str, Any]], object] | None,
                 Callable[[], object] | None,
                 bool,
+                Callable[[Exception], object] | None,
             ]
             | Callable[[], object]
             | None
@@ -1053,6 +1202,15 @@ class Humanize(App[None]):
         #: The questions this interface has answered and not yet heard were taken, which
         #: a line typed next does not answer again.
         self._answering: set[str] = set()
+        #: The questions asked as a form, as they were asked, by question: what the form is
+        #: drawn from, and what its answer is said back as.
+        self._forms: dict[str, dict[str, Any]] = {}
+        #: What a form held when it was closed unanswered, by question, to open on again.
+        self._drafts: dict[str, object] = {}
+        #: The form up now, where one is.
+        self._asking: Asks | None = None
+        #: Where the web page shows an epic, as it was last worked out: the epic, the page.
+        self._web = ("", "")
         #: Where each of those sessions works, as the run said as it opened it: the
         #: environment role it fills, the kind of machine, which one, and where on it.
         self._placed: dict[str, dict[str, Any]] = {}
@@ -1128,16 +1286,27 @@ class Humanize(App[None]):
         #: that way rather than back at the default.
         self.settings = self.hmz.settings
         self._details = self.settings.details
-        #: The flow to run and what each of its roles is given, which start out as the flow
-        #: that is only talking to one agent and the first agent there is to talk to. So the
-        #: first thing you say starts something rather than being told to pick a flow first:
-        #: a flow is what you reach for once talking to one agent is not the shape of the
-        #: work, and nobody knows that before they have said anything.
-        self._flow_named = flow or self.settings.flow or _STARTS_ON
+        #: The agent a chat started here talks to: the one this workspace remembers, or the
+        #: first agent there is to talk to (Section 3.1 of [TUI]). So the first thing you say
+        #: starts something rather than being told to pick a flow first: a flow is what you
+        #: reach for once talking to one agent is not the shape of the work, and nobody knows
+        #: that before they have said anything.
+        self._chat_runs: Runs | None = self._chat_agent()
+        #: What `$<name>` means in this chat where it names both a skill and a flow, and
+        #: whether that is the settings file's or this chat's own (Section 8.9.10 of [CORE]);
+        #: and this chat's own where it was set before the chat had started.
+        self._prefer: Prefer = self.settings.chat_prefer
+        self._prefer_from = "settings"
+        self._prefer_own: Prefer | None = None
+        #: The flow to run and what each of its roles is given: the one this workspace last
+        #: set up, held ready for `/flow` and a `$` line, whatever is on the screen.
+        self._flow_named = flow or self.settings.flow or ""
         #: What the flow declares, kept rather than read off the flow each time the line
         #: above the prompt is drawn: that means importing the flow, and this is drawn twice
         #: a second. None for a flow that will not load.
-        self._declared: Declared | None = declared_of(self._flow_named)
+        self._declared: Declared | None = (
+            declared_of(self._flow_named) if self._flow_named else None
+        )
         # What is installed here and what each of them says it runs, which is what a role
         # nothing was remembered for falls back on. Nothing at all until some backend here
         # has said what it runs, which is asked for in the background as this opens.
@@ -1159,9 +1328,8 @@ class Humanize(App[None]):
         self._params: BaseModel | None = params or params_of(
             self._flow_named, self.settings.params(self._flow_named)
         )
-        #: What a run of it here may spend, or None for none yet -- which only `chat` runs
-        #: with. Beside the params and not inside them: it is a setting of the run rather
-        #: than one of the flow's own.
+        #: What a run of it here may spend, or None for none yet. Beside the params and not
+        #: inside them: it is a setting of the run rather than one of the flow's own.
         self._budget: Budget | None = budget_of(self._flow_named)
         #: Whether a run of it here profiles the flow's own Python, and the programs its
         #: agents start, as well as tracing them. Beside the budget, and remembered with it:
@@ -1219,6 +1387,19 @@ class Humanize(App[None]):
         #: from does, rather than at the next keystroke.
         self._standing: tuple[object, ...] = ()
 
+    def _chat_agent(self) -> Runs | None:
+        """The agent a chat started here talks to, or None while there is none to talk to.
+
+        Returns:
+          The one this workspace remembers for its chats, else the first agent there is to
+          open on (Section 16.5.4 of [TUI]).
+        """
+        remembered = self.settings.chat_agent
+        if isinstance(remembered, Runs):
+            return remembered
+        spare = opens_on(Hmz().installed())
+        return spare[0] if spare else None
+
     @property
     def _generation(self) -> int:
         """Which run is the one in front of us, as the runs number them, or 0 before any.
@@ -1252,6 +1433,12 @@ class Humanize(App[None]):
         """
         if self._run is not None:
             return self._run.roles
+        if self.chatting():
+            return (_ASSISTANT,)
+        return self._flow_roles()
+
+    def _flow_roles(self) -> tuple[str, ...]:
+        """The agent roles of the flow set up here, whatever is on the screen."""
         if self._declared is not None:
             return self._declared.roles
         return tuple(self._models)
@@ -1298,6 +1485,8 @@ class Humanize(App[None]):
         if self._run is not None:
             said = self._run.agents.get(role, "")
             return read_back(said) or Runs(said)
+        if self.chatting():
+            return self._chat_runs or Runs("")
         return self._models.get(role, Runs(""))
 
     def _in_order(self) -> list[Runs]:
@@ -1402,6 +1591,7 @@ class Humanize(App[None]):
         slot: str,
         afar: tuple[str, str] | None,
         start: dict[str, Any] | None = None,
+        ai: dict[str, Any] | None = None,
     ) -> None:
         """Moves this interface onto a host of this workspace, or of one on another daemon.
 
@@ -1410,20 +1600,27 @@ class Humanize(App[None]):
         anything, so that it is reached before whatever is asked of it after.
 
         Args:
-          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
+          slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's, `ai:<hex>`
+            for an Ai-chan conversation's.
           afar: The daemon of another machine and its workspace, or None for this one's.
           start: What to start there once it is reached, as `epic.start` takes it, or None.
+          ai: The Ai-chan conversation whose host it is, as `aichan.list` answers one, or None
+            for a host that is no conversation's -- which is leaving the one followed.
         """
         self._hearing = None
         self._forgets()
         self._slot, self._afar = slot, afar
-        self._requests.put(lambda: self._reattaches(slot, afar, start))
+        self._ai, self._ai_new = ai, None
+        # Of the workspace of the conversation's host, which for the scope `daemon` is none of
+        # this machine's projects (Section 4.22.1.2 of daemon.md).
+        self._requests.put(lambda: self._reattaches(slot, afar, start, ai))
 
     def _reattaches(
         self,
         slot: str,
         afar: tuple[str, str] | None,
         start: dict[str, Any] | None,
+        ai: dict[str, Any] | None = None,
     ) -> None:
         """Lets go of the host attached to for another, on the thread that asks the runs.
 
@@ -1431,18 +1628,23 @@ class Humanize(App[None]):
           slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
           afar: The daemon of another machine and its workspace, or None for this one's.
           start: What to start there once it is reached, or None.
+          ai: The Ai-chan conversation whose host it is, or None.
         """
         was = self._linked
+        # Of the workspace of the conversation's host, which for the scope `daemon` is none of
+        # this machine's projects (Section 4.22.1.2 of daemon.md).
+        there = str(ai["workspace"]) if ai is not None else ""
         try:
-            link = self._reaches(slot, afar)
+            link = self._reaches(slot, afar, there)
         except Exception as why:  # noqa: BLE001 -- a host that will not come up is said
             self._hearing = was
             # Back on the host still attached to, unless it was moved on again meanwhile.
             if (self._slot, self._afar) == (slot, afar):
                 self._slot, self._afar = self._linked_to
+                self._ai = self._linked_ai
             self._on_screen(self.show, f"hmz: {why}", "red")
             return
-        self._linked_to = (slot, afar)
+        self._linked_to, self._linked_ai = (slot, afar), ai
         self._linked = self._hearing = link
         self._me = link.client
         link.heard(self._hears(link))
@@ -1460,7 +1662,9 @@ class Humanize(App[None]):
         self._asks("start", refused=self._not_started, **start)
         self._draw()
 
-    def _reaches(self, slot: str, afar: tuple[str, str] | None = None) -> Link:
+    def _reaches(
+        self, slot: str, afar: tuple[str, str] | None = None, there: str = ""
+    ) -> Link:
         """This interface's end of one of the workspace's hosts, through the daemon holding it.
 
         This machine's, which starts one where none is; or that of another machine, over the
@@ -1469,6 +1673,7 @@ class Humanize(App[None]):
         Args:
           slot: Which host: "" for the workspace's own, `chat:<hex>` for one chat's.
           afar: The daemon of another machine and its workspace, or None for this one's.
+          there: The workspace of this machine the host is of, or "" for this one.
 
         Returns:
           The link, attached as an interface.
@@ -1479,7 +1684,7 @@ class Humanize(App[None]):
             from hmz.daemon.link import remote
 
             return remote(remotes(), afar[0], afar[1], slot)
-        return daemon.attach("tui", workspace=self.hmz.workspace, slot=slot)
+        return daemon.attach("tui", workspace=there or self.hmz.workspace, slot=slot)
 
     def leaves_afar(self) -> bool:
         """Comes back from an epic followed on another daemon, for esc: to its list of epics.
@@ -1512,6 +1717,10 @@ class Humanize(App[None]):
         self._live = self._starting = self._afk = False
         self._run = self._seen_last = self._stopping = None
         self._halted, self._forcing, self._answering = set(), set(), set()
+        if (sheet := self._asking) is not None:
+            self._asking = None
+            self._closes_form(sheet)
+        self._forms, self._drafts, self._web = {}, {}, ("", "")
         self._working, self._monitor_opened = set(), set()
         self._placed, self._harnessed, self._began = {}, {}, {}
         self._called, self._outworlders = [], []
@@ -1520,6 +1729,7 @@ class Humanize(App[None]):
         self._last_answer = self._last_asked = self._last_answer_in = ""
         self._started_by = self._epic_now = ""
         self._continuing = None
+        self._turn = ""
         with self._btw_lock:
             self._flow_task = ""
         self._presses = 0
@@ -1561,6 +1771,8 @@ class Humanize(App[None]):
                 self._models = settled(
                     self._models, self._declared.agents, Hmz().installed()
                 )
+            if self._chat_runs is None:
+                self._chat_runs = self._chat_agent()
             self._draw()
 
     @work
@@ -1808,6 +2020,12 @@ class Humanize(App[None]):
         """
         # What is read next starts its own part.
         self._keeping(whose or None).packed = False
+        if text.startswith("!") and not by and self.chatting():
+            # A shell command run for the chat, drawn as a shell draws one: dim, behind its
+            # sigil rather than the prompt (Section 11.11 of [TUI]).
+            for line in ("", *(f"[dim]{one}[/]" for one in _escaped(text))):
+                self._into(whose or None, line, shared=shared)
+            return
         said = escape(text).splitlines() or [""]
         # The first line on its own where who said it is put after it; see `_escaped`.
         first = f"{(_escaped(text) or [''])[0]}[dim]{escape(by)}[/]" if by else said[0]
@@ -1829,6 +2047,10 @@ class Humanize(App[None]):
         """
         client = str(said.get("client") or "")
         if not client or client == self._me:
+            return ""
+        # Nor this interface by the name it goes by, as it was attached before: a chat gone
+        # back to is told from its start, its first lines said by this interface's last link.
+        if said.get("by") and said.get("by") == self._named:
             return ""
         return f"{_DOT}by {said.get('by') or self._frontends.get(client, client)}"
 
@@ -2180,13 +2402,25 @@ class Humanize(App[None]):
         # And nothing against a `$` while an agent is waiting on an answer: the next line
         # typed is that answer, whatever it begins with, so a list that took the enter would
         # finish a flow's name over an answer nobody ever gave.
-        answering = self._answers_to() is not None and typed.startswith("$")
+        # Not in a chat, where every line goes to the chat whatever it waits on, and a `$` is
+        # read before anything is answered.
+        answering = (
+            self._answers_to() is not None
+            and typed.startswith("$")
+            and not self.chatting()
+        )
         # Only what works in the view in front of the person, and as things stand: a command
         # offered where it is refused is one offered to be told off for. The flows likewise,
         # which are offered to be chosen, and are not while one runs.
         here = self._commands_here()
+        chat = self.chatting()
         offers = (
-            offered(typed, here, flows=self._run is None)
+            offered(
+                typed,
+                here,
+                flows=self._run is None or chat,
+                natives=self._natives if chat else None,
+            )
             if at_end and not answering
             else []
         )
@@ -2205,7 +2439,9 @@ class Humanize(App[None]):
             # The name and what it takes on the left, what it is for on the right. The bare
             # name is the option's id, since that is what replaces the text: taking an offer
             # must not type the arguments in as well.
-            listing.add_options([self._offer_of(offer) for offer in offers])
+            # And, in a chat, the flows a `$` offer may be as well as a skill.
+            flows = flow_names() if chat and typed.startswith("$") else ()
+            listing.add_options([self._offer_of(offer, flows) for offer in offers])
             listing.highlighted = offers.index(was) if was in offers else 0
 
     def _commands_here(self) -> tuple[Command, ...]:
@@ -2244,6 +2480,9 @@ class Humanize(App[None]):
             self._run is None,
             self._answers_to() is None,
             self.screen,
+            self.chatting(),
+            len(self._natives),
+            self._prefer,
             *((one.name, self._about(one)) for one in here),
         )
         if standing == self._standing:
@@ -2257,21 +2496,31 @@ class Humanize(App[None]):
                 self._offers_on(editor, keeping=True)
         self.refresh_bindings()
 
-    def _offer_of(self, offer: str) -> Option:
+    def _offer_of(self, offer: str, flows: Sequence[str] = ()) -> Option:
         """One row of the list: what would be typed, and what it is for.
 
         Args:
           offer: What taking it would leave in the editor, in full.
+          flows: In a chat, the flows a `$` offer may name, by the name each is offered
+            under: what tells a skill from a flow and from both.
 
         Returns:
           The row. The bare name is its id, since that is what replaces the text -- taking
           an offer must not type the arguments in as well.
         """
         # A flow is the other thing offered here, and it says nothing about itself: only a
-        # `/` names a command, so a flow that happens to be called `monitor` is not one.
+        # `/` names a command, so a flow that happens to be called `monitor` is not one. In
+        # a chat, what the harness's own input is and whether a `$` name is a skill or a flow
+        # is said beside it instead (Section 11.10 of [TUI]).
         command = _BY_NAME.get(offer[1:]) if offer.startswith("/") else None
         takes = command.takes if command else ""
-        about = self._about(command) if command else ""
+        about = (
+            self._about(command)
+            if command
+            else tagged(offer, self._natives, flows, self._prefer)
+            if self.chatting() and offer[:1] in "$/@"
+            else ""
+        )
         # Escaped: what a command takes is written in brackets, and a bracket left as it is
         # would be read as markup and swallowed -- which is what `[path]` did. Padded first,
         # since the escaping adds characters that are not columns.
@@ -2303,8 +2552,16 @@ class Humanize(App[None]):
             # Asked to start and not yet started: a host may be coming up and a flow being
             # imported, and a line that still read as idle would be a line typed into nothing.
             left = f"[$secondary]{bar}[/] starting…"
-        elif chat and waits:
+        elif chat and (self._turn == "done" or (self._turn != "running" and waits)):
             left = "[$secondary]◉[/] done"
+        elif chat and not self._turn and self._run is None:
+            # No chat going here yet, or none any more: the agent the next line talks to,
+            # and the directory it would talk to it in (Section 13.2 of [TUI]).
+            agent = self._chat_runs.spec if self._chat_runs is not None else "no agent"
+            left = (
+                f"[$secondary]◉[/] {escape(agent)}"
+                f"[$text-muted]{_DOT}{escape(_where())}[/]"
+            )
         elif waits:
             # A flow that has run out of things to do until it is told one. Spinning a bar at
             # it would read as a turn that has been thinking for as long as you have been
@@ -2313,7 +2570,7 @@ class Humanize(App[None]):
                 f"[$text-muted]{_SPINNER[0]} waiting for {escape(waits)}"
                 f"{_DOT}ctrl+c twice to stop[/]"
             )
-        elif self._run is not None or (working and not chat):
+        elif chat or self._run is not None or working:
             # Whoever is talking and how long their turn has been going, or -- between two
             # turns -- the flow itself and how long the run has. A flow sleeps off a round,
             # commits, reads what the last turn wrote, and none of that is a flow that has
@@ -2337,7 +2594,7 @@ class Humanize(App[None]):
             # nothing running: the two lines above are about a run once there is one, and
             # where it is working has not changed since it started.
             left = (
-                f"[$secondary]◉[/] {escape(self._flowing())}"
+                f"[$secondary]◉[/] {escape(self._flowing() or 'no flow set up')}"
                 f"[$text-muted]{_DOT}{escape(_where())}[/]"
             )
         # The modes this is in, ahead of everything else on the line. Both change what the
@@ -2366,6 +2623,15 @@ class Humanize(App[None]):
         # conversation rather than to the flow while it is on.
         if (mode := self._btw) is not None:
             left = f"[cyan]btw{_DOT}{escape(mode.target)}[/]{_DOT}{left}"
+        # And the Ai-chan conversation followed, or the one waiting for its first line.
+        if (new := self._ai_new) is not None:
+            left = (
+                f"[$accent]Ai-chan{_DOT}new{_DOT}{escape(ai_scope(new._asdict(), short=True))}[/]"
+                f"{_DOT}{left}"
+            )
+        elif (ai := self._ai) is not None:
+            scope = escape(ai_scope(ai, short=True))
+            left = f"[$accent]Ai-chan#{ai['id']}{_DOT}{scope}[/]{_DOT}{left}"
         # For a moment after it happens, beside whatever else the line says: writing to a
         # clipboard is silent, and a person who has just dragged across half a screen is
         # owed the one word that says it went somewhere.
@@ -2618,8 +2884,14 @@ class Humanize(App[None]):
             # to offer: what it would do next is what it is called here. In btw mode every
             # line is a side question.
             keys.append(
-                "enter ask"
+                "enter start"
+                if self._ai_new is not None
+                else "enter ask"
                 if self._btw is not None
+                else "enter send"
+                if self.chatting() and (self._turn or self._starting)
+                else "enter start"
+                if self.chatting()
                 else "enter answer"
                 if self._answers_to() is not None
                 else "enter send"
@@ -2701,8 +2973,9 @@ class Humanize(App[None]):
           Why it is turned down, or "" where it is not.
         """
         if self._run is not None and self.chatting():
-            # One on a host of its own takes no flow's turn: what starts goes on the workspace's.
-            return "" if self._slot else f"{what} while a chat is going here"
+            # A chat is on a host of its own and takes no flow's turn: what starts goes on
+            # the workspace's, and the chat goes on by itself.
+            return ""
         if self._run is not None:
             return (
                 f"{what} while a flow is running: press ctrl+c twice to stop it first"
@@ -2716,20 +2989,39 @@ class Humanize(App[None]):
         return ""
 
     def flow_running(self) -> bool:
-        """Whether a flow is running, as the rows of the command table read it."""
-        return self._run is not None
+        """Whether a flow is running, as the rows of the command table read it: not a chat."""
+        return self._run is not None and not self.chatting()
 
     def chatting(self) -> bool:
-        """Whether this is a chat: the flow running, or the one set up where none runs.
+        """Whether the chat is on the screen: an epic of kind `chat`, or none of a flow.
 
         A chat is one conversation with one agent, read as Claude Code reads one -- no
         monitor, no views to step round, nothing to stop -- so everything that is about
-        a flow of several agents is left out of it.
+        a flow of several agents is left out of it. Told by the epic's kind, never by what
+        its flow is called: a flow named `chat` is a flow like any other.
         """
-        # And the one stopping, where one is: what is unwinding is that flow, not the one
-        # set up here.
+        # And an Ai-chan conversation, which is drawn as one (Section 7.19.6 of tui.md).
+        if self._ai is not None:
+            return True
+        # And the one stopping, where one is: what is unwinding is that epic.
         run = self._run or (self._seen_last if self._stopping is not None else None)
-        return chatting(run.flow if run is not None else self._flow_named)
+        if run is not None:
+            return run.kind == "chat"
+        return not self._flow_shown
+
+    def refused_chat(self) -> str:
+        """Why `/chat` has nothing to do now: the chat is on the screen already."""
+        # An Ai-chan conversation is drawn as a chat, but is not this interface's chat.
+        on = self.chatting() and self._ai is None
+        return "the chat is already on the screen" if on else ""
+
+    def refused_prefer(self) -> str:
+        """Why `/prefer` cannot run now: anywhere but in a chat, which is what it is about."""
+        return (
+            ""
+            if self.chatting() and self._ai is None
+            else "/prefer works only in a chat: /chat goes back to it"
+        )
 
     def refused_stop(self) -> str:
         """Why `/stop` has nothing to do now, or "" while a flow runs for it to stop.
@@ -2744,7 +3036,15 @@ class Humanize(App[None]):
         the one thing to mean, and a command typed on purpose that answers with nothing reads
         as a command that did not work.
         """
-        if self._run is not None and self.chatting():
+        if self._ai is not None:
+            # Her open turn, which stopping interrupts and leaves the conversation between
+            # turns (Section 7.19.7 of tui.md).
+            return (
+                ""
+                if self._working
+                else "Ai-chan is not answering, so there is nothing to stop"
+            )
+        if self.chatting():
             return "a chat is not stopped: /clear starts another"
         if self._run is not None:
             return ""
@@ -3079,8 +3379,20 @@ class Humanize(App[None]):
 
     @on(Editor.Sent)
     def _sent(self, event: Editor.Sent) -> None:
-        """Takes what was typed as a flow to start, as a command, or as something to say."""
+        """Takes what was typed as a command, a flow to start, the chat's own input, or words.
+
+        In the order Section 6.1 of [TUI] reads a line in: a side question in btw mode; one
+        of Humanize's own commands; in a chat, a line starting with a sigil read as the
+        chat's harness reads it at its own prompt; a `$` line starting a flow; any other
+        command; and words, said.
+        """
         line = event.text
+        if not line:
+            # Nothing typed, which opens the form of the question waiting, where one is: the
+            # one key a question arriving mid-sentence asks for, and only once it is pressed.
+            if (asked := self._answers_to()) is not None and self._form_of(asked):
+                self._opens_form(asked)
+            return
         # Written down whatever it turns out to be: a task, a word put into a running flow,
         # a command. All three were typed, and any of them may be worth typing again.
         self.history.add(line)
@@ -3089,6 +3401,21 @@ class Humanize(App[None]):
         if self._btw is not None and not line.startswith("/"):
             self._said_by_you(line)
             self._btw_ask(self._btw, line)
+            return
+        # Humanize's own commands come first, wherever they are typed: in a chat those the
+        # harnesses have too -- `/clear`, `/resume`, `/exit` -- do there what the harness's
+        # own would (Section 8.9.8 of [CORE]), and none of them is the harness's to serve.
+        if line.startswith("/") and line[1:].partition(" ")[0] in _BY_NAME:
+            self._commands(line)
+            return
+        # Not over an Ai-chan conversation, which is drawn as a chat but has no harness's
+        # input to read a line as (Section 14 of [CORE]).
+        if (
+            self.chatting()
+            and self._ai is None
+            and line[:1] in "$/!@"
+            and self._natively(line)
+        ):
             return
         # A `$` names the flow to run and, after it, what to run it on. Not while a question
         # is up: the next line typed is the answer to that, whatever it begins with, and an
@@ -3109,6 +3436,57 @@ class Humanize(App[None]):
         if not line.startswith("/"):
             self._said(line)
             return
+        self._commands(line)
+
+    def _natively(self, line: str) -> bool:
+        """Serves a line of the chat that starts with a sigil as its harness would, if it is one.
+
+        Read as Section 8.9 of [CORE] reads it, against the chat's catalogue, the flows here
+        and the chat's preference: a flow is started, the harness's own input and words are
+        said to the chat, and what only the harness's own interface serves is refused saying
+        so. A `/` the harness has no catalogue to read against yet is left to be a command of
+        Humanize's, which is all it can be told apart as until the chat has opened.
+
+        Args:
+          line: The line, as it was typed.
+
+        Returns:
+          Whether it was served here; False for a line that is a command of Humanize's.
+        """
+        if line.startswith("/") and not self._natives:
+            return False
+        # Its name ended by any whitespace, as a `$` line's is, and a task put on the line
+        # under it: read as the name and what follows it. A shell command or a path is read
+        # as it was typed.
+        head, *rest = line.split(None, 1) if line[0] in "$/" else [line]
+        reading = " ".join([head, *(one.strip() for one in rest)])
+        resolved = resolve(
+            reading,
+            catalog=self._natives,
+            flows=flow_names(),
+            prefer=self._prefer,
+            listed=self._listed,
+        )
+        if resolved.kind == "reserved":
+            return False
+        if resolved.kind == "flow":
+            self._said_by_you(line)
+            self._quick_flow(resolved.name, resolved.rest)
+        elif resolved.kind == "refused":
+            self._said_by_you(line)
+            self.show(f"hmz: {resolved.why}", "red")
+            self._presses = 0
+            self._draw()
+        else:
+            self._said(line)
+        return True
+
+    def _commands(self, line: str) -> None:
+        """Carries out one command line, or says why it is not one that can be carried out.
+
+        Args:
+          line: The line, starting with `/`.
+        """
         self._said_by_you(line)
         name, _, rest = line[1:].partition(" ")
         try:
@@ -3208,12 +3586,12 @@ class Humanize(App[None]):
     def action_btw(self, question: str = "") -> None:
         """Enters btw mode, asks in it, or leaves it, which is what `/btw` is.
 
-        A side question must never become a steer. In a session's view it goes to a
-        read-only fork of that session where its CLI can fork one, and otherwise to a
-        read-only, skill-free copy of the same agent seeded from a snapshot -- ended sessions
-        included. On the interface's own transcript, or on the monitor, it goes to the btw
-        agent, which may ask any session's side conversation in turn. Either way the flow's
-        own sessions carry on untouched on their own threads.
+        A side question must never become a steer. It is asked of the session read -- the
+        newest of an agent's where the view is the agent's own -- and goes to a read-only fork
+        of that session where its CLI can fork one, and otherwise to a read-only, skill-free
+        copy of the same agent seeded from a snapshot, ended sessions included (Section 9.5 of
+        core.md). The flow's own sessions carry on untouched on their own threads. About an
+        epic as a whole, Ai-chan answers: `/ai`.
 
         Once in, every line typed is one more turn of the same side conversation, until
         `/btw` on its own or esc leaves it and closes what it opened.
@@ -3234,11 +3612,11 @@ class Humanize(App[None]):
             self._btw_ask(mode, question)
 
     def _btw_target(self) -> str:
-        """Who a side question here goes to: a session's view key, or "" for nobody.
+        """The session a side question here is asked of, as `<agent>/<n>`, or "" for none.
 
         Returns:
-          `<agent>/<n>` for a session, the newest of an agent's where the view is the
-          agent's own, and "" for the home transcript, the monitor and an outworlder's view.
+          The session read, or the newest of an agent's where the view is the agent's own;
+          "" off a session view, and on an agent's that has opened none yet.
         """
         if self._view_kind() != "session":
             return ""
@@ -3268,11 +3646,20 @@ class Humanize(App[None]):
         """Why btw mode cannot be entered here, or "" where it can -- and always to leave it.
 
         Returns:
-          Why there is nobody to ask: the conversation on the screen gone, or no agent to
-          ask at all.
+          Why there is no session to ask: an Ai-chan conversation followed, whose questions
+          are its own turns, or the session on the screen gone (Section 7.10 of tui.md).
         """
         if self._btw is not None:
             return ""
+        kind = self._view_kind()
+        if self._ai is not None or kind != "session":
+            # As a command is refused off the views it works in, and pointing at Ai-chan:
+            # the epic as a whole is hers to answer (Section 7.10.3 of tui.md).
+            here = "Ai-chan's" if self._ai is not None else _VIEWED[kind]
+            return (
+                f"/btw is only available on {_VIEWED['session']}, not on {here}"
+                f"{_ABOUT_EPIC}"
+            )
         target = self._btw_target()
         if not target:
             return (
@@ -3284,7 +3671,7 @@ class Humanize(App[None]):
         return ""
 
     def _enter_btw(self) -> Btw | None:
-        """Starts btw mode against whatever is on the screen, saying so."""
+        """Starts btw mode against the session on the screen, saying so."""
         if why := self.refused_btw():
             self.show(f"hmz: {why}", "red")
             return None
@@ -3363,7 +3750,8 @@ class Humanize(App[None]):
     def _btw_snapshot(self) -> FlowSnapshot:
         """Copies the current run into a prompt-sized, immutable observation."""
         return self._following.snapshot(
-            flow=self._flowing(),
+            # A chat has no flow to name, and says what it is instead (Section 9.4.2 of core).
+            flow="chat" if self.chatting() else self._flowing(),
             task=self._flow_task,
             workspace=_where(),
             going=self._run is not None,
@@ -3412,6 +3800,91 @@ class Humanize(App[None]):
         del question  # The question itself is already in the transcript.
         self.show(f"hmz: /btw: {failure}", "red")
 
+    @work
+    async def action_ai(self) -> None:
+        """Opens the Ai-chan conversations of the daemon and New, which is what `/ai` is.
+
+        A conversation chosen is followed in the log screen; New asks for a conversation's
+        scope, nous, preset and network, and leaves the log screen waiting for the first line
+        said, which makes it (Section 7.19 of tui.md).
+        """
+        try:
+            listed = await asyncio.to_thread(ai_chan, "list")
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self.show(f"hmz: /ai: {why}", "red")
+            return
+        sheet = AiChans(list(listed.get("conversations") or ()))
+        picked = await self.push_screen_wait(sheet)
+        if (ai := self._ai) is not None and ai["id"] in sheet.forgotten:
+            # Gone with its host: this directory's own is followed again.
+            self._moves("", None)
+            self._draw()
+        if picked is None:
+            return
+        if picked != AI_NEW:
+            one = sheet.conversation(picked)
+            if one is not None:
+                self._moves(str(one["slot"]), None, ai=one)
+                self._draw()
+            return
+        try:
+            nouses = await asyncio.to_thread(nous_named)
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self.show(f"hmz: /ai: {why}", "red")
+            return
+        asked = await self.push_screen_wait(
+            AiChanNew(
+                nouses,
+                workspace=str(self.hmz.workspace),
+                # The epic going or last on this directory's host, where it follows one of
+                # this machine's: a scope names an epic of this daemon.
+                epic=self._epic_now if self._ai is None and self._afar is None else "",
+                nous=self.settings.ai_chan,
+            )
+        )
+        if asked is None:
+            return
+        self._ai_new = asked
+        self.show(
+            "[dim]Ai-chan: the next line you say starts the conversation; "
+            "/clear to drop it[/dim]"
+        )
+        self._draw()
+
+    def ai_now(self) -> str:
+        """What `/ai` does as things stand, for the row of the command table."""
+        return (
+            "Carry another Ai-chan conversation on, or start one"
+            if self._ai is not None
+            else ""
+        )
+
+    @work
+    async def _makes_ai(self, asked: AiAsked, task: str) -> None:
+        """Makes a new Ai-chan conversation by `aichan.create`, and follows it.
+
+        Args:
+          asked: The conversation as `/ai` set it up.
+          task: The first line said, which is its first message.
+        """
+        try:
+            made = await asyncio.to_thread(ai_chan, "create", **asked.made(task))
+        except (LookupError, OSError, RuntimeError, ValueError) as why:
+            self.show(f"hmz: /ai: {why}", "red")
+            # Still waiting for its first line, which may be said again.
+            if self._ai_new is None:
+                self._ai_new = asked
+                self._draw()
+            return
+        one = {
+            **asked._asdict(),
+            "id": made["id"],
+            "workspace": made["workspace"],
+            "slot": made["slot"],
+        }
+        self._moves(str(made["slot"]), None, ai=one)
+        self._draw()
+
     def action_clear(self) -> None:
         """Clears the screen, and in a chat starts another conversation, as Claude Code's does.
 
@@ -3428,8 +3901,21 @@ class Humanize(App[None]):
         The screen is one transcript, so what is cleared is that one: clearing every agent's
         would be `/clear` reaching into ones nobody was looking at.
         """
+        if self._ai is not None:
+            # Left to its host, which folds it away in its own time: this interface follows
+            # this directory's own host again (Section 7.19.8 of tui.md).
+            self._moves("", None)
+            self._draw()
+            return
+        self._ai_new = None
         if self.chatting():
             self._continuing = None
+            # A new chat, with nothing of the last one's: its own host, its own catalogue,
+            # its own preference, once the next line starts it (Section 8.8.4 of [CORE]).
+            self._chat_slot = self._chat_epic = ""
+            self._natives, self._natives_of, self._listed = [], "", False
+            self._prefer, self._prefer_from = self.settings.chat_prefer, "settings"
+            self._prefer_own = None
             if self._epic_as:
                 from hmz.daemon import where
 
@@ -3461,8 +3947,14 @@ class Humanize(App[None]):
         it stops a flow. A `/stop` is not a press and must not be counted as one -- but
         neither may it leave a press made before it standing, or the press made after it
         would be the second of a gesture the command interrupted.
+
+        Following an Ai-chan conversation it stops her open turn alone, and the conversation
+        goes on between turns.
         """
-        self.action_stop_flow()
+        if self._ai is not None:
+            self._asks("stop")
+        else:
+            self.action_stop_flow()
         self._presses = 0
         self._draw()  # rather than at the next tick: it was just typed
 
@@ -3508,6 +4000,7 @@ class Humanize(App[None]):
         *,
         refused: Callable[[], object] | None = None,
         quiet: bool = False,
+        failed: Callable[[Exception], object] | None = None,
         **said: Any,
     ) -> None:
         """Asks the runs one thing, off the event loop, in the order things were asked.
@@ -3522,9 +4015,11 @@ class Humanize(App[None]):
           then: What to do with the answer once it has come, on the screen, or None.
           refused: What to do once it has been refused, on the screen, or None.
           quiet: Whether a refusal is to go unsaid, for one that only says it was already so.
+          failed: What to do with the refusal itself, on the screen, or None: for one whose
+            further fields say more than its words -- an answer refused field by field.
           said: What that takes.
         """
-        self._requests.put(({"do": do, **said}, then, refused, quiet))
+        self._requests.put(({"do": do, **said}, then, refused, quiet, failed))
 
     def _requested(self) -> None:
         """Asks every request put in, in order, until the interface goes: the one thread."""
@@ -3532,20 +4027,43 @@ class Humanize(App[None]):
             if callable(asked):
                 asked()  # moving to another host, before whatever is asked of it
                 continue
-            request, answered, refused, hushed = asked
+            request, answered, refused, hushed, failed = asked
             try:
-                answer = self._link.asked(request)
+                answer = (
+                    self._chat_asked(request)
+                    if str(request["do"]).startswith("chat.")
+                    else self._link.asked(request)
+                )
             except Exception as why:  # noqa: BLE001 -- a refusal, or runs gone: said either way
                 if not hushed:
                     self._on_screen(self.show, f"hmz: {why}", "red")
                 if refused is not None:
                     self._on_screen(cast("Callable[..., None]", refused))
+                if failed is not None:
+                    self._on_screen(cast("Callable[..., None]", failed), why)
                 continue
             if answered is not None:
                 self._on_screen(cast("Callable[..., None]", answered), answer)
 
+    def _chat_asked(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Asks the daemon holding this workspace's chats one thing, on the thread that asks.
+
+        Args:
+          request: The method as `do`, and what it takes but the workspace.
+
+        Returns:
+          What it answered.
+        """
+        said = dict(request)
+        method = str(said.pop("do"))
+        afar = self._afar
+        workspace = afar[1] if afar is not None else str(self.hmz.workspace)
+        return _chats(afar, method, {"workspace": workspace, **said})
+
     @work
-    async def action_flow(self, named: str = "", page: str = INSTALLED) -> None:
+    async def action_flow(
+        self, named: str = "", page: str = INSTALLED, task: str = ""
+    ) -> None:
         """Opens the flow menu: which flow runs, what its roles are, and where flows come from.
 
         One menu walked into rather than a sheet per question: what is installed, the roles of
@@ -3558,16 +4076,24 @@ class Humanize(App[None]):
         flow that is going, that being where somebody halfway through a run finds out that an
         agent is thinking too little or is allowed too much.
 
+        With a flow and a task, it is a `$` line spelled as a command (Section 7.9.5 of
+        [TUI]): the flow starts on the task at once where it is set up here, and the menu
+        opens on it holding the task where it is not.
+
         Args:
           named: A flow of your own, as a path, to open the menu already holding.
           page: Which page to open on where no flow is named: what is installed, or the
             flowverses.
+          task: What to start the flow named on, or "" to set it up and no more.
         """
-        # A chat going on a host of its own is no flow running: choosing one goes to the
-        # workspace's host, and the chat goes on by itself.
-        running = self._run is not None and not self._slot
+        # A chat on the screen is no flow running: choosing one goes to the workspace's
+        # host, and the chat goes on by itself.
+        running = self._run is not None and not self.chatting()
         if named and running:
             self.show("hmz: cannot choose a flow while one is running", "red")
+            return
+        if named and task:
+            self._quick_flow(named, task)
             return
         chosen = await self._chooses(named, running=running, page=page)
         if chosen is None:
@@ -3655,7 +4181,21 @@ class Humanize(App[None]):
         Note:
           The line is already in the transcript: it went down as it was typed, before this.
         """
-        if not any(one.name == named for one in self.hmz.flows.all()):
+        if named == self._flow_named and self._set_up:
+            # The flow set up here already, as it is held: what the menu would be saved with
+            # is what is in hand, a flow named by its path included.
+            if self._run is not None and not self.chatting():
+                self.show("hmz: cannot choose a flow while one is running", "red")
+            elif task:
+                self._starts(task)
+            else:
+                self.show(self._task_wanted(named))
+            return
+        # A path is a flow of your own, which `/flow` takes as well as a name it offers.
+        path = "/" in named and await asyncio.to_thread(
+            lambda: Path(named).expanduser().exists()
+        )
+        if not path and not any(one.name == named for one in self.hmz.flows.all()):
             # Said the way `/nosuchcommand` is: the sigil was meant, and the name after it is
             # the half to correct. A path is not one of the answers -- it would swallow the
             # prose after it -- so `/flow` is where a flow of your own by path is reached.
@@ -3667,7 +4207,7 @@ class Humanize(App[None]):
             why = f" -- a flow of {whose} is called {now} now" if now != named else ""
             self.show(f"hmz: no such flow: {named}{why}", "red")
             return
-        if self._run is not None and not self._slot:
+        if self._run is not None and not self.chatting():
             # The same answer `/flow <name>` gives while one runs, since it is the same thing
             # being asked for: two ways of choosing a flow that did opposite things would be
             # one of them ending a day's work on a line meant to queue the next one up.
@@ -3726,7 +4266,9 @@ class Humanize(App[None]):
             # longer reads was meant to say, so it is asked where it is asked.
             return None
         budget = budget_of(flow)
-        if budget is None and not declared.unbounded:
+        if budget is None:
+            # Every flow is given one to be set up (Section 8.8 of [TUI]): the one that ran
+            # without was the chat, which is no flow now.
             return None
         return Chosen(
             flow,
@@ -3784,9 +4326,6 @@ class Humanize(App[None]):
         self._profile_flow = chosen.profile_flow
         self._profile_environment = chosen.profile_environment
         self._backup = chosen.backup
-        if self._slot and not running and not chatting(chosen.flow):
-            # Off a chat's own host, which goes on by itself, to where the flow starts.
-            self._relinks("")
         self.settings.remember(
             chosen.flow,
             self._models,
@@ -3808,11 +4347,26 @@ class Humanize(App[None]):
         if running:
             self._reconfigured()
         elif not same and not starting:
-            self.show("[dim]enter a task to start the flow[/dim]")
+            self.show(self._task_wanted(chosen.flow))
         self._draw()
         if starting:
             # Said already, `$` and all, so it starts rather than being written down twice.
             self._starts(starting)
+
+    @staticmethod
+    def _task_wanted(flow: str) -> str:
+        """What is said of a flow set up and given nothing to do: how to give it a task.
+
+        A line said is the chat's (Section 9.4 of [TUI]), so the task is given the flow by
+        name, as a `$` line or `/flow` spells it.
+
+        Args:
+          flow: The flow, as it is named.
+
+        Returns:
+          The line, as markup.
+        """
+        return f"[dim]set up: /flow {escape(flow)} <task> starts it[/dim]"
 
     def _reconfigured(self) -> None:
         """Says what becomes of agents changed under a run that is going.
@@ -3928,8 +4482,17 @@ class Humanize(App[None]):
                 else "[dim]showing turn responses only, without details[/dim]"
             )
             self._draw()  # and the status line says which mode this is in from now on
-        if said.btw is not None:
-            self.settings.btw = said.btw
+        if said.ai_chan is not None:
+            self.settings.ai_chan = said.ai_chan
+            # Not the ones made already: a conversation keeps its nous (Section 14.3.1 of
+            # core.md).
+            self.show(
+                f"[dim]the next Ai-chan conversation thinks with {escape(said.ai_chan)}"
+                "[/dim]"
+                if said.ai_chan
+                else "[dim]/ai will ask which nous each new Ai-chan conversation thinks "
+                "with[/dim]"
+            )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.
@@ -4141,6 +4704,11 @@ class Humanize(App[None]):
                 "red",
             )
             return
+        if self.chatting():
+            # What the harness's own `/resume` is in a chat: one of the chats had here, picked
+            # and carried on (Section 7.12.5 of [TUI]).
+            self._resumes_chat()
+            return
         # Looked for again rather than taken from what the list was drawn from: that is as
         # it was, and this is somebody asking about now.
         # And what it finds is what the list goes by from now, over anything still looking.
@@ -4172,7 +4740,7 @@ class Humanize(App[None]):
             )
         for epic in reversed(runs):
             ran = epics.read(epic)
-            if ran is not None and chatting(ran.flow):
+            if ran is not None and _a_chat(ran):
                 continue  # carried on from `/epics` or by talking in it, never by `/resume`
             if ran is None or ran.resumable or self._picks_up(ran.flow):
                 break
@@ -4306,10 +4874,11 @@ class Humanize(App[None]):
                 self.show(f"hmz: {why}", "red")
                 return
         self._set_up_as(ran)
+        # Off a chat's own host, to the workspace's, where flows run: `_flow` moves there,
+        # and what is said here is said there.
+        self._flow_shown = True
         if self._slot:
-            self._relinks(
-                ""
-            )  # off a chat's own host, to the workspace's, where flows run
+            self._relinks("")
         self.show(
             f"[dim]resuming {escape(ran.name)}: running {escape(ran.flow)} "
             "from saved state[/dim]"
@@ -4352,8 +4921,38 @@ class Humanize(App[None]):
         self._profile_environment = ran.profile_environment
         self._backup = self.settings.backup(ran.flow)
 
+    @work
+    async def _resumes_chat(self) -> None:
+        """Puts up the earlier chats of this directory, newest first, and carries one on.
+
+        Read off the screen, a list of epics being a directory of records to read; the one
+        on the screen is not among them, being the one already had.
+        """
+        epics = self.hmz.epics
+
+        def listed() -> list[tuple[str, str, str]]:
+            rows: list[tuple[str, str, str]] = []
+            for epic in reversed(epics.all()):
+                ran = epics.read(epic)
+                if ran is None or not _a_chat(ran) or epic.name == self._chat_epic:
+                    continue
+                said = " ".join(ran.task.split())
+                rows.append((epic.name, _clipped(said, 60) or epic.name, epic.name))
+            return rows
+
+        chats = await asyncio.to_thread(listed)
+        if not chats:
+            self.show(
+                "hmz: no other chat has been had here, so there is nothing to resume",
+                "red",
+            )
+            return
+        picked = await self.push_screen_wait(_Chats(chats))
+        if picked:
+            self._continues(epics.under() / picked)
+
     def _continues(self, epic: Path) -> None:
-        """Goes back to one chat chosen on `/epics`, to carry the conversation on.
+        """Goes back to one chat chosen on `/epics` or `/resume`, to carry the conversation on.
 
         To the host holding it where one still is, which is the conversation as it stands,
         read from the top. Otherwise it has folded away -- or ended some other way -- and the
@@ -4365,19 +4964,90 @@ class Humanize(App[None]):
         """
         from hmz.daemon import where
 
+        self._flow_shown = False
         slot = self._holding(epic.name)
         if slot is not None:
             if slot != self._slot:
                 self._relinks(slot)
+            self._chat_slot, self._chat_epic = slot, epic.name
             return
-        ran, why = self._unresumable(epic)
-        if ran is None or why:
-            self.show(f"hmz: {why}", "red")
+        ran = self.hmz.epics.read(epic)
+        if ran is None:
+            self.show(
+                f"hmz: {epic.name} cannot be read, so it cannot be continued", "red"
+            )
             return
-        self._set_up_as(ran)
+        if why := self.hmz.epics.foreign(epic):
+            self.show(f"hmz: {ran.name} cannot be continued here: {why}", "red")
+            return
         self._relinks(where.chat())
         self._continuing = epic
+        self._chat_slot, self._chat_epic = "", epic.name
         self.show(f"[dim]say something to continue {escape(ran.name)}[/dim]")
+
+    def action_chat(self, argv: Sequence[str] = ()) -> None:
+        """Puts this interface's chat back on the screen, which went on while a flow was on it.
+
+        Where its host still holds it, as it stands, read from the top; where it has folded
+        away meanwhile, as it was left, the next line said carrying it on (Section 7.19 of
+        [TUI]); and where it never started, as a new chat the next line starts.
+
+        Args:
+          argv: Whatever was typed after the command, which is nothing.
+        """
+        from hmz.daemon import where
+
+        if argv:
+            self.show("hmz: /chat takes no arguments", "red")
+            self._presses = 0
+            return
+        if self._chat_epic:
+            self._continues(self.hmz.epics.under() / self._chat_epic)
+        else:
+            self._flow_shown = False
+            self._relinks(where.chat())
+        self._draw()
+
+    def action_prefer(self, argv: Sequence[str] = ()) -> None:
+        """Says or sets what `$<name>` means in this chat where it names a skill and a flow.
+
+        Alone, the preference and where it comes from; with `native` or `flow`, this chat's
+        own from now on, recorded in its epic so that it outlives carrying the chat on
+        (Section 7.20 of [TUI]).
+
+        Args:
+          argv: What was typed after the command: nothing, `native` or `flow`.
+        """
+        if not argv:
+            whose = (
+                "from this chat"
+                if self._prefer_from == "chat"
+                else "from the settings file"
+            )
+            self.show(
+                f"[dim]$<name> runs the {'skill' if self._prefer == 'native' else 'flow'} "
+                f"where it names both: {self._prefer}, {whose}[/dim]"
+            )
+            return
+        if len(argv) > 1 or argv[0] not in _PREFERS:
+            self.show("hmz: /prefer takes native or flow", "red")
+            self._presses = 0
+            return
+        prefer = argv[0]
+
+        def takes(_: object = None) -> None:
+            self._prefer, self._prefer_from = prefer, "chat"
+            self._says(
+                f"$<name> runs the {'skill' if prefer == 'native' else 'flow'} "
+                "where it names both, in this chat"
+            )
+
+        if self._slot.startswith("chat:") and (self._turn or self._starting):
+            self._asks("chat.set", takes, slot=self._slot, prefer=prefer)
+        else:
+            # Not started yet: it is started with it.
+            self._prefer_own = prefer
+            takes()
 
     def _holding(self, epic: str) -> str | None:
         """Which of this workspace's hosts has one epic going, if one does.
@@ -4401,7 +5071,9 @@ class Humanize(App[None]):
             (
                 slot
                 for slot, status in found
-                if status.get("state") == "running" and status.get("epic") == epic
+                # Running, or a chat between turns, which its host says by where its turn is.
+                if (status.get("state") == "running" or status.get("turn"))
+                and status.get("epic") == epic
             ),
             None,
         )
@@ -4442,8 +5114,6 @@ class Humanize(App[None]):
           resume: The run to pick up, for a flow that says it can be picked up, or None for
             a run from the top.
         """
-        from hmz.daemon import where
-
         if self._afar is not None:
             # What is set up here is this machine's: an epic there is set up as it ran there.
             daemon = escape(self._afar[0])
@@ -4453,17 +5123,11 @@ class Humanize(App[None]):
                 "red",
             )
             return
-        # A chat on a host of its own, and every other flow on the workspace's: a conversation
-        # takes no flow's turn, nor one conversation another's. A chat's host that has had its
-        # chat already is that conversation's, so the next is a host of its own as well.
-        chat = chatting(self._flow_named)
-        if chat and (not self._slot or self._epic_as):
-            self._relinks(where.chat())
-        elif not chat and self._slot:
+        # On the workspace's own host, where its flows run one at a time: a chat on the
+        # screen goes on on its own, and `/chat` comes back to it (Section 11.9 of [TUI]).
+        self._flow_shown = True
+        if self._slot:
             self._relinks("")
-        if chat and resume is None:
-            resume = self._continuing
-        self._continuing = None
         if self._run is not None or self._starting:
             self.show("hmz: a flow is already running", "red")
             return
@@ -4478,7 +5142,7 @@ class Humanize(App[None]):
             agents={
                 role: written(runs)
                 for role, runs in self._models.items()
-                if role in self._named_by
+                if role in self._flow_roles()
             },
             envs={
                 role: spec
@@ -4591,9 +5255,14 @@ class Humanize(App[None]):
             self._ended(message)
         elif kind == "asked":
             self._show_question(message)
-        elif kind == "answered":
+        elif kind == "shown":
+            self._shows_context(message)
+        elif kind == "withdrawn":
+            self._withdrawn(message)
+        elif kind == "answered" and not (self.chatting() and not self._by(message)):
             self._answered(message)
-        elif kind == "said":
+        elif kind == "said" and not (self.chatting() and not self._by(message)):
+            # A line of a chat this interface said is on the screen already, as it was typed.
             self._said_by_you(
                 str(message.get("text") or ""),
                 str(message.get("key") or ""),
@@ -4607,6 +5276,8 @@ class Humanize(App[None]):
             self._never_sent(message)
         elif kind == "printed":
             self._prints(str(message.get("text") or ""))
+        elif kind == "shell":
+            self._shell(message)
         elif kind == "env_used":
             # Somebody's hand in one of the run's environments, said quietly: what a file
             # changed under an agent came from is worth seeing, and is not the agent's.
@@ -4666,6 +5337,11 @@ class Humanize(App[None]):
         elif kind == "pending":
             self._pending = list(message.get("pending") or ())
             waiting = {str(one.get("question")) for one in self._pending}
+            self._withdraws_form(waiting)
+            # What is said of a question after it goes -- answered, withdrawn -- is said
+            # before the snapshot it is gone from, so nothing of it is needed past here.
+            self._forms = {q: one for q, one in self._forms.items() if q in waiting}
+            self._drafts = {q: one for q, one in self._drafts.items() if q in waiting}
             self._asked_in = {
                 asked: held
                 for asked, held in self._asked_in.items()
@@ -4697,11 +5373,29 @@ class Humanize(App[None]):
             # A run whose start was not kept for this interface to read back, which is one
             # older than the most that is kept: it starts here instead.
             self._started(message)
-        self._run = _RunSeen.of(message) if message.get("state") == "running" else None
+        self._run = (
+            _RunSeen.of(message, self._slot)
+            if message.get("state") == "running"
+            else None
+        )
         if message.get("run"):
             self._epic_as = dict(message)
         if "epic" in message:
             self._epic_now = str(message.get("epic") or "")
+        # Where a chat is in its turn, which a host that holds none does not say.
+        turn, self._turn = self._turn, str(message.get("turn") or "")
+        if self._turn and self._slot.startswith("chat:"):
+            # The chat attached to is this interface's from now on, whichever way it was
+            # reached; what its harness takes is asked again as each turn ends, a turn having
+            # perhaps given it a skill or a command it did not have.
+            self._chat_slot = self._slot
+            self._chat_epic = self._epic_now or self._chat_epic
+            if self._natives_of != self._slot or (
+                self._turn == "done" and turn != "done"
+            ):
+                self._asks_natives()
+        elif self._run is not None and self._run.kind == "flow":
+            self._flow_shown = True
         if self._run is not None:
             self._starting = False
             self._seen_last = self._run
@@ -4723,13 +5417,19 @@ class Humanize(App[None]):
                 self.show(f"[dim]{escape(role)} is {escape(now)} to answer now[/dim]")
 
     def _gone(self, why: str) -> None:
-        """Takes the runs letting go of this interface, which is the end of it.
+        """Takes the runs letting go of this interface: the end of it, but for Ai-chan's host.
 
         Args:
           why: Why they let go of it.
         """
         if self._quitting:
             return  # asked for, on the way out
+        if self._ai is not None:
+            # Her host went, forgotten (Section 4.22.4 of daemon.md) or folded away: the
+            # interface goes on, following this directory's own host again.
+            self._moves("", None)
+            self._draw()
+            return
         self._quitting = True
         self.exit(return_code=1, message=f"hmz: {why or 'disconnected from the epics'}")
 
@@ -4742,8 +5442,18 @@ class Humanize(App[None]):
         self._following.started(record)
         self._starting = False
         self._epic_as = dict(record)
-        # A side conversation is about the run it was opened on, and that run has gone.
-        if self._btw is not None:
+        if _RunSeen.of(record, self._slot).kind == "chat":
+            self._flow_shown = False
+            # Its first message, as this interface asked for it: started through a session of
+            # its own, which the host names as another frontend, but said here.
+            if self._mine and record.get("task") == self._mine:
+                record = {**record, "client": ""}
+            self._mine = ""
+        elif self._live:
+            self._flow_shown = True
+        # A side conversation is about the run it was opened on, and that run has gone --
+        # where it has: one read back on reaching a host again is the run it was opened on.
+        if self._btw is not None and self._live:
             self._leave_btw("a new flow started")
         with self._btw_lock:
             self._flow_task = record["task"]
@@ -4797,7 +5507,10 @@ class Humanize(App[None]):
         self._following.ended(record)
         # Only this run's own, and only one nobody stopped: a run stopped by hand has said
         # so already, and one still unwinding behind the next is no run anybody is watching.
-        if record["run"] == self._generation and record["run"] not in self._halted:
+        chat = (self._run or self._seen_last or _RunSeen(0)).kind == "chat"
+        if record["run"] == self._generation and chat:
+            self._turn = ""  # and so no chat is held here to say the next line to
+        elif record["run"] == self._generation and record["run"] not in self._halted:
             self.show("[dim]— the flow is done —[/dim]")
         # The run in front of us is the last run here, and may be the one to carry on now.
         # Only that one: a frontend arriving late is told of every run before it as well.
@@ -4962,7 +5675,9 @@ class Humanize(App[None]):
                 f"[yellow]{_SAID}[/] [dim]{escape(text)}[/]",
                 packs=False,
             )
-        elif kind == "tool" and self._details:
+        elif kind == "tool" and (self._details or self._ai is not None):
+            # Every tool Ai-chan calls is shown, whatever the details say: what she did to
+            # hmz is the conversation (Section 7.19.6 of tui.md).
             # The tool on the bullet, what it came back with under it -- Claude Code's shape.
             named, _, about = text.partition(" ")
             self._on_screen(
@@ -5008,6 +5723,26 @@ class Humanize(App[None]):
                 packs=False,
             )
 
+    def _shell(self, record: Mapping[str, Any]) -> None:
+        """Shows what a `!` command run for the chat printed, dim, as a shell shows it.
+
+        Under the command, which is on the screen already as it was typed: what it wrote
+        out and what it wrote as errors, and how it exited where that was not well.
+
+        Args:
+          record: The command, `out`, `err` and `status`, as the chat's host tells them.
+        """
+        out = str(record.get("out") or "").rstrip("\n")
+        err = str(record.get("err") or "").rstrip("\n")
+        lines = [*_escaped(out), *(f"[red]{one}[/]" for one in _escaped(err))]
+        status = record.get("status")
+        if isinstance(status, int) and status:
+            lines.append(f"exit {status}")
+        for at, line in enumerate(lines or ["(no output)"]):
+            lead = f"{_CAME_BACK}  " if at == 0 else "   "
+            self._into(None, f"[dim]  {lead}{line}[/]")
+        self._draw()
+
     def _conversation(self, key: str) -> str:
         """Which of an agent's conversations a turn is being taken in, where it has several.
 
@@ -5048,19 +5783,29 @@ class Humanize(App[None]):
         self._into(whose, text, shared=shared)
 
     def _said(self, text: str) -> None:
-        """Takes a line that is not a command, which is a task, an answer, or a word put in.
+        """Takes a line that is not a command, which is a message, an answer, or a word put in.
 
-        With a flow chosen and not yet running, it is the task that starts it -- the way a
-        first message to opencode is the thing it is asked to do, and the reason the flow
-        this opens on is one that takes anything as a task. With one running, it is the
-        answer to whatever the flow stopped to ask that is this interface's to answer, or it
-        goes to the agent taking its turn -- into the turn under way, or to the flow waiting
-        to be told the next one.
+        In a chat, and wherever no flow is going, it is said to this interface's chat --
+        the way a first message to Claude Code is the thing it is asked to do -- which puts
+        the chat on the screen (Section 9.4 of [TUI]). With a flow running, it is the answer
+        to whatever the flow stopped to ask that is this interface's to answer, or it goes
+        to the agent taking its turn -- into the turn under way, or to the flow waiting to be
+        told the next one.
 
         Args:
           text: What was said.
         """
-        if (asked := self._answers_to()) is not None:
+        if (new := self._ai_new) is not None:
+            # The first line of a new Ai-chan conversation, which is its task and makes it.
+            self._ai_new = None
+            self._said_by_you(text)
+            self._makes_ai(new, text)
+            self._draw()
+        elif self.chatting() and self._ai is None:
+            self._says_to_chat(text)
+        elif (asked := self._answers_to()) is not None and self._form_of(asked):
+            self._types_into_form(asked, text)
+        elif asked is not None:
             # Set aside here rather than when the runs say it was answered, so that a second
             # line typed before they do answers the next question -- and put back where it
             # is refused, since the question is still waiting.
@@ -5090,9 +5835,142 @@ class Humanize(App[None]):
             # pin it above the prompt until it goes, and say who said it once it has. Asked
             # after the start before it, so a run still starting is the one it is said to.
             self._asks("say", text=text, to=self._attached)
+        elif self._ai is not None:
+            # Her next turn, whatever her host says of it: no flow is started on her host.
+            self._asks("say", text=text, to=self._attached)
         else:
+            # No flow going, which leaves the chat to say it to.
+            self._says_to_chat(text)
+
+    def _says_to_chat(self, text: str) -> None:
+        """Says a line to this interface's chat, putting it on the screen first where it is not.
+
+        As its next turn where a chat is going on the host attached to, or about to; as the
+        next turn of the one left going on a host of its own while a flow was on the screen,
+        or the turn that carries it on where it has folded away since; and as the first
+        message of a new one otherwise. Every line of a chat goes through `chat.say`
+        (Section 4.25 of [DAEMON]), a question it asked mid-turn being answered by the next
+        line said in it.
+
+        Args:
+          text: What was said, as it was typed.
+        """
+        self._flow_shown = False
+        held = (
+            self._slot
+            if self._slot.startswith("chat:") and (self._starting or self._turn)
+            else None
+        )
+        if held is None and self._chat_epic and self._continuing is None:
+            # Its chat went on by itself while a flow was on the screen, or ended under it:
+            # back to it where a host still holds it, and carried on where none does.
+            held = self._holding(self._chat_epic)
+            if held is None:
+                self._continuing = self.hmz.epics.under() / self._chat_epic
+            elif held != self._slot:
+                self._relinks(held)
+        if held is None:
             self._said_by_you(text)
-            self._starts(text)
+            self._chat_starts(text)
+            return
+        # Put down as typed, here and now: what the chat's host tells of a line this interface
+        # said -- an answer to what the chat waits on, or a word put into its turn -- is not
+        # drawn again (`_told`), and a `!` goes to nobody who would say it.
+        self._said_by_you(text)
+        self._asks("chat.say", slot=held, text=text)
+
+    def _chat_starts(self, task: str) -> None:
+        """Starts a chat on what was said, or carries on the one `/epics` or `/chat` chose.
+
+        On a host of its own: the one attached to, where it is a chat's that has had no chat
+        yet, and a new one otherwise -- reached first, so that everything the chat says from
+        its first word is told here.
+
+        Args:
+          task: Its first message, or the message that carries it on, already on the screen.
+        """
+        from hmz.daemon import where
+
+        resume, self._continuing = self._continuing, None
+        if resume is None and self._chat_runs is None:
+            self.show("hmz: no coding agent is installed", "red")
+            return
+        if self._afar is not None:
+            # What is set up here is this machine's: a chat there is had from its own list.
+            daemon = escape(self._afar[0])
+            self.show(
+                f"hmz: start a chat on {daemon} with n on /epics @{daemon}; "
+                "esc comes back here",
+                "red",
+            )
+            return
+        if not self._slot.startswith("chat:") or self._epic_as:
+            self._relinks(where.chat())
+        self._starting = True
+        self._mine = task
+        self._asks(
+            "chat.start",
+            self._chat_started,
+            refused=self._not_started,
+            slot=self._slot,
+            # The chat's own where one is carried on, which is the agent it was had with: ""
+            # says so (Section 4.25.1 of daemon.md).
+            agent=written(self._chat_runs)
+            if resume is None and self._chat_runs is not None
+            else "",
+            task=task,
+            resume=str(resume) if resume is not None else None,
+            prefer=self._prefer_own,
+            # Remembered for the next chat here, as the agent a chat was last started with.
+            remember=resume is None,
+        )
+        self._draw()
+
+    def _chat_started(self, answer: dict[str, Any]) -> None:
+        """Takes the host and the epic a chat was started on, and asks what its harness takes.
+
+        Args:
+          answer: What `chat.start` answered: `slot` and `epic`.
+        """
+        self._chat_slot = str(answer.get("slot") or self._slot)
+        self._chat_epic = str(answer.get("epic") or self._chat_epic)
+        self._asks_natives()
+
+    def _asks_natives(self) -> None:
+        """Asks the chat on the host attached to what its harness takes at its own prompt.
+
+        Quietly: a host that has nothing to say about it leaves every sigil a word, which
+        is what a chat whose harness has no catalogue reads them as anyway.
+        """
+        if not self._slot.startswith("chat:"):
+            return
+        self._natives_of = self._slot
+        self._asks("chat.commands", self._took_natives, quiet=True, slot=self._slot)
+
+    def _took_natives(self, answer: dict[str, Any]) -> None:
+        """Takes the catalogue and the preference of the chat, as `chat.commands` says them.
+
+        Args:
+          answer: `entries`, each `sigil`, `name`, `about`, `how` and `source`; `prefer`;
+            `prefer_from`; and `listed`.
+        """
+        self._listed = answer.get("listed") is True
+        self._natives = [
+            NativeCommand(
+                one.get("sigil", "/"),
+                str(one.get("name") or ""),
+                str(one.get("about") or ""),
+                one.get("how", "pass"),
+            )
+            for one in cast("list[dict[str, Any]]", answer.get("entries") or [])
+            if one.get("source", "native") == "native"
+            and one.get("sigil") in ("/", "$", "!", "@")
+            and one.get("how") in ("pass", "call", "emulate", "refuse")
+        ]
+        if (prefer := answer.get("prefer")) in _PREFERS:
+            self._prefer = prefer
+            self._prefer_from = str(answer.get("prefer_from") or "settings")
+        self._draw()
 
     def _starts(self, task: str) -> None:
         """Starts the flow that is chosen on what was said, which is what saying it does.
@@ -5182,6 +6060,9 @@ class Humanize(App[None]):
         role = str(record.get("role") or "outworlder")
         if role not in self._outworlders:
             self._outworlders.append(role)
+        if self._form_of(record):
+            self._shows_form(record, role)
+            return
         asked = str(record.get("text") or "").strip()
         listening = record.get("mode") == "listen"
         repeated = bool(self._last_asked) and asked == self._last_asked.strip()
@@ -5232,6 +6113,10 @@ class Humanize(App[None]):
         held = self._asked_in.pop(str(asked), "")
         shown = self._shown_on.pop(str(asked), None)
         text, by = str(record.get("text") or ""), self._by(record)
+        self._drafts.pop(str(asked), None)
+        if (form := self._forms.pop(str(asked), None)) is not None:
+            # A form's answer said back as what was picked and written, not as its JSON.
+            text = summary(_answer_of(record), form.get("schema"))
         # Under the question where it is still on the screen, and not on one read since.
         self._said_by_you(
             text,
@@ -5242,6 +6127,264 @@ class Humanize(App[None]):
         if held:
             self._said_by_you(text, held, by)
 
+    # -- Questions asked as a form ------------------------------------------------------------
+
+    def _form_of(self, asked: Mapping[str, Any]) -> bool:
+        """Whether a question is asked as a form: one with a schema for its answer.
+
+        Args:
+          asked: The question, as the runs said it -- asked, or pending.
+
+        Returns:
+          True for a schema question, and False for one answered in words.
+        """
+        question = str(asked.get("question"))
+        schema = asked.get("schema") or self._forms.get(question, {}).get("schema")
+        return isinstance(schema, dict)
+
+    def _web_page(self) -> str:
+        """Where the web page shows the epic going, or "" where that is not known here.
+
+        Only for this machine's own runs, and only where `hmz web` has listened here: a page
+        on another machine is reached from that machine.
+        """
+        if self._afar is not None or not self._epic_now:
+            return ""
+        if self._web[0] == self._epic_now:
+            return self._web[1]
+        from urllib.parse import quote
+
+        from hmz import home
+
+        # `<home>/web-port`, as the last `hmz web` here wrote it (Section 4.15 of files.md).
+        try:
+            said = (home() / "web-port").read_text(encoding="ascii").strip()
+        except (OSError, UnicodeDecodeError):
+            said = ""
+        port = int(said) if said.isdigit() and int(said) in range(1, 1 << 16) else 0
+        self._web = (
+            self._epic_now,
+            f"http://127.0.0.1:{port}/#/epics/{quote(self._epic_now)}" if port else "",
+        )
+        return self._web[1]
+
+    def _shows_form(self, record: dict[str, Any], role: str) -> None:
+        """Shows a question asked as a form: its prompt, its context, and how to answer it.
+
+        Read before it is answered: the prompt is the headline, what it carries is under
+        that, and the form comes last -- a line saying it is there, which enter opens. Never
+        opened by itself, which would be a screen taken from under somebody typing.
+
+        Args:
+          record: The question, with its `schema`, `context` and `face`.
+          role: The outworlder asking it.
+        """
+        question = str(record.get("question"))
+        self._forms[question] = record
+        key = f"{_OUTWORLDER}{role}"
+        web = self._web_page()
+        first, _, rest = str(record.get("text") or "").strip().partition("\n")
+        drawn: list[object] = []
+        if rest.strip():
+            drawn.append(Padding(Markdown(rest.strip()), (0, 0, 0, 2)))
+        drawn.extend(blocks(list(record.get("context") or ()), web=web))
+        drawn.append("")
+        count = len(fields(record.get("schema")))
+        owner = self._claims.get(role)
+        if owner is not None and owner != self._me:
+            drawn.append(
+                f"  [dim]Waiting for {escape(self._frontends.get(owner, owner))}[/dim]"
+            )
+        else:
+            drawn.append(
+                f"  [dim]form{_DOT}{count} field{'s' if count != 1 else ''} "
+                "\N{EM DASH} press[/dim] [b]Enter[/b] [dim]to open[/dim]"
+            )
+        if record.get("face"):
+            where = f": {web}" if web else " (hmz web)"
+            drawn.append(
+                "  [dim]a richer view of this question is in the web page"
+                f"{escape(where)}[/dim]"
+            )
+        # On the outworlder's own transcript, and on the one being read, which is where it
+        # is answered from.
+        self._shown_on[question] = self._attached
+        self._part(
+            key,
+            f"[yellow]{_SAID}[/] [b]{escape(first or 'A question')}[/b]",
+            packs=False,
+            shared=True,
+        )
+        for one in drawn:
+            self._into(key, one, shared=True)
+
+    def _shows_context(self, record: Mapping[str, Any]) -> None:
+        """Shows what an outworlder was shown with nothing asked, on its own transcript.
+
+        Args:
+          record: The `shown` record: the `role`, and its `context`.
+        """
+        role = str(record.get("role") or "outworlder")
+        if role not in self._outworlders:
+            self._outworlders.append(role)
+        key = f"{_OUTWORLDER}{role}"
+        self._part(
+            key, f"[cyan]{_SAID}[/] [dim]{escape(role)} was shown[/dim]", packs=False
+        )
+        for one in blocks(list(record.get("context") or ()), web=self._web_page()):
+            self._into(key, one)
+
+    def _opens_form(self, asked: Mapping[str, Any], typed: str = "") -> None:
+        """Opens the form of a question, on what it held when it was last closed.
+
+        Args:
+          asked: The question, as the runs said it.
+          typed: What was typed at the prompt for it, put in its first empty written field.
+        """
+        if self._asking is not None:
+            return
+        question = str(asked.get("question"))
+        sheet = Asks(
+            {**self._forms.get(question, {}), **asked},
+            send=self._sends_form,
+            keep=lambda draft: self._drafts.__setitem__(question, draft),
+            draft=self._drafts.get(question),
+            typed=typed,
+        )
+        self._asking = sheet
+        self.push_screen(sheet, lambda _: self._closed_form(sheet))
+
+    def _closed_form(self, sheet: Asks) -> None:
+        """Lets go of a form that has closed."""
+        if self._asking is sheet:
+            self._asking = None
+
+    def _types_into_form(self, asked: Mapping[str, Any], text: str) -> None:
+        """Takes a line typed at a question asked as a form.
+
+        A JSON object is the answer itself, as a caller would give it -- or any JSON, for a
+        schema that is not an object. Anything else opens the form with what was typed in
+        it, where it would have gone: words are how a question is answered at a prompt, and
+        refusing them would be refusing the habit.
+
+        Args:
+          asked: The question.
+          text: What was typed.
+        """
+        question = str(asked["question"])
+        schema = asked.get("schema") or self._forms.get(question, {}).get("schema")
+        whole = [one.name for one in fields(schema)] == [""]
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            value = None
+        if not (isinstance(value, dict) or (whole and value is not None)):
+            self._opens_form(asked, text)
+            return
+        self._answering.add(question)
+        self._asks(
+            "answer",
+            refused=lambda: self._answering.discard(question),
+            question=question,
+            value=value,
+        )
+
+    def _sends_form(self, sheet: Asks, value: object) -> None:
+        """Sends what a form was answered with, and closes it once the host takes it.
+
+        What the host refuses is said on the form, beside the fields it is about.
+
+        Args:
+          sheet: The form.
+          value: Its answer.
+        """
+        question = str(sheet.question.get("question"))
+        self._answering.add(question)
+
+        def took(_: dict[str, Any]) -> None:
+            self._drafts.pop(question, None)
+            self._closes_form(sheet)
+
+        def failed(why: Exception) -> None:
+            self._answering.discard(question)
+            data = getattr(why, "data", None)
+            errors = (
+                cast("dict[str, Any]", data).get("errors")
+                if isinstance(data, dict)
+                else None
+            )
+            if self._asking is sheet:
+                sheet.refused(
+                    str(why),
+                    [
+                        cast("dict[str, Any]", one)
+                        for one in cast("list[Any]", errors or [])
+                        if isinstance(one, dict)
+                    ],
+                )
+            else:
+                self.show(f"hmz: {why}", "red")
+
+        self._asks(
+            "answer", took, failed=failed, quiet=True, question=question, value=value
+        )
+
+    def _closes_form(self, sheet: Asks) -> None:
+        """Closes a form, and whatever was opened over it."""
+        if sheet not in self.screen_stack:
+            return
+        while self.screen is not sheet:
+            self.pop_screen()
+        sheet.dismiss(None)
+
+    def _withdrawn(self, record: Mapping[str, Any]) -> None:
+        """Says why a question asked as a form went away unanswered, rather than letting it go.
+
+        Under the question, where it is still on the screen; and the form comes down if it
+        is up, saying so. A question in words is left as it always was.
+
+        Args:
+          record: The `withdrawn` record: the `question`, and `why`.
+        """
+        question = str(record.get("question"))
+        form = self._forms.pop(question, None)
+        if form is None:
+            return
+        self._drafts.pop(question, None)
+        why = str(record.get("why") or "it went away")
+        shown = self._shown_on.pop(question, None)
+        self._into(
+            f"{_OUTWORLDER}{form.get('role') or 'outworlder'}",
+            f"  [dim]withdrawn: {escape(why)}[/dim]",
+            shared=shown == self._attached,
+        )
+        sheet = self._asking
+        if sheet is not None and sheet.question.get("question") == question:
+            self._asking = None
+            self._closes_form(sheet)
+            self.show(f"hmz: the question was withdrawn: {why}", "dim")
+
+    def _withdraws_form(self, waiting: set[str]) -> None:
+        """Closes the form up where its question is no longer waiting, saying why.
+
+        Args:
+          waiting: The questions waiting now.
+        """
+        sheet = self._asking
+        if sheet is None:
+            return
+        question = str(sheet.question.get("question"))
+        if question in waiting:
+            return
+        self._asking = None
+        self._closes_form(sheet)
+        if question not in self._answering:
+            self.show(
+                "hmz: the question went away before it was answered "
+                "(answered elsewhere, or the run moved on)",
+                "dim",
+            )
+
     @property
     def _set_up(self) -> bool:
         """Whether there is an agent for each of the flow's agent roles.
@@ -5251,7 +6394,8 @@ class Humanize(App[None]):
         agent role is not short of anything: whoever is outside it is at this prompt.
         """
         return all(
-            role in self._models and self._models[role].spec for role in self._named_by
+            role in self._models and self._models[role].spec
+            for role in self._flow_roles()
         )
 
     def _unheld(self, record: dict[str, Any]) -> None:
@@ -5306,6 +6450,24 @@ class Humanize(App[None]):
             self.show(f"[dim]   never sent: {escape(because)}[/dim]")
 
 
+def _answer_of(record: Mapping[str, Any]) -> object:
+    """The value a question asked as a form was answered with, as the runs said it.
+
+    Args:
+      record: The `answered` record: its `value`, or its `text` as the value's JSON.
+
+    Returns:
+      The value, or the text itself where it is not JSON.
+    """
+    if "value" in record:
+        return record["value"]
+    text = str(record.get("text") or "")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+
+
 def _machine() -> dict[str, object]:
     """What the interface knows about this machine, for a report of something going wrong.
 
@@ -5345,6 +6507,7 @@ def _machine() -> dict[str, object]:
 #: in raw mode, or an editor open, for good.
 _ENV_PATIENCE = 60.0
 
+
 #: What the editor understands, named as opencode names them, one step along: what answers
 #: here is a flow rather than an agent, so opencode's `/agents` is `/flow`, and what a flow
 #: runs on is an agent apiece rather than one model, so its `/models` is the page along from
@@ -5362,12 +6525,49 @@ _ENV_PATIENCE = 60.0
 #:
 #: Written down here rather than beside the class, since a row names the method that carries
 #: it out and the class has to exist first.
+class _Chats(Picks):
+    """The earlier chats of this directory, newest first, to carry one on: `/resume` in a chat.
+
+    What the harness's own `/resume` is at its prompt: a list of the conversations had here,
+    one of which is picked up where it was left (Section 8.9.8 of [CORE]).
+    """
+
+    asked = "Resume a chat"
+    about = "The chats of this directory, newest first: the one picked goes on."
+
+    def __init__(self, chats: Sequence[tuple[str, str, str]]) -> None:
+        """Holds the chats to choose between.
+
+        Args:
+          chats: One `(epic, what it began with, the line about it)` apiece, newest first.
+        """
+        super().__init__()
+        self._chats = list(chats)
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Each chat, by its epic, with what it began with."""
+        return list(self._chats)
+
+
+#: `/exit`, and `/quit` under the name the harnesses give it.
+_EXIT = Command(
+    "exit",
+    "Exit",
+    lambda app, _: app.action_exit(),
+    # What becomes of the run is asked: left to the daemon holding it, or stopped.
+    now=lambda app: (
+        "" if not app.flow_running() else "Exit; a running flow can be left running"
+    ),
+)
+
 _COMMANDS: tuple[Command, ...] = (
     Command(
         "flow",
-        "Switch flow",
-        lambda app, argv: app.action_flow(argv[0] if argv else ""),
-        takes="[flow]",
+        "Set up a flow, or start one on a task",
+        lambda app, argv: app.action_flow(
+            argv[0] if argv else "", task=" ".join(argv[1:])
+        ),
+        takes="[flow] [task]",
         # Never refused -- the agents of a run are set up whatever is happening -- but only
         # that while one runs: no flow is offered after it, and one named is turned down.
         now=lambda app: (
@@ -5376,13 +6576,20 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "btw",
-        "Ask side questions; press esc or /btw to stop",
+        "Ask side questions of this session; press esc or /btw to stop",
         lambda app, argv: app.action_btw(" ".join(argv).strip()),
         takes="[question]",
+        # Of a session, which is where it is refused elsewhere -- but leaving it is not.
         refuses=lambda app: app.refused_btw(),
         now=lambda app: (
             "Ask one more; alone, leave btw mode (esc too)" if app.in_btw() else ""
         ),
+    ),
+    Command(
+        "ai",
+        "Talk to Ai-chan, who operates hmz for you",
+        lambda app, _: app.action_ai(),
+        now=lambda app: app.ai_now(),
     ),
     Command(
         "epics",
@@ -5398,7 +6605,9 @@ _COMMANDS: tuple[Command, ...] = (
         # on, which is looked for off the screen, reading a flow being running it -- and so
         # only left out: typed, it looks again for itself, and says what it found.
         refuses=lambda app: app.refused_resume(),
-        unlisted=lambda app: app.nothing_to_resume(),
+        # In a chat it lists the chats had here, which it looks for as it is typed.
+        unlisted=lambda app: not app.chatting() and app.nothing_to_resume(),
+        now=lambda app: "Resume an earlier chat here" if app.chatting() else "",
     ),
     Command(
         "env",
@@ -5415,7 +6624,12 @@ _COMMANDS: tuple[Command, ...] = (
         takes="[page]",
         offers=_PAGES,
     ),
-    Command("clear", "Clear the screen", lambda app, _: app.action_clear()),
+    Command(
+        "clear",
+        "Clear the screen",
+        lambda app, _: app.action_clear(),
+        now=lambda app: "Start a new chat" if app.chatting() else "",
+    ),
     Command(
         "afk",
         "Toggle whether an agent may ask you",
@@ -5440,16 +6654,22 @@ _COMMANDS: tuple[Command, ...] = (
         lambda app, _: app.action_stop(),
         refuses=lambda app: app.refused_stop(),
     ),
+    _EXIT,
+    # The harnesses' own word for it, which is what fingers used to one of them type.
+    replace(_EXIT, name="quit"),
     Command(
-        "exit",
-        "Exit",
-        lambda app, _: app.action_exit(),
-        # What becomes of the run is asked: left to the daemon holding it, or stopped.
-        now=lambda app: (
-            ""
-            if not app.flow_running() or app.chatting()
-            else "Exit; a running flow can be left running"
-        ),
+        "chat",
+        "Back to the chat, which went on while a flow was on the screen",
+        lambda app, argv: app.action_chat(argv),
+        refuses=lambda app: app.refused_chat(),
+    ),
+    Command(
+        "prefer",
+        "What $<name> runs where it names a skill and a flow",
+        lambda app, argv: app.action_prefer(argv),
+        takes="[native|flow]",
+        offers=_PREFERS,
+        refuses=lambda app: app.refused_prefer(),
     ),
 )
 

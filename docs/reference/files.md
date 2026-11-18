@@ -57,6 +57,9 @@ H/
 │   ├── <workdir-name>-<digest>/{clones,scratch,worktrees}/
 │   └── mirrors/<container, service or job>/<digest>/
 ├── easytier/<version>/                 EasyTier's easytier-core, downloaded for a daemon reached over it
+├── ai/<machine>/                       Ai-chan: this machine's conversations, and the scratch directory of each
+│   ├── conversations.yaml
+│   └── <id>/
 └── epics/<ws>/<stamp>-<hex6>/          one run
 
 M/
@@ -91,6 +94,20 @@ M/
 | Unreadable, missing, not a mapping | read as empty; never an error |
 | Write failure, or unreadable at a write | not written over; ignored by `Settings`, `OSError` for a fallback, added CLI or runtime |
 | Removed | never; `forget` removes one workspace's entry |
+
+### `H/ai/<machine>/` {#h-ai}
+
+The [Ai-chan](/user/ai-chan) conversations of this machine's daemon, `<machine>` being
+`/etc/machine-id` on Linux, the `IOPlatformUUID` on macOS, and the host name up to its first `.`
+elsewhere or where that is missing, so machines that share a home keep theirs apart. It is the
+workspace of every conversation of the scope `daemon`.
+
+| Property | Value |
+| --- | --- |
+| Mode | `0700`, and `0700` for each `<id>/` |
+| `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (its epic's name, `""` before it has one), `created` (UTC). Mode `0600`, replaced atomically, written by the daemon alone |
+| `<id>/` | that conversation's scratch directory, where her CLI works; made with the conversation |
+| Removed | an entry and its `<id>/` by `aichan.forget`, never its epic's records; the whole of `H/ai/` by you, while no daemon of this home runs, forgets every conversation |
 
 ### `H/easytier/<version>/` {#h-easytier}
 
@@ -365,7 +382,7 @@ Every path in this section is safe to delete while Humanize is not running.
 | each CLI's home ([Backend homes](/reference/environment#backend-homes)) | sessions to trace; credentials of `@local`; tally |
 | `$DSH_HOME` (`~/.dsh`): `settings.yaml`, `.credentials.yaml`, `.env` | DeepSeek Harness key and endpoint |
 
-Antigravity's permission profiles `hmz-read-only.md`, `hmz-read-only-web.md` and
+Antigravity's agents `hmz-read-only.md`, `hmz-read-only-web.md` and
 `hmz-offline.md` are written into the `agents/` of the
 [virtual home](/reference/agents#virtual-homes) each agy process is started in, beside links to
 your own; `~/.gemini/antigravity-cli/agents/` is never written.

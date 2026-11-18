@@ -1,5 +1,6 @@
 // Builds the page's third-party code into ../static/vendor: one minified ES module each for the
-// editor (codemirror.mjs) and the terminal (xterm.mjs), and xterm's stylesheet. Each file opens
+// editor (codemirror.mjs), the terminal (xterm.mjs), Markdown (markdown.mjs) and charts
+// (vega.mjs), and xterm's stylesheet. Each file opens
 // with the licences of every package bundled into it. The same lockfile builds the same bytes,
 // which CI checks: run `pnpm install --frozen-lockfile && pnpm build` here and commit the result.
 
@@ -55,6 +56,50 @@ function notice(files) {
   return `/*! Third-party code, bundled by src/hmz/web/vendor/build.mjs. Its licences follow.\n\n${parts.join('\n\n---\n\n')}\n*/\n`;
 }
 
+// The few places where a package would compile code from a string at run time, which the page's
+// policy refuses (no `eval`): each is rewritten to do the same without. A patch that no longer
+// finds its text fails the build, so that an upgrade cannot quietly bring the compiling back.
+const PATCHES = [
+  {
+    // vega's runtime compiles expressions unless given an interpreter; vega.mjs always gives
+    // vega-interpreter's, so its compiler goes and, with it, every `Function(`.
+    file: /[\\/]vega-runtime[\\/]build[\\/]vega-runtime\.js$/,
+    find: 'this.expr = expr || expressionCodegen,',
+    put: 'this.expr = expr,',
+  },
+  {
+    // d3-dsv builds a row's object with `new Function`; a closure makes the same object.
+    file: /[\\/]d3-dsv[\\/]dist[\\/]d3-dsv\.mjs$/,
+    find: `function objectConverter(columns) {
+  return new Function("d", "return {" + columns.map(function(name, i) {
+    return JSON.stringify(name) + ": d[" + i + "] || \\"\\"";
+  }).join(",") + "}");
+}`,
+    put: `function objectConverter(columns) {
+  return function(d) {
+    return Object.fromEntries(columns.map(function(name, i) { return [name, d[i] || ""]; }));
+  };
+}`,
+  },
+];
+
+const applied = new Set();
+
+const patched = {
+  name: 'patched',
+  setup(build) {
+    for (const patch of PATCHES) {
+      const { file, find, put } = patch;
+      build.onLoad({ filter: file }, ({ path }) => {
+        const text = readFileSync(path, 'utf8');
+        if (!text.includes(find)) throw new Error(`${path} no longer reads as patched: ${find.split('\n')[0]}`);
+        applied.add(patch);
+        return { contents: text.replace(find, put), loader: 'js' };
+      });
+    }
+  },
+};
+
 async function bundle(entry, name, options = {}) {
   const result = await build({
     entryPoints: [join(here, entry)],
@@ -69,6 +114,7 @@ async function bundle(entry, name, options = {}) {
     metafile: true,
     write: false,
     logLevel: 'warning',
+    plugins: [patched],
     ...options,
   });
   const [file] = result.outputFiles;
@@ -83,4 +129,8 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await bundle('codemirror.mjs', 'codemirror.js');
 await bundle('xterm.mjs', 'xterm.js');
+await bundle('markdown.mjs', 'markdown.js');
+await bundle('vega.mjs', 'vega.js');
+// Every patch is to vega.js's packages: one that found no file to apply to was moved past.
+for (const { file } of PATCHES.filter((patch) => !applied.has(patch))) throw new Error(`no file matched ${file}`);
 await bundle('node_modules/@xterm/xterm/css/xterm.css', 'xterm_css.css', { format: undefined, target: ['chrome111', 'firefox113', 'safari16.4'] });

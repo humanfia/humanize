@@ -236,7 +236,6 @@ def test_dsh_is_driven_by_its_own_classes(
     assert agent.backend == "dsh"
     assert isinstance(agent.new(), DshSession)
     assert DshAgent.counts == {"input", "output", "cache_read", "cache_write"}
-    assert DshAgent.rungs == ("bypass",)
     assert DshAgent.pursues
 
 

@@ -10,13 +10,14 @@ import pytest
 
 from hmz.coganchor import fence
 from hmz.coganchor.agents import (
-    UNSAID,
     Failed,
     PiAgent,
     PiAgentConfig,
     PiSession,
     driver,
 )
+from hmz.coganchor.agents.native import NativeCommand
+from hmz.coganchor.agents.pi import listed
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.fence import Fence
 
@@ -180,10 +181,6 @@ def test_the_process_is_held_open_and_told_a_new_effort_in_line(
     [
         ({"effort": "medium"}, ["--thinking", "medium"]),
         (
-            {"permission": "read-only"},
-            ["--exclude-tools", "bash,edit,write,powershell"],
-        ),
-        (
             {"append_system_prompt": ("be brief", "be kind")},
             ["--append-system-prompt", "be brief", "--append-system-prompt", "be kind"],
         ),
@@ -210,17 +207,73 @@ def test_what_the_agent_is_configured_with_goes_on_the_command_line(
     assert argv[at : at + len(flags)] == flags
 
 
-@pytest.mark.parametrize("permission", ["workspace-write", "auto", "bypass", UNSAID])
-def test_only_read_only_takes_tools_away(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, permission: str
+@pytest.mark.parametrize(
+    ("writes", "withheld"),
+    [(None, None), (False, "edit,write"), (True, None)],
+)
+def test_a_fence_that_writes_nothing_withholds_the_writing_tools_and_keeps_the_shell(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    writes: bool | None,
+    withheld: str | None,
 ) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
-    agent = _agent(permission=permission)
+    work = tmp_path / "work"
+    work.mkdir()
+    drawn = {
+        None: None,
+        False: Fence(read=("/",)),
+        True: Fence(read=("/",), write=(str(work),)),
+    }[writes]
+    agent = _agent(fence=drawn)
     heard(agent)
 
-    _turn(agent.new(tmp_path))
+    _turn(agent.new(work))
 
-    assert "--exclude-tools" not in spawned[0].args
+    assert option(spawned[0].args, "--exclude-tools") == withheld
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "restarted"),
+    [
+        ("writes", "reads", "edit,write"),
+        ("reads", "writes", None),
+        (None, "reads", "edit,write"),
+        ("reads", "reads", False),
+    ],
+)
+def test_a_fence_moved_by_reconfiguring_is_a_process_given_the_tools_it_allows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    before: str | None,
+    after: str,
+    restarted: str | bool | None,
+) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+    spawned = spawning(monkeypatch, answers=_rpc(*_SAID))
+    work = tmp_path / "work"
+    work.mkdir()
+    drawn = {
+        None: None,
+        "reads": Fence(read=("/",)),
+        "writes": Fence(read=("/",), write=(str(work),)),
+    }
+    agent = _agent(fence=drawn[before])
+    heard(agent)
+    session = agent.new(work)
+    _turn(session, "one")
+
+    agent.reconfigure(
+        PiAgentConfig(**configured("anthropic/sonnet", {"fence": drawn[after]}))
+    )
+    _turn(session, "two")
+
+    if restarted is False:
+        assert len(spawned) == 1
+    else:
+        _, second = spawned
+        assert option(second.args, "--exclude-tools") == restarted
 
 
 def test_a_fence_that_cuts_the_network_runs_pi_offline(
@@ -486,3 +539,224 @@ def test_the_flow_s_skills_are_lodged_in_the_virtual_home(
     (home,) = homes
     assert "skills/greet/SKILL.md" in home
     assert list(work.iterdir()) == []
+
+
+#: What pi lists for `get_commands`: a template, a skill and an extension's command.
+_COMMANDS = [
+    {"name": "fix-tests", "description": "Fix failing tests", "source": "prompt"},
+    {"name": "skill:review", "description": "Review it", "source": "skill"},
+    {"name": "deploy", "source": "extension"},
+]
+
+
+def _natively(told: str) -> Iterable[str]:
+    """What `pi --mode rpc` answers each command a native turn may be served by with."""
+    said: dict[str, Any] = json.loads(told)
+    match said["type"]:
+        case "get_commands":
+            data: dict[str, Any] = {"commands": _COMMANDS}
+        case "bash":
+            data = {"output": "out\n", "exitCode": 2, "cancelled": False}
+        case "compact":
+            data = {"summary": "s", "tokensBefore": 900, "usage": {"input": 7}}
+        case "prompt":
+            return _SAID
+        case _:
+            return ()
+    return (
+        line(
+            {
+                "type": "response",
+                "id": said.get("id"),
+                "command": said["type"],
+                "success": True,
+                "data": data,
+            }
+        ),
+    )
+
+
+def _entries(session: PiSession) -> list[tuple[str, str, str]]:
+    return [(one.sigil, one.name, one.how) for one in session.natives()]
+
+
+def test_the_catalog_asked_for_has_the_next_process_list_its_commands(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_natively)
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+    assert _entries(session) == [
+        ("!", "", "call"),
+        ("!", "!", "call"),
+        ("/", "compact", "call"),
+    ]
+
+    _turn(session, "one")
+    _turn(session, "two")
+
+    assert [one["type"] for one in _told(spawned[0].told)] == [
+        "get_commands",
+        "prompt",
+        "prompt",
+    ]
+    assert _entries(session) == [
+        ("!", "", "call"),
+        ("!", "!", "call"),
+        ("/", "compact", "call"),
+        ("/", "fix-tests", "pass"),
+        ("/", "skill:review", "pass"),
+        ("/", "deploy", "pass"),
+    ]
+    assert session.natives()[3].about == "Fix failing tests"
+
+
+@pytest.mark.parametrize(
+    ("typed", "told", "answer"),
+    [
+        (
+            "!ls -la",
+            {"type": "bash", "command": "ls -la", "id": "hmz-native"},
+            "out\n(exit code 2)",
+        ),
+        (
+            "!! ls",
+            {
+                "type": "bash",
+                "command": "ls",
+                "excludeFromContext": True,
+                "id": "hmz-native",
+            },
+            "out\n(exit code 2)",
+        ),
+        (
+            "/compact",
+            {"type": "compact", "id": "hmz-native"},
+            "compacted from 900 tokens",
+        ),
+        (
+            "/compact keep the tests",
+            {
+                "type": "compact",
+                "customInstructions": "keep the tests",
+                "id": "hmz-native",
+            },
+            "compacted from 900 tokens",
+        ),
+        (
+            "/skill:review now",
+            {"type": "prompt", "message": "/skill:review now"},
+            "done",
+        ),
+    ],
+)
+def test_a_native_turn_is_served_by_the_command_of_pis_own_for_it(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    typed: str,
+    told: dict[str, Any],
+    answer: str,
+) -> None:
+    spawned = spawning(monkeypatch, answers=_natively)
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+    _turn(session, "hello")
+
+    events = list(session.stream(typed, native=True))
+
+    assert _told(spawned[0].told)[-1] == told
+    assert events[-1].kind == "result"
+    assert events[-1].text == answer
+    assert not session.native_turn
+
+
+def test_a_compaction_is_charged_to_its_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    spawned = spawning(monkeypatch, answers=_natively)
+    agent = _agent()
+    heard(agent)
+    session = agent.new(tmp_path)
+
+    (result,) = list(session.stream("/compact", native=True))
+
+    assert dict(result.spent) == {"input": 7}
+    assert result.tokens == {"anthropic/sonnet": 7}
+    # The first turn, and the session it was taken into is the session's from here.
+    assert session.id == option(spawned[0].args, "--session-id")
+
+
+@pytest.mark.parametrize("typed", ["!ls", "/compact", "!!ls"])
+def test_a_flows_prompt_is_never_read_as_native_input(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, typed: str
+) -> None:
+    spawned = spawning(monkeypatch, answers=_natively)
+    agent = _agent()
+    heard(agent)
+
+    _turn(agent.new(tmp_path), typed)
+
+    assert _told(spawned[0].told)[-1] == {"type": "prompt", "message": typed}
+
+
+def test_a_native_command_pi_refuses_is_a_failed_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    refused = line(
+        {
+            "type": "response",
+            "id": "hmz-native",
+            "command": "compact",
+            "success": False,
+            "error": "Already compacted",
+        }
+    )
+    spawning(
+        monkeypatch, answers=lambda told: (refused,) if '"compact"' in told else ()
+    )
+    agent = _agent()
+    heard(agent)
+
+    with pytest.raises(Failed, match="Already compacted"):
+        list(agent.new(tmp_path).stream("/compact", native=True))
+
+
+def test_a_prompt_pi_handles_itself_is_a_turn_over(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    handled = line(
+        {
+            "type": "response",
+            "command": "prompt",
+            "success": True,
+            "data": {"disposition": "handled"},
+        }
+    )
+    spawning(monkeypatch, answers=lambda told: (handled,) if '"prompt"' in told else ())
+    agent = _agent()
+    heard(agent)
+
+    events = list(agent.new(tmp_path).stream("/deploy", native=True))
+
+    assert [one.kind for one in events] == ["result"]
+
+
+def test_listed_reads_names_and_aliases_and_leaves_compact_to_its_command() -> None:
+    entries = listed(
+        [
+            {"name": "compact", "source": "builtin"},
+            {"name": "plan", "aliases": ["p"], "description": "Plan it"},
+            {"name": "ship", "aliases": "sh", "description": "Ship it"},
+            "nonsense",
+            {"description": "no name"},
+        ]
+    )
+
+    assert entries == [
+        NativeCommand("/", "plan", "Plan it", "pass"),
+        NativeCommand("/", "p", "Plan it", "pass"),
+        NativeCommand("/", "ship", "Ship it", "pass"),
+    ]
+    assert listed(None) == []

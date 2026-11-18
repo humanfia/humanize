@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 from typing import TYPE_CHECKING, Any, cast
 
+import pydantic
 import pytest
 
 from hmz.flows import BudgetExceeded
-from hmz.sdk import Refused, Run
+from hmz.sdk import Ask, Refused, Run
 from hmz.sdk.running import Opened, Runner, backed
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
 #: What the daemon's check answered of the epic.
 _CHECKED: dict[str, Any] = {
     "flow": "asks",
     "ref": "asks:asks",
-    "chats": False,
     "declared": {
         "agents": [{"name": "coder", "auto": False}, {"name": "human", "auto": True}]
     },
@@ -51,7 +52,10 @@ class _Daemon:
         self.listener: Callable[[str, dict[str, Any]], None] | None = None
         self.closed = False
         self.refusing: dict[str, Refused] = {}
+        #: Refusals said once each, in turn, before the call is taken.
+        self.refusing_once: dict[str, list[Refused]] = {}
         self.answered = threading.Event()
+        self.called = threading.Condition()
         #: What `runs.get` says each time it is asked, the last for good.
         self.rows: list[dict[str, Any]] = [{}]
         self.gone = threading.Event()
@@ -62,9 +66,13 @@ class _Daemon:
     def call(
         self, method: str, params: dict[str, Any] | None = None, **said: Any
     ) -> Any:
-        self.asked.append((method, dict(params or {})))
+        with self.called:
+            self.asked.append((method, dict(params or {})))
+            self.called.notify_all()
         if method in self.refusing:
             raise self.refusing[method]
+        if self.refusing_once.get(method):
+            raise self.refusing_once[method].pop(0)
         if method == "epic.answer":
             self.answered.set()
         if method == "epic.attach":
@@ -88,6 +96,14 @@ class _Daemon:
     def methods(self) -> list[str]:
         return [method for method, _ in self.asked]
 
+    def calls(self, method: str, count: int) -> list[dict[str, Any]]:
+        """The params of the first `count` calls of `method`, once that many were made."""
+        with self.called:
+            assert self.called.wait_for(
+                lambda: self.methods().count(method) >= count, timeout=5
+            )
+            return [params for one, params in self.asked if one == method][:count]
+
 
 class _Runner(Runner):
     def __init__(self, daemon: _Daemon) -> None:
@@ -108,12 +124,9 @@ def test_a_run_is_what_the_check_answered_and_nothing_is_started(
 ) -> None:
     run = Run(_Runner(daemon), "do it")
 
-    assert (run.flow, run.ref, run.chats, run.task) == (
-        "asks",
-        "asks:asks",
-        False,
-        "do it",
-    )
+    assert (run.flow, run.ref, run.task) == ("asks", "asks:asks", "do it")
+    # A chat is not a flow, so no run of one is a chat.
+    assert not hasattr(run, "chats")
     assert run.names == {"coder": "NeiKos"}
     assert run.budget.cost == 1.0
     assert (run.epic, run.running, run.raised, run.result) == (None, False, None, None)
@@ -220,26 +233,68 @@ def test_an_epic_that_did_not_finish_raises_what_its_end_says(
 
 
 class _Person:
-    """Whoever is outside: away for one role, answering the others."""
+    """Whoever is outside: away for one role, answering the others with what it is given."""
 
-    def __init__(self) -> None:
-        self.asked: list[tuple[str, str]] = []
+    def __init__(
+        self, *replies: str | pydantic.BaseModel | Mapping[str, Any] | None
+    ) -> None:
+        self.asked: list[tuple[Ask, str]] = []
+        self.shown: list[tuple[tuple[dict[str, Any], ...], str, str]] = []
+        self._replies = list(replies)
 
     def away_for(self, role: str) -> bool:
         return role == "nobody"
 
-    async def run(self, prompt: str, output_schema: object, role: str) -> str:
-        del output_schema
-        self.asked.append((prompt, role))
-        return f"yes to {prompt}"
+    async def run(
+        self, ask: Ask, role: str
+    ) -> str | pydantic.BaseModel | Mapping[str, Any]:
+        self.asked.append((ask, role))
+        if self._replies:
+            reply = self._replies.pop(0)
+            if reply is None:
+                raise RuntimeError("nothing to say")
+            return reply
+        return f"yes to {ask.prompt}"
+
+    def show(
+        self, context: tuple[dict[str, Any], ...], session: str, role: str
+    ) -> None:
+        self.shown.append((context, session, role))
+
+
+class _Review(pydantic.BaseModel):
+    verdict: str
+    notes: str = ""
+
+
+_SCHEMA: dict[str, Any] = _Review.model_json_schema()
+
+_DIFF: dict[str, Any] = {
+    "kind": "diff",
+    "patch": "--- a\n+++ b\n",
+    "title": "the change",
+}
+
+
+def _misfit(message: str) -> Refused:
+    return Refused(
+        f"the answer does not fit: {message}",
+        code=400,
+        data={"errors": [{"path": ["verdict"], "message": message}]},
+    )
+
+
+def _started(daemon: _Daemon, person: _Person) -> Run:
+    run = Run(_Runner(daemon), "do it", outworlder=person)
+    run.start()
+    return run
 
 
 def test_an_outworlder_claims_its_roles_and_answers_their_questions(
     daemon: _Daemon,
 ) -> None:
     person = _Person()
-    run = Run(_Runner(daemon), "do it", outworlder=person)
-    run.start()
+    _started(daemon, person)
 
     assert ("epic.claim", {"sub": "s1", "role": "human"}) in [
         (method, {key: value for key, value in params.items() if key != "idem"})
@@ -249,13 +304,189 @@ def test_an_outworlder_claims_its_roles_and_answers_their_questions(
     daemon.tells(type="asked", question="q1", role="human", text="ship it?")
 
     assert daemon.answered.wait(5)
-    assert person.asked == [("ship it?", "human")]
+    ((ask, role),) = person.asked
+    assert (ask.prompt, ask.schema, ask.model, ask.context, role) == (
+        "ship it?",
+        None,
+        None,
+        (),
+        "human",
+    )
+    assert (ask.face, ask.session, ask.errors) == ("", "", ())
     method, params = daemon.asked[-1]
     assert (method, params["question"], params["text"]) == (
         "epic.answer",
         "q1",
         "yes to ship it?",
     )
+    assert "value" not in params
+
+
+def test_a_schema_question_is_asked_whole_with_its_context_and_answered_with_a_value(
+    daemon: _Daemon,
+) -> None:
+    person = _Person({"verdict": "approve", "notes": "LGTM"})
+    _started(daemon, person)
+
+    daemon.tells(
+        type="asked",
+        question="q1",
+        role="human",
+        text="review this",
+        options=[],
+        schema=_SCHEMA,
+        context=[_DIFF],
+        face={"hash": "ab12", "title": "review"},
+        session="human/1",
+    )
+
+    (params,) = daemon.calls("epic.answer", 1)
+    ((ask, _),) = person.asked
+    assert (ask.prompt, ask.schema, ask.model) == ("review this", _SCHEMA, None)
+    assert (ask.context, ask.face, ask.session) == ((_DIFF,), "ab12", "human/1")
+    assert params["value"] == {"verdict": "approve", "notes": "LGTM"}
+    assert "text" not in params
+
+
+def test_a_model_answer_is_sent_as_its_json_value(daemon: _Daemon) -> None:
+    person = _Person(_Review(verdict="reject"))
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="?", schema=_SCHEMA)
+
+    (params,) = daemon.calls("epic.answer", 1)
+    assert params["value"] == {"verdict": "reject", "notes": ""}
+
+
+def test_a_mapping_answering_a_text_question_is_sent_as_its_json_text(
+    daemon: _Daemon,
+) -> None:
+    person = _Person({"pick": 2})
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="which?")
+
+    (params,) = daemon.calls("epic.answer", 1)
+    assert json.loads(params["text"]) == {"pick": 2}
+    assert "value" not in params
+
+
+def test_an_answer_that_does_not_fit_is_asked_again_with_what_did_not_fit(
+    daemon: _Daemon,
+) -> None:
+    daemon.refusing_once["epic.answer"] = [_misfit("must be approve or reject")]
+    person = _Person({"verdict": "maybe"}, {"verdict": "approve"})
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="?", schema=_SCHEMA)
+
+    first, second = daemon.calls("epic.answer", 2)
+    assert first["value"] == {"verdict": "maybe"}
+    assert second["value"] == {"verdict": "approve"}
+    (_, retried) = [ask for ask, _ in person.asked]
+    assert retried.errors == (
+        {"path": ["verdict"], "message": "must be approve or reject"},
+    )
+    assert retried.prompt == "?"
+    assert "epic.afk" not in daemon.methods()
+
+
+def test_three_answers_that_do_not_fit_answer_the_question_as_away(
+    daemon: _Daemon,
+) -> None:
+    daemon.refusing_once["epic.answer"] = [_misfit("no")] * 3
+    person = _Person({"verdict": 1}, {"verdict": 2}, {"verdict": 3})
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="?", schema=_SCHEMA)
+
+    on, off = daemon.calls("epic.afk", 2)
+    assert (on["on"], on["role"], off["on"], off["role"]) == (
+        True,
+        "human",
+        False,
+        "human",
+    )
+    assert daemon.methods().count("epic.answer") == 3
+    assert len(person.asked) == 3
+
+
+def test_an_answer_refused_for_another_reason_is_not_asked_again(
+    daemon: _Daemon,
+) -> None:
+    daemon.refusing_once["epic.answer"] = [Refused("no question q1", code=404)]
+    person = _Person({"verdict": "approve"})
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="?", schema=_SCHEMA)
+
+    daemon.calls("epic.answer", 1)
+    with daemon.called:
+        assert not daemon.called.wait_for(
+            lambda: len(daemon.asked) > daemon.methods().index("epic.answer") + 1,
+            timeout=0.3,
+        )
+    assert len(person.asked) == 1
+
+
+def test_an_outworlder_with_nothing_to_say_answers_as_away(daemon: _Daemon) -> None:
+    person = _Person(None)
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="?")
+
+    on, off = daemon.calls("epic.afk", 2)
+    assert (on["on"], off["on"]) == (True, False)
+    assert "epic.answer" not in daemon.methods()
+
+
+def test_a_value_that_is_not_json_is_not_sent_and_answers_as_away(
+    daemon: _Daemon,
+) -> None:
+    person = _Person({"verdict": {"a", "set"}})
+    _started(daemon, person)
+
+    daemon.tells(type="asked", question="q1", role="human", text="?", schema=_SCHEMA)
+
+    on, _ = daemon.calls("epic.afk", 2)
+    assert on["on"] is True
+    assert "epic.answer" not in daemon.methods()
+
+
+def test_context_shown_to_a_claimed_role_is_handed_to_show(daemon: _Daemon) -> None:
+    person = _Person()
+    _started(daemon, person)
+
+    daemon.tells(
+        type="shown", run="r", role="human", session="human/1", context=[_DIFF]
+    )
+    daemon.tells(type="shown", run="r", role="coder", session="NeiKos/1", context=[])
+
+    assert person.shown == [((_DIFF,), "human/1", "human")]
+
+
+def test_context_shown_to_an_outworlder_without_show_is_let_be(
+    daemon: _Daemon,
+) -> None:
+    class _Plain:
+        def away_for(self, role: str) -> bool:
+            del role
+            return False
+
+        async def run(self, ask: Ask, role: str) -> str:
+            del ask, role
+            return "ok"
+
+    run = Run(_Runner(daemon), "do it", outworlder=_Plain())
+    run.start()
+
+    daemon.tells(
+        type="shown", run="r", role="human", session="human/1", context=[_DIFF]
+    )
+    daemon.tells(type="asked", question="q1", role="human", text="?")
+
+    (params,) = daemon.calls("epic.answer", 1)
+    assert params["text"] == "ok"
 
 
 def test_stopping_asks_the_epic_to_stop_and_closing_forces_it(daemon: _Daemon) -> None:

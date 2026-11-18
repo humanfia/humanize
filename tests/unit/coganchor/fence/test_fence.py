@@ -527,6 +527,42 @@ def test_outward_is_whether_a_rule_writes_past_the_workdir() -> None:
     assert drawn(("~/x", WRITE), (".", READ)).outward
 
 
+def test_writes_is_whether_a_standing_rule_writes_anywhere() -> None:
+    assert not drawn(("/", READ)).writes
+    assert not drawn(("/", READ), ("./secret", NONE)).writes
+    assert drawn(("/", READ), (".", WRITE)).writes
+    assert drawn(("/", READ), ("~/x", WRITE)).writes
+    # What a later rule takes away writes nothing.
+    assert not drawn((".", WRITE), ("/", READ)).writes
+    # Drawn path by path: written beyond the devices every program writes.
+    assert not Fence(read=("/",), write=DEVICES).writes
+    assert Fence(read=("/",), write=(*DEVICES, WORK)).writes
+
+
+def test_reading_is_the_fence_with_nothing_written_but_the_minimum() -> None:
+    fence = drawn(
+        ("/", READ), ("~/.ssh", NONE), (".", WRITE), ("./docs", READ), online=False
+    ).granting(hosts=("example.com",), listen=(8080,))
+
+    twin = fence.reading()
+
+    assert fence.writes
+    assert not twin.writes
+    assert twin.drawn == (("/", READ), ("~/.ssh", NONE), (".", READ), ("./docs", READ))
+    assert twin.level(f"{WORK}/src/main.py") == READ
+    assert twin.level("/tmp/scratch") == READ
+    assert twin.level(f"{HOME}/.ssh/id") == NONE
+    assert twin.level(ELSEWHERE) == READ
+    assert all(twin.level(one) == WRITE for one in DEVICES)
+    assert (twin.online, twin.hosts, twin.listen) == (False, ("example.com",), (8080,))
+
+
+def test_reading_a_fence_that_writes_nothing_changes_nothing() -> None:
+    fence = drawn(("/", READ), ("./secret", NONE))
+
+    assert fence.reading() == fence
+
+
 def test_standing_is_what_no_later_rule_takes_away() -> None:
     fence = drawn(
         ("/", WRITE),
@@ -932,3 +968,46 @@ def test_reach_makes_what_is_missing_as_the_users_own(reachable: Path) -> None:
     assert at == str(made)
     assert made.is_dir()
     assert stat.S_IMODE(made.stat().st_mode) == 0o700
+
+
+def test_a_mac_reads_the_developer_tools_its_xcrun_shims_load() -> None:
+    """A Mac's `/usr/bin` shims load `libxcrun.dylib` from the chosen developer directory."""
+    assert {
+        "/private/var/db/xcode_select_link",
+        "/Library/Developer/CommandLineTools",
+        "/Library/Preferences/com.apple.dt.Xcode.plist",
+        "/Applications/Xcode.app",
+    } <= set(DARWIN_SYSTEM)
+    assert not {"/Library", "/Applications"} & set(DARWIN_SYSTEM)
+
+
+@pytest.mark.parametrize(
+    ("platform", "chosen", "read"),
+    [
+        ("darwin", "/Applications/Xcode-beta.app/Contents/Developer", True),
+        ("linux", "/Applications/Xcode-beta.app/Contents/Developer", False),
+        ("darwin", None, False),
+    ],
+    ids=["mac-elsewhere", "linux", "mac-none-chosen"],
+)
+def test_the_developer_directory_xcode_select_chose_is_read_on_a_mac(
+    monkeypatch: pytest.MonkeyPatch, platform: str, chosen: str | None, read: bool
+) -> None:
+    real = os.path.realpath
+
+    def resolving(path: str, *, strict: bool = False) -> str:
+        if path != "/private/var/db/xcode_select_link":
+            return real(path, strict=strict)
+        if chosen is None:
+            raise FileNotFoundError(path)
+        return chosen
+
+    monkeypatch.setattr("sys.platform", platform)
+    monkeypatch.setattr("os.path.realpath", resolving)
+
+    fence = drawn((".", READ))
+
+    beta = "/Applications/Xcode-beta.app/Contents/Developer/usr/lib/libxcrun.dylib"
+    shared = "/Applications/Xcode-beta.app/Contents/SharedFrameworks"
+    assert fence.allows(beta) == fence.allows(shared) == read
+    assert not fence.allows(beta, write=True)

@@ -94,13 +94,13 @@ Out of scope:
 - The layout and format of files hmz writes, including the progress record of a resumable epic, kept
   conversations, flowverse clones and installed flows: Section 4 of [FILES], Section 6 of [FILES],
   Section 7 of [FILES].
-- How a permission is enforced on a harness (the fence and the harness's approval rung), the harness
-  configuration layering, and each harness's accepted models and efforts: Section 4 of [CORE].
+- How a permission is enforced on a harness (the fence, and what the harness is told of it), the
+  harness configuration layering, and each harness's accepted models and efforts: Section 4 of [CORE].
 - Accounts a turn runs as: Section 5 of [CORE].
 - Where a session's harness runs (placements, harness settings, mirrors): Section 6 of [CORE].
 - Environment backends, runtimes, and how resources size a container or job: Section 7 of [CORE].
 - Which epic a resume picks up, and what an epic records: Section 3 of [CORE].
-- The behaviour of the `chat` flow: Section 8 of [CORE].
+- The behaviour of a chat, which is not a flow: Section 8 of [CORE].
 
 ### 3.2. Terminology
 
@@ -200,6 +200,7 @@ document constrains the wording of such a message unless the paragraph quotes th
 | --- | --- | --- |
 | Defining | `flow`, `Flow`, `FlowFn`, `FlowParams`, `FlowContext`, `FlowState`, `load` | Section 3.4, Section 3.5, Section 3.13 |
 | Agents | `AgentCollection`, `Agent`, `Session`, `Outworlder`, `HarnessKind`, `HARNESS_AGENTS` | Section 3.6, Section 3.8, Section 3.10 |
+| Asking | `Markdown`, `Code`, `Diff`, `Table`, `Image`, `Json`, `Chart`, `Block`, `Face`, `FACE_GUIDE` | Section 3.10.5, Section 3.10.7 |
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `OhMyPiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` | Section 3.6.4 |
 | Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` | Section 3.6.5 |
 | Fake tools and command lines | `FakeTool`, `FakeCli`, `FakeCommand` | Section 3.6.6 |
@@ -1169,7 +1170,7 @@ MUST be exactly:
 | `SUBAGENT_START` | `subagent: str`, `task: str = ""` | `context: str = ""` |
 | `SUBAGENT_STOP` | `subagent: str`, `said: str = ""` | `block: bool = False`, `reason: str = ""` |
 | `ASK_USER` | `question: str`, `options: tuple[str, ...] = ()` | `answer: str \| None = None` |
-| `OUTWORLDER_RUN` | `prompt: str`, `output_schema: type[pydantic.BaseModel] \| None = None` | `output: str \| pydantic.BaseModel` (required) |
+| `OUTWORLDER_RUN` | `prompt: str`, `output_schema: type[pydantic.BaseModel] \| None = None`, `context: tuple[Block, ...] = ()`, `face: Face \| None = None` | `output: str \| pydantic.BaseModel` (required) |
 
 **3.9.2.2** A result built with no arguments MUST change nothing.
 
@@ -1192,6 +1193,9 @@ hmz MUST accept an `answer` that is not one of `options`. `answer=None` MUST lea
 unanswered and let the agent continue without an answer.
 
 **3.9.2.8** An `OUTWORLDER_RUN` result's `output` MUST be what the outworlder's `run` returns.
+`prompt`, `output_schema` and `context` MUST be what `run` was given, `context` as a tuple, and
+`face` the face the session was spawned with (Section 3.10.7), or `None`: the hook MUST be asked
+what a person would be asked (Section 3.10.4.5).
 
 **3.9.2.9** hmz MUST fire `SUBAGENT_START` and `SUBAGENT_STOP` on every harness that serves their
 mixins. The `context` of a `SUBAGENT_START` result and every field of a `SUBAGENT_STOP` result MUST
@@ -1231,6 +1235,13 @@ class Outworlder(Agent, Protocol):
     def new(cls) -> Self: ...
     @property
     def away(self) -> bool: ...
+    async def spawn(self, *, face: Face | None = None) -> Session: ...
+    async def run(
+        self, prompt: str, *, session: Session, env: Env | None = None,
+        output_schema: type[pydantic.BaseModel] | None = None, budget: Budget | None = None,
+        context: Sequence[Block] = (),
+    ) -> str | pydantic.BaseModel: ...
+    async def show(self, context: Sequence[Block], *, session: Session) -> None: ...
     def on_outworlder_run(
         self, fn: HookFn[OutworlderRunHookParams, OutworlderRunHookResult] | None
     ) -> None: ...
@@ -1240,8 +1251,9 @@ class Outworlder(Agent, Protocol):
 person who started the epic, through the frontend they started it from.
 
 **3.10.1.2** An outworlder MUST take turns as an agent of the flow. `run` on the epic's outworlder
-MUST put `prompt` to the person and return what they answered. With `output_schema`, it MUST ask one
-question per field and return the model built from the answers.
+MUST put `prompt`, with `context` beneath it, to the person as one question and return what they
+answered: the text where `output_schema` is `None`, and otherwise the instance of `output_schema`
+built from the one value they answered (Section 3.10.4).
 
 **3.10.1.3** `run` on an outworlder MUST accept an `env` and MUST otherwise ignore it.
 
@@ -1254,6 +1266,9 @@ hook hung with `on_outworlder_run`. Until such a hook is hung, it MUST be away.
 **3.10.1.6** `on_outworlder_run` on an outworlder not made with `Outworlder.new()` MUST raise
 `CapabilityNotGranted`.
 
+**3.10.1.7** `spawn(face=...)` MUST mount `face` for the whole life of the session it returns
+(Section 3.10.7); `spawn()` MUST mount none.
+
 #### 3.10.2. Away
 
 **3.10.2.1** `away` MUST be `True` where the epic was started by `hmz exec`, or where `/afk` is on
@@ -1262,6 +1277,8 @@ for the role, and `False` otherwise.
 **3.10.2.2** While an outworlder is away, `run` MUST return at once: `""` for text; the schema built
 from its defaults where every field of `output_schema` has a default; and otherwise MUST raise
 `OutworlderAway`.
+
+**3.10.2.3** While an outworlder is away, `show` MUST do nothing.
 
 #### 3.10.3. Outworlders in nested calls
 
@@ -1275,6 +1292,170 @@ no mixin and no harness. Passing one for a role that declares a mixin or a harne
 
 **3.10.3.3** The epic's outworlder MUST be asked, and MUST report `away`, as the `Outworlder` role
 the top call filled with it, under whatever role name a caller passes it.
+
+#### 3.10.4. Asking a schema
+
+**3.10.4.1** Every turn of an outworlder MUST be one ask: a prompt, its context (Section 3.10.5),
+and a schema, the JSON Schema `output_schema.model_json_schema()` returns, or none where
+`output_schema` is `None`. The answer to an ask MUST be text where it has no schema, and otherwise
+one JSON value of its schema.
+
+**3.10.4.2** hmz MUST put the whole of `output_schema` to whoever answers as one ask, and MUST NOT
+ask it a field at a time.
+
+**3.10.4.3** The host MUST validate each answer to an ask with a schema that a frontend or an SDK
+outworlder gives by `output_schema.model_validate`, and alone decide whether it fits. An answer that
+does not fit MUST be refused to whoever gave it with one error `{"path": [...], "message": ...}` per
+error the validation reports, `path` its `loc` and `message` its `msg`, and the ask MUST stay open
+for another answer (Section 4.8.4 of [DAEMON]). What an `OUTWORLDER_RUN` hook answers MUST be as
+Section 3.9.2.8 states.
+
+**3.10.4.4** `run` MUST return the instance the fitting answer validated as.
+
+**3.10.4.5** Everyone who answers an outworlder -- a person through any frontend, an
+`OUTWORLDER_RUN` hook (Section 3.9.2), and an SDK outworlder (Section 4.5.4) -- MUST be given the
+same prompt, context and schema.
+
+#### 3.10.5. Context blocks
+
+```python
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Markdown:
+    text: str
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Code:
+    text: str
+    language: str = ""
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Diff:
+    patch: str
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Table:
+    columns: tuple[str, ...]
+    rows: tuple[tuple[Any, ...], ...]
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Image:
+    data: bytes
+    mime: str
+    alt: str = ""
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Json:
+    value: Any
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Chart:
+    spec: Mapping[str, Any]
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+Block = Markdown | Code | Diff | Table | Image | Json | Chart
+```
+
+**3.10.5.1** A **context block** is something a person reads to decide an ask, or is shown with no
+ask (Section 3.10.6). `context` MUST be a sequence of blocks, put before the person in its order.
+
+**3.10.5.2** `as_json()` of each block MUST return the JSON form of its row, carrying also `title`
+where `title` is not `""`:
+
+| Block | What it holds | JSON form |
+| --- | --- | --- |
+| `Markdown` | `text`, CommonMark | `{"kind": "markdown", "text"}` |
+| `Code` | `text`, in `language` (`""` for unknown) | `{"kind": "code", "text", "language"}` |
+| `Diff` | `patch`, a unified diff, which MAY span files | `{"kind": "diff", "patch"}` |
+| `Table` | `columns`, and `rows` of cells | `{"kind": "table", "columns", "rows"}` |
+| `Image` | `data`, the bytes of an image of media type `mime`, and `alt`, its words | `{"kind": "image", "mime", "data", "alt"}`, `data` as base64 [RFC4648] |
+| `Json` | `value`, any JSON value | `{"kind": "json", "value"}` |
+| `Chart` | `spec`, a Vega-Lite specification [VEGALITE] | `{"kind": "chart", "spec"}` |
+
+**3.10.5.3** An `Image` MUST hold at most 4 MiB (4 194 304 bytes) of `data`, and the JSON forms of
+the `context` of one ask or one `show` at most 16 MiB (16 777 216 bytes) in all; `run` and `show`
+MUST raise `ValueError` for a `context` holding more.
+
+**3.10.5.4** A block MUST reach a frontend and an SDK outworlder only in its JSON form. A frontend
+that cannot draw a block MUST still show its `title`, and that it holds more.
+
+#### 3.10.6. Showing
+
+**3.10.6.1** `show(context, session=...)` MUST put `context` before whoever answers `session`,
+asking nothing and awaiting no answer, and MUST return without waiting for anyone to read it.
+
+**3.10.6.2** `show` MUST do nothing on an outworlder made with `Outworlder.new()`.
+
+**3.10.6.3** What is shown MUST be kept in the epic's history (`shown`, Section 4.9.2.4 of
+[DAEMON]) and given to an SDK outworlder's `show` (Section 4.5.4).
+
+#### 3.10.7. Faces
+
+```python
+class Face:
+    __slots__ = ("_hash", "_text", "_title")
+    html: str  # on the class: def html(text: str, /, *, title: str = "") -> Face
+    def __init__(self, html: str, title: str = "") -> None: ...
+    @property
+    def title(self) -> str: ...
+    @property
+    def hash(self) -> str: ...
+    @classmethod
+    def file(cls, path: str | os.PathLike[str], *, title: str = "") -> Face: ...
+    @classmethod
+    async def design(
+        cls, agent: Agent, *, session: Session, about: str,
+        output_schema: type[pydantic.BaseModel] | None = None, env: Env | None = None,
+    ) -> Face: ...
+
+FACE_GUIDE: str
+```
+
+**3.10.7.1** A **face** is one self-contained HTML document a flow ships to draw its outworlder's
+asks for a person, in place of the form a frontend draws from the schema. A face changes only how an
+ask is drawn: what it submits MUST be validated as every other answer is (Section 3.10.4.3), and it
+MUST reach nothing but the bridge of Section 3.6.11 of [WEB].
+
+**3.10.7.2** `Face.hash` MUST be the SHA-256 of `html`, encoded as UTF-8, in lowercase hexadecimal.
+`Face` MUST be a slotted class that is not a dataclass, and frozen: setting or deleting an attribute
+of a face MUST raise `dataclasses.FrozenInstanceError`, and two faces MUST be equal, and hash
+equal, where their `hash` and `title` are.
+
+**3.10.7.3** `Face.file(path)` MUST read the file at `path` as UTF-8, a relative `path` from the
+directory of the module that calls it. `Face.html(text)`, on the class, MUST make a face of `text`; `.html` of a face MUST be its HTML.
+
+**3.10.7.4** `Face.design(agent, session=..., about=...)` MUST take one turn of `agent` in
+`session`, working in `env`, prompted with `FACE_GUIDE`, `about` and, where `output_schema` is
+given, its JSON Schema; it MUST make a face of the first fenced code block of the answer whose info
+string is `html`, else of the whole answer, titled by the document's `<title>` (`""` for none), and
+MUST raise `ValueError` where what it would make a face of does not start with HTML (`<` and a
+letter or `!`).
+
+**3.10.7.5** `FACE_GUIDE` MUST tell an agent that writes a face: that a face is one self-contained
+HTML file that reaches no network; the bridge `window.hmz` of Section 3.6.11 of [WEB]; and the
+theme's CSS variables it is drawn in.
+
+**3.10.7.6** A face mounted on a session MUST be made known to the host before any ask of that
+session names it, and every ask of the session MUST name it by `hash` and `title`. `spawn` MUST
+raise `TypeError` for a `face` without `html`, `title` and `hash`, and, on an outworlder not made
+with `Outworlder.new()`, MUST hand the face to its driver's `mount(face)` where the driver has one
+(Section 4.5.4).
+
+**3.10.7.7** A face MUST NOT be needed to answer: every frontend MUST be able to answer an ask that
+names a face without it (Section 3.6.11 of [WEB], Section 10 of [TUI]), and an `OUTWORLDER_RUN` hook
+and an SDK outworlder MUST be able to answer it from its schema alone.
 
 ### 3.11. Environments
 
@@ -1583,9 +1764,8 @@ of the others. A `Graceful` whose three fields agree MUST be read as the `bool` 
 turns each counting. `Usage.cost` MUST be in US dollars. `Usage.output_tokens` MUST be the tokens
 agents wrote.
 
-**3.12.1.6** hmz MUST require a budget for the top call of every epic except of the `chat` and
-`ai_chan` flows, given as specified in [CLI]. A top call of either given none MUST run under
-`Budget(cost=math.inf)`.
+**3.12.1.6** hmz MUST require a budget for the top call of every epic, given as specified in
+[CLI].
 
 #### 3.12.2. Effective budget
 
@@ -1820,8 +2000,6 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 
 | Flow | Agent roles | Role needs | Resumable |
 | --- | --- | --- | :-: |
-| `chat` | `assistant`, `human: Outworlder` | none | ✓ |
-| `ai_chan` | `ai_chan`, `human: Outworlder` | none | ✓ |
 | `ralph_loop` | `agent` | none | |
 | `stateful_ralph` | `agent` | none | ✓ |
 | `continue_loop` | `agent` | none | |
@@ -1829,12 +2007,10 @@ that an index lists and that is not installed MUST NOT be found, and naming it M
 | `flame_chase` | `first_chaser`, `second_chaser` | none | ✓ |
 | `rlar` | `actor`, `reviewer` | none | ✓ |
 
-**3.14.3.2** The agent roles of `chat` MUST each be granted every mixin its harness serves, whatever
-the role declares. Every other flow MUST be granted exactly what its roles declare. The behaviour of
-`chat` is specified in Section 8 of [CORE], and that of `ai_chan`, whose environment role is
-`scratch` in place of `workspace`, in Section 14 of [CORE].
+**3.14.3.2** Every flow MUST be granted exactly what its roles declare. A chat is not a flow, and
+is specified in Section 8 of [CORE], as an Ai-chan conversation is in Section 14 of [CORE].
 
-**3.14.3.3** Each flow of Section 3.14.3.1 other than `chat` MUST run until its budget is spent,
+**3.14.3.3** Each flow of Section 3.14.3.1 MUST run until its budget is spent,
 `rlar` also until its reviewer says the work is done, and MUST end the epic with the failure of any
 turn that fails.
 
@@ -2150,12 +2326,12 @@ defines it. An epic is named by its epic directory's base name.
 ### 4.3. The module
 
 ```python
-__all__ = ["Accounts", "Client", "Daemon", "Daemons", "Epics", "Flows", "Flowverses", "Hmz", "Link",
-           "NousBook", "Refused", "Run", "Runtimes", "fakes"]
+__all__ = ["Accounts", "Ask", "Client", "Daemon", "Daemons", "Epics", "Flows", "Flowverses", "Hmz",
+           "Link", "NousBook", "Refused", "Run", "Runtimes", "fakes"]
 def __getattr__(name: str) -> object: ...
 ```
 
-**4.3.1** `hmz.sdk.__all__` MUST be exactly the fourteen names listed above.
+**4.3.1** `hmz.sdk.__all__` MUST be exactly the fifteen names listed above.
 
 **4.3.2** Importing `hmz.sdk` MUST NOT import any other module of the `hmz` package.
 
@@ -2321,8 +2497,7 @@ them, or an instance of the flow's `FlowParams`, sent as its JSON; `None` MUST m
 defaults.
 
 **4.4.5.9** The parameter `budget` MUST accept a `Budget` or a mapping validated as `Budget`
-validates one; `None` MUST mean an unlimited cost for the built-in `chat` and `ai_chan` flows and
-MUST be refused for every other flow.
+validates one; `None` MUST be refused.
 
 **4.4.5.10** `profile_flow` and `profile_environment` MUST mean what `--profile-flow` and
 `--profile-environment` mean in [CLI].
@@ -2388,7 +2563,7 @@ the host that runs an epic is internal to hmz (Section 4.15).
 class Run:
     def __init__(self, runner: Runner, task: str, *,
                  outworlder: OutworlderDriver | None = None) -> None: ...
-    flow: str; ref: str; chats: bool; task: str; declaration: Declaration
+    flow: str; ref: str; task: str; declaration: Declaration
     budget: Budget; profile_flow: bool; profile_environment: bool
     backup: tuple[str, ...]; usage: Usage; agents: tuple[Opened, ...]
     names: dict[str, str]; epic: Path | None; running: bool
@@ -2414,29 +2589,26 @@ One `Run` is one epic, held by a daemon on a new exec slot of the workspace (Sec
 **4.5.1.2** `Run.flow` MUST be the flow as it was named; `Run.ref` MUST be its canonical ref, as the
 daemon's check answered it.
 
-**4.5.1.3** `Run.chats` MUST be `True` where, and only where, the flow is the built-in `chat` flow,
-as the daemon's check answered it.
-
-**4.5.1.4** `Run.declaration` MUST be what the flow declares (Section 4.20.3), as the daemon's check
+**4.5.1.3** `Run.declaration` MUST be what the flow declares (Section 4.20.3), as the daemon's check
 answered it.
 
-**4.5.1.5** `Run.budget` MUST be the `Budget` the epic is held to; `Run.usage` MUST be what it has
+**4.5.1.4** `Run.budget` MUST be the `Budget` the epic is held to; `Run.usage` MUST be what it has
 spent so far, as the latest `usage` snapshot of its subscription says.
 
-**4.5.1.6** `Run.backup` MUST be the names of the backup targets the epic goes to.
+**4.5.1.5** `Run.backup` MUST be the names of the backup targets the epic goes to.
 
-**4.5.1.7** `Run.agents` MUST be an `Opened` (Section 4.20.7) for each **session** still open,
+**4.5.1.6** `Run.agents` MUST be an `Opened` (Section 4.20.7) for each **session** still open,
 oldest first, as the `opened` records and the `sessions` snapshot say.
 
-**4.5.1.8** `Run.names` MUST map each agent role to the name of the agent filling it, as the
+**4.5.1.7** `Run.names` MUST map each agent role to the name of the agent filling it, as the
 `started` record says, or as the daemon's check answered before it.
 
-**4.5.1.9** `Run.epic` MUST be the epic directory once the `run` snapshot names it, and `None`
+**4.5.1.8** `Run.epic` MUST be the epic directory once the `run` snapshot names it, and `None`
 before.
 
-**4.5.1.10** `Run.running` MUST be `True` from `start()` until the `ended` record has come.
+**4.5.1.9** `Run.running` MUST be `True` from `start()` until the `ended` record has come.
 
-**4.5.1.11** Once the `ended` record has come, `Run.raised` and `Run.result` MUST be as Section
+**4.5.1.10** Once the `ended` record has come, `Run.raised` and `Run.result` MUST be as Section
 4.5.2.2 states, and `None` until then.
 
 #### 4.5.2. Driving
@@ -2486,13 +2658,60 @@ none.
 
 #### 4.5.4. The outworlder
 
-**4.5.4.1** A `Run` given an outworlder MUST claim every `Outworlder` role of the flow for its
+```python
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Ask:
+    prompt: str
+    schema: dict[str, Any] | None
+    model: type[pydantic.BaseModel] | None = None
+    context: tuple[dict[str, Any], ...] = ()
+    face: str = ""
+    session: str = ""
+    errors: tuple[dict[str, Any], ...] = ()
+
+class OutworlderDriver(Protocol):
+    def away_for(self, role: str) -> bool: ...
+    async def run(self, ask: Ask, role: str) -> str | pydantic.BaseModel | Mapping[str, Any]: ...
+    # Optional, called only where the driver has them:
+    # def show(self, context: tuple[dict[str, Any], ...], session: str, role: str) -> None: ...
+    # def mount(self, face: Face) -> None: ...
+```
+
+**4.5.4.1** `Ask` MUST be one ask of Section 3.10.4: `prompt`; `schema`, the JSON Schema of the
+ask, or `None` for text; `model`, which a `Run` MUST leave `None`; `context`, its blocks in their
+JSON form (Section 3.10.5.2); `face`, the hash of its face, `""` for none; `session`, the
+outworlder session it is of, `<role>/<n>`; and `errors`, the errors of the answer last refused,
+each `{"path": [...], "message": ...}`, `()` for none.
+
+**4.5.4.2** A `Run` given an outworlder MUST claim every `Outworlder` role of the flow for its
 frontend (`epic.claim`), MUST set away (`epic.afk`) each role the outworlder's `away_for` says is
 away, and MUST answer every question of those roles (`asked`) by calling the outworlder's `run` with
-the question's text, `None` as the schema and the role, and calling `epic.answer` with what it
-returns, as its text, a value that is not text as its JSON.
+an `Ask` of the question's `text`, `schema`, `context`, `face` hash and `session`, and the role.
 
-**4.5.4.2** A question the outworlder raises on MUST be answered with nothing, as an away role's is.
+**4.5.4.3** A `Run` MUST answer with `epic.answer`: `text` where `run` returned text; `value`, the
+mapping, or the model as its JSON, where it returned a mapping or a model to a question with a
+schema; and, to a question without one, the JSON of that mapping or model as `text`.
+
+**4.5.4.4** Where `epic.answer` is refused 400 with `errors` in its `data` (Section 4.8.4 of
+[DAEMON]), the `Run` MUST call `run` again with the same `Ask` carrying those `errors`, at most
+twice more for one question, three tries in all; where the last answer is refused too, it MUST
+answer the question with nothing (Section 4.5.4.5). An answer refused otherwise MUST be left
+unanswered by the `Run`.
+
+**4.5.4.5** A question the outworlder raises on, or answers with `""`, MUST be answered with
+nothing, as an away role's is: the `Run` MUST set the role away (`epic.afk`), and set it back where
+the outworlder's `away_for` then says the role is not away.
+
+**4.5.4.6** A `Run` MUST call the outworlder's `show` with the `context`, `session` and `role` of
+every `shown` record of those roles, where the outworlder has a `show`, and MUST otherwise ignore
+the record.
+
+**4.5.4.7** `hmz.sdk.Ask` MUST be the class the `Run` builds its asks of.
+
+**4.5.4.8** A `Run` MUST NOT call the outworlder's `mount`: an SDK outworlder is told of a face only
+by `Ask.face`, and answers from the schema (Section 3.10.7.7). `mount(face)` MUST be called only by
+an engine holding the driver in its own process, with the `Face`, once for each `spawn(face=...)`
+of an outworlder it fills, before any ask names that face (Section 3.10.7.6).
 
 ### 4.6. `Refused`
 
@@ -2875,7 +3094,7 @@ nothing; `NousBook.checked(name, graph)` MUST do the same for one graph of the n
 states, and MUST raise `ValueError` for a name that is no virtual nous or one already taken.
 
 **4.11.10** `NousBook.entry(said)` MUST return the concrete nous a walk of `said` starts at;
-`NousBook.faults()` MUST return every fault class (Section 4.2.13 of [CORE]) and then `*`.
+`NousBook.faults()` MUST return every fault class (Section 4.2.12 of [CORE]) and then `*`.
 
 **4.11.11** `NousBook.clear(said)` MUST remove the nous and return whether there was one, and MUST
 raise `ValueError` for a virtual nous another nous names.
@@ -3461,8 +3680,8 @@ the message `the daemon went away`.
 
 **4.21.8** `Client.local` with `kind` `ai-chan` MUST open its session over the scoped link that
 `HUMANIZE_AICHAN_LINK` names (Section 3.11.2.17 of [FILES]) in place of the daemon's socket, MUST
-NOT start a daemon, and MUST raise `OSError` where that variable is unset; the flow `ai_chan` speaks
-to the daemon through that `Client` alone (Section 14.6.2 of [CORE]).
+NOT start a daemon, and MUST raise `OSError` where that variable is unset; Ai-chan's tools speak
+to the daemon over that scoped link alone (Section 14.6.2 of [CORE]).
 
 ## 5. Security Considerations
 
@@ -3493,6 +3712,10 @@ document on which the security of a user's machine, credentials and work depends
   installed flow or a `git+` repository fetched on first use, whereas installing a flow from a
   flowverse copies its directory at the manifest's `commit` and executes none of it (Section
   3.13.1.3, Section 3.13.3 and Section 3.14.4.5).
+- A face is HTML the flow, or an agent of it, wrote, and it is put before a person: it changes only
+  how an ask is drawn, its answer is validated as any other is, and it reaches nothing but the
+  bridge of the page (Section 3.10.7.1); an answer to an ask with a schema is taken only where the
+  host finds it fits (Section 3.10.4.3).
 - `Hmz.carried` returns the settings of this machine for another daemon without any value that only
   a secret sets (Section 4.4.3.4).
 - `Hmz.run`, `Run` and `Hmz.exec` run every epic through a daemon; one given driver objects runs it
@@ -3523,10 +3746,15 @@ document on which the security of a user's machine, credentials and work depends
   2119, March 1997, <https://www.rfc-editor.org/info/rfc2119>.
 - **[RFC8174]** Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", BCP 14, RFC
   8174, May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+- **[RFC4648]** Josefsson, S., "The Base16, Base32, and Base64 Data Encodings", RFC 4648, October
+  2006, <https://www.rfc-editor.org/info/rfc4648>.
+- **[VEGALITE]** "Vega-Lite: A Grammar of Interactive Graphics", version 5,
+  <https://vega.github.io/vega-lite/docs/spec.html>.
 - **[CORE]** "The Humanize Protocol: Core Concepts and Functional Behaviour", [`core.md`](core.md).
 - **[WIRE]** "The Humanize Protocol: Carriers, Sessions and RPC", [`wire.md`](wire.md).
 - **[OPENRPC]** "The Humanize Protocol: OpenRPC Document", [`openrpc.json`](openrpc.json).
 - **[CLI]** "The Humanize Protocol: Command-Line Interface", [`cli.md`](cli.md).
 - **[DAEMON]** "The Humanize Protocol: Daemon", [`daemon.md`](daemon.md).
 - **[WEB]** "The Humanize Protocol: Web Interface", [`web.md`](web.md).
+- **[TUI]** "The Humanize Protocol: Terminal Interface", [`tui.md`](tui.md).
 - **[FILES]** "The Humanize Protocol: Settings, Environment Variables and Files", [`files.md`](files.md).

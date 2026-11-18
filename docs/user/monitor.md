@@ -365,7 +365,7 @@ panel of [the web page](/user/web): `Figures` (time, spend, tokens), `Budget` (e
 what has gone of it, as a meter), `Set up` (the flow, task, agents, environments, params, and
 whether it is profiled) and `Flows` (the flows called). It stays live.
 
-Under it, for every flow but a chat, is `Stop` while the run runs and `Force stop` while it
+Under it, for every flow, is `Stop` while the run runs and `Force stop` while it
 winds down. <kbd>tab</kbd> reaches the button; each asks before it acts. See
 [Stopping](/user/stopping).
 
@@ -471,7 +471,8 @@ of theirs to read. Read the agent that started them.
 
 ## Next steps
 
-- [Side questions (`/btw`)](/user/btw): ask about the run in words.
+- [Side questions (`/btw`)](/user/btw): ask one session about the run in words.
+- [Ai-chan](/user/ai-chan): ask about the whole epic, or several.
 - [Many conversations at once](/user/conversations): step between logs without the monitor.
 - [Tracing](/user/tracing): the whole run on one timeline, after it ends.
 - [TUI reference](/reference/tui): every key and command.

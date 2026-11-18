@@ -51,6 +51,7 @@ from hmz.flows import (
     GoalCommandAgentMixin,
     HookKind,
     LoopCommandAgentMixin,
+    OutworlderAway,
     PermissionRequestHookAgentMixin,
     ScratchDirEnvMixin,
     ShellEnvMixin,
@@ -66,6 +67,7 @@ if TYPE_CHECKING:
 
     import pydantic
 
+    from hmz.coganchor.agents.native import NativeCommand
     from hmz.coganchor.machines import MachineConfig
     from hmz.flows import (
         EnvBackendKind,
@@ -83,6 +85,7 @@ __all__ = [
     "ENV_TOOLS",
     "HARNESS_CAPABILITIES",
     "AgentDriver",
+    "Ask",
     "BoundHook",
     "EnvDriver",
     "EnvEntry",
@@ -97,6 +100,7 @@ __all__ = [
     "Skill",
     "TurnRequest",
     "UsageSink",
+    "away_answer",
     "capabilities_of",
     "default_result",
 ]
@@ -308,11 +312,14 @@ class TurnRequest:
         one only to a driver that lists the mixin for it.
       output_schema: The model the answer must be an instance of, or None for text.
       limits: What the turn may spend.
+      native: Whether the prompt is a line a person typed in a chat, read as the harness's
+        own prompt reads it (Section 8.9 of [CORE]); a flow's prompts never are.
     """
 
     prompt: str
     output_schema: type[pydantic.BaseModel] | None = None
     limits: Limits = Limits()
+    native: bool = False
 
 
 class UsageSink(Protocol):
@@ -679,6 +686,10 @@ class SessionHandle(Protocol):
         """
         ...
 
+    def natives(self) -> list[NativeCommand]:
+        """The native input its harness takes in a chat, as hmz drives it; empty for none."""
+        ...
+
     def interrupt(self) -> None:
         """Stops the turn in flight, if any, from any thread.
 
@@ -1041,12 +1052,76 @@ class EnvDriver(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Ask:
+    """One turn an outworlder is asked to take: the whole of what it is asked, at once.
+
+    The same for whoever answers -- a calling flow's hook, an SDK driver, a person at a
+    frontend -- so a caller sees exactly what a person would. A schema is asked whole, never
+    a field at a time, and the answer is a value of it.
+
+    Attributes:
+      prompt: What is asked.
+      schema: The JSON Schema of the answer, which is `output_schema.model_json_schema()`, or
+        None for text.
+      model: The model the schema is of, where the asker holds it: None on the SDK side,
+        which has only the schema.
+      context: What the person reads before answering, each block in its JSON form.
+      face: The hash of the face the session was opened with, or "" for none.
+      session: The outworlder session asking, as `<role>/<n>`: stable across that session's
+        asks, so a frontend keeps one face mounted for all of them.
+      errors: Why the last try was refused, as `{"path": [...], "message": ...}`, or nothing
+        on a first try.
+    """
+
+    prompt: str
+    schema: dict[str, Any] | None
+    model: type[pydantic.BaseModel] | None = None
+    context: tuple[dict[str, Any], ...] = ()
+    face: str = ""
+    session: str = ""
+    errors: tuple[dict[str, Any], ...] = ()
+
+
+def away_answer(
+    output_schema: type[pydantic.BaseModel] | None,
+) -> str | pydantic.BaseModel:
+    """What an outworlder that is away answers.
+
+    Args:
+      output_schema: The model asked for, or None for text.
+
+    Returns:
+      "" for text, and the model built with no arguments where that builds one.
+
+    Raises:
+      OutworlderAway: For a model that does not build with no arguments: a field with no
+        default, or a rule of its own the defaults break.
+    """
+    if output_schema is None:
+        return ""
+    from pydantic import ValidationError
+
+    try:
+        return output_schema()
+    except ValidationError:
+        raise OutworlderAway(
+            f"nobody is there to answer a {output_schema.__name__}, and it has no default"
+        ) from None
+
+
 class OutworlderDriver(Protocol):
     """Whoever is outside the run, taking turns as an agent of it.
 
     Asked as one of a run's `Outworlder` roles: the role the run filled, which a flow handing
     it on to a flow it calls does not change, so that a person answering several of them can
     be away from one and here for another.
+
+    Two members are optional, and the engine reaches for them only where a driver has them:
+    `show(context, session, role)`, which pushes context nobody answers and must not block,
+    and `mount(face)`, which is handed a face -- an object with `html`, `title` and `hash` --
+    before any ask names it by its hash. A driver with neither ignores both, as one with no
+    person behind it should.
     """
 
     def away_for(self, role: str) -> bool:
@@ -1054,20 +1129,20 @@ class OutworlderDriver(Protocol):
         ...
 
     async def run(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
-    ) -> str | pydantic.BaseModel:
+        self, ask: Ask, role: str
+    ) -> str | pydantic.BaseModel | Mapping[str, Any]:
         """Asks, and waits for the answer.
 
         The engine answers for an away outworlder itself and does not call this while it is
         away.
 
         Args:
-          prompt: What to ask.
-          output_schema: The model the answer is an instance of, or None for text.
+          ask: What is asked.
           role: The `Outworlder` role asking.
 
         Returns:
-          The answer.
+          The answer: text for a text ask, and for a schema an instance of `ask.model` or a
+          mapping the engine validates against it.
 
         Raises:
           OutworlderAway: If it went away while this was waiting. The engine answers as an

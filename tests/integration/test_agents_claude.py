@@ -8,6 +8,7 @@ says the turn it wants by what it asks.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shlex
 import subprocess
@@ -29,6 +30,7 @@ from hmz.coganchor.agents import (
     Unrecoverable,
     Verdict,
 )
+from hmz.coganchor.fence import Fence
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -43,7 +45,8 @@ note()
 session = flags.get("--session-id") or flags.get("--resume") or "s-none"
 model = flags.get("--model")
 out({"type": "system", "subtype": "init", "session_id": session, "model": model,
-     "permissionMode": flags.get("--permission-mode", "default")})
+     "permissionMode": flags.get("--permission-mode", "default"),
+     "slash_commands": ["compact", "config", "clear", "tidy"], "skills": ["tidy"]})
 
 
 def result(text, error=False, output=3):
@@ -64,7 +67,17 @@ def gated(tool, called):
 
 
 for line in sys.stdin:
-    said = json.loads(line)["message"]["content"][0]["text"]
+    held = json.loads(line)
+    if held.get("type") == "control_request":
+        request = held["request"]
+        note(json.dumps(request))
+        if request["subtype"] == "set_model":
+            model = request["model"]
+            out({"type": "control_response", "response": {
+                "subtype": "success", "request_id": held["request_id"],
+                "response": {"model": model}}})
+        continue
+    said = held["message"]["content"][0]["text"]
     note(said)
     if said == "crash":
         print("claude: something broke", file=sys.stderr, flush=True)
@@ -144,6 +157,38 @@ def test_a_turn_says_what_it_did_and_what_it_spent(claude: Standins) -> None:
     assert launch.flag("--effort") == "high"
     assert launch.flag("--output-format") == "stream-json"
     assert launch.env["HMZ_TEST_INHERITED"] == "from-the-flow"
+
+
+def test_a_chat_s_native_input_is_served_as_claude_s_own_prompt_would(
+    claude: Standins,
+) -> None:
+    agent = ClaudeCodeAgent(CONFIG)
+    session = agent.new()
+
+    assert session("one") == "one"
+    natives = {(one.sigil, one.name): one.how for one in session.natives()}
+    assert natives[("/", "compact")] == "pass"
+    assert natives[("/", "tidy")] == "pass"
+    assert natives[("/", "config")] == "refuse"
+    assert natives[("/", "model")] == "call"
+    assert ("/", "clear") not in natives
+    said = list(session.stream("/model claude-other", native=True))
+    assert kinds(said) == ["result"]
+    assert said[-1].text == "Set model to claude-other"
+    assert agent.config.model == "claude-other"
+    compacted = list(session.stream("/compact", native=True))
+    assert compacted[-1].text == "/compact"
+    assert session("two") == "two"
+
+    launches = {one.pid for one in claude.calls()}
+    assert len(launches) == 1  # the model moved without the process being started again
+    told = [one.stdin for one in claude.calls() if one.stdin]
+    assert told == [
+        "one",
+        json.dumps({"subtype": "set_model", "model": "claude-other"}),
+        "/compact",
+        "two",
+    ]
 
 
 def test_one_process_holds_the_session_across_turns(claude: Standins) -> None:
@@ -306,12 +351,32 @@ def test_hooks_watch_the_prompt_and_a_refused_stop_sends_the_agent_on(
     assert claude.said() == ["first", "once more"]
 
 
-def test_a_permission_request_is_put_to_the_hook_and_refused(claude: Standins) -> None:
-    agent = ClaudeCodeAgent(
-        ClaudeCodeAgentConfig(
-            model="claude-stand-in", effort="high", permission="bypass"
-        )
-    )
+@pytest.fixture
+def fenced(monkeypatch: pytest.MonkeyPatch) -> ClaudeCodeAgentConfig:
+    """The stand-in's config with a fence that writes somewhere, the wall itself not put up.
+
+    A fence is what makes the driver route requests over the stream at all, and what is
+    checked here is how they are answered, not what the wall refuses -- which would also keep
+    the stand-in from writing down its calls.
+    """
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    return dataclasses.replace(CONFIG, fence=Fence(write=("/w",), online=True))
+
+
+def test_a_permission_request_is_put_to_the_hook_and_refused(
+    claude: Standins, fenced: ClaudeCodeAgentConfig
+) -> None:
+    agent = ClaudeCodeAgent(fenced)
     seen: list[Occasion] = []
 
     def gate(occasion: Occasion) -> Verdict:
@@ -327,12 +392,10 @@ def test_a_permission_request_is_put_to_the_hook_and_refused(claude: Standins) -
     assert claude.calls()[0].flag("--permission-prompt-tool") == "stdio"
 
 
-def test_a_permission_nobody_refused_is_allowed(claude: Standins) -> None:
-    agent = ClaudeCodeAgent(
-        ClaudeCodeAgentConfig(
-            model="claude-stand-in", effort="high", permission="bypass"
-        )
-    )
+def test_a_permission_nobody_refused_is_allowed(
+    claude: Standins, fenced: ClaudeCodeAgentConfig
+) -> None:
+    agent = ClaudeCodeAgent(fenced)
 
     assert agent.new()("ask") == "allow:"
 

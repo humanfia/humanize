@@ -57,6 +57,7 @@ Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__
 | --- | --- |
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
 | Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
+| Asking a person | [`Markdown`, `Code`, `Diff`, `Table`, `Image`, `Json`, `Chart`, `Block`](#context-blocks), [`Face`, `FACE_GUIDE`](#face) |
 | Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` ([table](#what-each-harness-serves)) |
 | Fake tools and command lines | [`FakeTool`](#fake-tools), [`FakeCli`, `FakeCommand`](#fake-clis): `hmz.coganchor.faking`'s own, re-exported |
 | Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
@@ -465,7 +466,7 @@ turn and the flow go on. `derive` keeps a view's tools; a flow handed the agent 
 role's. Served where the harness's row below has Fake tools (not `acp`: its protocol is a
 plain `Agent`, which serves no mixin), where the CLI runs on this machine (harness `local`); a
 turn of one whose harness is `env` or a harness runtime is refused. On `grok`, a turn only `grok -p` can take (an `output_schema`,
-a fork's first turn, web search off, a rung that takes tools away) is refused with
+a fork's first turn, web search off, a fence that writes nothing, whose tools are withheld) is refused with
 `HarnessUnrecoverable` while tools are offered. See
 [A tool of the flow's own](/weaver/tools#fake-tools).
 
@@ -509,19 +510,19 @@ Generated from `hmz.runtime.flowing.spi.HARNESS_CAPABILITIES` and the harness pr
 
 <div class="harness-matrix">
 
-| `-a` | Goal | Loop | Steering | Permission request | Subagent start, stop | Ask user | Fake tools | [Fork](#fork) | Rungs |
+| `-a` | Goal | Loop | Steering | Permission request | Subagent start, stop | Ask user | Fake tools | [Fork](#fork) | [Writes nothing](#enforcement) |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
-| `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `kimi` | ✓ | | ✓ | ✓ | | ✓ | | any workdir | read-only, workspace-write, auto, bypass |
-| `pi` `omp` | | | ✓ | | | ✓ | ✓ | same workdir | read-only, workspace-write, auto, bypass |
-| `dsh` | ✓ | | | | | | ✓ | no | bypass |
-| `litellm` | | | | | | | | any workdir | read-only, workspace-write, auto, bypass |
-| `cursor-agent` | | | | | ✓ | | | no | read-only, workspace-write, auto, bypass |
-| `mcode` | | | | | ✓ | | | no | workspace-write, auto, bypass |
-| `grok` `opencode` `mimo` `qwen` | | | | | | | ✓ | same workdir | read-only, workspace-write, auto, bypass |
-| `agy` | | | | | | | ✓ | no | read-only, workspace-write, auto, bypass |
-| `acp` | | | | | | | | same workdir | set by the CLI |
+| `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | `Edit`, `Write`, `NotebookEdit` |
+| `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | sandbox `read-only` |
+| `kimi` | ✓ | | ✓ | ✓ | | ✓ | | any workdir | write and edit tools |
+| `pi` `omp` | | | ✓ | | | ✓ | ✓ | same workdir | pi: `edit`, `write`; omp: fence holds |
+| `dsh` | ✓ | | | | | | ✓ | no | fence holds |
+| `litellm` | | | | | | | | any workdir | nothing said |
+| `cursor-agent` | | | | | ✓ | | | no | fence holds |
+| `mcode` | | | | | ✓ | | | no | fence holds |
+| `grok` `opencode` `mimo` `qwen` | | | | | | | ✓ | same workdir | writing tools |
+| `agy` | | | | | | | ✓ | no | reader agent |
+| `acp` | | | | | | | | same workdir | fence holds |
 
 </div>
 
@@ -540,8 +541,8 @@ any harness that serves them.
 | When a flow calls another | What the caller hands over covers the callee's declaration. | [`RequirementError`](#requirementerror) leaves; see [What the called flow is handed](#what-the-called-flow-is-handed) |
 | At every use | The view's grant contains the mixin for the operation. | [`CapabilityNotGranted`](#capabilitynotgranted) |
 
-Of the flows Humanize ships in the package, only [`chat`](#the-flow-in-the-package) is marked
-*full view*: each agent role is granted every mixin its harness serves, whatever it declares.
+Every flow, those Humanize ships included, is granted exactly what its roles declare. A
+[chat](/user/chat) is not a flow: its one agent has every capability its harness offers.
 
 ## Permissions {#what-each-agent-may-do}
 
@@ -646,8 +647,8 @@ are dropped, so `~/a//b/` is `~/a/b` and `./` is `.`. A path with any other star
 
 ### Enforcement
 
-A permission reaches a session twice: as a **fence** around the CLI's process tree, and as a
-**rung** of the CLI's own approval ladder.
+A permission reaches a session twice: as a **fence** around the CLI's process tree, and as
+what the CLI is **told**, which its driver reads off that same fence.
 
 **The fence.** Each rule of `rules` is resolved to an absolute path and held at its access,
 the last rule that matches a path deciding it, so a `deny` or `read_only` beneath a wider grant
@@ -662,7 +663,8 @@ except for root, which gets those temporary directories and `/run/user/0` and ke
 as the other rules say. Independently of the rules, the CLI may:
 
 - read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
-  (on macOS `/System` and `/private/var/select` instead of `/lib*` and `/sys`), its own
+  (on macOS `/System`, `/private/var/select` and the developer tools `xcode-select` chose,
+  which the `xcrun` shims in `/usr/bin` load, instead of `/lib*` and `/sys`), its own
   programs and install trees, and the Python running Humanize;
 - write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU and RDMA nodes;
   on macOS `/dev/ttys*`), `/proc` on Linux (CUDA names a thread through
@@ -721,7 +723,7 @@ both: the CLI here inside this machine's Landlock with the environment's mirror 
 workdir, and every command on the target under `hmz internal fence` again, around the
 target's own workdir, `$HOME` and minimum, the rules redrawn there from their anchors. With
 `network=False` a command on the target
-reaches no host. A CLI's own sandbox rung is not used there. A target that cannot hold the
+reaches no host. A CLI's own sandbox is not used there. A target that cannot hold the
 fence refuses the session with `HarnessSandboxed` on its first turn; a container under
 docker's default seccomp profile can hold `network=True` but not `False`. See
 [Remote execution](/reference/remote-execution#a-fence-on-both-machines).
@@ -729,7 +731,7 @@ docker's default seccomp profile can hold `network=True` but not `False`. See
 | CLI | Filesystem | Network |
 | --- | --- | --- |
 | `claude` | external; its own sandbox covers only its Bash tool and is not used | external; `WebSearch`, `WebFetch` refused by rule |
-| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; at `read-only` with `network=True` its `read-only` sandbox is told to leave commands the network |
+| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; under a fence that writes nothing with `network=True` its `read-only` sandbox is told to leave commands the network |
 | `cursor-agent` | external; its own sandbox covers only shell commands and needs a user namespace | `False` refused: its web tools run on Cursor's servers |
 | `mcode` | external; no sandbox of its own | `False` refused: its web search runs on MiniMax's service |
 | `opencode`, `mimo` | external; file tools also refuse outside the fence | external; web tools removed offline |
@@ -744,28 +746,43 @@ docker's default seccomp profile can hold `network=True` but not `False`. See
 
 "External" is Landlock (Seatbelt on macOS) plus the loopback proxy.
 
-**The rung.**
+**What the CLI is told.** Never a plan mode or an asking mode: the driver withholds what it
+can and leaves the rest to the fence.
 
-| Permission | every harness but `dsh`, `mcode`, `acp` | `dsh`, `mcode`, `acp` |
+| Fence | What the CLI is told |
+| --- | --- |
+| writes nothing (no rule leaves anything `WRITE`, e.g. `preset="read-only"` alone) | its file-writing tools withheld, its shell kept, nothing asked; the fence refuses any write the shell attempts |
+| writes somewhere | every tool, nothing asked; the fence decides where writes land |
+
+| `-a` | Writes nothing | Writes somewhere |
 | --- | --- | --- |
-| `preset="read-only"`, and `access(".")` is not `WRITE` | `read-only` (Claude Code `plan`, Codex read-only sandbox, a tool list without writers) | `bypass` |
-| anything else | `bypass` | `bypass` |
+| `claude` | `--tools default`, `--disallowedTools Edit,Write,NotebookEdit`; `bypassPermissions` | `bypassPermissions` |
+| `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` |
+| `cursor-agent` | `--force --sandbox disabled`; the fence holds | the same |
+| `agy` | Humanize's reader agent (the reading tools and `run_command`), `--dangerously-skip-permissions` | `--dangerously-skip-permissions` |
+| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_cmd`, and `web_search,web_fetch` unless `network` is `False` | `--always-approve` |
+| `kimi` | `auto`, plan mode off, write and edit tools disabled | `auto` |
+| `mcode` | `full`; the fence holds | the same |
+| `mimo`, `opencode` | `edit` denied, `bash` allowed | nothing denied |
+| `omp` | `yolo`; the fence holds | the same |
+| `pi` | `edit`, `write` withheld | nothing withheld |
+| `qwen` | `edit`, `write_file`, `notebook_edit`, `save_memory` withheld | nothing withheld |
+| `dsh`, `acp` | every request granted; the fence holds | the same |
+| `litellm` | nothing said | nothing said |
 
-- `bypass` is the CLI's no-approval mode: Codex `danger-full-access` with approval `never`;
-  Claude Code `bypassPermissions`. Where a managed policy forbids that, the CLI runs at the
-  most permissive mode left that no model reviews and Humanize answers every request yes:
-  Claude Code `acceptEdits`, Codex the `workspace-write` sandbox with approval `on-request`.
+- Where a managed policy forbids the no-approval mode, the CLI runs at the most permissive mode
+  left that no model reviews and Humanize answers every request yes: Claude Code `acceptEdits`
+  (the same tools withheld), Codex the `workspace-write` sandbox with approval `on-request`.
 - A hook only an asking CLI can deliver changes how it is started. Claude Code runs at
   `manual` instead of `bypassPermissions` while `on_permission_request` is hung. Codex runs with approval
-  policy `untrusted` while `on_permission_request` is hung, and enables its
+  policy `untrusted` instead of `never` while `on_permission_request` is hung, and enables its
   `default_mode_request_user_input` feature while `on_ask_user` is hung. Kimi Code runs at
-  coganchor's `auto` rung (Kimi's `yolo`) while either is hung. Humanize answers yes unless the
-  hook says no.
+  `yolo` instead of `auto` while either is hung. Humanize answers yes unless the hook says no.
 - `network` also switches the CLI's own web tools (on for `True`, off for `False`) where the CLI
   can be told; where it cannot (`cursor-agent`, `mcode`, `pi`, `omp`, `agy`, `acp`) the cut
   network stops them.
 
-The rungs themselves are in [Agents](/reference/agents).
+How each driver says it is in [Agents](/reference/agents#what-an-agent-may-do).
 
 ### `Agent.derive` {#derive}
 
@@ -997,7 +1014,7 @@ to) and `session: Session` (the session the moment arrived in). All params and r
 | `SUBAGENT_START` | `subagent: str`, `task: str = ""` | `context: str = ""` |
 | `SUBAGENT_STOP` | `subagent: str`, `said: str = ""` | `block: bool = False`, `reason: str = ""` |
 | `ASK_USER` | `question: str`, `options: tuple[str, ...] = ()` | `answer: str \| None = None` |
-| `OUTWORLDER_RUN` | `prompt: str`, `output_schema: type[BaseModel] \| None = None` | `output: str \| BaseModel` (required) |
+| `OUTWORLDER_RUN` | `prompt: str`, `output_schema: type[BaseModel] \| None = None`, `context: tuple[Block, ...] = ()`, `face: Face \| None = None` | `output: str \| BaseModel` (required) |
 
 The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.g.
 `StopHookParams`, `StopHookResult`). A result constructed with no arguments changes nothing.
@@ -1012,6 +1029,7 @@ The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.
 | `block`, `reason` | See [`run`](#run) for `USER_PROMPT_SUBMIT` and `STOP`. A blocked `PRE_TOOL_USE` refuses the tool and tells the agent `reason` (`refused by a hook` if empty). `SUBAGENT_STOP` results are delivered to no CLI. |
 | `allow`, `reason` | `allow=False` refuses the tool, overriding the bypassed approvals; the agent is told `reason` (on Codex, whose refusals carry no reason, as a steer into the turn). |
 | `output` | What the outworlder's `run` returns: text, or an instance of `output_schema`. |
+| `prompt`, `output_schema`, `context`, `face` | Of `OUTWORLDER_RUN`: what `run` was called with, its [context blocks](#context-blocks) as given, and the [face](#face) the session was spawned with. |
 
 **Rules.**
 
@@ -1075,6 +1093,12 @@ The bases of every `<Moment>HookParams` and `<Moment>HookResult`.
 class Outworlder(Agent, Protocol):
     away: bool                                     # read-only property
 
+    async def spawn(self, *, face: Face | None = None) -> Session: ...
+    async def run(self, prompt: str, *, session: Session, env: Env | None = None,
+                  output_schema: type[M] | None = None, budget: Budget | None = None,
+                  context: Sequence[Block] = ()) -> str | M: ...
+    async def show(self, context: Sequence[Block], *, session: Session) -> None: ...
+
     @classmethod
     def new(cls) -> Self: ...
     def on_outworlder_run(self, fn: HookFn | None) -> None: ...
@@ -1086,13 +1110,23 @@ the run; naming it with `-a` is refused
 
 | Member | Behaviour |
 | --- | --- |
-| `spawn()` | Opens a session of the outworlder. |
-| `run(prompt, session=…, env=None, output_schema=None)` | Asks the person and returns what they typed; with `output_schema`, asks one question per field and builds the model. A person works nowhere: `env` is checked and otherwise ignored. |
+| `spawn(face=None)` | Opens a session of the outworlder. A [`Face`](#face) is mounted for that session's whole life: every question of the session is drawn with it where a face can be drawn. |
+| `run(prompt, session=…, env=None, output_schema=None, budget=None, context=())` | Asks the person and returns the answer: the text, or, with `output_schema`, an instance of it. The whole schema is asked at once, as one question, never a field at a time. `context` goes with the question. A person works nowhere: `env` is checked and otherwise ignored. |
+| `show(context, session=…)` | Puts `context` in front of the person with nothing to answer. Never waits on them. Does nothing while away, and on an outworlder from `new()`. |
 | `away` | `True` under `hmz exec` (no one is at a prompt) and while [`/afk`](/user/afk) is on for the role. |
 | `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |
-| `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. |
+| `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. The hook is handed the prompt, the schema, the context and the session's face ([fields](#hook-fields)). |
 | `fork` | `UnsupportedOperation`: `an outworlder's session cannot be forked`. |
 | `derive(permission=…, skills=…)` | Returns the same outworlder. A permission that the default `Permission()` does not cover raises `CapabilityNotGranted`: `<role>: <permission> is wider than the <granted> an outworlder is granted`. Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
+
+**Who answers.** The run's outworlder is answered by a person through a frontend, the web page
+or the terminal, by an [SDK driver](/reference/sdk#outworlderdriver), or by nobody (away).
+Each is handed the same question: the prompt, the context as JSON, the JSON Schema of
+`output_schema` (`model_json_schema()`, or nothing for text), the face's hash, and the session
+(`<role>/<n>`). Every answer to a schema question is a JSON value, validated against
+`output_schema` by the host before `run` returns. One that does not fit is refused to whoever
+sent it, with each error's `path` and `message`, and the question stays up: `run` never sees a
+misfit.
 
 **While away**, `run` returns at once: `""` for text; the schema built from defaults where
 every field has one; otherwise `OutworlderAway`:
@@ -1104,6 +1138,93 @@ declares no mixin and no harness; a role that does raises `CapabilityMissing`
 (`<ref>: '<role>' asks for what no outworlder can do`). The run's outworlder is asked, and
 asked whether it is away, as the `Outworlder` role the run filled with it, whatever role name
 a caller passes it under.
+
+### Context blocks {#context-blocks}
+
+```python
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Markdown:
+    text: str
+    title: str = ""
+    def as_json(self) -> dict[str, Any]: ...
+
+Block = Markdown | Code | Diff | Table | Image | Json | Chart
+```
+
+What `run(context=…)` and `show` take. Each block is a frozen, slotted, keyword-only
+dataclass with `title: str = ""` and `as_json()`, which returns its JSON form: the form every
+frontend, SDK driver and [face](#face) receives. The JSON form carries `"title"` only where it
+is set.
+
+| Block | Fields | JSON form |
+| --- | --- | --- |
+| `Markdown` | `text: str` | `{"kind": "markdown", "text"}` |
+| `Code` | `text: str`, `language: str = ""` | `{"kind": "code", "text", "language"}` |
+| `Diff` | `patch: str`: a unified diff, which may span files | `{"kind": "diff", "patch"}` |
+| `Table` | `columns: tuple[str, ...]`, `rows: tuple[tuple[Any, ...], ...]` | `{"kind": "table", "columns", "rows"}` |
+| `Image` | `data: bytes`, `mime: str`, `alt: str = ""` | `{"kind": "image", "mime", "data", "alt"}`, `data` in base64; at most 4 MiB before encoding |
+| `Json` | `value: Any` | `{"kind": "json", "value"}` |
+| `Chart` | `spec: Mapping[str, Any]`: a Vega-Lite spec | `{"kind": "chart", "spec"}` |
+
+| Frontend | Draws |
+| --- | --- |
+| Web page | Every kind: Markdown rendered, code and diffs highlighted (a diff file by file), a table, an image, JSON as a tree, a chart. A long block is folded behind a one-line summary; the first is open. |
+| Terminal | Markdown, code, diffs and tables in the transcript; an image or a chart as a line pointing to the web page. |
+
+### `Face` {#face}
+
+```python
+class Face:                                       # frozen and slotted, not a dataclass
+    def __init__(self, html: str, title: str = "") -> None: ...
+    html: str                                     # on the class: Face.html(text, *, title="")
+    @property
+    def title(self) -> str: ...
+    @property
+    def hash(self) -> str: ...                    # sha256 hex of html
+    @classmethod
+    def file(cls, path: str | os.PathLike[str], *, title: str = "") -> Face: ...
+    @classmethod
+    async def design(cls, agent: Agent, *, session: Session, about: str,
+                     output_schema: type[BaseModel] | None = None,
+                     env: Env | None = None) -> Face: ...
+
+FACE_GUIDE: str
+```
+
+A page of the flow's own that draws a session's questions in the web page instead of the form
+Humanize draws. Given to [`Outworlder.spawn`](#outworlder). Guide:
+[A face for the person](/weaver/faces).
+
+| Member | Behaviour |
+| --- | --- |
+| `html`, `title` | The HTML, and what the face is called (`""` for none). Setting either raises `FrozenInstanceError`; two faces of the same HTML and title are equal. |
+| `hash` | The sha256 of `html`, in hex. A question names its face by it. |
+| `Face.file(path, title="")` | Reads `path`, relative to the directory of the module that calls it, as UTF-8. |
+| `Face.html(text, title="")` | A face from the HTML itself: on the class, `html` makes a face; on a face, it is the HTML. |
+| `Face.design(agent, session=…, about=…, output_schema=None, env=None)` | Runs one turn of `agent` in `session` with `FACE_GUIDE`, `about` and the schema's JSON Schema, and returns the first fenced `html` block of its answer, or the whole answer where there is none, titled by its `<title>`. `ValueError` where what came back does not start with HTML. |
+| `FACE_GUIDE` | The bridge and the rules below, written for an agent: one self-contained HTML file, no network, the page's theme. |
+
+**The bridge.** The face is served in a frame and handed `window.hmz` before its own scripts
+run:
+
+| Call | Behaviour |
+| --- | --- |
+| `hmz.on("ask", ({prompt, context, schema, errors}) => …)` | Each new question of the session. `context`: block JSON forms; `schema`: a JSON Schema or `null`; `errors`: `[]`, or `[{path, message}]` of a refused try. |
+| `hmz.on("show", (context) => …)` | What `show` pushed. |
+| `hmz.on("theme", (tokens) => …)` | The page's CSS variables, on a change of theme. They are set on `:root` before the face loads. |
+| `hmz.submit(value)` | Answers the current question. A promise of `{ok: true}` or `{ok: false, errors}`. |
+| `hmz.resize(height)` | Sets the frame's height, in CSS pixels. |
+
+**Rules.**
+
+| Rule | |
+| --- | --- |
+| Sandbox | `<iframe sandbox="allow-scripts allow-forms">`: an opaque origin, no cookies, no call to the daemon. |
+| Policy | `default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'`. `'self'` lets it import the page's `/vendor/*.js`, which are shared with its opaque origin alone. |
+| Channel | A `MessageChannel` port handed over once, at load. Messages from anywhere else are ignored. |
+| One per session | One frame per outworlder session, kept across its questions. |
+| Falling back | The form is drawn instead where the face fails to load, throws before it calls `hmz.on("ask", …)`, or has not called it within 5 s of its frame loading, under a note saying why and **Try again**; and whenever the person presses **Plain form**, until **Back to …**. |
+| Elsewhere | The terminal and SDK drivers draw no face: they get its hash only. An `OUTWORLDER_RUN` hook gets the `Face` itself, as `params.face`. |
 
 ## Environment roles {#where-each-agent-works}
 
@@ -1310,10 +1431,10 @@ At least one of `duration`, `cost`, `output_tokens` must be set
 otherwise `pydantic.ValidationError`. `Budget(cost=math.inf)` means unlimited and serializes
 as `{"cost": "Infinity"}`.
 
-**Which runs need one.** Every run except of `chat`: from `-p budget.<limit>=`
+**Which runs need one.** Every run of a flow: from `-p budget.<limit>=`
 (see [`budget.*`](#p-budget)), `/flow`, or `budget=` in [Python](/reference/sdk). Without it:
 `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...`.
-`chat` given none runs under `Budget(cost=math.inf)`.
+A [chat](/user/chat), which is not a flow, runs under none.
 
 ### Effective budget
 
@@ -1584,10 +1705,8 @@ nothing was spent. Refusals for one kind of agent grant are computed once per ro
 | anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
 
 The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins. A
-*full view* callee such as `chat` is granted every mixin of each agent's harness in place of
-the role's, and the rest as above. Its hooks and sessions are its own; a session the caller
-opened cannot be used by the callee.
+mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins.
+Its hooks and sessions are its own; a session the caller opened cannot be used by the callee.
 
 `Hmz().flows.running()` lists every flow call currently running in this process (oldest
 first), each with its ref, name, depth, start time, journal id, parent, task and whether it is
@@ -1665,12 +1784,12 @@ nothing answers to raises `FlowNotFound` (`<ref>: no flow is called '<name>'`; a
 
 | Listed as | Is |
 | --- | --- |
-| `chat`, `flame_chasoid` | built in, or installed from `official`'s `flows/<flow>/` |
+| `rlar`, `flame_chasoid` | built in, or installed from `official`'s `flows/<flow>/` |
 | `alice/kernel` | installed from `official`'s `flows/alice/kernel/` |
 | `@theirs/review` | installed from flowverse `theirs` |
 | `@theirs/alice/kernel` | installed from flowverse `theirs`'s `flows/alice/kernel/` |
-| `@local/chat` | this project's `.hmz/flows/chat` |
-| `@user/chat` | `~/.hmz/flows/chat` |
+| `@local/review` | this project's `.hmz/flows/review` |
+| `@user/review` | `~/.hmz/flows/review` |
 
 `-f` takes the listed name; the TUI starts a flow by it (`$@local/twice`). What `/flow`
 remembers is keyed by the listed name ([Settings](/reference/settings)), so what it remembered
@@ -1854,7 +1973,6 @@ role.
 
 | Flow | Agent roles | Roles need | Resumable | Budget | Grant |
 | --- | --- | --- | :-: | --- | --- |
-| [`chat`](https://humanfia.ai/flows/chat) | `assistant`, `human: Outworlder` | | | `Budget(cost=math.inf)` unless one is given | every mixin the harness serves |
 | [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | `agent` | | | required | what each role declares |
 | [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | `agent` | | ✓ | required | what each role declares |
 | [`continue_loop`](https://humanfia.ai/flows/continue-loop) | `agent` | | | required | what each role declares |
@@ -1862,12 +1980,8 @@ role.
 | [`flame_chase`](https://humanfia.ai/flows/flame-chase) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
 | [`rlar`](https://humanfia.ai/flows/rlar) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
-`chat` opens one session and takes one turn per line the outworlder says; under `hmz exec`
-(outworlder away) it takes the task as its one turn and returns. Interfaces show that
-outworlder as the conversation itself: its wait for the next line is no separate question, a
-follow-up or steer typed in the assistant's conversation is that line, and the agent's own
-questions show there with their options. The first turn's failure ends
-the run; later failures are reported and the conversation continues.
+A [chat](/user/chat), which `hmz` opens on, is not among them: it is an epic of its own kind,
+with no flow.
 
 The loops are each the plainest form of their idea, written to be read and copied. Each runs
 until its budget is spent (`rlar` also until its reviewer says done), and a turn that fails
@@ -2357,8 +2471,16 @@ Its `argv`, `typed`, `sizes` (`(cols, rows)`, the first the one it was opened wi
 FakeOutworlder(reply: Reply = None, *, away: bool = False)
 ```
 
-Answers like a `FakeAgentDriver` (a function receives `output_schema=`), or is away.
-`asked` lists every prompt it was asked.
+Answers like a `FakeAgentDriver`, or is away: a reply is text, a pydantic model, or a mapping
+or JSON text, sent as the answer to the schema asked for; a function receives `output_schema=`.
+
+| Attribute | What it holds |
+| --- | --- |
+| `asked` | Every prompt it was asked, in order. |
+| `asks` | Every question whole, in order: the [`Ask`](/reference/sdk#outworlderdriver) an SDK driver receives, its `schema`, `context`, `face` hash and `session`. |
+| `shown` | Every context the flow [showed](#outworlder) it, as `(session, context)`, in order. |
+| `faces` | Every [`Face`](#face) handed to its `mount`. A run of `fakes.run_fake` answers it as a program does, which is never handed a face, so this stays empty there. |
+| `away` | Whether nobody is there; it may be changed between questions. |
 
 <style>
 .harness-matrix table {

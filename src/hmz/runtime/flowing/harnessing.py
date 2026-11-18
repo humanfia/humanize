@@ -1,14 +1,14 @@
 """How the agent drivers read the flow API into coganchor's words, and coganchor's back.
 
 Everything here is a table or a pure function, so that what a harness driver decides can be
-read -- and tested -- without starting a CLI: which rung of coganchor's ladder a
-:class:`~hmz.flows.Permission` comes to, what a hook's result tells a turn, and which
-:class:`~hmz.flows.errors.HarnessError` a failed turn is. The drivers themselves are
-:mod:`hmz.runtime.flowing.harnesses`.
+read -- and tested -- without starting a CLI: the fence a :class:`~hmz.flows.Permission` comes
+to, how a hook hung on a session changes how its CLI is started, what a hook's result tells a
+turn, and which :class:`~hmz.flows.errors.HarnessError` a failed turn is. The drivers
+themselves are :mod:`hmz.runtime.flowing.harnesses`.
 
 **Permission.** A :class:`~hmz.flows.Permission` is a preset, the network and rules path by
-path, and it reaches a CLI two ways at once: as a *fence* its process tree cannot get past,
-and as a *rung* its own tools are run at.
+path, and it reaches a CLI as one thing: a *fence* its process tree cannot get past, which its
+CLI's own controls are also told.
 
 The fence is :func:`fenced`: coganchor's :class:`~hmz.coganchor.fence.Fence`, set on every
 session's agent as `AgentConfig.fence`. Each of the permission's rules -- its preset's, then
@@ -32,44 +32,29 @@ kind of socket, and a proxy on loopback that is the one way out. Nothing is ever
 than the permission: a session whose fence neither its CLI nor this machine can hold -- no
 Landlock, a kernel too old to cut the network, a carve-out its sandbox cannot draw, work that
 lands on another machine -- is refused with :class:`~hmz.flows.errors.HarnessSandboxed` as it
-opens. Which CLI enforces what
-natively is in `docs/reference/flows.md`.
+opens. Which CLI enforces what natively is in `docs/reference/flows.md`.
 
-The rung is coganchor's ladder -- `read-only`, `workspace-write`, `auto`, `bypass` -- which
-each of its drivers maps onto its CLI's own approval settings, and which the fence makes no
-longer the thing that keeps a session inside its rules. Approvals are never put to anybody:
-every session runs at its CLI's nothing-asked mode, which is what the flow API calls BYPASS --
-`danger-full-access` and `never` on Codex, `bypassPermissions` on Claude Code. Where a managed
-policy forbids that, the CLI runs at the most permissive mode left that no model reviews --
-the `workspace-write` sandbox with approval `on-request` on Codex, `acceptEdits` on Claude
-Code -- and Humanize answers every request yes. `auto` is
-Claude Code's and cursor-agent's model-reviewed modes and is never used for them; the one
-place it is used is the last column below, on the two CLIs where it means the CLI asks and
-Humanize answers.
-
-| Permission                                  | every harness but these | dsh, mcode, acp |
-|---------------------------------------------|-------------------------|-----------------|
-| `read-only`, and `access(".")` is not WRITE | `read-only`             | `bypass`        |
-| anything else                               | `bypass`                | `bypass`        |
-
-- A `read-only` preset whose rules do not let the workdir be written is the CLI's own
-  read-only rung as well as a fence: Claude Code's `plan`, Codex's read-only sandbox, a tool
-  list with nothing that writes on the rest. A rule that does write the workdir takes the
-  CLI off that rung, which could not let it; the fence holds it to the rest.
-- dsh and ACP CLIs can be held to no rung but `bypass`, and MiniMax Code to none that changes
-  nothing; the fence holds them to the rules.
+What the CLI's own controls are told is each coganchor driver's to say, read off that same
+fence and nothing else (protocol/core.md Section 4.6.2): a fence that writes nothing withholds
+the file-writing tools where the CLI can withhold them and keeps the shell, whose writes the
+fence refuses; a fence that writes somewhere gives every tool; and either way nothing is
+asked, at the CLI's nothing-asked mode -- `bypassPermissions` on Claude Code, approval `never`
+on Codex. Where a managed policy forbids that, the CLI runs at the most permissive mode left
+that no model reviews -- `acceptEdits` on Claude Code, the `workspace-write` sandbox with
+approval `on-request` on Codex -- and Humanize answers every request yes. Approvals are never
+put to anybody.
 
 While a hook is hung on a moment only asking reaches, three CLIs are started so that they
 ask, and Humanize answers every request yes unless the hook says no -- never a model:
 
 - Claude Code, a PERMISSION_REQUEST hook: `manual` in place of `bypassPermissions`, so every
-  tool that would change something is asked about.
-- Codex, a PERMISSION_REQUEST hook: the rung's sandbox, and approval policy `untrusted`, so
-  every command but a known-safe read is asked about. An ASK_USER hook switches on Codex's
-  `default_mode_request_user_input` feature instead, without which its agent cannot ask its
-  user anything outside plan mode.
-- Kimi Code, either hook: coganchor's `auto` -- Kimi's `yolo` -- which asks about what the
-  CLI deems risky, and is the mode where the agent may ask its user at all.
+  tool that would change something is asked about (:func:`prompting`).
+- Codex, a PERMISSION_REQUEST hook: the fence's sandbox, and approval policy `untrusted`, so
+  every command but a known-safe read is asked about (:func:`approvals`). An ASK_USER hook
+  switches on Codex's `default_mode_request_user_input` feature instead, without which its
+  agent cannot ask its user anything outside plan mode.
+- Kimi Code, either hook: `yolo` in place of `auto`, which asks about what the CLI deems
+  risky, and is the mode where the agent may ask its user at all (:func:`prompting`).
 
 `network` is also the CLI's own web tools: on for True, off for False where the CLI can be
 told, and left as the CLI has it where it cannot (cursor-agent, mcode, omp, pi, acp). At
@@ -89,7 +74,6 @@ from typing import TYPE_CHECKING, Any, Final
 import pydantic
 
 from hmz.flows import (
-    Access,
     AskUserHookResult,
     HarnessContended,
     HarnessDropped,
@@ -120,79 +104,34 @@ if TYPE_CHECKING:
     from hmz.flows import HookResult, Permission
 
 __all__ = [
-    "ASKING",
     "ASKING_FEATURE",
-    "ASKS",
-    "BYPASS",
     "FAULTS",
     "MOMENTS",
-    "READ_ONLY",
     "UNTRUSTED",
-    "WORKSPACE_WRITE",
     "answer",
     "approvals",
-    "asking",
     "fenced",
     "fields",
     "harness_error",
     "prompting",
     "read_shape",
-    "rung",
     "searching",
     "verdict",
 ]
 
-READ_ONLY: Final = "read-only"
-WORKSPACE_WRITE: Final = "workspace-write"
-#: coganchor's `auto`: the CLI asks, and what it asks is granted. Used for exactly the
-#: harnesses in :data:`ASKS`, and only while a hook is hung that the asking is for.
-ASKING: Final = "auto"
-BYPASS: Final = "bypass"
-
-#: The harnesses run at coganchor's `auto` while a hook is hung on the moments that come from
-#: the asking, each with the moments it is for.
-ASKS: Mapping[HarnessKind, frozenset[HookKind]] = MappingProxyType(
-    {
-        HarnessKind.KIMI: frozenset({HookKind.PERMISSION_REQUEST, HookKind.ASK_USER}),
-    }
-)
-
 #: Codex's approval policy while a PERMISSION_REQUEST hook is hung: everything but a
-#: known-safe read is asked about, over whatever sandbox the rung puts it in.
+#: known-safe read is asked about, over whatever sandbox the fence puts it in.
 UNTRUSTED: Final = "untrusted"
 
 #: The feature Codex's agent needs to ask its user anything outside plan mode.
 ASKING_FEATURE: Final = "default_mode_request_user_input"
 
-
-def rung(
-    harness: HarnessKind,
-    permission: Permission,
-    *,
-    rungs: tuple[str, ...],
-    hung: frozenset[HookKind] = frozenset(),
-) -> str:
-    """The rung of coganchor's ladder a session is run at, as the table above says.
-
-    Args:
-      harness: The CLI.
-      permission: What the session may touch.
-      rungs: The rungs the CLI's coganchor driver takes.
-      hung: The hooks hung on the agent now.
-
-    Returns:
-      One of `read-only`, `workspace-write`, `auto` and `bypass`, and never a rung outside
-      `rungs`.
-    """
-    reads = permission.preset == READ_ONLY and permission.access(".") != Access.WRITE
-    said = READ_ONLY if reads else BYPASS
-    if said != READ_ONLY and asking(harness, hung):
-        said = ASKING
-    return said if said in rungs else BYPASS
+#: The hooks Kimi Code runs at `yolo` for: its approvals, and its agent's questions.
+_KIMI_ASKS: Final = frozenset({HookKind.PERMISSION_REQUEST, HookKind.ASK_USER})
 
 
 def approvals(harness: HarnessKind, hung: frozenset[HookKind]) -> str:
-    """The approval policy a Codex session is started with over its rung's, or "".
+    """The approval policy a Codex session is started with over its fence's, or "".
 
     Args:
       harness: The CLI.
@@ -207,34 +146,28 @@ def approvals(harness: HarnessKind, hung: frozenset[HookKind]) -> str:
 
 
 def prompting(harness: HarnessKind, hung: frozenset[HookKind]) -> bool:
-    """Whether a Claude Code session is started so that its `bypass` asks, for the hooks hung.
+    """Whether a session's CLI is started so that it asks, for the hooks hung.
 
     Claude's `bypassPermissions` asks nothing, so a PERMISSION_REQUEST hook would never be
-    reached at it: while one is hung, `bypass` runs at `manual` instead, and Humanize answers
-    every request yes unless the hook says no.
+    reached at it: while one is hung, it runs at `manual` instead. Kimi's `auto` asks nothing
+    either and denies the agent's questions outright, so while a PERMISSION_REQUEST or an
+    ASK_USER hook is hung it runs at `yolo`. Humanize answers every request yes unless the
+    hook says no. Read off the hooks the flow hung and nothing else: the flow's own hooks on
+    every agent it drives are what reach those hooks, not a reason to ask.
 
     Args:
       harness: The CLI.
       hung: The hooks hung on the agent now.
 
     Returns:
-      True for Claude Code while a PERMISSION_REQUEST hook is hung.
+      True for Claude Code while a PERMISSION_REQUEST hook is hung, and for Kimi Code while a
+      PERMISSION_REQUEST or an ASK_USER hook is.
     """
-    return harness is HarnessKind.CLAUDE and HookKind.PERMISSION_REQUEST in hung
-
-
-def asking(harness: HarnessKind, hung: frozenset[HookKind]) -> bool:
-    """Whether a harness is to be run at its asking rung, given the hooks hung on it.
-
-    Args:
-      harness: The CLI.
-      hung: The hooks hung on the agent now.
-
-    Returns:
-      True where a hook is hung on a moment only that rung reaches.
-    """
-    wanted = ASKS.get(harness)
-    return wanted is not None and not wanted.isdisjoint(hung)
+    if harness is HarnessKind.CLAUDE:
+        return HookKind.PERMISSION_REQUEST in hung
+    if harness is HarnessKind.KIMI:
+        return not _KIMI_ASKS.isdisjoint(hung)
+    return False
 
 
 def searching(permission: Permission, *, tellable: bool) -> bool | None:

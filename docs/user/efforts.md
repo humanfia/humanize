@@ -14,7 +14,7 @@ at the prompt, and know which words each backend takes.
 The effort is the word after the last colon of an agent:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Name the three primary colours, one line."
 ```
 
@@ -51,20 +51,20 @@ You want Claude Code's cheapest model to answer quickly. First, try a word Claud
 have:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-haiku-4-5-20251001:turbo "hi"   # ①
+hmz exec -f goal -a worker=claude/claude-haiku-4-5-20251001:turbo \
+    -p budget.cost=1 "hi"                                                  # ①
 echo $?                                                                    # ②
 ```
 
 ```text
-hmz exec: error: assistant=claude/claude-haiku-4-5-20251001:turbo: claude cannot be asked to think at 'turbo'; expected one of ultracode, max, xhigh, high, medium, low
+hmz exec: error: worker=claude/claude-haiku-4-5-20251001:turbo: claude cannot be asked to think at 'turbo'; expected one of ultracode, max, xhigh, high, medium, low
 2
 ```
 
 Then use one from the list it gave you:
 
 ```sh
-hmz exec -f chat \
-    -a assistant=claude/claude-haiku-4-5-20251001:low \
+hmz chat -a claude/claude-haiku-4-5-20251001:low \
     "Name the three primary colours, one line."                            # ③
 ```
 
@@ -90,10 +90,12 @@ Red, yellow, and blue are the three traditional primary colors.
 ## Example: set it at the prompt
 
 In `hmz`, open `/flow`, choose the flow, then the agent's role. The agent sheet has one row
-per choice, and the effort is the last of them:
+per choice, and the effort is the last of them. A [chat](/user/chat)'s agent is set on the same
+sheet, from **Chat agent** on the [Workspace page of `/settings`](/user/settings#workspace),
+or, in the chat, by its CLI's own `/effort` where it has one (Claude Code, Codex):
 
 ```text
-  hmz › /flow › Installed › chat › Set up assistant
+  hmz › /flow › Installed › goal › Set up worker
   Configure this agent: select its CLI, account, model, and reasoning effort.
 
   ╭──────────────────────────────────────────────────────────────────────────╮
