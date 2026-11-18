@@ -204,6 +204,12 @@ class Held:
                 scope = "daemon"
             if params.get("slot") in ("chat:", "exec:"):
                 writes = True
+        if method == "flows.check":
+            from hmz.runtime.flowing.verses import pathed
+
+            # A flow named by a path is loaded, and so run, in the daemon's own process: only
+            # one named as it is on offer is one a `read-only` Ai-chan cannot have written.
+            writes = pathed(str(params.get("flow") or ""))
         if scope == "never":
             return f"Ai-chan cannot call {method}."
         workspace, slot = self._names(annotated, params)
