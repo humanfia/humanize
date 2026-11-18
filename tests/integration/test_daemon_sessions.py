@@ -13,6 +13,7 @@ import contextlib
 import os
 import queue
 import threading
+import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -273,3 +274,26 @@ def test_a_device_reaches_the_daemon_through_a_relay(
     afar = secured(paired.routes[0], me, paired.id)
     afar.call("pair.claim", token=paired.token, name="afar")
     assert afar.call("hosts.list") == {"held": []}
+
+
+def test_one_relay_takes_native_joins_beside_webrtc_ones(
+    workspace: Path, relay: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # One control connection for both listeners (Section 5.4.1 of wire.md): two would take
+    # the room from each other every second, each refusing the other's kind of join.
+    routes = {f"relay:{relay}", f"webrtc:{relay}"}
+    listens(*sorted(routes))
+    daemon.start()
+
+    def both() -> bool:
+        try:
+            return set(code().routes) == routes
+        except RpcError:
+            return False
+
+    assert until(both)
+    paired = code()
+    me = device(tmp_path / "afar", monkeypatch)
+    for _ in range(12):
+        secured(f"relay:{relay}", me, paired.id).peer.close()
+        time.sleep(0.25)
