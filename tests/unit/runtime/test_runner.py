@@ -896,6 +896,23 @@ def test_a_run_is_written_down_and_returns_what_the_flow_did(
     assert all(cast("Env", one).closed == 1 for one in runner.envs.values())
 
 
+def test_a_role_named_by_a_virtual_nous_is_written_down_at_its_concrete_one(
+    engine_: Flowing, tmp_path: Path
+) -> None:
+    spec = AgentSpec(
+        "builder", HarnessKind.CLAUDE, "work", "opus", "high", "claude", "smart"
+    )
+    engine_.found["claude", "work"] = object()
+    runner = Runner("ralph", agents=[spec], budget=BUDGET, workspace=tmp_path)
+
+    asyncio.run(runner.arun("fix it"))
+
+    (drove,) = _ran(runner)["agents"]
+    assert drove == epic.Drove("builder", "claude", "opus", "high", "work", drove.name)
+    # Which `-a` reads back, as a spec has to.
+    assert drove.spec == "claude@work/opus:high"
+
+
 def test_an_environment_given_as_a_driver_is_probed_where_it_stands(
     engine_: Flowing, tmp_path: Path
 ) -> None:

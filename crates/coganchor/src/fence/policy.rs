@@ -21,6 +21,8 @@ use nix::sys::stat::{FileStat, Mode, fstat, fstatat, mkdirat};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use super::seatbelt::realpath;
+
 /// How much of a path a fence grants, narrowest first (`NONE`, `READ`, `WRITE`): the words a
 /// rule's access is spelled with.
 pub const NONE: &str = "none";
@@ -1004,13 +1006,24 @@ pub fn under(path: &str, root: &str) -> bool {
     path == root || path.starts_with(&format!("{}/", root.trim_end_matches('/')))
 }
 
-/// [`TEMPORARY`], and the directory `TMPDIR` names where it is absolute (`_temporary`).
+/// [`TEMPORARY`], and the directory `TMPDIR` names where it is absolute (`_temporary`): each
+/// as it is spelled and with its links followed, which is how the kernel holds it and how a
+/// path found beneath it is spelled -- a Mac's `/tmp` is `/private/tmp` -- so that a rule
+/// spelled either way is beneath the grant and carves out of it.
 pub fn temporary() -> Vec<String> {
-    let mut held: Vec<String> = TEMPORARY.iter().map(|one| (*one).to_owned()).collect();
+    let mut spelled: Vec<String> = TEMPORARY.iter().map(|one| (*one).to_owned()).collect();
     if let Ok(named) = std::env::var("TMPDIR")
         && named.starts_with('/')
     {
-        held.push(named);
+        spelled.push(named);
+    }
+    let mut held: Vec<String> = Vec::new();
+    for path in spelled {
+        for one in [path.clone(), realpath(&path)] {
+            if !held.contains(&one) {
+                held.push(one);
+            }
+        }
     }
     held
 }
@@ -1321,6 +1334,23 @@ mod tests {
         assert_eq!(beneath.level("/tmp/x/key"), NONE);
         assert_eq!(beneath.level("/var/tmp/y/z"), READ);
         assert!(beneath.allows("/var/tmp/z", true));
+    }
+
+    #[test]
+    fn a_rule_beneath_a_temporary_as_its_links_lead_is_carved_out_of_it() {
+        for held in temporary() {
+            let real = realpath(&held);
+            assert!(temporary().contains(&real), "{held} is {real}");
+            let fence = drawn(&[
+                ("/", NONE),
+                (&format!("{real}/kept"), READ),
+                (&format!("{real}/shut"), NONE),
+                (".", WRITE),
+            ]);
+            assert!(fence.keep.contains(&format!("{real}/kept")), "{real}");
+            assert!(fence.deny.contains(&format!("{real}/shut")), "{real}");
+            assert!(fence.allows(&format!("{real}/a"), true));
+        }
     }
 
     #[test]
