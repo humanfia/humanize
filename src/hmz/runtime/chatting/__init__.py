@@ -33,7 +33,7 @@ import asyncio
 import contextlib
 import datetime
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -1008,7 +1008,8 @@ def _drove(said: AgentSpec, name: str) -> Drove:
     """The assistant as its epic writes it down."""
     from hmz.runtime.runner import drove
 
-    return drove(ASSISTANT, str(said).partition("=")[2], name)
+    # At its concrete nous, which is what the record states of one named by a virtual one.
+    return drove(ASSISTANT, str(replace(said, nous="")).partition("=")[2], name)
 
 
 def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | None]:

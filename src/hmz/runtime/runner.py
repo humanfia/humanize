@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import json
 import math
 import threading
@@ -433,7 +434,9 @@ class Runner:
                 saved(said, f"{named}: {name!r}")
             drivers[name] = said
             if isinstance(said, AgentSpec):
-                specs[name] = str(said).partition("=")[2]
+                # The concrete nous, which is what the epic's record states (6.5.1 of
+                # [FILES]), also of a role named by a virtual one.
+                specs[name] = str(dataclasses.replace(said, nous="")).partition("=")[2]
             else:
                 account = f"@{said.provider}" if said.provider else ""
                 specs[name] = (
