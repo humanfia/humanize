@@ -407,9 +407,9 @@ fn over_tls_a_wrong_or_missing_token_is_refused() {
             (libc::EACCES, "invalid token")
         );
         // And the connection is closed, so no other proof can be tried on it.
-        serving.join().unwrap();
         let closed = client.call(Op::Stat, meta! {"path" => "/w"}).unwrap_err();
         assert_ne!(closed.strerror, "not authenticated");
+        serving.join().unwrap();
         client.close();
     }
 }
