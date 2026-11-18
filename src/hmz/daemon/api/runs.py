@@ -545,6 +545,7 @@ def listed(
     workspace: str = "",
     status: str = "",
     flow: str = "",
+    what: str = "",
     q: str = "",
     offset: int = 0,
     limit: int = 50,
@@ -559,6 +560,7 @@ def listed(
       workspace: Only this workspace's runs, by its path, or "" for every one's.
       status: Only those that ended so, or "" for every one.
       flow: Only those of this flow, or "" for every one.
+      what: Only those of this kind, `chat` or `flow`, or "" for every one.
       q: Only those whose task, flow or epic name holds this, or "" for every one.
       offset: How many of those found to pass over.
       limit: How many to answer at most.
@@ -576,7 +578,7 @@ def listed(
     hers = {*hers, *(one["epic"] for one in going if one["slot"].startswith("ai:"))}
     every = [ran for ran in every if ran.name not in hers]
     held = held_by(every, going)
-    went = [
+    rows = (
         (
             ran,
             row(
@@ -584,7 +586,9 @@ def listed(
             ),
         )
         for ran in every
-    ]
+    )
+    # The kind asked for is what is counted, as it is what is listed.
+    went = [(ran, said) for ran, said in rows if not what or said["kind"] == what]
     counts: dict[str, int] = {}
     for _, said in went:
         counts[said["how"]] = counts.get(said["how"], 0) + 1
@@ -762,6 +766,7 @@ def _list(call: Call) -> dict[str, Any]:
         workspace=_workspace_of(call),
         status=params.get("status", ""),
         flow=params.get("flow", ""),
+        what=params.get("kind", ""),
         q=params.get("q", ""),
         offset=offset,
         limit=limit,

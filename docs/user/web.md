@@ -67,7 +67,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
-| **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | Every chat and epic, with its folder, agents, what it spent and how long it took | Find them by how they went, by folder, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
+| **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | A box over the middle of the window: the field, the tabs **All**, **Chats** and **Epics**, then every chat and epic a line apiece, newest first, and under them **Actions**. Once you move to one, by key or pointer, a line over the foot says the rest of it: its folder, flow, agents, what it spent and how long it took; on a phone or a touch screen that stands under each | Type a word of the task; <kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens (what you typed, even before it is listed), <kbd>Alt</kbd> <kbd>Enter</kbd> (<kbd>⌥</kbd> on a Mac) or the menu key opens the menu of the one you are on, <kbd>Esc</kbd> closes; <kbd>←</kbd> <kbd>→</kbd> change the tab and <kbd>/</kbd> opens **Filters** -- how it went, folder, flow -- while the field is empty; **New chat** or **Import** under **Actions**. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar is one row: the [daemon bar](#daemon-bar) and, beside it, a gear that
@@ -323,7 +323,7 @@ tokens, and every process -- click one to pick it.
 
 ### Importing an epic {#importing-an-epic}
 
-Somebody sent you a `.hmzepic`? Press **Import** in **Search**, or right-click between the epics in
+Somebody sent you a `.hmzepic`? Press **Import** under **Actions** in **Search**, or right-click between the epics in
 the sidebar, and pick the file --
 or drop it anywhere on the window. It is read back in on the daemon the page shows, under the
 directory it ran in, and opens

@@ -98,11 +98,10 @@ def test_an_address_naming_local_draws_every_view_and_keeps_naming_it(
 def test_an_epic_started_on_a_daemon_stays_on_it(project: Path, engine: str) -> None:
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
-        go(page, "/@local/new?flow=chat")
-        page.get_by_role("button", name="Options").click()
+        go(page, "/@local/new/chat")
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("hello there")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/@local/epics/[^/]+/sessions/[^/]+%2F1$"))

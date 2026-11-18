@@ -314,3 +314,45 @@ def test_a_list_leaves_out_every_ai_chan_epic_and_one_her_host_holds(
     assert [one["name"] for one in said["runs"]] == ["a"]
     assert (said["total"], said["counts"]) == (1, {"running": 1})
     assert said["flows"] == ["chat"]
+
+
+def test_a_list_asked_for_one_kind_holds_only_that_kind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import hmz.runtime.epic
+
+    def ends(ran: Any, *, going: bool) -> str:
+        del ran, going
+        return "done"
+
+    monkeypatch.setattr(hmz.runtime.epic, "ending", ends)
+
+    def named(name: str, flow: str, kind: str) -> Any:
+        ran = _ran(flow, kind=kind)
+        ran.name, ran.at = name, Path("/epics") / name
+        return ran
+
+    chat, epic = named("a", "", "chat"), named("b", "ralph", "flow")
+
+    def every(workspace: str) -> list[Any]:
+        del workspace
+        return [chat, epic]
+
+    def goes(ran: Any) -> bool:
+        del ran
+        return False
+
+    kept = cast("Any", SimpleNamespace(all=every, going=goes))
+
+    def names(kind: str) -> list[str]:
+        return [one["name"] for one in runs.listed(kept, [], what=kind)["runs"]]
+
+    assert names("") == ["a", "b"]
+    assert names("chat") == ["a"]
+    assert names("flow") == ["b"]
+    # What is counted is what is listed: every epic, or those of the kind asked for.
+    assert sum(runs.listed(kept, [], what="")["counts"].values()) == 2
+    assert sum(runs.listed(kept, [], what="chat")["counts"].values()) == 1

@@ -1,0 +1,444 @@
+"""Search, laid out and driven as Claude's window lays out and drives its own.
+
+The epics are answered on the wire, before Local is asked: forty chats and twenty epics of a
+flow, more than a page of them, found by kind, by flow and by a word as the daemon finds them.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+import pytest
+from playwright.sync_api import Page, expect
+
+from tests.integration.doubles_web import served
+from tests.system.web.doubles_browser import ENGINES, Wire, opened
+
+pytestmark = pytest.mark.parametrize("engine", ENGINES)
+
+
+def _run(number: int) -> dict[str, Any]:
+    chat = number % 3 != 0
+    return {
+        "name": f"e{number}",
+        "workspace": "/w/project",
+        "task": f"{'Talk about' if chat else 'Build'} thing {number}",
+        "kind": "chat" if chat else "flow",
+        "flow": "" if chat else "ralph",
+        "how": "done",
+        "held": False,
+        "began": "2026-10-12T09:00:00Z",
+        "ended": "2026-10-12T09:30:00Z",
+        "agents": [{"name": "coder", "role": "coder", "runs": "claude/sonnet"}],
+        "spent": {"money": "$0.12", "tokens": 1234},
+        "sessions": 2,
+        "resumable": False,
+    }
+
+
+_RUNS = [_run(number) for number in range(1, 61)]
+
+
+def _listed(params: Any) -> dict[str, Any] | None:
+    """A page of Search's, as the daemon finds it; the sidebar's list is left to Local."""
+    params = params or {}
+    if params.get("limit") != 50:
+        return None
+    kind = [one for one in _RUNS if params.get("kind", one["kind"]) == one["kind"]]
+    found = [
+        one
+        for one in kind
+        if params.get("flow", one["flow"]) == one["flow"]
+        and params.get("status", one["how"]) == one["how"]
+        and params.get("q", "").lower() in one["task"].lower()
+    ]
+    offset = params.get("offset", 0)
+    return {
+        "result": {
+            "runs": found[offset : offset + 50],
+            "total": len(found),
+            "offset": offset,
+            "limit": 50,
+            "counts": {"done": len(kind)},
+            "flows": ["chat", "ralph"],
+        }
+    }
+
+
+def _box(page: Page, selector: str) -> tuple[int, int, int, int]:
+    """Where the first element a selector finds is drawn, in whole pixels: x, y, width, height."""
+    box = page.locator(selector).first.bounding_box()
+    assert box is not None
+    return (
+        round(box["x"]),
+        round(box["y"]),
+        round(box["width"]),
+        round(box["height"]),
+    )
+
+
+def _search(page: Page) -> None:
+    page.keyboard.press("Control+k")
+    expect(page.locator("[data-hmz=found] [data-hmz=epic]")).to_have_count(50)
+
+
+def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with (
+        served() as site,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
+    ):
+        _search(page)
+        # The box: 672 by 584, in the middle across and 127 down a window 792 tall.
+        left, top, wide, tall = _box(page, "[data-hmz=dialog-search]")
+        assert (left, wide, tall) == (312, 672, 584)
+        assert abs(top - 127) <= 1
+
+        def within(selector: str) -> tuple[int, int, int, int]:
+            x, y, w, h = _box(page, selector)
+            return (x - left, y - top, w, h)
+
+        # The field across its top, and `Close` at its right.
+        assert within("[data-hmz=dialog-search] .dialog-search") == (25, 18, 577, 32)
+        assert within("[data-hmz=dialog-search] .dialog-head .icon-btn") == (
+            634,
+            20,
+            28,
+            28,
+        )
+        # Under it the tabs, 29 tall, from the field's left edge.
+        tabs = page.locator("[data-hmz=search-tabs] [role=tab]")
+        expect(tabs).to_have_text(["All", "Chats", "Epics"])
+        expect(tabs.first).to_have_attribute("aria-selected", "true")
+        assert within("[data-hmz=search-tabs] [role=tab]")[:2] == (25, 58)
+        assert set(
+            tabs.evaluate_all(
+                "(all) => all.map((one) => one.getBoundingClientRect().height)"
+            )
+        ) == {29}
+        # Then what was found: a quiet heading, and a line apiece, 36 apart.
+        expect(page.locator("[data-hmz=found] .search-heading").first).to_contain_text(
+            "Recents"
+        )
+        expect(page.locator("[data-hmz=search-count]")).to_have_text(
+            "1\N{EN DASH}50 of 60"
+        )
+        rows = page.locator("[data-hmz=found] [data-hmz=epic]")
+        first, second = rows.nth(0).bounding_box(), rows.nth(1).bounding_box()
+        assert first is not None
+        assert second is not None
+        assert (round(first["x"]) - left, round(first["y"]) - top) == (11, 148)
+        assert (round(first["height"]), round(second["y"] - first["y"])) == (36, 36)
+        # And a foot that says what the keys do, its last word 21 over the box's bottom.
+        hints = page.locator("[data-hmz=search-hints] .search-hint")
+        expect(hints).to_have_text(
+            [
+                re.compile("^Close"),
+                re.compile("^Change type"),
+                re.compile("^Filters"),
+                re.compile("^Actions"),
+                re.compile("^Move"),
+                re.compile("^Open"),
+            ]
+        )
+        x, y, _, h = within("[data-hmz=search-hints] .search-hint")
+        assert x == 21
+        assert abs(y + h / 2 - 563) <= 1
+        # What was found runs to the foot: nothing is said between them of a line that no
+        # key and no pointer has moved to.
+        expect(page.locator("[data-hmz=search-detail]")).to_be_hidden()
+        _, y, _, h = within("[data-hmz=found]")
+        assert y + h == within("[data-hmz=dialog-search] .search-foot")[1]
+        # A key the pages at the foot's right leave no room for is left unsaid, not cut.
+        assert page.evaluate(
+            """() => {
+              const hints = document.querySelector('[data-hmz=search-hints]')
+                .getBoundingClientRect()
+              return [...document.querySelectorAll('.search-hint')].every((one) => {
+                const box = one.getBoundingClientRect()
+                return box.top >= hints.bottom || box.right <= hints.right + 1
+              })
+            }"""
+        )
+        assert (
+            within("[data-hmz=search-hints] .search-hint:nth-child(4)")[1] == y + h + 14
+        )
+        # Nothing of it is wider than the box, or under its foot.
+        assert page.evaluate(
+            """() => {
+              const box = document.querySelector('[data-hmz=dialog-search]')
+              return box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight
+            }"""
+        )
+
+
+def test_search_is_moved_through_and_opened_by_the_keys(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        _search(page)
+        field = page.get_by_role("combobox", name="Search")
+        expect(field).to_be_focused()
+        expect(field).to_have_attribute("placeholder", "Search")
+        active = page.locator("[data-hmz=found] .active")
+        expect(active).to_have_attribute("data-key", "e1")
+        # The list the field names holds only what can be moved to, in its groups.
+        assert page.evaluate(
+            """() => {
+              const field = document.querySelector('.dialog-search')
+              const list = document.getElementById(field.getAttribute('aria-controls'))
+              return list.getAttribute('role') === 'listbox'
+                && [...list.children].every((one) => one.getAttribute('role') === 'group')
+                && list.querySelectorAll('[role=option]').length === 52
+            }"""
+        )
+        expect(page.locator("[data-hmz=search-detail]")).to_be_hidden()
+        # Down and up move along what was found, the focus staying in the field.
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowDown")
+        expect(active).to_have_attribute("data-key", "e3")
+        page.keyboard.press("ArrowUp")
+        expect(active).to_have_attribute("data-key", "e2")
+        expect(field).to_be_focused()
+        assert field.get_attribute("aria-activedescendant") == active.get_attribute(
+            "id"
+        )
+        # What else there is to say of the one moved to is said over the foot.
+        expect(page.locator("[data-hmz=search-detail]")).to_contain_text("2 sessions")
+        # Up from the first goes round to the last: what can be done, under what was found.
+        page.keyboard.press("ArrowUp")
+        page.keyboard.press("ArrowUp")
+        expect(active).to_have_attribute("data-hmz", "import")
+        expect(active).to_be_in_viewport()
+        page.keyboard.press("ArrowUp")
+        expect(active).to_have_text("New chat")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowDown")
+        expect(active).to_have_attribute("data-key", "e1")
+
+        # Right and left change the tab while the field is empty: the chats, then the epics.
+        page.keyboard.press("ArrowRight")
+        chosen = page.locator("[data-hmz=search-tabs] [aria-selected=true]")
+        expect(chosen).to_have_text("Chats")
+        found = page.locator("[data-hmz=found] [data-hmz=epic]")
+        expect(found).to_have_count(40)
+        assert {one.get_attribute("data-kind") for one in found.all()} == {"chat"}
+        page.keyboard.press("ArrowRight")
+        expect(chosen).to_have_text("Epics")
+        expect(found).to_have_count(20)
+        assert {one.get_attribute("data-kind") for one in found.all()} == {"flow"}
+        page.keyboard.press("ArrowRight")
+        expect(chosen).to_have_text("Epics")
+        assert wire.params("runs.list")[-1]["kind"] == "flow"
+
+        # A slash opens the filters, and closes them, while the field is empty.
+        filters = page.locator("[data-hmz=search-filters]")
+        expect(filters).to_be_hidden()
+        page.keyboard.press("/")
+        expect(filters).to_be_visible()
+        expect(field).to_have_value("")
+        page.keyboard.press("/")
+        expect(filters).to_be_hidden()
+
+        # Typed into, the field keeps its keys to itself; Enter opens the one moved to.
+        field.fill("thing 9")
+        expect(found).to_have_count(1)
+        page.keyboard.press("/")
+        expect(field).to_have_value("thing 9/")
+        expect(filters).to_be_hidden()
+        page.keyboard.press("ArrowLeft")
+        expect(chosen).to_have_text("Epics")
+        field.fill("thing 9")
+        expect(active).to_have_attribute("data-key", "e9")
+        wire.faked["runs.get"] = lambda _: None
+        page.keyboard.press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/e9$"))
+        expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
+
+
+def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        _search(page)
+        chosen = page.locator("[data-hmz=search-tabs] [aria-selected=true]")
+        found = page.locator("[data-hmz=found] [data-hmz=epic]")
+        filters = page.locator("[data-hmz=search-filters]")
+        opener = page.locator("[data-hmz=search-filtering]")
+        expect(filters).to_be_hidden()
+        opener.click()
+        expect(opener).to_have_attribute("aria-expanded", "true")
+        expect(filters.get_by_role("group", name="How it went")).to_be_visible()
+        expect(page.locator("[data-hmz=search-workspace]")).to_be_visible()
+        # A chat is of no flow: the flows offered are the flows, and one chosen on the chats
+        # goes over to the epics.
+        flows = page.locator("[data-hmz=search-flow]")
+        expect(flows.locator("option")).to_have_text(["All flows", "ralph"])
+        page.get_by_role("tab", name="Chats").click()
+        expect(found).to_have_count(40)
+        flows.select_option("ralph")
+        expect(chosen).to_have_text("Epics")
+        expect(found).to_have_count(20)
+        assert re.search(r"kind=flow.*flow=ralph", page.url)
+        # And the chats drop the flow again.
+        page.get_by_role("tab", name="Chats").click()
+        expect(flows).to_have_value("")
+        expect(found).to_have_count(40)
+
+        # A page of fifty, and the one after it, from the foot.
+        page.get_by_role("tab", name="All").click()
+        expect(page.locator("[data-hmz=search-count]")).to_have_text(
+            "1\N{EN DASH}50 of 60"
+        )
+        page.get_by_role("button", name="Older", exact=True).click()
+        expect(page.locator("[data-hmz=search-count]")).to_have_text(
+            "51\N{EN DASH}60 of 60"
+        )
+        expect(found).to_have_count(10)
+
+        # Opened again on an address that names a filter, the filters are open; one of before
+        # the tabs, with the chats as a flow, is the chats.
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
+        page.evaluate("location.hash = '/search?flow=chat&status=done'")
+        expect(chosen).to_have_text("Chats")
+        expect(filters).to_be_visible()
+        expect(found).to_have_count(40)
+
+        # What can be done stands under what was found, whatever was.
+        expect(page.locator("[data-hmz=search-new-chat]")).to_have_text("New chat")
+        expect(page.locator("[data-hmz=import]")).to_have_text("Import")
+
+
+def test_search_fills_a_narrow_window_and_scrolls_inside_it(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with (
+        served() as site,
+        opened(site, engine=engine, width=390, height=800, routed=wire.routes) as page,
+    ):
+        page.evaluate("location.hash = '/search'")
+        expect(page.locator("[data-hmz=found] [data-hmz=epic]")).to_have_count(50)
+        assert _box(page, "[data-hmz=dialog-search]") == (0, 0, 390, 800)
+        expect(page.locator("[data-hmz=search-tabs] [role=tab]")).to_have_count(3)
+        # What was found scrolls inside the box, which is no taller than the window.
+        assert page.evaluate(
+            """() => {
+              const found = document.querySelector('[data-hmz=found]')
+              return found.scrollHeight > found.clientHeight
+                && document.documentElement.scrollWidth <= innerWidth
+            }"""
+        )
+        # What else there is to say of each stands under it, whole: nothing here moves to one.
+        more = page.locator("[data-hmz=found] [data-hmz=epic] .result-more")
+        expect(more.nth(7)).to_contain_text("2 sessions")
+        expect(more.nth(7)).to_contain_text("took 30m")
+        assert more.nth(7).evaluate(
+            "(one) => one.scrollWidth <= one.clientWidth"
+            " && one.getBoundingClientRect().right <= innerWidth"
+        )
+        expect(page.locator("[data-hmz=search-detail]")).to_be_hidden()
+        page.locator("[data-hmz=search-filtering]").click()
+        expect(page.locator("[data-hmz=search-workspace]")).to_be_visible()
+        expect(page.get_by_role("button", name="Older", exact=True)).to_be_visible()
+
+
+def test_the_keys_go_on_after_the_pointer_presses_a_tab_a_filter_or_a_page(
+    engine: str,
+) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        _search(page)
+        field = page.get_by_role("combobox", name="Search")
+        active = page.locator("[data-hmz=found] .active")
+        found = page.locator("[data-hmz=found] [data-hmz=epic]")
+        # A tab pressed leaves the focus in the field, and is the element it was.
+        page.get_by_role("tab", name="Chats").click()
+        expect(found).to_have_count(40)
+        expect(field).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        expect(active).to_have_attribute("data-key", "e2")
+        # The counts by how it went are the tab's own.
+        page.locator("[data-hmz=search-filtering]").click()
+        done = page.locator("[data-hmz=search-filters] [data-how=done]")
+        expect(done.locator(".count")).to_have_text("40")
+        done.click()
+        expect(done).to_have_attribute("aria-pressed", "true")
+        expect(field).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        expect(active).to_have_attribute("data-key", "e4")
+        # Tabbed to and pressed by a key, a filter keeps the focus itself: it is not made again.
+        done.focus()
+        page.keyboard.press("Enter")
+        expect(done).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        expect(active).to_have_attribute("data-key", "e5")
+        # A page turned leaves it in the field too, and Enter opens the one moved to.
+        field.focus()
+        page.get_by_role("tab", name="All").click()
+        page.locator("[data-hmz=search-filters] [data-how=all]").click()
+        page.get_by_role("button", name="Older", exact=True).click()
+        expect(found).to_have_count(10)
+        expect(field).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        expect(active).to_have_attribute("data-key", "e52")
+        wire.faked["runs.get"] = lambda _: None
+        page.keyboard.press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/e52$"))
+
+
+def test_enter_opens_what_was_typed_not_what_was_listed_before_it(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        _search(page)
+        wire.faked["runs.get"] = lambda _: None
+        page.keyboard.type("thing 59")
+        page.keyboard.press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/e59$"))
+
+
+def test_the_menu_of_the_one_moved_to_is_opened_by_a_key(engine: str) -> None:
+    wire = Wire(faked={"runs.list": _listed})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        _search(page)
+        field = page.get_by_role("combobox", name="Search")
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Alt+Enter")
+        menu = page.locator(".popover.context")
+        expect(menu.locator(".context-head")).to_have_text("Talk about thing 2")
+        expect(menu.get_by_role("menuitem", name="Copy link")).to_be_visible()
+        # Closed, it gives the focus back to the field, and Search is still open.
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
+        expect(field).to_be_focused()
+        expect(page.locator("[data-hmz=dialog-search]")).to_be_visible()
+        # What can be done has no menu of its own.
+        page.keyboard.press("ArrowUp")
+        page.keyboard.press("ArrowUp")
+        expect(page.locator("[data-hmz=found] .active")).to_have_attribute(
+            "data-hmz", "import"
+        )
+        page.keyboard.press("Alt+Enter")
+        expect(menu).to_have_count(0)
+
+
+def test_an_address_and_an_empty_tab_say_what_is_so(engine: str) -> None:
+    def none(params: Any) -> dict[str, Any] | None:
+        answer = _listed(params)
+        if answer is not None and params["kind"] == "chat":
+            answer["result"].update(runs=[], total=0, counts={})
+        return answer
+
+    wire = Wire(faked={"runs.list": none})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        # The chats named with a flow drop it: no filter is set, and the row of them is shut.
+        page.evaluate("location.hash = '/search?kind=chat&flow=ralph'")
+        chosen = page.locator("[data-hmz=search-tabs] [aria-selected=true]")
+        expect(chosen).to_have_text("Chats")
+        expect(page.locator("[data-hmz=search-filters]")).to_be_hidden()
+        assert "flow=" not in page.url
+        # No chats, and nothing typed or filtered: there is no filter to clear.
+        empty = page.locator("[data-hmz=found] .empty")
+        expect(empty).to_contain_text("No chats yet")
+        expect(empty).not_to_contain_text("filters")
+        expect(page.locator("[data-hmz=search-new-chat]")).to_be_visible()
+        page.get_by_role("combobox", name="Search").fill("zebra")
+        expect(empty).to_contain_text("Nothing is like that")

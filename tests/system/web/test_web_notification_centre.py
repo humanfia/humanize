@@ -129,6 +129,11 @@ def test_an_item_picked_is_read_and_opens_what_it_is_about(engine: str) -> None:
         page.locator("[data-hmz=notification]").click()
         expect(page.locator("[data-hmz=notification-menu]")).to_have_count(0)
         assert page.evaluate("location.hash") == "#/@devbox/live?workspace=%2Fw%2Fapp"
+        # It is kept as read a moment after it is picked: waited for, not caught up with.
+        page.wait_for_function(
+            """async () => (await (await import('/notifications.js')).kept.items())
+              .every((one) => one.read)"""
+        )
         assert [one["read"] for one in _items(page)] == [True]
 
 

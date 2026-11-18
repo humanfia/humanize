@@ -172,6 +172,20 @@ async def talk(
 '''
 
 
+#: A new epic of the project's own `talk`: a chat is of no flow, and a flow's epic has options.
+_NEW = "/new?flow=%40local%2Ftalk"
+
+
+def _options(page: Page) -> None:
+    """Opens a new epic's options and gives it a budget, without which no flow starts."""
+    page.get_by_role("button", name="Options").click()
+    page.get_by_label("Most it may cost, in dollars").fill("5")
+
+
+#: The address of a flow's epic, as it opens: on its graph.
+_EPIC = re.compile(r".*#/epics/[^/?]+$")
+
+
 @pytest.fixture
 def talking(project: Path) -> None:
     """The project's own `talk`, offered from the start."""
@@ -188,11 +202,12 @@ def _start_talk(page: Page, task: str) -> None:
     expect(page.locator("[data-hmz=graph-session]").first).to_be_visible()
 
 
+@pytest.mark.usefixtures("talking")
 def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        go(page, "/new?flow=chat")
+        go(page, _NEW)
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
         expect(role.locator("[data-hmz=pick-cli]")).to_have_value("claude")
@@ -346,17 +361,17 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
         _comes_to(agent, drawn["x"], drawn["y"])
 
 
+@pytest.mark.usefixtures("talking")
 def test_a_model_no_cli_would_list_is_typed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
+    monkeypatch: pytest.MonkeyPatch, engine: str
 ) -> None:
-    install(tmp_path, monkeypatch)
 
     def refused(cli: str, provider: str = "", seconds: float = 0.0) -> tuple[()]:
         raise OSError(f"{cli} is not answering")
 
     monkeypatch.setattr(hmz.coganchor.models, "ask", refused)
     with served() as site, opened(site, engine=engine) as page:
-        go(page, "/new?flow=chat")
+        go(page, _NEW)
         page.get_by_role("button", name="Options").click()
         role = page.locator("[data-role=assistant]")
         expect(role.locator("[data-hmz=agent-picker] .hint")).to_contain_text(
@@ -649,7 +664,7 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         chip.click()
         menu.get_by_role("menuitem", name="CLI").click()
         expect(page.locator("[data-hmz=pick-cli] [role=menuitem]")).to_have_text(
-            ["claude"]
+            ["claude", "dsh", "litellm"]
         )
         menu.get_by_role("menuitem", name="Account").click()
         accounts = page.locator("[data-hmz=pick-account] [role=menuitem]")
@@ -826,10 +841,9 @@ def test_a_chat_is_started_with_a_permission_and_set_to_another(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new/chat")
-        page.get_by_role("button", name="Options").click()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         chip = page.locator("[data-hmz=start] [data-hmz=permission]")
         expect(chip).to_have_text("Edit this folder")
         chip.click()
@@ -892,6 +906,7 @@ def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
         expect(page.get_by_role("link", name="Resume")).to_have_count(0)
 
 
+@pytest.mark.usefixtures("loops")
 def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
     project: Path, engine: str
 ) -> None:
@@ -933,7 +948,7 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         stop(page)
 
         page.keyboard.press("Control+k")
-        search = page.get_by_role("searchbox", name="Find")
+        search = page.get_by_role("combobox", name="Search")
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
         # What is listed stays, marked old, until the search typed is answered.
         wire.holds("runs.list")
@@ -1281,15 +1296,14 @@ def test_a_newer_release_is_offered_under_the_machine(
         )
 
 
-def test_a_flow_is_opened_and_started_from_the_flows(
-    project: Path, engine: str
-) -> None:
+@pytest.mark.usefixtures("talking")
+def test_a_flow_is_opened_and_started_from_the_flows(engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         page.get_by_role("link", name="Flows").click()
-        page.locator(".card[data-flow=chat]").click()
-        expect(page.locator(".flow-detail h2")).to_have_text("chat")
+        page.locator(".card[data-flow='@local/talk']").click()
+        expect(page.locator(".flow-detail h2")).to_have_text("@local/talk")
         page.get_by_role("link", name="New epic").last.click()
-        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
+        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("@local/talk")
 
 
 def test_on_a_phone_the_sidebar_is_a_drawer(project: Path, engine: str) -> None:
@@ -1406,7 +1420,7 @@ def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
         _start_chat(page, "hello there")
         _details(page)
         assert page.evaluate(under) == []
-        page.locator(".panel-close").click()
+        page.locator("[data-hmz=inspector] .panel-close").click()
         expect(page.locator("[data-hmz=inspector]")).to_be_hidden()
         assert page.evaluate(under) == []
         # Full screen, where they are gone, it is drawn as in a browser.
@@ -1429,13 +1443,14 @@ def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
         assert page.evaluate(under) == []
 
 
+@pytest.mark.usefixtures("talking")
 def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
     """A button, a tab, a menu item or a heading names a thing; it never says a sentence."""
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "label me")
         said: list[str] = []
         settings = (f"/settings/{one}" for one in _PAGES)
-        for address in ("/new?flow=chat", "/flows", "/search", *settings):
+        for address in (_NEW, "/flows", "/search", *settings):
             go(page, address)
             page.wait_for_timeout(300)
             if address.startswith("/new"):
@@ -1458,10 +1473,11 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
         assert not long, f"labels said as sentences: {long}"
 
 
+@pytest.mark.usefixtures("talking")
 def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        go(page, "/new?flow=chat")
-        page.get_by_role("button", name="Options").click()
+        go(page, _NEW)
+        _options(page)
         role = page.locator("[data-role=assistant]")
         expect(role.locator("[data-hmz=pick-model] option").first).to_have_text(
             "claude-haiku-4-5"
@@ -1473,19 +1489,20 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
         ).to_be_visible()
 
         page.reload()
-        go(page, "/new?flow=chat")
+        go(page, _NEW)
         page.get_by_role("button", name="Options").click()
         expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
 
 
+@pytest.mark.usefixtures("talking")
 def test_a_start_says_it_is_starting_until_the_epic_opens(
     project: Path, engine: str
 ) -> None:
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
-        go(page, "/new?flow=chat")
+        go(page, _NEW)
         wire.holds("epic.start")
-        page.get_by_role("button", name="Options").click()
+        _options(page)
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
         ).to_have_value("claude-haiku-4-5")
@@ -1497,22 +1514,24 @@ def test_a_start_says_it_is_starting_until_the_epic_opens(
         expect(box.get_by_role("button", name="Starting…")).to_be_disabled()
         wire.waits(page)
         wire.lets_through()
-        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+        page.wait_for_url(_EPIC)
+        stop(page)
 
 
+@pytest.mark.usefixtures("talking")
 def test_a_workspace_read_marks_the_flow_drawn_until_it_is_read(
     project: Path, engine: str
 ) -> None:
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
-        go(page, "/new?flow=chat")
-        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("chat")
+        go(page, _NEW)
+        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("@local/talk")
         expect(page.locator("[data-hmz=options]")).not_to_have_class(
             re.compile("stale")
         )
         wire.holds("flows.get")
         page.locator("[data-hmz=flow-picker]").click()
-        page.get_by_role("menuitem", name=re.compile("chat")).first.click()
+        page.get_by_role("menuitem", name=re.compile("talk")).first.click()
         expect(page.locator(".greeting-about [role=status]")).to_have_text("Reading…")
         expect(page.locator("[data-hmz=options]")).to_have_class(re.compile("stale"))
         wire.waits(page)
@@ -1523,13 +1542,14 @@ def test_a_workspace_read_marks_the_flow_drawn_until_it_is_read(
         )
 
 
+@pytest.mark.usefixtures("talking")
 def test_the_flow_and_its_environment_are_profiled_apart(
     project: Path, engine: str
 ) -> None:
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
-        go(page, "/new?flow=chat")
-        page.get_by_role("button", name="Options").click()
+        go(page, _NEW)
+        _options(page)
         flow = page.get_by_label("Profile flow")
         environment = page.get_by_label("Profile environment")
         expect(flow).not_to_be_checked()
@@ -1543,7 +1563,7 @@ def test_the_flow_and_its_environment_are_profiled_apart(
             page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
         ).to_be_visible()
         page.reload()
-        go(page, "/new?flow=chat")
+        go(page, _NEW)
         page.get_by_role("button", name="Options").click()
         expect(flow).to_be_checked()
         expect(environment).not_to_be_checked()
@@ -1551,9 +1571,10 @@ def test_the_flow_and_its_environment_are_profiled_apart(
 
         page.locator("[data-hmz=composer-text]").fill("profile me")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+        page.wait_for_url(_EPIC)
         (said,) = wire.params("epic.start")
         assert (said["profile_flow"], said["profile_environment"]) == (True, True)
+        stop(page)
 
 
 @pytest.mark.usefixtures("talking")
@@ -1629,6 +1650,7 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         assert page.url.startswith(page.evaluate("navigator.clipboard.readText()"))
 
 
+@pytest.mark.usefixtures("talking")
 def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
     project: Path, engine: str
 ) -> None:
@@ -1653,26 +1675,24 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         assert _call(page, "settings.get")["backup"]["defaults"] == ["t"]
         page.keyboard.press("Escape")
 
-        go(page, "/new?flow=chat")
-        page.get_by_role("button", name="Options").click()
+        go(page, _NEW)
+        _options(page)
         expect(page.locator("[data-hmz=backup] input[value=t]")).to_be_checked()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
         ).to_have_value("claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("back me up")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+        page.wait_for_url(_EPIC)
         stop(page)
 
         page.locator("[data-hmz=bar] .bar-title").click(button="right")
         page.get_by_role("menuitem", name="Upload").click()
         expect(page.locator(".toast")).to_have_text("Uploading to t")
-        # How it went is said on the chat's menu, where Upload is.
-        page.locator("[data-hmz=chat-menu]").click()
-        expect(page.get_by_role("menuitem", name="Upload")).to_have_attribute(
+        # How it went is said on the epic's bar, where Upload is.
+        expect(page.locator("[data-hmz=bar] [data-hmz=upload]")).to_have_attribute(
             "title", re.compile(r"^t: uploaded")
         )
-        page.keyboard.press("Escape")
         log = subprocess.run(
             ["git", "--git-dir", str(bare), "log", "--format=%s", "main"],
             capture_output=True,
@@ -1715,7 +1735,7 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
         _details(page)
         inspector = page.locator("[data-hmz=inspector]")
         expect(inspector.locator("[data-hmz=environments]")).to_contain_text(
-            re.compile(r"\w+/1 workspace · local")
+            re.compile(r"\w+/1 local · ")
         )
         expect(inspector.locator("[data-hmz=spending]")).to_contain_text("cache write")
         assert not re.search(
@@ -1796,7 +1816,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
         log = page.locator("[data-hmz=btw-log]")
-        expect(log).to_contain_text("btw · assistant/1")
+        expect(log).to_contain_text(re.compile(r"btw · \w+/1"))
         expect(log.locator(".said.btw")).to_have_count(1)
         # Whom it asks was fixed by its first answer: nothing to pick for it any more.
         expect(ask).to_be_hidden()
@@ -2132,7 +2152,7 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
             raise AssertionError(f"{app.url} says {said!r}") from why
         go(app, f"/epics/{name}")
         expect(app.locator("[data-hmz=foreign]")).to_contain_text(
-            "not resumable here: the workspace it ran in, /nowhere/at/all, is not on"
+            "cannot be continued here: the workspace it ran in, /nowhere/at/all, is not"
         )
         expect(app.get_by_role("link", name="Resume")).to_have_count(0)
 

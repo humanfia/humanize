@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page, WebSocketRoute
 
     from hmz.web.site import Site
+    from tests.integration.doubles_web import Session
 
 #: The engines a page is drawn by: Chromium's, and WebKit's, which the macOS app's window is.
 ENGINES = ("chromium", "webkit")
@@ -431,6 +432,52 @@ def paired(page: Page, name: str, code: str) -> None:
         [name, code],
     )
     again(page)
+
+
+def chatted(page: Session, workspace: Path, task: str, *, stopped: bool = True) -> str:
+    """Starts a chat in a workspace as a page starts one, until its agent has answered.
+
+    A chat is of no flow: it starts on a host of its own (`chat.start`, Section 4.25 of
+    protocol/daemon.md), which is then followed as the page follows it.
+
+    Args:
+      page: A session with the daemon.
+      workspace: Where the chat starts.
+      task: Its first message.
+      stopped: Whether it is stopped once it has answered, and waited for until it ended.
+
+    Returns:
+      The chat's epic, by its name.
+    """
+    import uuid
+
+    from tests.integration.doubles_core import AGENT
+
+    started = page.call(
+        "chat.start",
+        workspace=str(workspace),
+        slot="chat:",
+        agent=AGENT,
+        task=task,
+        idem=uuid.uuid4().hex,
+    )
+    sub = page.call("epic.attach", workspace=str(workspace), slot=started["slot"])[
+        "sub"
+    ]
+
+    def record(kind: str) -> Callable[[str, dict[str, Any]], bool]:
+        return lambda method, said: (
+            method == "epic.event"
+            and said["sub"] == sub
+            and said["message"].get("type") == kind
+        )
+
+    page.until(record("asked"), "the chat's agent answering")
+    if stopped:
+        page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
+        page.until(record("ended"), "the chat ending")
+    page.call("epic.detach", sub=sub)
+    return str(started["epic"])
 
 
 def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
