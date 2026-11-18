@@ -59,9 +59,24 @@ export function missing({ scope, workspace, epic, nous, task }, setting) {
   return ''
 }
 
-/** How a conversation stands, in a word: her turn open, between turns, or folded away. */
+/** How a conversation stands, in a word: her turn open, between turns, folded away, or failed. */
 export function stateSaid(state) {
-  return { running: 'Answering', waiting: 'Waiting', folded: 'Folded away' }[state] || state
+  return { running: 'Answering', waiting: 'Waiting', folded: 'Folded away', failed: 'Failed' }[state] || state
+}
+
+/**
+ * How the conversation drawn stands, off what its host says and recorded: `failed`, with what
+ * the harness said, where its chat ended so (Section 8.5.3 of protocol/core.md), else her turn
+ * open, between turns, or folded away.
+ *
+ * @param {{connected: boolean, turn: string, records: object[]}} held Whether her host holds it,
+ *   the turn it says, and the records of its run.
+ * @returns {{state: string, why: string}}
+ */
+export function stateOf({ connected, turn, records }) {
+  const ended = records.findLast((one) => one.type === 'ended')
+  if (ended && ended.how === 'failed') return { state: 'failed', why: ended.why || 'Her chat failed.' }
+  return { state: connected ? (turn === 'running' ? 'running' : 'waiting') : 'folded', why: '' }
 }
 
 /** The last part of a path, as a list names a workspace. */
