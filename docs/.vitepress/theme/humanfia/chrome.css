@@ -49,6 +49,16 @@
   --hf-wordmark-height: 27px;
 }
 
+/* At the narrowest width the bar is drawn open (768px, where the theme swaps the hamburger for
+   the links) the five links, the search box and the overflow button are a few pixels more than
+   the window, and the page scrolls sideways to show them. The search box's key hint is the one
+   thing in the bar that is not needed to use it, so it goes until there is room. */
+@media (min-width: 768px) and (max-width: 819px) {
+  .VPNavBarSearch .DocSearch-Button-Keys {
+    display: none;
+  }
+}
+
 /* The bar is laid out the one way on every page. The theme has a second layout for a page with
    a sidebar -- the title becomes the head of the sidebar's column, the links start where the
    column ends, and the search box and the menus land a few pixels from where they are on a page
