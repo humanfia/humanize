@@ -1,6 +1,6 @@
 """The flows Humanize keeps in the package: the six loops everybody reaches for.
 
-They are the loops [FlowBench](https://humanfia.ai/projects/flowbench) scores, under the same
+They are the loops [FlowBench](https://humanfia.ai/flowbench/) scores, under the same
 names -- `ralph_loop`, `stateful_ralph`, `continue_loop`, `goal`, `flame_chase` and `rlar`. They
 are here rather than in the [official flowverse](https://github.com/humanfia/flowverse) because
 they are what Humanize is for before anything has been fetched: a machine that has never

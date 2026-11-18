@@ -317,10 +317,7 @@
    matched: the same class names occur inside these components, laying out their own insides. */
 .vp-doc > div > .hmz-panel,
 .vp-doc > div > .hmz-paths,
-.vp-doc > div > .grid,
-.VPHome .vp-doc > div > div > .hmz-panel,
-.VPHome .vp-doc > div > div > .hmz-paths,
-.VPHome .vp-doc > div > div > .grid {
+.vp-doc > div > .grid {
   margin: 22px 0 30px;
 }
 
@@ -357,33 +354,6 @@
   }
 }
 
-/* ---------------------------------------------------------------------------------------
-   The page at the site's root.
-
-   It is `layout: home` with no `hero:` and no `features:` key, so VitePress renders neither
-   of its own blocks and the whole page is the content: a full-viewport hero, an architecture
-   diagram, and three quickstarts. What the theme still gives us is `.VPHome` to hang the
-   backdrop on, and a content column 1280px wide with `--vp-offset` on it -- the escape hatch
-   a full-bleed child measures the viewport edge from.
-   --------------------------------------------------------------------------------------- */
-
-/* There is no sidebar here, so the content column is the full 1152px -- which is a fine width
-   for a diagram, a table or a block of shell, and much too wide for a line of prose. The same
-   measure a feature page holds its prose to, then, and only the prose: the code, the tables and
-   the diagrams keep the room. A `.hmz-warn` line is excluded, because one set under the
-   full-width card grid would read as ragged held in from it.
-
-   One level deeper than an ordinary page: there `vp-doc` is the class on the wrapper the
-   markdown sits directly inside, and on this layout `VPHomeContent` puts it on a container one
-   further out. So the content is `> div > div >` here rather than `> div >`. */
-.VPHome .vp-doc > div > div > p:not(.hmz-warn),
-.VPHome .vp-doc > div > div > ul,
-.VPHome .vp-doc > div > div > ol,
-.VPHome .vp-doc > div > div > blockquote,
-.VPHome .vp-doc > div > div > .custom-block {
-  max-width: 46rem;
-}
-
 /* The pair the Humanize mark is drawn in, and the home page with it: ink and a cool white
    paper, which trade places in the dark, and one green. `--hmz-ink` is whatever is drawn on the
    page; `--hmz-paper` is the page under it. The rest are those at the strengths the page's
@@ -418,64 +388,8 @@
   --hmz-cyan-soft: rgba(79, 216, 234, 0.18);
 }
 
-/* The hero sits on a ruled sheet with one plane laid across it on the diagonal, so the first
-   screenful is a drawing before anything is scrolled. The plane drifts along its own axis,
-   slowly. It is drawn behind everything and takes no clicks. */
-.VPHome {
-  position: relative;
-  isolation: isolate;
-  /* The field below is drawn wider than the page so it runs off both edges rather than
-     stopping at one. Unclipped, the half of it past the right edge is scrollable width:
-     a quarter of a screen of empty page to scroll into. `clip` cuts it without making a
-     scroll container, so nothing inside stops being sticky. */
-  overflow-x: clip;
-}
-
-.VPHome::before,
-.VPHome::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  z-index: -1;
-  pointer-events: none;
-  /* Tall enough to cover the hero and to fade out inside the diagram under it, capped so a
-     tall window does not stretch it over two screens. */
-  height: min(115svh, 1080px);
-  -webkit-mask-image: linear-gradient(#000 55%, transparent);
-  mask-image: linear-gradient(#000 55%, transparent);
-}
-
-/* The sheet: a 48px rule, and a heavier one every fourth line. */
-.VPHome::before {
-  left: 0;
-  right: 0;
-  background:
-    linear-gradient(var(--hmz-con-line) 1px, transparent 1px) 0 0 / 192px 192px,
-    linear-gradient(90deg, var(--hmz-con-line) 1px, transparent 1px) 0 0 / 192px 192px,
-    linear-gradient(var(--hmz-con-line) 1px, transparent 1px) 0 0 / 48px 48px,
-    linear-gradient(90deg, var(--hmz-con-line) 1px, transparent 1px) 0 0 / 48px 48px;
-}
-
-/* The plane: one band across the page, on the mark's diagonal. */
-.VPHome::after {
-  left: -20%;
-  right: -20%;
-  background: linear-gradient(-16.4deg, transparent 50%, var(--hmz-con-plane) 50%, var(--hmz-con-plane) 61%, transparent 61%);
-  animation: hmz-drift 30s ease-in-out infinite alternate;
-}
-
-@keyframes hmz-drift {
-  from {
-    transform: translate3d(-3%, 0.9%, 0);
-  }
-  to {
-    transform: translate3d(3%, -0.9%, 0);
-  }
-}
-
-/* The one warning that belongs on a front page, in a line rather than in a block: `::: danger`
-   at the foot of the root page would be the loudest thing on it, and the loudest thing on it
-   should be what Humanize is. */
+/* A warning in a line rather than in a block, for where `::: danger` would be the loudest thing
+   on the page. */
 .hmz-warn {
   margin: 20px 0 0;
   padding: 14px 18px;
@@ -568,10 +482,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .VPHome::after {
-    animation: none;
-  }
-
   .hmz-paths a {
     transition: none;
   }

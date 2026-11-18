@@ -309,9 +309,17 @@ has the rest.
 - **`protocol/`** holds the contract of everything Humanize shows to the outside. Do not edit a protocol document unless you were asked to.
 - **Docstrings** are Google style, and `ruff` checks them.
 
-The site deploys to [docs.humanfia.ai/humanize](https://docs.humanfia.ai/humanize/) from
+The site deploys to [humanfia.ai/humanize](https://humanfia.ai/humanize/) from
 `main`, through `.github/workflows/build-docs.yml`, which runs apart from `ci.yml`: a change
 to `docs/` alone runs no Python tests, and `ci-ok` does not wait for the site.
+
+That address is a path of [humanfia.ai](https://humanfia.ai/), the organisation's site, which
+GitHub Pages serves this one under. The organisation's site has no page about Humanize: the
+front page here, `index.md`, is Humanize's product page and the way into these docs at once,
+drawn by the components in `.vitepress/theme/components/product/`. So a link from here to
+`https://humanfia.ai/flows/` stays on the same origin, and the theme has the browser load it
+rather than the router (`.vitepress/theme/index.ts`). Nothing here may be published outside
+`/humanize/`, and renaming this repository moves the site.
 
 ## Next steps
 
