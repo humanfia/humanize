@@ -458,8 +458,10 @@ def _flow(ran: Epic, calls: Sequence[Call]) -> _Process:
     known.
     """
     slices: list[_Slice] = []
+    # A chat is of no flow, and is named as what it is.
+    named = ran.flow or "chat"
     pending: list[tuple[str, str, str, str, str, str]] = [
-        (ran.flow, ran.task, ran.how, "", ran.began, ran.ended)
+        (named, ran.task, ran.how, "", ran.began, ran.ended)
     ]
     walked = list(calls)
     while walked:
@@ -482,7 +484,7 @@ def _flow(ran: Epic, calls: Sequence[Call]) -> _Process:
         )
     return _Process(
         "flow",
-        ran.flow,
+        named,
         slices,
         "flows",
         _fields(label=ran.how),
