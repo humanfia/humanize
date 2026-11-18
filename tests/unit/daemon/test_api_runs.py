@@ -353,5 +353,6 @@ def test_a_list_asked_for_one_kind_holds_only_that_kind(
     assert names("") == ["a", "b"]
     assert names("chat") == ["a"]
     assert names("flow") == ["b"]
-    # What is counted is every epic, whichever kind is asked for.
-    assert sum(runs.listed(kept, [], what="chat")["counts"].values()) == 2
+    # What is counted is what is listed: every epic, or those of the kind asked for.
+    assert sum(runs.listed(kept, [], what="")["counts"].values()) == 2
+    assert sum(runs.listed(kept, [], what="chat")["counts"].values()) == 1

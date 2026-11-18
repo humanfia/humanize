@@ -31,6 +31,23 @@ export async function copy(text, what = 'Copied') {
   }
 }
 
+/**
+ * Opens the menu a thing has, under it, as the menu key on it would: for a thing the keys move
+ * to while the focus stays elsewhere.
+ *
+ * @param {Element} el The thing.
+ * @param {HTMLElement|null} [back] What the focus goes back to as the menu closes.
+ * @returns {boolean} Whether it has a menu.
+ */
+export function menuOf(el, back = null) {
+  const items = menus.get(el)
+  if (!items) return false
+  const box = el.getBoundingClientRect()
+  open(items, box.left + 8, box.bottom)
+  if (opened) from = back
+  return Boolean(opened)
+}
+
 let toasting = null
 
 /** Says one short thing at the foot of the page, for a moment. */
@@ -43,8 +60,12 @@ export function toast(said) {
 }
 
 let opened = null
+/** What the focus goes back to as a menu opened by a key closes. */
+let from = null
 
 function close() {
+  if (from && opened?.contains(document.activeElement)) from.focus()
+  from = null
   opened?.remove()
   opened = null
 }

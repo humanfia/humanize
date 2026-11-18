@@ -680,7 +680,7 @@ def test_an_epic_is_found_by_its_task(project: Path, engine: str) -> None:
         stop(page)
 
         page.keyboard.press("Control+k")
-        search = page.get_by_role("searchbox", name="Find")
+        search = page.get_by_role("combobox", name="Search")
         expect(page.locator("[data-hmz=found] .result")).to_have_count(1)
         # What is listed stays, marked old, until the search typed is answered.
         wire.holds("runs.list")

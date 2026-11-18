@@ -150,25 +150,52 @@
   color: var(--ink-3);
 }
 
-/* What else there is to say of the one moved to, in a line over the foot. */
+/* What else there is to say of one, in a line over the foot once a key or the pointer has moved
+   to it: until then what was found runs to the foot. It goes on to a second line sooner than be
+   cut short. */
 .search-detail {
   flex: none;
   display: flex;
   align-items: center;
-  height: 32px;
-  padding: 0 21px;
+  min-height: 32px;
+  padding: 5px 21px;
   border-top: 1px solid var(--line);
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 
 .search-detail:empty {
   display: none;
 }
 
-.search-detail .result-meta {
-  flex-wrap: nowrap;
-  white-space: nowrap;
+/* The same under a line of its own, where nothing hovers or the window is narrow. */
+.result-more {
+  display: none;
+}
+
+@media (max-width: 860px), (hover: none) {
+  .search-detail {
+    display: none;
+  }
+
+  .dialog-search-box .result {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    height: auto;
+    min-height: 36px;
+    padding: 8px 14px;
+  }
+
+  /* The line under says both, with the rest. */
+  .result-how,
+  .result-where {
+    display: none;
+  }
+
+  .result-more {
+    display: block;
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
 }
 
 .dialog-search-box .search-foot {
@@ -180,11 +207,15 @@
   font-size: 12px;
 }
 
+/* A key the pages beside them leave no room for is left unsaid whole, not cut: it goes on to a
+   line under, which is not shown. */
 .search-hints {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 18px 16px;
   flex: 1;
+  height: 18px;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -217,6 +248,10 @@
   white-space: nowrap;
 }
 
+.search-pages[hidden] {
+  display: none;
+}
+
 .search-pages .btn {
   min-height: 22px;
   height: 22px;
@@ -247,7 +282,7 @@
     visibility: hidden;
   }
 
-  .search-foot:has(> .search-pages:empty) {
+  .search-foot:has(> .search-pages[hidden]) {
     display: none;
   }
 }

@@ -9,31 +9,59 @@ export const TABS = [
   ['flow', 'Epics'],
 ]
 
-/** What each key does in Search, as its foot says it. */
-export const HINTS = [
-  ['Close', ['Esc']],
-  ['Change type', ['←', '→']],
-  ['Filters', ['/']],
-  ['Move', ['↑', '↓']],
-  ['Open', ['Enter']],
-]
+/**
+ * What each key does in Search, as its foot says it: `mac` where the key that opens what can be
+ * done with the one moved to is written Option.
+ */
+export function hints(mac) {
+  return [
+    ['Close', ['Esc']],
+    ['Change type', ['←', '→']],
+    ['Filters', ['/']],
+    ['Actions', [mac ? 'Option' : 'Alt', 'Enter']],
+    ['Move', ['↑', '↓']],
+    ['Open', ['Enter']],
+  ]
+}
+
+/**
+ * What a key pressed in Search does, by where it is pressed -- `field` (`empty` while nothing is
+ * typed in it), `tabs`, `select` (which keeps its keys to itself) or anywhere `else`: `up` and
+ * `down` move along what was found, `open` opens the one moved to, `act` opens what can be done
+ * with it (Alt and Enter, or the menu key), `left` and `right` change the tab, `filters` opens
+ * and closes the filters, and "" leaves the key to whatever it is pressed on.
+ */
+export function keyed({ key, altKey, ctrlKey, metaKey, shiftKey }, where, empty = false) {
+  if (where === 'select' || ctrlKey || metaKey) return ''
+  if (key === 'ContextMenu' || (key === 'F10' && shiftKey && !altKey)) return 'act'
+  if (altKey) return key === 'Enter' && !shiftKey ? 'act' : ''
+  if (shiftKey) return ''
+  if (key === 'ArrowDown') return 'down'
+  if (key === 'ArrowUp') return 'up'
+  if (where !== 'field' && where !== 'tabs') return ''
+  if (key === 'Enter') return 'open'
+  if (where === 'field' && !empty) return ''
+  if (key === 'ArrowLeft') return 'left'
+  if (key === 'ArrowRight') return 'right'
+  return key === '/' ? 'filters' : ''
+}
 
 /** How many rows a page of the list holds. */
 export const PAGE = 50
 
 /**
  * What an address asks Search for: its tab, and the filters under it. An address of before the
- * tabs named chats as the flow `chat`, which is the tab `Chats` now; a flow named is an epic's,
- * so it is on `Epics` unless the address says a tab.
+ * tabs named chats as the flow `chat`, which is the tab `Chats` now. A flow named with no tab is
+ * on `All`, where only that flow's epics are of it; one named with `Chats` is dropped, as the
+ * tab pressed drops it.
  */
 export function chosenOf(query) {
   const said = (name) => query.get(name) || ''
-  const flow = said('flow') === 'chat' ? '' : said('flow')
-  const kind = TABS.some(([kind]) => kind === said('kind')) ? said('kind') : ''
+  const kind = said('flow') === 'chat' ? 'chat' : TABS.some(([kind]) => kind === said('kind')) ? said('kind') : ''
   return {
-    kind: said('flow') === 'chat' ? 'chat' : kind,
+    kind,
     status: said('status'),
-    flow,
+    flow: kind === 'chat' ? '' : said('flow'),
     workspace: said('workspace'),
     q: said('q'),
     offset: Math.max(0, Number(said('offset')) || 0),
@@ -77,6 +105,17 @@ export function filtered(chosen) {
 /** Whether anything narrows the list: nothing found then is nothing like that, not nothing yet. */
 export function narrowed(chosen) {
   return Boolean(chosen.kind || chosen.q || filtered(chosen))
+}
+
+/**
+ * What is said where nothing was found, as a headline and what to do about it: nothing like what
+ * was typed or filtered for, or none of the tab's kind yet -- a tab is no filter to clear.
+ */
+export function nothing(chosen) {
+  if (chosen.q || filtered(chosen)) return ['Nothing is like that.', ' Clear the filters to see every chat and epic.']
+  if (chosen.kind === 'chat') return ['No chats yet.', ' Start a chat, and it is written down here as it goes.']
+  if (chosen.kind === 'flow') return ['No epics yet.', ' Start an epic, and it is written down here as it goes.']
+  return ['Nothing here yet.', ' Start a chat or an epic, and it is written down here as it goes.']
 }
 
 /** What stands over the results: the newest of everything, or what was found. */

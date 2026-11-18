@@ -1297,7 +1297,7 @@ or `flow`: only the epics of that kind), `q` (text found in the task, flow or ep
 (default `0`) and `limit` (default `50`, at most `200`).
 
 **4.16.1.2** `runs.list` MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`,
-`counts` (`{ending: n}` over every epic) and `flows` (every flow, sorted).
+`counts` (`{ending: n}` over every epic of the `kind` asked for) and `flows` (every flow, sorted).
 
 **4.16.1.3** `runs.list` MUST leave out, whatever session calls it, the epic of every Ai-chan
 conversation, kept or forgotten (Section 14.7.4 of [CORE], Section 4.16.6 of [FILES]), and the epic

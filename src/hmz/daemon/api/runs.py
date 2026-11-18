@@ -578,7 +578,7 @@ def listed(
     hers = {*hers, *(one["epic"] for one in going if one["slot"].startswith("ai:"))}
     every = [ran for ran in every if ran.name not in hers]
     held = held_by(every, going)
-    went = [
+    rows = (
         (
             ran,
             row(
@@ -586,7 +586,9 @@ def listed(
             ),
         )
         for ran in every
-    ]
+    )
+    # The kind asked for is what is counted, as it is what is listed.
+    went = [(ran, said) for ran, said in rows if not what or said["kind"] == what]
     counts: dict[str, int] = {}
     for _, said in went:
         counts[said["how"]] = counts.get(said["how"], 0) + 1
@@ -594,7 +596,6 @@ def listed(
         said
         for ran, said in went
         if found(ran, said["how"], how=status, flow=flow, text=q)
-        and (not what or said["kind"] == what)
     ]
     return {
         "runs": shown[offset : offset + limit],
