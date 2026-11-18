@@ -353,6 +353,29 @@ def test_a_run_let_go_of_for_falling_behind_attaches_again_and_claims_again() ->
     assert run.raised is None
 
 
+def test_a_run_attached_again_to_another_life_of_its_host_ends_as_the_daemon_gone() -> (
+    None
+):
+    first, second = _Daemon(), _Daemon()
+    run = Run(_Sessions(first, second), "do it")
+    run.start()
+    first.tells(type="welcome", epoch="e1")
+    first.tells(type="run", seq=4, epic="2026-x")
+
+    first.close()
+    (attached,) = second.calls("epic.attach", 1)
+    assert attached["since"] == {"epoch": "e1", "seq": 4}
+    # A daemon started since holds no such epic: the slot's host is a new one, and idle.
+    second.tells(type="welcome", epoch="e2")
+    second.tells(type="live", seq=0, elided=0)
+
+    assert run.wait(5)
+    assert isinstance(run.raised, RuntimeError)
+    assert str(run.raised) == "the daemon went away"
+    assert run.result is None
+    assert second.gone.wait(5)
+
+
 def test_an_outworlder_claims_its_roles_and_answers_their_questions(
     daemon: _Daemon,
 ) -> None:
