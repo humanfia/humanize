@@ -53,7 +53,8 @@ pub const NET_ABI: u32 = 4;
 // `LANDLOCK_SCOPE_*`, ABI 6.
 const SCOPE_ABSTRACT_UNIX_SOCKET: u64 = 1 << 0;
 const SCOPE_SIGNAL: u64 = 1 << 1;
-const SCOPE_ABI: u32 = 6;
+/// The first ABI that confines signals and abstract Unix sockets to the ruleset.
+pub const SCOPE_ABI: u32 = 6;
 
 /// Why a path is left out of a ruleset rather than failing it (`_UNREACHABLE`).
 const UNREACHABLE: [i32; 4] = [libc::ENOENT, libc::ENOTDIR, libc::EACCES, libc::ELOOP];
@@ -100,6 +101,11 @@ pub fn abi() -> u32 {
 /// Whether a ruleset can be enforced here: ABI 1, or ABI 4 where it governs TCP.
 pub fn available(net: bool) -> bool {
     abi() >= if net { NET_ABI } else { 1 }
+}
+
+/// Whether this kernel can confine signals and abstract Unix sockets to the ruleset.
+pub fn scopes_sockets() -> bool {
+    abi() >= SCOPE_ABI
 }
 
 /// What this machine can fence: ABI 1 for paths; ABI 4, the socket filter and loopback
@@ -293,6 +299,15 @@ fn add_held(ruleset: &OwnedFd, fd: RawFd, version: u32, write: bool) -> io::Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn probes_follow_the_kernel_abi() {
+        assert_eq!(NET_ABI, 4);
+        assert_eq!(SCOPE_ABI, 6);
+        assert_eq!(available(false), abi() >= 1);
+        assert_eq!(available(true), abi() >= NET_ABI);
+        assert_eq!(scopes_sockets(), abi() >= SCOPE_ABI);
+    }
 
     #[test]
     fn rights_follow_the_abi() {

@@ -932,3 +932,20 @@ def test_reach_makes_what_is_missing_as_the_users_own(reachable: Path) -> None:
     assert at == str(made)
     assert made.is_dir()
     assert stat.S_IMODE(made.stat().st_mode) == 0o700
+
+
+def test_explain_names_the_grant_or_carve_out_holding_a_path() -> None:
+    fence = Fence(
+        read=("/etc",),
+        write=("/work",),
+        keep=("/work/secret",),
+        deny=("/work/private",),
+    )
+
+    assert fence.explain("/etc/hosts") == (READ, "read /etc")
+    assert fence.explain("/work/a") == (WRITE, "write /work")
+    assert fence.explain("/work/secret/a") == (READ, "keep /work/secret")
+    assert fence.explain("/work/private/a") == (NONE, "deny /work/private")
+    level, why = fence.explain("/nowhere/x")
+    assert level == NONE
+    assert why == "nothing the fence grants or carves out names it"

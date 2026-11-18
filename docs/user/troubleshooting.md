@@ -994,7 +994,8 @@ Landlock on this machine too.
 bubblewrap, or copy the flow and grant the role everything. Docker's default seccomp profile
 allows Landlock.
 
-**Verify.** The role's first turn starts.
+**Verify.** `hmz fence check -f <flow> -a <role>=<cli>/<model>` names the facility that is
+missing, and the role's first turn starts.
 
 ### `… a fence cannot hold a harness that runs on another machine`
 

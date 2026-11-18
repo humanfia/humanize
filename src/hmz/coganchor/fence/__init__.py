@@ -76,6 +76,7 @@ __all__ = [
     "able",
     "chosen",
     "enforceable",
+    "facts",
     "landlocked",
     "natives",
     "needs",
@@ -744,6 +745,34 @@ class Fence:
         """
         return _rank(self.level(path)) >= (2 if write else 1)
 
+    def explain(self, path: str | os.PathLike[str]) -> tuple[str, str]:
+        """How much of a path this fence grants, and what in it says so.
+
+        Args:
+          path: The path, which is taken as it is written: a link in it is not followed.
+
+        Returns:
+          One of :data:`LEVELS`, and the grant or carve-out holding the path -- ``write
+          /a``, ``read ~``, ``keep /a/b`` or ``deny /a/c`` -- or that nothing names it.
+        """
+        held = _normal((path,))[0]
+        found: tuple[str, str] | None = None
+        for roots, word in (
+            (self.write, WRITE),
+            (self.read, READ),
+            (self.keep, "keep"),
+            (self.deny, "deny"),
+        ):
+            for root in roots:
+                if _under(held, root) and (
+                    found is None or _depth(root) > _depth(found[0])
+                ):
+                    found = (root, word)
+        if found is None:
+            return self.level(held), "nothing the fence grants or carves out names it"
+        root, word = found
+        return self.level(held), f"{word} {root}"
+
     def reach(self, path: str, *, make: bool = False) -> tuple[int | None, str]:
         """Reaches a path this fence writes from `/`, one name at a time, as checked.
 
@@ -988,6 +1017,22 @@ def chosen() -> str:
     """
     said = _sandbox().get("backend")
     return said if said in (LANDLOCK, BWRAP) else AUTO
+
+
+def facts(sandbox: str = AUTO) -> dict[str, Any]:
+    """What `coganchor internal able` says of this machine, with `sandbox`.
+
+    Args:
+      sandbox: The backend asked about, as :func:`chosen` names one.
+
+    Returns:
+      Whether this machine can fence the filesystem and cut the network, the backend chosen
+      for each, and the probes behind them.
+
+    Raises:
+      OSError: If there is no `coganchor` for this machine, or it could not say.
+    """
+    return _asked(f"--sandbox={sandbox}")
 
 
 def natives() -> frozenset[str]:

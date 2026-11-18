@@ -531,6 +531,20 @@ def _backup(argv: list[str]) -> int:
     return backup(argv)
 
 
+def _fences(argv: list[str]) -> int:
+    """Checks what this machine can fence, or explains a path under a role's fence.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero where the role's fence can be put up; one where it cannot; two for a usage error.
+    """
+    from .fence import fence
+
+    return fence(argv)
+
+
 def _internal(argv: list[str]) -> int:
     """Routes to whichever of the lines Humanize spawns for itself was named.
 
@@ -708,12 +722,13 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Seven are for
+#: Each command, as what carries it out and the line a listing shows it as. Eight are for
 #: anybody: running a flow in a directory, saying one message to an agent there, serving the
 #: web interface, running, reaching and pairing this machine's daemon, serving a relay daemons
-#: and devices meet through, moving Humanize itself to its newest release, and backing an
-#: epic up from a script -- everything else Humanize keeps is walked at the prompt rather
-#: than typed, a run already held here included, which `hmz` with no command opens.
+#: and devices meet through, moving Humanize itself to its newest release, backing an epic up
+#: from a script, and checking what this machine can fence -- everything else Humanize keeps
+#: is walked at the prompt rather than typed, a run already held here included, which `hmz`
+#: with no command opens.
 #: The last is the door onto :data:`INTERNAL` -- one entry rather than six, so that what a
 #: person may type stays short while what Humanize runs stays something they can read. There
 #: is no command for the terminal interface either: naming nothing at all is how it opens.
@@ -725,6 +740,7 @@ COMMANDS = {
     "relay": (_relay, "relay daemons and the devices that reach them"),
     "update": (_update, "update hmz to its newest release"),
     "backup": (_backup, "back epics up to git repositories, or download them"),
+    "fence": (_fences, "check what this machine can fence, or explain a path"),
     "internal": (_internal, "internal commands used by Humanize; do not run directly"),
 }
 

@@ -79,18 +79,25 @@ fn getfd(pidfd: &OwnedFd, fd: RawFd) -> Result<OwnedFd, i32> {
     Ok(unsafe { OwnedFd::from_raw_fd(held as RawFd) })
 }
 
-/// Whether this machine lets a supervisor take a tracee's descriptor (`ptrace_scope` < 2 and a
-/// working `pidfd_getfd`).
-pub fn supervisable() -> bool {
-    if let Ok(said) = std::fs::read_to_string(YAMA)
-        && said.trim().parse::<i64>().is_ok_and(|scope| scope >= 2)
-    {
-        return false;
-    }
+/// The value of `/proc/sys/kernel/yama/ptrace_scope`, where this kernel has Yama and it reads
+/// as a number.
+pub fn ptrace_scope() -> Option<i64> {
+    std::fs::read_to_string(YAMA).ok()?.trim().parse().ok()
+}
+
+/// Whether this process can take another's descriptor with `pidfd_getfd`, as the supervisor
+/// answering a fenced tree's binds does.
+pub fn pidfd_getfd() -> bool {
     let Ok(pidfd) = pidfd_open(std::process::id() as libc::pid_t, 0) else {
         return false;
     };
     getfd(&pidfd, pidfd.as_raw_fd()).is_ok()
+}
+
+/// Whether this machine lets a supervisor take a tracee's descriptor (`ptrace_scope` < 2 and a
+/// working `pidfd_getfd`).
+pub fn supervisable() -> bool {
+    ptrace_scope().is_none_or(|scope| scope < 2) && pidfd_getfd()
 }
 
 /// A pidfd on a thread whose descriptors are the ones it names: the thread itself where the
@@ -303,5 +310,16 @@ mod tests {
         );
         assert_eq!(loopback(&(libc::AF_UNIX as u16).to_ne_bytes()), None);
         assert_eq!(loopback(&[1]), None);
+    }
+
+    #[test]
+    fn probes_agree_with_supervision() {
+        assert_eq!(
+            supervisable(),
+            ptrace_scope().is_none_or(|scope| scope < 2) && pidfd_getfd()
+        );
+        if let Some(scope) = ptrace_scope() {
+            assert!(scope >= 0, "ptrace_scope is {scope}");
+        }
     }
 }

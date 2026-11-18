@@ -503,6 +503,11 @@ A path's level is that of the longest of `read`, `write`, `keep` and `deny` that
 `Fence.open` is true when `/` is in `write`, nothing is in `keep` or `deny`, and `online` is
 true: nothing is put around the CLI.
 
+`Fence.explain(path)` gives a path's level and the grant or carve-out holding it, as
+[`hmz fence explain`](/reference/cli#hmz-fence) prints it; `Fence.level` gives the level alone.
+[`hmz fence check`](/reference/cli#hmz-fence) reports what this machine can hold, and the fence a
+role resolves to, before a run starts.
+
 `Fence.of(*, rules, online, workdir, home, cwd="", hosts=(), read=(), write=())`:
 
 - Each rule is an anchored path (`/…`, `~…`, `.…`; `~` is `home`, `.` is `workdir` and `cwd`)

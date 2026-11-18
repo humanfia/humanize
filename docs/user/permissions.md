@@ -211,6 +211,13 @@ At the prompt, the agent sheet does not offer the others for such a role.
   the prompt. A run that starts is a run whose every grant is held.
 - To see a limit yourself, ask an agent to write where its grant does not reach, as in the
   first example, and look for the file.
+- [`hmz fence check`](/reference/cli#hmz-fence) reports what this machine can hold, and with
+  `-f` the paths and hosts the role resolves to, before a run starts.
+  [`hmz fence explain PATH`](/reference/cli#hmz-fence) says whether a path is `read`, `write`
+  or `none` under that role, and what holds it.
+
+On Linux, Landlock ABI 1 holds paths, ABI 4 adds TCP (so a role may be cut off the network),
+and ABI 6 adds scopes for signals and abstract Unix sockets.
 
 ## How each CLI holds to it
 

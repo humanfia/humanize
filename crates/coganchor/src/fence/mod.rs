@@ -67,6 +67,17 @@ pub enum Backend {
     Seatbelt,
 }
 
+impl Backend {
+    /// The name it is written by, as a report says it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Backend::Landlock => "landlock",
+            Backend::Bwrap => "bwrap",
+            Backend::Seatbelt => "seatbelt",
+        }
+    }
+}
+
 /// What puts a fence up on this machine (one cutting the network too, where `net`), as
 /// `asked` chooses; `None` where nothing can. Never one that was not asked for in place of one
 /// that was: a machine pinned to a backend is refused rather than held some other way.
@@ -115,6 +126,32 @@ pub fn able() -> Able {
 pub fn said(policy: Option<&str>, asked: Sandbox) -> serde_json::Value {
     let able = able_with(asked);
     let mut said = serde_json::json!({"fs": able.fs, "net": able.net});
+    said["backend"] = serde_json::json!({
+        "fs": backend(false, asked).map(Backend::name),
+        "net": backend(true, asked).map(Backend::name),
+    });
+    #[cfg(target_os = "linux")]
+    {
+        said["landlock"] = serde_json::json!({
+            "abi": landlock::abi(),
+            "network": landlock::available(true),
+            "scope": landlock::scopes_sockets(),
+        });
+        said["seccomp"] = serde_json::json!({"notify": netfilter::notifiable()});
+        said["loopback"] = serde_json::json!({
+            "pidfd_getfd": loopback::pidfd_getfd(),
+            "ptrace_scope": loopback::ptrace_scope(),
+        });
+        said["bubblewrap"] = serde_json::json!({
+            "fs": bubblewrap::available(false),
+            "net": bubblewrap::available(true),
+        });
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let told = seatbelt::able();
+        said["seatbelt"] = serde_json::json!({"fs": told.fs, "net": told.net});
+    }
     if let Some(policy) = policy {
         let unheld = match Fence::loads(policy) {
             Err(why) => Some(why),
@@ -136,4 +173,51 @@ pub fn said(policy: Option<&str>, asked: Sandbox) -> serde_json::Value {
 /// `coganchor internal fence`: run a program inside a fence and exit with its status.
 pub fn main(args: FenceArgs) -> i32 {
     wrap::main(args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn said_reports_the_probes_it_answers_with() {
+        let told = said(None, Sandbox::Auto);
+        let able = able_with(Sandbox::Auto);
+        assert_eq!(told["fs"], serde_json::json!(able.fs));
+        assert_eq!(told["net"], serde_json::json!(able.net));
+        assert!(told.get("unheld").is_none());
+        #[cfg(target_os = "linux")]
+        {
+            assert_eq!(told["landlock"]["abi"], serde_json::json!(landlock::abi()));
+            assert_eq!(
+                told["landlock"]["network"],
+                serde_json::json!(landlock::available(true))
+            );
+            assert_eq!(
+                told["landlock"]["scope"],
+                serde_json::json!(landlock::scopes_sockets())
+            );
+            assert_eq!(
+                told["seccomp"]["notify"],
+                serde_json::json!(netfilter::notifiable())
+            );
+            assert_eq!(
+                told["loopback"]["pidfd_getfd"],
+                serde_json::json!(loopback::pidfd_getfd())
+            );
+            assert_eq!(
+                told["loopback"]["ptrace_scope"],
+                serde_json::json!(loopback::ptrace_scope())
+            );
+            assert_eq!(
+                told["bubblewrap"]["fs"],
+                serde_json::json!(bubblewrap::available(false))
+            );
+            assert!(told["backend"]["fs"].is_string() || told["backend"]["fs"].is_null());
+        }
+        #[cfg(target_os = "macos")]
+        {
+            assert!(told["seatbelt"].is_object());
+        }
+    }
 }

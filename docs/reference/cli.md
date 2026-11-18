@@ -25,6 +25,7 @@ hmz daemon serve|connect --stdio|pair|devices|install|uninstall  this machine's 
 hmz relay serve [--listen <host>:<port>]  relay daemons and the devices that reach them
 hmz update                             update hmz to its newest release
 hmz backup <epic> [--to <target>]...   back epics up to git repositories, or download them
+hmz fence check|explain [<options>]    check what this machine can fence, or explain a path
 hmz internal <command> [<args>...]     processes Humanize spawns for itself
 ```
 
@@ -38,6 +39,7 @@ hmz internal <command> [<args>...]     processes Humanize spawns for itself
 | [`relay`](#hmz-relay) | `_relay` | `relay daemons and the devices that reach them` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
 | [`backup`](#hmz-backup) | `_backup` | `back epics up to git repositories, or download them` |
+| [`fence`](#hmz-fence) | `_fences` | `check what this machine can fence, or explain a path` |
 | [`internal`](#hmz-internal) | `_internal` | `internal commands used by Humanize; do not run directly` |
 
 `python -m hmz` is the same program. The console script is `hmz = "hmz.cli:main"`.
@@ -53,7 +55,7 @@ thirty words. This page is the full account of each.
 | --- | --- | --- |
 | empty | [Opens the interface](#hmz). | `0`, or `1` (see below) |
 | exactly `["--version"]` | Prints `hmz <version>` (from the installed distribution's metadata) to stdout. | `0` |
-| first word is `exec`, `chat`, `web`, `daemon`, `relay`, `update`, `backup` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
+| first word is `exec`, `chat`, `web`, `daemon`, `relay`, `update`, `backup`, `fence` or `internal` | Hands every later word to that command **unchanged**, `--help` included. No other command's module is imported. | the command's |
 | `-h` or `--help` first | Prints the top-level help. | `0` |
 | anything else | argparse usage error on stderr (below). | `2` |
 
@@ -744,6 +746,44 @@ Backs one epic of this directory -- by its name, or by its path -- up to
 | `--pull` of an epic already here | stderr `hmz backup: <epic> is already here, at <path>` | `1` |
 | `--pull` of an epic no target holds, or more than one machine's of that name | argparse usage error on stderr | `2` |
 
+## `hmz fence` {#hmz-fence}
+
+```text
+hmz fence check [-f FLOW] [-a ROLE=SPEC[,...]] [--json]
+hmz fence explain PATH [-f FLOW] [-a ROLE=SPEC[,...]] [--json]
+```
+
+`hmz fence` reports what this machine can enforce before a run starts; it starts no flow, agent
+or session. `check` reports the Landlock ABI (`0` where absent), whether the network cut needs ABI
+4 and whether socket scoping (ABI 6) is there, seccomp user notification, `pidfd_getfd` and
+`ptrace_scope`; with `-f` it also reports the fence the selected role resolves to: its read,
+write, keep and deny paths, hosts, scratch directory and listen ports, and why a carve-out cannot
+be held where it cannot. `explain` says whether one path is `read`, `write` or `none` under that
+fence, and what holds it; a symbolic link in it is not followed.
+
+| Landlock ABI | What it adds |
+| --- | --- |
+| 1 | Filesystem grants: read, execute, and write beneath a granted path. |
+| 4 | TCP bind and connect, so a role whose `network` is false can be cut off and still serve on loopback. |
+| 6 | Scopes: signals and abstract Unix sockets cannot leave the ruleset. |
+
+The three answers `explain` gives are `read`, `write` and `none`, matching [`Fence.level`](/reference/agents#the-fence).
+
+| Option | Meaning |
+| --- | --- |
+| `-f`, `--flow` | The flow whose role is asked about, named as [`hmz exec -f`](#naming-a-flow). Required by `explain`, where the role's fence is the whole answer; `check` also reports the machine alone. |
+| `-a`, `--agents` | The role to ask about, written as [`hmz exec -a`](#writing-an-agent) writes it. It may be left out where the flow declares one non-auto agent role; where it declares more, name one. |
+| `--json` | One object on stdout instead of the lines, for a program to read. |
+
+With `--json`, `check` writes the facts above with `sandbox` (the backend settings choose), `fence`
+(`null` where no flow was given) and `unheld`; `explain` writes `path`, `level` and `why`.
+
+| Exit | When |
+| --- | --- |
+| `0` | the role's fence can be put up, or the path was explained |
+| `1` | `check`: the fence cannot be put up, or a carve-out cannot be held |
+| `2` | a usage error, a flow that does not load, or a role the flow does not declare |
+
 ## `hmz internal` <Badge type="warning" text="not typed by hand" /> {#hmz-internal}
 
 ```text
@@ -934,10 +974,12 @@ coganchor --version
 ```
 
 `coganchor internal able` writes what this machine can fence with the backend `--sandbox`
-chooses, `{"fs": bool, "net": bool}`, and with `--policy` also `"unheld"`: why that backend
-cannot hold what that fence carves out of its grants, or `null` where it can (always `null` on
-macOS). Humanize asks it before a session is
-opened.
+chooses: `fs` and `net`, and `backend` naming the backend chosen for each or `null`; on Linux
+also `landlock` (`abi`, `network`, `scope`), `seccomp.notify`, `loopback` (`pidfd_getfd`,
+`ptrace_scope`) and `bubblewrap` (`fs`, `net`); on macOS `seatbelt` (`fs`, `net`) instead. With
+`--policy` it also writes `"unheld"`: why that backend cannot hold what that fence carves out of
+its grants, or `null` where it can (always `null` on macOS). Humanize asks it before a session is
+opened, and [`hmz fence check`](#hmz-fence) reports it.
 
 The anchor, as one static program in Rust, built from `crates/coganchor/`. The package
 carries a build for Linux (static, against musl) and macOS on x86-64 and aarch64, at
