@@ -1,5 +1,6 @@
 """One end of a JSON-RPC 2.0 session over an in-memory pipe (Section 6.4 of wire.md)."""
 
+import errno
 import json
 import struct
 import threading
@@ -325,6 +326,60 @@ def test_the_far_end_closing_closes_the_session(pipes: Pipes) -> None:
     far.close()
     assert peer.wait(5)
     assert peer.closed
+
+
+def test_a_pipe_that_fails_is_why_the_calls_waiting_closed(pipes: Pipes) -> None:
+    near, _ = pipes()
+    reading = threading.Event()
+
+    class Failing:
+        """A pipe whose carrier ends badly, saying why, once a call waits on it."""
+
+        def recv(self, size: int) -> bytes:
+            del size
+            reading.wait(5)
+            raise ConnectionError("ssh: Could not resolve hostname box")
+
+        sendall = near.sendall
+        close = near.close
+
+    peer = Peer(Failing())
+    pending = peer.request("a")
+    reading.set()
+    with pytest.raises(Closed) as closed:
+        pending.result(5)
+    assert str(closed.value.__cause__) == "ssh: Could not resolve hostname box"
+    # A call made once it has closed is told the same.
+    assert peer.wait(5)
+    with pytest.raises(Closed) as later:
+        peer.request("b")
+    assert str(later.value.__cause__) == "ssh: Could not resolve hostname box"
+
+
+def test_a_pipe_that_failed_is_why_it_takes_no_more() -> None:
+    writing, closed = threading.Event(), threading.Event()
+
+    class Failing:
+        """A pipe whose carrier ends badly while a frame is being written to it."""
+
+        def recv(self, size: int) -> bytes:
+            del size
+            writing.wait(5)
+            raise ConnectionError("ssh: Could not resolve hostname box")
+
+        def sendall(self, data: bytes) -> None:
+            del data
+            writing.set()
+            closed.wait(5)
+            raise BrokenPipeError(errno.EPIPE, "Broken pipe")
+
+        def close(self) -> None:
+            closed.set()
+
+    peer = Peer(Failing())
+    with pytest.raises(Closed) as refused:
+        peer.request("a")
+    assert str(refused.value.__cause__) == "ssh: Could not resolve hostname box"
 
 
 def test_closing_is_told_once_to_each_callback_and_at_once_after_it(
