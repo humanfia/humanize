@@ -134,6 +134,14 @@ export function blank(value) {
   return value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
 }
 
+/** Whether an object's fields are read as a form first shows them: each blank, off, or still its suggestion. */
+export function untouched(fields, value) {
+  return fields.every((field) => {
+    const one = value[field.name]
+    return blank(one) || one === false || (field.suggested && same(one, field.value))
+  })
+}
+
 /** A path, as the key a form finds its field by. */
 export function pathKey(path) {
   return (path || []).map(String).join('/')
