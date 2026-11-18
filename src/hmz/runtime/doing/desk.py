@@ -152,7 +152,8 @@ _FIND = (
 #: Searches the files `_FIND` lists: with `rg --json` where there is `rg`, which is told to
 #: search hidden files too and to heed no `.ignore` file, which git knows nothing of, and
 #: outside a repository to heed no ignore file at all and to leave `node_modules` out; else
-#: with `git grep` inside a repository; else with `grep`.
+#: with `git grep` inside a repository; else with `grep`, which where it knows no long option,
+#: as BusyBox's does not, is given the files `find` lists that hold no NUL byte.
 #: Arguments: the query, `F` or `E`, `i` or `s`, the glob, and how many lines to print.
 _SEARCH = (
     "q=$1; how=$2; case_=$3; glob=$4; most=$5; set --; "
@@ -172,10 +173,18 @@ _SEARCH = (
     "GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat git --no-optional-locks -c core.quotepath=off "
     'grep "$@" 2>/dev/null | head -n "$most"; '
     "else echo grep; "
+    "if grep --include=x --exclude-dir=x -q x /dev/null 2>/dev/null; "
+    '[ "$?" -lt 2 ]; then '
     'set -- -rnI --exclude-dir=.git --exclude-dir=node_modules "-$how"; '
     '[ "$case_" = i ] && set -- "$@" -i; '
     '[ -n "$glob" ] && set -- "$@" "--include=$glob"; '
-    'grep "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; fi'
+    'grep "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; '
+    'else [ "$case_" = i ] && how=${how}i; '
+    "how=$how q=$q find . \\( -name .git -o -name node_modules \\) -prune -o "
+    '-type f -name "${glob:-*}" -exec sh -c \''
+    'for f do tr -d "\\000" <"$f" | cmp -s - "$f" && set -- "$@" "$f"; shift; done; '
+    '[ "$#" -eq 0 ] || grep "-Hn$how" -e "$q" -- "$@"\' sh {} + '
+    '2>/dev/null | head -n "$most"; fi; fi'
 )
 
 

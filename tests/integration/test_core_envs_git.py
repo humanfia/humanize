@@ -16,12 +16,12 @@ import subprocess
 import threading
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from hmz.flows import FilesEnvMixin, GitEnvMixin, ShellEnvMixin
-from hmz.runtime.doing import desk, gitdesk
+from hmz.runtime.doing import desk, envs, gitdesk
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -390,6 +390,85 @@ def test_rg_is_told_which_files_quick_open_lists(
     _searched_and_listed(tmp_path / "bare", loop)
     outside = told.read_text().splitlines()
     assert {"--hidden", "!.git", "--no-ignore", "!node_modules"} <= set(outside)
+
+
+#: A grep that knows no long option and skips no binary file for `-I`, as BusyBox's does.
+_SHORT = """#!/bin/sh
+known=
+for one do
+  if [ -z "$known" ]; then
+    case $one in
+      -e|--) known=1 ;;
+      --*) echo "grep: unrecognized option: ${one#--}" >&2; exit 2 ;;
+      -*) one=$(printf %s "$one" | tr I a) ;;
+    esac
+  fi
+  set -- "$@" "$one"; shift
+done
+exec {grep} "$@"
+"""
+
+
+@pytest.fixture
+def short(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A machine with a grep of short options only and neither rg nor git; a workdir on it."""
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("sh", "head", "find", "tr", "cmp"):
+        found = shutil.which(name)
+        assert found is not None
+        (tools / name).symlink_to(found)
+    (tools / "grep").write_text(_SHORT.replace("{grep}", str(shutil.which("grep"))))
+    (tools / "grep").chmod(0o755)
+    monkeypatch.setenv("PATH", str(tools))
+    where = tmp_path / "bare"
+    where.mkdir()
+    return where
+
+
+def test_a_grep_of_short_options_only_searches_for_the_panel(
+    short: Path, loop: asyncio.AbstractEventLoop
+) -> None:
+    for name in (".env", "plain", "node_modules/dep.js", ".git/config"):
+        (short / name).parent.mkdir(exist_ok=True)
+        (short / name).write_text("needle\n")
+    (short / "sub").mkdir()
+    (short / "sub" / "deep.txt").write_text("a Needle here\n")
+    (short / "picture").write_bytes(b"\0needle\n")
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("bare", "here", None, Browsing(short))]), going=True
+    )
+
+    def searched(**said: Any) -> set[str]:
+        found = made.asked("c1", "ada", "env.search", {"env": env["id"], **said})
+        return {one["path"] for one in found["matches"]}
+
+    assert searched(query="needle") == {".env", "plain", "sub/deep.txt"}
+    assert searched(query="needle", glob="*.txt") == {"sub/deep.txt"}
+    assert searched(query="ne+dle", regex=True, case=True) == {".env", "plain"}
+
+
+def test_a_grep_of_short_options_only_searches_for_a_host(short: Path) -> None:
+    (short / "notes").mkdir()
+    (short / "notes" / "a.txt").write_text("hello\nworld: 1:2\n")
+    (short / "notes" / "b:c").write_text("world\n")
+    box = {"box": cast("Any", Local(short))}
+
+    def grep(**said: Any) -> dict[str, Any]:
+        return asyncio.run(envs.carried("hosts.env.grep", box, {"env": "box", **said}))
+
+    found = grep(pattern="w.r+ld")
+    assert sorted(found["matches"], key=lambda one: one["path"]) == [
+        {"path": "notes/a.txt", "line": 2, "text": "world: 1:2"},
+        {"path": "notes/b:c", "line": 1, "text": "world"},
+    ]
+    assert grep(pattern="hel+o", path="notes/a.txt")["matches"] == [
+        {"path": "notes/a.txt", "line": 1, "text": "hello"}
+    ]
+    with pytest.raises(envs.EnvRefusal) as refused:
+        grep(pattern="(")
+    assert refused.value.code == 400
 
 
 def test_quick_open_outside_a_repository_prunes_what_nobody_opens(
