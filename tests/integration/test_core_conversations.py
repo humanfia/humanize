@@ -234,6 +234,33 @@ def test_a_chat_whose_first_turn_fails_ends_failed_with_what_the_cli_said(
     assert ran.how == "failed"
 
 
+def test_a_later_turn_that_fails_is_shown_as_failed_to_whoever_watches_the_chat(
+    project: Path,
+) -> None:
+    first = _chat(project, Person(), "hello there")
+    person = Person()
+    spec = ChatSpec(
+        workspace=project, agent=AGENT, task="fail: it broke", resume=first.epic
+    )
+    chat = Chat(spec, person=person)
+    failed: list[str] = []
+    chat.watch(
+        lambda _agent, _session, event: (
+            failed.append(event.text) if event.kind == "failed" else None
+        )
+    )
+
+    asyncio.run(chat.run())
+
+    # Said in the conversation, the chat going on, and shown once as the failure it is:
+    # which is what `hmz chat` exits 1 on.
+    (said,) = person.shown
+    assert said.startswith("That turn could not be taken: ")
+    (why,) = failed
+    assert "it broke" in why
+    assert said.endswith(why)
+
+
 def test_a_chat_carried_on_is_the_same_epic_and_the_same_conversation(
     tmp_path: Path, project: Path
 ) -> None:
