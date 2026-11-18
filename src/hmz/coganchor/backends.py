@@ -5284,8 +5284,8 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
       machine already runs its CLI.
 
     Raises:
-      ValueError: If it is not that or names no backend there is. What it says is what a
-        command line reports after the agent it could not read.
+      ValueError: If it is not that or names no backend there is. Unknown CLI names and
+        missing models have separate messages so a command line can say what to fix.
     """
     name, written, rest = spec.partition("=")
     name, spec = (name.strip(), rest) if written else ("", spec)
@@ -5306,7 +5306,7 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
     # where that is spelled as one, and left off it is no rung at all.
     from hmz.coganchor.spelling import parted
 
-    backend, _, said = spec.partition("/")
+    backend, slash, said = spec.partition("/")
     model, effort = parted(said)
     # The account, if one was named: a CLI is never spelled with an `@` in it, so the two are
     # told apart wherever the agent was written -- `-a`, a settings file, an interface. An
@@ -5317,9 +5317,19 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
         raise ValueError(
             "expected an account after @, as in claude@deepseek/MODEL:EFFORT"
         )
-    profile = named(backend.strip())
-    if profile is None or not model.strip():
+    backend = backend.strip()
+    if not backend:
         raise ValueError("expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]")
+    profile = named(backend)
+    # With no slash, a known CLI followed by :EFFORT is missing its model.
+    if profile is None and not slash and ":" in backend:
+        profile = named(backend.partition(":")[0].strip())
+    if profile is None:
+        raise ValueError(
+            f"unknown CLI {backend!r}; see the CLI reference for supported names"
+        )
+    if not model.strip():
+        raise ValueError("missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]")
     # `auto` is the written form of no rung at all, and this is where it stops being written:
     # everything downstream reads the absence as "", which is what every driver already knows
     # to say nothing about. So is an effort left off, and one that is empty rather than
