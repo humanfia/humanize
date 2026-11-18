@@ -820,8 +820,7 @@ def test_an_env_is_asked_of_the_run_going_attaching_nobody(
     assert host.env({"do": "hosts.env.list"}) == no_flow
 
     driver = SimpleNamespace(backend="local", workdir="/w", capabilities=frozenset())
-    held = SimpleNamespace(role="box", driver=driver, parent=None)
-    run.envs = SimpleNamespace(loop=None, held_envs=lambda: (held,))
+    run.envs = SimpleNamespace(loop=None, env_roles=lambda: {"box": driver})
 
     assert host.env({"do": "hosts.env.list"}) == {
         "ok": True,
@@ -1711,6 +1710,37 @@ def test_an_ai_chan_conversation_carried_on_needs_nothing_said(
         cast("Any", where), {"agent": "claude/opus", "task": "", "ai": {}}
     )
     assert (named["ok"], named["runs"]) == (True, None)
+
+
+def test_a_chat_takes_a_virtual_nous_as_its_agent(
+    where: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.coganchor import nous
+
+    def virtual(name: str) -> bool:
+        return name == "smart"
+
+    def entry(name: str) -> str:
+        return "claude@work/opus:high"
+
+    monkeypatch.setattr(nous, "virtual", virtual)
+    monkeypatch.setattr(nous, "entry", entry)
+
+    checked = hosting.chat_checked(
+        cast("Any", where), {"agent": "smart", "task": "hello"}
+    )
+
+    # The chat's agent is the nous as it was named; what a setting keeps of it is the concrete
+    # nous it starts at, a remembered agent being a harness, an account, a model and an effort.
+    assert (checked["ok"], checked["agent"]) == (True, "smart"), checked
+    assert (checked["runs"].spec, checked["runs"].provider) == (
+        "claude/opus:high",
+        "work",
+    )
+    refused = hosting.chat_checked(
+        cast("Any", where), {"agent": "nobody", "task": "hello"}
+    )
+    assert (refused["ok"], refused["code"]) == (False, 400), refused
 
 
 def test_a_chat_starts_on_its_own_host_and_says_it_is_a_chat(

@@ -251,10 +251,14 @@ class _Follower:
         self._shown = shown
         self._wake = threading.Event()
         self._lock = threading.Lock()
-        # Whether the turn has been seen going or answering: a `turn` of `done` before
-        # either is a chat whose first turn has not opened yet, not one whose turn is done.
-        # Kept apart from the latest `turn`, since a replay may say the snapshot first.
+        # Whether the line has been seen taken -- a turn going or answering, or the chat
+        # asking for its next line: a `turn` of `done` before any is a chat whose first turn
+        # has not opened yet, not one whose turn is done. Kept apart from the latest `turn`,
+        # since a replay may say the snapshot first.
         self._going = False
+        # Whether a turn has said how it went, which is then not said again as the chat
+        # asks for its next line.
+        self._answered = False
         self._turn = ""
         # Where the subscription has got to, to attach again from where it was left.
         self._since: dict[str, Any] | None = None
@@ -308,9 +312,10 @@ class _Follower:
                 str(message.get("agent")), message.get("session") or None, message
             )
             if message.get("kind") == "result":
-                self._going = True
+                self._going = self._answered = True
                 self._settles()
             elif message.get("kind") == "failed":
+                self._answered = True
                 self.failed = str(message.get("text") or "")
         elif kind == "opened":
             from hmz.sdk.running import Opened
@@ -332,6 +337,16 @@ class _Follower:
             self._out.aside(f"{_PROG}: {message.get('text') or ''}")
         elif kind == "printed":
             self._out.printed(str(message.get("text") or ""))
+        elif kind == "shell":
+            self._shell(message)
+        elif kind == "asked" and message.get("mode") == "listen":
+            # The chat asks for its next line, so the one it was said is taken, by a turn
+            # or by none: a `!` command it ran, or a line it refused, which it says why of
+            # here alone (Section 8.9.1 and Section 8.9.6 of core.md).
+            if not self._answered and message.get("text"):
+                self._out.aside(f"{_PROG}: {message['text']}")
+            self._going = True
+            self._settles()
         elif kind == "run":
             self._turn = str(message.get("turn") or "")
             if self._turn == "running":
@@ -342,6 +357,21 @@ class _Follower:
             self._wake.set()
         elif kind == "gone":
             self._goes(str(message.get("why") or ""))
+
+    def _shell(self, record: dict[str, Any]) -> None:
+        """Shows a `!` command run for the chat as a shell would: its output on stdout.
+
+        The command, what it wrote as errors and how it exited where that was not well are
+        drawn on stderr, where the turn is.
+        """
+        self._out.line(("! ", "yellow"), (str(record.get("command") or ""), ""))
+        if out := str(record.get("out") or "").rstrip("\n"):
+            self._out.answer(out)
+        if err := str(record.get("err") or "").rstrip("\n"):
+            self._out.line((err, "red"))
+        status = record.get("status")
+        if isinstance(status, int) and status:
+            self._out.line((f"exit {status}", "dim"))
 
     def _goes(self, why: str) -> None:
         """Takes the host letting go of this: to attach again, or as the end of the wait."""

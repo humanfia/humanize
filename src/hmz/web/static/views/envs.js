@@ -471,16 +471,18 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
     }
   }
 
-  /** Tells the panels of the environment shown a message, by its type. */
+  /** Tells the panels of the environment shown a message, by its type: whether one took it as its own. */
   function dispatch(message) {
-    if (!current || left) return
+    if (!current || left) return false
+    let taken = false
     for (const fn of [...(current.handlers.get(message.type) || [])]) {
       try {
-        fn(message)
+        if (fn(message) === true) taken = true
       } catch (error) {
         console.error(error)
       }
     }
+    return taken
   }
 
   // A theme painted anew -- picked, or the system's light or dark gone over to -- is told to

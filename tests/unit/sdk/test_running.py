@@ -58,6 +58,8 @@ class _Daemon:
         self.called = threading.Condition()
         #: What `runs.get` says each time it is asked, the last for good.
         self.rows: list[dict[str, Any]] = [{}]
+        #: The policies of each backup target `settings.get` says.
+        self.policies: dict[str, list[str]] = {"origin": ["end"]}
         self.gone = threading.Event()
 
     def heard(self, listener: Callable[[str, dict[str, Any]], None]) -> None:
@@ -79,6 +81,12 @@ class _Daemon:
             return {"sub": "s1", "slot": "exec:ab12", "client": "c1"}
         if method == "runs.get":
             return self.rows.pop(0) if len(self.rows) > 1 else self.rows[0]
+        if method == "settings.get":
+            targets = [
+                {"name": name, "policies": policies}
+                for name, policies in self.policies.items()
+            ]
+            return {"backup": {"targets": targets, "defaults": []}}
         return {}
 
     def wait(self, timeout: float | None = None) -> bool:
@@ -353,6 +361,29 @@ def test_a_run_let_go_of_for_falling_behind_attaches_again_and_claims_again() ->
     assert run.raised is None
 
 
+def test_a_run_attached_again_to_another_life_of_its_host_ends_as_the_daemon_gone() -> (
+    None
+):
+    first, second = _Daemon(), _Daemon()
+    run = Run(_Sessions(first, second), "do it")
+    run.start()
+    first.tells(type="welcome", epoch="e1")
+    first.tells(type="run", seq=4, epic="2026-x")
+
+    first.close()
+    (attached,) = second.calls("epic.attach", 1)
+    assert attached["since"] == {"epoch": "e1", "seq": 4}
+    # A daemon started since holds no such epic: the slot's host is a new one, and idle.
+    second.tells(type="welcome", epoch="e2")
+    second.tells(type="live", seq=0, elided=0)
+
+    assert run.wait(5)
+    assert isinstance(run.raised, RuntimeError)
+    assert str(run.raised) == "the daemon went away"
+    assert run.result is None
+    assert second.gone.wait(5)
+
+
 def test_an_outworlder_claims_its_roles_and_answers_their_questions(
     daemon: _Daemon,
 ) -> None:
@@ -383,6 +414,58 @@ def test_an_outworlder_claims_its_roles_and_answers_their_questions(
         "yes to ship it?",
     )
     assert "value" not in params
+
+
+class _Unchecked(Runner):
+    """A runner of a `git+` flow, which no check answered: it is loaded once fetched."""
+
+    def __init__(self, daemon: _Daemon) -> None:
+        started = {**_STARTED, "flow": "git+https://example.com/flows#asks"}
+        super().__init__("/w", started, {}, None)
+        self._daemon = daemon
+
+    def client(self) -> Any:
+        return self._daemon
+
+
+def test_a_flow_no_check_answered_is_what_its_started_record_says(
+    daemon: _Daemon,
+) -> None:
+    person = _Person()
+    run = Run(_Unchecked(daemon), "do it", outworlder=person)
+
+    # Held to the budget it is started with, before the flow is fetched.
+    assert run.budget.cost == 1.0
+    run.start()
+    assert "epic.claim" not in daemon.methods()
+    daemon.tells(
+        type="started",
+        seq=1,
+        ref="git+https://example.com/flows@abc#asks:asks",
+        names={"coder": "NeiKos"},
+        outworlders=["human", "nobody"],
+        budget={"cost": 1.0, "output_tokens": 9},
+        backup=["offsite"],
+    )
+    daemon.tells(type="asked", seq=2, question="q1", role="human", text="ship it?")
+
+    assert daemon.answered.wait(5)
+    # Each `Outworlder` role is claimed, and the away one set away, before any answer.
+    said = [
+        (method, params.get("role"))
+        for method, params in daemon.asked
+        if method in ("epic.claim", "epic.afk", "epic.answer")
+    ]
+    assert said == [
+        ("epic.claim", "human"),
+        ("epic.claim", "nobody"),
+        ("epic.afk", "nobody"),
+        ("epic.answer", None),
+    ]
+    assert [(ask.prompt, role) for ask, role in person.asked] == [("ship it?", "human")]
+    assert run.ref == "git+https://example.com/flows@abc#asks:asks"
+    assert (run.budget.cost, run.budget.output_tokens) == (1.0, 9)
+    assert run.backup == ("offsite",)
 
 
 def test_a_schema_question_is_asked_whole_with_its_context_and_answered_with_a_value(
@@ -613,3 +696,26 @@ def test_a_backup_from_before_the_epic_ended_is_not_the_one_its_end_queued(
     assert backed(client, "e")
     daemon.refusing["runs.get"] = Refused("There is no epic e.", code=404)
     assert backed(client, "e")
+
+
+@pytest.mark.parametrize("policies", [[], ["interval"], ["session"], None])
+def test_a_target_the_end_of_an_epic_queues_no_backup_to_is_not_waited_on(
+    daemon: _Daemon, policies: list[str] | None
+) -> None:
+    daemon.rows = [
+        {
+            "workspace": "/w",
+            "ended": "2026-11-17T00:00:01.000Z",
+            "backup": ["origin", "aside"],
+            "backed": {"origin": {"at": "2026-11-17T00:00:02.000Z", "ok": True}},
+        }
+    ]
+    # Backed up to by hand only, or as it runs, or one settings holds no longer.
+    daemon.policies = {"origin": ["end"]} | (
+        {} if policies is None else {"aside": policies}
+    )
+    assert backed(cast("Any", daemon), "e")
+    assert ("settings.get", {"workspace": "/w"}) in daemon.asked
+
+    daemon.policies["aside"] = ["session", "end"]
+    assert not backed(cast("Any", daemon), "e")
