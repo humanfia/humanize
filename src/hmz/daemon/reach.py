@@ -259,7 +259,13 @@ class Held:
             if not epic and workspace:
                 hosted = self._hosts.get(workspace, slot)
                 epic = str(hosted.status().get("epic") or "") if hosted else ""
-            return "" if self.epic(epic, workspace) else f"the epic {epic}"
+                return "" if self.epic(epic, workspace) else f"the epic {epic}"
+            # An epic named is reached by where it was run, not by the workspace named.
+            if self.reach.scope == "workspace" and not self.workspace(
+                workspace or self.reach.workspace
+            ):
+                return f"the workspace {workspace}"
+            return "" if self.epic(epic) else f"the epic {epic}"
         if self.host(workspace, slot):
             return ""
         return f"the host {slot} of {workspace}" if slot else f"the host of {workspace}"
