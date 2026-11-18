@@ -23,6 +23,7 @@ import {
   requiredLeft,
   resolved,
   sendLabel,
+  sentAs,
   summaryOf,
   untouched,
   draftable,
@@ -161,6 +162,40 @@ test('what is left to say counts each required field still blank, nested ones to
   assert.equal(requiredLeft(REVIEW, { verdict: 'approve', notes: 'ok', scope: { files: 3 } }), 0)
   assert.equal(sendLabel(2), '2 required left')
   assert.equal(sendLabel(0), 'Send answer')
+})
+
+test('a required field that may be null, left blank, is answered as null', () => {
+  // As pydantic writes `maybe: int | None`, `reason: str | None`, `flag: bool | None`, none with a default.
+  const schema = {
+    type: 'object',
+    properties: {
+      maybe: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+      reason: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      flag: { anyOf: [{ type: 'boolean' }, { type: 'null' }] },
+      tags: { anyOf: [{ type: 'array', items: { type: 'string' } }, { type: 'null' }] },
+      count: { type: 'integer' },
+      note: { type: 'string' },
+      nick: { anyOf: [{ type: 'string' }, { type: 'null' }], default: null },
+      tone: { type: 'string', default: 'plain' },
+    },
+    required: ['maybe', 'reason', 'flag', 'tags', 'count', 'note'],
+  }
+  // What each control reads while nothing is said in it: a number or a choice nothing, text ''.
+  const read = { maybe: undefined, reason: '', flag: undefined, tags: [], count: undefined, note: '', nick: '', tone: '' }
+  const said = {}
+  for (const field of fieldsOf(schema)) {
+    const one = sentAs(field, read[field.name])
+    if (one !== undefined) said[field.name] = one
+  }
+  assert.deepEqual(said, { maybe: null, reason: null, flag: null, tags: [], note: '', tone: '' })
+  assert.deepEqual(problems(schema, said).map((one) => one.path[0]), ['count', 'note'])
+  // The three answered as null are not left to say: the empty list, the number and the text are.
+  assert.equal(requiredLeft(schema, said), 3)
+  // What is said is sent as it was said.
+  const [maybe, reason, flag] = fieldsOf(schema)
+  assert.equal(sentAs(maybe, 0), 0)
+  assert.equal(sentAs(reason, 'why'), 'why')
+  assert.equal(sentAs(flag, false), false)
 })
 
 test('an optional object is untouched while each field is blank, off, or still its suggestion', () => {
