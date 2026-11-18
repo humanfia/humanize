@@ -376,7 +376,7 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
     assert env == {
         "id": ROOT,
         "role": "repo",
-        "chain": "local@/work",
+        "chain": "repo",
         "parent": None,
         "run": 1,
         "backend": "local",
@@ -393,6 +393,8 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
     holding.envs.append(Held("repo", "local@/work#temp_clone(t)", "local@/work", copy))
     derived = _envs(alice, lambda envs: len(envs) == 2)[1]
     assert (derived["id"], derived["parent"]) == (COPY, ROOT)
+    # Labelled by its role and what derived it, not by where its root is.
+    assert derived["chain"] == "repo#temp_clone(t)"
 
     # Destroyed under the run: no longer listed, and nothing more is done in it.
     del holding.envs[1]
@@ -410,6 +412,31 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
         "why": "That environment has closed.",
     }
     del box
+
+
+def test_the_workspace_is_labelled_by_the_role_that_takes_it(
+    host: tuple[Host, Workspace], holding: Holding, box: Box
+) -> None:
+    holding.envs[:] = [Held("workspace", "local@/work#1", None, box)]
+    alice, _ = _going(host)
+    (env,) = _envs(alice, bool)
+    assert (env["id"], env["role"], env["chain"]) == (
+        "1:local@/work#1",
+        "workspace",
+        "workspace",
+    )
+
+    holding.envs[:] = [
+        Held("repo", "local@/work#1", None, box),
+        Held("repo", "local@/work#1#subdir(s)", "local@/work#1", Box(workdir="/s")),
+    ]
+    root, sub = _envs(alice, lambda envs: len(envs) == 2)
+    assert (root["id"], root["role"], root["chain"]) == (
+        "1:local@/work#1",
+        "repo",
+        "repo",
+    )
+    assert sub["chain"] == "repo#subdir(s)"
 
 
 def test_an_env_nobody_listed_is_refused(host: tuple[Host, Workspace]) -> None:
