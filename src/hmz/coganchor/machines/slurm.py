@@ -79,6 +79,12 @@ _LABEL = "humanize"
 #: it is let.
 _IDLE = "exec sleep 2147483647"
 
+#: What a `tcp` job's serving half exports beside the workspace, in the words of the job's own
+#: shell: where everything derived from a workdir lives on the node, under Humanize's home
+#: there as the node itself says it, so that a scratch directory, a temporary copy and a
+#: worktree with no directory of its own can be made and worked in over the one listener.
+_DERIVED = '"${HUMANIZE_HOME:-$HOME/.hmz}/envs"'
+
 #: The states a job has left for good, as Slurm names them -- or will have once it is out.
 _OVER = frozenset(
     {
@@ -501,6 +507,9 @@ class Slurm(MachineBase):
         platform -- which nobody has asked it yet, so the script asks and waits for that one --
         and run with no Python, whatever `python` says. The secret is set in the script rather
         than on a command line, which anybody on the node could read.
+
+        It exports the workspace and :data:`_DERIVED`, which every connection to it shares: a
+        fence drawn again on the node is drawn around what is exported, so not `/`.
         """
         config = self._config
         if config.via != TCP:
@@ -513,7 +522,7 @@ class Slurm(MachineBase):
         serving = ["anchor", "--listen", "0.0.0.0:0", "--export", config.workspace]
         return (
             f"{secret}{awaiting(REMOTE_CACHE)}; "
-            f'touch -c "$p"; exec "$p" {shlex.join(serving)}'
+            f'touch -c "$p"; exec "$p" {shlex.join(serving)} --export {_DERIVED}'
         )
 
     def _labelled(self) -> str:
