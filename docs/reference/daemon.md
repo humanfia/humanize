@@ -465,7 +465,7 @@ question fails is not kept.
 Each [Ai-chan](/user/ai-chan) conversation is a [chat](/user/chat) whose one agent plays
 her role, held by a host of its own on the slot `ai:<hex>`: in the workspace of its scope, or,
 for the scope `daemon`, in `H/ai/<machine>/`. Only the daemon starts it, with the
-conversation's own scope, preset and network; `epic.stop` there stops her open turn only. Its harness runs at `bypass`, confined: `/` denied, the scope
+conversation's own scope, preset and network; `epic.stop` there stops her open turn only. Its harness runs with approvals bypassed, confined: `/` denied, the scope
 root (`/` for `daemon`, the workspace otherwise) read-only under `read-only` and writable under
 `danger-full-access`, its scratch directory `H/ai/<machine>/<id>/` writable, and this machine's
 directory -- the daemon's socket and every scoped link -- denied beneath all of it. A
