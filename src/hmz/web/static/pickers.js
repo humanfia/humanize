@@ -4,6 +4,7 @@
 // backend, the runtime of it, and a directory there. Each comes to what `-a` or `-e` spells.
 
 import { call, daemon, hash, onDaemon } from './api.js'
+import { offering, parted, spelled } from './chips/agent.js'
 import { fill, h, iconButton } from './dom.js'
 import { pathPicker } from './paths.js'
 
@@ -75,41 +76,88 @@ export function nousField(value, nous, { label, hmz, placeholder = 'A nous' }) {
   return { node: h('span', { class: 'nous-field' }, input, offered), input }
 }
 
-/** An agent as `-a` spells it, taken apart: `cli[@account]/model[:effort]`. */
-export function parted(spec) {
-  const said = /^([^@/]+)(?:@([^/]*))?\/(.*)$/.exec(spec || '')
-  if (!said) return { cli: '', account: '', model: '', effort: '' }
-  const [, cli, account = '', rest] = said
-  const colon = rest.lastIndexOf(':')
-  return colon < 0 ? { cli, account, model: rest, effort: '' } : { cli, account, model: rest.slice(0, colon), effort: rest.slice(colon + 1) }
+export { parted, spelled }
+
+/** Whether a CLI is being asked what it runs as an account, `cli@account`, and why asking failed. */
+const asked = { waiting: (key) => asking.has(key), why: (key) => failed.get(key) }
+
+/**
+ * What the CLIs read here offer an agent as it stands, changing nothing of it: null while none
+ * are read, or where its CLI or its account is not one of them.
+ */
+export function offeredTo(spec) {
+  const chosen = parted(spec)
+  const { cli, account } = chosen
+  if (!backends || !cli) return null
+  const offered = offering(chosen, backends.clis, Object.keys(backends.clis), asked)
+  return chosen.cli === cli && chosen.account === account ? offered : null
 }
 
-/** An agent put back together as `-a` spells it. */
-export function spelled({ cli, account, model, effort }) {
-  if (!cli || !model) return ''
-  return `${cli}${account ? `@${account}` : ''}/${model}${effort && effort !== 'auto' ? `:${effort}` : ''}`
+/**
+ * Reads the CLIs of the daemon shown again for an agent that stands and, where its CLI was never
+ * asked what it runs as its account, asks it.
+ */
+export async function readFor(spec) {
+  await readBackends()
+  const offered = offeredTo(spec)
+  const { cli, account } = parted(spec)
+  if (offered && offered.unasked) await ask(cli, account)
 }
 
-/** An agent that fills no flow's role, picked a step at a time from every CLI here. */
-export function freeAgentPicker(name, kept, changed = () => {}) {
-  return agentPicker({ name, get clis() { return backends ? Object.keys(backends.clis) : [] } }, kept, changed)
+/** A role any CLI here could fill: an agent no flow asks for, or a place a turn goes to. */
+export function anyCli(name) {
+  return { name, get clis() { return backends ? Object.keys(backends.clis) : [] } }
 }
 
 /** A place a turn goes to, `CLI[@ACCOUNT]/MODEL`, picked a step at a time from every CLI here. */
 export function placePicker(kept, label, changed = () => {}) {
-  const role = { name: label, get clis() { return backends ? Object.keys(backends.clis) : [] } }
-  return agentPicker(role, kept, changed, { effort: false })
+  return agentPicker(anyCli(label), kept, changed, { effort: false })
 }
 
 /**
- * The agent filling one role.
+ * What is picked to fill one role, with nothing drawn: `chosen` is changed by whoever draws it,
+ * who then has it drawn `again`.
+ *
+ * @param {{name: string, clis: string[]}} role The role, and the CLIs here that could fill it.
+ * @param {string} kept What fills it now, as `-a` spells it.
+ * @param {(offered: ReturnType<typeof offering>) => void} draw Draws what picking it offers now:
+ *   as it is made, whenever the CLIs here are read, and whenever asked `again`.
+ */
+export function agentChoice(role, kept, draw, { effort: withEffort = true } = {}) {
+  const chosen = parted(kept)
+
+  function again() {
+    if (!backends) return
+    const offered = offering(chosen, backends.clis, role.clis, asked)
+    draw(offered)
+    if (offered.unasked) refresh()
+  }
+
+  /** Asks the CLI chosen what it runs as the account chosen, again where it was asked before. */
+  function refresh() {
+    failed.delete(`${chosen.cli}@${chosen.account}`)
+    ask(chosen.cli, chosen.account)
+    again()
+  }
+
+  told.add(again)
+  return {
+    chosen,
+    again,
+    refresh,
+    value: () => spelled(withEffort ? chosen : { ...chosen, effort: '' }),
+    leave: () => told.delete(again),
+  }
+}
+
+/**
+ * The agent filling one role, picked a step at a time, each from a select.
  *
  * @param {{name: string, clis: string[]}} role The role, and the CLIs here that could fill it.
  * @param {string} kept What fills it now, as `-a` spells it.
  * @param {() => void} changed Told whenever the choice changes.
  */
 export function agentPicker(role, kept, changed, { effort: withEffort = true } = {}) {
-  const chosen = parted(kept)
   const cli = h('select', { 'aria-label': `CLI for ${role.name}`, 'data-hmz': 'pick-cli' })
   const account = h('select', { 'aria-label': `Account for ${role.name}`, 'data-hmz': 'pick-account' })
   const model = h('select', { 'aria-label': `Model for ${role.name}`, 'data-hmz': 'pick-model' })
@@ -120,69 +168,38 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
   const said = h('span', { class: 'hint', 'aria-live': 'polite' })
   // A place a turn goes to is a CLI, an account and a model: no effort is part of it.
   const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field('Account', account), field('Model', model, typed), withEffort ? field('Effort', effort) : null, again, said)
-
-  const accountsOf = (name) => (backends && backends.clis[name] ? backends.clis[name].accounts : [])
   let typing = false
-  const modelsOf = () => (accountsOf(chosen.cli).find((one) => one.name === chosen.account) || { models: [] }).models
 
-  function draw() {
-    if (!backends) return
-    const offered = role.clis.length ? role.clis : []
-    if (!chosen.cli || (!offered.includes(chosen.cli) && !backends.clis[chosen.cli])) chosen.cli = offered[0] || chosen.cli
-    fill(
-      cli,
-      offered.map((one) => h('option', { value: one, selected: one === chosen.cli }, one)),
-      chosen.cli && !offered.includes(chosen.cli) ? h('option', { value: chosen.cli, selected: true }, `${chosen.cli} (not installed)`) : null,
-    )
-    if (!offered.length && !chosen.cli) fill(cli, h('option', { value: '' }, 'None installed'))
-    const accounts = accountsOf(chosen.cli)
-    if (!accounts.some((one) => one.name === chosen.account)) chosen.account = ''
-    fill(
-      account,
-      accounts.length ? accounts.map((one) => h('option', { value: one.name, selected: one.name === chosen.account }, one.name || 'Local')) : h('option', { value: '' }, 'Local'),
-      h('option', { value: '+' }, 'Add account…'),
-    )
-    const models = modelsOf()
-    const key = `${chosen.cli}@${chosen.account}`
-    const waiting = asking.has(key)
-    const why = failed.get(key)
-    if (!chosen.model && models.length) chosen.model = models[0].name
+  const picked = agentChoice(role, kept, draw, { effort: withEffort })
+  const { chosen } = picked
+  const options = (offered, value) => offered.map((one) => h('option', { value: one.value, selected: one.value === value }, one.label))
+
+  function draw(offered) {
+    fill(cli, options(offered.clis, chosen.cli))
+    fill(account, options(offered.accounts, chosen.account), h('option', { value: '+' }, 'Add account…'))
+    const none = offered.asking && !offered.models.length
     fill(
       model,
-      waiting && !models.length ? h('option', { value: chosen.model }, 'Asking…') : null,
-      models.map((one) => h('option', { value: one.name, selected: one.name === chosen.model }, one.name)),
-      chosen.model && !models.some((one) => one.name === chosen.model) && !(waiting && !models.length) ? h('option', { value: chosen.model, selected: true }, `${chosen.model} (not listed)`) : null,
-      !waiting ? h('option', { value: '…', selected: typing }, 'Other…') : null,
+      none ? h('option', { value: chosen.model }, 'Asking…') : null,
+      options(offered.models, chosen.model),
+      offered.unlisted && !none ? h('option', { value: chosen.model, selected: true }, `${chosen.model} (not listed)`) : null,
+      !offered.asking ? h('option', { value: '…', selected: typing }, 'Other…') : null,
     )
-    model.disabled = waiting && !models.length
-    // Typed where nothing could be listed: once asked and told nothing, or refused.
-    const asked = (accounts.find((one) => one.name === chosen.account) || {}).asked
-    if (!models.length && !waiting && (why || asked)) typing = true
-    model.hidden = typing && !models.length
+    model.disabled = none
+    if (offered.typed) typing = true
+    model.hidden = typing && !offered.models.length
     typed.hidden = !typing
     if (typing && typed.value !== chosen.model) typed.value = chosen.model
-    const found = models.find((one) => one.name === chosen.model)
-    const efforts = found ? found.efforts : []
-    if (chosen.effort && !efforts.includes(chosen.effort)) chosen.effort = ''
-    fill(effort, h('option', { value: '' }, 'Default'), efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, one)))
-    effort.disabled = !efforts.length
-    again.disabled = !chosen.cli || waiting
-    said.textContent = waiting ? `Asking ${chosen.cli} for models…` : why ? `No models: ${why}` : ''
-    // A CLI nobody has asked as this account yet is asked now, as the terminal interface asks.
-    const held = accounts.find((one) => one.name === chosen.account)
-    if (chosen.cli && held && !held.asked && !held.models.length && !waiting && !why) refresh()
-  }
-
-  function refresh() {
-    failed.delete(`${chosen.cli}@${chosen.account}`)
-    ask(chosen.cli, chosen.account)
-    draw()
+    fill(effort, h('option', { value: '' }, 'Default'), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, one)))
+    effort.disabled = !offered.efforts.length
+    again.disabled = !chosen.cli || offered.asking
+    said.textContent = offered.asking ? `Asking ${chosen.cli} for models…` : offered.failed ? `No models: ${offered.failed}` : ''
   }
 
   cli.addEventListener('change', () => {
     Object.assign(chosen, { cli: cli.value, account: '', model: '', effort: '' })
     typing = false
-    draw()
+    picked.again()
     changed()
   })
   account.addEventListener('change', () => {
@@ -193,13 +210,13 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
     }
     Object.assign(chosen, { account: account.value, model: '', effort: '' })
     typing = false
-    draw()
+    picked.again()
     changed()
   })
   model.addEventListener('change', () => {
     typing = model.value === '…'
     Object.assign(chosen, { model: typing ? '' : model.value, effort: '' })
-    draw()
+    picked.again()
     if (typing) typed.focus()
     changed()
   })
@@ -211,14 +228,9 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
     chosen.effort = effort.value
     changed()
   })
-  again.addEventListener('click', refresh)
-  told.add(draw)
-  draw()
-  return {
-    node,
-    value: () => spelled(withEffort ? chosen : { ...chosen, effort: '' }),
-    leave: () => told.delete(draw),
-  }
+  again.addEventListener('click', picked.refresh)
+  picked.again()
+  return { node, value: picked.value, leave: picked.leave }
 }
 
 /** An environment as `-e` spells it, taken apart: `backend[@provider][/workdir]`. */

@@ -1,7 +1,7 @@
 // The permission chip on a chat's box, as a chat app keeps one beside what is typed: it names
 // what the assistant may touch, and opens a menu of the three a chat can be held to, each with
 // one line saying what it lets the assistant do and a mark on the one in force (Section
-// 3.6.6.10 of protocol/web.md). What picking one does is the box's: start the chat with it, set
+// 3.6.6.14 of protocol/web.md). What picking one does is the box's: start the chat with it, set
 // it on the chat's host, or keep it for when the chat is carried on.
 
 import { h, icon } from '../dom.js'

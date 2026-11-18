@@ -63,7 +63,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
 | **Sidebar** | **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, newest first. A flow's epic is a row of two lines: its arrow and task, then its flow's name; it is marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a [chat](/user/chat) is one line, what you asked and nothing else, as a chat app lists a conversation: a spinner beside it while its agent answers, a blinking gold dot while it asks, a red dot where it failed, and when it began where you point at it | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; **+** on a directory starts a chat there, and its right-click menu a chat or an epic |
-| **New epic** | Two choices, **Chat** and **Flow**: a box for the first message or the task, the directory, and, for a flow, the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
+| **New epic** | Two choices, **Chat** and **Flow**: a box for the first message or the task, the directory, and, for a flow, the flow picked at the top as a chat app picks a model | Start it; a chat's model is picked from the chip on the box, and **Options** on a flow's box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
@@ -184,6 +184,14 @@ conversation itself cannot be carried on, the chat says why and answers what you
 new one. A chat that kept nothing to carry on from -- one an earlier Humanize wrote down --
 says it cannot be continued here, and offers no box.
 
+The chip at the right of the box under a chat says the model that answers it, and its effort
+where one is set. Its menu says the rest of the chat's agent -- its CLI and its account -- and
+**New chat** opens a new one in the same directory, where every part is picked. Where the
+chat's CLI has a `/model` or an `/effort` of its own (Claude Code, Codex), the menu also lists
+the other models its account runs, a box for one it does not list, and the efforts its model
+takes: picking one says that line in the chat, which [goes on with the new model or
+effort](/user/chat#the-chats-agent).
+
 The box under a chat takes what the agent's CLI takes at its own prompt, as `hmz` does in a
 chat: typing `/`, `$` or `@` offers the CLI's own commands, skills and files, the names
 Humanize keeps, and the flows, each tagged with where it comes from, and each line is
@@ -302,11 +310,27 @@ A new chat and a new epic of a flow are two forms, each opened from the sidebar.
 directory they work in under the box you type into, at its left: a folder chip naming it. Click
 the chip to pick another under **Recent**, **No workspace**, or **Open folder…**.
 
-A new chat starts a [chat](/user/chat): pick the directory, or **No workspace**, as below; the
-agent, set up a part at a time as a role's agent is under **Options**, starting from the one
-that directory last chatted with; and type the first message. <kbd>Enter</kbd> starts the chat,
-and the page goes to its conversation. There is no flow, budget or params to set. The chip on
-the box, **Edit this folder** to begin with, is what the agent may touch: its
+A new chat starts a [chat](/user/chat): pick the directory, or **No workspace**, from the folder chip; the
+model, from the chip at the right of the box, by the button that sends; and type the first
+message. <kbd>Enter</kbd> starts the chat, and the page goes to its conversation. There is no
+flow, budget or params to set.
+
+The chip says the model that will answer, and its effort where one is set, starting from the
+agent that directory last chatted with. It opens a menu:
+
+- **Model.** The models the CLI runs as the account chosen, the one chosen marked. A model it
+  does not list is typed under them, in **Other model**.
+- **Effort.** The efforts the model chosen takes, where it takes any; **Default** leaves it to
+  the model.
+- **More.** The **CLI** that runs the chat, the **Account** it runs as (**Local** is this
+  machine's own sign-in; **Add account…** opens Settings), and **Refresh models**, which asks
+  the CLI what it runs again. A CLI never asked what it runs is asked the first time it is
+  picked, which takes a few seconds.
+
+What is picked is an agent as `-a` spells one, `cli[@account]/model[:effort]`; resting the
+pointer on the chip says it in full.
+
+The other chip on the box, **Edit this folder** to begin with, is what the agent may touch: its
 [permission](/user/chat#permission).
 
 **New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
@@ -468,7 +492,7 @@ and drops the rest: an unknown token, a value that is not a colour, a picture th
 
 Start `hmz web` in a project, and open **New epic**:
 
-1. Choose **Chat**. Give it an agent such as `claude/claude-haiku-4-5:high`, type a first
+1. Choose **Chat**. Pick a model from the chip on the box, such as **Haiku 4.5**, type a first
    message and press <kbd>Enter</kbd>. The page goes to the conversation, `assistant/1`.
 2. When the agent has answered, the chat waits for your next line, typed in the box under it.
 3. In a terminal in the same directory, run `hmz`, which opens on a new chat of its own. Type
