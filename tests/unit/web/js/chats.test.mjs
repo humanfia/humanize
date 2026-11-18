@@ -27,18 +27,28 @@ const served = daemon({
       const sub = `s${served.calls.length}`
       const workspace = params.scratch ? '/tmp/hmz-x' : params.workspace
       const slot = params.slot === 'chat:' ? 'chat:ab' : params.slot || ''
-      setTimeout(() => peer.notify('epic.event', { sub, message: { type: 'welcome', epoch: 'e1', client: 'c', workspace, slot } }))
+      setTimeout(() => {
+        const send = (message) => peer.notify('epic.event', { sub, message })
+        send({ type: 'welcome', epoch: 'e1', client: 'c', workspace, slot })
+        // What a host holds of a run that ended before anybody looked: at `/failed` alone.
+        if (workspace !== '/failed') return
+        send({ type: 'run', state: 'idle', run: 1, kind: slot ? 'chat' : 'flow', epic: 'e9', slot, turn: 'done' })
+        send({ type: 'started', seq: 1, run: 1, task: 'hello' })
+        send({ type: 'ended', seq: 2, run: 1, how: 'failed', why: 'HarnessSandboxed: no fence here' })
+        send({ type: 'live', seq: 2, elided: 0 })
+      })
       return { sub, client: 'c', workspace, slot }
     },
     'epic.start': () => ({ run: 1, workspace: '/w', slot: '' }),
     'chat.start': (params) => ({ slot: params.slot === 'chat:' ? 'chat:cd' : params.slot, epic: 'e1' }),
     'chat.say': () => ({}),
+    'runs.get': ({ name }) => ({ name, kind: 'chat', workspace: '/failed', how: 'failed', why: 'HarnessSandboxed: no fence here', held: false }),
   },
 })
 const api = await import('../../../../src/hmz/web/static/api.js')
 api.providers.splice(0, api.providers.length, provider(served))
 const { ask, chatAsk } = await import('../../../../src/hmz/web/static/held.js')
-const { chatting } = await import('../../../../src/hmz/web/static/epic.js')
+const { chatting, watch } = await import('../../../../src/hmz/web/static/epic.js')
 
 after(async () => (await api.client('local')).close())
 
@@ -103,4 +113,30 @@ test('an epic is a chat by its kind, and an old one with no kind by its flow nam
   assert.equal(chatting({ flow: './flows/chat/' }), true)
   assert.equal(chatting({ flow: 'ralph' }), false)
   assert.equal(chatting(null), false)
+})
+
+test('a chat that ended before its host was looked at is still the epic its host names', async () => {
+  /** @type {{name: string, none: boolean, ended: string}[]} */
+  const told = []
+  const stop = watch('', { workspace: '/failed', slot: 'chat:gh' }, (seen) => told.push({ name: seen.detail ? seen.detail.name : '', none: seen.none, ended: seen.going && seen.going.ended ? seen.going.ended.why : '' }))
+  try {
+    // Named, with the records that say why it failed, and never said to be no chat at all.
+    await until(() => told.some((one) => one.name === 'e9'))
+    assert.equal(told.at(-1).ended, 'HarnessSandboxed: no fence here')
+    assert.deepEqual(told.filter((one) => one.none), [])
+  } finally {
+    stop()
+  }
+})
+
+test('an epic that ended on a workspace host is not the one going there', async () => {
+  /** @type {{name: string, none: boolean}[]} */
+  const told = []
+  const stop = watch('', { workspace: '/failed', slot: '' }, (seen) => told.push({ name: seen.detail ? seen.detail.name : '', none: seen.none }))
+  try {
+    await until(() => told.some((one) => one.none))
+    assert.deepEqual(told.filter((one) => one.name), [])
+  } finally {
+    stop()
+  }
 })

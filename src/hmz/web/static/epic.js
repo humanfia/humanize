@@ -51,8 +51,10 @@ export function watch(name, where, told) {
     if (host && follows(host)) return
     const run = seen.held ? going(seen.held) : null
     const standing = seen.held && seen.held.standing.run
-    // Named by the host once it writes one: the epic going there.
-    if (!name && run && run.live && standing.epic && standing.epic !== named) {
+    // Named by the host once it writes one: the epic going there -- or, on a chat's host, which
+    // holds that chat alone, the chat it wrote, over before the page came as it may be.
+    const chat = Boolean(run && standing && standing.epic && asked.slot.startsWith('chat:'))
+    if (!name && run && (run.live || chat) && standing.epic && standing.epic !== named) {
       named = standing.epic
       call('runs.get', { name: named }).then((found) => {
         if (named !== found.name) return
@@ -60,7 +62,7 @@ export function watch(name, where, told) {
         tell()
       }, () => {})
     }
-    seen.none = !name && Boolean(seen.held && (seen.held.connected || seen.held.gone)) && !(run && run.live)
+    seen.none = !name && Boolean(seen.held && (seen.held.connected || seen.held.gone)) && !(run && (run.live || chat))
     // The records of the epic going are this one's while it goes, and still once it has ended,
     // for as long as the records held are of it rather than of one started since.
     const ours = Boolean(seen.detail && run && ((standing && standing.epic === seen.detail.name) || seen.detail.held || same(seen.detail, run.started)))
