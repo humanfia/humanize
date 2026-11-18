@@ -119,6 +119,12 @@ export function unreadOn(name) {
   return { epics: new Set(mine.map((one) => one.epic)), workspaces: new Set(mine.map((one) => one.workspace)) }
 }
 
+/** Reads every notification of one epic of a daemon, as its row's menu asks. */
+export function readOf(name, epic) {
+  const keys = items.filter((one) => !one.read && (one.daemon || 'local') === name && one.epic === epic).map((one) => one.key)
+  if (keys.length) markRead(keys)
+}
+
 async function reread() {
   items = await kept.items()
   draw()

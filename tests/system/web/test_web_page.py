@@ -242,7 +242,9 @@ def test_an_epic_asking_a_person_calls_until_one_looks(engine: str) -> None:
         )
         expect(badge).to_have_text(re.compile("waiting"))
         expect(glyph).to_have_css("animation-name", "none")
-        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("●")
+        expect(
+            page.locator("[data-hmz=epic] [data-hmz=epic-state]").first
+        ).to_have_text("Waiting")
         assert "hmz-seen" in page.evaluate("Object.keys(localStorage)")
 
         page.get_by_role("button", name="Stop").click()
@@ -1907,7 +1909,7 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         row = page.locator("[data-hmz=epic]", has_text="remember teal")
         state = row.locator("[data-hmz=chat-state]")
         expect(state).to_have_attribute("data-state", "asking")
-        expect(state).to_have_css("animation-name", "pulse")
+        expect(state).to_have_text("Awaiting input")
 
         # Read, it is stopped: its row says nothing beside what was asked.
         row.click()
