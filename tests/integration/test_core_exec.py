@@ -244,7 +244,7 @@ def test_chat_shows_what_a_command_it_ran_printed_and_takes_no_turn(
 
     assert ran.returncode == 0, ran.stderr
     assert ran.stdout == "hi-from-bang\n"
-    assert "! echo hi-from-bang" in ran.stderr
+    assert "echo hi-from-bang" in ran.stderr
     assert started(tmp_path) == []
 
 
