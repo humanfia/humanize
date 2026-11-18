@@ -141,6 +141,16 @@ export function blank(value) {
   return value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
 }
 
+/**
+ * What a field's control reads, as it is answered. A required field that may be null, left
+ * blank, is null, as nothing else says so; an optional one left blank, whose suggestion is blank
+ * too, is left out rather than sent empty.
+ */
+export function sentAs(field, read) {
+  if (field.required) return field.nullable && (read === undefined || read === '') ? null : read
+  return blank(field.value) && blank(read) ? undefined : read
+}
+
 /** Whether an object's fields are read as a form first shows them: each blank, off, or still its suggestion, nested objects field by field. */
 export function untouched(fields, value, root) {
   return fields.every((field) => {

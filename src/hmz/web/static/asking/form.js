@@ -7,7 +7,7 @@
 // beside the field it is of. The same form asks a flow's params on a new epic.
 
 import { h } from '../dom.js'
-import { blank, choicesOf, FEW, fieldsOf, kindOf, labelOf, multiline, paramLabel, pathKey, problems, requiredLeft, resolved, untouched, widgetOf, yesNo } from './logic.js'
+import { blank, choicesOf, FEW, fieldsOf, kindOf, labelOf, multiline, paramLabel, pathKey, problems, requiredLeft, resolved, sentAs, untouched, widgetOf, yesNo } from './logic.js'
 import { markdownInto } from './blocks.js'
 
 /** How many fields a form shows before those with a suggestion fold away. */
@@ -221,15 +221,10 @@ function changedIn(el) {
   el.dispatchEvent(new CustomEvent('hmz-change', { bubbles: true }))
 }
 
-/**
- * The control a field is filled in with, by its type. An optional field left blank, whose
- * suggestion is blank too, is left out of the answer rather than sent empty.
- */
+/** The control a field is filled in with, by its type, read as it is answered. */
 function controlFor(path, field, value, ctx, said) {
   const control = controlOf(path, field, value, ctx, said)
-  if (field.required || !blank(field.value)) return control
-  const read = control.read
-  return { ...control, read: () => (blank(read()) ? undefined : read()) }
+  return { ...control, read: () => sentAs(field, control.read()) }
 }
 
 function controlOf(path, field, value, ctx, said) {
