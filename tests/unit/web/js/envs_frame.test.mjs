@@ -7,6 +7,7 @@ import {
   factsOf,
   flatten,
   nameOf,
+  offOf,
   panelsOf,
   paramsOf,
   pick,
@@ -103,4 +104,12 @@ test('the list is never narrower than it can be read, nor wider than half the fr
   assert.equal(clampWidth(900, 1000), 500)
   assert.equal(clampWidth(Infinity, 1000), 500)
   assert.equal(clampWidth(200, 0), 160)
+})
+
+test('an environment that has closed is said closed, as the host tells it: out of reach too', () => {
+  // The host tells a closed environment as neither open nor reachable.
+  assert.equal(offOf(env('1:a', { available: false, open: false })), 'closed')
+  assert.equal(offOf(env('1:a', { open: false })), 'closed')
+  assert.equal(offOf(env('1:a', { available: false })), 'unavailable')
+  assert.equal(offOf(env('1:a')), '')
 })

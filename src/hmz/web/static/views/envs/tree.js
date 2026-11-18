@@ -104,6 +104,15 @@ export function usable(env) {
 }
 
 /**
+ * Why an environment cannot be worked in, in a word: `closed` where it has closed, which the host
+ * also tells as out of reach; `unavailable` where it is open and cannot be reached; else nothing.
+ */
+export function offOf(env) {
+  if (usable(env)) return ''
+  return env && env.open === false ? 'closed' : 'unavailable'
+}
+
+/**
  * Which environment is shown: the one asked for where it is listed; else the first usable one
  * at the top of the latest run; else the first usable; else the first.
  */
