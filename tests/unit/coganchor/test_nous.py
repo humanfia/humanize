@@ -324,6 +324,33 @@ def test_every_reads_what_somebody_wrote_by_hand_forgivingly() -> None:
     assert nous.every() == [Nous("claude/a", 3, nous.DEFAULT, 0.0)]
 
 
+def test_edges_written_by_hand_under_a_plain_on_are_read_and_kept() -> None:
+    at = settings.where()
+    at.parent.mkdir(parents=True)
+    at.write_text(
+        "nous:\n"
+        "  smart:\n"
+        "    graph:\n"
+        "      start: first\n"
+        "      nodes:\n"
+        "        first: {use: claude/a, on: {spent: other, '*': cheap}}\n"
+        "        other: {use: codex/b, next: cheap}\n"
+        "        cheap: {use: grok/c}\n",
+        encoding="utf-8",
+    )
+    graph = Graph(
+        "first",
+        (
+            Node("first", use="claude/a", on=(("spent", "other"), (ANY, "cheap"))),
+            Node("other", use="codex/b", on=((ANY, "cheap"),)),
+            Node("cheap", use="grok/c"),
+        ),
+    )
+    assert [(one.name, one.graph) for one in nous.every()] == [("smart", graph)]
+    nous.retrying("grok/c", 1, "constant", 0)
+    assert list(settings.read()["nous"]) == ["smart", "grok/c"]
+
+
 def test_an_unreadable_file_is_nothing_and_refuses_a_write() -> None:
     at = settings.where()
     at.parent.mkdir(parents=True)
