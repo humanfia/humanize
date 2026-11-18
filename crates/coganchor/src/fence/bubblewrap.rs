@@ -166,7 +166,12 @@ pub fn command(
     }
     for (at, fd) in reached {
         if let Some(fd) = fd {
-            let flag = if device(at) { "--dev-bind" } else { "--bind" };
+            // A written root holds `/dev`, and `--bind` would leave no device in it to open.
+            let flag = if at == "/" || device(at) {
+                "--dev-bind"
+            } else {
+                "--bind"
+            };
             mounts.push((
                 depth(at),
                 1,
@@ -585,7 +590,7 @@ mod tests {
     }
 
     #[test]
-    fn a_written_root_is_this_machines_and_stays_writable() {
+    fn a_written_root_is_this_machines_with_its_devices_and_stays_writable() {
         let fence = Fence {
             write: vec!["/".into()],
             ..Fence::default()
@@ -599,7 +604,7 @@ mod tests {
             Path::new("bwrap"),
         ));
 
-        assert_eq!(held, vec![strings(&["--bind", "/proc/self/fd/5", "/"])]);
+        assert_eq!(held, vec![strings(&["--dev-bind", "/proc/self/fd/5", "/"])]);
     }
 
     #[test]
