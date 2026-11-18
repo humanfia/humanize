@@ -288,7 +288,16 @@ def test_a_read_only_ai_chan_has_no_flow_loaded_by_its_path(
     ai, scratch = made("read-only")
     marker = other / "loaded-by"
     written(scratch, "marks", _MARKS.format(marker=str(marker)))
-    for flow in (str(scratch / "marks"), "~/marks", "./marks"):
+    at = str(scratch / "marks")
+    # However a path is spelled, and a repository too: what the loader strips is not a name.
+    for flow in (
+        at,
+        "~/marks",
+        "./marks",
+        f" {at}",
+        f"\t{at}:marks",
+        f" git+file://{at}",
+    ):
         assert (
             _refused(ai, "flows.check", {"workspace": str(project), "flow": flow})
             == "Ai-chan is read-only, and flows.check changes things."
