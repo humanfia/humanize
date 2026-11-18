@@ -1354,8 +1354,9 @@ The interface itself follows it, as it follows an epic of this machine: it attac
 (`epic.attach`) to the host there over that daemon's session, reads the epic from the top, and
 offers everything it offers here -- the views, the monitor, the line said to the epic or
 answering what it asks, `/stop`, `/afk` and `/claim`, each carried there. A line that
-would start an epic here is refused, `start an epic on <daemon> with n on /epics @<daemon>; esc
-comes back here`: what is set up here is this machine's.
+would start an epic or a chat here is refused, `start an epic on <daemon> with n on /epics
+@<daemon>; esc comes back here`: what is set up here is this machine's, and no chat is started
+there from here.
 `following <workspace> on <daemon>; esc comes back` is said first, and the status line starts
 with `@<daemon> · <workspace's directory name>` for as long as it is followed. Where the host there cannot be
 reached, why is said in red and the interface stays where it was. `esc`, with no offers open
