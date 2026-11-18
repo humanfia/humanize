@@ -26,7 +26,8 @@ hmz
 ```
 
 The agent answers, and waits for your next line. `$ralph_loop Make the tests pass` starts a
-flow from there, and `/chat` comes back to the chat.
+flow from there, once that flow is [installed](/user/first-run#_3-choose-a-flow), and `/chat`
+comes back to the chat.
 
 ## Chat or flow
 

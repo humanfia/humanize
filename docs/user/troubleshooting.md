@@ -164,9 +164,9 @@ which CLI does what, and the agent sheet at `/flow` offers only the CLIs that ca
 **Symptom.** `hmz exec` cannot find the flow `-f` names.
 
 **Cause.** Nothing offers a flow by that name. A bare name is looked up in this project's
-`.hmz/flows`, then in `~/.hmz/flows`, then among the flows built into Humanize and
-those installed from a [flowverse](/weaver/flowverses). Only what starts with `.`, `/` or `~` is
-read as a path.
+`.hmz/flows`, then in `~/.hmz/flows`, then among the flows installed from a
+[flowverse](/weaver/flowverses). Humanize ships no flow. Only what starts with `.`, `/` or `~`
+is read as a path.
 
 **Fix.** Check the spelling against the names `/flow` offers, or give the flow's path with its
 `./`, or its repository as `git+https://…#<subdir>`.
@@ -192,7 +192,8 @@ over: set the flow up again under its new one.
 **Symptom.** `hmz exec` refuses a flow by name that a flowverse lists.
 
 **Cause.** A flow a [flowverse](/weaver/flowverses) lists runs only once it is installed, and
-`hmz exec` installs nothing. Only the flows built into Humanize are there from the start.
+`hmz exec` installs nothing, and Humanize ships no flow: the official loops, such as
+`ralph_loop` and `rlar`, are refused this way too until they are installed.
 
 **Fix.** Install it: type `/flow`, press **Install more…**, open the flowverse the message
 names, and install the flow. From a script, or on a machine that never opens `hmz`, such as a
@@ -215,7 +216,7 @@ past the check.
 
 **Symptom.** `hmz exec` refuses a flow by name, on a machine that has not fetched the official
 flowverse. Until it is fetched, any name that nothing else offers gets this message, even one
-that is misspelled. The flows Humanize ships, such as `ralph_loop` and `rlar`, never do.
+that is misspelled. Humanize ships no flow, so `ralph_loop` and `rlar` get it too.
 
 **Cause.** The flowverse's index has not been downloaded yet. `hmz` and this machine's daemon
 each fetch every flowverse in the background as they start; `hmz exec` never does itself, so a
@@ -376,7 +377,7 @@ installed, open `/flow` and give the role a CLI and a model.
 
 | Flow | Typed as |
 | --- | --- |
-| built into Humanize, or installed from the official flowverse | `$ralph_loop` |
+| installed from the official flowverse | `$ralph_loop` |
 | this project's, in `.hmz/flows` | `$@local/twice` |
 | yours, in `~/.hmz/flows` | `$@user/twice` |
 | installed from another flowverse | `$@<flowverse>/name` |

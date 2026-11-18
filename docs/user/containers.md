@@ -91,7 +91,7 @@ The agent's commands run in a fresh container, and its edits land in your direct
   coding agent and no sign-in. With nothing said, `python:3.12-slim` is used.
 - **The directory on the daemon's host.** It is mounted into the container at the path it has,
   so it has to exist there. For docker's default here, `local`, that is this machine.
-- **A flow with a role for another machine.** The flows Humanize ships and the official
+- **A flow with a role for another machine.** The flows the official
   flowverse lists all work in the directory you start in. This page uses
   [`boxed`](#the-flow-used-on-this-page), a one-role flow you can save into your project.
 

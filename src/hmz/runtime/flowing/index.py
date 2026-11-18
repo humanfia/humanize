@@ -65,7 +65,6 @@ __all__ = [
     "OURS",
     "RECORD",
     "RELEASE",
-    "RESERVED",
     "Index",
     "Installed",
     "Release",
@@ -76,7 +75,6 @@ __all__ = [
     "installed",
     "kept",
     "plan",
-    "reserved",
     "satisfies",
     "uninstall",
     "updates",
@@ -93,21 +91,6 @@ OURS = "humanfia"
 #: What an installed flow's directory carries to say what it was installed from. Hidden, so
 #: that nothing that reads a flow's directory for what the flow brings takes it for any of it.
 RECORD = ".installed.json"
-
-#: The flows Humanize ships in the package. Their names are Humanize's own: an index may not
-#: offer one, and nothing installed may stand in for one, so `ralph_loop` is the same flow on
-#: every machine whatever anybody has fetched. Not `chat`: a chat is no flow, and a flow of that
-#: name is an ordinary one (Section 8.3.6 of [CORE]).
-RESERVED = frozenset(
-    {
-        "continue_loop",
-        "flame_chase",
-        "goal",
-        "ralph_loop",
-        "rlar",
-        "stateful_ralph",
-    }
-)
 
 #: What a flow in an index may be called: a Python identifier in lower case, since it is the
 #: name the flow's module is imported as and the directory it is installed into.
@@ -453,16 +436,6 @@ class Update(NamedTuple):
     version: str
 
 
-def reserved() -> frozenset[str]:
-    """The names no flow listed bare may take: :data:`RESERVED`, and whatever the package holds.
-
-    A flow listed under a user is called after the user too -- `alice/chat` -- and may take any.
-    """
-    from .finding import BUILTIN_AT, offered
-
-    return RESERVED | frozenset(offered(BUILTIN_AT))
-
-
 def kept(verse: str) -> Path:
     """Where the flows installed out of one flowverse are.
 
@@ -493,7 +466,6 @@ def index(one: Flowverse | str) -> Index:
         return Index(one if isinstance(one, str) else "")
     if not verse.url or not verse.fetched:
         return Index(verse.name)
-    taken = reserved()
     releases: list[Release] = []
     skipped: list[Skipped] = []
     for top in _directories(verse.at / FLOWS):
@@ -508,7 +480,7 @@ def index(one: Flowverse | str) -> Index:
         for flow, owner in flows:
             for version in _directories(flow):
                 at = version / RELEASE
-                said = _read(at, flow.name, version.name, owner, verse.name, taken)
+                said = _read(at, flow.name, version.name, owner, verse.name)
                 if isinstance(said, Release):
                     releases.append(said)
                 else:
@@ -528,9 +500,7 @@ def _user(name: str) -> str:
     return ""
 
 
-def _read(
-    at: Path, flow: str, version: str, owner: str, verse: str, taken: frozenset[str]
-) -> Release | str:
+def _read(at: Path, flow: str, version: str, owner: str, verse: str) -> Release | str:
     """One manifest, read and checked against where it is.
 
     Args:
@@ -539,7 +509,6 @@ def _read(
       version: The directory of the version it is in.
       owner: The user it is listed under, or "" for one listed bare.
       verse: The flowverse whose index it is.
-      taken: The names a flow listed bare may not have.
 
     Returns:
       The release, or why it is not one.
@@ -562,10 +531,6 @@ def _read(
         return f"name {release.name} is not the directory it is in, {flow}"
     if release.version != version:
         return f"version {release.version} is not the directory it is in, {version}"
-    if not owner and release.name in taken:
-        return (
-            f"{release.name} is built into Humanize; nothing may be installed over it"
-        )
     # Who a repository on GitHub is owned by is the one thing about it an index can be held to:
     # a flow is listed under its owner, and Humanize's own index lists bare only its own.
     owned = release.owned

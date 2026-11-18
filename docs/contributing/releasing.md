@@ -113,7 +113,7 @@ an attestation naming the workflow run that built it.
 CI never runs `tests/system`, which drives real agents on real tasks. Running it is optional,
 and costs minutes and tokens a test, so run the files that cover what changed since the last
 release, on the commit you are about to release. A release that changes how a backend is
-driven runs that backend's `test_harness_*` file; one that changes a built-in flow runs its
+driven runs that backend's `test_harness_*` file; one that changes how a flow is run runs a
 `test_flows_*` file:
 
 ```sh

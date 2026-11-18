@@ -160,7 +160,7 @@ class Screen:
         """Chooses `flow` in `/flow`, its one role `cli` on `model` at low effort, and saves.
 
         Args:
-          flow: The builtin flow, by name.
+          flow: The installed flow, by name.
           cli: The CLI its agent runs on.
           model: What the model's name holds, searched for in the model picker.
           budget: How long a run may take, as the budget page takes it.

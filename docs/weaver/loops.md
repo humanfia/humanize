@@ -55,7 +55,7 @@ while True:
 **What a failed turn does.** `run` raises `HarnessError` when the CLI could not take the turn:
 it died mid-turn, the provider throttled it, the connection broke. Humanize has retried it, or
 moved on through its [nous](/user/settings#nous), before it gets that far. Uncaught,
-that ends the run, as it does in the built-in loops. A loop of yours may catch it and carry on.
+that ends the run, as it does in the official loops. A loop of yours may catch it and carry on.
 
 A fourth choice matters once a loop runs long: whether a stopped run can be **picked up**.
 `@flow(…, resumable=True)` hands the flow `ctx.state`, a dictionary saved as it is written, so
@@ -302,8 +302,9 @@ up, which tests what `ctx.state` keeps.
 
 ## Read a real one: `ralph_loop`
 
-This is `ralph_loop` as Humanize ships it, trimmed of its module and class docstrings. The
-built-in loops are each the plainest form of their idea, meant to be read and copied: it has no
+This is `ralph_loop` as [its repository](https://github.com/humanfia/ralph-loop-flow) holds it,
+trimmed of its module and class docstrings. The
+official loops are each the plainest form of their idea, meant to be read and copied: it has no
 finish line, no count and no state of its own, and runs until the budget is spent.
 
 ```python
@@ -386,8 +387,9 @@ Each chaser's `quotas[role]` is a `Budget(..., graceful=False)` built from param
 `-p first_chaser_cost=1.5`: a turn that reaches it is cut off and raises with `own=True`, and
 the other chaser takes over.
 
-**Start from a built-in loop.** Copy one into your project with **Copy here** in `/flow`, and
-change the copy. See [Flowverses](/weaver/flowverses#managing-flowverses).
+**Start from an official loop.** Humanize ships none: install one in `/flow`, from
+**Flowverses** → **official**, copy it into your project with **Copy here**, and change the
+copy. See [Flowverses](/weaver/flowverses#managing-flowverses).
 
 | Flow | Each round |
 | --- | --- |

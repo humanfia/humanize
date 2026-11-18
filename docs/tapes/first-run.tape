@@ -24,7 +24,7 @@ Show
 
 Sleep 600ms
 
-# The flows ready to run here: the built-in ones, then each place the rest came from. The
+# The flows ready to run here, under the place each came from. The
 # cursor opens on the one this directory was last set up on.
 Type@10ms "/flow"
 Sleep 300ms
@@ -94,7 +94,7 @@ Tab
 Wait+Screen /enter save/
 Sleep 400ms
 Enter
-Wait+Screen /builder · claude\/claude-sonnet-4-8:medium/
+Wait+Screen /set up: \/flow @local\/twice/
 Sleep 1500ms
 
 # The task is the next thing said. Typed here, and never sent.

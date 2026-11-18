@@ -5,7 +5,7 @@
 // when it comes back. Which is which is each backend's `shapes` in `src/hmz/coganchor/agents/`;
 // a CLI added in /settings is asked. The answer lands as the fields: one decides whether the
 // loop goes round again, one carries the notes into the next prompt (`rlar`'s `Review` in
-// `src/hmz/flows/builtin/rlar/__init__.py`). An answer out of shape fails the turn with
+// https://github.com/humanfia/rlar-flow). An answer out of shape fails the turn with
 // `OutputSchemaError`, and the same shape put to a person is a question per field. Pick a CLI.
 //
 // Each kind of field is drawn as a socket of its own shape -- a toggle for yes or no, a strip

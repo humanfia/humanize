@@ -322,7 +322,7 @@ JSON Lines in the epic, one per stretch of time the flow's Python spent in one p
 
 ```json
 {"t": 1790000000.12, "dt": 0.409,
- "stack": ["run_flow /…/hmz/runtime/flowing/engine.py:1722", "rlar /…/flows/builtin/rlar/__init__.py:120", "[await]"]}
+ "stack": ["run_flow /…/hmz/runtime/flowing/engine.py:1722", "rlar /…/flowverses/official/installed/rlar/__init__.py:120", "[await]"]}
 ```
 
 | Field | Type | |
