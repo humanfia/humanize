@@ -187,6 +187,8 @@ every view MUST be usable without horizontal scrolling of the page.
 **3.4.2.1** Every view and every dialog MUST have an address that the user can keep and open again,
 and opening that address MUST draw the same view or dialog.
 
+**3.4.2.1.1** An address that names no view MUST open a new chat (Section 3.8.18).
+
 **3.4.2.2** Every address MUST name the daemon it belongs to; an address that names no daemon MUST
 belong to Local.
 
@@ -1023,7 +1025,7 @@ one MUST fail.
 `Daemon` settings pages MUST be of the daemon shown.
 
 **3.13.13** The daemon bar MUST show the daemon shown, its host, whether it is reached, and how many
-epics are going on it.
+chats and epics are going on it, an Ai-chan conversation (Section 14 of [CORE]) not counted.
 
 **3.13.14** A click on the daemon bar MUST open its menu: `Daemon`, which opens beside it every
 daemon and its state; then `Settings` and `Usage`; and `Update` where a newer release of hmz is out.

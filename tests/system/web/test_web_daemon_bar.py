@@ -70,7 +70,7 @@ def test_the_bar_names_the_daemon_and_its_picker_switches(
 
         # Picked, a remote daemon is reached: `lab` over its route, through `/dial`.
         daemons.get_by_role("menuitem", name=re.compile(r"^lab")).click()
-        page.wait_for_url(re.compile(r".*#/@lab/new$"))
+        page.wait_for_url(re.compile(r".*#/@lab/new/chat$"))
         expect(bar.locator("[data-hmz=daemon-name]")).to_have_text("lab")
         expect(bar.locator("[data-hmz=daemon-host]")).to_have_text(_HOST)
         expect(bar).to_have_attribute("data-state", "up")
@@ -79,7 +79,7 @@ def test_the_bar_names_the_daemon_and_its_picker_switches(
         bar.click()
         picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).hover()
         daemons.get_by_role("menuitem", name=re.compile(r"^farm")).click()
-        page.wait_for_url(re.compile(r".*#/@farm/new$"))
+        page.wait_for_url(re.compile(r".*#/@farm/new/chat$"))
         expect(bar).to_have_attribute("data-state", "failed")
         bar.click()
         picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).click()

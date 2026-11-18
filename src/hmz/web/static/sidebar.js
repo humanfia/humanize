@@ -114,7 +114,8 @@ export function mountSidebar(root, context, where) {
   }
   watchPlaces()
   // How many epics are going on the daemon shown, as its hosts say.
-  poll('hosts.running', {}, 4000, (answer) => answer && bar.going(answer.running.length))
+  // An Ai-chan conversation is hers, listed in her drawer, and no epic of the sidebar's to count.
+  poll('hosts.running', {}, 4000, (answer) => answer && bar.going(answer.running.filter((one) => !String(one.slot || '').startsWith('ai:')).length))
 
   function draw() {
     const { parts, query } = where()

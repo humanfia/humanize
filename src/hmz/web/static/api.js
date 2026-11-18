@@ -47,7 +47,7 @@ export function hash(path) {
 }
 
 /** Switches the page to another daemon, on the view given, a new epic where none is. */
-export function toDaemon(name, path = '/new') {
+export function toDaemon(name, path = '/new/chat') {
   location.hash = name === 'local' ? path : `/@${encodeURIComponent(name)}${path}`
 }
 
