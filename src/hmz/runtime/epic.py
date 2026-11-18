@@ -364,6 +364,8 @@ class Ran(NamedTuple):
         earlier Humanize wrote of the flow `chat`, which was what a chat was then.
       prefer: A chat's own preference (Section 8.9.10 of [CORE]), as it was last set, or ""
         where it goes by the person's.
+      permission: A chat's permission (Section 8.3.9 of [CORE]), as it was last set, or ""
+        where its record gives none: `workspace-write`, for a chat that has one.
     """
 
     at: Path
@@ -391,6 +393,7 @@ class Ran(NamedTuple):
     backed: dict[str, dict[str, Any]] = {}  # noqa: RUF012 -- a NamedTuple's default
     kind: str = FLOW
     prefer: str = ""
+    permission: str = ""
 
     @property
     def chat(self) -> bool:
@@ -792,6 +795,7 @@ class Epic:
         reopened: bool = False,
         kind: Literal["flow", "chat"] = "flow",
         prefer: str | None = None,
+        permission: str | None = None,
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
@@ -826,6 +830,7 @@ class Epic:
           kind: `flow`, or `chat` for a chat, whose record says nothing of a flow, its envs,
             params or budget, nor of profiling (Section 6.5.19 of [FILES]).
           prefer: A chat's own preference, where it has one, or None.
+          permission: A chat's permission, where it is not `workspace-write`, or None.
 
         Raises:
           Uncarried: Where the journal of the epic picked up is there and cannot be copied.
@@ -887,6 +892,7 @@ class Epic:
                 agents=[one._asdict() for one in agents],
                 **({"backup": list(backup)} if backup else {}),
                 **({"prefer": prefer} if prefer else {}),
+                **({"permission": permission} if permission else {}),
             )
             return
         from hmz.coganchor.machines.store import SPELLING
@@ -1503,13 +1509,17 @@ def read(epic: Path) -> Ran | None:
         None,
     )
     usages = [one for one in events if one.get("event") == "usage"]
-    # A chat's agent and its own preference are what the last line to say each says, its
-    # `began` among them: either is `set` again as the chat goes (Section 6.5.21 of [FILES]).
+    # A chat's agent, its own preference and its permission are what the last line to say
+    # each says, its `began` among them: any is `set` again as the chat goes (Section 6.5.21
+    # of [FILES]).
     kind = _kind(began)
     said_so = [began, *(one for one in events if one.get("event") == "set")]
     driven = next((one["agents"] for one in reversed(said_so) if "agents" in one), None)
     preferred = next(
         (one["prefer"] for one in reversed(said_so) if "prefer" in one), ""
+    )
+    permitted = next(
+        (one["permission"] for one in reversed(said_so) if "permission" in one), ""
     )
     agents: list[Drove] = []
     for one in cast("list[Any]", driven if isinstance(driven, list) else []):
@@ -1590,6 +1600,7 @@ def read(epic: Path) -> Ran | None:
         },
         kind=kind,
         prefer=str(preferred or "") if kind == CHAT else "",
+        permission=str(permitted or "") if kind == CHAT else "",
     )
 
 

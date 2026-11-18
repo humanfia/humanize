@@ -65,6 +65,37 @@ fills it as it fills a flow's role: the first CLI it finds. Change it:
 
 `/flow` never offers a chat: it sets flows up.
 
+### What the chat may touch {#permission}
+
+A chat has a **permission**, one of three, which says what its agent may change. It is the
+[grant](/user/permissions) its agent runs under: the same presets a flow's role is given, held
+the same way, with the network on.
+
+| In `hmz web` | Its name | The agent |
+| --- | --- | --- |
+| **Read only** | `read-only` | reads the machine and runs commands, and changes no file |
+| **Edit this folder** | `workspace-write` (the default) | changes files in the chat's directory, and only reads the rest |
+| **Full access** | `danger-full-access` | changes files anywhere you can |
+
+None of them asks you before the agent acts: Humanize never holds an agent by putting its
+actions to approval, so there is no "ask first" mode. What limits the agent is what it may
+touch.
+
+Set it:
+
+- in the browser, with the chip on the box you type in: on **New epic** › **Chat** before the
+  first message, and under a chat at any time;
+- from a program, with `permission` on [`chat.start` and `chat.set`](/reference/daemon#chats).
+
+A chat started from the terminal or the shell runs at `workspace-write`.
+
+A permission set while the chat goes on holds from your next message. The turn that is open is
+left as it is; ahead of the next one the conversation is closed and carried on in one opened
+under the new permission, so the agent remembers what was said. Where the conversation cannot
+be carried on, the chat says why and goes on in a new one; where this machine cannot hold the
+permission you picked, the chat says so and keeps the one it had. The permission is kept in the
+chat's epic, and carrying the chat on keeps it.
+
 ## In the terminal
 
 `hmz` opens on a chat, its agent the one this directory remembers. The first line you type is

@@ -7,6 +7,7 @@ import { call, given, hash } from '../api.js'
 import { covered, go, stays } from '../app.js'
 import { composer } from '../composer.js'
 import { fill, h, icon, problem } from '../dom.js'
+import { permissionChip } from '../chips/permission.js'
 import { chatAsk } from '../held.js'
 import { freeAgentPicker, readBackends } from '../pickers.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
@@ -27,10 +28,11 @@ export function mount(root, { query }) {
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
   const optionsChip = h('button', { class: 'chip-btn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
   const summary = h('span', { class: 'composer-summary' })
+  const permission = permissionChip()
   const box = composer({
     placeholder: 'Message',
     label: 'First message',
-    tools: [optionsChip, summary],
+    tools: [permission.node, optionsChip, summary],
     busy: 'Starting…',
     submit: (task) => start(task),
   })
@@ -98,7 +100,7 @@ export function mount(root, { query }) {
       throw new Error('Pick an agent for the chat.')
     }
     // A new chat's own host, beside every other epic here; the agent is remembered for the next.
-    const started = await chatAsk(workspace, 'start', { agent, task, remember: !scratch, scratch })
+    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), remember: !scratch, scratch })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 

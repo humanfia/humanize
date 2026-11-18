@@ -397,15 +397,17 @@ chat's messages by `epic.attach` on its slot, as any epic's.
 
 | Method | Fields | Answer | Refusals |
 | --- | --- | --- | --- |
-| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required, not empty), `resume` (an epic directory name, or `null`), `prefer` (`native`, `flow` or `null`), `remember` (bool, `false`) | `slot`, `epic` (the chat's epic directory name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, or why the agent is refused; 404 `<epic> is not a chat of <workspace>.`; 409 `a chat is already going on <slot>` |
+| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required, not empty), `resume` (an epic directory name, or `null`), `prefer` (`native`, `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`), `remember` (bool, `false`) | `slot`, `epic` (the chat's epic directory name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, `permission is read-only, workspace-write or danger-full-access`, or why the agent is refused; 404 `<epic> is not a chat of <workspace>.`; 409 `a chat is already going on <slot>` |
 | `chat.say` | `workspace`, `slot`, `text` | `{}` | 400 naming the line, for a `$` line naming a flow or a name hmz keeps, which the frontend serves; 404 where no host holds the slot; 409 `this chat has folded away; carry it on from its epic` |
-| `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`), `listed` (whether the catalogue is all the CLI lists: once a turn was taken) | as `chat.say` |
-| `chat.set` | `workspace`, `slot`, `prefer` (`native` or `flow`) | `{}` | 400 for any other `prefer`; else as `chat.say` |
+| `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`), `permission` (the chat's [permission](/user/chat#permission), or `null` for an Ai-chan conversation), `listed` (whether the catalogue is all the CLI lists: once a turn was taken) | as `chat.say` |
+| `chat.set` | `workspace`, `slot`, and either or both of `prefer` (`native` or `flow`) and `permission` (`read-only`, `workspace-write` or `danger-full-access`) | `{}` | 400 for any other `prefer`, `permission is read-only, workspace-write or danger-full-access`, `chat.set takes prefer or permission` given neither; 409 `an Ai-chan conversation keeps its permission`; else as `chat.say` |
 
 - **`chat.start`** starts the slot's host as `epic.attach` does, without attaching, and starts
   the chat there with `agent` as its assistant and `task` as its first message. With `resume`
   it carries that chat on, in the same epic, `task` its next turn, with its own agent unless
-  `agent` is given. `prefer` is recorded as the chat's own preference. With `remember`, `agent`
+  `agent` is given. `prefer` is recorded as the chat's own preference. `permission` is the
+  preset its assistant's [grant](/user/permissions) starts from, with the network on:
+  `workspace-write` where none is given, or, with `resume`, the one the chat had. With `remember`, `agent`
   is written as the workspace's [chat agent](/reference/settings#chat-agent) once the host has
   taken the start; a refused start leaves it as it was.
 - **`chat.say`** serves `text` as a line in a chat is
@@ -417,7 +419,12 @@ chat's messages by `epic.attach` on its slot, as any epic's.
   its conversation -- or, before it has opened, what its harness's catalogue holds without one
   -- each with `source` `native`; then each name hmz keeps, `source` `hmz` and `how` `""`; then
   each flow on offer in the workspace, sigil `$`, `source` `flow` and `how` `""`.
-- **`chat.set`** records `prefer` as the chat's own preference, in its epic.
+- **`chat.set`** records `prefer` as the chat's own preference, in its epic, and sets
+  `permission` as what its assistant may touch, also recorded there. A permission holds from
+  the chat's next turn: the open turn is left as it is, and ahead of the next the conversation
+  is closed and carried on in one opened under it, as a chat carried on is. Where none can be
+  opened under it, the chat says so and keeps the permission it had. No permission puts the
+  assistant's actions to approval.
 
 A line enters a conversation only while a turn is open, one line per agent at a time; it
 waits otherwise, and the next turn to start takes the oldest matching line into its prompt. A

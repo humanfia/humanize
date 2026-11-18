@@ -235,11 +235,15 @@ class FakeChat:
     """The chat a host has, as far as the host reads one: its preference and catalogue."""
 
     prefer: str | None = None
+    permission: str | None = "workspace-write"
     catalog: list[Native] = field(default_factory=list[Native])
     listed: bool = True
 
     def prefers(self, prefer: str) -> None:
         self.prefer = prefer
+
+    def permits(self, permission: str) -> None:
+        self.permission = permission
 
     def natives(self) -> list[Native]:
         return list(self.catalog)
@@ -354,7 +358,9 @@ class Epics:
         from types import SimpleNamespace
 
         del epic
-        return SimpleNamespace(agents=[SimpleNamespace(spec="claude/opus:high")])
+        return SimpleNamespace(
+            agents=[SimpleNamespace(spec="claude/opus:high")], permission="read-only"
+        )
 
 
 @dataclass
@@ -381,10 +387,12 @@ class Workspace:
         resume: str | None = None,
         prefer: str | None = None,
         role: Any = None,
+        permission: str | None = None,
     ) -> FakeChatting:
         self.asked_chats.append(
             {"agent": agent, "task": task, "resume": resume, "prefer": prefer}
             | ({} if role is None else {"role": role})
+            | ({} if permission is None else {"permission": permission})
         )
         made = FakeChatting(
             agent,
@@ -1766,6 +1774,10 @@ def test_a_chat_is_started_on_a_chat_host_alone_and_once(
             {"agent": "claude/opus", "task": "hi", "prefer": "both"},
             "prefer is native or flow",
         ),
+        (
+            {"agent": "claude/opus", "task": "hi", "permission": "ask"},
+            "permission is read-only, workspace-write or danger-full-access",
+        ),
     ],
 )
 def test_a_chat_start_missing_what_it_takes_is_refused(
@@ -1987,6 +1999,42 @@ def test_a_chats_commands_are_its_catalogue_then_hmzs_then_the_flows(
     assert alice.asks("chat.set", prefer="both")["code"] == 400
 
 
+def test_a_chat_is_started_with_and_set_to_a_permission(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where, permission="read-only")
+
+    assert where.asked_chats[-1]["permission"] == "read-only"
+    chat.chat.permission = "read-only"
+    assert alice.asks("chat.commands")["permission"] == "read-only"
+
+    assert alice.asks("chat.set", permission="danger-full-access") == {"ok": True}
+    assert alice.asks("chat.commands")["permission"] == "danger-full-access"
+    # Both at once, and neither.
+    assert alice.asks("chat.set", prefer="flow", permission="workspace-write") == {
+        "ok": True
+    }
+    assert (chat.chat.prefer, chat.chat.permission) == ("flow", "workspace-write")
+    refused = alice.asks("chat.set", permission="ask")
+    assert (refused["why"], refused["code"]) == (
+        "permission is read-only, workspace-write or danger-full-access",
+        400,
+    )
+    assert alice.asks("chat.set") == {
+        "ok": False,
+        "why": "chat.set takes prefer or permission",
+        "code": 400,
+    }
+    # One held to its role's -- an Ai-chan conversation -- keeps it.
+    chat.chat.permission = None
+    kept = alice.asks("chat.set", permission="read-only")
+    assert (kept["why"], kept["code"]) == (
+        "an Ai-chan conversation keeps its permission",
+        409,
+    )
+
+
 def test_a_command_run_for_a_chat_is_told_to_every_frontend(
     chatting: tuple[Host, Told], where: Workspace
 ) -> None:
@@ -2040,12 +2088,13 @@ def test_a_chat_carried_on_names_the_epic_it_carries_on_in(
     answer = alice.asks("chat.start", task="more", resume=epic.name)
 
     assert answer == {"ok": True, "run": 1, "epic": "20250101-chat", "slot": "chat:1"}
-    # Its own agent, as its epic says, where none is named.
+    # Its own agent and permission, as its epic says, where none is named.
     assert where.asked_chats[-1] == {
         "agent": "claude/opus:high",
         "task": "more",
         "resume": str(epic),
         "prefer": None,
+        "permission": "read-only",
     }
     assert alice.told("started", run=1)["resume"] == str(epic)
     refused = alice.asks("chat.start", task="more", resume="20200101-nothing")

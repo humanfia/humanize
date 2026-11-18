@@ -192,6 +192,11 @@ skill and a flow is read as the skill (`native`) or the flow, and whether that c
 settings or from this chat; switching it sets this chat's own
 [preference](/user/chat#a-name-that-is-both).
 
+The chip at the foot of the box names what the chat's agent may touch -- **Read only**, **Edit
+this folder** or **Full access** -- and opens a menu of the three, the one in force checked.
+Picking another sets the chat's [permission](/user/chat#permission) from your next message; on
+a chat that has folded away, it is what the chat is carried on with.
+
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered, and what the flow showed them without asking. A line typed under one goes to whose it is. There is
 no log of every session at once: under an epic in the sidebar are its agents and their
@@ -283,7 +288,9 @@ read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 **Chat** starts a [chat](/user/chat): pick the directory, or **No workspace**, as below; the
 agent, set up a part at a time as a role's agent is under **Options**, starting from the one
 that directory last chatted with; and type the first message. <kbd>Enter</kbd> starts the chat,
-and the page goes to its conversation. There is no flow, budget or params to set.
+and the page goes to its conversation. There is no flow, budget or params to set. The chip on
+the box, **Edit this folder** to begin with, is what the agent may touch: its
+[permission](/user/chat#permission).
 
 **Flow** opens on the directory `hmz web` started in, or the folder whose **+** was pressed,
 and on the flow that directory last ran; pick another of either at the top. A chat is not among

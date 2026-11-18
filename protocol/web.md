@@ -444,6 +444,15 @@ from, and MUST serve each line as Section 8.9 of [CORE] states.
 `flow`, showing whether it comes from the settings file or the chat (`chat.set`, Section 4 of
 [DAEMON]).
 
+**3.6.6.10** The box under a chat MUST hold a permission chip that names the chat's permission
+(Section 8.3.9 of [CORE]) and opens a menu of the three, each with one line saying what it lets the
+assistant do, the one in force checked: `Read only` for `read-only`, `Edit this folder` for
+`workspace-write` and `Full access` for `danger-full-access`. Picking one MUST set it (`chat.set`,
+Section 4 of [DAEMON]) for a chat a host holds, and MUST be what a chat that has folded away is
+carried on with. The page MUST NOT offer a permission that puts the assistant's actions to the
+user's approval, which no chat has (Section 8.3.9 of [CORE]), and MUST NOT draw the chip for an
+Ai-chan conversation.
+
 #### 3.6.7. An epic written down
 
 **3.6.7.1** An epic that has ended MUST show how it was set up -- its agents, environments,
@@ -734,6 +743,9 @@ state `Flow`, which MUST NOT offer a chat among its flows.
 state; the assistant's agent, set up a part at a time as Section 3.8.8 states, starting from the
 chat agent that workspace remembers (Section 8.3.8 of [CORE]); and the first message, Enter in its
 box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going to its conversation.
+
+**3.8.19** The box of `Chat` MUST hold the permission chip of Section 3.6.6.10, on `Edit this
+folder` until the user picks another, and the chat MUST be started with the one picked.
 
 ### 3.9. Flows
 

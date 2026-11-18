@@ -450,6 +450,7 @@ class _Methods:
                 "task": checked["task"],
                 "resume": checked["resume"],
                 "prefer": checked["prefer"],
+                "permission": checked["permission"],
                 "remember": params.get("remember") is True,
             },
         )
@@ -468,11 +469,18 @@ class _Methods:
         return self._chatted(call, self._chat_held(call), {"do": "commands"})
 
     def chat_set(self, call: Call) -> dict[str, Any]:
-        """Sets a chat's own preference (Section 4.25.4)."""
-        prefer = call.params.get("prefer")
-        if prefer not in ("native", "flow"):
-            raise _refused(400, "prefer is native or flow")
-        self._chatted(call, self._chat_held(call), {"do": "set", "prefer": prefer})
+        """Sets a chat's own preference, its permission, or both (Section 4.25.4)."""
+        from hmz.runtime.doing.hosting import chat_set_refused
+
+        said = {
+            key: call.params.get(key)
+            for key in ("prefer", "permission")
+            if call.params.get(key) is not None
+        }
+        refused = chat_set_refused(said)
+        if refused:
+            raise _refused(400, refused)
+        self._chatted(call, self._chat_held(call), {"do": "set", **said})
         return {}
 
     def epic(self, do: str) -> Handler:

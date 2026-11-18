@@ -1495,6 +1495,7 @@ class Host:
                 resume=resume or None,
                 prefer=prefer,
                 role=role,
+                permission=None if ai else checked["permission"],
             )
         except Exception as why:  # noqa: BLE001 -- a chat that will not start is said so
             with self._lock:
@@ -1678,20 +1679,27 @@ class Host:
             entries=entries,
             prefer=self._prefer(run),
             prefer_from="settings" if own is None else "chat",
+            permission=run.chat.permission,
             listed=run.chat.listed,
         )
 
     def _chat_set(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
-        """Sets the chat's own preference for a `$` name that is both, recorded in its epic."""
+        """Sets the chat's own preference, its permission, or both, recorded in its epic."""
         del by, client
-        prefer = said.get("prefer")
-        if prefer not in ("native", "flow"):
-            return _no("prefer is native or flow", 400)
+        refused = chat_set_refused(said)
+        if refused:
+            return _no(refused, 400)
         with self._lock:
             going = self._chatting()
         if isinstance(going, dict):
             return going
-        going[1].chat.prefers(prefer)
+        chat = going[1].chat
+        if said.get("permission") is not None:
+            if chat.permission is None:
+                return _no("an Ai-chan conversation keeps its permission", 409)
+            chat.permits(said["permission"])
+        if said.get("prefer") is not None:
+            chat.prefers(said["prefer"])
         return _ok()
 
     def _flows(self) -> list[Any]:
@@ -2852,22 +2860,50 @@ def _her(said: Mapping[str, Any]) -> Role:
     return role(Reach.model_validate(said["ai"]), Path(str(said.get("scratch") or "")))
 
 
+def _unpermitted(permission: object) -> str:
+    """Why a chat cannot be held to `permission`, or "" where it is a preset or None."""
+    from hmz.runtime.chatting import preset
+
+    try:
+        if permission is not None:
+            preset(permission)
+    except ValueError as why:
+        return str(why)
+    return ""
+
+
+def chat_set_refused(said: Mapping[str, Any]) -> str:
+    """Why `chat.set` cannot take what it was given, or "" where it can.
+
+    Args:
+      said: `prefer`, `permission` or both, as `chat.set` takes them (Section 4.25.4 of
+        daemon.md).
+    """
+    prefer, permission = said.get("prefer"), said.get("permission")
+    if prefer is None and permission is None:
+        return "chat.set takes prefer or permission"
+    if prefer not in (None, "native", "flow"):
+        return "prefer is native or flow"
+    return _unpermitted(permission)
+
+
 def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     """What a chat is to be started with, checked before anything is started for it.
 
     What `chat.start` refuses before a host is asked (Section 4.25.1.6 of daemon.md), the same
     whoever asks: no task, no agent and no chat carried on to take one from, an agent that is
-    not one, a preference that is neither, and a chat to carry on that is no chat of this
-    workspace.
+    not one, a preference that is neither, a permission that is no preset, and a chat to
+    carry on that is no chat of this workspace.
 
     Args:
       hmz: The workspace.
-      said: `agent`, `task`, `resume` and `prefer`, as `chat.start` takes them.
+      said: `agent`, `task`, `resume`, `prefer` and `permission`, as `chat.start` takes
+        them.
 
     Returns:
       `ok` with `agent` (the carried-on chat's own where none was named), `runs` (it, as
-      settings keep it), `task`, `resume` (the epic's whole path, or None) and `prefer`; or
-      `ok` false with `why` and the `code` to refuse it with.
+      settings keep it), `task`, `resume` (the epic's whole path, or None), `prefer` and
+      `permission`; or `ok` false with `why` and the `code` to refuse it with.
     """
     task, prefer = said.get("task"), said.get("prefer")
     # An Ai-chan conversation started with nothing said waits, between turns, for what is.
@@ -2876,6 +2912,9 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
         return _no("a chat starts with something said", 400)
     if prefer not in (None, "native", "flow"):
         return _no("prefer is native or flow", 400)
+    permission = said.get("permission")
+    if unpermitted := _unpermitted(permission):
+        return _no(unpermitted, 400)
     agent = str(said.get("agent") or "")
     resume = str(said.get("resume") or "")
     carried: Path | None = None
@@ -2883,9 +2922,17 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
         carried = hmz.epics.chat(resume)
         if carried is None:
             return _no(f"{resume} is not a chat of {hmz.workspace}.", 404)
-        if not agent:
+        if not agent or permission is None:
+            # What the chat had, where it is carried on with none of its own named.
             ran = hmz.epics.read(carried)
-            agent = ran.agents[0].spec if ran is not None and ran.agents else ""
+            if not agent:
+                agent = ran.agents[0].spec if ran is not None and ran.agents else ""
+            if (
+                permission is None
+                and ran is not None
+                and not _unpermitted(ran.permission)
+            ):
+                permission = ran.permission or None
     if not agent:
         return _no("an agent for the chat is named", 400)
     try:
@@ -2903,6 +2950,7 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
         task=task,
         resume=str(carried) if carried is not None else None,
         prefer=prefer,
+        permission=permission,
     )
 
 

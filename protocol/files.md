@@ -1405,6 +1405,8 @@ the keys:
   empty;
 - `prefer`: string, `native` or `flow`, the preference of a **chat** where it is overridden for
   that **chat** (Section 8.9.10 of [CORE]); present only where it is;
+- `permission`: string, `read-only` or `danger-full-access`, the permission of a **chat** (Section
+  8.3.9 of [CORE]); present only where it is not `workspace-write`;
 - `spelling`: the integer `2`, stating that `envs` and `used` follow the role env spec spelling of
   Section 6.2.9.
 
@@ -1492,9 +1494,12 @@ is `assistant`, and its `workspace` and `task`, and MUST NOT give `flow`, `ref`,
 `flow` is `chat`, which it MUST read as a **chat**.
 
 **6.5.21** `hmz` MUST write the event `set` into the epic record of a **chat** each time its
-preference is overridden or its agent is changed (Section 8.9.5 of [CORE]), with the key `prefer`
-(string), the key `agents` (as `began` gives it), or both; a reader MUST take a **chat**'s override
-and agent from the last event that gives each, `began` included.
+preference is overridden, its agent is changed (Section 8.9.5 of [CORE]) or its permission is set
+(Section 8.3.10 of [CORE]), with the key `prefer` (string), the key `agents` (as `began` gives it),
+the key `permission` (string, `read-only`, `workspace-write` or `danger-full-access`), or any of
+them together; a reader MUST take a **chat**'s override, agent and permission from the last event
+that gives each, `began` included, and MUST read a **chat** whose record gives no permission as of
+permission `workspace-write`.
 
 **6.5.22** An epic record MUST contain no events other than those of Section 6.5.
 

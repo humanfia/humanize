@@ -1320,8 +1320,9 @@ where none waits or no host is going with it), `backup` (the targets it was star
 `provider`), `sessions` (each `agent`, `backend`, `provider`, `ident`, `name`, `at`, `flow`,
 `parent`, `harness`), `envs`, `used`, `params`, `budget`, `picked_up`, `earlier` (of a chat carried
 on, how many of its sessions it opened before it last was), `profile_flow`, `profile_environment`,
-`picks_up`, `foreign` and `calls` (its tree of flow calls, each `flow`, `task`, `began`, `ended`,
-`how`, `calls`).
+`picks_up`, `foreign`, `permission` (of a chat, its permission as its epic records it, Section
+8.3.9 of [CORE]; `""` where its record gives none, and of any other epic) and `calls` (its tree of flow calls, each `flow`, `task`,
+`began`, `ended`, `how`, `calls`).
 `backed` MUST be among what it answers, as the epic row defines it (Section 4.16.2.1), and a
 backup of the epic to a target MUST count as finished once `backed` holds that target with an `at`
 no earlier than the epic's `ended`.
@@ -2167,7 +2168,8 @@ the role of the session, while a session working in that env has a turn open.
 **4.25.1.1** `chat.start` MUST take `workspace`, `slot` (a chat slot, or `chat:` alone for a new
 one, `chat:`), `agent` (an agent spec, as `epic.start` takes one for a role), `task` (text,
 required, not empty), `resume` (the text of an epic directory, `null`), `prefer` (`native`, `flow`
-or `null`) and `remember` (boolean, `false`), and MUST be a write.
+or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`) and
+`remember` (boolean, `false`), and MUST be a write.
 
 **4.25.1.2** `chat.start` MUST start the host of that slot as `epic.attach` does (Section 4.7.1.2),
 without attaching to it, MUST start a chat there (Section 8 of [CORE]) with `agent` as its assistant
@@ -2187,9 +2189,14 @@ leave it as it was.
 
 **4.25.1.6** `chat.start` MUST be refused 400 with `a chat starts with something said` for an empty
 `task`, `<slot> is not a chat slot.` for a slot that is not one, `an agent for the chat is named`
-for a missing `agent` without `resume`, and the reason of Section 8.3.7 of [CORE] for an agent it
-refuses; 404 with `<epic> is not a chat of <workspace>.` for a `resume` that names none; and 409
+for a missing `agent` without `resume`, `permission is read-only, workspace-write or
+danger-full-access` for a `permission` that is none of them, and the reason of Section 8.3.7 of
+[CORE] for an agent it refuses; 404 with `<epic> is not a chat of <workspace>.` for a `resume` that names none; and 409
 with `a chat is already going on <slot>` for a slot whose host holds one.
+
+**4.25.1.7** With `permission`, `chat.start` MUST start the chat with that permission (Section
+8.3.9 of [CORE]); without it, with `workspace-write`, or, with `resume`, with the permission the
+chat's epic records (Section 8.3.11 of [CORE]).
 
 #### 4.25.2. `chat.say`
 
@@ -2212,7 +2219,7 @@ on a chat host that has folded (Section 4.13.8).
 #### 4.25.3. `chat.commands`
 
 **4.25.3.1** `chat.commands` MUST take `workspace` and `slot`, and MUST answer `entries`,
-`prefer`, `prefer_from` and `listed`.
+`prefer`, `prefer_from`, `permission` and `listed`.
 
 **4.25.3.2** `entries` MUST hold the catalogue of the chat's conversation (Section 8.9.2 of [CORE]),
 or, before it has opened, what the catalogue of its harness holds without one, each `sigil`,
@@ -2226,13 +2233,22 @@ or, before it has opened, what the catalogue of its harness holds without one, e
 **4.25.3.4** `listed` MUST be whether the catalogue is all its harness lists, which it is once the
 chat's conversation has taken a turn (Section 8.9.13 of [CORE]).
 
+**4.25.3.5** `permission` MUST be the chat's permission as it was last set (Section 8.3.9 of
+[CORE]), or `null` for an Ai-chan conversation.
+
 #### 4.25.4. `chat.set`
 
-**4.25.4.1** `chat.set` MUST take `workspace`, `slot` and `prefer` (`native` or `flow`), MUST record
-it as the chat's override (Section 8.9.10 of [CORE]), MUST be a write, and MUST be answered `{}`.
+**4.25.4.1** `chat.set` MUST take `workspace`, `slot` and either or both of `prefer` (`native` or
+`flow`) and `permission` (`read-only`, `workspace-write` or `danger-full-access`), MUST be a write,
+and MUST be answered `{}`. It MUST record `prefer` as the chat's override (Section 8.9.10 of
+[CORE]), and MUST set `permission` as the chat's permission, which holds from its next turn (Section
+8.3.10 of [CORE]).
 
-**4.25.4.2** `chat.set` MUST be refused 400 for a `prefer` that is neither, and as `chat.say` is
-for a slot no host holds or a chat that has folded.
+**4.25.4.2** `chat.set` MUST be refused 400 for a `prefer` that is neither, with `permission is
+read-only, workspace-write or danger-full-access` for a `permission` that is none of them, and with
+`chat.set takes prefer or permission` where it is given neither; 409 with `an Ai-chan conversation
+keeps its permission` for a `permission` on a host of hers; and as `chat.say` is for a slot no host
+holds or a chat that has folded.
 
 ## 5. Security Considerations
 
