@@ -102,8 +102,8 @@ def _imported(file: Path, seen: set[Path]) -> set[str]:
 @pytest.mark.parametrize("topic", TOPICS)
 def test_a_topic_runs_when_what_its_tests_import_changed(topic: str) -> None:
     filters = _filters()[f"integration-{topic}"]
-    # pytest loads the directory's conftest.py for every topic.
-    runs = {"tests/integration/conftest.py"}
+    # pytest loads the directory's conftest.py for every topic, and it copies the stand-in loops.
+    runs = {"tests/integration/conftest.py", "tests/integration/flows/loop/__init__.py"}
     seen: set[Path] = set()
     for test in HERE.glob(f"test_{topic}_*.py"):
         runs.add(f"tests/integration/{test.name}")

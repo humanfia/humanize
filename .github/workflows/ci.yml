@@ -70,6 +70,7 @@ jobs:
               - src/hmz/*
               - tests/conftest.py
               - tests/integration/conftest.py
+              - tests/integration/flows/**
               - .github/workflows/ci.yml
             kernel: &kernel
               - src/hmz/runtime/**
