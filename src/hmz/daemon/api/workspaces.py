@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
     from hmz.rpc import Call, Handler
 
-__all__ = ["METHODS", "going", "listed", "place", "statuses"]
+__all__ = ["METHODS", "going", "left", "listed", "place", "statuses"]
 
 #: The states of a host whose epic is going.
 _GOING = ("running", "stopping")
@@ -76,6 +76,23 @@ def statuses() -> dict[str, dict[str, Any]]:
                     "slot": one.slot,
                 }
     return said
+
+
+def left() -> dict[str, dict[str, Any]]:
+    """How every host that went since this was last asked stood as it went, asked once.
+
+    Returns:
+      As `statuses`, of the hosts this process, where it is the daemon, held and no longer
+      does: what an epic that ended as its host went is told from.
+    """
+    from hmz.daemon import routing
+
+    if routing.serving is None:
+        return {}
+    return {
+        f"{workspace}\0{slot}": {**status, "workspace": workspace, "slot": slot}
+        for (workspace, slot), status in routing.serving.hosts.left().items()
+    }
 
 
 def going() -> list[str]:
