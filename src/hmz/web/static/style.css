@@ -412,7 +412,7 @@ code {
   padding-left: calc(var(--side-text) - 8px);
 }
 
-/* An epic: its mark in the slot, and over it, where the row is pointed at, what opens it out. */
+/* A row of the list; how a chat, a flow's epic and a workspace's heading differ is sidebar-list.css. */
 .side-run {
   position: relative;
   display: flex;
@@ -480,36 +480,8 @@ code {
   color: var(--ink);
 }
 
-.side-run > .side-toggle {
-  position: absolute;
-  inset: 0 auto 0 calc(var(--side-in) - 8px);
-  opacity: 0;
-}
-
 .side-run.current > .side-toggle {
   color: var(--on-ink);
-}
-
-.side-run:is(:hover, :has(.side-toggle:focus-visible)) > .side-toggle {
-  opacity: 1;
-}
-
-.side-run:has(> .side-toggle):is(:hover, :has(.side-toggle:focus-visible)) .side-mark {
-  visibility: hidden;
-}
-
-/* A workspace's folder, as an epic's mark, gives way to what folds it where it is pointed at. */
-.side-folder .side-toggle .icon-folder {
-  color: var(--cyan-ink);
-}
-
-.side-folder .side-toggle .icon-chevron,
-.side-folder:is(:hover, :has(.side-toggle:focus-visible)) .side-toggle .icon-folder {
-  visibility: hidden;
-}
-
-.side-folder:is(:hover, :has(.side-toggle:focus-visible)) .side-toggle .icon-chevron {
-  visibility: visible;
 }
 
 .side-mark {
@@ -667,52 +639,6 @@ code {
 
 .dot.gone {
   background: var(--fail);
-}
-
-/* A workspace, as a folder of its epics. */
-.side-group + .side-group {
-  margin-top: 6px;
-}
-
-.side-folder {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: var(--control-h-sm);
-  margin-top: 6px;
-  padding-left: calc(var(--side-in) - 8px);
-}
-
-.side-folder > .side-toggle {
-  align-self: stretch;
-  height: auto;
-}
-
-.side-folder-name {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  padding: 4px 0;
-  font: 600 11px var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-2);
-}
-
-.side-folder.current .side-folder-name {
-  color: var(--ink);
-}
-
-.icon-btn.side-add {
-  width: 26px;
-  height: 26px;
-  opacity: 0;
-}
-
-.side-folder:hover .side-add,
-.side-add:focus-visible {
-  opacity: 1;
 }
 
 .pickers {

@@ -1,0 +1,201 @@
+/* The sidebar's list, three kinds of thing told apart at a glance: a workspace is a quiet heading
+   over its rows, a chat is one line of what was asked, as a chat app lists a conversation, and a
+   flow's epic is a taller row that opens out, with its mark and its flow under its task. Every
+   colour and measure is a token of style.css, which draws what the three share. */
+
+/* ------------------------------------------------------------------ A workspace's heading */
+
+.side-group + .side-group {
+  margin-top: 10px;
+}
+
+.side-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  margin-top: 8px;
+  padding-left: calc(var(--side-in) - 8px);
+}
+
+.side-folder-head {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  margin: 0;
+  font: inherit;
+}
+
+/* Its name is what folds it: one button, the arrow after the name saying which way it stands. */
+.side-folder .side-toggle {
+  flex: 0 1 auto;
+  min-width: 0;
+  width: auto;
+  height: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.side-folder-name {
+  min-width: 0;
+  display: flex;
+  font: 500 12px var(--sans);
+  color: var(--ink-3);
+}
+
+.side-folder:hover .side-folder-name,
+.side-folder .side-toggle:focus-visible .side-folder-name,
+.side-folder.current .side-folder-name {
+  color: var(--ink);
+}
+
+/* The arrow is faint while the folder is open and nothing points at it, and plain once folded. */
+.side-folder .side-toggle .icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.45;
+}
+
+.side-folder .side-toggle[aria-expanded='false'] .icon,
+.side-folder:hover .side-toggle .icon,
+.side-folder .side-toggle:focus-visible .icon {
+  opacity: 1;
+}
+
+.side-folder > .side-unread {
+  margin-left: 2px;
+}
+
+.icon-btn.side-add {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+}
+
+.side-folder:hover .side-add,
+.side-add:focus-visible {
+  opacity: 1;
+}
+
+/* That it holds nothing yet is said under its name, where its rows would start. */
+.side-group > .side-quiet.nested {
+  padding: 4px calc(var(--side-in) - 8px);
+}
+
+/* ------------------------------------------------------------------------------- A chat */
+
+.side-chat > a {
+  align-items: center;
+}
+
+/* When it began is said where it is pointed at; nothing else stands beside what was asked. */
+.side-chat .side-meta {
+  display: none;
+}
+
+.side-chat > a:is(:hover, :focus-visible) .side-meta {
+  display: inline;
+}
+
+/* How it stands, only where there is something to say: it goes, it asks, or it failed. */
+.side-chat-state {
+  flex: none;
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.side-chat-state[data-state='working'] {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--live);
+  animation: side-spin 0.8s linear infinite;
+}
+
+.side-chat-state[data-state='asking'] {
+  background: var(--budget);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.side-chat-state[data-state='failed'] {
+  background: var(--fail);
+}
+
+.side-chat > a[aria-current='page'] .side-chat-state[data-state='working'] {
+  border-color: color-mix(in srgb, var(--on-ink) 35%, transparent);
+  border-top-color: var(--on-ink);
+}
+
+@keyframes side-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------------ A flow's epic */
+
+.side-flow > a {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  padding-left: calc(var(--side-in) + var(--side-slot) - 4px);
+}
+
+.side-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* What opens it out stands before its task, always there to press. */
+.side-flow > .side-toggle {
+  position: absolute;
+  inset: 5px auto auto calc(var(--side-in) - 10px);
+  height: 22px;
+}
+
+.side-flow .side-mark {
+  width: auto;
+}
+
+.side-sub {
+  align-items: center;
+  color: var(--ink-3);
+}
+
+/* The flow it is of, said quietly under its task. */
+.side-tag {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font: 11px var(--mono);
+}
+
+.side-tag .icon {
+  width: 11px;
+  height: 11px;
+}
+
+.side-flow > a[aria-current='page'] .side-sub {
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* Under a finger nothing is pointed at: what a pointer would bring out is there already. */
+@media (hover: none) {
+  .side-chat .side-meta {
+    display: inline;
+  }
+
+  .icon-btn.side-add {
+    opacity: 1;
+  }
+}

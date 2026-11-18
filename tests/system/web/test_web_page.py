@@ -388,7 +388,9 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(page.locator("[data-hmz=graph]")).to_have_count(0)
         row = page.locator("[data-hmz=sidebar] .side-item").first
         expect(row.locator(".side-toggle, .side-tree")).to_have_count(0)
-        expect(row.locator(".side-mark")).to_have_text(re.compile("[●■]"))
+        # Its row is a chat app's: what was asked, with no mark of a state and no flow.
+        expect(row.locator(".side-mark, [data-hmz=epic-flow]")).to_have_count(0)
+        expect(row.locator("[data-hmz=epic]")).to_have_attribute("data-kind", "chat")
         expect(page.get_by_role("tab", name="People")).to_have_count(0)
         # Nothing on it is called an epic, a flow or native: its bar holds its title, one
         # menu and the panel's button, and its panel says what it is in a chat's words.
@@ -424,7 +426,7 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
 
         stop(page)
         expect(bar.locator(".badge")).to_have_text(re.compile("stopped"))
-        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("■")
+        expect(page.locator("[data-hmz=epic] [data-hmz=chat-state]")).to_have_count(0)
 
 
 def test_a_chat_says_in_its_conversation_that_a_turn_could_not_be_taken(
@@ -1752,14 +1754,13 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         # Opened afresh, so the list is read as it stands now.
         page.reload()
         row = page.locator("[data-hmz=epic]", has_text="remember teal")
-        mark = row.locator(".side-mark")
-        expect(mark).to_have_text("●")
-        expect(mark).to_have_class(re.compile("tone-asking"))
+        state = row.locator("[data-hmz=chat-state]")
+        expect(state).to_have_attribute("data-state", "asking")
+        expect(state).to_have_css("animation-name", "pulse")
 
-        # Read, it is stopped.
+        # Read, it is stopped: its row says nothing beside what was asked.
         row.click()
-        expect(mark).to_have_text("■")
-        expect(mark).to_have_class(re.compile("tone-stopped"))
+        expect(state).to_have_count(0)
         expect(badge).to_have_text(re.compile("stopped"))
 
 
