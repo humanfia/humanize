@@ -359,7 +359,8 @@ def test_rg_searches_the_files_quick_open_lists(
     monkeypatch.setenv("PATH", f"{tmp_path / 'tools'}:{os.environ['PATH']}")
 
     searched, listed = _searched_and_listed(repo, loop)
-    assert {".env", ".github/ci.yml", "node_modules/dep.js"} <= searched <= listed
+    assert {".env", ".github/ci.yml", "plain", "node_modules/dep.js"} <= searched
+    assert searched <= listed
 
     (tmp_path / "bare").mkdir()
     searched, listed = _searched_and_listed(tmp_path / "bare", loop)
@@ -382,7 +383,7 @@ def test_rg_is_told_which_files_quick_open_lists(
 
     _searched_and_listed(repo, loop)
     inside = told.read_text().splitlines()
-    assert {"--hidden", "!.git"} <= set(inside)
+    assert {"--hidden", "--no-ignore-dot", "!.git"} <= set(inside)
     assert not {"--no-ignore", "!node_modules"} & set(inside)
 
     (tmp_path / "bare").mkdir()
