@@ -61,13 +61,16 @@ jobs:
           # Unit tests mock every other package, so a package's run only for it. The agents,
           # daemon and tui topics run the packages they import, and `hmz`, which loads the
           # rest lazily; core, anchor and web run `hmz` whole. runtime, flows and coganchor
-          # import each other, so each is the three.
+          # import each other, so each is the three. A double counts for every topic whose
+          # tests import it, which tests/integration/test_core_ci_filters.py holds these to.
           filters: |
             shared: &shared
               - pyproject.toml
               - uv.lock
               - src/hmz/*
               - tests/conftest.py
+              - tests/integration/conftest.py
+              - tests/integration/flows/**
               - .github/workflows/ci.yml
             kernel: &kernel
               - src/hmz/runtime/**
@@ -95,18 +98,23 @@ jobs:
             integration-daemon:
               - *shared
               - *kernel
-              - src/hmz/{cli,daemon,sdk,web}/**
+              - src/hmz/{cli,daemon,reach,relay,rpc,sdk,trust,web}/**
               - tests/integration/*_daemon*.py
+              - tests/integration/doubles_core.py
               - tests/integration/doubles_easytier.py
+              - tests/integration/doubles_ssh.py
             integration-tui:
               - *shared
               - *kernel
-              - src/hmz/{cli,daemon,tui}/**
+              - src/hmz/{cli,daemon,reach,rpc,trust,tui}/**
               - tests/integration/*_tui*.py
+              - tests/integration/doubles_daemon.py
+              - tests/integration/doubles_ssh.py
             integration-core:
               - *shared
               - src/hmz/**
               - tests/integration/*_core*.py
+              - tests/integration/doubles_daemon.py
             integration-anchor:
               - *shared
               - src/hmz/**
@@ -119,6 +127,8 @@ jobs:
               - src/hmz/**
               - tests/integration/*_web*.py
               - tests/integration/doubles_core.py
+              - tests/integration/doubles_daemon.py
+              - tests/integration/doubles_ssh.py
             # A daemon reached over each carrier: ssh and EasyTier through their doubles, and a
             # WebRTC data channel over loopback. reach dials EasyTier and ssh through coganchor.
             integration-reach:

@@ -54,6 +54,15 @@ def test_policies_and_strategies_are_named_once() -> None:
         (("claude", "claude-opus-5", "work", "high"), "claude@work/claude-opus-5:high"),
         (("claude", "claude-opus-5", "", "auto"), "claude/claude-opus-5"),
         (("kimi", "moonshot/kimi-k3"), "kimi/moonshot/kimi-k3"),
+        (("opencode", "ollama/qwen3:latest"), "opencode/ollama/qwen3:latest:auto"),
+        (
+            ("opencode", "ollama/qwen3:latest", "", "auto"),
+            "opencode/ollama/qwen3:latest:auto",
+        ),
+        (
+            ("opencode", "ollama/qwen3:latest", "", "high"),
+            "opencode/ollama/qwen3:latest:high",
+        ),
     ],
 )
 def test_spec(args: tuple[str, ...], said: str) -> None:
@@ -68,6 +77,8 @@ def test_spec(args: tuple[str, ...], said: str) -> None:
         ("claude/claude-opus-5:auto", "claude/claude-opus-5"),
         ("grok-build/grok-5", "grok/grok-5"),
         ("opencode/ollama/qwen3:8b", "opencode/ollama/qwen3:8b"),
+        ("opencode/ollama/qwen3:latest:auto", "opencode/ollama/qwen3:latest:auto"),
+        ("opencode/ollama/qwen3:latest:", "opencode/ollama/qwen3:latest:auto"),
         ("smart", "smart"),
         ("claude", ""),
         ("claude/", ""),
@@ -93,6 +104,12 @@ def test_a_concrete_nous_with_an_effort_has_what_is_written_without_it() -> None
     nous.retrying("claude/m:high", 5, "constant", 0)
     assert nous.rule("claude/m:high").tries == 5
     assert nous.rule("claude/m:low").tries == 2
+
+
+def test_a_model_ending_in_a_word_keeps_its_name_where_its_effort_is_dropped() -> None:
+    nous.retrying("opencode/ollama/qwen3:latest:auto", 2, "constant", 0)
+    assert nous.rule("opencode/ollama/qwen3:latest:high").tries == 2
+    assert nous.rule("opencode/ollama/qwen3:latest").tries == 0
 
 
 def test_then_writes_a_chain_down_as_a_list() -> None:
@@ -322,6 +339,33 @@ def test_every_reads_what_somebody_wrote_by_hand_forgivingly() -> None:
         }
     )
     assert nous.every() == [Nous("claude/a", 3, nous.DEFAULT, 0.0)]
+
+
+def test_edges_written_by_hand_under_a_plain_on_are_read_and_kept() -> None:
+    at = settings.where()
+    at.parent.mkdir(parents=True)
+    at.write_text(
+        "nous:\n"
+        "  smart:\n"
+        "    graph:\n"
+        "      start: first\n"
+        "      nodes:\n"
+        "        first: {use: claude/a, on: {spent: other, '*': cheap}}\n"
+        "        other: {use: codex/b, next: cheap}\n"
+        "        cheap: {use: grok/c}\n",
+        encoding="utf-8",
+    )
+    graph = Graph(
+        "first",
+        (
+            Node("first", use="claude/a", on=(("spent", "other"), (ANY, "cheap"))),
+            Node("other", use="codex/b", on=((ANY, "cheap"),)),
+            Node("cheap", use="grok/c"),
+        ),
+    )
+    assert [(one.name, one.graph) for one in nous.every()] == [("smart", graph)]
+    nous.retrying("grok/c", 1, "constant", 0)
+    assert list(settings.read()["nous"]) == ["smart", "grok/c"]
 
 
 def test_an_unreadable_file_is_nothing_and_refuses_a_write() -> None:

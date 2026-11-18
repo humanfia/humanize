@@ -279,3 +279,39 @@ async def test_a_param_is_named_by_its_title_and_by_its_key_without_one() -> Non
     assert "rounds" not in titled.replace("Review rounds", "")
     assert "how many" in titled
     assert any("goal" in row for row in rows)
+
+
+class _Capped(BaseModel):
+    cost: float | None = None
+    tokens: int | None = None
+    goal: str = "ship"
+
+
+@pytest.mark.parametrize(
+    ("typed", "taken"),
+    [
+        ({}, _Capped()),
+        ({"cost": "1.5"}, _Capped(cost=1.5)),
+        ({"tokens": " ", "goal": ""}, _Capped(goal="")),
+    ],
+)
+async def test_a_param_left_blank_that_is_unset_by_default_stays_unset(
+    typed: dict[str, str], taken: _Capped
+) -> None:
+    from textual.app import App
+
+    form = pick.Configures("loop", _Capped, None)
+    answers: list[BaseModel | None] = []
+
+    class _Host(App[None]):
+        def on_mount(self) -> None:
+            self.push_screen(form, answers.append)
+
+    host = _Host()
+    async with host.run_test() as pilot:
+        await pilot.pause()
+        for row, text in typed.items():
+            form.dropped(row, text)
+        form.applied()
+        await pilot.pause()
+    assert answers == [taken]

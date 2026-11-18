@@ -159,6 +159,19 @@ def test_a_daemon_that_cannot_be_reached_says_why(host: Host) -> None:
         assert "Could not resolve hostname" in why
 
 
+def test_a_daemon_that_cannot_be_started_there_says_why(host: Host) -> None:
+    host.cannot_connect("No space left on device")
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        socket_ = browser.opens(_dial(BOX))
+        assert states(socket_)[-1] == {"state": "up", "detail": ""}
+        assert _closed(socket_) == (
+            1000,
+            "hmz: the daemon cannot be reached: No space left on device",
+        )
+
+
 @contextlib.contextmanager
 def _another(tmp_path: Path) -> Generator[pairing.Code]:
     """A daemon of another home, serving a TCP listener, and a pairing code it made."""
