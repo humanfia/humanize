@@ -92,6 +92,14 @@ export function pathsOf(entries) {
 }
 
 /**
+ * Where an entry is as a whole path: `env.git.status` names it from the repository's top, which is
+ * not the environment's workdir when that is a directory inside the repository.
+ */
+export function placeOf(root, path) {
+  return `${String(root || '').replace(/\/+$/, '')}/${path}`
+}
+
+/**
  * The entries of a group as a tree of folders: each folder its folders then its files, both in
  * name order, a folder holding only one folder folded into it as `a/b`, as Source Control's tree
  * view draws them.
