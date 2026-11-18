@@ -722,6 +722,10 @@ history; its first turn performs the fork.
 - `into=` another agent of the same backend, account and machine; anything else is `ValueError`.
 - The child carries the session's effort, budget, skills and callbacks.
 - A child driven after its parent has taken another turn raises `RuntimeError`.
+- A session whose last turn was answered at [another nous](#when-the-place-has-nowhere-left-to-run)
+  is the stand-in's conversation from then on: `id` and `named` are that conversation's,
+  `forks` is that backend's, `keep` copies its files, and `fork` forks it. The child walks its
+  agent's nous from where the session was, and takes its turns in that fork.
 - `session.forks` says whether this backend forks. Under a flow, `agent.fork(session)`, cut by
   its first `run(…, env=…)`; a fork onto another machine is `UnsupportedOperation: <cli>
   cannot fork a session onto another machine`. A session whose turn is given another workdir

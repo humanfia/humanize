@@ -171,7 +171,7 @@ class OhMyPiSession(PiSession):
             ]
             told = {"type": "set_host_tools", "id": _HOSTING, "tools": tools}
             line = json.dumps(told) + "\n" + line
-        if ticket or self.named is not None:
+        if ticket or (self._id or self._named_as) is not None:
             return line
         return json.dumps({"type": "get_state", "id": _NAMING}) + "\n" + line
 
