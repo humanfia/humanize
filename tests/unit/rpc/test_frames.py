@@ -22,6 +22,24 @@ def test_non_ascii_is_written_as_itself_and_other_values_as_text() -> None:
     assert json.loads(payload) == {"name": "日本", "path": "/tmp/x"}
 
 
+def test_a_float_that_is_not_finite_is_written_as_its_text() -> None:
+    data = encode(
+        {"at": Path("/x"), "n": [float("nan"), float("inf")], "d": {"m": -float("inf")}}
+    )
+    assert json.loads(data[4:], parse_constant=pytest.fail) == {
+        "at": "/x",
+        "n": ["NaN", "Infinity"],
+        "d": {"m": "-Infinity"},
+    }
+
+
+def test_a_cycle_is_still_not_encoded() -> None:
+    cycle: dict[str, object] = {"n": float("nan")}
+    cycle["self"] = cycle
+    with pytest.raises(ValueError, match="Circular"):
+        encode(cycle)
+
+
 def test_every_frame_comes_out_once_and_in_order_however_it_is_split() -> None:
     stream = b"".join(encode({"n": n}) for n in range(5))
     for size in (1, 3, 7, len(stream)):

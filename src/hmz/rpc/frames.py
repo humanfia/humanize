@@ -38,8 +38,9 @@ def encode(message: dict[str, Any]) -> bytes:
     """One frame, ready to be written.
 
     Non-ASCII characters are written as themselves, and a value JSON has no type for -- a path,
-    a datetime -- as its text (Section 6.3.3). NaN and the infinities are not JSON, and are
-    refused rather than written as the tokens no other reader parses.
+    a datetime -- as its text (Section 6.3.3). NaN and the infinities are not JSON either, and
+    are written as the text ``"NaN"``, ``"Infinity"`` and ``"-Infinity"`` rather than as the
+    tokens no other reader parses.
 
     Args:
       message: What it carries.
@@ -50,12 +51,17 @@ def encode(message: dict[str, Any]) -> bytes:
     Raises:
       FrameError: If the payload is longer than a reader accepts, which is a frame that must
         not be sent.
-      ValueError: If the message holds what JSON cannot: NaN, a cycle.
+      ValueError: If the message holds what JSON cannot: a cycle.
       TypeError: If it holds a mapping whose keys are not text.
     """
-    payload = json.dumps(
-        message, ensure_ascii=False, default=str, allow_nan=False
-    ).encode()
+    try:
+        text = json.dumps(message, ensure_ascii=False, default=str, allow_nan=False)
+    except ValueError:
+        # A float that is not finite, or a cycle, which raises again here: written as Python
+        # writes them and read back with each token as its text.
+        tokens = json.dumps(message, ensure_ascii=False, default=str)
+        text = json.dumps(json.loads(tokens, parse_constant=str), ensure_ascii=False)
+    payload = text.encode()
     if len(payload) > LONGEST:
         raise FrameError(f"a frame of {len(payload)} bytes is more than {LONGEST}")
     return _HEAD.pack(len(payload)) + payload
