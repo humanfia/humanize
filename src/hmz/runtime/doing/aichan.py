@@ -259,9 +259,6 @@ class Asking(_Model):
         description="The session, <agent>/<n>, as epic_view says it."
     )
     question: str = pydantic.Field(description="What to ask it.")
-    fork: bool = pydantic.Field(
-        default=True, description="Ask a fork of it, which remembers what it was told."
-    )
 
 
 class Saying(_Model):
@@ -444,14 +441,37 @@ async def usage(link: Link, said: Spending) -> str:
 
 
 async def ask_session(link: Link, said: Asking) -> str:
-    """A side question of one session: a side conversation opened on it, and asked."""
-    async with link.attached(said.workspace, said.slot) as sub:
-        opened = await link.call(
-            "epic.aside", {"sub": sub, "key": said.key, "fork": said.fork}
+    """A side question of one session, asked as `btw.ask` asks one, and its aside left.
+
+    The daemon's `btw.*` is what tells the side copy what it is, and the epic where it is no
+    fork (Section 9 of core.md): the bare question is never put to a side conversation here.
+    """
+    workspace = link.where(said.workspace)
+    epic = ""
+    if said.slot:
+        # Any host but the workspace's own is named to `btw.ask` by the epic it holds.
+        held = await link.call(
+            "hosts.status", {"workspace": workspace, "slot": said.slot}
         )
-        answered = await link.call(
-            "epic.aside", {"sub": sub, "side": opened["side"], "prompt": said.question}
-        )
+        epic = str(held.get("epic") or "")
+        if not epic:
+            raise LookupError(
+                f"The host {said.slot} holds no epic to ask a session of."
+            )
+    aside = f"ai-chan:{epic}:{said.key}"
+    answered = await link.call(
+        "btw.ask",
+        {
+            "workspace": workspace,
+            "epic": epic,
+            "aside": aside,
+            "to": said.key,
+            "question": said.question,
+        },
+    )
+    # Left once answered, where her reach lets her leave it; one still answering is not hers.
+    with contextlib.suppress(Exception):
+        await link.call("btw.leave", {"workspace": workspace, "aside": aside})
     return _said(answered.get("answer", ""))
 
 
