@@ -33,13 +33,14 @@ import asyncio
 import contextlib
 import datetime
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
+    from hmz.coganchor.agents import Event
     from hmz.coganchor.agents.base import AgentBase, SessionBase
     from hmz.coganchor.agents.native import NativeCommand
     from hmz.flows import AskUserHookResult, FakeCli, FakeTool, Permission, Usage
@@ -476,7 +477,10 @@ class Chat:
         driver: AgentDriver | None = None
         local: EnvDriver | None = None
         try:
-            driver = agent_drivers({ASSISTANT: said}, held)[ASSISTANT]
+            # A chat carried on is the one assistant still, so its sessions go on being
+            # written down under the name its epic gave it.
+            named = before.agents[-1].name if before and before.agents else ""
+            driver = agent_drivers({ASSISTANT: said}, held, named)[ASSISTANT]
             for listener in self._listeners:
                 watch = getattr(driver, "watch", None)
                 if callable(watch):
@@ -545,7 +549,14 @@ class Chat:
                         callback(role, agent, session, where)
 
                 self._talk = talk = _Talk(
-                    self, driver, local, epic, keeping, spending, telling
+                    self,
+                    driver,
+                    local,
+                    epic,
+                    keeping,
+                    spending,
+                    telling,
+                    tuple(self._listeners),
                 )
                 try:
                     await talk.had(before)
@@ -587,6 +598,10 @@ class HeldWorkspace:
         """The chat's workspace, alone. From any thread."""
         return self._held
 
+    def env_roles(self) -> dict[str, EnvDriver]:
+        """The chat's workspace, by the name `hosts.env.*` know it by. From any thread."""
+        return {one.role: one.driver for one in self._held}
+
 
 class _Talk:
     """One opening of a chat: its turns, its `!` commands and its conversations."""
@@ -600,8 +615,9 @@ class _Talk:
         keeping: Keeping,
         spending: _Spending,
         opened: Opened | None,
+        watching: Sequence[Listener] = (),
     ) -> None:
-        """Holds what the conversation is had with."""
+        """Holds what the conversation is had with, and who watches it."""
         self._chat = chat
         self._driver = driver
         self._local = local
@@ -610,6 +626,7 @@ class _Talk:
         self._keeping = keeping
         self._spending = spending
         self._opened = opened
+        self._watching = watching
         self._hooks = self._hung()
         #: The preset the conversation open now is held to: the chat's, as it was opened.
         self._preset: str | None = None
@@ -622,6 +639,11 @@ class _Talk:
         #: Whether a turn is going, and whether the person stopped the one that was.
         self.turning = False
         self._interrupted = False
+        #: Whether the turn going was shown as failed by its own harness.
+        self._failed = False
+        watch = getattr(driver, "watch", None)
+        if callable(watch):
+            watch(self._heard)
         #: The assistant as last written down: its CLI, model and effort.
         begun = _drove(_assistant(chat.spec.agent), driver.name)
         self._as = (begun.backend, begun.model, begun.effort)
@@ -698,9 +720,11 @@ class _Talk:
                 telling = not briefed and role is not None and not native
                 if telling and role is not None:
                     prompt = f"{role.briefing}\n\n{prompt}"
+                # Called of the driver, and answered by it: the harness may be asked nothing.
+                set_ = native and line.split(maxsplit=1)[0] in ("/model", "/effort")
                 try:
                     answered = await self._turn(handle, prompt, native=native)
-                    if native and line.split(maxsplit=1)[0] in ("/model", "/effort"):
+                    if set_:
                         self._changed(handle)
                 except HarnessError as failed:
                     if self._interrupted:
@@ -720,9 +744,12 @@ class _Talk:
                         briefed = role is None
                         carrying = False
                         continue
+                    self._fails(handle, str(failed))
                     answered = f"That turn could not be taken: {failed}"
                 else:
-                    self.taken = True
+                    # Not by a `/model` or `/effort`, which a harness lists nothing for: what
+                    # it has not listed yet is still passed as text (`core.md` 8.9.13).
+                    self.taken = self.taken or not set_
                     briefed = briefed or telling
                     if ahead:
                         ran.clear()
@@ -731,6 +758,31 @@ class _Talk:
                 unkept = ""
         finally:
             await asyncio.shield(self._close(handle))
+
+    def _heard(
+        self, agent: AgentBase, session: SessionBase | None, event: Event
+    ) -> None:
+        """Notes a failure the harness showed itself, from the thread its CLI is read on."""
+        del agent, session
+        if event.kind == "failed":
+            self._failed = True
+
+    def _fails(self, handle: SessionHandle, why: str) -> None:
+        """Shows a later turn's failure to whoever watches the chat, once.
+
+        Said in the conversation too (Section 8.4.10 of [CORE]), which goes on; but a
+        frontend that follows one turn, as `hmz chat` does (Section 15.3.3 of [CLI]), tells
+        a turn that failed from one that answered by this. Most harnesses raise without
+        showing it; one that showed it is not shown again.
+        """
+        from hmz.coganchor.agents import Event
+
+        agent = getattr(handle, "agent", None)
+        if self._failed or agent is None:
+            return
+        session = getattr(handle, "coganchor", None)
+        for listener in self._watching:
+            listener(agent, session, Event(kind="failed", text=why))
 
     def _changed(self, handle: SessionHandle) -> None:
         """Writes the assistant down again where a `/model` or `/effort` changed it.
@@ -746,7 +798,12 @@ class _Talk:
         agent = getattr(handle, "agent", None)
         if agent is None:
             return
-        cli, model, effort = self._as[0], str(agent.config.model), str(agent.effort)
+        # What the conversation runs at, which is the agent's only where the CLI's command
+        # moved the agent: Codex's moves the conversation alone.
+        conversation = getattr(handle, "coganchor", None)
+        model = str(getattr(conversation, "model", None) or agent.config.model)
+        effort = str(getattr(conversation, "effort", agent.effort))
+        cli = self._as[0]
         if (cli, model, effort) == self._as:
             return
         self._as = (cli, model, effort)
@@ -902,6 +959,7 @@ class _Talk:
         from hmz.runtime.flowing.spi import TurnRequest
 
         self.turning = True
+        self._failed = False
         try:
             answered = await handle.turn(
                 TurnRequest(prompt, native=native), self._spending
@@ -1004,7 +1062,8 @@ def _drove(said: AgentSpec, name: str) -> Drove:
     """The assistant as its epic writes it down."""
     from hmz.runtime.runner import drove
 
-    return drove(ASSISTANT, str(said).partition("=")[2], name)
+    # At its concrete nous, which is what the record states of one named by a virtual one.
+    return drove(ASSISTANT, str(replace(said, nous="")).partition("=")[2], name)
 
 
 def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | None]:

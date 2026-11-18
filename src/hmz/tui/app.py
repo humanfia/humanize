@@ -3009,6 +3009,15 @@ class Humanize(App[None]):
             return run.kind == "chat"
         return not self._flow_shown
 
+    def _typed_here(self) -> bool:
+        """Whether a line this interface says is put on the screen as it is typed.
+
+        In its own chat, every line of which goes through `_says_to_chat`. Not in an Ai-chan
+        conversation, drawn as a chat though it is: past its task, a line said there is an
+        answer or a word put into her turn like any flow's, drawn when her host says it.
+        """
+        return self.chatting() and self._ai is None
+
     def refused_chat(self) -> str:
         """Why `/chat` has nothing to do now: the chat is on the screen already."""
         # An Ai-chan conversation is drawn as a chat, but is not this interface's chat.
@@ -5261,9 +5270,9 @@ class Humanize(App[None]):
             self._shows_context(message)
         elif kind == "withdrawn":
             self._withdrawn(message)
-        elif kind == "answered" and not (self.chatting() and not self._by(message)):
+        elif kind == "answered" and not (self._typed_here() and not self._by(message)):
             self._answered(message)
-        elif kind == "said" and not (self.chatting() and not self._by(message)):
+        elif kind == "said" and not (self._typed_here() and not self._by(message)):
             # A line of a chat this interface said is on the screen already, as it was typed.
             self._said_by_you(
                 str(message.get("text") or ""),
@@ -5388,10 +5397,12 @@ class Humanize(App[None]):
         turn, self._turn = self._turn, str(message.get("turn") or "")
         if self._turn and self._slot.startswith("chat:"):
             # The chat attached to is this interface's from now on, whichever way it was
-            # reached; what its harness takes is asked again as each turn ends, a turn having
-            # perhaps given it a skill or a command it did not have.
-            self._chat_slot = self._slot
-            self._chat_epic = self._epic_now or self._chat_epic
+            # reached on this machine -- one followed on another daemon stays that daemon's,
+            # and is not carried on from here; what its harness takes is asked again as each
+            # turn ends, a turn having perhaps given it a skill or a command it did not have.
+            if self._afar is None:
+                self._chat_slot = self._slot
+                self._chat_epic = self._epic_now or self._chat_epic
             if self._natives_of != self._slot or (
                 self._turn == "done" and turn != "done"
             ):

@@ -62,9 +62,11 @@ BACKING = 60.0
 def backed(client: Client, name: str) -> bool:
     """Whether every backup of an epic has finished, as `backed` of `runs.get` says it.
 
-    Each target it goes to has been backed up to since it ended -- a backup of an earlier
-    time it was open, or one made by hand while it ran, is not the one its end queued. An epic
-    the daemon cannot say, or no longer has, is waited on no longer.
+    Each target its end backs it up to -- one whose policies hold `end`, as the settings the
+    daemon answers say -- has been backed up to since it ended: a backup of an earlier time it
+    was open, or one made by hand while it ran, is not the one its end queued, and a target
+    of no such policy has none queued to wait on. An epic the daemon cannot say, or no longer
+    has, is waited on no longer.
 
     Args:
       client: A session with the daemon that holds the epic.
@@ -72,13 +74,23 @@ def backed(client: Client, name: str) -> bool:
     """
     try:
         row = client.call("runs.get", {"name": name}, seconds=_ANSWERING)
+        ended = str(row.get("ended") or "")
+        done: dict[str, dict[str, Any]] = row.get("backed") or {}
+        left = {
+            one
+            for one in row.get("backup") or ()
+            if one not in done or str(done[one].get("at") or "") < ended
+        }
+        if not left:
+            return True
+        kept = client.call(
+            "settings.get", {"workspace": row.get("workspace")}, seconds=_ANSWERING
+        )
     except (Refused, TimeoutError):
         return True
-    ended = str(row.get("ended") or "")
-    done: dict[str, dict[str, Any]] = row.get("backed") or {}
-    return all(
-        one in done and str(done[one].get("at") or "") >= ended
-        for one in row.get("backup") or ()
+    return not any(
+        one["name"] in left and "end" in one["policies"]
+        for one in kept["backup"]["targets"]
     )
 
 
@@ -432,6 +444,11 @@ class Run:
         # Whether the host let go of this for falling behind, to attach again.
         self._behind = False
         self._claimed: set[str] = set()
+        # The `started` record of a flow no check answered: a `git+` one, checked as fetched.
+        self._began: dict[str, Any] = {}
+        # Clear while the `Outworlder` roles that record names are being claimed.
+        self._claims = threading.Event()
+        self._claims.set()
         self._raised: BaseException | None = None
         self._result: Any = None
         self._letting_go = threading.Event()
@@ -446,7 +463,7 @@ class Run:
     @property
     def ref(self) -> str:
         """The flow's canonical ref, as the daemon's check answered it."""
-        return str(self._runner.checked.get("ref") or "")
+        return str(self._said("ref") or "")
 
     @property
     def task(self) -> str:
@@ -463,7 +480,8 @@ class Run:
         """What the epic may spend."""
         from hmz.flows import Budget
 
-        return Budget.model_validate(self._runner.checked.get("budget") or {})
+        budget = self._said("budget") or self._runner.started["budget"]
+        return Budget.model_validate(budget or {})
 
     @property
     def profile_flow(self) -> bool:
@@ -478,7 +496,7 @@ class Run:
     @property
     def backup(self) -> tuple[str, ...]:
         """The backup targets the epic goes to, by name."""
-        return tuple(self._runner.checked.get("backup") or ())
+        return tuple(self._said("backup") or ())
 
     @property
     def usage(self) -> Usage:
@@ -621,6 +639,37 @@ class Run:
             raise
         threading.Thread(target=self._follows, daemon=True, name="hmz-run").start()
 
+    def _said(self, key: str) -> Any:
+        """One field of the daemon's check, or of the `started` record where none answered."""
+        with self._lock:
+            return (self._runner.checked or self._began).get(key)
+
+    def _claims_late(self, roles: list[str]) -> None:
+        """Claims the `Outworlder` roles of a flow no check answered, as `started` names them."""
+        outworlder = self._outworlder
+        if outworlder is None:
+            return
+        with self._lock:
+            client = self._client
+            new = [role for role in roles if role not in self._claimed]
+            self._claimed.update(new)
+        if client is None or not new:
+            return
+        self._claims.clear()
+
+        def claims() -> None:
+            try:
+                for role in new:
+                    self._asks(client, "epic.claim", role=role)
+                    if outworlder.away_for(role):
+                        self._asks(client, "epic.afk", on=True, role=role)
+            except (OSError, Refused, TimeoutError):
+                return
+            finally:
+                self._claims.set()
+
+        threading.Thread(target=claims, daemon=True, name="hmz-claims").start()
+
     def _outworlders(self) -> list[str]:
         """The `Outworlder` roles of the flow, as the daemon's check declared them."""
         declared: list[dict[str, Any]] = self.declaration.get("agents") or []
@@ -703,10 +752,20 @@ class Run:
         kind = message.get("type")
         seq = message.get("seq")
         with self._lock:
+            was = self._since
             if kind == "welcome":
                 self._since = {"epoch": message.get("epoch"), "seq": 0}
             elif isinstance(seq, int) and self._since is not None:
                 self._since["seq"] = seq
+        if (
+            kind == "welcome"
+            and was is not None
+            and was["epoch"] != message.get("epoch")
+        ):
+            # Another life of the slot's host (Section 4.9.1.3 of daemon.md): a daemon started
+            # since made it, and the epic went with the host the daemon before it held.
+            self._ends(RuntimeError(_WENT), None)
+            return
         if kind == "event":
             for one in tuple(self._watching):
                 one(str(message.get("agent")), message.get("session") or None, message)
@@ -760,12 +819,16 @@ class Run:
         with self._lock:
             if kind == "started":
                 self._names = dict(message.get("names") or self._names)
+                if not self._runner.checked:
+                    self._began = message
             elif kind == "run" and message.get("epic"):
                 self._epic = str(message["epic"])
             elif kind == "sessions":
                 self._open = [str(one) for one in message.get("open") or ()]
             elif kind == "usage" and message.get("usage") is not None:
                 self._usage = message["usage"]
+        if kind == "started" and not self._runner.checked:
+            self._claims_late([str(one) for one in message.get("outworlders") or ()])
 
     def _answers(self, message: dict[str, Any]) -> None:
         """Answers a question of a role the outworlder claims, on a thread of its own."""
@@ -789,6 +852,7 @@ class Run:
             if client is None:
                 return
             ask = first
+            self._claims.wait()
             # One loop for every try, so that what the driver holds of it lasts between them.
             with asyncio.Runner() as loop:
                 for _ in range(_TRIES):

@@ -135,9 +135,10 @@ What to look at, by number:
   this directory's own. `/btw` is refused while you follow her: she is not a session of an
   epic.
 - **On the page**, the drawer stays open from view to view until you close it, and lists each
-  conversation as **Answering**, **Waiting** or **Folded away**. Its form also takes a
-  **Title**, made from the task where you leave it empty. On a phone the drawer covers the view;
-  <kbd>esc</kbd> or its close button puts it away.
+  conversation as **Answering**, **Waiting** or **Folded away**. A conversation you open whose
+  first turn failed says **Failed**, with what her harness said, and takes no more lines: start
+  a new one. Its form also takes a **Title**, made from the task where you leave it empty. On a
+  phone the drawer covers the view; <kbd>esc</kbd> or its close button puts it away.
 - **Stopping** interrupts her turn and leaves the conversation between turns. It does not end
   it.
 - **Forgetting** removes the conversation from the list and deletes her scratch directory. It

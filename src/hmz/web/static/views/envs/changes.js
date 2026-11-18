@@ -6,7 +6,7 @@
 // ends, when the window comes back, and every few seconds while it is seen.
 
 import { fill, h, icon, problem, svg } from '../../dom.js'
-import { bytesText, chosen, commitPlan, decoded, fullDate, groupsOf, hunks, LARGE, MEANING, moveOf, pathsOf, picked, relative, rowsOf, sizeOf, subjectHint } from './changes_logic.js'
+import { bytesText, chosen, commitPlan, decoded, fullDate, groupsOf, hunks, LARGE, MEANING, moveOf, pathsOf, picked, placeOf, relative, rowsOf, sizeOf, subjectHint } from './changes_logic.js'
 
 /** How tall a row of the list stands, as changes.css draws it. */
 const ROW = 24
@@ -495,7 +495,7 @@ export async function mount(el, ctx) {
   }
 
   function openFile(one) {
-    ctx.open('files', { path: one.path })
+    ctx.open('files', { path: placeOf(status.root, one.path) })
   }
 
   function move(entries) {
