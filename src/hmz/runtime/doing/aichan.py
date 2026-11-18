@@ -725,7 +725,7 @@ def permission(params: Reach) -> Permission:
     """What her harness may touch: her scope, at her preset, and her scratch directory.
 
     `/` denied; the scope's root read-only or writable; the workdir -- her scratch directory
-    -- writable, which is what has her harness run with approvals bypassed; and, beneath every
+    -- writable, which is what leaves her harness every tool, nothing asked; and, beneath every
     one of them, the machine directory denied, the daemon's socket and every scoped link in it
     (Section 14.5 of core.md).
     """
