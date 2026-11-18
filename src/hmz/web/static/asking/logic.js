@@ -91,6 +91,11 @@ export function labelOf(name, node = {}) {
   return title.toLowerCase() === plain ? sentence : title
 }
 
+/** A flow's param as its row names it: the title the flow gave it, else its key, as `-p` takes it. */
+export function paramLabel(name, node = {}) {
+  return String(node.title || '').trim() || String(name)
+}
+
 /** Whether a string field is likely to want more than one line. */
 export function multiline(name, node, value = '') {
   if (widgetOf(node) === 'markdown' || widgetOf(node) === 'code') return true
