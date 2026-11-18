@@ -717,9 +717,11 @@ class _Talk:
                 telling = not briefed and role is not None and not native
                 if telling and role is not None:
                     prompt = f"{role.briefing}\n\n{prompt}"
+                # Called of the driver, and answered by it: the harness may be asked nothing.
+                set_ = native and line.split(maxsplit=1)[0] in ("/model", "/effort")
                 try:
                     answered = await self._turn(handle, prompt, native=native)
-                    if native and line.split(maxsplit=1)[0] in ("/model", "/effort"):
+                    if set_:
                         self._changed(handle)
                 except HarnessError as failed:
                     if self._interrupted:
@@ -742,7 +744,9 @@ class _Talk:
                     self._fails(handle, str(failed))
                     answered = f"That turn could not be taken: {failed}"
                 else:
-                    self.taken = True
+                    # Not by a `/model` or `/effort`, which a harness lists nothing for: what
+                    # it has not listed yet is still passed as text (`core.md` 8.9.13).
+                    self.taken = self.taken or not set_
                     briefed = briefed or telling
                     if ahead:
                         ran.clear()
