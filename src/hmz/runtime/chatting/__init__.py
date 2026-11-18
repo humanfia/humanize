@@ -477,7 +477,10 @@ class Chat:
         driver: AgentDriver | None = None
         local: EnvDriver | None = None
         try:
-            driver = agent_drivers({ASSISTANT: said}, held)[ASSISTANT]
+            # A chat carried on is the one assistant still, so its sessions go on being
+            # written down under the name its epic gave it.
+            named = before.agents[-1].name if before and before.agents else ""
+            driver = agent_drivers({ASSISTANT: said}, held, named)[ASSISTANT]
             for listener in self._listeners:
                 watch = getattr(driver, "watch", None)
                 if callable(watch):
@@ -795,7 +798,12 @@ class _Talk:
         agent = getattr(handle, "agent", None)
         if agent is None:
             return
-        cli, model, effort = self._as[0], str(agent.config.model), str(agent.effort)
+        # What the conversation runs at, which is the agent's only where the CLI's command
+        # moved the agent: Codex's moves the conversation alone.
+        conversation = getattr(handle, "coganchor", None)
+        model = str(getattr(conversation, "model", None) or agent.config.model)
+        effort = str(getattr(conversation, "effort", agent.effort))
+        cli = self._as[0]
         if (cli, model, effort) == self._as:
             return
         self._as = (cli, model, effort)

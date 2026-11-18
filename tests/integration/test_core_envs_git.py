@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import os
 import shutil
 import subprocess
 import threading
@@ -324,6 +325,73 @@ def test_quick_open_search_and_git_through_the_desk(
     }
 
 
+def _searched_and_listed(
+    where: Path, loop: asyncio.AbstractEventLoop
+) -> tuple[set[str], set[str]]:
+    for name in (".env", ".github/ci.yml", "plain", "node_modules/dep.js"):
+        (where / name).parent.mkdir(exist_ok=True)
+        (where / name).write_text("needle\n")
+    (where / ".ignore").write_text("plain\n")
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("repo", "here", None, Browsing(where))]), going=True
+    )
+    found = made.asked("c1", "ada", "env.find", {"env": env["id"]})
+    searched = made.asked(
+        "c1", "ada", "env.search", {"env": env["id"], "query": "needle"}
+    )
+    return {one["path"] for one in searched["matches"]}, set(found["paths"])
+
+
+_RG = shutil.which("rg")
+
+
+@pytest.mark.skipif(_RG is None, reason="needs rg")
+def test_rg_searches_the_files_quick_open_lists(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _RG is not None
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "rg").symlink_to(_RG)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'tools'}:{os.environ['PATH']}")
+
+    searched, listed = _searched_and_listed(repo, loop)
+    assert {".env", ".github/ci.yml", "plain", "node_modules/dep.js"} <= searched
+    assert searched <= listed
+
+    (tmp_path / "bare").mkdir()
+    searched, listed = _searched_and_listed(tmp_path / "bare", loop)
+    assert searched == {".env", ".github/ci.yml", "plain"} == listed - {".ignore"}
+
+
+def test_rg_is_told_which_files_quick_open_lists(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "tools").mkdir()
+    told = tmp_path / "tools" / "told"
+    (tmp_path / "tools" / "rg").write_text(
+        f'#!/bin/sh\nprintf "%s\\n" "$@" > "{told}"\n'
+    )
+    (tmp_path / "tools" / "rg").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'tools'}:{os.environ['PATH']}")
+
+    _searched_and_listed(repo, loop)
+    inside = told.read_text().splitlines()
+    assert {"--hidden", "--no-ignore-dot", "!.git"} <= set(inside)
+    assert not {"--no-ignore", "!node_modules"} & set(inside)
+
+    (tmp_path / "bare").mkdir()
+    _searched_and_listed(tmp_path / "bare", loop)
+    outside = told.read_text().splitlines()
+    assert {"--hidden", "!.git", "--no-ignore", "!node_modules"} <= set(outside)
+
+
 def test_quick_open_outside_a_repository_prunes_what_nobody_opens(
     tmp_path: Path, loop: asyncio.AbstractEventLoop
 ) -> None:
@@ -384,3 +452,43 @@ async def test_discarding_a_directory_restores_and_removes_alike(
 
     assert (repo / "dir" / "kept").read_text() == "kept\n"
     assert not (repo / "dir" / "new").exists()
+
+
+async def test_a_path_is_a_file_name_and_not_a_pattern(tmp_path: Path) -> None:
+    repo = tmp_path
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "a@example.com")
+    _git(repo, "config", "user.name", "Ada")
+    _git(repo, "config", "commit.gpgsign", "false")
+    run = Local(repo).exec
+    top = await gitdesk.root(run)
+    names = ("[id].tsx", "i.tsx", "d.tsx")
+    for name in names:
+        (repo / name).write_text("first\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "first")
+    for name in names:
+        (repo / name).write_text("second\n")
+    (repo / "*").write_text("fresh\n")
+    (repo / "fresh").write_text("fresh\n")
+
+    async def changes() -> dict[str, str]:
+        files = (await gitdesk.status(run, top))["files"]
+        return {one["path"]: one["index"] + one["worktree"] for one in files}
+
+    await gitdesk.stage(run, top, ["[id].tsx"])
+    assert await changes() == {
+        "[id].tsx": "M.",
+        "i.tsx": ".M",
+        "d.tsx": ".M",
+        "*": "??",
+        "fresh": "??",
+    }
+
+    await gitdesk.stage(run, top, ["i.tsx"])
+    await gitdesk.unstage(run, top, ["[id].tsx"])
+    assert (await changes())["i.tsx"] == "M."
+
+    await gitdesk.discard(run, top, ["[id].tsx", "*"])
+    assert await changes() == {"i.tsx": "M.", "d.tsx": ".M", "fresh": "??"}
+    assert (repo / "d.tsx").read_text() == "second\n"
