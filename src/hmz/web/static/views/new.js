@@ -10,7 +10,7 @@
 // and 3.8.24 of protocol/web.md).
 
 import { call, given, hash } from '../api.js'
-import { covered, go, stays } from '../app.js'
+import { beside, covered, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
 import { NO_FOLDER } from '../desk.js'
@@ -194,8 +194,9 @@ export function mount(root, { query }) {
       box.text.dispatchEvent(new Event('input'))
     }
     summarise()
-    // Typed into next -- but not from under a dialog opened over it, out of what is typed there.
-    if (!covered()) box.text.focus()
+    // Typed into next -- but not from under a dialog opened over it, out of what is typed there,
+    // nor out of Ai-chan's drawer beside it, gone to meanwhile.
+    if (!covered() && !beside()) box.text.focus()
   }
 
   function summarise() {
