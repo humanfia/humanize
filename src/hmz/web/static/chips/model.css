@@ -70,3 +70,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* What opens a menu beside it is one row: what it is, and what stands chosen at its end. */
+.model-menu .choice-sub > .choice > .choice-text {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.model-menu .choice-sub > .choice .choice-about {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

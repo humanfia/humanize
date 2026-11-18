@@ -9,12 +9,14 @@
 
 import { given, hash, poll } from '../api.js'
 import { shut, stays } from '../app.js'
+import { chatting, markOf } from '../epic.js'
 import { nameOf, workspaces } from '../places.js'
 import { epicMenu } from '../sidebar.js'
+import { epicSaid, rowSaid } from '../sidebar-rows.js'
 import { pick } from '../importing.js'
 import { menuOf, menuOn } from '../ui.js'
 import { dragged } from '../shell.js'
-import { ago, badge, flowName, empty, fill, h, headline, icon, iconButton, lasting, when } from '../dom.js'
+import { ago, flowName, empty, fill, h, headline, icon, iconButton, lasting, tone, when } from '../dom.js'
 import { PAGE, TABS, asked, chosenOf, filtered, heading, hints, keyed, moved, nothing, onFlow, onTab, paged, turned } from '../search-model.js'
 
 /** How a run can have ended, in the order the filter offers them. */
@@ -47,7 +49,7 @@ export function mount(root, { query }) {
   const tabOf = new Map(TABS.map(([kind, name]) => [kind, h('button', { type: 'button', role: 'tab', 'data-kind': kind || 'all', onclick: () => choose(onTab(chosen, kind)) }, name)]))
   const tabs = pressed(h('div', { class: 'search-tabs', role: 'tablist', 'aria-label': 'Type', 'data-hmz': 'search-tabs' }, [...tabOf.values()]))
   const statusOf = new Map(
-    [['', 'All'], ...ENDINGS.map((how) => [how, how])].map(([how, name]) => {
+    [['', 'All'], ...ENDINGS.map((how) => [how, epicSaid(how)])].map(([how, name]) => {
       const count = h('span', { class: 'count' })
       return [how, { count, button: h('button', { type: 'button', 'data-how': how || 'all', onclick: () => choose({ ...chosen, status: how, offset: 0 }) }, name, count) }]
     }),
@@ -135,6 +137,8 @@ export function mount(root, { query }) {
     body.setAttribute('aria-busy', 'true')
     stays({ kind: chosen.kind, status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset || '' })
     marked()
+    // A chat is of no flow: the filter by flow is offered where an epic can be found.
+    flows.hidden = chosen.kind === 'chat'
     stop = poll('runs.list', given(asked(chosen)), 5000, draw)
   }
   const choose = (next) => {
@@ -222,12 +226,22 @@ export function mount(root, { query }) {
 
   // ---------------------------------------------------------------- what was found
 
+  /**
+   * How one found stands, in the words the sidebar's row says it in: a chat's only where it goes,
+   * asks or failed, a flow's epic's mark.
+   */
+  const stood = (run) => {
+    const chat = chatting(run)
+    const how = markOf(run.how, { chat, turn: run.turn, asked: run.asking || [], epic: run.name })
+    return { how, said: rowSaid(how, chat) }
+  }
+
   /** What else is said of one epic: over the foot while it is moved to, or under its own line. */
-  const more = (run) =>
+  const more = (run, { how, said } = stood(run)) =>
     h(
       'span',
       { class: 'result-meta' },
-      badge(run.how),
+      said ? h('span', { class: `badge tone-${tone(how)}`, 'data-hmz': 'result-state' }, said) : null,
       h('span', { class: 'mono', title: run.workspace }, nameOf(run.workspace)),
       run.flow ? h('span', { class: 'mono', title: run.flow }, flowName(run.flow)) : null,
       run.agents.map((one) => h('span', { class: 'chip', title: `${one.role} · ${one.runs}` }, one.name, h('span', { class: 'dim' }, one.runs.split(':')[0]))),
@@ -273,23 +287,24 @@ export function mount(root, { query }) {
             h(
               'div',
               { class: 'results', role: 'presentation' },
-              data.runs.map((run) =>
-                menuOn(
+              data.runs.map((run) => {
+                const standing = stood(run)
+                return menuOn(
                   option(
                     h(
                       'a',
                       { class: ['result', run.held && 'held'], href: hash(`/epics/${encodeURIComponent(run.name)}`), title: run.task, 'data-hmz': 'epic', 'data-kind': run.kind },
                       h('span', { class: 'result-task' }, headline(run.task)),
-                      h('span', { class: 'result-how' }, run.how),
+                      standing.said ? h('span', { class: 'result-how', 'data-hmz': 'result-how' }, standing.said) : null,
                       h('span', { class: 'result-where', title: run.workspace }, nameOf(run.workspace)),
                       h('span', { class: 'result-when', title: when(run.began) }, ago(run.began)),
-                      h('span', { class: 'result-more' }, more(run)),
+                      h('span', { class: 'result-more' }, more(run, standing)),
                     ),
                     run.name,
                   ),
                   () => epicMenu(run),
-                ),
-              ),
+                )
+              }),
             ),
           )
         : null,

@@ -220,8 +220,8 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
 
         # Its bar, as a chat app's session keeps its toolbar: 45px high, its title a
         # button with the one menu right after it, and at the far right a 28px button
-        # for each pane, then View options and Ai-chan's -- no word of hmz's own, and
-        # nothing saying how the chat stands.
+        # for each pane, then View options, with which it ends -- no word of hmz's own,
+        # and nothing saying how the chat stands.
         expect(bar.locator("h1")).to_have_text("hello there")
         assert _box(page, "[data-hmz=bar]")["height"] == 45
         title = _box(page, "[data-hmz=chat-title]")
@@ -229,7 +229,7 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         assert 0 <= more_at["x"] - (title["x"] + title["width"]) <= 4
         assert bar.locator(".bar-actions button").evaluate_all(
             "all => all.map((one) => one.getAttribute('aria-label'))"
-        ) == ["Details", "Terminal", "Changes", "Files", "View options", "Ai-chan"]
+        ) == ["Details", "Terminal", "Changes", "Files", "View options"]
         toggles = [
             _box(page, f"[data-hmz={one}]")
             for one in (
@@ -254,8 +254,9 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         whole = _box(page, ".view-epic")
         barred = _box(page, "[data-hmz=bar]")
         assert (barred["x"], barred["width"]) == (whole["x"], whole["width"])
-        ending = _box(page, "[data-hmz=aichan-toggle]")
+        ending = _box(page, "[data-hmz=chat-view]")
         assert whole["x"] + whole["width"] - (ending["x"] + ending["width"]) == 8
+        expect(bar.locator("[data-hmz=aichan-toggle]")).to_have_count(0)
         # Its host holds no environment for it: its three panes are said, cannot open,
         # and say why.
         for pane in ("terminal", "changes", "files"):
@@ -394,7 +395,9 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         bar.locator("[data-hmz=chat-title]").click()
         expect(panel).to_be_visible()
         expect(details).to_have_attribute("aria-pressed", "true")
-        expect(panel.get_by_role("tab")).to_have_text(["Details", "Side questions"])
+        # The pane is picked on the bar: it is headed by its name, with no tabs of its own.
+        expect(panel.get_by_role("tab")).to_have_count(0)
+        expect(panel.locator("[data-hmz=pane-title]")).to_have_text("Details")
         expect(panel.locator("h3")).to_contain_text(
             ["Usage", "First message", "About this chat"]
         )
@@ -412,21 +415,31 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
             ]
         )
         expect(panel.locator("dd").nth(4)).to_have_text("claude/claude-haiku-4-5")
-        # Side questions are under View options, and no pane's button is theirs.
+        # Side questions are under View options, with Ai-chan, and no pane's button is
+        # theirs.
         bar.locator("[data-hmz=chat-view]").click()
-        page.get_by_role("menu", name="View options").get_by_role(
-            "menuitem", name="Side questions"
-        ).click()
-        expect(details).to_have_attribute("aria-pressed", "false")
-        expect(panel.get_by_role("tab", name="Side questions")).to_have_attribute(
-            "aria-selected", "true"
+        offered = page.get_by_role("menu", name="View options")
+        expect(offered.get_by_role("menuitem")).to_have_text(
+            ["Side questions", "Ai-chan"]
         )
+        offered.get_by_role("menuitem", name="Side questions").click()
+        expect(details).to_have_attribute("aria-pressed", "false")
+        expect(panel.locator("[data-hmz=pane-title]")).to_have_text("Side questions")
         expect(panel).to_contain_text("Side questions never reach this chat.")
         expect(panel.locator("[data-hmz=btw-tab]")).to_have_text("New question")
         expect(panel.locator("[data-hmz=btw] textarea")).to_have_attribute(
             "placeholder", "Ask a side question"
         )
         expect(panel).not_to_contain_text(re.compile("epic", re.IGNORECASE))
+        # Ai-chan's drawer is opened from the same menu, which then marks it.
+        bar.locator("[data-hmz=chat-view]").click()
+        offered.get_by_role("menuitem", name="Ai-chan").click()
+        expect(page.locator("[data-hmz=app]")).to_have_class(re.compile("aichan-open"))
+        bar.locator("[data-hmz=chat-view]").click()
+        expect(offered.locator("[data-hmz=view-aichan]")).to_have_class(
+            re.compile("chosen")
+        )
+        page.keyboard.press("Escape")
 
 
 def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
@@ -444,6 +457,18 @@ def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
             expect(bar.get_by_role("button", name=label)).to_be_visible()
         expect(bar.locator("[data-hmz=exomyth-open]")).to_be_visible()
 
+        # Its bar ends with Ai-chan's button, as every view's but a chat's does.
+        assert bar.locator(".bar-actions > *").last.get_attribute("data-hmz") == (
+            "aichan-toggle"
+        )
+        # What says where its handovers come from stands clear of what picks the shape.
+        note = _box(page, ".graph-note")
+        switch = _box(page, ".shape-switch")
+        assert (
+            note["y"] >= switch["y"] + switch["height"]
+            or note["x"] + note["width"] <= switch["x"]
+        )
+
         panel = page.locator("[data-hmz=inspector]")
         expect(panel.get_by_role("tab")).to_have_text(["Epic", "Aside"])
         expect(panel.locator("h3")).to_contain_text(["Figures", "Task", "Setup"])
@@ -451,3 +476,174 @@ def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
         panel.get_by_role("tab", name="Aside").click()
         expect(panel).to_contain_text("Side questions never reach the epic.")
         expect(panel.locator("[data-hmz=btw-tab]")).to_have_text("New aside")
+
+
+#: How tall each of the elements a locator finds is drawn, in whole pixels.
+_TALL = "all => all.map((one) => Math.round(one.getBoundingClientRect().height))"
+
+
+def _listed(*rows: dict[str, Any]) -> dict[str, Any]:
+    """What `runs.list` answers: these rows, as the sidebar and Search read them."""
+    return {
+        "result": {
+            "runs": list(rows),
+            "total": len(rows),
+            "offset": 0,
+            "limit": 60,
+            "counts": {},
+            "flows": [],
+        }
+    }
+
+
+def test_search_closed_over_a_chat_just_started_leaves_it_as_it_was(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    wire.faked["runs.list"] = lambda _: _listed({**_DETAIL, "turn": ""})
+    with (
+        served() as site,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
+    ):
+        # Opened as a chat just started is: by its host, the address then naming the chat.
+        _chats(page, wire)
+        address = re.compile(rf"#/epics/{re.escape(_CHAT)}/sessions/Ada%2F1$")
+        expect(page).to_have_url(address)
+        current = page.locator("[data-hmz=sidebar] [data-hmz=epic][aria-current=page]")
+        expect(current).to_have_count(1)
+        box = page.locator("[data-hmz=say] [data-hmz=composer-text]")
+        box.click()
+        page.keyboard.type("a draft")
+
+        # Search opened over it with its menu open, and closed by one Escape: the menu is
+        # gone, the address and the row marked are the chat's still, and the draft stands.
+        page.locator("[data-hmz=chat-menu]").click()
+        expect(page.get_by_role("menu", name="Chat menu")).to_be_visible()
+        page.keyboard.press("Control+k")
+        dialog = page.locator("[data-hmz=dialog-search]")
+        expect(dialog).to_be_visible()
+        expect(page.get_by_role("menu", name="Chat menu")).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
+        expect(page).to_have_url(address)
+        expect(current).to_have_count(1)
+        expect(box).to_have_value("a draft")
+        expect(page.locator("[data-hmz=chat-menu]")).to_be_focused()
+
+        # From the box and back to it.
+        box.click()
+        page.keyboard.press("Control+k")
+        expect(dialog).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
+        expect(box).to_be_focused()
+        expect(page).to_have_url(address)
+        expect(current).to_have_count(1)
+
+
+@pytest.mark.parametrize("width", [1296, 390])
+def test_a_new_chats_chips_and_menus_are_a_chat_apps(
+    project: Path, engine: str, width: int
+) -> None:
+    with (
+        served() as site,
+        opened(site, engine=engine, width=width, height=800) as page,
+    ):
+        go(page, "/new/chat")
+        under = page.locator("[data-hmz=composer-under]")
+        model = under.locator("[data-hmz=pick-model]")
+        expect(model).to_have_text("Haiku 4.5")
+        # Each chip is named by what it picks and what is picked; the row ends with Usage.
+        chips = under.locator(".under-left button:visible, .under-right > *")
+        assert chips.evaluate_all(
+            "all => all.map((one) => (one.matches('button, a') ? one :"
+            " one.querySelector('button')).getAttribute('aria-label'))"
+        ) == [
+            "Environment: Local",
+            "Folder: project",
+            "Model: Haiku 4.5",
+            "Permissions: Edit this folder",
+            "Usage",
+        ]
+        usage = _box(page, "[data-hmz=new-usage]")
+        assert (usage["width"], usage["height"]) == (24, 24)
+        permission = _box(page, "[data-hmz=permission]")
+        assert usage["x"] >= permission["x"] + permission["width"]
+        expect(under.locator("[data-hmz=new-usage]")).to_have_attribute(
+            "href", re.compile(r"#/settings/usage\?workspace=")
+        )
+
+        # Permissions: 308 wide where there is room, the three in rows of 46 under no
+        # heading, opened on the one in force.
+        under.locator("[data-hmz=permission]").click()
+        menu = page.get_by_role("menu", name="Permissions")
+        expect(menu.locator(".popover-head")).to_have_count(0)
+        expect(menu.get_by_role("menuitem")).to_have_count(3)
+        assert _box(page, "[role=menu][aria-label=Permissions]")["width"] == 308
+        assert set(menu.get_by_role("menuitem").evaluate_all(_TALL)) == {46}
+        expect(menu.locator("[data-permission=workspace-write]")).to_be_focused()
+        expect(menu.locator(".permission-note")).to_be_visible()
+        page.keyboard.press("Escape")
+
+        # Model: a model a row, then Effort and More, each one row that opens beside it.
+        model.click()
+        menu = page.get_by_role("menu", name="Model")
+        rows = menu.locator(".model-menu > [role=menuitem], .model-menu > .choice-sub")
+        expect(rows).to_have_text(["Haiku 4.5", "Opus 4.1", "EffortDefault", "More"])
+        assert set(rows.evaluate_all(_TALL)) == {28}
+        expect(menu.locator("[data-value=claude-haiku-4-5]")).to_be_focused()
+        menu.get_by_role("menuitem", name="More").click()
+        more = page.locator("[data-hmz=pick-more]")
+        expect(more.locator("[data-hmz=pick-model-typed]")).to_be_visible()
+        expect(
+            more.locator(":scope > .choice-sub, :scope > [role=menuitem]")
+        ).to_have_text(["CLIclaude", "AccountLocal", "Refresh models"])
+        # A menu opened from More shuts alone, by the left arrow.
+        more.get_by_role("menuitem", name="CLI").click()
+        expect(page.locator("[data-hmz=pick-cli]")).to_be_visible()
+        page.keyboard.press("ArrowLeft")
+        expect(page.locator("[data-hmz=pick-cli]")).to_have_count(0)
+        expect(more).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
+
+
+@pytest.mark.parametrize("width", [1296, 390])
+def test_a_new_epic_with_no_flow_says_so_where_it_is_read(
+    project: Path, engine: str, width: int
+) -> None:
+    # A machine with no flow installed, as hmz is installed: it ships none.
+    wire = Wire(faked={"flows.list": lambda _: {"result": {"flows": [], "flow": ""}}})
+    with (
+        served() as site,
+        opened(
+            site, engine=engine, width=width, height=800, routed=wire.routes
+        ) as page,
+    ):
+        go(page, "/new")
+        # hmz ships no flow: the middle of the page says so, and where one is installed.
+        lacking = page.locator("[data-hmz=no-flow]")
+        expect(lacking).to_be_visible()
+        expect(lacking).to_contain_text("No flow here yet.")
+        assert _box(page, "[data-hmz=no-flow]")["height"] > 40
+        opens = lacking.locator("[data-hmz=no-flow-open]")
+        expect(opens).to_have_text("Open Flows")
+        expect(opens).to_have_attribute("href", re.compile(r"#/flows\?workspace="))
+        # What picks the flow says there is none, and offers the same.
+        picker = page.locator("[data-hmz=flow-picker]")
+        expect(picker.locator("b")).to_have_text("None")
+        picker.click()
+        expect(
+            page.get_by_role("menu", name="Flows").get_by_role("menuitem")
+        ).to_have_text(["Open Flows"])
+        page.keyboard.press("Escape")
+        expect(page.get_by_role("button", name="Options")).to_be_disabled()
+        # Started all the same, it is refused with what to do first.
+        text = page.locator("[data-hmz=composer-text]")
+        text.fill("do it")
+        text.press("Enter")
+        expect(page.locator("[data-hmz=start] .composer-said")).to_have_text(
+            "Install a flow first, from Flows."
+        )
+        opens.click()
+        expect(page).to_have_url(re.compile(r"#/flows"))

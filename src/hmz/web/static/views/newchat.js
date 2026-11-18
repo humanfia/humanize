@@ -19,6 +19,7 @@ import { chatAsk } from '../held.js'
 import { readBackends } from '../pickers.js'
 import { firstWorkspace, folderFiles, workspacePicker } from '../places.js'
 import { bar, keep, kept } from '../shell.js'
+import { glyph } from './chatbar.js'
 
 export function mount(root, { query }) {
   // Where the chat works: the workspace the address names, or none -- a directory of its own made
@@ -32,7 +33,12 @@ export function mount(root, { query }) {
   }, { none: true, plain: true })
   const permission = permissionChip({ up: true })
   // Before a chat there is no catalogue to complete from: `@` names a file of the folder.
-  const files = folderFiles(() => workspace)
+  // A chat of no folder works in a directory made as it starts, which holds nothing to name yet.
+  const files = folderFiles(() => (scratch ? '' : workspace))
+  // What the folder has used, where a chat begun says what it has (Section 3.8.22 of protocol/web.md).
+  const usage = h('a', { class: 'chip-btn desk-chip usage-chip', 'aria-label': 'Usage', 'data-hmz': 'new-usage', 'data-tip': 'What this folder has used' }, glyph('usage'))
+  const used = () => usage.setAttribute('href', hash(`/settings/usage${!scratch && workspace ? `?workspace=${encodeURIComponent(workspace)}` : ''}`))
+  used()
   const box = composer({
     placeholder: 'Message',
     label: 'First message',
@@ -40,7 +46,7 @@ export function mount(root, { query }) {
     submit: (task) => start(task),
     complete: files.complete,
     // So Add offers the files alone: what `/`, `$` and `!` start is the chat's host's to say.
-    desk: { add: ['files'], able: () => (workspace ? '' : NO_FOLDER), left: [environmentChip('/new/chat').node, place.node], right: [permission.node] },
+    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new/chat').node, place.node], right: [permission.node, usage] },
   })
   box.node.dataset.hmz = 'start'
   const steps = h('section', { class: 'next-steps', 'aria-label': 'Next steps', 'data-hmz': 'next-steps', hidden: true })
@@ -118,6 +124,7 @@ export function mount(root, { query }) {
     try {
       if (!workspace) workspace = await firstWorkspace()
       if (mine !== loading) return
+      used()
       // The address of a dialog opened over it is the dialog's own.
       if (!covered()) stays({ workspace: scratch ? '' : workspace, scratch: scratch ? '1' : '' })
       const [, settings] = await Promise.all([readBackends(workspace), call('settings.get', { workspace }).catch(() => null)])

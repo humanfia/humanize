@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { CHAT_SAID, chatState, epicSaid, rowTitle, wording } from '../../../../src/hmz/web/static/sidebar-rows.js'
+import { CHAT_SAID, chatState, epicSaid, rowSaid, rowTitle, wording } from '../../../../src/hmz/web/static/sidebar-rows.js'
 
 test('a chat goes, asks, failed, or says nothing', () => {
   assert.equal(chatState('running'), 'working')
@@ -29,4 +29,17 @@ test('a chat menu is worded for a chat, an epic menu for an epic, each a short p
   for (const said of Object.values(wording(true))) assert.doesNotMatch(said, /epic|flow|task/i)
   assert.equal(wording(false).like, 'New epic like it')
   for (const chat of [true, false]) for (const said of Object.values(wording(chat))) assert.ok(said.split(' ').length <= 4 && !/[.?!]$/.test(said))
+})
+
+test('a row stands in the same words in every list: a chat only where there is something to say', () => {
+  assert.equal(rowSaid('running', true), 'Running')
+  assert.equal(rowSaid('asking', true), 'Awaiting input')
+  assert.equal(rowSaid('crashed', true), 'Failed')
+  // A chat that rests says nothing, however its epic ended.
+  assert.equal(rowSaid('stopped', true), '')
+  assert.equal(rowSaid('done', true), '')
+  // A flow's epic says its mark, as a word.
+  assert.equal(rowSaid('done', false), 'Done')
+  assert.equal(rowSaid('budget', false), 'Budget spent')
+  assert.equal(rowSaid('waiting', false), 'Waiting')
 })

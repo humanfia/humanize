@@ -14,7 +14,7 @@ import { covered, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
 import { NO_FOLDER } from '../desk.js'
-import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
+import { acting, empty, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
 import { paramsForm } from '../asking/form.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
@@ -36,12 +36,17 @@ export function mount(root, { query }) {
     load(query.get('flow') || '')
   }, { none: true, plain: true })
   // A task names a file as a first message does: `@` completes the paths of the folder picked.
-  const files = folderFiles(() => workspace)
+  // An epic of no folder works in a directory made as it starts, which holds nothing to name yet.
+  const files = folderFiles(() => (scratch ? '' : workspace))
   const about = h('p', { class: 'greeting-about' })
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
   const optionsChip = h('button', { class: 'chip-btn desk-chip', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
   const summary = h('span', { class: 'composer-summary' })
   const resumed = h('div', { class: 'resumed' })
+  // Said in the middle of the page where no flow is on offer: hmz ships none.
+  const lacking = h('div', { 'data-hmz': 'no-flow', hidden: true })
+  /** Where the flows of the folder picked are installed. */
+  const flowsAt = () => hash(`/flows${workspace ? `?workspace=${encodeURIComponent(workspace)}` : ''}`)
   const box = composer({
     placeholder: 'Describe the task',
     label: 'Task',
@@ -49,7 +54,7 @@ export function mount(root, { query }) {
     busy: 'Starting…',
     submit: (task) => start(task),
     complete: files.complete,
-    desk: { add: ['files'], able: () => (workspace ? '' : NO_FOLDER), left: [environmentChip('/new').node, place.node], right: [summary, optionsChip] },
+    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new').node, place.node], right: [summary, optionsChip] },
   })
   box.node.dataset.hmz = 'start'
   optionsChip.addEventListener('click', () => {
@@ -66,7 +71,7 @@ export function mount(root, { query }) {
       'div',
       { class: 'view view-new view-desk', 'data-hmz': 'new-epic' },
       top,
-      h('div', { class: 'desk-body' }, h('div', { class: 'desk-column' }, about, resumed, options)),
+      h('div', { class: 'desk-body' }, h('div', { class: 'desk-column' }, lacking, about, resumed, options)),
       h('div', { class: 'dock desk-dock' }, box.node),
     ),
   )
@@ -87,6 +92,8 @@ export function mount(root, { query }) {
   menu(
     picker,
     (close) => {
+      // None to pick: where one is installed.
+      if (!flows.length) return [choice({ label: 'Open Flows', glyph: 'flows', href: flowsAt(), close })]
       const whose = {}
       for (const one of flows) (whose[one.whose] ||= []).push(one)
       return Object.entries(whose).map(([from, list]) => [
@@ -131,9 +138,23 @@ export function mount(root, { query }) {
       // A flow the address names that is not on offer there opens the one it last set up.
       const asked = flows.some((one) => one.name === flow) ? flow : ''
       const wanted = (ran && ran.flow) || asked || found.flow || (flows[0] && flows[0].name) || ''
+      lacking.hidden = Boolean(wanted)
+      // With no flow there is nothing to set up.
+      optionsChip.disabled = !wanted
       if (!wanted) {
+        // Nothing is picked, and nothing drawn of what was: the page says so where it is read,
+        // and where a flow is installed.
+        choosing = ''
+        picked = null
+        setup = null
         reading(false)
-        fill(options, problem('No flow is on offer here.'))
+        fill(picker.querySelector('b'), 'None')
+        fill(resumed)
+        fill(options)
+        options.hidden = true
+        optionsChip.setAttribute('aria-expanded', 'false')
+        fill(summary)
+        fill(lacking, empty('No flow here yet.', ' A new epic runs a flow. Install one from Flows, then start it here.', h('a', { class: 'btn primary', href: flowsAt(), 'data-hmz': 'no-flow-open' }, 'Open Flows')))
       } else choose(wanted, ran)
     } catch (error) {
       if (mine !== loading) return
@@ -264,6 +285,7 @@ export function mount(root, { query }) {
   }
 
   async function start(task) {
+    if (!flows.length) throw new Error('Install a flow first, from Flows.')
     if (!picked || !setup) throw new Error('Pick a flow first.')
     let read
     try {

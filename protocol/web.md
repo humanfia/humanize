@@ -180,6 +180,10 @@ least one has.
 **3.4.1.4** On a screen as narrow as a phone's, the sidebar MUST be a drawer opened by a button, and
 every view MUST be usable without horizontal scrolling of the page.
 
+**3.4.1.4.1** While that drawer is open the focus MUST be in it and the view under it MUST NOT be
+reached by keyboard; Escape MUST close it, and closed so, or by `Hide sidebar`, the focus MUST be
+the button's that opens it.
+
 **3.4.1.5** The page title MUST name the machine of the daemon shown.
 
 **3.4.1.6** The title row MUST hold, in this order: the Humanize mark, `Hide sidebar`, `Back` and
@@ -217,6 +221,12 @@ daemon, and MUST stop drawing anything of the previous daemon.
 
 **3.4.2.5** An address of an epic's log of every session MUST open that epic.
 
+**3.4.2.6** A dialog opened over a view and closed again MUST leave the addresses the page steps
+back through as they were before it was opened, so that `Back` then goes to what was open before
+that view and MUST NOT open the dialog again; and a view opened from a dialog MUST take the
+dialog's place among them. Closing a dialog MUST leave the page on the address of the view under
+it as that view stands, the chat or epic it shows marked in the sidebar.
+
 > Informative: an address is held in the fragment of the page's URL, as `#/epics/<name>` is.
 
 #### 3.4.3. Keyboard
@@ -229,6 +239,10 @@ daemon, and MUST stop drawing anything of the previous daemon.
 
 **3.4.3.4** Escape MUST close the dialog that is open, and MUST close the menu or picker that is
 open.
+
+**3.4.3.4.1** A dialog MUST keep Tab within itself while it is open, and opening one MUST close
+the menu that is open. A dialog closed over the view it was opened over MUST give the focus back
+to what held it as the dialog opened, where that still stands.
 
 **3.4.3.5** In every box that sends text, Enter MUST send the text and Shift+Enter MUST start a new
 line; Enter MUST NOT send while an input method is composing.
@@ -290,7 +304,8 @@ rows of a last group, `Folders`: each row MUST open a new chat in its workspace 
 menu of a folder (3.5.7), bar folding it, by a right click and by `More options` at its end.
 
 **3.5.1.2** The epics of no workspace MUST be listed as the last folder, `No folder`, which has no
-menu of a folder.
+menu of a folder. Grouped by `Folder`, a list with no workspace and no epic to show MUST keep that
+heading, so that `Group and sort` (3.5.6) is always offered.
 
 **3.5.2** A workspace the user opens by its path MUST be written down in the settings, and MUST stay
 in the sidebar from then on.
@@ -299,7 +314,7 @@ in the sidebar from then on.
 their latest epic, newest first, as the list is sorted (3.5.17).
 
 **3.5.4** Each group MUST list its epics in the order the list is sorted in (3.5.17), chats among the
-others, and MUST say `No chats or epics` where it has none.
+others, and MUST say `Nothing here yet` where it has none.
 
 **3.5.5** The user MUST be able to fold a group away and open it again by its heading; the page MUST
 remember which groups are folded in this browser.
@@ -357,7 +372,8 @@ page is on, and MUST end with `Show N more`, `N` the number of its epics read an
 there is one; pressed, it MUST show them, and every epic listed in that group from then on. The
 sidebar MUST read a bounded number of epics at first, and MUST read more only where the user asks:
 where `Show N more` is pressed while the daemon holds more, and where `Show more` is, with which the
-list MUST end while the daemon holds more and every epic read is shown.
+list MUST end while the daemon holds more and every epic read is shown. `Show N more` MUST be
+described, to assistive technology, by the name of its group.
 
 **3.5.14** The sidebar MUST show the epics of the daemon shown as they change, without the user
 asking.
@@ -539,14 +555,17 @@ The page MUST NOT draw that choice on the bar itself.
 
 **3.6.6.10** The bar of a chat MUST hold, at its left, the chat's title as a button that opens
 the chat's `Details`, and right after it one menu, `More options`; and at its far right the buttons
-of Section 3.6.6.19, before what Section 3.16 puts on every bar. The menu MUST offer what the
+of Section 3.6.6.19, with which the bar MUST end (Section 3.16.1). The menu MUST offer what the
 chat's right-click menu offers (Section 3.4.4.1), the chat's `Environment` (Section 3.6.6.4) where
 its host has one, and the choice of Section 3.6.6.9. The bar MUST NOT say how the chat stands
 (Section 3.6.6.18).
 
-**3.6.6.11** The panel beside a chat MUST name its tabs `Details` and `Side questions` in place of
-`Epic` and `Aside` (Section 3.6.3), MUST show under `Details` everything `Epic` shows that a chat
-has, each named in plain words, and MUST say that side questions never reach the chat.
+**3.6.6.11** The panel beside a chat MUST show one pane at a time, picked on the chat's bar
+(Section 3.6.6.19) and headed by its name, and MUST NOT draw a row of tabs to pick it by, nor the
+tabs of the Environments view over the chat's `Environment`. It MUST call `Details` and `Side
+questions` what Section 3.6.3 calls `Epic` and `Aside`, MUST show under `Details` everything `Epic`
+shows that a chat has, each named in plain words, and MUST say that side questions never reach the
+chat.
 
 **3.6.6.12** The page MUST NOT call a chat an epic or a run, nor a choice of the chat's `native`,
 in the bar, the menu, the tabs, the headings, the labels and the box of a chat's view. The box
@@ -579,14 +598,17 @@ hold, inside it, only an `Add` button at its left, what is typed, and at its rig
 sends. Every other control of the box MUST be a chip in one row under it, no taller than 24 CSS
 pixels and set in from the edges of the box: at the left of that row where the chat runs, and at
 its right how it runs. A menu opened from the box or from a chip of that row MUST draw a choice of
-one line as a row 28 CSS pixels high.
+one line as a row 28 CSS pixels high, and MUST open with the focus on the choice in force where it
+marks one. A chip that picks something MUST be named, to assistive technology, by what it picks
+and then what is picked, as `Model: Haiku 4.5`.
 
 **3.6.6.16** Under a chat, `Add` MUST open a menu of `Add files`, `Slash commands`, `Skills and
 flows` and `Run a shell command`, which MUST type `@`, `/`, `$` and `!` into the box -- `@` where
 the caret is, the others at the start of the line -- and the box MUST then offer what it completes
 there (Section 3.6.6.7). On a form, where no chat's host says what the others start, `Add` MUST
 offer `Add files` alone, which MUST complete the paths of the workspace picked and MUST be disabled
-while none is picked. Each of the four typed by hand MUST do what it did.
+while none is picked, `No folder` (Section 3.8.2) among it, saying `Pick a folder first`. Each of
+the four typed by hand MUST do what it did.
 
 **3.6.6.17** The row under the box of a chat that has begun MUST hold, at its right and in this
 order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and a chip `Usage`, which MUST
@@ -599,8 +621,10 @@ the user or has failed, and MUST say nothing there otherwise.
 
 **3.6.6.19** The bar of a chat MUST hold, at its far right and in this order, a button each for
 `Details`, `Terminal`, `Changes` and `Files`, each 28 CSS pixels square, and then a menu `View
-options` holding `Side questions`. `Details` and `Side questions` MUST open the panel beside the
-chat on that tab (Section 3.6.6.11); `Terminal`, `Changes` and `Files` MUST open it on the chat's
+options` holding `Side questions`, `Board` while the chat keeps one (Section 3.6.3), and `Ai-chan`
+(Section 3.16.1), each marked while it is the one shown. `Details`, `Side questions` and `Board`
+MUST open the panel beside the chat on that pane (Section 3.6.6.11); `Terminal`, `Changes` and
+`Files` MUST open it on the chat's
 `Environment` (Section 3.6.6.4) at that panel (Section 3.17), and MUST be disabled while the chat
 has no such panel, saying whether that is for want of a host or of such a panel in its
 environment. A button MUST say whether its pane is the one open, and pressing the one open MUST
@@ -856,20 +880,25 @@ thousand spans.
 `+` the user pressed, and on the flow that workspace last ran.
 
 **3.8.2** The user MUST be able to pick any workspace the daemon shown serves, or to open one by its
-path with completion as it is typed, or to pick `No workspace`.
+path with completion as it is typed, or to pick no workspace, `No folder`.
 
 **3.8.2.1** The form MUST offer that choice under the box of Section 3.8.5, at its left, as a
 control naming the workspace picked, and MUST NOT offer it in the bar over the form.
 
 **3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves, each one
 row named by the last part of its path and saying its path where it is pointed at, and after them
-`Open folder…` and `No workspace`.
+`Open folder…` and `No folder`.
 
-**3.8.3** With `No workspace` picked, the form MUST offer the flows and the set-up of the
+**3.8.3** With `No folder` picked, the form MUST offer the flows and the set-up of the
 workspace `hmz web` was started in, and starting MUST start the epic in a new directory made for it
 alone in the system's temporary directory.
 
 **3.8.4** The user MUST be able to pick any flow on offer in that workspace.
+
+**3.8.4.1** Where no flow is on offer there, the form MUST say so in the middle of the page, with
+`Open Flows`, which opens the flows of that workspace (Section 3.9); what picks the flow MUST
+offer the same, `Options` MUST be disabled, and starting MUST be refused saying that a flow is
+installed first.
 
 **3.8.5** The form MUST offer a box for the task; Enter in it MUST start the epic.
 
@@ -877,7 +906,8 @@ alone in the system's temporary directory.
 each agent role an agent, for each environment role an environment, the parameters, the budget, the
 backup targets, `Profile flow` and `Profile environment`.
 
-**3.8.7** The form MUST show beside `Options` what is set.
+**3.8.7** The form MUST show beside `Options` what is set, bar on a screen as narrow as a phone's,
+where `Options` alone says it once opened.
 
 **3.8.8** An agent MUST be set up a part at a time, as Section 4 of [CORE] specifies: a harness
 installed here that can fill the role; the account it runs as, this machine's own or one made, with
@@ -909,7 +939,7 @@ workspace.
 own, and neither form MUST offer a control that goes to the other; Section 3.8.1 to Section 3.8.16
 state the form of a new epic of a flow, which MUST NOT offer a chat among its flows.
 
-**3.8.18** The form of a new chat MUST take a workspace, or `No workspace`, as Section 3.8.2 and
+**3.8.18** The form of a new chat MUST take a workspace, or `No folder`, as Section 3.8.2 and
 Section 3.8.3 state; the assistant's agent, picked as Section 3.8.19 states, starting from the
 chat agent that workspace remembers (Section 8.3.8 of [CORE]); and the first message, Enter in its
 box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going to its conversation.
@@ -918,15 +948,17 @@ box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going t
 
 **3.8.19** The form of a new chat MUST offer the assistant's agent as one chip under the box, at
 its right (Section 3.8.22), saying the model chosen and then its effort where one is set. The chip MUST open a
-menu holding the models known runnable by the harness chosen as the account chosen, with the one
-chosen marked, asking the harness where none is known yet and accepting a typed model; the efforts
-the model chosen takes; and, under `More`, the harness, the account it runs as with a way to make
-one, and a way to ask the harness for its models again. What is picked MUST come to what `-a`
-spells, as Section 3.8.10 states.
+menu holding, under no heading: the models known runnable by the harness chosen as the account
+chosen, each one row naming it as a person reads it, with the one chosen marked, asking the harness
+where none is known yet; `Effort`, one row saying the effort chosen and opening the efforts the
+model chosen takes; and `More`, one row opening a typed model, the harness, the account it runs as
+with a way to make one, and a way to ask the harness for its models again. What is picked MUST
+come to what `-a` spells, as Section 3.8.10 states.
 
 **3.8.20** The form of a new chat MUST hold the permission chip of Section 3.6.6.14 under the box,
 at its right after the chip of Section 3.8.19, on `Edit this folder` until the user picks another,
-and the chat MUST be started with the one picked.
+and the chat MUST be started with the one picked. Its menu MUST be 308 CSS pixels wide where the
+window has the room, and MUST hold the three and what it says of them under no heading.
 
 **3.8.21** The form of a new chat MUST be drawn as a new session of a chat app is: a bar 44 CSS
 pixels high holding the heading `New chat` at its left; the box of Section 3.6.6.15 docked at the
@@ -935,7 +967,8 @@ of Section 3.8.23. It MUST NOT draw a greeting, a mark, or a box in the middle o
 
 **3.8.22** The row under the box of the form of a new chat MUST hold, at its left, `Environment`
 and then the workspace control of Section 3.8.2.1, and at its right the chips of Section 3.8.19 and
-Section 3.8.20. `Environment` MUST name the daemon the page shows and MUST open a menu of Local and
+Section 3.8.20 and then `Usage`, drawn as the chip of Section 3.6.6.17 is, which MUST open what the
+workspace picked has used (Section 3.11). `Environment` MUST name the daemon the page shows and MUST open a menu of Local and
 every remote daemon this browser keeps, with the one shown marked, and `New environment`, which
 opens the daemons' settings (Section 3.13); picking another daemon MUST switch the page to it
 (Section 3.4.2.4), on the same form.
@@ -1007,14 +1040,16 @@ chat MUST NOT be listed under `Epics`, nor named an epic.
 
 **3.10.6** The filters by how it went, by workspace and by flow MUST be one row under the tabs,
 opened and closed by `Filters` at the right of the tabs, and open as `Search` opens where one of
-them is set. A flow chosen on `Chats` MUST move to `Epics`, and `Chats` MUST drop the flow chosen,
-pressed or named by the address. The counts by how it went MUST be of the tab's kind (Section
+them is set. `Chats` MUST NOT offer the filter by flow, and MUST drop the flow chosen, pressed or
+named by the address. The counts by how it went MUST be of the tab's kind (Section
 4.16.1.2 of [DAEMON]).
 
-**3.10.7** Each epic found MUST be one line: its task, then quietly how it went, its workspace and
-when it began. What was found MUST stand under a quiet heading, `Recents` where nothing narrows the
-list and `Results` otherwise, with which of how many are listed; under it MUST stand `Actions`:
-`New chat` and `Import`.
+**3.10.7** Each epic found MUST be one line: its task, then quietly how it stands, its workspace and
+when it began. How it stands MUST be said in the words its row in the sidebar says it in (Section
+3.5.15 for a chat, which says nothing while it rests), there and wherever else `Search` says it.
+What was found MUST stand under a quiet heading, `Recents` where nothing narrows the list and
+`Results` otherwise, with which of how many are listed; under it MUST stand `Actions`: `New chat`
+and `Import`, which MUST stay in sight however many were found.
 
 **3.10.8** One line of what was found or of `Actions` MUST be the one moved to: the first as the
 list is drawn, and the same one while the list is read again. <kbd>↑</kbd> and <kbd>↓</kbd> MUST
@@ -1313,8 +1348,9 @@ specifies.
 
 **3.16.1** Every view of the page MUST offer a button, drawn as Ai-chan's avatar, the file
 `ai-chan/avatar.png` among the page's files (Section 4.5.3), that opens and closes the **Ai-chan
-drawer** beside the view; the drawer MUST stay open, as it was, while the user goes from view to
-view of one daemon, until it is closed.
+drawer** beside the view; the view of a chat MUST offer it as `Ai-chan` in `View options` (Section
+3.6.6.19) in place of that button. The drawer MUST stay open, as it was, while the user goes from
+view to view of one daemon, until it is closed.
 
 **3.16.2** The drawer MUST list every Ai-chan conversation of the daemon shown (Section 4.22.3 of
 [DAEMON]), newest first, each with its title, its scope, its nous, its preset, whether its network

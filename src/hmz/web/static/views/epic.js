@@ -15,11 +15,11 @@
 import { asides, board, outworlders, question, saying } from '../acting.js'
 import { settle } from '../asking/card.js'
 import { call, exported, given, hash } from '../api.js'
-import { go } from '../app.js'
+import { go, renamed } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { modelName, parted } from '../chips/agent.js'
 import { modelFact } from '../chips/model.js'
-import { chipNamed, paneOf, standing as standingSaid, toggled, usageSaid } from '../desk.js'
+import { PANES, chipNamed, paneOf, standing as standingSaid, toggled, usageSaid } from '../desk.js'
 import { ask, chatAsk, follow } from '../held.js'
 import { chatPermission } from '../chips/permission.js'
 import { composer as composed } from '../composer.js'
@@ -134,7 +134,7 @@ export function mount(root, { parts, query }) {
     if (!name) {
       // The run going is named now: the address says which, and it is followed by name.
       name = detail.name
-      history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}`))
+      renamed(`/epics/${encodeURIComponent(name)}`)
       stop()
       stop = watch(name, { workspace: detail.workspace, slot: wanted.slot }, told)
       return
@@ -149,7 +149,7 @@ export function mount(root, { parts, query }) {
     // opens on one: the one going, or the last it opened, which a chat carried on goes on from.
     const conversation = chat && (run ? run.records.find((one) => one.type === 'opened' && !one.person) : sessionsOf(detail).at(-1))
     if (conversation && mode.session !== conversation.key) {
-      history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(conversation.key)}`))
+      renamed(`/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(conversation.key)}`)
       mode = modeOf(['epics', name, 'sessions', conversation.key])
     }
     const model = run ? live(held, run, detail) : written(detail, traced)
@@ -231,6 +231,8 @@ export function mount(root, { parts, query }) {
     const env = chatNow && chatNow.going ? chatEnv() : null
     const has = new Set(env ? panelsOf(env).map((one) => one.key) : [])
     panes.said(paneOf({ open: !panel.node.hidden, tab, env: envTab }), (key) => key === 'details' || has.has(key), Boolean(chatNow && chatNow.going))
+    const title = panel.body.querySelector('.pane-title')
+    if (title) title.textContent = paneTitle()
   }
 
   /** Opens the panel beside the chat on one of its tabs, and for the environment on one of its panels. */
@@ -264,7 +266,8 @@ export function mount(root, { parts, query }) {
       const view = barButton('view', 'View options', { 'data-hmz': 'chat-view' })
       menu(view, viewMenu, { align: 'end', label: 'View options' })
       panes = paneButtons(pressPane)
-      const top = bar({ title: headline(detail.task), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)] })
+      // The bar ends with `View options`, as a session's does: Ai-chan is offered in it.
+      const top = bar({ title: headline(detail.task), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)], aichan: false })
       top.classList.add('chat-bar')
       // The title is a button, as a session's is: it opens what the chat is. hmz keeps no name
       // for a chat but its first message, so there is nothing for it to rename.
@@ -284,12 +287,28 @@ export function mount(root, { parts, query }) {
     sayPanes()
   }
 
-  /** What else a chat can show beside it: the side questions asked of it, which never reach it. */
+  /**
+   * What else a chat can show beside it: the side questions asked of it, which never reach it,
+   * its board while it keeps one, and Ai-chan's drawer.
+   */
   function viewMenu(close) {
-    const shown = !panel.node.hidden && tab === 'aside'
-    const aside = choice({ label: 'Side questions', glyph: 'thread', chosen: shown, close, act: () => (shown ? panel.set(false) : showPane('aside')) })
-    aside.dataset.hmz = 'view-aside'
-    return [aside]
+    const pane = (key, label, glyph) => {
+      const shown = !panel.node.hidden && tab === key
+      const item = choice({ label, glyph, chosen: shown, close, act: () => (shown ? panel.set(false) : showPane(key)) })
+      item.dataset.hmz = `view-${key}`
+      return item
+    }
+    const standing = held() ? held().standing : {}
+    const drawer = Boolean(document.querySelector('.app.aichan-open'))
+    const aichan = choice({ label: 'Ai-chan', glyph: 'agent', chosen: drawer, close, act: () => dispatchEvent(new CustomEvent('hmz:aichan')) })
+    aichan.dataset.hmz = 'view-aichan'
+    return [pane('aside', 'Side questions', 'thread'), chatNow && chatNow.going && standing.board ? pane('board', 'Board', 'menu') : null, h('hr'), aichan]
+  }
+
+  /** What the pane open beside a chat is headed by: the tab it is on, and for its environment the panel shown. */
+  function paneTitle() {
+    if (tab === 'env') return (PANES.find((one) => one.env === envTab) || { label: 'Environment' }).label
+    return { epic: 'Details', aside: 'Side questions', board: 'Board' }[tab] || ''
   }
 
   /**
@@ -620,13 +639,15 @@ export function mount(root, { parts, query }) {
       fill(
         panel.body,
         // The top row of a wide window, beside the view; on a narrow one, a sheet's head inside it.
+        // A chat's pane is picked on its bar, as a session's is: it is headed by its name alone.
         dragged(
-          tabbed(tabs, tab, (key) => {
-            tab = key
-            for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
-            draw()
-            if (chat && panes) sayPanes()
-          }),
+          chat
+            ? h('h2', { class: 'pane-title', 'data-hmz': 'pane-title' }, paneTitle())
+            : tabbed(tabs, tab, (key) => {
+                tab = key
+                for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
+                draw()
+              }),
           'deep',
           'wide',
         ),

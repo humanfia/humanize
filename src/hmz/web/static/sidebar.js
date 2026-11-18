@@ -136,7 +136,7 @@ export function mountSidebar(root, context, where) {
         'div',
         { class: 'side-top' },
         // The mark first, then what a desktop app's title row holds, in its order; the bell last.
-        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': 'Humanize, a new chat', title: 'Humanize' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': 'Humanize, a new chat' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
         iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
         iconButton('back', 'Back', { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
         iconButton('forward', 'Forward', { class: 'side-forward', 'data-hmz': 'forward', onclick: () => history.forward() }),
@@ -314,7 +314,7 @@ export function mountSidebar(root, context, where) {
     let hidden = 0
     fill(
       list,
-      groups.map((group) => {
+      groups.map((group, at) => {
         // A folder is a workspace, by its path; the rows of none are a group like any other.
         const folder = group.kind === 'folder' && Boolean(group.path)
         const open = !shut.has(group.key)
@@ -326,7 +326,7 @@ export function mountSidebar(root, context, where) {
         const toggle = h(
           'button',
           { class: 'side-toggle', type: 'button', 'aria-expanded': String(open) },
-          h('span', { class: 'side-folder-name', title: folder ? group.path : null }, h('span', { class: 'side-label' }, called)),
+          h('span', { class: 'side-folder-name', id: `side-group-${at}`, title: folder ? group.path : null }, h('span', { class: 'side-label' }, called)),
           icon('chevron'),
         )
         /** Gives the focus back to something of this group, once the list was drawn again. */
@@ -370,6 +370,8 @@ export function mountSidebar(root, context, where) {
                 class: 'side-more',
                 type: 'button',
                 'data-hmz': 'group-more',
+                // Described by its group's name, as each of several is told from the others unseen.
+                'aria-describedby': `side-group-${at}`,
                 onclick: () => {
                   // All of it from now on, whatever comes to be listed in it later.
                   shown.set(group.key, Infinity)
@@ -391,7 +393,7 @@ export function mountSidebar(root, context, where) {
             ? null
             : group.kind === 'folders'
               ? h('ul', { role: 'list' }, group.folders.map(place))
-              : [rows.length ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run)))) : h('p', { class: 'side-quiet nested' }, 'No chats or epics'), last],
+              : [rows.length ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run)))) : h('p', { class: 'side-quiet nested' }, 'Nothing here yet'), last],
         )
       }),
       // Every row read is shown and the daemon holds more: the list ends with what reads a page
@@ -639,6 +641,8 @@ export function mountSidebar(root, context, where) {
     if (parts[0] === 'epics' && marksHere(UNREAD).has(parts[1])) mark(UNREAD, parts[1], false)
     if (data) draw()
   })
+  // The view drawn took another address -- a chat just started, named -- whose row is marked.
+  window.addEventListener('hmz:renamed', () => data && draw())
   window.addEventListener('hmz:notifications', () => data && draw())
   window.addEventListener('hmz:seen', () => data && draw())
   // A row pinned or marked, from wherever its menu was opened.

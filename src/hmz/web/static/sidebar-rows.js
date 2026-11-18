@@ -30,6 +30,17 @@ export function epicSaid(how) {
 }
 
 /**
+ * How a row stands in the words every list of the page says it in, the sidebar's and Search's
+ * alike: a chat's state, only where there is something to say, and a flow's epic's mark.
+ *
+ * @param {string} how The row's mark.
+ * @param {boolean} chat Whether the row is a chat.
+ */
+export function rowSaid(how, chat) {
+  return chat ? CHAT_SAID[chatState(how)] || '' : epicSaid(how)
+}
+
+/**
  * What a row says when pointed at: all of what was asked, then, for a chat, how it stands and
  * when it began, and for a flow's epic its flow as well.
  *

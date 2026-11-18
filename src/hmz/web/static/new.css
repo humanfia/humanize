@@ -178,8 +178,10 @@
   min-width: 202px;
 }
 
+/* As wide as a chat app's, whatever the note under the three has to say. */
 .composer-desk .popover[role='menu'][aria-label='Permissions'] {
-  min-width: 308px;
+  width: 308px;
+  max-width: calc(100vw - 16px);
 }
 
 .composer-desk .popover.sub[role='menu'] {
