@@ -4,7 +4,7 @@
 // environment it works in -- then a menu of what else can be shown (Section 3.6.6.10 of
 // protocol/web.md). Which pane a button is of, and what pressing it does, is desk.js's.
 
-import { PANES } from '../desk.js'
+import { PANES, paneSaid } from '../desk.js'
 import { h, svg } from '../dom.js'
 
 /** The drawings of the bar's buttons, each a few strokes in a 24 by 24 box, as dom.js draws its own. */
@@ -15,9 +15,11 @@ const GLYPHS = {
   files: ['M3 6h6l2 2h10v11H3Z'],
   view: ['M4 6h10', 'M18 6h2', 'M4 12h4', 'M12 12h8', 'M4 18h12', 'M20 18h0', 'M16 4v4', 'M10 10v4', 'M18 16v4'],
   more: ['M4 11h2v2H4Z', 'M11 11h2v2h-2Z', 'M18 11h2v2h-2Z'],
+  usage: ['M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z'],
 }
 
-function glyph(name) {
+/** One of the drawings above. */
+export function glyph(name) {
   return svg(
     'svg',
     { class: `icon icon-${name}`, viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'square', 'stroke-linejoin': 'miter', 'aria-hidden': 'true' },
@@ -36,8 +38,9 @@ export function barButton(name, label, props = {}) {
  * one open.
  *
  * @param {(key: string) => void} press Told the pane whose button was pressed.
- * @returns {{nodes: HTMLElement[], said: (open: string, has: (key: string) => boolean) => void}}
- *   The buttons, and a way to say which pane is open and which the chat has now.
+ * @returns {{nodes: HTMLElement[], said: (open: string, has: (key: string) => boolean, held: boolean) => void}}
+ *   The buttons, and a way to say which pane is open, which the chat has now, and whether a
+ *   host holds it.
  */
 export function paneButtons(press) {
   const buttons = new Map(
@@ -48,13 +51,13 @@ export function paneButtons(press) {
   )
   return {
     nodes: [...buttons.values()],
-    said(open, has) {
+    said(open, has, held) {
       for (const [key, button] of buttons) {
         button.setAttribute('aria-pressed', String(key === open))
-        // A pane the chat has not got now -- no host holds it, or its environment cannot -- is
-        // still said, and cannot be opened.
+        // A pane the chat has not got now -- no host holds it, or its environment keeps none --
+        // is still said, cannot be opened, and says which of the two it is.
         button.disabled = !has(key)
-        button.title = has(key) ? PANES.find((one) => one.key === key).label : `${PANES.find((one) => one.key === key).label} opens while the chat runs`
+        button.title = paneSaid(key, has(key), held)
       }
     },
   }

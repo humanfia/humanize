@@ -507,17 +507,21 @@ Ai-chan conversation.
 **3.6.6.15** The box a chat is typed into -- under a chat, and on the form of a new chat -- MUST
 hold, inside it, only an `Add` button at its left, what is typed, and at its right the button that
 sends. Every other control of the box MUST be a chip in one row under it, no taller than 24 CSS
-pixels: at the left of that row where the chat runs, and at its right how it runs.
+pixels and set in from the edges of the box: at the left of that row where the chat runs, and at
+its right how it runs. A menu opened from the box or from a chip of that row MUST draw a choice of
+one line as a row 28 CSS pixels high.
 
-**3.6.6.16** `Add` MUST open a menu of `Add files`, `Slash commands`, `Skills and flows` and `Run
-a shell command`, which MUST type `@`, `/`, `$` and `!` into the box -- `@` where the caret is, the
-others at the start of the line -- and the box MUST then offer what it completes there (Section
-3.6.6.7). Each of the four typed by hand MUST do what it did.
+**3.6.6.16** Under a chat, `Add` MUST open a menu of `Add files`, `Slash commands`, `Skills and
+flows` and `Run a shell command`, which MUST type `@`, `/`, `$` and `!` into the box -- `@` where
+the caret is, the others at the start of the line -- and the box MUST then offer what it completes
+there (Section 3.6.6.7). On a form, where no chat's host says what the others start, `Add` MUST
+offer `Add files` alone, which MUST complete the paths of the workspace picked and MUST be disabled
+while none is picked. Each of the four typed by hand MUST do what it did.
 
 **3.6.6.17** The row under the box of a chat that has begun MUST hold, at its right and in this
-order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and, where the page knows what
-the chat has spent or written, a chip `Usage` saying it, which MUST open the chat's `Details`. That
-row MUST NOT hold where the chat runs.
+order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and a chip `Usage`, which MUST
+say what the chat has spent or written where the page knows it and MUST open the chat's `Details`.
+That row MUST NOT hold where the chat runs.
 
 **3.6.6.18** While a turn of a chat is open, the page MUST say over the chat's box who is
 responding, by the model the chat's agent runs; it MUST say there, besides, that the chat waits on
@@ -528,11 +532,14 @@ the user or has failed, and MUST say nothing there otherwise.
 options` holding `Side questions`. `Details` and `Side questions` MUST open the panel beside the
 chat on that tab (Section 3.6.6.11); `Terminal`, `Changes` and `Files` MUST open it on the chat's
 `Environment` (Section 3.6.6.4) at that panel (Section 3.17), and MUST be disabled while the chat
-has no such panel. A button MUST say whether its pane is the one open, and pressing the one open
-MUST shut the panel.
+has no such panel, saying whether that is for want of a host or of such a panel in its
+environment. A button MUST say whether its pane is the one open, and pressing the one open MUST
+shut the panel. Where the panel stands beside the chat, the bar MUST run over both, so that a
+button stays where it is as its pane opens and shuts.
 
 **3.6.6.20** The panel beside a chat MUST be shut until the user opens a pane of it, and MUST then
-be open or shut as this browser last left a chat's.
+be open or shut as this browser last left a chat's. The page MUST NOT draw the panel before it
+knows whether a chat or an epic of a flow is in front.
 
 **3.6.6.21** The page MUST NOT offer to stop the open turn of a chat: the button that sends stays
 one that sends, and what is sent while a turn is open is delivered as Section 8.4.4 of [CORE]
@@ -784,8 +791,9 @@ path with completion as it is typed, or to pick `No workspace`.
 **3.8.2.1** The form MUST offer that choice under the box of Section 3.8.5, at its left, as a
 control naming the workspace picked, and MUST NOT offer it in the bar over the form.
 
-**3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves under
-`Recent`, and after them `Open folder…` and `No workspace`.
+**3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves, each one
+row named by the last part of its path and saying its path where it is pointed at, and after them
+`Open folder…` and `No workspace`.
 
 **3.8.3** With `No workspace` picked, the form MUST offer the flows and the set-up of the
 workspace `hmz web` was started in, and starting MUST start the epic in a new directory made for it
@@ -862,15 +870,19 @@ every remote daemon this browser keeps, with the one shown marked, and `New envi
 opens the daemons' settings (Section 3.13); picking another daemon MUST switch the page to it
 (Section 3.4.2.4), on the same form.
 
-**3.8.23** The form of a new chat MUST list, in the middle of the page under `Next steps`, each
-chat of the daemon shown that is marked `asking` (Section 3.5.10), in rows 32 CSS pixels high and at
-most 320 wide: a row MUST open its chat, and MUST hold a button that dismisses it from the list in
-this browser until that chat asks again. Where no chat is listed the page MUST NOT draw the list.
+**3.8.23** The form of a new chat MUST list, in the middle of the page, in a list named `Next
+steps` under no heading, each chat marked `asking` (Section 3.5.10) among the 200 newest epics of
+the daemon shown, in rows 32 CSS pixels high and at most 320 wide: a row MUST say `Asked a
+question` after the chat's title, MUST open its chat, and MUST hold, inside it at its right, a
+button that dismisses it from the list in this browser until that chat asks something else,
+whether or not a host still holds the chat. Where no chat is listed the page MUST NOT draw the
+list.
 
 **3.8.24** The form of a new epic of a flow MUST be drawn in the frame of Section 3.8.21: the
 heading `New epic`, or `Resume epic`, in the bar with the flow of Section 3.8.4 beside it; what the
 flow is for and `Options` (Section 3.8.6) in the middle of the page; and the box of Section 3.8.5
-docked at the foot, holding only what is typed and the button that sends. The row under that box
+docked at the foot, holding only the `Add` button of Section 3.6.6.16, what is typed and the button
+that sends. The row under that box
 MUST hold, at its left, `Environment` (Section 3.8.22) and the workspace control of Section
 3.8.2.1, and at its right what is set (Section 3.8.7) and the button that opens `Options`.
 

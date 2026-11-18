@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { ADDS, PANES, added, dismissing, nextSteps, paneOf, standing, stepKey, toggled, usageSaid } from '../../../../src/hmz/web/static/desk.js'
+import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, toggled, usageSaid } from '../../../../src/hmz/web/static/desk.js'
 
 test('the Add menu offers the four prefixes a line starts with, each a short label', () => {
   assert.deepEqual(ADDS.map((one) => one.sigil), ['@', '/', '$', '!'])
@@ -37,8 +37,44 @@ test('the chats waiting on their person are those marked asking and not dismisse
   assert.deepEqual(nextSteps(runs, chat, mark, [stepKey(runs[0])]).map((one) => one.name), ['d'])
   // Dismissed, it is listed again once it asks something else.
   assert.deepEqual(nextSteps([{ ...runs[0], asking: ['2:q9'] }], chat, mark, [stepKey(runs[0])]).map((one) => one.name), ['a'])
-  assert.deepEqual(nextSteps(runs, chat, mark, [], 1).map((one) => one.name), ['a'])
   assert.deepEqual(nextSteps(null, chat, mark), [])
+  // Every one that waits is listed, however many.
+  const many = Array.from({ length: 40 }, (_, at) => ({ name: `n${at}`, kind: 'chat', how: 'asking', asking: [`1:q${at}`] }))
+  assert.equal(nextSteps(many, chat, mark).length, 40)
+})
+
+test('a chat dismissed stays dismissed once it has folded away and lists nothing', () => {
+  const chat = () => true
+  const mark = () => 'asking'
+  const going = { name: 'a', asking: ['1:q1'] }
+  const folded = { name: 'a', asking: [] }
+  // What this browser holds the chat owing, once its row lists none.
+  const waits = () => ['1:q1']
+  const dismissed = [stepKey(going, waits(going))]
+  assert.equal(stepKey(folded, waits(folded)), stepKey(going))
+  assert.deepEqual(nextSteps([folded], chat, mark, dismissed, waits), [])
+  // Asking something else, it is listed again, going or folded away.
+  assert.equal(nextSteps([{ name: 'a', asking: ['2:q2'] }], chat, mark, dismissed, waits).length, 1)
+  assert.equal(nextSteps([folded], chat, mark, dismissed, () => ['2:q2']).length, 1)
+})
+
+test('before a chat there is, Add offers the files alone', () => {
+  assert.deepEqual(addsOf(true), ADDS)
+  assert.deepEqual(addsOf(['files']).map((one) => one.sigil), ['@'])
+  assert.ok(NO_FOLDER.split(' ').length <= 4 && !/[.?!…]$/.test(NO_FOLDER))
+})
+
+test('a chip is called by what it picks and what is picked', () => {
+  assert.equal(chipNamed('Environment', 'Local'), 'Environment: Local')
+  assert.equal(chipNamed('Usage', '$0.42'), 'Usage: $0.42')
+  assert.equal(chipNamed('Usage', ''), 'Usage')
+})
+
+test('a pane that cannot be opened says which of the two reasons it is', () => {
+  assert.equal(paneSaid('terminal', true, true), 'Terminal')
+  assert.equal(paneSaid('terminal', false, true), 'No terminal in this environment')
+  assert.equal(paneSaid('changes', false, false), 'Changes opens once the chat goes on')
+  assert.equal(paneSaid('nothing', false, false), '')
 })
 
 test('what is dismissed is kept once, the latest last, and no more than asked', () => {

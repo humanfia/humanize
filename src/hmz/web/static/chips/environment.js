@@ -4,6 +4,7 @@
 // (Section 3.8.22 of protocol/web.md).
 
 import { daemon, hash, known, kindOf, stateOf, toDaemon } from '../api.js'
+import { chipNamed } from '../desk.js'
 import { h, icon } from '../dom.js'
 import { choice, menu } from '../shell.js'
 
@@ -15,7 +16,7 @@ const named = (name) => (name === 'local' ? 'Local' : name)
  * @returns {{node: HTMLElement}}
  */
 export function environmentChip(path) {
-  const button = h('button', { class: 'chip-btn desk-chip', type: 'button', 'aria-label': 'Environment', 'data-hmz': 'environment', 'data-tip': 'Where it runs' }, icon('home'), h('span', { class: 'chip-value' }, named(daemon())), icon('down'))
+  const button = h('button', { class: 'chip-btn desk-chip', type: 'button', 'aria-label': chipNamed('Environment', named(daemon())), 'data-hmz': 'environment', 'data-tip': 'Where it runs' }, icon('home'), h('span', { class: 'chip-value' }, named(daemon())), icon('down'))
   let daemons = [{ name: 'local', routes: [] }]
   const read = () =>
     known().then(
@@ -28,12 +29,14 @@ export function environmentChip(path) {
       daemons.map((one) => {
         const item = choice({
           label: named(one.name),
-          about: one.name === 'local' ? 'This computer' : [kindOf(one), stateOf(one.name).state].filter(Boolean).join(' · '),
+          // Local is this computer, in one row; a remote one says how it is reached, under its name.
+          about: one.name === 'local' ? '' : [kindOf(one), stateOf(one.name).state].filter(Boolean).join(' · '),
           chosen: one.name === daemon(),
           act: () => one.name !== daemon() && toDaemon(one.name, path),
           close,
         })
         item.dataset.daemon = one.name
+        if (one.name === 'local') item.dataset.tip = 'This computer'
         return item
       }),
       h('hr'),

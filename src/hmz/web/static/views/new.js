@@ -13,11 +13,12 @@ import { call, given, hash } from '../api.js'
 import { covered, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
+import { NO_FOLDER } from '../desk.js'
 import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
 import { paramsForm } from '../asking/form.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
-import { firstWorkspace, workspacePicker } from '../places.js'
+import { firstWorkspace, folderFiles, workspacePicker } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
@@ -31,8 +32,11 @@ export function mount(root, { query }) {
   const place = workspacePicker(scratch ? null : workspace, (path) => {
     scratch = path === null
     workspace = path || ''
+    files.clear()
     load(query.get('flow') || '')
-  }, { none: true })
+  }, { none: true, plain: true })
+  // A task names a file as a first message does: `@` completes the paths of the folder picked.
+  const files = folderFiles(() => workspace)
   const about = h('p', { class: 'greeting-about' })
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
   const optionsChip = h('button', { class: 'chip-btn desk-chip', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
@@ -44,7 +48,8 @@ export function mount(root, { query }) {
     empty: true,
     busy: 'Starting…',
     submit: (task) => start(task),
-    desk: { left: [environmentChip('/new').node, place.node], right: [summary, optionsChip] },
+    complete: files.complete,
+    desk: { add: ['files'], able: () => (workspace ? '' : NO_FOLDER), left: [environmentChip('/new').node, place.node], right: [summary, optionsChip] },
   })
   box.node.dataset.hmz = 'start'
   optionsChip.addEventListener('click', () => {

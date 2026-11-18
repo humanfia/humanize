@@ -8,7 +8,7 @@
 // choice beside it is a quiet chip in the row under it, where it runs at the left and how it
 // runs at the right (Section 3.6.6.15 of protocol/web.md).
 
-import { ADDS, added } from './desk.js'
+import { added, addsOf } from './desk.js'
 import { fill, h, icon, iconButton, problem } from './dom.js'
 import { choice, menu } from './shell.js'
 
@@ -22,9 +22,11 @@ import { choice, menu } from './shell.js'
  * @param {boolean} [made.empty] Whether it may be sent empty.
  * @param {string} [made.busy] What it says over itself while what was sent is being taken.
  * @param {(text: string, caret: number) => Promise<Completing|null>|Completing|null} [made.complete] What the word at the caret could become.
- * @param {{left?: Node[], right?: Node[], add?: boolean} | null} [made.desk] Drawn as a chat's desk:
- *   the chips under the box, at its left and at its right, and whether the box has an Add menu.
- *   `tools` then stand at the right under the box, never in it.
+ * @param {{left?: Node[], right?: Node[], add?: true | string[], able?: (key: string) => string} | null} [made.desk]
+ *   Drawn as a chat's desk: the chips under the box, at its left and at its right; what its Add
+ *   menu offers -- all of it, or the keys of desk.js's `ADDS` it does; and `able`, which says why
+ *   one of them cannot be picked now, or '' where it can. `tools` then stand at the right under
+ *   the box, never in it.
  */
 export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…', complete = null, desk = null }) {
   const text = h('textarea', { rows: '1', placeholder, 'aria-label': label, 'data-hmz': 'composer-text' }, value)
@@ -37,7 +39,7 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
         'form',
         { class: 'composer composer-desk', 'data-hmz': 'composer' },
         said,
-        h('div', { class: 'composer-box' }, desk.add ? adder(text) : null, text, send),
+        h('div', { class: 'composer-box' }, desk.add ? adder(text, desk.add, desk.able) : null, text, send),
         h('div', { class: 'composer-under', 'data-hmz': 'composer-under' }, left, tray),
       )
     : h('form', { class: 'composer', 'data-hmz': 'composer' }, said, text, h('div', { class: 'composer-bar' }, tray, send))
@@ -87,14 +89,16 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
  * The Add button of a chat's box, and its menu: each choice types the prefix a line of that kind
  * starts with, and the box then offers what it could become, as it does where the prefix is typed.
  */
-function adder(text) {
+function adder(text, which, able = () => '') {
   const button = iconButton('plus', 'Add', { class: 'composer-add', 'data-hmz': 'composer-add' })
   menu(
     button,
     (close) =>
-      ADDS.map((one) => {
+      addsOf(which).map((one) => {
+        const why = able(one.key)
         const item = choice({
           label: one.label,
+          about: why,
           glyph: one.glyph,
           close,
           act: () => {
@@ -106,6 +110,7 @@ function adder(text) {
           },
         })
         item.dataset.add = one.key
+        item.disabled = Boolean(why)
         return item
       }),
     { up: true, label: 'Add' },

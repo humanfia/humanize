@@ -11,14 +11,13 @@ import { covered, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
-import { dismissing, nextSteps, stepKey } from '../desk.js'
+import { NO_FOLDER, dismissing, nextSteps, stepKey } from '../desk.js'
 import { fill, h, headline, iconButton, problem } from '../dom.js'
-import { chatting, markOf } from '../epic.js'
+import { chatting, markOf, waitsOn } from '../epic.js'
 import { permissionChip } from '../chips/permission.js'
 import { chatAsk } from '../held.js'
-import { pathItems, pathParts, typing } from '../natives.js'
 import { readBackends } from '../pickers.js'
-import { firstWorkspace, workspacePicker } from '../places.js'
+import { firstWorkspace, folderFiles, workspacePicker } from '../places.js'
 import { bar, keep, kept } from '../shell.js'
 
 export function mount(root, { query }) {
@@ -30,18 +29,18 @@ export function mount(root, { query }) {
     scratch = path === null
     workspace = path || ''
     load('')
-  }, { none: true })
+  }, { none: true, plain: true })
   const permission = permissionChip({ up: true })
-  /** What `@` listed, by the directory listed, until another folder is picked. */
-  const listed = new Map()
+  // Before a chat there is no catalogue to complete from: `@` names a file of the folder.
+  const files = folderFiles(() => workspace)
   const box = composer({
     placeholder: 'Message',
     label: 'First message',
     busy: 'Starting…',
     submit: (task) => start(task),
-    // Before a chat there is no catalogue to complete from: `@` names a file of the folder.
-    complete: (text, caret) => files(text, caret),
-    desk: { add: true, left: [environmentChip('/new/chat').node, place.node], right: [permission.node] },
+    complete: files.complete,
+    // So Add offers the files alone: what `/`, `$` and `!` start is the chat's host's to say.
+    desk: { add: ['files'], able: () => (workspace ? '' : NO_FOLDER), left: [environmentChip('/new/chat').node, place.node], right: [permission.node] },
   })
   box.node.dataset.hmz = 'start'
   const steps = h('section', { class: 'next-steps', 'aria-label': 'Next steps', 'data-hmz': 'next-steps', hidden: true })
@@ -49,18 +48,6 @@ export function mount(root, { query }) {
     root,
     h('div', { class: 'view view-new view-desk', 'data-hmz': 'new-chat' }, bar({ title: 'New chat' }), h('div', { class: 'desk-body' }, steps), h('div', { class: 'dock desk-dock' }, box.node)),
   )
-
-  /** What the word at the caret could become: for `@`, the paths of the folder picked. */
-  async function files(text, caret) {
-    const typed = typing(text, caret)
-    if (!typed || typed.sigil !== '@' || !workspace) return null
-    const { dir, base } = pathParts(typed.word)
-    const hidden = base.startsWith('.')
-    const key = `${workspace}\n${hidden}\n${dir}`
-    if (!listed.has(key)) listed.set(key, call('paths.list', { at: `${workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
-    const items = pathItems(dir, base, await listed.get(key))
-    return { from: typed.from, to: typed.to, groups: items.length ? [{ source: 'path', label: 'Files', items }] : [] }
-  }
 
   // The chats of this daemon that wait on their person, each opened by its row, and dismissed
   // from the list in this browser until it asks again.
@@ -73,13 +60,21 @@ export function mount(root, { query }) {
       return []
     }
   }
-  const keyOf = (run) => `${daemon()} ${stepKey(run)}`
+  // What a chat waits on: what its host lists, or what this browser holds it owing once it lists none.
+  const waits = (run) => waitsOn(run.name, run.asking || [])
+  const keyOf = (run) => `${daemon()} ${stepKey(run, waits(run))}`
   function drawSteps() {
-    const waiting = nextSteps(runs, chatting, (run) => markOf(run.how, { chat: true, turn: run.turn, asked: run.asking || [], epic: run.name }), dismissed().filter((one) => one.startsWith(`${daemon()} `)).map((one) => one.slice(daemon().length + 1)))
+    const waiting = nextSteps(
+      runs,
+      chatting,
+      (run) => markOf(run.how, { chat: true, turn: run.turn, asked: run.asking || [], epic: run.name }),
+      dismissed().filter((one) => one.startsWith(`${daemon()} `)).map((one) => one.slice(daemon().length + 1)),
+      waits,
+    )
     steps.hidden = !waiting.length
+    // The list alone, as a chat app draws it: what it is is said to whoever cannot see it.
     fill(
       steps,
-      h('h2', {}, 'Next steps'),
       h(
         'ul',
         {},
@@ -87,7 +82,7 @@ export function mount(root, { query }) {
           h(
             'li',
             { class: 'next-step', 'data-hmz': 'next-step', 'data-epic': run.name },
-            h('a', { href: hash(`/epics/${encodeURIComponent(run.name)}`), title: run.task }, h('span', { class: 'dot waiting', 'aria-hidden': 'true' }), h('span', { class: 'next-title' }, headline(run.task)), h('span', { class: 'next-state' }, 'Awaiting input')),
+            h('a', { href: hash(`/epics/${encodeURIComponent(run.name)}`), title: run.task }, h('span', { class: 'dot waiting', role: 'img', 'aria-label': 'Waiting' }), h('span', { class: 'next-title' }, headline(run.task)), h('span', { class: 'next-state' }, 'Asked a question')),
             iconButton('close', 'Dismiss', {
               'data-hmz': 'next-dismiss',
               onclick: () => {
@@ -100,7 +95,8 @@ export function mount(root, { query }) {
       ),
     )
   }
-  const unlisted = poll('runs.list', { limit: 60 }, 4000, (answer) => {
+  // As many as `runs.list` answers at once: a chat waits while a host holds it, or was left lately.
+  const unlisted = poll('runs.list', { limit: 200 }, 4000, (answer) => {
     if (!answer) return
     runs = answer.runs || []
     drawSteps()
@@ -117,7 +113,7 @@ export function mount(root, { query }) {
   async function load(agent) {
     const mine = (loading = scratch ? 'none' : workspace || 'here')
     fill(box.said)
-    listed.clear()
+    files.clear()
     picker?.node.classList.add('stale')
     try {
       if (!workspace) workspace = await firstWorkspace()

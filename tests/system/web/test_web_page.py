@@ -455,10 +455,21 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
             box = chips.nth(at).bounding_box()
             assert box
             assert box["height"] == 24
-        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"]
+        # Set in from the box's edges, as a chat app's are: on a wide page the first
+        # starts a hair right of the Add button, and the last ends as far from the edge.
+        inset = 12 if width > 860 else 4
+        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + inset
+        if width > 860:
+            assert _at(page, "[data-hmz=environment]")["x"] == inside[0]["x"] + 2
         last = _at(page, "[data-hmz=start] [data-hmz=permission]")
-        assert abs(last["x"] + last["width"] - (boxed["x"] + boxed["width"])) <= 1
+        assert (
+            abs(last["x"] + last["width"] - (boxed["x"] + boxed["width"] - inset)) <= 1
+        )
         expect(view.locator("[data-hmz=environment]")).to_have_text("Local")
+        # Said, to whoever cannot see it, with what it picks.
+        expect(view.locator("[data-hmz=environment]")).to_have_attribute(
+            "aria-label", "Environment: Local"
+        )
         expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
 
         # Environment is the daemon the page shows, and offers the others.
@@ -470,6 +481,8 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         expect(offered.locator("[data-daemon=local]")).to_have_class(
             re.compile("chosen")
         )
+        # A menu of the desk is a chat app's: a choice of one line is a row of 28px.
+        assert _at(page, "[role=menu] [data-daemon=local]")["height"] == 28
         page.keyboard.press("Escape")
         # The folder: the recent ones, then opening one, then none.
         view.locator("[data-hmz=workspace-picker]").click()
@@ -478,30 +491,38 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         expect(folders.nth(-1)).to_contain_text("No workspace")
         page.keyboard.press("Escape")
 
-        # Add types what a line starts with; `@` completes the folder's files.
+        # Before there is a chat, Add offers the one prefix the page completes by
+        # itself: `@`, which completes the folder's files.
         (project / "notes.md").write_text("notes\n", encoding="utf-8")
         text = view.locator("[data-hmz=composer-text]")
         view.locator("[data-hmz=composer-add]").click()
-        page.get_by_role("menu", name="Add").get_by_role(
-            "menuitem", name="Add files"
-        ).click()
+        adding = page.get_by_role("menu", name="Add")
+        expect(adding.get_by_role("menuitem")).to_have_text(["Add files"])
+        assert _at(page, "[role=menu][aria-label=Add]")["width"] == 218
+        adding.get_by_role("menuitem", name="Add files").click()
         expect(text).to_have_value("@")
         expect(page.locator("[data-hmz=completions]")).to_contain_text("@notes.md")
         text.fill("")
 
-        # In the middle, the chats that wait on their person: 320 wide at most, rows of
-        # 32px, each opening its chat, each dismissed with a 28px button.
+        # In the middle, the chats that wait on their person, as a chat app lists them:
+        # the list alone, 320 wide at most, its rows of 32px set in 4px, each opening
+        # its chat, each dismissed with a 28px button inside the row, at its right.
         steps = view.locator("[data-hmz=next-steps]")
-        expect(steps.locator("h2")).to_have_text("Next steps")
+        expect(steps).to_have_attribute("aria-label", "Next steps")
+        expect(steps.locator("h2")).to_have_count(0)
         row = steps.locator("[data-hmz=next-step]")
         expect(row).to_have_count(1)
         expect(row).to_contain_text("which colour is the button")
+        expect(row.locator(".next-state")).to_have_text("Asked a question")
         listed = _at(page, "[data-hmz=next-steps]")
         assert listed["width"] == min(320, pane["width"] - (40 if width > 860 else 28))
         assert abs(listed["x"] + listed["width"] / 2 - middle) <= 1
-        assert _at(page, "[data-hmz=next-step]")["height"] == 32
+        lined = _at(page, "[data-hmz=next-step]")
+        assert (lined["x"], lined["width"]) == (listed["x"] + 4, listed["width"] - 8)
+        assert lined["height"] == 32
         dismiss = _at(page, "[data-hmz=next-dismiss]")
         assert (dismiss["width"], dismiss["height"]) == (28, 28)
+        assert dismiss["x"] + dismiss["width"] == lined["x"] + lined["width"] - 4
         expect(row.locator("a")).to_have_attribute(
             "href", f"#/epics/{_WAITING['name']}"
         )
@@ -512,6 +533,22 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         expect(page.locator("[data-hmz=new-chat]")).to_be_visible()
         page.wait_for_timeout(500)
         expect(page.locator("[data-hmz=next-steps]")).to_be_hidden()
+        # And once the chat has folded away, when its row lists nothing it asks: what
+        # this browser holds it owing is what it was dismissed by.
+        wire.faked["runs.list"] = lambda _: {
+            "result": {"runs": [{**_WAITING, "asking": []}], "total": 1}
+        }
+        asked = len(wire.params("runs.list"))
+        page.reload()
+        expect(page.locator("[data-hmz=new-chat]")).to_be_visible()
+        while len(wire.params("runs.list")) <= asked:
+            page.wait_for_timeout(50)
+        page.wait_for_timeout(500)
+        expect(page.locator("[data-hmz=next-steps]")).to_be_hidden()
+        # It still waits: forgotten as dismissed, it is listed again.
+        page.evaluate("localStorage.removeItem('hmz-next-dismissed')")
+        page.reload()
+        expect(page.locator("[data-hmz=next-step]")).to_have_count(1)
 
 
 def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
@@ -527,21 +564,28 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         heading = _at(page, "[data-hmz=bar] h1")
         picker = _at(page, "[data-hmz=flow-picker]")
         assert 0 <= picker["x"] - (heading["x"] + heading["width"]) <= 12
-        # The box docked at the foot: only what is typed and the button that sends in
-        # it, where it runs under it at the left, Options and what is set at the right.
+        # The box docked at the foot, as a new chat's: Add, what is typed and the button
+        # that sends in it, where it runs under it at the left, Options and what is set
+        # at the right.
         pane = _at(page, "[data-hmz=new-epic]")
         boxed = _at(page, "[data-hmz=start] .composer-box")
         under = _at(page, "[data-hmz=start] [data-hmz=composer-under]")
-        expect(view.locator(".composer-box > *")).to_have_count(2)
+        expect(view.locator(".composer-box > *")).to_have_count(3)
         assert under["y"] >= boxed["y"] + boxed["height"]
         assert pane["y"] + pane["height"] - (under["y"] + under["height"]) == 8
-        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"]
+        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + 12
+        # Add offers the files of the folder alone, which `@` completes in a task too.
+        view.locator("[data-hmz=composer-add]").click()
+        expect(
+            page.get_by_role("menu", name="Add").get_by_role("menuitem")
+        ).to_have_text(["Add files"])
+        page.keyboard.press("Escape")
         assert _at(page, "[data-hmz=workspace-picker]")["x"] < boxed["x"] + 200
         options = page.get_by_role("button", name="Options")
         chip = options.bounding_box()
         assert chip
         assert chip["height"] == 24
-        assert abs(chip["x"] + chip["width"] - (boxed["x"] + boxed["width"])) <= 1
+        assert abs(chip["x"] + chip["width"] - (boxed["x"] + boxed["width"] - 12)) <= 1
         # Options opens in the middle of the page, over the box.
         expect(page.locator("[data-hmz=options]")).to_be_hidden()
         options.click()

@@ -277,12 +277,19 @@ def test_the_folder_is_picked_under_the_box_and_not_in_the_bar(
         assert under is not None
         assert before is not None
         assert under["y"] >= box["y"] + box["height"]
-        assert abs(before["x"] - box["x"]) < 4
+        # Set in from the box's edge, as its Add button is.
+        assert 0 <= before["x"] - box["x"] <= 12
         assert 0 <= under["x"] - (before["x"] + before["width"]) < 8
 
         chip.click()
         menu = page.get_by_role("menu", name="Folders")
-        expect(menu.locator(".popover-head")).to_have_text("Recent")
+        # A chat app's folder menu: each folder one row by its name, under no heading,
+        # its path said where it is pointed at.
+        expect(menu.locator(".popover-head")).to_have_count(0)
+        expect(menu.locator(".choice-about")).to_have_count(0)
+        expect(menu.get_by_role("menuitem", name="project")).to_have_attribute(
+            "data-tip", str(project)
+        )
         expect(menu.get_by_role("menuitem", name="Open folder…")).to_be_visible()
         menu.get_by_role("menuitem", name="No workspace").click()
         expect(chip.locator("b")).to_have_text("No workspace")

@@ -64,7 +64,8 @@
   margin: 0 0 6px;
 }
 
-/* Under the box: clear of its shadow, no wider than it, the two ends pushed apart. */
+/* Under the box: clear of its shadow, the two ends pushed apart, and set in from its edges as
+   a chat app's are -- the first chip starts where the box's Add button does, a hair further. */
 .composer-under {
   display: flex;
   align-items: center;
@@ -73,6 +74,7 @@
   gap: 4px 12px;
   min-height: 24px;
   margin-top: 6px;
+  padding-inline: 12px;
   min-width: 0;
 }
 
@@ -81,7 +83,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -158,12 +160,71 @@
   line-height: 22px;
 }
 
+/* ------------------------------------------------------------------ the menus of the desk */
+
+/* A menu opened from the box or from a chip under it, as a chat app draws one: rows of 28px
+   where a choice is one line, 46px where it says something under its name, and no wider than
+   what it holds wants. */
+.composer-desk .popover[role='menu'] {
+  min-width: 200px;
+  padding: 4px;
+}
+
+.composer-desk .popover[role='menu'][aria-label='Add'] {
+  min-width: 218px;
+}
+
+.composer-desk .popover[role='menu'][aria-label='Model'] {
+  min-width: 202px;
+}
+
+.composer-desk .popover[role='menu'][aria-label='Permissions'] {
+  min-width: 308px;
+}
+
+.composer-desk .popover.sub[role='menu'] {
+  min-width: 160px;
+}
+
+.composer-desk .popover[role='menu'] .choice {
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.composer-desk .popover[role='menu'] .choice-label {
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-desk .popover[role='menu'] .choice-about {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.composer-desk .popover[role='menu'] hr {
+  margin: 4px 0;
+}
+
 /* ------------------------------------------------------------------ a new chat, a new epic */
 
-/* The bar of a form: the height a chat app's is, its heading plain, the flow picked beside it. */
+/* The bar of a form: the height a chat app's is, its heading plain and set in as a chat's
+   title is, the flow picked beside it, and its buttons the size a chat's bar keeps. */
 .view-desk > .bar {
   min-height: 44px;
-  padding-block: 0;
+  /* Its buttons 8px from the top, as a chat's bar keeps them, over the line under it. */
+  padding: 1px 8px 0;
+}
+
+.view-desk > .bar .bar-title h1 {
+  padding-left: 12px;
+}
+
+.view-desk > .bar .icon-btn {
+  width: 28px;
+  height: 28px;
 }
 
 .view-desk > .bar .bar-title {
@@ -218,22 +279,16 @@
   width: min(100%, var(--column));
 }
 
-/* The chats that wait on their person, in the middle of a new chat's page. */
+/* The chats that wait on their person, in the middle of a new chat's page: the list alone,
+   its rows set in 4px, the button that dismisses one inside its row, at the right. */
 .next-steps {
   width: min(100%, 320px);
   margin: auto;
 }
 
-.next-steps h2 {
-  margin: 0 0 4px;
-  padding: 0 8px;
-  font: 500 12.5px var(--sans);
-  color: var(--ink-3);
-}
-
 .next-steps ul {
   margin: 0;
-  padding: 0;
+  padding: 4px;
   list-style: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -245,6 +300,12 @@
   display: flex;
   align-items: center;
   height: 32px;
+  padding-right: 4px;
+}
+
+.next-step:hover,
+.next-step:focus-within {
+  background: var(--hover);
 }
 
 .next-step a {
@@ -258,11 +319,6 @@
   color: var(--ink);
   text-decoration: none;
   font-size: 13.5px;
-}
-
-.next-step a:hover,
-.next-step a:focus-visible {
-  background: var(--hover);
 }
 
 .next-title {
@@ -298,6 +354,10 @@
   .dock.desk-dock,
   .view-epic .dock:has(.composer-desk) {
     padding-bottom: 8px;
+  }
+
+  .composer-under {
+    padding-inline: 4px;
   }
 
   .composer-under .chip-btn .chip-value,

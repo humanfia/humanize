@@ -4,6 +4,7 @@
 
 import { call, daemon, onDaemon, started } from './api.js'
 import { fill, h, icon } from './dom.js'
+import { pathItems, pathParts, typing } from './natives.js'
 import { pathPicker } from './paths.js'
 import { choice, dragged, follow, menu, section } from './shell.js'
 
@@ -37,6 +38,41 @@ export async function firstWorkspace() {
   return offered.here || (offered.workspaces[0] && offered.workspaces[0].path) || '~'
 }
 
+/** Where an epic of no workspace works. */
+const NOWHERE = 'A new directory of its own, in the temporary directory'
+
+/** A choice that says more where it is pointed at, where there is more to say. */
+function tipped(item, tip) {
+  if (tip) item.dataset.tip = tip
+  return item
+}
+
+/**
+ * What `@` completes in a box typed into before a chat or an epic there is: the paths of the
+ * folder picked, read a directory at a time and kept until another folder is picked.
+ *
+ * @param {() => string} folder The folder picked now, or '' for none.
+ * @returns {{complete: (text: string, caret: number) => Promise<object|null>, clear: () => void}}
+ */
+export function folderFiles(folder) {
+  /** What was listed, by the directory listed. */
+  const listed = new Map()
+  return {
+    clear: () => listed.clear(),
+    async complete(text, caret) {
+      const typed = typing(text, caret)
+      const workspace = folder()
+      if (!typed || typed.sigil !== '@' || !workspace) return null
+      const { dir, base } = pathParts(typed.word)
+      const hidden = base.startsWith('.')
+      const key = `${workspace}\n${hidden}\n${dir}`
+      if (!listed.has(key)) listed.set(key, call('paths.list', { at: `${workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
+      const items = pathItems(dir, base, await listed.get(key))
+      return { from: typed.from, to: typed.to, groups: items.length ? [{ source: 'path', label: 'Files', items }] : [] }
+    },
+  }
+}
+
 /** A workspace as a list names it: the last part of its path. */
 export function nameOf(path) {
   return String(path || '').split('/').filter(Boolean).pop() || path || ''
@@ -49,9 +85,11 @@ export function nameOf(path) {
  * @param {string | null} chosen The workspace chosen to begin with, "" for where `hmz web`
  *   started, or null for no workspace.
  * @param {(path: string | null) => void} changed Told the workspace picked, null for none.
- * @param {{ none?: boolean }} [offers] Whether no workspace is on offer.
+ * @param {{ none?: boolean, plain?: boolean }} [offers] Whether no workspace is on offer, and
+ *   whether the menu is a chat app's folder menu: each folder one row, by the last part of its
+ *   path alone, under no heading, its whole path said where it is pointed at.
  */
-export function workspacePicker(chosen, changed, { none = false } = {}) {
+export function workspacePicker(chosen, changed, { none = false, plain = false } = {}) {
   const said = h('b', {}, '…')
   const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
   const folder = pathPicker({ label: 'Folder', placeholder: '~/project' })
@@ -66,19 +104,23 @@ export function workspacePicker(chosen, changed, { none = false } = {}) {
   function set(to) {
     path = to
     said.textContent = to === null ? 'No workspace' : nameOf(to)
-    button.dataset.tip = to === null ? 'A new directory of its own, in the temporary directory' : to
+    button.dataset.tip = to === null ? NOWHERE : to
   }
 
   menu(
     button,
     (close) => [
-      section('Recent'),
-      list.map((one) => choice({ label: one.name, about: one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })),
+      plain ? null : section('Recent'),
+      list.map((one) => {
+        const item = choice({ label: one.name, about: plain ? '' : one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })
+        if (plain) item.dataset.tip = one.path
+        return item
+      }),
       h('hr'),
       choice({ label: 'Open folder…', glyph: 'plus', act: () => open(), close }),
-      none ? choice({ label: 'No workspace', about: 'A new directory of its own, in the temporary directory', chosen: path === null, glyph: 'file', act: () => pick(null), close }) : null,
+      none ? tipped(choice({ label: 'No workspace', about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close }), plain ? NOWHERE : '') : null,
     ],
-    { label: 'Folders' },
+    { label: 'Folders', up: plain },
   )
 
   function pick(to) {

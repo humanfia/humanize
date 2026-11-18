@@ -11,6 +11,7 @@ the tabs and the words it had. Each in Chromium and in WebKit.
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -247,9 +248,21 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         expect(bar).not_to_contain_text(
             re.compile("epic|flow|native|began", re.IGNORECASE)
         )
-        # No host holds an environment for it: its three panes are said, and cannot open.
+        # The buttons 4px apart, the last 8px from the edge of the view, which the bar
+        # runs the whole width of.
+        assert {b["x"] - a["x"] for a, b in pairwise(toggles[1:])} == {32}
+        whole = _box(page, ".view-epic")
+        barred = _box(page, "[data-hmz=bar]")
+        assert (barred["x"], barred["width"]) == (whole["x"], whole["width"])
+        ending = _box(page, "[data-hmz=aichan-toggle]")
+        assert whole["x"] + whole["width"] - (ending["x"] + ending["width"]) == 8
+        # Its host holds no environment for it: its three panes are said, cannot open,
+        # and say why.
         for pane in ("terminal", "changes", "files"):
             expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_be_disabled()
+            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_have_attribute(
+                "title", f"No {pane} in this environment"
+            )
 
         # How it stands is said over its box, only while there is something to say.
         expect(page.locator("[data-hmz=chat-status]")).to_have_text(
@@ -315,10 +328,19 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
             "chat-model",
             "permission",
+            "chat-usage",
         ]
         expect(chips.first).to_have_text("Haiku 4.5")
-        for hook in ("chat-model", "permission"):
+        for hook in ("chat-model", "permission", "chat-usage"):
             assert _box(page, f"[data-hmz=say] [data-hmz={hook}]")["height"] == 24
+        # Usage is a ring 24px square while the chat has spent nothing to say, the last
+        # of the row and set in from the box's edge.
+        used = _box(page, "[data-hmz=say] [data-hmz=chat-usage]")
+        assert used["width"] == 24
+        assert boxed["x"] + boxed["width"] - (used["x"] + used["width"]) == 12
+        expect(page.locator("[data-hmz=say] [data-hmz=chat-usage]")).to_have_attribute(
+            "aria-label", "Usage"
+        )
         last = _box(page, "[data-hmz=say] [data-hmz=permission]")
         assert last["x"] > boxed["x"] + boxed["width"] / 2
         expect(
@@ -358,10 +380,15 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         details = bar.locator("[data-hmz=pane-details]")
         expect(panel).to_be_hidden()
         expect(details).to_have_attribute("aria-pressed", "false")
+        before = _box(page, "[data-hmz=pane-details]")
         details.click()
         expect(panel).to_be_visible()
         expect(details).to_have_attribute("aria-pressed", "true")
-        details.click()
+        # The bar runs over the pane too: the button stays where it was pressed, so
+        # pressing there again shuts the pane.
+        assert _box(page, "[data-hmz=pane-details]") == before
+        assert _box(page, "[data-hmz=inspector]")["y"] == 45
+        page.mouse.click(before["x"] + 14, before["y"] + 14)
         expect(panel).to_be_hidden()
         # The title is a button that opens the same.
         bar.locator("[data-hmz=chat-title]").click()
