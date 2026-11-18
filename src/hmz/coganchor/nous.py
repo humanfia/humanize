@@ -448,10 +448,15 @@ def spec(backend: str, model: str, provider: str = "", effort: str = "") -> str:
       effort: How hard it thinks, or "" for the harness's default.
 
     Returns:
-      `<backend>[@<provider>]/<model>[:<effort>]`.
+      `<backend>[@<provider>]/<model>[:<effort>]`: no effort is left off, but written `:auto`
+      after a model whose own name ends in `:` and a word, which would be read as its effort.
     """
+    from hmz.coganchor.spelling import parted
+
     account = f"@{provider}" if provider else ""
-    rung = f":{effort}" if effort and effort != backends.AUTO else ""
+    if not effort or effort == backends.AUTO:
+        effort = backends.AUTO if parted(model)[1] else ""
+    rung = f":{effort}" if effort else ""
     return f"{backend}{account}/{model}{rung}"
 
 
@@ -487,7 +492,7 @@ def _bare(name: str) -> str:
     from hmz.coganchor.spelling import parted
 
     model, effort = parted(rest)
-    return f"{backend}/{model}" if effort else ""
+    return spec(backend, model) if effort else ""
 
 
 def every() -> list[Nous]:
@@ -1281,8 +1286,9 @@ def graph_of(said: object) -> Graph | None:
     for id_, row in cast("dict[object, object]", nodes).items():
         if not isinstance(row, dict):
             raise TypeError("a node is a mapping")
-        row = cast("dict[str, Any]", row)
-        on: object = row.get("on") or {}
+        row = cast("dict[object, Any]", row)
+        # YAML 1.1, which the settings file is read as, takes a plain `on` for true.
+        on: object = row.get("on") or row.get(True) or {}
         edges = (
             [
                 (str(fault), str(to))
