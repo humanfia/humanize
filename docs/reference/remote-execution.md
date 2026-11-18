@@ -192,7 +192,7 @@ over its stdin and stdout.
 The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`linux` or
 `darwin`), `python` (`coganchor <version>`: the field keeps the name it had when the serving half was
 Python, so the protocol stays at version 1), `pid`, `exports` (`[{virtual, real}]`), `fence` (`{fs: bool, net: bool}`, see
-[below](#a-fence-on-both-machines)) and `resize: true`. A token mismatch fails it with `EACCES`, `invalid token`.
+[below](#a-fence-on-both-machines)) and `resize: true`. A token mismatch fails it with `EACCES`, `invalid token`, and closes the connection.
 
 `resize` says the serving half takes `Op.RESIZE {target, rows, cols}`: the window of the pty
 the command of exchange `target` runs under (an `EXEC` with `tty: true`) is set to that, and
@@ -212,7 +212,7 @@ it is.
 | Binding | The SHA-256 of the DER SubjectPublicKeyInfo of the serving half's certificate. |
 | Key | The token's bytes on `tcp://`; the ticket's on `peer://`, where any token is ignored. |
 | Handshake | The request carries `proof`, hex of HMAC-SHA256(key, `hmz-anchor cog` NUL binding), and no `token`; the reply carries `proof`, hex of HMAC-SHA256(key, `hmz-anchor anchor` NUL binding and the request's 32 proof bytes). Null both ways where neither side holds a key (a loopback listener without a token). |
-| Refusals | A serving half holding a key compares in constant time and refuses a missing or wrong proof with `EACCES`, `invalid token`. A client holding a key refuses a missing or wrong proof in the reply, before any other request: `ConnectionError: the serving half at <target> did not prove the token` (from `coganchor cog`, exit 1). |
+| Refusals | A serving half holding a key compares in constant time and refuses a missing or wrong proof with `EACCES`, `invalid token`, and closes the connection. A client holding a key refuses a missing or wrong proof in the reply, before any other request: `ConnectionError: the serving half at <target> did not prove the token` (from `coganchor cog`, exit 1). |
 | Broker | Each half presents, and greets a punched socket with, hex of SHA-256(`hmz-anchor ticket` NUL ticket), never the ticket. A relayed session's bytes are TLS. |
 
 The certificate is not vouched for by anybody: who is at the other end is as certain as the
@@ -880,7 +880,7 @@ listening on a machine without Humanize installed, copy the build for that machi
   expected [HOST:]PORT`, exit 2. A bind failure exits 1.
 - `--token` defaults to `$HUMANIZE_TOKEN`. With a token, a session whose handshake does not
   present it (on `--stdio`), or prove it ([over TLS](#the-link-over-a-network), on
-  `--listen`), is refused with `invalid token`.
+  `--listen`), is refused with `invalid token` and its connection closed.
 - `--peer` takes no token: its ticket is the secret, `$HUMANIZE_TOKEN` is ignored, and
   `--token` or `--token-file` with it is refused: `hmz: --token cannot be given with --peer,
   whose ticket is the secret`, exit 2.
