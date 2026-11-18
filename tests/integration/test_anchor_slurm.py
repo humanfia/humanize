@@ -139,7 +139,9 @@ def test_a_job_reached_over_tcp_holds_what_is_derived_from_a_workdir(
 
     anchor = machine.start()
     try:
-        link = transport.connect(transport.Target.parse(anchor.target), ["/"])
+        link = transport.connect(
+            transport.Target.parse(anchor.target), ["/"], anchor.token
+        )
         try:
             client = RemoteClient(link.channel)
             client.start(anchor.token)
