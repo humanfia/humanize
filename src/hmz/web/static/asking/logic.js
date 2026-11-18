@@ -134,11 +134,12 @@ export function blank(value) {
   return value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
 }
 
-/** Whether an object's fields are read as a form first shows them: each blank, off, or still its suggestion. */
-export function untouched(fields, value) {
+/** Whether an object's fields are read as a form first shows them: each blank, off, or still its suggestion, nested objects field by field. */
+export function untouched(fields, value, root) {
   return fields.every((field) => {
     const one = value[field.name]
-    return blank(one) || one === false || (field.suggested && same(one, field.value))
+    if (blank(one) || one === false || (field.suggested && same(one, field.value))) return true
+    return kindOf(field.node) === 'object' && typeof one === 'object' && !Array.isArray(one) && untouched(fieldsOf(field.node, root), one, root)
   })
 }
 

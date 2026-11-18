@@ -474,7 +474,7 @@ function objectControl(path, node, value, ctx, { fold = false, flat = false, sai
     // An object nobody must give, left as it was first shown, is left out.
     read: () => {
       const out = read()
-      return !required && untouched(fields, out) && !Object.keys(value).length ? undefined : out
+      return !required && untouched(fields, out, ctx.root) && !Object.keys(value).length ? undefined : out
     },
     focus: () => group.querySelector('input, textarea, select, button')?.focus(),
   }
