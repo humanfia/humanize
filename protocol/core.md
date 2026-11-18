@@ -4949,9 +4949,9 @@ that name, as Section 3.6.3 of [DAEMON] states.
 **14.7.3** Every frontend MUST draw an Ai-chan conversation as Section 8.8.1 and Section 8.8.2 draw
 a chat, and MUST show in it each tool Ai-chan calls, with the method and how it was answered.
 
-**14.7.4** A frontend MUST NOT list an Ai-chan conversation among the epics of a workspace (Section
-8.6.5 notwithstanding), and MUST list it among the Ai-chan conversations (Section 4.22.3 of
-[DAEMON]).
+**14.7.4** A frontend MUST NOT list an Ai-chan conversation, nor the epic of one forgotten, among
+the epics of a workspace (Section 8.6.5 notwithstanding), and MUST list a conversation not forgotten
+among the Ai-chan conversations (Section 4.22.3 of [DAEMON]).
 
 ### 14.8. Turns, folding and carrying on
 
