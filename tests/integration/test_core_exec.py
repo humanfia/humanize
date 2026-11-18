@@ -12,6 +12,7 @@ an epic. A line that is wrong is refused with exit status 2 before anything is s
 from __future__ import annotations
 
 import json
+import shutil
 import signal
 import subprocess
 import sys
@@ -235,6 +236,23 @@ def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
     )
 
 
+def test_a_chat_whose_conversation_is_gone_says_so_and_answers_in_a_new_one(
+    tmp_path: Path, project: Path
+) -> None:
+    first = _chat("-a", AGENT, "hello")
+    assert first.returncode == 0, first.stderr
+    (epic,) = Hmz(project).epics.all()
+    shutil.rmtree(epic / "sessions")
+
+    then = _chat("--resume", epic.name, "and then?")
+
+    assert then.returncode == 0, then.stderr
+    assert then.stdout.strip() == "did: and then?"
+    assert "hmz chat: This conversation could not be carried on" in then.stderr
+    assert Hmz(project).epics.all() == [epic]
+    assert "--resume" not in started(tmp_path)[-1]["argv"]
+
+
 def test_chat_shows_what_a_command_it_ran_printed_and_takes_no_turn(
     tmp_path: Path,
 ) -> None:
@@ -281,6 +299,18 @@ def test_goal_says_the_task_as_a_goal() -> None:
 
     assert ran.returncode == 0, ran.stderr
     assert ran.stdout.strip() == "goal met: win"
+
+
+def test_a_cost_limit_no_price_can_enforce_is_said_once() -> None:
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
+
+    assert ran.returncode == 0, ran.stderr
+    said = [
+        line for line in ran.stderr.splitlines() if "cannot stop what it spends" in line
+    ]
+    assert len(said) == 1, ran.stderr
+    assert said[0].startswith("hmz exec: nobody lists a price for ")
+    assert said[0].endswith(", so cost=1 cannot stop what it spends")
 
 
 def test_a_run_that_ended_leaves_no_agents_temporary_directory_behind() -> None:
