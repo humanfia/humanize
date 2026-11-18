@@ -12,6 +12,7 @@ an epic. A line that is wrong is refused with exit status 2 before anything is s
 from __future__ import annotations
 
 import json
+import shutil
 import signal
 import subprocess
 import sys
@@ -233,6 +234,23 @@ def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
         then_start["argv"][then_start["argv"].index("--resume") + 1]
         == (first_start["session"])
     )
+
+
+def test_a_chat_whose_conversation_is_gone_says_so_and_answers_in_a_new_one(
+    tmp_path: Path, project: Path
+) -> None:
+    first = _chat("-a", AGENT, "hello")
+    assert first.returncode == 0, first.stderr
+    (epic,) = Hmz(project).epics.all()
+    shutil.rmtree(epic / "sessions")
+
+    then = _chat("--resume", epic.name, "and then?")
+
+    assert then.returncode == 0, then.stderr
+    assert then.stdout.strip() == "did: and then?"
+    assert "hmz chat: This conversation could not be carried on" in then.stderr
+    assert Hmz(project).epics.all() == [epic]
+    assert "--resume" not in started(tmp_path)[-1]["argv"]
 
 
 def test_chat_shows_what_a_command_it_ran_printed_and_takes_no_turn(
