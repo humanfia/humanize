@@ -243,7 +243,7 @@ hmz chat -a claude/claude-opus-5:high "What does this repository do?"
 
 | Part | Means |
 | --- | --- |
-| `-a`, `--agent` | the agent, as `-a` writes one [after `<role>=`](/user/unattended#name-an-agent-for-each-role): `cli[@account]/model[:effort]`. Without it, the agent this directory remembers; with none remembered, refused |
+| `-a`, `--agent` | the agent, as `-a` writes one [after `<role>=`](/user/unattended#name-an-agent-for-each-role): `cli[@account]/model[:effort]`, or the name of a virtual nous. Without it, the agent this directory remembers; with none remembered, refused |
 | `--resume <epic>` | carry that chat of this directory on, the message as its next turn, with its own agent unless `-a` says another |
 | the message | exactly one argument, not empty; one that starts with `-` goes after `--` |
 

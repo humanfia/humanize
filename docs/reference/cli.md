@@ -585,7 +585,7 @@ is done, and then ends the chat with an empty next message.
 
 | Option | Value | Occurrences | Default | Meaning |
 | --- | --- | --- | --- | --- |
-| <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]` | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
+| <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]`, or the name of a virtual nous | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
 | <span id="chat-resume"></span>`--resume` | an epic directory name | 0‥1 | — | Carry that chat of this workspace on, in the same epic, with `message` as its next turn and its own agent unless `-a` is given. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | `message` | positional string | exactly 1 (**required**, not empty) | — | The first message, or the next. Put `--` before one that starts with `-`. |
