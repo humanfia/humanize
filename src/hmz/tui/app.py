@@ -5978,10 +5978,11 @@ class Humanize(App[None]):
             self.show("hmz: no coding agent is installed", "red")
             return
         if self._afar is not None:
-            # What is set up here is this machine's: a chat there is had from its own list.
+            # What is set up here is this machine's, and no chat is started there from here:
+            # what its own list starts is an epic of a flow.
             daemon = escape(self._afar[0])
             self.show(
-                f"hmz: start a chat on {daemon} with n on /epics @{daemon}; "
+                f"hmz: start an epic on {daemon} with n on /epics @{daemon}; "
                 "esc comes back here",
                 "red",
             )

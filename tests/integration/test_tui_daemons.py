@@ -344,7 +344,9 @@ async def test_chat_while_another_daemons_epic_is_followed_is_this_machines(
         await until(pilot, (project / "result.json").exists, "the epic to end")
         await shows(pilot, "the flow is done")
         await typed(pilot, "not from there")
-        await shows(pilot, "start a chat on box")
+        # Nor the start of a chat there: what `n` on that daemon's list starts is an epic.
+        await shows(pilot, "start an epic on box with n on /epics @box")
+        assert "start a chat on" not in screen(pilot.app)
 
         # The chat of this frontend is this machine's: back on its own host, here.
         await typed(pilot, "/chat")
