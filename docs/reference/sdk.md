@@ -239,6 +239,12 @@ the backups too, for at most 60 seconds or until `close()`.
 | `raised` | `BaseException \| None` | Once over: `asyncio.CancelledError` (stopped), `BudgetExceeded` (budget), `Refused` (refused), `RuntimeError(why)` (failed or crashed), else `None`. On a private daemon, the very exception the flow raised. |
 | `result` | `Any` | Once over: the `result` of the `ended` record (JSON). On a private daemon, the very object the flow returned. |
 
+A flow named by a [`git+` ref](/reference/flows#refs) is loaded only once fetched, so no check
+answers before the run starts: `declaration` is `{}` and `unreadable()` `""`; `budget` is the one
+given, and `ref` is `""` until the `started` record comes, which says them both. With an
+outworlder, the run claims the flow's `Outworlder` roles as that record names them, before it
+answers any question.
+
 ### Methods {#run-methods}
 
 | Method | Returns | Behaviour |
@@ -461,7 +467,7 @@ then)`, `Graph(start, nodes)` and `Node(id, use, balance, among, spread, on)` fr
 | `strategies()` | `tuple[Strategy, ...]` | `shuffle`, `round-robin`, `least-busy`, `latency`, `usage`, `cost`, then those added. |
 | `strategy(name, about, picks)` | `Strategy` | Adds one for this process: `picks(members: Sequence[Member]) -> str`, each `Member` holding `name`, `weight`, `busy`, `latency`, `tokens`, `price`, `cooling`. `ValueError` for a built-in name. |
 | `faults()` | `tuple[str, ...]` | What an edge may be named after: every fault class, then `*`. |
-| `spec(backend, model, provider="", effort="")` | `str` | `spec("codex", "gpt-5.6-sol", "work", "high")` → `"codex@work/gpt-5.6-sol:high"`. |
+| `spec(backend, model, provider="", effort="")` | `str` | `spec("codex", "gpt-5.6-sol", "work", "high")` → `"codex@work/gpt-5.6-sol:high"`. No effort is left off, but written `:auto` after a model whose own name ends in `:<word>`: `spec("opencode", "ollama/qwen3:latest")` → `"opencode/ollama/qwen3:latest:auto"`. |
 | `reads(said: str)` | `str` | The canonical spelling of a concrete nous, a virtual one's name, or `""`. |
 | `all()` | `list[Nous]` | Every nous, in the order written. |
 | `rule(said)` | `Nous` | What is written under `said`, else under `said` without its effort, else an empty `Nous`. |

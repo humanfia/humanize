@@ -416,6 +416,58 @@ def test_an_outworlder_claims_its_roles_and_answers_their_questions(
     assert "value" not in params
 
 
+class _Unchecked(Runner):
+    """A runner of a `git+` flow, which no check answered: it is loaded once fetched."""
+
+    def __init__(self, daemon: _Daemon) -> None:
+        started = {**_STARTED, "flow": "git+https://example.com/flows#asks"}
+        super().__init__("/w", started, {}, None)
+        self._daemon = daemon
+
+    def client(self) -> Any:
+        return self._daemon
+
+
+def test_a_flow_no_check_answered_is_what_its_started_record_says(
+    daemon: _Daemon,
+) -> None:
+    person = _Person()
+    run = Run(_Unchecked(daemon), "do it", outworlder=person)
+
+    # Held to the budget it is started with, before the flow is fetched.
+    assert run.budget.cost == 1.0
+    run.start()
+    assert "epic.claim" not in daemon.methods()
+    daemon.tells(
+        type="started",
+        seq=1,
+        ref="git+https://example.com/flows@abc#asks:asks",
+        names={"coder": "NeiKos"},
+        outworlders=["human", "nobody"],
+        budget={"cost": 1.0, "output_tokens": 9},
+        backup=["offsite"],
+    )
+    daemon.tells(type="asked", seq=2, question="q1", role="human", text="ship it?")
+
+    assert daemon.answered.wait(5)
+    # Each `Outworlder` role is claimed, and the away one set away, before any answer.
+    said = [
+        (method, params.get("role"))
+        for method, params in daemon.asked
+        if method in ("epic.claim", "epic.afk", "epic.answer")
+    ]
+    assert said == [
+        ("epic.claim", "human"),
+        ("epic.claim", "nobody"),
+        ("epic.afk", "nobody"),
+        ("epic.answer", None),
+    ]
+    assert [(ask.prompt, role) for ask, role in person.asked] == [("ship it?", "human")]
+    assert run.ref == "git+https://example.com/flows@abc#asks:asks"
+    assert (run.budget.cost, run.budget.output_tokens) == (1.0, 9)
+    assert run.backup == ("offsite",)
+
+
 def test_a_schema_question_is_asked_whole_with_its_context_and_answered_with_a_value(
     daemon: _Daemon,
 ) -> None:
