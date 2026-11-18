@@ -299,7 +299,7 @@ Each command's line in the completion list:
 | `/epics` | `View and manage epics here, or of another daemon` | |
 | `/resume` | `Resume the last epic in this directory` | `Resume an earlier chat here` — a [chat](#chat) |
 | `/env` | `Files, changes and a shell of the run's environments` | |
-| `/settings` | `Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace, usage` | |
+| `/settings` | `Every setting: general, notifications, daemons, accounts, nous, runtimes, backup, workspace, usage` | |
 | `/clear` | `Clear the screen` | `Start a new chat` — a [chat](#chat) |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
@@ -339,7 +339,7 @@ Every message is red and prefixed `hmz: `.
 | `/chat` | the chat already on the screen, or any argument | `the chat is already on the screen` / `/chat takes no arguments` |
 | `/prefer` | no chat on the screen | `/prefer works only in a chat` |
 | `/prefer <word>` | not `native` or `flow` | `expected 'native' or 'flow', not '<word>'` |
-| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, fallback, runtimes, backup, workspace or usage` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose general, notifications, daemons, accounts, nous, runtimes, backup, workspace or usage` |
 | `/epics <word>` | not `@` and a daemon's name | `/epics takes a daemon as @<name>: choose @local, @<daemon>, …` |
 | `/settings flowverses` | a run going | `the flowverses are on /flow now, which offers them while no flow runs` |
 | `/btw` | off a `session` view, out of btw mode | `/btw is only available on one agent's transcript, not on <view>; /ai asks Ai-chan about the epic` |
@@ -431,7 +431,7 @@ the list says why, and `e` opens them in your own editor.
 ### `/settings [page]` {#settings-command}
 
 Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
-`general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`,
+`general`, `notifications`, `daemons`, `accounts`, `nous`, `runtimes`, `backup`, `workspace`,
 `usage`, or the aliases `settings` and `everywhere` (General), `directory` (Workspace) and
 `environments` (Runtimes); case-insensitive; only the first word is read. Completion offers the
 nine names, in that order, not the aliases. `flowverses`, the page that moved, prints `the flowverses are on /flow
