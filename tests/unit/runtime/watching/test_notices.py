@@ -186,6 +186,25 @@ def test_a_chat_asking_again_with_no_turn_taken_is_no_notice(
     assert [one["kind"] for one in notices.look()] == ["done"]
 
 
+def test_a_chat_turn_taken_wholly_between_two_looks_is_a_done_notice(
+    statuses: Statuses, notices: Notices
+) -> None:
+    spent = {"cost": 0.0, "output_tokens": 0, "duration": "PT0S"}
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"]["usage"] = spent
+    notices.look()
+
+    # Never seen running, but it spent what only a turn does.
+    _chat(statuses, "done", pending=[_asked("q2", "listen")])
+    statuses.now["/w"]["usage"] = spent | {"output_tokens": 7, "duration": "PT1S"}
+    assert [one["kind"] for one in notices.look()] == ["done"]
+
+    # And a `!` command after it spends nothing.
+    _chat(statuses, "done", pending=[_asked("q3", "listen")])
+    statuses.now["/w"]["usage"] = spent | {"output_tokens": 7, "duration": "PT1S"}
+    assert notices.look() == []
+
+
 def test_a_flow_named_chat_is_a_flow_that_listens_and_stops(
     statuses: Statuses, notices: Notices
 ) -> None:
