@@ -692,15 +692,17 @@ class Fence:
         What a driver reads off the fence to tell its CLI what it may do: a fence that writes
         nothing is one whose CLI's file-writing tools are withheld, its shell kept -- the fence
         refuses any write the shell attempts -- and one that writes somewhere is one whose CLI
-        is given every tool, the fence holding where the writes land. Read off the rules that
-        stand (:attr:`standing`), so that a write a later rule takes back writes nothing; for a
-        fence drawn path by path, off the paths it writes beyond the minimum every program
-        needs, which are devices and not anybody's files.
+        is given every tool, the fence holding where the writes land. Read off the paths it
+        writes beyond the minimum every program needs, which are devices and not anybody's
+        files -- the rules as they land on the machine it was drawn on, where a later rule
+        under `~` or at an absolute path takes back a write under `.` it is above -- and, for
+        a fence drawn from rules, off the rules that stand (:attr:`standing`) as well, so that
+        what is written besides a write a later rule takes back is not the grant writing.
         """
-        if self.drawn:
-            return any(access == WRITE for _, access in self.standing)
         minimum = _normal(_written())
-        return any(path not in minimum for path in self.write)
+        return any(path not in minimum for path in self.write) and (
+            not self.drawn or any(access == WRITE for _, access in self.standing)
+        )
 
     def reading(self) -> Fence:
         """This fence with nothing written but the minimum every program needs to run.
