@@ -229,7 +229,8 @@ A chat is never stopped: `/stop` and **Stop** are not offered, and `ctrl+c` stop
 it. It is `running` while its agent answers and `done` between turns. A chat nobody has looked
 at for a minute between turns **folds away**: it ends, keeping its conversation. Say something
 in it -- from `/epics` (`continue`), from `/resume` in a chat, or in the browser -- and it is
-carried on, in the same epic, by an agent that remembers what was said. See
+carried on, in the same epic, by an agent that remembers what was said and keeps the name
+the epic wrote it down under, so a side question reaches every session it opened. See
 [Picking a run up](/user/resuming).
 
 ## From the shell {#from-the-shell}

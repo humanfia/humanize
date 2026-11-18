@@ -9,6 +9,7 @@
 import { call, daemons, forget, hello, kindOf as kindNamed, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
 import { acting, ago, confirming, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pathPicker } from '../../paths.js'
+import { easytier } from '../../rpc/easytier.js'
 import { copy } from '../../ui.js'
 
 /** How far reaching each state has got, by a glyph, so nothing is said by colour alone. */
@@ -31,6 +32,9 @@ const OPENED = { ssh: 'stdio:ssh://host', p2p: 'easytier:name' }
 
 /** The fewest bytes, in UTF-8, a P2P daemon's secret may be. */
 const SECRET = 16
+
+/** The EasyTier entries a P2P daemon's route is opened with: Local's, and the desktop application's. */
+const networks = easytier((method, params) => call(method, params, { on: 'local' }))
 
 /** A shared EasyTier node, as one is typed: a protocol, a host and a port. */
 const NODE = /^(tcp|udp|ws|wss|quic|wg):\/\/\S+:(\d{1,5})$/
@@ -252,11 +256,11 @@ export function draw(holder) {
         const box = boxes().find((one) => one.value === url)
         if (box) box.checked = true
       }
-      // The nodes the entry of its name meets on, as Local keeps it.
+      // The nodes the entry of its name meets on, as what opens its route keeps it.
       if (keeps) {
-        call('easytier.list', {}, { on: 'local' }).then(
-          (answer) => {
-            const entry = (answer.networks || []).find((one) => one.name === fields.name)
+        networks.list().then(
+          (kept) => {
+            const entry = kept.find((one) => one.name === fields.name)
             for (const url of entry ? entry.nodes : []) {
               if (!boxes().some((box) => box.value === url)) node(own, url)
               tick(url)
@@ -323,9 +327,10 @@ export function draw(holder) {
         if (said.easytier) {
           // A secret written is never read back: one renamed is written anew under its name.
           if (editing && editing.name !== called && !said.easytier.secret) throw new Error('Say the secret again to rename a P2P daemon.')
-          // The entry of that name on Local is what its route opens with (Section 4.8.7 of
-          // protocol/web.md); the page is never handed the secret again.
-          await call('easytier.set', { name: called, ...said.easytier }, { on: 'local' })
+          // The entry of that name is what its route opens with: Local's through `hmz web`
+          // (Section 4.8.7 of protocol/web.md), the app's in the desktop application (Section
+          // 3.12.6 of protocol/desktop.md); the page is never handed the secret again.
+          await networks.set({ name: called, ...said.easytier })
           said.route = `easytier:${called}`
         }
         const routes = said.route ? [said.route, ...more.read().filter((one) => one !== said.route)] : said.routes
@@ -334,7 +339,7 @@ export function draw(holder) {
           await daemons.update(editing.name, { name: called, routes })
           // Reached afresh, by its new name or routes.
           forget(editing.name)
-          if (said.easytier && editing.name !== called) await call('easytier.remove', { name: editing.name }, { on: 'local' }).catch(() => {})
+          if (said.easytier && editing.name !== called) await networks.remove(editing.name).catch(() => {})
         } else {
           await daemons.add({ name: called, id: '', routes })
         }

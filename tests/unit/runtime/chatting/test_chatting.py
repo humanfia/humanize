@@ -102,6 +102,8 @@ class Session:
     agent: Agent | None = None
     requests: list[TurnRequest] = field(default_factory=list[TurnRequest])
     closed: bool = False
+    #: The conversation as the harness holds it, where a test gives it one.
+    coganchor: Any = None
 
     @property
     def id(self) -> str | None:
@@ -217,7 +219,7 @@ def wired(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Wired:
     workspace.mkdir()
     made = Wired(Driver(), Env(workspace.resolve()), workspace)
 
-    def open_agent(spec: AgentSpec, harbors: object) -> Driver:
+    def open_agent(spec: AgentSpec, harbors: object, name: str = "") -> Driver:
         made.specs.append(spec)
         return made.driver
 
@@ -1059,6 +1061,42 @@ def test_a_model_or_effort_changed_in_a_chat_is_its_agent_from_then_on(
     chosen = Settings(wired.workspace).chat_agent
     assert chosen is not None
     assert chosen.spec == "claude/opus:low"
+
+
+def test_a_model_or_effort_changed_on_the_conversation_alone_is_its_agent_too(
+    wired: Wired,
+) -> None:
+    from types import SimpleNamespace
+
+    wired.driver.fence = Fence()
+    wired.driver.catalog = [NativeCommand("/", "model", "the model", "call")]
+
+    async def switched(session: Session, request: TurnRequest) -> str:
+        assert session.agent is not None
+        if session.agent.config is None:
+            session.agent.config, session.agent.effort = (
+                SimpleNamespace(model="haiku"),
+                "low",
+            )
+        if request.native:
+            # As Codex serves it: the conversation moves, and its agent stays what it was.
+            session.coganchor = SimpleNamespace(model="gpt-y", effort="high")
+            return "model gpt-y, effort high, from the next turn on"
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = switched
+
+    ended = _had(wired, Person(says=["/model gpt-y high"]))
+
+    (set_,) = [one for one in _events(ended.epic) if one.get("event") == "set"]
+    assert (set_["agents"][0]["model"], set_["agents"][0]["effort"]) == (
+        "gpt-y",
+        "high",
+    )
+    assert _ran(ended.epic).agents[-1].model == "gpt-y"
+    chosen = Settings(wired.workspace).chat_agent
+    assert chosen is not None
+    assert chosen.spec == "claude/gpt-y:high"
 
 
 def test_a_model_called_first_leaves_what_the_harness_has_not_listed_as_text(
