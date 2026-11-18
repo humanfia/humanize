@@ -99,9 +99,10 @@ export async function mount(el, ctx) {
       }
     }
     for (const tab of tabs.splice(0)) {
-      // What is typed and what is drawn are settled with the host before the page lets go; the
-      // terminal itself lives on, to be attached again.
+      // What is typed and what it was sent are settled with the host before the page lets go,
+      // drawn or not, since nobody draws it now; the terminal itself lives on, to be attached again.
       tab.typing.now()
+      tab.flow.wrote(tab.flow.drawing)
       tab.flow.flush()
       tab.flow.stop()
       tab.resize.cancel()
@@ -157,12 +158,16 @@ export async function mount(el, ctx) {
   })
 
   offs.push(
+    // Output taken, to be drawn and acknowledged here, answers `true`; that of a terminal of
+    // another environment, left running there, is left to the page to acknowledge.
     ctx.on('term', (message) => {
-      if (state.left || !message || !message.term) return
-      const bytes = fromBase64(message.data)
+      if (state.left || !message || !message.term) return false
       const tab = tabs.find((one) => one.term === message.term)
-      if (!tab || tab.opening) return held(message.term, bytes)
-      draw(tab, bytes)
+      if (!tab && tabs.every((one) => one.term)) return false
+      const bytes = fromBase64(message.data)
+      if (!tab || tab.opening) held(message.term, bytes)
+      else draw(tab, bytes)
+      return true
     }),
     ctx.on('term_exit', (message) => {
       if (state.left || !message) return
