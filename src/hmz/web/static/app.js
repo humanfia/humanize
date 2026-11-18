@@ -7,6 +7,7 @@
 // Local.
 
 import { daemon, hash, hello, started } from './api.js'
+import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
 import { mountSidebar } from './sidebar.js'
 import { dragged, kept, toggleSidebar } from './shell.js'
@@ -122,6 +123,21 @@ export function renamed(path) {
 /** Whether the address names a dialog, over the view drawn: what that view does is not to say. */
 export function covered() {
   return Boolean(DIALOGS[where().parts[0]])
+}
+
+/**
+ * What a view gives the focus by once what it reads is drawn, asked for as the reading begins:
+ * the box typed into next takes the focus then, unless a dialog is over the view or the focus
+ * went elsewhere while the view read -- a control pressed, Tab, a dialog closed that gave it
+ * back -- which is not taken from where it was put.
+ *
+ * @returns {(el: HTMLElement) => void}
+ */
+export function focusing() {
+  const held = document.activeElement
+  return (el) => {
+    if (!covered() && unmoved(held, document.activeElement, [document.body, page])) el.focus()
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, toggled, usageSaid } from '../../../../src/hmz/web/static/desk.js'
+import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, toggled, unmoved, usageSaid } from '../../../../src/hmz/web/static/desk.js'
 
 test('the Add menu offers the four prefixes a line starts with, each a short label', () => {
   assert.deepEqual(ADDS.map((one) => one.sigil), ['@', '/', '$', '!'])
@@ -119,4 +119,19 @@ test('a pane’s button opens it, moves the panel to it, or shuts the panel wher
   assert.deepEqual(toggled({ open: true, tab: 'env', env: 'changes' }, 'files'), { open: true, tab: 'env', env: 'files' })
   assert.deepEqual(toggled({ open: true, tab: 'aside', env: 'files' }, 'details'), { open: true, tab: 'epic', env: 'files' })
   assert.deepEqual(toggled(shut, 'nothing'), shut)
+})
+
+test('a box takes the focus once its form is read only where the focus was not moved since', () => {
+  const [body, view, link, chip] = [{}, {}, {}, {}]
+  const loose = [body, view]
+  // Still on what held it as the reading began: the link that opened the form, or nothing.
+  assert.equal(unmoved(link, link, loose), true)
+  assert.equal(unmoved(body, body, loose), true)
+  // Gone with what held it -- a choice of a menu since closed -- or left on the view as a whole.
+  assert.equal(unmoved(link, body, loose), true)
+  assert.equal(unmoved(link, view, loose), true)
+  assert.equal(unmoved(link, null, loose), true)
+  // Moved to something else since, by a key, the pointer or a dialog closing: it stays there.
+  assert.equal(unmoved(link, chip, loose), false)
+  assert.equal(unmoved(body, chip, loose), false)
 })

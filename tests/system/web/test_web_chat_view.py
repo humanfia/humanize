@@ -608,6 +608,90 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         expect(menu).to_have_count(0)
 
 
+#: What holds the focus, said by what it is marked or named.
+_FOCUSED = (
+    "() => document.activeElement.dataset.hmz"
+    " || document.activeElement.getAttribute('aria-label') || document.activeElement.tagName"
+)
+
+
+@pytest.mark.usefixtures("loops")
+def test_a_form_read_late_leaves_the_focus_where_it_was_put(
+    project: Path, engine: str
+) -> None:
+    wire = Wire()
+    with (
+        served() as site,
+        opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
+    ):
+        box = page.locator("[data-hmz=composer-text]")
+        model = page.locator("[data-hmz=pick-model]")
+        permission = page.locator("[data-hmz=permission]")
+
+        def reads(address: str, method: str) -> None:
+            """Opens a form whose reading is held back: drawn, with what it reads to come."""
+            go(page, "/flows")
+            wire.holds(method)
+            go(page, address)
+            wire.waits(page)
+
+        # Left alone while it is read, a new chat's box is what is typed into next.
+        reads("/new/chat", "settings.get")
+        expect(model).to_have_count(0)
+        wire.lets_through()
+        expect(model).to_have_text("Haiku 4.5")
+        assert page.evaluate(_FOCUSED) == "composer-text"
+
+        # A chip's menu opened and closed while it is read: the chip has the focus back, and
+        # what is read after that does not take it for the box.
+        reads("/new/chat", "settings.get")
+        permission.click()
+        expect(page.get_by_role("menu", name="Permissions")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(permission).to_be_focused()
+        wire.lets_through()
+        expect(model).to_have_text("Haiku 4.5")
+        assert page.evaluate(_FOCUSED) == "permission"
+
+        # And so with a dialog opened from the chip and closed, which gives it the focus back.
+        reads("/new/chat", "settings.get")
+        permission.focus()
+        page.keyboard.press("Control+k")
+        expect(page.locator("[data-hmz=dialog-search]")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=dialog-search]")).to_have_count(0)
+        expect(permission).to_be_focused()
+        wire.lets_through()
+        expect(model).to_have_text("Haiku 4.5")
+        assert page.evaluate(_FOCUSED) == "permission"
+
+        # A dialog closed over a form nothing held the focus in leaves it on the page as a
+        # whole, which is nowhere in particular: the box takes it once the form is read.
+        reads("/new/chat", "settings.get")
+        page.keyboard.press("Control+k")
+        expect(page.locator("[data-hmz=dialog-search]")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=page]")).to_be_focused()
+        wire.lets_through()
+        expect(model).to_have_text("Haiku 4.5")
+        assert page.evaluate(_FOCUSED) == "composer-text"
+
+        # A new epic's form reads its flow the same way.
+        reads("/new?flow=goal", "flows.get")
+        wire.lets_through()
+        expect(box).to_have_attribute("placeholder", "What should goal do?")
+        assert page.evaluate(_FOCUSED) == "composer-text"
+        reads("/new?flow=goal", "flows.get")
+        picker = page.locator("[data-hmz=flow-picker]")
+        picker.click()
+        expect(page.get_by_role("menu", name="Flows")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(picker).to_be_focused()
+        wire.lets_through()
+        expect(box).to_have_attribute("placeholder", "What should goal do?")
+        assert page.evaluate(_FOCUSED) == "flow-picker"
+
+
 @pytest.mark.parametrize("width", [1296, 390])
 def test_a_new_epic_with_no_flow_says_so_where_it_is_read(
     project: Path, engine: str, width: int
