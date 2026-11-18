@@ -1408,6 +1408,7 @@ class Run:
         "pinned",
         "reapers",
         "recorder",
+        "roles",
         "skills",
         "specs",
         "tasks",
@@ -1457,6 +1458,9 @@ class Run:
         #: Every environment the run holds, by its driver's `id`, in the order it was first
         #: held: what the host's env panels list. Read from other threads under `lock`.
         self.held: dict[int, HeldEnv] = {}
+        #: The driver of every env role of the flow the run was started with, by role, two
+        #: roles of one driver each on its own: what `hosts.env.*` names. Read under `lock`.
+        self.roles: dict[str, EnvDriver] = {}
         #: The recorder as the run was given it, which :func:`held_by` finds the run by.
         self.given: object = recorder
         self.specs: dict[tuple[AgentDriver, Grant], str] = {}
@@ -1532,6 +1536,8 @@ class Run:
                 self.held[id(driver)] = HeldEnv(
                     role.name, held.chain, None, driver, role.grant.capabilities
                 )
+            if node.depth == 1:
+                self.roles.setdefault(role.name, driver)
         return view
 
     def holds(self, env: HeldEnv) -> None:
@@ -1561,6 +1567,19 @@ class Run:
         """Every environment the run holds, oldest first. From any thread."""
         with self.lock:
             return tuple(self.held.values())
+
+    def env_roles(self) -> dict[str, EnvDriver]:
+        """The driver of each env the run holds at its root, by name. From any thread.
+
+        Every env role of the flow the run was started with, then whatever else it holds at
+        its root: its workspace, until a `LocalEnv` role takes it.
+        """
+        with self.lock:
+            roles = dict(self.roles)
+            for one in self.held.values():
+                if one.parent is None:
+                    roles.setdefault(one.role, one.driver)
+        return roles
 
     def spec_of(self, view: AgentView | OutworlderView) -> str:
         """What a journal knows an agent by."""
@@ -1990,6 +2009,7 @@ async def run_flow(
             )
     for name, view in env_views.items():
         run.holds(HeldEnv(name, view.chain, None, view.driver, view.grant.capabilities))
+        run.roles[name] = view.driver
     if local is not None:
         run.workspace()
     _RUNS.add(run)
