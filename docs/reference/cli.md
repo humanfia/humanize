@@ -220,7 +220,8 @@ the several-flows-per-module rule are specified in
 
 The rest after `=` is a concrete [nous](/user/settings#nous); one with no `/` is the name of a
 virtual nous written on the Nous page, and the agent is built at the concrete nous its graph
-starts at and walks the graph each turn.
+starts at and walks the graph each turn. The epic's record states that concrete nous as the
+role's harness, model and effort, so a run resumed from the record starts there.
 
 | Part | Rule |
 | --- | --- |
@@ -584,7 +585,7 @@ is done, and then ends the chat with an empty next message.
 
 | Option | Value | Occurrences | Default | Meaning |
 | --- | --- | --- | --- | --- |
-| <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]` | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
+| <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]`, or the name of a virtual nous | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
 | <span id="chat-resume"></span>`--resume` | an epic directory name | 0‥1 | — | Carry that chat of this workspace on, in the same epic, with `message` as its next turn and its own agent unless `-a` is given. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | `message` | positional string | exactly 1 (**required**, not empty) | — | The first message, or the next. Put `--` before one that starts with `-`. |
@@ -597,6 +598,11 @@ nothing any workspace remembers.
 
 The turn is drawn on stderr and the answer written to stdout, as
 [`hmz exec`](#watching-a-run) does.
+
+A line the chat serves with no turn ends it the same way, exit `0`: a `!<command>` hmz runs
+itself is drawn on stderr as `! <command>`, with what it wrote as errors and `exit <status>`
+where that is not `0`, and what it printed is written to stdout; a line the chat refuses is
+said why on stderr as `hmz chat: <reason>`.
 
 | Exit | When |
 | --- | --- |

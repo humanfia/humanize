@@ -27,7 +27,7 @@ from hmz.runtime import Refused
 from hmz.runtime.chatting import Resolved
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
     from pathlib import Path
 
 #: What the turn's subscription says when nothing in a test says otherwise: the turn opening,
@@ -466,3 +466,73 @@ def test_a_signal_leaves_the_chat_to_its_host_and_exits_as_the_signal_would(
     assert client.methods() == ["chat.start", "epic.attach"]
     assert client.closed
     assert signal.getsignal(signum) == was
+
+
+#: What the subscription says of a first line served with no turn, after the chat is opened:
+#: the chat asks for its next line, and the snapshot never said its turn was running.
+_OPENED: list[dict[str, Any]] = [_TURN[0], {**_TURN[2], "seq": 1}]
+
+
+def _listens(text: str, seq: int) -> list[dict[str, Any]]:
+    """The chat asking for its next line, `text` what it says back, and so between turns."""
+    return [
+        {"type": "asked", "seq": seq, "run": 1, "question": "q1", "role": "person",
+         "text": text, "options": [], "mode": "listen", "key": ""},
+        {"type": "run", "seq": seq + 1, "state": "running", "turn": "done"},
+    ]  # fmt: skip
+
+
+@pytest.fixture
+def leaving(client: _Client) -> Generator[None]:
+    """The daemon going away after a while, which ends a wait that nothing else would."""
+    timer = threading.Timer(5, lambda: setattr(client, "ended", True))
+    timer.start()
+    yield
+    timer.cancel()
+
+
+@pytest.mark.usefixtures("leaving")
+def test_a_command_run_with_no_turn_is_shown_with_what_it_printed_and_the_chat_ended(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    shell = {"type": "shell", "seq": 2, "run": 1, "key": "NeiKos/1", "command": "ls nope",
+             "out": "hi\n", "err": "no nope\n", "status": 2}  # fmt: skip
+    client.said = [[*_OPENED, shell, *_listens("", 3)]]
+
+    assert main(["chat", "--", "!ls nope"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "hi\n"
+    assert "ls nope" in captured.err
+    assert "no nope" in captured.err
+    assert "exit 2" in captured.err
+    assert client.methods() == ["chat.start", "epic.attach", "chat.say"]
+
+
+@pytest.mark.usefixtures("leaving")
+def test_a_line_the_chat_refuses_is_said_why_and_the_chat_ended(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    client.said = [[*_OPENED, *_listens("no such command: /nope", 2)]]
+
+    assert main(["chat", "/nope"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "hmz chat: no such command: /nope\n" in captured.err
+    assert client.methods() == ["chat.start", "epic.attach", "chat.say"]
+
+
+def test_what_a_turn_answered_is_not_said_again_where_the_chat_asks_for_its_next_line(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    client.said = [[*_TURN[:-1], *_listens("answered", 5)]]
+
+    assert main(["chat", "hello"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "answered\n"
+    assert "hmz chat: answered" not in captured.err

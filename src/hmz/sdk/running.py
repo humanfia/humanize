@@ -715,10 +715,20 @@ class Run:
         kind = message.get("type")
         seq = message.get("seq")
         with self._lock:
+            was = self._since
             if kind == "welcome":
                 self._since = {"epoch": message.get("epoch"), "seq": 0}
             elif isinstance(seq, int) and self._since is not None:
                 self._since["seq"] = seq
+        if (
+            kind == "welcome"
+            and was is not None
+            and was["epoch"] != message.get("epoch")
+        ):
+            # Another life of the slot's host (Section 4.9.1.3 of daemon.md): a daemon started
+            # since made it, and the epic went with the host the daemon before it held.
+            self._ends(RuntimeError(_WENT), None)
+            return
         if kind == "event":
             for one in tuple(self._watching):
                 one(str(message.get("agent")), message.get("session") or None, message)
