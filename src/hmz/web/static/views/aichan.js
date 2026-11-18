@@ -6,7 +6,7 @@
 // the next line to her, which carries a conversation folded away on.
 
 import { call, onDaemon, poll, refresh } from '../api.js'
-import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateSaid, told } from '../aichan.js'
+import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateOf, stateSaid, told } from '../aichan.js'
 import { composer } from '../composer.js'
 import { acting, confirming, fill, h, icon, problem } from '../dom.js'
 import { sessionsOf, watch } from '../epic.js'
@@ -14,7 +14,7 @@ import { ask, current, follow } from '../held.js'
 import { nousField } from '../pickers.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
 import { dragged, sidePanel } from '../shell.js'
-import { saidTraced, sayer } from '../transcript.js'
+import { line, saidTraced, sayer } from '../transcript.js'
 
 /** Her avatar, as drawn beside what she says and over her drawer. */
 const AVATAR = '/ai-chan/avatar.png'
@@ -237,10 +237,14 @@ export function mount(app, where) {
     let saidFor = ''
     let upTo = -1
     let traced = null
+    /** Why her chat ended failed, once it has: said in the log once, and nothing more said to it. */
+    let failed = ''
     const box = composer({
       placeholder: 'Say something to Ai-chan',
       label: 'What to say to Ai-chan',
       submit: async (text) => {
+        // Her chat failed: no line carries it on (Section 8.4.9 of protocol/core.md).
+        if (failed) throw new Error('This conversation failed. Start a new one.')
         // Folded away: attached again, which carries her on, and what she then waits on answered.
         let now = held
         if (!now || !now.connected) now = (await carried(host)) || now
@@ -275,6 +279,7 @@ export function mount(app, where) {
         saidFor = whose
         saidBy = sayer(key, { chat: true, folded: true })
         upTo = -1
+        failed = ''
         fill(log)
       }
       const scroller = log.parentElement
@@ -303,8 +308,16 @@ export function mount(app, where) {
       }
       const run = held.standing.run
       const turn = run ? run.turn : ''
-      fill(state, held.connected ? (turn === 'running' ? stateSaid('running') : stateSaid('waiting')) : stateSaid('folded'))
-      note.hidden = held.connected || !held.gone
+      // A chat that ended failed is said failed, with what the harness said (Section 8.5.3).
+      const stands = stateOf({ connected: held.connected, turn, records })
+      if (stands.why && !failed) {
+        log.querySelector(':scope > .thread-empty')?.remove()
+        log.append(line('failed', stands.why))
+      }
+      failed = stands.why
+      state.className = `aichan-state ${stands.state}`
+      fill(state, stateSaid(stands.state))
+      note.hidden = held.connected || !held.gone || Boolean(failed)
       // Her turn open: stopped at once, without asking (Section 14.8.3 of protocol/core.md).
       const answering = held.connected && turn === 'running'
       if (answering !== Boolean(stopHolder.firstChild)) fill(stopHolder, answering ? acting('Stop', () => ask(host, 'stop'), { kind: 'btn small danger', busy: 'Stopping…' }) : null)

@@ -137,7 +137,7 @@ usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
 | `--profile-environment` | flag | 0‥1 | off | [Profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them. |
 | <span id="exec-resume"></span>`--resume` | flag | 0‥1 | off | [Pick up](#picking-a-run-up) the newest run of this flow here. |
 | <span id="exec-json"></span>`--json` | flag | 0‥1 | off | Write the run as [NDJSON](#ndjson) on stdout. |
-| <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. The host holding the epic backs it up. Once the epic has ended with a backup not done, as `backed` of `runs.get` says, `hmz exec` says `hmz exec: backing the epic up` on stderr and stays attached, so that the host waits too, for at most 60 s; one still not done then is left, saying ``hmz exec: a backup took longer than 60s and was left; `hmz backup EPIC` sends it again``, and the exit is the epic's. |
+| <span id="exec-backup"></span>`--backup` | a [backup target](/reference/settings#backup) name, or `none` | 0‥n, merged | `backup.defaults` | Where the epic is [backed up](/user/backups); `none` anywhere: nowhere. A name settings has none of exits `2`. The host holding the epic backs it up. Once the epic has ended with a backup its end queued not done, as `backed` of `runs.get` says (only a target whose policies hold `end` has one), `hmz exec` says `hmz exec: backing the epic up` on stderr and stays attached, so that the host waits too, for at most 60 s; one still not done then is left, saying ``hmz exec: a backup took longer than 60s and was left; `hmz backup EPIC` sends it again``, and the exit is the epic's. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | <span id="exec-task"></span>`task` | positional string | exactly 1 (**required**) | — | What the flow is to do. Put `--` before a task that starts with `-`. |
 
@@ -220,7 +220,8 @@ the several-flows-per-module rule are specified in
 
 The rest after `=` is a concrete [nous](/user/settings#nous); one with no `/` is the name of a
 virtual nous written on the Nous page, and the agent is built at the concrete nous its graph
-starts at and walks the graph each turn.
+starts at and walks the graph each turn. The epic's record states that concrete nous as the
+role's harness, model and effort, so a run resumed from the record starts there.
 
 | Part | Rule |
 | --- | --- |
@@ -584,7 +585,7 @@ is done, and then ends the chat with an empty next message.
 
 | Option | Value | Occurrences | Default | Meaning |
 | --- | --- | --- | --- | --- |
-| <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]` | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
+| <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]`, or the name of a virtual nous | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
 | <span id="chat-resume"></span>`--resume` | an epic directory name | 0‥1 | — | Carry that chat of this workspace on, in the same epic, with `message` as its next turn and its own agent unless `-a` is given. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | `message` | positional string | exactly 1 (**required**, not empty) | — | The first message, or the next. Put `--` before one that starts with `-`. |
@@ -597,6 +598,11 @@ nothing any workspace remembers.
 
 The turn is drawn on stderr and the answer written to stdout, as
 [`hmz exec`](#watching-a-run) does.
+
+A line the chat serves with no turn ends it the same way, exit `0`: a `!<command>` hmz runs
+itself is drawn on stderr as `! <command>`, with what it wrote as errors and `exit <status>`
+where that is not `0`, and what it printed is written to stdout; a line the chat refuses is
+said why on stderr as `hmz chat: <reason>`.
 
 | Exit | When |
 | --- | --- |
