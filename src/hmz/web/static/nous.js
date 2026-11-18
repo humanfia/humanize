@@ -7,9 +7,9 @@ export function concrete(name) {
   return String(name || '').includes('/')
 }
 
-/** A concrete nous with an effort put on, none for '' or `auto`. */
+/** A concrete nous with an effort put on in place of an `:auto` it ends in, none for '' or `auto`. */
 export function withEffort(spec, effort) {
-  return effort && effort !== 'auto' ? `${spec}:${effort}` : spec
+  return effort && effort !== 'auto' ? `${spec.replace(/:auto$/, '')}:${effort}` : spec
 }
 
 /** A graph's nodes, each once, in order from its start along its edges; those not reached last. */
