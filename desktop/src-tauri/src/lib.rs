@@ -20,6 +20,7 @@ mod update;
 #[cfg(windows)]
 mod wsl;
 
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -32,6 +33,8 @@ use std::time::Duration;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
+use tauri::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue, ORIGIN};
+use tauri::http::{Request, Response};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
 use tauri::window::Color;
 use tauri::{
@@ -432,6 +435,20 @@ fn paper(theme: Theme) -> Color {
     }
 }
 
+/// Lets a face import the page's files under `vendor/` (Section 4.5.9 of [WEB]): its frame is
+/// sandboxed, so it asks with `Origin: null`, which the origin the web view stamps on every
+/// answer would refuse.
+fn share(request: &Request<Vec<u8>>, response: &mut Response<Cow<'static, [u8]>>) {
+    let null = request.headers().get(ORIGIN).is_some_and(|by| by == "null");
+    if null && request.uri().path().starts_with("/vendor/") {
+        let headers = response.headers_mut();
+        headers.insert(
+            ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("null"),
+        );
+    }
+}
+
 /// The one window, on the splash, drawn in the page's paper before anything is.
 fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let guarded = app.clone();
@@ -454,6 +471,7 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             browse(url.as_str());
             NewWindowResponse::Deny
         })
+        .on_web_resource_request(|request, response| share(&request, response))
         .on_document_title_changed(|window, title| {
             let _ = window.set_title(&title);
         })
@@ -637,6 +655,31 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shares_the_vendor_files_with_a_face_alone() {
+        // What the web view answers every file with: the window's own origin.
+        let own = OWN.trim_end_matches('/');
+        let allow = |path: &str, origin: Option<&str>| {
+            let mut request = Request::builder().uri(format!("{OWN}{path}"));
+            if let Some(origin) = origin {
+                request = request.header(ORIGIN, origin);
+            }
+            let mut response = Response::builder()
+                .header(ACCESS_CONTROL_ALLOW_ORIGIN, own)
+                .body(Cow::Borrowed(&[][..]))
+                .unwrap();
+            share(&request.body(Vec::new()).unwrap(), &mut response);
+            let allow = &response.headers()[ACCESS_CONTROL_ALLOW_ORIGIN];
+            allow.to_str().unwrap().to_owned()
+        };
+        assert_eq!(allow("vendor/markdown.js", Some("null")), "null");
+        assert_eq!(allow("vendor/vega.js?v=1", Some("null")), "null");
+        assert_eq!(allow("vendor/markdown.js", Some(own)), own);
+        assert_eq!(allow("vendor/markdown.js", None), own);
+        assert_eq!(allow("app.js", Some("null")), own);
+        assert_eq!(allow("faces/vendor/x.js", Some("null")), own);
+    }
 
     #[test]
     fn allows_the_page_it_carries_alone() {

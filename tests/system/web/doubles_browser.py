@@ -64,6 +64,7 @@ def opened(
     width: int = 1280,
     height: int = 860,
     dark: bool = False,
+    touch: bool = False,
     user_agent: str | None = None,
     init: str | None = None,
     routed: Callable[[Page], object] | None = None,
@@ -76,6 +77,7 @@ def opened(
       width: How wide the window is: under 860, a phone's layout.
       height: How tall it is.
       dark: Whether the system the browser runs on asks for dark colours.
+      touch: Whether the device is touched, with nothing to point at the page with.
       user_agent: What the browser says it is, where not its own: as the macOS app's window.
       init: A script run in the page before any of its own.
       routed: Told the page before it is opened, to answer some of its requests itself.
@@ -98,6 +100,8 @@ def opened(
                 viewport={"width": width, "height": height},
                 color_scheme="dark" if dark else "light",
                 user_agent=user_agent,
+                has_touch=touch,
+                is_mobile=touch,
             )
             context.set_default_timeout(PATIENCE * 1000)
             if init:

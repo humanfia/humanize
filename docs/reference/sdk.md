@@ -467,7 +467,7 @@ then)`, `Graph(start, nodes)` and `Node(id, use, balance, among, spread, on)` fr
 | `strategies()` | `tuple[Strategy, ...]` | `shuffle`, `round-robin`, `least-busy`, `latency`, `usage`, `cost`, then those added. |
 | `strategy(name, about, picks)` | `Strategy` | Adds one for this process: `picks(members: Sequence[Member]) -> str`, each `Member` holding `name`, `weight`, `busy`, `latency`, `tokens`, `price`, `cooling`. `ValueError` for a built-in name. |
 | `faults()` | `tuple[str, ...]` | What an edge may be named after: every fault class, then `*`. |
-| `spec(backend, model, provider="", effort="")` | `str` | `spec("codex", "gpt-5.6-sol", "work", "high")` → `"codex@work/gpt-5.6-sol:high"`. |
+| `spec(backend, model, provider="", effort="")` | `str` | `spec("codex", "gpt-5.6-sol", "work", "high")` → `"codex@work/gpt-5.6-sol:high"`. No effort is left off, but written `:auto` after a model whose own name ends in `:<word>`: `spec("opencode", "ollama/qwen3:latest")` → `"opencode/ollama/qwen3:latest:auto"`. |
 | `reads(said: str)` | `str` | The canonical spelling of a concrete nous, a virtual one's name, or `""`. |
 | `all()` | `list[Nous]` | Every nous, in the order written. |
 | `rule(said)` | `Nous` | What is written under `said`, else under `said` without its effort, else an empty `Nous`. |

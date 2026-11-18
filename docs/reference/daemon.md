@@ -260,7 +260,8 @@ frontend has ever attached or **60 s** have passed since it started. Idle means 
 - no frontend attached;
 - no run going, starting or stopping;
 - no *kept* run: a run that ended while no frontend was attached, and that nobody stopped, is
-  kept until a frontend attaches -- but never a chat folded away.
+  kept until a frontend attaches -- but never a chat folded away, nor the run of an exec
+  host (slot `exec:<hex>`).
 
 It also closes on `SIGTERM`, [`hosts.stop`](#control-requests), [`epic.quit`](#requests),
 and when its link to the daemon closes. `hosts.*` calls do not count as attaching.
@@ -490,7 +491,8 @@ that host again, carrying its epic on (`resume`), and attaches; on an `ai:` slot
 conversation it is refused 404, `There is no Ai-chan conversation <slot>.` `epic.stop` on an
 Ai-chan host interrupts her open turn and leaves the conversation between turns, and is refused
 with `Ai-chan is not answering, so there is nothing to stop` while none is open. A host folds
-its conversation as it folds a chat, and then goes.
+its conversation as it folds a chat, and then goes. [`chat.say`, `chat.commands` and
+`chat.set`](#chats) take her `ai:` slot as they take a chat's.
 
 ### Scoped links {#scoped-links}
 

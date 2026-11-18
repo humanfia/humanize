@@ -192,6 +192,7 @@ no other `/dial` of the same route still needs them.
 | `1008` | `<route> is not dialed here.` | A `unix:` or `stdio:local` route, which `/rpc` covers, or a `webrtc:` one, which the browser opens itself. |
 | `1008` | `<route> needs the id of the daemon it reaches.` | An untrusted route without `id`. |
 | `1011` | What went wrong, as `failed` said it | The carrier did not open. |
+| `1000` | The last line the route's `ssh` or `wsl.exe` said on standard error, cut to 120 bytes | That process ended failing, such as `hmz daemon connect` there reaching no daemon. |
 | `1000` | `The daemon closed.` | The far end closed. |
 | `1000` | | The page closed, or sent a text message. |
 
@@ -249,7 +250,7 @@ origin -- which is why `hmz web` keeps its port:
 | IndexedDB `hmz-daemons` | The remote daemons, each its name, the daemon id it pins (`""` until it is first reached over a trusted route) and its routes in order; the STUN and TURN servers WebRTC uses; and the browser's own certificate, which a daemon paired with it knows it by. |
 | IndexedDB `hmz-notifications` | The notifications: the notices every reached daemon's `notices.subscribe` told, the newest **200**, each with its daemon and whether it is read; where each daemon's notices are taken up again; and which kinds are told, and whether the system shows them. |
 | IndexedDB `hmz` | The pictures of the [themes](/user/web#themes) made here. |
-| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-theme` (and under Auto `hmz-theme-light` and `hmz-theme-dark`), the themes made here as `hmz-themes`, a sidebar folded away as `hmz-sidebar`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which workspaces folded away as `hmz-shut`, whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
+| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-theme` (and under Auto `hmz-theme-light` and `hmz-theme-dark`), the themes made here as `hmz-themes`, a sidebar folded away as `hmz-sidebar` and how wide it was dragged as `hmz-side-wide`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which of its groups folded away as `hmz-shut`, how its list is grouped, sorted and filtered as `hmz-list`, which epics are pinned as `hmz-pinned` and which marked unread as `hmz-unread`, whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
 
 Another browser, or another port, starts with none of it: add the daemons there again.
 

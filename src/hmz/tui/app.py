@@ -3453,8 +3453,8 @@ class Humanize(App[None]):
         Read as Section 8.9 of [CORE] reads it, against the chat's catalogue, the flows here
         and the chat's preference: a flow is started, the harness's own input and words are
         said to the chat, and what only the harness's own interface serves is refused saying
-        so. A `/` the harness has no catalogue to read against yet is left to be a command of
-        Humanize's, which is all it can be told apart as until the chat has opened.
+        so. A `/` naming nothing of a catalogue that holds no `/` entry, or of one not yet
+        listed, is said as text (Section 8.9.13 of [CORE]).
 
         Args:
           line: The line, as it was typed.
@@ -3462,8 +3462,6 @@ class Humanize(App[None]):
         Returns:
           Whether it was served here; False for a line that is a command of Humanize's.
         """
-        if line.startswith("/") and not self._natives:
-            return False
         # Its name ended by any whitespace, as a `$` line's is, and a task put on the line
         # under it: read as the name and what follows it. A shell command or a path is read
         # as it was typed.
@@ -5399,10 +5397,12 @@ class Humanize(App[None]):
         turn, self._turn = self._turn, str(message.get("turn") or "")
         if self._turn and self._slot.startswith("chat:"):
             # The chat attached to is this interface's from now on, whichever way it was
-            # reached; what its harness takes is asked again as each turn ends, a turn having
-            # perhaps given it a skill or a command it did not have.
-            self._chat_slot = self._slot
-            self._chat_epic = self._epic_now or self._chat_epic
+            # reached on this machine -- one followed on another daemon stays that daemon's,
+            # and is not carried on from here; what its harness takes is asked again as each
+            # turn ends, a turn having perhaps given it a skill or a command it did not have.
+            if self._afar is None:
+                self._chat_slot = self._slot
+                self._chat_epic = self._epic_now or self._chat_epic
             if self._natives_of != self._slot or (
                 self._turn == "done" and turn != "done"
             ):
