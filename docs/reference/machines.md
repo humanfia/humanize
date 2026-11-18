@@ -1327,7 +1327,6 @@ from hmz.sdk import Hmz  # Hmz().runtimes
 | --- | --- |
 | `all(backend="")` | every runtime, by backend then name |
 | `find(backend, name)` | one, or `None` |
-| `where(backend, name)` | its directory |
 | `new(backend, name, **fields)` | build and check, unwritten |
 | `add(runtime)` | write a new one |
 | `write(runtime)` | write, replacing |
