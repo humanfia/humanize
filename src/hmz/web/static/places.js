@@ -75,8 +75,8 @@ export function workspacePicker(chosen, changed, { none = false } = {}) {
       section('Recent'),
       list.map((one) => choice({ label: one.name, about: one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })),
       h('hr'),
-      none ? choice({ label: 'No workspace', about: 'A new directory of its own, in the temporary directory', chosen: path === null, glyph: 'file', act: () => pick(null), close }) : null,
       choice({ label: 'Open folder…', glyph: 'plus', act: () => open(), close }),
+      none ? choice({ label: 'No workspace', about: 'A new directory of its own, in the temporary directory', chosen: path === null, glyph: 'file', act: () => pick(null), close }) : null,
     ],
     { label: 'Folders' },
   )

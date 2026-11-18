@@ -7,3 +7,118 @@
   font-size: 11.5px;
   color: var(--ink-3);
 }
+
+/* A chat's bar, as a chat app's session keeps its toolbar: the height it is there, the title a
+   button with its menu right after it, and the panes' buttons at the far right. */
+.bar.chat-bar {
+  min-height: 45px;
+  padding-block: 0;
+  gap: 8px;
+}
+
+.chat-bar .bar-title {
+  min-width: 64px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chat-bar .bar-title h1 {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.chat-title {
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-title:hover {
+  background: var(--hover);
+}
+
+.chat-bar .bar-title .menu-holder {
+  flex: none;
+  display: flex;
+}
+
+.chat-bar .bar-actions {
+  gap: 2px;
+}
+
+.chat-bar .bar-actions .menu-holder {
+  display: flex;
+}
+
+/* Every button of the bar the size a chat app's are. */
+.chat-bar .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.chat-bar .icon-btn .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.chat-bar .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+}
+
+.chat-bar .aichan-btn {
+  margin-left: 4px;
+}
+
+/* How the chat stands, said quietly over its box, at the column's left. */
+.chat-status {
+  width: min(100%, var(--column));
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.chat-status.chat-failed,
+.chat-status.chat-refused,
+.chat-status.chat-crashed {
+  color: var(--fail);
+}
+
+.chat-status.chat-running .dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* What the chat has spent: a figure, no chevron. */
+.usage-chip .chip-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A chat's environment beside it leaves the conversation the room to be read. */
+@media (min-width: 861px) {
+  .inspector.chat-pane.envs-wide {
+    width: min(50vw, 980px);
+  }
+}
+
+@media (max-width: 860px) {
+  /* On a phone the bar keeps the title and what opens a pane; the title gives way first. */
+  .chat-bar .bar-actions {
+    gap: 0;
+  }
+}

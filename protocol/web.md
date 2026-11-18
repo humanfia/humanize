@@ -467,11 +467,12 @@ skill and a flow does -- `Use the skill` or `Start the flow` -- with a mark on t
 showing whether it comes from the settings file or the chat (`chat.set`, Section 4 of [DAEMON]).
 The page MUST NOT draw that choice on the bar itself.
 
-**3.6.6.10** The bar of a chat MUST hold the chat's title, one menu and the button of its panel,
-beside what Section 3.16 puts on every bar, and MUST say how the chat stands only while the chat is
-running, asking or has failed. The menu MUST offer what the chat's right-click menu offers (Section
-3.4.4.1), the chat's `Environment` (Section 3.6.6.4) where its host has one, and the choice of
-Section 3.6.6.9.
+**3.6.6.10** The bar of a chat MUST hold, at its left, the chat's title as a button that opens
+the chat's `Details`, and right after it one menu, `More options`; and at its far right the buttons
+of Section 3.6.6.19, before what Section 3.16 puts on every bar. The menu MUST offer what the
+chat's right-click menu offers (Section 3.4.4.1), the chat's `Environment` (Section 3.6.6.4) where
+its host has one, and the choice of Section 3.6.6.9. The bar MUST NOT say how the chat stands
+(Section 3.6.6.18).
 
 **3.6.6.11** The panel beside a chat MUST name its tabs `Details` and `Side questions` in place of
 `Epic` and `Aside` (Section 3.6.3), MUST show under `Details` everything `Epic` shows that a chat
@@ -479,20 +480,22 @@ has, each named in plain words, and MUST say that side questions never reach the
 
 **3.6.6.12** The page MUST NOT call a chat an epic or a run, nor a choice of the chat's `native`,
 in the bar, the menu, the tabs, the headings, the labels and the box of a chat's view. The box
-under a chat MUST say, while it is empty, no more than that it takes a reply, MUST say on hover
-what `/`, `$`, `@` and `!` start there, and MUST name what it completes by what each is: the
+under a chat MUST say, while it is empty, no more than that it takes a reply, MUST offer what `/`,
+`$`, `@` and `!` start there in its `Add` menu (Section 3.6.6.16), and MUST name what it completes
+by what each is: the
 commands, the skills and the mentions of the chat's CLI, the names hmz keeps, the flows, and the
 files.
 
-**3.6.6.13** The box under a chat MUST say, on a chip beside the button that sends, the model the
-chat's agent runs and its effort where one is set. The chip MUST open a menu saying the agent's
+**3.6.6.13** The box under a chat MUST say, on a chip in the row under it (Section 3.6.6.15), the
+model the chat's agent runs and then its effort where one is set. The chip MUST open a menu saying the agent's
 model, effort, harness and account, and offering a new chat in the chat's workspace. Where the
 chat's catalogue holds the harness's own `/model` or `/effort` as `call` (Section 8.9.5 of [CORE]),
 the menu MUST offer the models known runnable as the agent's account, accepting a typed model, or
 the efforts its model takes, and picking one MUST say that line to the chat. The page MUST NOT
 offer to change the agent of a chat that has begun any other way.
 
-**3.6.6.14** The box under a chat MUST hold a permission chip that names the chat's permission
+**3.6.6.14** The row under the box of a chat (Section 3.6.6.15) MUST hold a permission chip that
+names the chat's permission
 (Section 8.3.9 of [CORE]) and opens a menu of the three, each with one line saying what it lets the
 assistant do, the one in force checked: `Read only` for `read-only`, `Edit this folder` for
 `workspace-write` and `Full access` for `danger-full-access`. Picking one MUST set it (`chat.set`,
@@ -500,6 +503,40 @@ Section 4 of [DAEMON]) for a chat a host holds, and MUST be what a chat that has
 carried on with. The page MUST NOT offer a permission that puts the assistant's actions to the
 user's approval, which no chat has (Section 8.3.9 of [CORE]), and MUST NOT draw the chip for an
 Ai-chan conversation.
+
+**3.6.6.15** The box a chat is typed into -- under a chat, and on the form of a new chat -- MUST
+hold, inside it, only an `Add` button at its left, what is typed, and at its right the button that
+sends. Every other control of the box MUST be a chip in one row under it, no taller than 24 CSS
+pixels: at the left of that row where the chat runs, and at its right how it runs.
+
+**3.6.6.16** `Add` MUST open a menu of `Add files`, `Slash commands`, `Skills and flows` and `Run
+a shell command`, which MUST type `@`, `/`, `$` and `!` into the box -- `@` where the caret is, the
+others at the start of the line -- and the box MUST then offer what it completes there (Section
+3.6.6.7). Each of the four typed by hand MUST do what it did.
+
+**3.6.6.17** The row under the box of a chat that has begun MUST hold, at its right and in this
+order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and, where the page knows what
+the chat has spent or written, a chip `Usage` saying it, which MUST open the chat's `Details`. That
+row MUST NOT hold where the chat runs.
+
+**3.6.6.18** While a turn of a chat is open, the page MUST say over the chat's box who is
+responding, by the model the chat's agent runs; it MUST say there, besides, that the chat waits on
+the user or has failed, and MUST say nothing there otherwise.
+
+**3.6.6.19** The bar of a chat MUST hold, at its far right and in this order, a button each for
+`Details`, `Terminal`, `Changes` and `Files`, each 28 CSS pixels square, and then a menu `View
+options` holding `Side questions`. `Details` and `Side questions` MUST open the panel beside the
+chat on that tab (Section 3.6.6.11); `Terminal`, `Changes` and `Files` MUST open it on the chat's
+`Environment` (Section 3.6.6.4) at that panel (Section 3.17), and MUST be disabled while the chat
+has no such panel. A button MUST say whether its pane is the one open, and pressing the one open
+MUST shut the panel.
+
+**3.6.6.20** The panel beside a chat MUST be shut until the user opens a pane of it, and MUST then
+be open or shut as this browser last left a chat's.
+
+**3.6.6.21** The page MUST NOT offer to stop the open turn of a chat: the button that sends stays
+one that sends, and what is sent while a turn is open is delivered as Section 8.4.4 of [CORE]
+states.
 
 #### 3.6.7. An epic written down
 
@@ -748,7 +785,7 @@ path with completion as it is typed, or to pick `No workspace`.
 control naming the workspace picked, and MUST NOT offer it in the bar over the form.
 
 **3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves under
-`Recent`, and after them `No workspace` and `Open folder…`.
+`Recent`, and after them `Open folder…` and `No workspace`.
 
 **3.8.3** With `No workspace` picked, the form MUST offer the flows and the set-up of the
 workspace `hmz web` was started in, and starting MUST start the epic in a new directory made for it
@@ -801,16 +838,41 @@ box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going t
 
 **3.8.18.1** The bar over the form of a new chat MUST NOT hold a control of the form's own.
 
-**3.8.19** The form of a new chat MUST offer the assistant's agent as one chip on the bar of the box, beside the
-button that sends, saying the model chosen and its effort where one is set. The chip MUST open a
+**3.8.19** The form of a new chat MUST offer the assistant's agent as one chip under the box, at
+its right (Section 3.8.22), saying the model chosen and then its effort where one is set. The chip MUST open a
 menu holding the models known runnable by the harness chosen as the account chosen, with the one
 chosen marked, asking the harness where none is known yet and accepting a typed model; the efforts
 the model chosen takes; and, under `More`, the harness, the account it runs as with a way to make
 one, and a way to ask the harness for its models again. What is picked MUST come to what `-a`
 spells, as Section 3.8.10 states.
 
-**3.8.20** The box of the form of a new chat MUST hold the permission chip of Section 3.6.6.14, on `Edit this
-folder` until the user picks another, and the chat MUST be started with the one picked.
+**3.8.20** The form of a new chat MUST hold the permission chip of Section 3.6.6.14 under the box,
+at its right after the chip of Section 3.8.19, on `Edit this folder` until the user picks another,
+and the chat MUST be started with the one picked.
+
+**3.8.21** The form of a new chat MUST be drawn as a new session of a chat app is: a bar 44 CSS
+pixels high holding the heading `New chat` at its left; the box of Section 3.6.6.15 docked at the
+foot of the page, in the column a conversation is read in; and between them nothing but the list
+of Section 3.8.23. It MUST NOT draw a greeting, a mark, or a box in the middle of the page.
+
+**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, `Environment`
+and then the workspace control of Section 3.8.2.1, and at its right the chips of Section 3.8.19 and
+Section 3.8.20. `Environment` MUST name the daemon the page shows and MUST open a menu of Local and
+every remote daemon this browser keeps, with the one shown marked, and `New environment`, which
+opens the daemons' settings (Section 3.13); picking another daemon MUST switch the page to it
+(Section 3.4.2.4), on the same form.
+
+**3.8.23** The form of a new chat MUST list, in the middle of the page under `Next steps`, each
+chat of the daemon shown that is marked `asking` (Section 3.5.10), in rows 32 CSS pixels high and at
+most 320 wide: a row MUST open its chat, and MUST hold a button that dismisses it from the list in
+this browser until that chat asks again. Where no chat is listed the page MUST NOT draw the list.
+
+**3.8.24** The form of a new epic of a flow MUST be drawn in the frame of Section 3.8.21: the
+heading `New epic`, or `Resume epic`, in the bar with the flow of Section 3.8.4 beside it; what the
+flow is for and `Options` (Section 3.8.6) in the middle of the page; and the box of Section 3.8.5
+docked at the foot, holding only what is typed and the button that sends. The row under that box
+MUST hold, at its left, `Environment` (Section 3.8.22) and the workspace control of Section
+3.8.2.1, and at its right what is set (Section 3.8.7) and the button that opens `Options`.
 
 ### 3.9. Flows
 

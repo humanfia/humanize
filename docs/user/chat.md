@@ -59,7 +59,7 @@ fills it as it fills a flow's role: the first CLI it finds. Change it:
 
 - in the terminal, with **Chat agent** on the [Workspace page of
   `/settings`](/user/settings#workspace);
-- in the browser, from the model chip on the box of **Chat** under **New epic**, or of a chat
+- in the browser, from the model chip under the box of **New chat**, or of a chat
   going, whose menu says the `/model` or `/effort` line below for you;
 - in the chat, with the CLI's own `/model` or `/effort`, where it has them (Claude Code,
   Codex): the chat goes on with the new model or effort, and the directory remembers it;
@@ -85,7 +85,7 @@ touch.
 
 Set it:
 
-- in the browser, with the chip on the box you type in: on **New epic** › **Chat** before the
+- in the browser, with the chip under the box you type in: on **New chat** before the
   first message, and under a chat at any time;
 - from a program, with `permission` on [`chat.start` and `chat.set`](/reference/daemon#chats).
 

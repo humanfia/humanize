@@ -83,9 +83,9 @@ export function effortName(effort) {
   return effort && effort !== 'auto' ? `${effort[0].toUpperCase()}${effort.slice(1)}` : 'Default'
 }
 
-/** What a chip says of an agent: its model, and its effort where one is set. */
+/** What a chip says of an agent, as a chat app's says it: its model, then its effort where one is set. */
 export function agentLabel(spec) {
   const { model, effort } = parted(spec)
   if (!model) return ''
-  return effort && effort !== 'auto' ? `${modelName(model)} · ${effortName(effort)}` : modelName(model)
+  return effort && effort !== 'auto' ? `${modelName(model)} ${effortName(effort)}` : modelName(model)
 }

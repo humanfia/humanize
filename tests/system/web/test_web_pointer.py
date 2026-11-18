@@ -95,7 +95,7 @@ def test_the_page_keeps_the_browsers_menu_to_what_is_there_to_read_or_write(
         go(page, "/new?flow=chat")
         expect(page.locator("[data-hmz=composer-text]")).to_be_visible()
         assert _prevented(page, "[data-hmz=sidebar] .brand")
-        assert _prevented(page, ".greeting")
+        assert _prevented(page, "[data-hmz=bar] h1")
         assert not _prevented(page, "[data-hmz=composer-text]")
         user_select = page.evaluate(
             "(() => { const said = getComputedStyle(document.querySelector('.side-nav a'));"

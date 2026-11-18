@@ -469,6 +469,34 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
             "href", f"#/envs/live?{_HOST}&env=1%3Aworkspace&tab=files"
         )
 
+        # The bar's buttons each open the environment on a panel of its own, say which
+        # is open -- wherever it was picked -- and shut the panel where it is the one open.
+        bar = page.locator("[data-hmz=bar]")
+        pressed = bar.locator(".pane-toggle[aria-pressed=true]")
+        expect(pressed).to_have_attribute("data-hmz", "pane-files")
+        for pane in ("terminal", "changes", "files"):
+            button = bar.locator(f"[data-hmz=pane-{pane}]")
+            expect(button).to_be_enabled()
+            button.click()
+            expect(pressed).to_have_attribute("data-hmz", f"pane-{pane}")
+            expect(frame_.locator(f"[data-hmz=envs-tab-{pane}]")).to_have_attribute(
+                "aria-selected", "true"
+            )
+        frame_.locator("[data-hmz=envs-tab-changes]").click()
+        expect(pressed).to_have_attribute("data-hmz", "pane-changes")
+        bar.locator("[data-hmz=pane-changes]").click()
+        expect(panel).to_be_hidden()
+        expect(pressed).to_have_count(0)
+        bar.locator("[data-hmz=pane-details]").click()
+        expect(pressed).to_have_attribute("data-hmz", "pane-details")
+        expect(panel.get_by_role("tab", name="Details")).to_have_attribute(
+            "aria-selected", "true"
+        )
+        bar.locator("[data-hmz=pane-files]").click()
+        expect(frame_.locator("[data-hmz=envs-tab-files]")).to_have_attribute(
+            "aria-selected", "true"
+        )
+
         # The row of tabs drawn again -- a board put up -- leaves the environment as it was.
         frame_.evaluate("(el) => (el.dataset.marked = 'yes')")
         wire.event(_SUB, {"type": "board", "items": [{"key": "k", "value": "v"}]})

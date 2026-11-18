@@ -43,7 +43,7 @@ test('a chip says the model as a person reads it, and its effort where one is se
   assert.equal(effortName('max'), 'Max')
   assert.equal(effortName(''), 'Default')
   assert.equal(effortName('auto'), 'Default')
-  assert.equal(agentLabel('claude/claude-opus-4-1:max'), 'Opus 4.1 · Max')
+  assert.equal(agentLabel('claude/claude-opus-4-1:max'), 'Opus 4.1 Max')
   assert.equal(agentLabel('claude@work/claude-haiku-4-5'), 'Haiku 4.5')
   assert.equal(agentLabel('codex/gpt-5:auto'), 'gpt-5')
   assert.equal(agentLabel(''), '')

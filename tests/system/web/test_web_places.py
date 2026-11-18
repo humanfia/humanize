@@ -268,12 +268,17 @@ def test_the_folder_is_picked_under_the_box_and_not_in_the_bar(
         expect(page.locator("[data-hmz=bar] [data-hmz=flow-picker]")).to_have_count(
             flows
         )
-        box = page.locator("[data-hmz=start]").bounding_box()
+        # Under the box, at its left, right after where it runs.
+        box = page.locator("[data-hmz=start] .composer-box").bounding_box()
         under = chip.bounding_box()
+        runs = page.locator("[data-hmz=composer-under] [data-hmz=environment]")
+        before = runs.bounding_box()
         assert box is not None
         assert under is not None
+        assert before is not None
         assert under["y"] >= box["y"] + box["height"]
-        assert abs(under["x"] - box["x"]) < 4
+        assert abs(before["x"] - box["x"]) < 4
+        assert 0 <= under["x"] - (before["x"] + before["width"]) < 8
 
         chip.click()
         menu = page.get_by_role("menu", name="Folders")
