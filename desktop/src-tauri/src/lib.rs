@@ -335,12 +335,30 @@ fn epic(paths: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
         .last()
 }
 
-/// The page's import address (Section 3.6.8 of [WEB]), naming an epic's archive by its path.
+/// The page's import address (Section 3.6.8 of [WEB]), naming an epic's archive by its path, on
+/// the daemon the address the page is at names: Local where it names none.
 fn importing(page: &Url, path: &Path) -> Option<Url> {
     let path: String = url::form_urlencoded::byte_serialize(path.to_str()?.as_bytes()).collect();
+    let at = page.fragment().unwrap_or_default();
+    let at = at.strip_prefix('/').unwrap_or(at);
+    let daemon = match at.starts_with('@') {
+        true => format!("/{}", at.split(['/', '?']).next().unwrap_or_default()),
+        false => String::new(),
+    };
     let mut url = page.clone();
-    url.set_fragment(Some(&format!("/epics/import?path={path}")));
+    url.set_fragment(Some(&format!("{daemon}/epics/import?path={path}")));
     Some(url)
+}
+
+/// The page at the address the window is on, where the window is on the app's own.
+fn at(app: &AppHandle, mut page: Url) -> Url {
+    let at = app
+        .get_webview_window(MAIN)
+        .and_then(|window| window.url().ok());
+    if let Some(at) = at.filter(|at| allowed(at, Some(&page))) {
+        page.set_fragment(at.fragment());
+    }
+    page
 }
 
 /// Imports an epic's archive in the page, or once the window is on it, and brings the window
@@ -354,7 +372,7 @@ fn open(app: &AppHandle, path: PathBuf) {
         }
     }
     let page = lock(&shell.page).clone();
-    match page.and_then(|page| importing(&page, &path)) {
+    match page.and_then(|page| importing(&at(app, page), &path)) {
         Some(url) => show(app, url),
         None => *lock(&shell.opening) = Some(path),
     }
@@ -778,6 +796,28 @@ mod tests {
             url.fragment(),
             Some("/epics/import?path=C%3A%5CUsers%5Cme%5Ca+b.hmzepic")
         );
+    }
+
+    #[test]
+    fn imports_into_the_daemon_shown() {
+        let path = Path::new("/a.hmzepic");
+        let on = |at: &str| {
+            let page = Url::parse(&format!("http://tauri.localhost/{at}")).unwrap();
+            importing(&page, path).unwrap().fragment().map(String::from)
+        };
+        let local = Some("/epics/import?path=%2Fa.hmzepic".to_string());
+        let gpu = Some("/@gpu/epics/import?path=%2Fa.hmzepic".to_string());
+        assert_eq!(on("#/@gpu/live?workspace=%2Fhome%2Fme"), gpu);
+        assert_eq!(on("#/@gpu/epics/import?path=%2Fb.hmzepic"), gpu);
+        assert_eq!(on("#/@gpu"), gpu);
+        assert_eq!(on("#@gpu?x"), gpu);
+        assert_eq!(
+            on("#/@my%20box/epics/a/exomyth"),
+            Some("/@my%20box/epics/import?path=%2Fa.hmzepic".to_string())
+        );
+        assert_eq!(on(""), local);
+        assert_eq!(on("#/live"), local);
+        assert_eq!(on("#/epics/@gpu/exomyth"), local);
     }
 
     #[test]
