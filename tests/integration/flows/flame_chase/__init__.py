@@ -83,7 +83,7 @@ async def flame_chase(
 ) -> None:
     """Two agents take turns on the same task until the budget is spent."""
     state = ctx.state
-    assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
+    assert state is not None
     roles = ("first_chaser", "second_chaser")
     quotas = {role: _quota(params, role) for role in roles}
     turn = state["turn"] if "turn" in state else 0

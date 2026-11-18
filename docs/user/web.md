@@ -62,12 +62,12 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New epic**, **Search epics**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, newest first. A flow's epic is a row of two lines: its arrow and task, then its flow's name; it is marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a [chat](/user/chat) is one line, what you asked and nothing else, as a chat app lists a conversation: a spinner beside it while its agent answers, a blinking gold dot while it asks, a red dot where it failed, and when it began where you point at it | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; **+** on a directory starts a chat there, and its right-click menu a chat or an epic |
+| **Sidebar** | **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, newest first. A flow's epic is a row of two lines: its arrow and task, then its flow's name; it is marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a [chat](/user/chat) is one line, what you asked and nothing else, as a chat app lists a conversation: a spinner beside it while its agent answers, a blinking gold dot while it asks, a red dot where it failed, and when it began where you point at it | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; **+** on a directory starts a chat there, and its right-click menu a chat or an epic |
 | **New epic** | Two choices, **Chat** and **Flow**: a box for the first message or the task, the directory, and, for a flow, the flow picked at the top as a chat app picks a model | Start it; **Options** on the box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
-| **Search epics** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | Every epic, with its directory, agents, what it spent and how long it took | Find epics by how they went, by directory, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
+| **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | Every chat and epic, with its folder, agents, what it spent and how long it took | Find them by how they went, by folder, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar is the [daemon bar](#daemon-bar): it names the daemon the page shows,
@@ -75,7 +75,7 @@ its host and whether it is reached, and says how many epics are going on it. Its
 **Daemon**, which opens a list of the daemons beside it to switch to, then **Settings** and
 **Usage**. Where a newer Humanize is out, the bar is marked ↑ and its menu offers
 **Update**, which copies `hmz update` to run in a terminal. The bell at the top of the sidebar
-opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new epic and <kbd>⌘.</kbd> folds the sidebar away;
+opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new chat and <kbd>⌘.</kbd> folds the sidebar away;
 off a Mac, as on Windows, they are <kbd>Ctrl+Shift+O</kbd> and <kbd>Ctrl+.</kbd>. On a phone
 the sidebar is a drawer behind the button in the corner.
 
@@ -282,7 +282,7 @@ tokens, and every process -- click one to pick it.
 
 ### Importing an epic {#importing-an-epic}
 
-Somebody sent you a `.hmzepic`? Press **Import** in **Search epics**, or right-click between the epics in
+Somebody sent you a `.hmzepic`? Press **Import** in **Search**, or right-click between the epics in
 the sidebar, and pick the file --
 or drop it anywhere on the window. It is read back in on the daemon the page shows, under the
 directory it ran in, and opens
@@ -484,7 +484,7 @@ Start `hmz web` in a project, and open **New epic**:
 - The terminal's transcript shows the task you typed in the browser, marked `· by browser`.
 - The sidebar lists the chat, with nothing beside it: a chat shows its spinner only while its
   agent answers;
-  **Search epics** shows what it spent.
+  **Search** shows what it spent.
 
 ## Daemons {#daemons}
 

@@ -1227,8 +1227,8 @@ carries on with what it opened with.
   - how the flow itself was [set up](/reference/tui), what a run of it may spend, and
     whether a run of it is [profiled](#whether-a-run-of-it-is-profiled).
 
-Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one Humanize
-ships, `@local/twice` for a project flow, `@user/twice` for a personal one. Within a flow, each
+Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one installed
+from the official flowverse, `@local/twice` for a project flow, `@user/twice` for a personal one. Within a flow, each
 agent is kept under its role name. A flow that gains a new role does not hand an existing
 role's model to it.
 

@@ -105,7 +105,7 @@ async def rlar(
 ) -> str:
     """An actor works in one session until a fresh reviewer says the task is done."""
     state = ctx.state
-    assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
+    assert state is not None
     actor, reviewer = agents["actor"], agents["reviewer"]
     workspace = envs["workspace"]
     working = await actor.spawn()

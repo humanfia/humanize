@@ -1982,7 +1982,7 @@ module.
 | --- | --- |
 | `local` | `.hmz/flows/` under the current directory |
 | `user` | `~/.hmz/flows/` |
-| `official` | the flows shipped in the `hmz` package, then the flows installed from the official index |
+| `official` | the flows installed from the official index |
 | any other flowverse | the flows installed from its index |
 
 The directories holding installed flows are specified in Section 4.8 of [FILES].
@@ -1990,29 +1990,17 @@ The directories holding installed flows are specified in Section 4.8 of [FILES].
 **3.14.2.2** A bare flow name MUST be looked up in `local`, then `user`, then `official`, then every
 other flowverse in alphabetical order, and the first match MUST be used.
 
-**3.14.2.3** hmz MUST find only flows that are shipped, installed, or in `local` or `user`. A flow
+**3.14.2.3** hmz MUST find only flows that are installed, or in `local` or `user`. A flow
 that an index lists and that is not installed MUST NOT be found, and naming it MUST raise
 `FlowNotFound`.
 
 #### 3.14.3. Flows in the package
 
-**3.14.3.1** hmz MUST ship the following flows, each with an environment role `workspace: LocalEnv`:
-
-| Flow | Agent roles | Role needs | Resumable |
-| --- | --- | --- | :-: |
-| `ralph_loop` | `agent` | none | |
-| `stateful_ralph` | `agent` | none | ✓ |
-| `continue_loop` | `agent` | none | |
-| `goal` | `worker` | `GoalCommandAgentMixin` | |
-| `flame_chase` | `first_chaser`, `second_chaser` | none | ✓ |
-| `rlar` | `actor`, `reviewer` | none | ✓ |
+**3.14.3.1** hmz MUST NOT ship a flow in the `hmz` package: every flow MUST come from a flow source
+of Section 3.14.2.1, and where none holds a flow hmz MUST offer no flow.
 
 **3.14.3.2** Every flow MUST be granted exactly what its roles declare. A chat is not a flow, and
 is specified in Section 8 of [CORE], as an Ai-chan conversation is in Section 14 of [CORE].
-
-**3.14.3.3** Each flow of Section 3.14.3.1 MUST run until its budget is spent,
-`rlar` also until its reviewer says the work is done, and MUST end the epic with the failure of any
-turn that fails.
 
 #### 3.14.4. Flowverses
 
@@ -2025,7 +2013,7 @@ organisation `<user>` MUST have them at `flows/<user>/<flow>/<version>/flow.yaml
 
 | Key | Required | Value |
 | --- | :-: | --- |
-| `name` | ✓ | `[a-z][a-z0-9_]*`, equal to the `<flow>` directory, not the name of a shipped flow |
+| `name` | ✓ | `[a-z][a-z0-9_]*`, equal to the `<flow>` directory |
 | `version` | ✓ | SemVer 2.0.0, equal to the `<version>` directory |
 | `description` | | one line |
 | `repo` | ✓ | `owner/repo` on GitHub, or a URL with scheme `https`, `http`, `ssh`, `git` or `file` |
@@ -2829,10 +2817,9 @@ and `OSError` where git fails.
 **4.8.9** `Flowverses.remove(name)` MUST delete the index and every flow installed from it, and MUST
 return whether the flowverse existed; it MUST raise `ValueError` for `official`, `local` and `user`.
 
-**4.8.10** `Flowverses.holds(one)` MUST return what the flowverse offers to run: the built-in and
-installed flows for `official`, the installed flows for an added flowverse, and the flows in the
-directory for `local` and `user`; it MUST import every flow it returns and MUST NOT return a flow
-the index only lists.
+**4.8.10** `Flowverses.holds(one)` MUST return what the flowverse offers to run: the installed
+flows for `official` and for an added flowverse, and the flows in the directory for `local` and
+`user`; it MUST import every flow it returns and MUST NOT return a flow the index only lists.
 
 **4.8.11** `Flowverses.index(name)` MUST return what the index lists as last fetched, reading only
 the index files; it MUST return an empty `Index` for `local`, `user`, an unfetched flowverse and an

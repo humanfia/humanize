@@ -264,6 +264,8 @@ const ICONS = {
   copy: ['M9 9h11v11H9Z', 'M5 15H4V4h11v1'],
   open: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v6H4V6h6'],
   bell: ['M6 16v-5a6 6 0 0 1 12 0v5l2 2H4Z', 'M10 21h4'],
+  compose: ['M11 4H4v16h16v-7', 'M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z'],
+  epic: ['M6 3v12', 'M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 9a9 9 0 0 1-9 9'],
 }
 
 /** An icon, drawn in the colour of the text around it and said by nothing: its button says it. */

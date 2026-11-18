@@ -69,12 +69,12 @@ const running = [
 
 # Your first run
 
-You set up `ralph_loop` in a scratch repository, start it on a small bug, watch it work, and
+You install `ralph_loop`, set it up in a scratch repository, start it on a small bug, watch it work, and
 stop it once the bug is fixed. At the end, that directory remembers the setup, so the next run
 there is one line.
 
 ::: info At a glance
-- **You will** choose a flow, give its role an agent and the run a budget, start it with a
+- **You will** install a flow, choose it, give its role an agent and the run a budget, start it with a
   task, watch it, and stop it.
 - **Use it when** you have just installed Humanize, or want to see how any flow is set up at
   the prompt.
@@ -100,7 +100,8 @@ In a git repository you can throw away:
 
 ```text
 hmz
-/flow                                  choose ralph_loop, set its agent and budget, then save
+/flow                                  install ralph_loop from Flowverses › official, once;
+                                       then choose it, set its agent and budget, and save
 ❯ $ralph_loop Fix the bug in calc.py.  the task; the flow starts
 ctrl+c ctrl+c                stop it once the bug is fixed
 ```
@@ -113,7 +114,8 @@ Three words cover what you set up:
 
 - A **flow** is the loop: which agent is asked what, in what order, and when to stop.
   [`ralph_loop`](https://humanfia.ai/flows/ralph-loop), used here, gives one agent the same task again and again,
-  in a fresh conversation each round, until its budget runs out or you stop it.
+  in a fresh conversation each round, until its budget runs out or you stop it. Humanize ships
+  no flow: you install one from a [flowverse](/weaver/flowverses), or write your own.
 - A **role** is a slot the flow declares, such as `agent`, `builder` or `reviewer`. You fill
   each role with an **agent**: a CLI, the account it runs as, a model, and an effort.
 - A **budget** is what an epic may spend: time, dollars or output tokens. Every flow needs
@@ -147,13 +149,18 @@ says what a report carries; answer either way, and `/settings` changes it later
 ([Reporting](/user/reporting)).
 
 The interface opens on a [chat](/user/chat): one agent that answers you, a turn at a time, as
-its own CLI would. A line you type goes to it. For work that runs on its own you choose a
-**flow**.
+its own CLI would. A line you type goes to it. The chat is all that works until a flow is
+installed. For work that runs on its own you choose a **flow**.
 
 ## 3. Choose a flow
 
 Type `/flow` and press <kbd>enter</kbd>. It opens on **Installed**: every flow ready to run
-here, the ones built into Humanize first. Press <kbd>/</kbd>, type `ralph`, press
+here. Humanize ships no flow, so on a new machine the list reads `no flows yet`. Install
+`ralph_loop` once: press **Install more…**, open `official`, then `ralph_loop`, and install
+its release, `0.1.0`. <kbd>esc</kbd> goes back, a step at a time, to **Installed**. See
+[Flowverses](/weaver/flowverses#managing-flowverses).
+
+Back on **Installed**, press <kbd>/</kbd>, type `ralph`, press
 <kbd>enter</kbd> to go back to the list, and <kbd>enter</kbd> on `ralph_loop`:
 
 <Term title="hmz · /flow">
@@ -166,12 +173,9 @@ here, the ones built into Humanize first. Press <kbd>/</kbd>, type `ralph`, pres
   <span class="p">│</span>  ralph                                                                 <span class="p">│</span> <span class="n">1</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
-   <span class="p">built in</span> <span class="n">2</span>
-  <span class="sel"> <b>ralph_loop</b>                                                     built in </span>
+   <span class="p">official</span> <span class="n">2</span>
+  <span class="sel"> <b>ralph_loop</b>                                                        0.1.0 </span>
      <span class="m">The task again and again, a fresh session every round.</span>
-
-   <b>stateful_ralph</b>                                                 <span class="m">built in</span>
-     <span class="m">The task again and again, in one session that remembers.</span>
   <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
     Install more…   Update   Uninstall   Copy here <span class="n">3</span>   Search…       Save
@@ -182,9 +186,10 @@ here, the ones built into Humanize first. Press <kbd>/</kbd>, type `ralph`, pres
 
 1. **The search box.** It keeps the flows whose names hold the letters you typed, in that
    order. <kbd>esc</kbd> clears it, then steps out of the menu.
-2. **`built in`** is where these flows come from: they ship with Humanize. A flow you install
-   from a [flowverse](/user/concepts#flowverse) is listed under that flowverse's name, and this
-   project's own under `local`.
+2. **`official`** is where this flow came from: the official
+   [flowverse](/user/concepts#flowverse), at the release at the end of its row. A flow you
+   install from another flowverse is listed under that flowverse's name, and this project's
+   own under `local`.
 3. **Copy here** copies the flow under the cursor into this project, to read or change. You do
    not need it now; [Security](/user/security#listing-a-flow-runs-its-python) says when you
    would.
@@ -434,7 +439,7 @@ line, as in step 7:
 
 | The flow is | Name it |
 | --- | --- |
-| built in, or installed from `official` | `$ralph_loop` |
+| installed from `official` | `$ralph_loop` |
 | in this project's `.hmz/flows/` | `$@local/twice` |
 | in your `~/.hmz/flows/` | `$@user/twice` |
 | installed from a flowverse you added | `$@<flowverse>/<flow>` |
@@ -473,8 +478,8 @@ Humanize fills a role with the first CLI it found. <kbd>enter</kbd> on the role,
 
 ### A flow from the [Flows](https://humanfia.ai/flows/) pages is not listed
 
-Only the flows built into Humanize are there from the start. Install the others from a
-flowverse: see the note under [step 3](#_3-choose-a-flow).
+No flow is there from the start: Humanize ships none. Install the one you want from a
+flowverse: see [step 3](#_3-choose-a-flow).
 
 ## Next steps
 

@@ -61,10 +61,19 @@ Or say one thing to an agent from your shell:
 hmz chat -a claude/claude-opus-5:high "What does this repository do?"
 ```
 
-Or run a flow from your shell, under a budget:
+Humanize ships no flow: install one from the official
+[flowverse](https://github.com/humanfia/flowverse) in `/flow`, under **Flowverses**, or write
+your own. Then run it from your shell, under a budget:
 
 ```sh
 hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.cost=5 "Make the tests pass"
+```
+
+Or name a release by its repository, with nothing installed:
+
+```sh
+hmz exec -f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop \
+    -a agent=claude/claude-opus-5:high -p budget.cost=5 "Make the tests pass"
 ```
 
 Agents run with approvals bypassed, so start in a scratch repository. The

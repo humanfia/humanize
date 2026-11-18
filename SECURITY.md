@@ -79,7 +79,7 @@ These are not, because they are how Humanize is meant to work or are already doc
 Some reports belong elsewhere:
 
 - a coding agent CLI itself, such as Claude Code or Codex: its vendor;
-- a flow that is not built into Humanize: the repository the flow comes from.
+- a flow: the repository the flow comes from. Humanize ships none.
 
 A flow in [humanfia/flowverse](https://github.com/humanfia/flowverse) that is malicious, or a
 flaw in that repository itself, is reported here, the same way: the same maintainers run it.

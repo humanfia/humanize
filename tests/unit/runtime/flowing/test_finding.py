@@ -8,12 +8,10 @@ import pytest
 
 from hmz.flows import FlowNotFound, FlowRefError
 from hmz.runtime.flowing.finding import (
-    BUILTIN_AT,
     ENTRY,
     Offer,
     about,
     at,
-    builtin,
     entry,
     find,
     fork,
@@ -24,7 +22,7 @@ from hmz.runtime.flowing.finding import (
     resolved,
     within,
 )
-from hmz.runtime.flowing.index import RECORD
+from hmz.runtime.flowing.index import RECORD, kept
 from hmz.runtime.flowing.verses import INDEX, LOCAL, OFFICIAL, USER, named, under
 from tests.unit.runtime.flowing.doubles_u10 import (
     cloned,
@@ -74,7 +72,7 @@ def test_offered_lists_the_flows_in_a_directory(tmp_path: Path) -> None:
     assert offered(tmp_path) == ["a", "b"]
 
 
-def test_within_looks_in_every_directory_a_place_keeps(places: Places) -> None:
+def test_within_looks_in_the_directory_a_place_keeps(places: Places) -> None:
     local = named(LOCAL)
     official = named(OFFICIAL)
     assert local is not None
@@ -82,7 +80,9 @@ def test_within_looks_in_every_directory_a_place_keeps(places: Places) -> None:
     assert within(local, "zz_x") is None
     flow_file(places.mine, "zz_x")
     assert within(local, "zz_x") == Path(".hmz/flows/zz_x.py")
-    assert within(official, "goal") == BUILTIN_AT / "goal" / ENTRY
+    assert within(official, "zz_ours") is None
+    ours = flow_dir(kept(OFFICIAL), "zz_ours")
+    assert within(official, "zz_ours") == ours
 
 
 # ------------------------------------------------------------------------- finding
@@ -95,7 +95,8 @@ def test_find_takes_a_name_nearest_first(places: Places) -> None:
     assert find("zz_both") == str(mine.resolve())
     assert find("@user/zz_both") == str(yours.resolve())
     assert find("@local/zz_both:inner") == str(mine.resolve())
-    assert find("goal") == str((BUILTIN_AT / "goal" / ENTRY).resolve())
+    ours = flow_dir(kept(OFFICIAL), "zz_ours")
+    assert find("zz_ours") == str(ours.resolve())
 
 
 @pytest.mark.parametrize(
@@ -171,9 +172,10 @@ def test_offers_list_every_visible_flow_by_its_name(places: Places) -> None:
 def test_found_lists_humanizes_own_first_and_yours_last(places: Places) -> None:
     flow_file(places.yours, "zz_yours")
     flow_file(places.mine, "zz_mine")
+    assert [one.whose for one in found()] == [LOCAL, USER]
+    flow_dir(kept(OFFICIAL), "zz_ours")
     listed = found()
-    assert listed[0].whose == OFFICIAL
-    assert Offer(OFFICIAL, "goal", about("goal")) in listed
+    assert listed[0] == Offer(OFFICIAL, "zz_ours", "")
     assert listed[-2:] == [
         Offer(LOCAL, "@local/zz_mine", ""),
         Offer(USER, "@user/zz_yours", ""),
@@ -187,12 +189,6 @@ def test_resolved_loads_the_flow_a_name_comes_to(places: Places) -> None:
     flow_dir(places.mine, "zz_r", source("zz_r", "zz_s", doc="Said."))
     flow = resolved("zz_r:zz_s")
     assert (flow.name, flow.description) == ("zz_s", "Said.")
-    assert builtin(flow) is False
-
-
-def test_a_flow_of_the_package_is_humanizes_own(places: Places) -> None:
-    del places
-    assert builtin(resolved("goal")) is True
 
 
 def test_resolved_fetches_a_repository_ref_on_this_thread(

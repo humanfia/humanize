@@ -111,13 +111,13 @@ outworlder's transcript that nobody else holds. While a flow runs, no flow is of
 `/flow ` or `$`, and `/flow` reads `Set up the running flow's agents`. A command that is not
 listed can still be typed, and says why it did nothing.
 
-The flows are the ones Humanize ships, the ones you installed from a
-[flowverse](/weaver/flowverses), and your own. A flow a flowverse lists is offered once it is
+The flows are the ones you installed from a [flowverse](/weaver/flowverses), and your own:
+Humanize ships none. A flow a flowverse lists is offered once it is
 installed. Each is offered under one name:
 
 | Where the flow comes from | Offered as |
 | --- | --- |
-| Humanize itself, or installed from the official flowverse | a bare name: `ralph_loop`, `rlar` |
+| installed from the official flowverse | a bare name: `ralph_loop`, `rlar` |
 | this project's `.hmz/flows/` | `@local/twice` |
 | `~/.hmz/flows/` | `@user/twice` |
 | installed from any other flowverse | `@<flowverse>/<flow>` |

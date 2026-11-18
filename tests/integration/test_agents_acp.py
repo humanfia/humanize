@@ -25,6 +25,7 @@ from hmz.coganchor.agents import (
     Unhooked,
     driver,
 )
+from hmz.runtime.runner import read_line
 from tests.integration.doubles_agents import MCP, Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -166,6 +167,59 @@ def test_an_added_cli_is_driven_by_the_protocol_s_own_driver(acp: Standins) -> N
     assert backends.speaking()["my-agent"] == ("my-agent", "--acp")
     assert driver("my-agent")[0] is AcpAgent
     assert _agent().backend == "my-agent"
+
+
+def test_the_public_agent_reader_accepts_aliases_and_added_acp_clis(
+    acp: Standins,
+) -> None:
+    line = read_line(
+        [
+            "-f",
+            "chat",
+            "-a",
+            "alias=claude-code/opus:high,added=my-agent/model",
+            "task",
+        ]
+    )
+
+    assert [(one.role, one.cli, one.model, one.effort) for one in line.agents] == [
+        ("alias", "claude", "opus", "high"),
+        ("added", "my-agent", "model", ""),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("spec", "diagnostic"),
+    [
+        (
+            "assistant=codxe/gpt-6.1-sol",
+            "unknown CLI 'codxe'; see the CLI reference for supported names",
+        ),
+        (
+            "assistant=codex/",
+            "missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]",
+        ),
+        (
+            "agent=cod'xe/m",
+            """unknown CLI "cod'xe"; see the CLI reference for supported names""",
+        ),
+        (
+            "agent=litellm/",
+            "missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]",
+        ),
+    ],
+)
+def test_the_public_agent_reader_reports_invalid_specs(
+    spec: str, diagnostic: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exited:
+        read_line(["-f", "chat", "-a", spec, "task"])
+
+    assert exited.value.code == 2
+    assert (
+        capsys.readouterr().err.splitlines()[-1]
+        == f"hmz exec: error: -a {spec!r}: {diagnostic}"
+    )
 
 
 def test_a_turn_opens_a_session_and_says_what_the_agent_said(

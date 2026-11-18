@@ -376,7 +376,7 @@ takes a flowverse's bare name, and its methods a flow by index name (`<flow>`,
 | `uninstall(flow: str)` | `bool` | Removes an installed flow; whether there was one. `ValueError`: another installed flow needs it. `OSError`: it will not go. |
 | `installed()` | `list[Installed]` | Every installed flow, by flowverse and then name. |
 | `updates()` | `list[Update]` | Every installed flow whose index, as last fetched, lists a newer release. |
-| `holds(one: Flowverse)` | `list[Offer]` | What it offers to run: built-in and installed flows for `official`, installed ones for another, the directory's for `local` and `user`. **Imports every flow in it.** Never a flow its index only lists. |
+| `holds(one: Flowverse)` | `list[Offer]` | What it offers to run: installed flows for `official` and for another, the directory's for `local` and `user`. **Imports every flow in it.** Never a flow its index only lists. |
 | `edited(one: Flowverse)` | `bool` | Whether the clone holds changes a fetch would discard. `False` for a non-clone. |
 | `standing(one: Flowverse)` | `str` | The clone's commit, or `""`. |
 | `where(name: str)` | `Path` | Its index's directory, fetched or not. |

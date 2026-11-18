@@ -84,7 +84,7 @@ ends:
 - **On the host:** Linux or macOS on x86-64 or aarch64, and the project already at the path
   you will name. You install nothing there, not even Python: Humanize brings what it needs.
 - **This machine is Linux** on x86-64 or aarch64.
-- **A flow with a role for another machine.** The flows Humanize ships and the official
+- **A flow with a role for another machine.** The flows the official
   flowverse lists all work in the directory you start in, so none of them takes an `-e`. This page uses
   [`onbox`](#the-flow-used-on-this-page), a two-role flow you can save into your project.
 

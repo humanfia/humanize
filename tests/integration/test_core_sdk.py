@@ -1,7 +1,8 @@
-"""Every builtin flow run through `hmz.sdk.Hmz`, on the local workspace, by scripted agents.
+"""Each stand-in loop run through `hmz.sdk.Hmz`, on the local workspace, by scripted agents.
 
 The agents are the SDK's own fakes (`hmz.sdk.fakes`) and everything else is real: the flow
-is found and loaded by name, handed a local environment on a project of the test's own, and
+is found and loaded by name -- out of the project's own flows, which a private daemon's
+temporary home does not hide -- handed a local environment on a project of the test's own, and
 driven by the engine under its budget, through the private daemon the SDK starts for driver
 objects -- whose home, and the epic written there, go with it.
 
@@ -13,6 +14,7 @@ spends it.
 from __future__ import annotations
 
 import asyncio
+import shutil
 import time
 from typing import TYPE_CHECKING
 
@@ -26,6 +28,7 @@ from hmz.flows import (
     OutputTokensExceeded,
 )
 from hmz.sdk import Hmz, Refused, fakes
+from tests.integration.conftest import FLOWS
 from tests.integration.doubles_core import MODEL, install
 
 if TYPE_CHECKING:
@@ -41,7 +44,9 @@ BUDGET = {"cost": 0.5, "graceful": False}
 
 @pytest.fixture(autouse=True)
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    return install(tmp_path, monkeypatch)
+    project = install(tmp_path, monkeypatch)
+    shutil.copytree(FLOWS, project / ".hmz" / "flows")
+    return project
 
 
 def _agent(

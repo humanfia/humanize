@@ -531,7 +531,7 @@ flow that fails to load counts as set up (and fails when run). `/flow <flow> <ta
 flow the same way a `$` line does.
 
 Names are those offered by completion, which are what `-f` takes: as `official` lists them for
-the flows built in and those installed from it (`$rlar`, `$alice/kernel`), `$@local/<flow>`,
+the flows installed from it (`$rlar`, `$alice/kernel`), `$@local/<flow>`,
 `$@user/<flow>`, `$@<flowverse>/[<user>/]<flow>` for one installed from another flowverse, and
 `…:<name>` for another flow in the same module.
 
@@ -870,8 +870,8 @@ removing happen at once.
   Flows ready to run here: pick one to set it up and run it, or install more from a flowverse.
 
   ╭──────────────────────────────────────────────────────────────────────────────────────────╮
-  │ built in                                                                                 │
-  │ rlar ✔                                                                          built in │
+  │ official                                                                                 │
+  │ rlar ✔                                                                             0.1.0 │
   │   An actor works; a fresh reviewer checks each turn until it says done.                  │
   │                                                                                          │
   │ mine                                                                                     │
@@ -903,7 +903,7 @@ the menu closes; an `OSError` or `ValueError` is shown red under the list instea
 ### First screen {#flow-first-screen}
 
 Two cards, as `/settings`' landing: **▶ Installed** (`<n> flow(s) · <flow in force|none chosen>`;
-`flows ready to run: built in, installed, or your own`) and **⑂ Flowverses** (the indexes by
+`flows ready to run: installed, or your own`) and **⑂ Flowverses** (the indexes by
 name, `· ↑ <n> update(s)` where any; `indexes of flows to install, update and add to`). Keys
 `enter open   esc close`.
 
@@ -911,7 +911,7 @@ name, `· ↑ <n> update(s)` where any; `indexes of flows to install, update and
 
 | Element | Value |
 | --- | --- |
-| Rows | Every flow there is to run, under headings: `built in` first, then by where it came from (`official`, added flowverses, `local`, `user`). `<name>[ ✔]`, its about under it; at the far end `built in`, or an installed flow's version and, where its index lists a newer one, `↑ <newer>`. `✔` marks the flow in force, where the cursor opens. |
+| Rows | Every flow there is to run, under headings by where it came from (`official`, added flowverses, `local`, `user`). `<name>[ ✔]`, its about under it; at the far end an installed flow's version and, where its index lists a newer one, `↑ <newer>`. `✔` marks the flow in force, where the cursor opens. |
 | Empty | `no flows yet`; searching, `no matching flows`. |
 | Search | flow name and about. |
 | Keys | `enter set up   / search   tab actions   esc back` |

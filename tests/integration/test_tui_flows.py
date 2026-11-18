@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from textual.pilot import Pilot
 
 #: Every epic here is held by a daemon of the test's own, in this process.
-pytestmark = pytest.mark.usefixtures("daemon")
+pytestmark = pytest.mark.usefixtures("daemon", "loops")
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ async def into_flows(pilot: Pilot[None]) -> Flows:
     return await on(pilot, Flows)
 
 
-async def test_flow_lists_the_built_in_flows_and_the_workspace_s_own(
+async def test_flow_lists_the_installed_flows_and_the_workspace_s_own(
     workspace: Path,
 ) -> None:
     app = Humanize()

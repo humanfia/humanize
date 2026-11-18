@@ -24,7 +24,7 @@ from hmz.sdk import Hmz
 from tests.integration.doubles_core import AGENT, hmz_exec, install, write_flow
 
 #: Every epic here is held by a daemon of the test's own, in this process.
-pytestmark = pytest.mark.usefixtures("daemon")
+pytestmark = pytest.mark.usefixtures("daemon", "loops")
 
 #: A flow whose one turn is followed by long enough a wait for `interval` to come due.
 SLOW = """

@@ -403,7 +403,8 @@ stderr the agent's shell would have seen.
 
 **An agent that starts a flow.** The hook can call another flow and wait for it. Here the agent
 decides, mid-turn, that a piece of work needs a loop of its own, and gets
-[`flame_chase`](https://humanfia.ai/flows/flame-chase) under five dollars of the run's budget:
+[`flame_chase`](https://humanfia.ai/flows/flame-chase), installed from the official flowverse in
+`/flow`, under five dollars of the run's budget:
 
 ```python
 from hmz.flows import Budget, BudgetExceeded, load

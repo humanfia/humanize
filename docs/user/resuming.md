@@ -39,6 +39,9 @@ resuming 20260930T053826.667Z-55bb87: running stateful_ralph from saved state
   whether it can. [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) cannot: it keeps
   nothing but the repository, so running it again is carrying it on. A [chat](/user/chat) is
   not picked up but [carried on](#a-chat-is-carried-on).
+- That flow, installed. Humanize ships no flow: install `stateful_ralph`, used on this page,
+  from the official [flowverse](/weaver/flowverses#managing-flowverses) with `/flow`,
+  **Install more…**, `official`. `hmz exec` installs nothing.
 - An earlier run of that flow, **in this directory**, that got far enough to save something.
   Runs are kept per directory, so start `hmz` or `hmz exec` where the first run started.
 - Nothing running here now. [Stop](/user/stopping) a running flow first.
