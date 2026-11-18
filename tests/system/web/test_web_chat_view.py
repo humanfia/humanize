@@ -212,6 +212,7 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         # buttons, no switch, and no word of hmz's own.
         expect(bar.locator("h1")).to_have_text("hello there")
         expect(bar.locator(".bar-actions > *")).to_have_count(3)
+        expect(bar.locator(".badge")).to_have_text(re.compile("running"))
         expect(bar.locator("[data-hmz=prefer]")).to_have_count(0)
         expect(bar).not_to_contain_text(
             re.compile("epic|flow|native|began", re.IGNORECASE)
