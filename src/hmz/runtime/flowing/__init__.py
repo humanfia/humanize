@@ -58,12 +58,10 @@ if TYPE_CHECKING:
         run_fake,
     )
     from .finding import (
-        BUILTIN_AT,
         ENTRY,
         Offer,
         about,
         at,
-        builtin,
         entry,
         find,
         fork,
@@ -129,7 +127,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AGENT_CAPABILITIES",
-    "BUILTIN_AT",
     "ENTRY",
     "ENV_CAPABILITIES",
     "FLOWS",
@@ -188,7 +185,6 @@ __all__ = [
     "at",
     "away_answer",
     "brought",
-    "builtin",
     "capabilities_of",
     "current",
     "default_result",
@@ -236,7 +232,6 @@ _WRITTEN = {
     "AgentSpec": "hmz.runtime.flowing.specs",
     "AgentSpecError": "hmz.runtime.flowing.specs",
     "AgentView": "hmz.runtime.flowing.viewing",
-    "BUILTIN_AT": "hmz.runtime.flowing.finding",
     "BoundHook": "hmz.runtime.flowing.spi",
     "BudgetSpecError": "hmz.runtime.flowing.specs",
     "Call": "hmz.runtime.flowing.engine",
@@ -290,7 +285,6 @@ _WRITTEN = {
     "about": "hmz.runtime.flowing.finding",
     "at": "hmz.runtime.flowing.finding",
     "brought": "hmz.runtime.flowing.skills",
-    "builtin": "hmz.runtime.flowing.finding",
     "capabilities_of": "hmz.runtime.flowing.spi",
     "current": "hmz.runtime.flowing.engine",
     "default_result": "hmz.runtime.flowing.spi",

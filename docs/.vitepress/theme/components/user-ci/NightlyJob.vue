@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // The nightly job, on a runner that starts empty every time. At 02:00 UTC the job checks the
 // repository out, installs the agent's CLI and Humanize, and signs the CLI in from a
-// repository secret. `hmz exec -f ralph_loop … -p budget.duration=45m,budget.cost=20` fetches a
+// repository secret. `hmz exec -f git+…#ralph_loop … -p budget.duration=45m,budget.cost=20`, the
+// flow named by its repository since nothing is installed on the runner, fetches a
 // price list before its first turn and works until a limit is spent, and the step exits 0. A
 // script keeps the trace as an artifact, and a branch is pushed and a pull request opened. The
 // exit status says what the job leaves: 0 a trace and a pull request, 1 a trace and nothing
@@ -190,7 +191,7 @@ const scene = useScene({
     rise(tl, one('.run'), T2 + 0.2)
     const lines = q('.cmd-line')
     tl.set(lines, { autoAlpha: 1 }, T2 + 0.5)
-    type(tl, lines[0], '$ hmz exec -f ralph_loop', T2 + 0.5, 50)
+    type(tl, lines[0], '$ hmz exec -f git+…#ralph_loop', T2 + 0.5, 50)
     type(tl, lines[1], '  -a agent=claude/claude-opus-5:high', T2 + 1.0, 70)
     type(tl, lines[2], '  -p budget.duration=45m,budget.cost=20', T2 + 1.55, 70)
     brace(tl, q, '.brace-budget', T2 + 2.1)
@@ -243,7 +244,7 @@ const scene = useScene({
     :beats="BEATS"
     sim
     mobile-ratio="9 / 16"
-    label="The nightly job on a runner that starts empty every time. At 02:00 UTC the job checks the repository out, with TASK.md and ci/trace.py; installs the agent's CLI, @anthropic-ai/claude-code, from npm and Humanize with uv; and signs the CLI in from the repository secret CLAUDE_CODE_OAUTH_TOKEN. Then hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=45m,budget.cost=20 runs: with a cost limit and no price list on the runner, it fetches one before its first turn, at most 20 seconds. It runs turn after turn until 45 minutes are spent, prints that it stopped because its budget's duration is spent, and exits 0. A script, ci/trace.py, keeps the trace as an artifact, and a branch nightly/<run id> is pushed and a pull request opened. The exit status says what the job leaves: 0, the flow returned or its budget stopped it, a trace and a pull request; 1, the run failed, a trace but no branch and no pull request; 2, refused in seconds before any agent ran, with no branch and no pull request."
+    label="The nightly job on a runner that starts empty every time. At 02:00 UTC the job checks the repository out, with TASK.md and ci/trace.py; installs the agent's CLI, @anthropic-ai/claude-code, from npm and Humanize with uv; and signs the CLI in from the repository secret CLAUDE_CODE_OAUTH_TOKEN. Then hmz exec -f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop -a agent=claude/claude-opus-5:high -p budget.duration=45m,budget.cost=20 runs: with a cost limit and no price list on the runner, it fetches one before its first turn, at most 20 seconds. It runs turn after turn until 45 minutes are spent, prints that it stopped because its budget's duration is spent, and exits 0. A script, ci/trace.py, keeps the trace as an artifact, and a branch nightly/<run id> is pushed and a pull request opened. The exit status says what the job leaves: 0, the flow returned or its budget stopped it, a trace and a pull request; 1, the run failed, a trace but no branch and no pull request; 2, refused in seconds before any agent ran, with no branch and no pull request."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

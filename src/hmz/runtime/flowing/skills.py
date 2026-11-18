@@ -16,7 +16,7 @@ Without one, every skill that repository holds is brought. Installing a flow fet
 one its roles name into the installed flow's own `skills/`, with a note in its record of
 which came from where, so that what an installed flow works by is in it like the rest of it
 and a run of it reaches no network for its skills. A flow that was never installed -- one of
-your own, a builtin, a VCS ref -- has them fetched as a run asks for them, into a clone kept
+your own, a VCS ref -- has them fetched as a run asks for them, into a clone kept
 in this machine's own place, `skills/<name>/`, and fetched again the next time.
 
 Nothing here installs anything into a CLI. What is fetched is put in a flow or where Humanize

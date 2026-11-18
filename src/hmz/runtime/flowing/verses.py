@@ -18,13 +18,8 @@ own, and is there whether or not it has been fetched yet: a list that only menti
 somebody had thought to add it would be a list that hid what there is. And `local` and `user`
 are the flows of your own: this project's own flows directory, and the one in your home.
 
-`official` is the one that is read from two places at once. The six loops are in the package,
-because a machine that has never reached a network still has to have a loop to leave running;
-whatever was installed out of
-Humanize's index is beside them. Which of the two a flow is in is Humanize's business rather
-than anybody else's, so both are offered under the one name: `goal` and an installed `aot` are
-each one of Humanize's flows, said the same way. The package's own wins a name they both hold
--- and an index may not offer one of those names at all.
+Humanize keeps no flow in the package: every flow of its own is installed out of `official`'s
+index like any other, and until one is there is nothing to run but a chat, which is no flow.
 
 Those last two are places rather than indexes -- nothing fetches them, nothing is installed
 into them, and what is in one is whatever you put there -- but they are flowverses all the same,
@@ -83,8 +78,7 @@ __all__ = [
 #: What Humanize's own flows are listed under, and where its index of them is. Always listed,
 #: whether or not it has been fetched: what there is to install is not the same question as
 #: what has been downloaded, and somebody who has never fetched it should still be able to see
-#: it and say so. The flows in the package are listed under this name too -- one name for
-#: Humanize's flows, whichever of the two places a given one happens to be kept in.
+#: it and say so.
 OFFICIAL = "official"
 OFFICIAL_URL = "https://github.com/humanfia/flowverse"
 
@@ -155,8 +149,8 @@ class Flowverse:
         which `official` is until somebody asks for it, and true for the ones fetched from
         nowhere: a directory that is not there holds no flows, which is what its list of them
         says rather than a download somebody is waiting for. Not the same question as whether
-        it offers anything -- `official` offers the flows in the package either way, and what
-        was installed out of an index stays installed whether or not it is fetched again.
+        it offers anything -- what was installed out of an index stays installed whether or
+        not it is fetched again.
       fixed: Whether it is always listed and cannot be removed: Humanize's own, and the two
         your own flows live in.
     """
@@ -173,34 +167,23 @@ def under() -> Path:
     return home() / "flowverses"
 
 
-def holds(one: Flowverse) -> tuple[Path, ...]:
-    """The directories one flowverse's flows are read from, and the one place that is worked out.
+def holds(one: Flowverse) -> Path:
+    """The directory one flowverse's flows are read from, and the one place that is worked out.
 
     What was installed out of its index, except for the two places that are a directory of
     flows and nothing else -- yours -- which are read where they stand. Never the index itself:
     that is manifests, and a flow an index lists that nobody installed is not a flow to run.
 
-    More than one only for `official`, which is Humanize's own flows and is kept in two places:
-    the ones in the package, read where they stand, and what was installed out of Humanize's
-    index. The package's own come first, so that a name both hold is the one that is always
-    there rather than one an install could change.
-
     Args:
       one: The flowverse.
 
     Returns:
-      The paths, in the order a name is looked for in them, whether or not there is anything
-      at any of them -- a flowverse nothing has been installed out of holds nothing, which is
-      a thing to say rather than a thing to raise.
+      The path, whether or not there is anything at it -- a flowverse nothing has been
+      installed out of holds nothing, which is a thing to say rather than a thing to raise.
     """
-    from .finding import BUILTIN_AT
     from .index import kept
 
-    if one.name in _AS_THEY_STAND:
-        return (one.at,)
-    if one.name == OFFICIAL:
-        return (BUILTIN_AT, kept(OFFICIAL))
-    return (kept(one.name),)
+    return one.at if one.name in _AS_THEY_STAND else kept(one.name)
 
 
 def where(name: str) -> Path:
@@ -482,9 +465,9 @@ def fetch(name: str) -> Flowverse:
     if one is None:
         raise ValueError(f"no flowverse called {name!r}")
     if not one.url:
-        # Two ways to have no URL now that the package's own flows are under `official`:
-        # a directory of yours, which is not fetched from anywhere, and a directory under the
-        # flowverses home that is not a clone -- what a clone killed partway leaves behind.
+        # Two ways to have no URL: a directory of yours, which is not fetched from anywhere,
+        # and a directory under the flowverses home that is not a clone -- what a clone
+        # killed partway leaves behind.
         # Telling somebody the second is their own flows directory is telling them to look in
         # a place their problem is not in.
         said = (
@@ -555,34 +538,27 @@ def flows(one: Flowverse) -> list[str]:
       one: The flowverse.
 
     Returns:
-      One name per flow in the directories it holds them in, alphabetically -- a directory with
+      One name per flow in the directory it holds them in, alphabetically -- a directory with
       an `__init__.py` in it, or a single `.py` file, both of which are a module -- as the
       flowverse calls it: `review`, and `alice/kernel` for one installed out of an index's
       `flows/alice/`. A directory without an entry point is what the flows beside it import
       rather than a flow, and neither is a name that starts with an underscore or a dot.
       Nothing at all for an index nothing has been installed out of: what it lists is offered
       to install, not to run.
-
-      One name apiece for `official`, which is kept in two places: a flow the package and an
-      install both hold is one name here, and which of the two it resolves to is the order
-      :func:`holds` puts them in.
     """
     from .finding import ENTRY, offered
-    from .index import kept
 
-    found_: list[str] = []
-    for under_ in holds(one):
-        names = offered(under_)
-        if one.name not in MINE and under_ == kept(one.name):
-            # What was installed out of an index under somebody's name is a directory deeper.
-            names += [
-                f"{owner.name}/{name}"
-                for owner in sorted(_directories(under_))
-                if OWNER.match(owner.name) and not (owner / ENTRY).is_file()
-                for name in offered(owner)
-            ]
-        found_.extend(name for name in names if name not in found_)
-    return sorted(found_)
+    under_ = holds(one)
+    names = offered(under_)
+    if one.name not in MINE:
+        # What was installed out of an index under somebody's name is a directory deeper.
+        names += [
+            f"{owner.name}/{name}"
+            for owner in sorted(_directories(under_))
+            if OWNER.match(owner.name) and not (owner / ENTRY).is_file()
+            for name in offered(owner)
+        ]
+    return sorted(names)
 
 
 def plain(url: str) -> str:
@@ -868,8 +844,7 @@ def _url_of(said: str) -> str:
 
     Args:
       said: A URL, a path to a repository on this machine, or `owner/repo` for one on GitHub
-        -- which is how these are usually named, and how the one Humanize ships is written
-        down.
+        -- which is how these are usually named, and how Humanize's own is written down.
 
     Returns:
       Something git can clone.

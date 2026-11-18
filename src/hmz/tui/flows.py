@@ -6,9 +6,9 @@ with a block cursor, and what is done about the list rather than to one row of i
 installing, updating, searching, saving -- a bar of buttons under it. What is here is what is
 this menu's own: its pages, and what each does.
 
-Two pages under the first screen. **Installed** is what there is to run: the flows built into
-Humanize, the ones installed out of a flowverse with the release each is at and a mark where a
-newer one is listed, and the flows of your own. Enter on one goes into what it runs on -- an
+Two pages under the first screen. **Installed** is what there is to run: the flows installed
+out of a flowverse with the release each is at and a mark where a newer one is listed, and the
+flows of your own. Enter on one goes into what it runs on -- an
 agent or an environment per role it declares, what it takes, what a run of it may spend and
 whether it is profiled -- which is held until the menu is saved, as everything a menu holds
 is. **Flowverses** is where more come from: each index, the flows it lists, and each flow's
@@ -157,7 +157,7 @@ _CARDS = (
         INSTALLED,
         "Installed",
         "▶",
-        "flows ready to run: built in, installed, or your own",
+        "flows ready to run: installed, or your own",
     ),
     (VERSES, "Flowverses", "⑂", "indexes of flows to install, update and add to"),
 )
@@ -539,12 +539,6 @@ class Flows(Drafts[Chosen]):
 
         return split(offer.name.partition(":")[0])
 
-    def _builtin(self, offer: Offer) -> bool:
-        """Whether an offer is one of the flows built into Humanize."""
-        from hmz.runtime.flowing import OFFICIAL
-
-        return offer.whose == OFFICIAL and self._module(offer) not in self._installs()
-
     # -- Opening and drawing -----------------------------------------------------------------
 
     def _ask(self) -> None:
@@ -750,10 +744,6 @@ class Flows(Drafts[Chosen]):
 
     # -- Installed ----------------------------------------------------------------------------
 
-    def _group(self, offer: Offer) -> str:
-        """The heading a flow on the installed page stands under."""
-        return "built in" if self._builtin(offer) else offer.whose
-
     def _fill_installed(self) -> None:
         """Puts up every flow there is to run, under where it came from.
 
@@ -761,16 +751,12 @@ class Flows(Drafts[Chosen]):
         newer one, and a tick against the flow in force.
         """
         offers = self._all()
-        shown = [
-            one
-            for one in sorted(offers, key=lambda one: self._group(one) != "built in")
-            if self.fits(one.name, one.about)
-        ]
+        shown = [one for one in offers if self.fits(one.name, one.about)]
         landing = self._lands([one.name for one in shown], self._flow)
         rows: list[Option | None] = []
         group = None
         for one in shown:
-            heading = self._group(one)
+            heading = one.whose
             if heading != group:
                 if rows:
                     rows[-1] = Option("", disabled=True)
@@ -809,8 +795,7 @@ class Flows(Drafts[Chosen]):
         """
         held = self._installs().get(self._module(offer))
         if held is None:
-            said = "built in" if self._builtin(offer) else ""
-            return _shade("$text-muted", said, here=here), len(said)
+            return "", 0
         newer = self._updates().get(self._module(offer))
         said = held.version
         if newer is None:

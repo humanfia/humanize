@@ -1,4 +1,4 @@
-// The sidebar, as Codex and Claude keep theirs: a new epic, finding one, the flows, and every
+// The sidebar, as Codex and Claude keep theirs: a new chat, a new epic, finding one, the flows, and every
 // workspace of this machine as a folder of its epics, newest first -- each epic opened out into
 // its agents, and each agent into the sessions it opened; a chat is its one conversation, and
 // opens into nothing. Under them, the daemon the page is of,
@@ -18,6 +18,9 @@ import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSideba
 
 /** How many epics a page of the list holds. */
 const PAGE = 60
+
+/** Which entry of the sidebar an address is of: a new chat's own, else the one its first part names. */
+const entryOf = (parts) => (parts[0] === 'new' && parts[1] === 'chat' ? 'new/chat' : parts[0] || 'new')
 
 /**
  * @param {HTMLElement} root The sidebar.
@@ -44,7 +47,7 @@ export function mountSidebar(root, context, where) {
       h(
         'div',
         { class: 'side-top' },
-        h('a', { class: 'brand', href: hash('/new'), 'aria-label': 'Humanize, a new epic' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': 'Humanize, a new chat' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
         bell(where),
         iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
       ),
@@ -52,8 +55,10 @@ export function mountSidebar(root, context, where) {
     h(
       'div',
       { class: 'side-nav' },
-      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('new'), h('span', {}, 'New epic'), h('kbd', {}, mac ? '⇧⌘O' : 'Ctrl+Shift+O')),
-      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search epics'), h('kbd', {}, mac ? '⌘K' : 'Ctrl+K')),
+      // A new chat first, as a chat app's sidebar begins; a new epic of a flow apart from it.
+      h('a', { class: 'side-primary', href: hash('/new/chat'), 'data-nav': 'new/chat' }, icon('compose'), h('span', {}, 'New chat'), h('kbd', {}, mac ? '⇧⌘O' : 'Ctrl+Shift+O')),
+      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('epic'), h('span', {}, 'New epic')),
+      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search'), h('kbd', {}, mac ? '⌘K' : 'Ctrl+K')),
       h('a', { href: hash('/flows'), 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
     ),
     h('div', { class: 'side-scroll' }, list, more),
@@ -115,7 +120,7 @@ export function mountSidebar(root, context, where) {
     const { parts, query } = where()
     const here = parts[0] === 'epics' ? parts[1] : ''
     for (const link of root.querySelectorAll('.side-nav a')) {
-      if (link.dataset.nav === parts[0] || (link.dataset.nav === 'new' && (!parts[0] || parts[0] === 'new'))) link.setAttribute('aria-current', 'page')
+      if (link.dataset.nav === entryOf(parts)) link.setAttribute('aria-current', 'page')
       else link.removeAttribute('aria-current')
     }
     // Every workspace offered, each with its chats and epics: those going first, then the latest.

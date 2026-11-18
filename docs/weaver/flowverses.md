@@ -34,13 +34,12 @@ anybody's.
 
 A flow an index lists is a flow to **install**. Installing one copies that release, at its
 commit, into `flowverses/<flowverse>/installed/[<user>/]<flow>/` under `$HUMANIZE_HOME` (default
-`~/.hmz`), along with any flows it needs. What runs is what is built in, what you installed,
-and your own flows:
+`~/.hmz`), along with any flows it needs. Humanize ships no flow of its own: what runs is what you
+installed, and your own flows:
 
 | Place | Holds | Run as |
 | --- | --- | --- |
-| built in | `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop`, `rlar` | `rlar` |
-| `official` | the flows you installed from [humanfia/flowverse](https://github.com/humanfia/flowverse) | `aot`, `you/review` |
+| `official` | the flows you installed from [humanfia/flowverse](https://github.com/humanfia/flowverse), which lists `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` and `rlar` among them | `rlar`, `aot`, `you/review` |
 | a flowverse you added | the flows you installed from it | `@yours/review`, `@yours/you/review` |
 | `local` | this project's `.hmz/flows/` | `@local/review`, or `review` |
 | `user` | your `~/.hmz/flows/`, for every project | `@user/review`, or `review` |
@@ -325,7 +324,7 @@ installs `review` the same way, under whatever name they chose for it.
 | One flow per repository | Its variants included: see below |
 | The flow in a directory named after it | `review/`, holding the `__init__.py` with the `async` function marked `@flow`. Only this directory is installed, so the repository can hold tests, a README and a `pyproject.toml` beside it |
 | Or a single `.py` file | `review.py`, for a flow with nothing to bring along. It is installed as a directory of its own |
-| A name Humanize does not ship | `[a-z][a-z0-9_]*`, and, listed bare, not `ralph_loop`, `goal`, `flame_chase`, `stateful_ralph`, `continue_loop` or `rlar`: a manifest naming one of those is skipped. Under a user any name goes: `you/rlar` is yours |
+| A name | `[a-z][a-z0-9_]*`, the same as its directory. No name is kept back: under a user, `you/rlar` is yours |
 | A name starting with `_` | Is not a flow |
 
 **Variants are subflows of one module.** Two takes on one flow go in one directory as two
@@ -381,8 +380,7 @@ a bare version means `==`. Installing the flow installs the newest release of ea
 in range, a prerelease only where nothing else is, unless one already installed is in range.
 Humanize refuses, saying why, an install with a cycle in it, one whose ranges no release
 satisfies, and one that would take another installed flow's dependency out of its range.
-Uninstalling a flow that another installed flow needs is refused too. The flows built into
-Humanize are always there: never list them.
+Uninstalling a flow that another installed flow needs is refused too.
 
 A flow installed from a flowverse loads the others installed from it by the same names:
 `load("humanize1:rlcr")` inside an installed `recursive_lean_prover` finds the `humanize1`
@@ -398,7 +396,7 @@ goes out to its first screen, with **Installed** and **Flowverses** as two cards
 
 | Page | Shows | Buttons |
 | --- | --- | --- |
-| **Installed** | built-in flows, then every flow by where it came from, each with its release and `↑ 0.2.0` where a newer one is listed | Install more…, Update, Uninstall, Copy here, Search…, Save |
+| **Installed** | every flow by where it came from, each with its release and `↑ 0.2.0` where a newer one is listed | Install more…, Update, Uninstall, Copy here, Search…, Save |
 | **Flowverses** | a card per index: fetched, not fetched or edited, or no git origin for a directory there that is not a clone; its URL; how many flows it lists, how many are installed, how many have updates | Add flowverse…, Fetch again, Remove, Search… |
 | a flowverse | each flow it lists, with its newest release, `✔ 0.1.0 installed` or `✔ 0.1.0 ↑ 0.2.0`; manifests that did not read, under the list | Install 0.1.0 or Update to 0.2.0, Uninstall, Fetch again, Search… |
 | a flow | its releases, newest first: prereleases marked, the installed one ticked, each with its ref, commit, licence and what it needs | Install 0.1.0 or Switch to 0.1.0, Uninstall, Search… |
@@ -441,7 +439,7 @@ it does not remove it. Adding a flowverse runs nothing: an index holds no code. 
 
 | You type | Runs |
 | --- | --- |
-| `rlar` | the nearest flow called `rlar`: this project's or yours if you have one, else the one built in |
+| `rlar` | the nearest flow called `rlar`: this project's or yours if you have one, else the one installed from `official` |
 | `review` | the nearest flow called `review`: this project's, yours, or the one installed from `official` |
 | `you/review` | `review` installed from `official`'s `flows/you/`, and nothing else |
 | `@yours/review` | `review` installed from the flowverse you added as `yours`, and nothing else |
@@ -509,7 +507,7 @@ then move the directory into a repository of its own to publish it.
 
   Open `hmz` once, or in CI call `Hmz().verses.fetch("official")` first.
 - **A manifest that does not read is skipped.** A wrong key, a short commit, a name or version
-  that is not its directory's, a built-in flow's name listed bare, or a repository on GitHub
+  that is not its directory's, or a repository on GitHub
   that is not the `<user>`'s it is listed under: the flowverse's page names it under the list,
   with why, and lists the rest.
 - **Names from before the `@`.** `local/review` and `yours/review` were how this project's

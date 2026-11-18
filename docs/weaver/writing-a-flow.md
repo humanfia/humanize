@@ -264,7 +264,7 @@ taking its name:
 | --- | --- | --- |
 | `.hmz/flows/twice/` in the project | `-f twice` | `$@local/twice` |
 | `~/.hmz/flows/twice/` | `-f twice`, when the project has none of that name | `$@user/twice` |
-| the flows Humanize ships, and those you installed from a [flowverse](/weaver/flowverses) | `-f ralph_loop`, `-f @theirs/review` | `$ralph_loop`, `$@theirs/review` |
+| the flows you installed from a [flowverse](/weaver/flowverses), the official one's bare | `-f ralph_loop`, `-f @theirs/review` | `$ralph_loop`, `$@theirs/review` |
 | anywhere else | `-f ./path/to/twice` | |
 
 `-f @local/twice` and `-f @user/twice` say which one outright.

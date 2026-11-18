@@ -37,7 +37,7 @@ async def stateful_ralph(
 ) -> None:
     """The task again and again, in one session that remembers."""
     state = ctx.state
-    assert state is not None  # noqa: S101 -- a resumable flow is always handed its state
+    assert state is not None
     agent = agents["agent"]
     session = state["session"] if "session" in state else await agent.spawn()
     while True:

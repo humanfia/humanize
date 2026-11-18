@@ -47,7 +47,7 @@ holds the same table, so an import that breaks it fails the run.
 | the frames a session carries, and JSON-RPC over them: calls, notifications, errors, `session.hello` | `rpc/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
-| a flow Humanize ships | `flows/builtin/`, for the six loops FlowBench scores. Any other flow lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses) |
+| a flow | not in this repository: Humanize ships none. Every flow, the six loops FlowBench scores included, lives in a repository of its own, listed in [humanfia/flowverse](https://github.com/humanfia/flowverse): see [Flowverses](/weaver/flowverses). The stand-ins the integration tests run are in `tests/integration/flows/` |
 
 Nothing sits at the top of `src/hmz/` but `__init__.py` and `__main__.py`. Name a module for
 what it holds, in the words `hmz` and these docs use.

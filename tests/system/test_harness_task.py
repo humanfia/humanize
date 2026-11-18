@@ -1,7 +1,7 @@
 """Every harness installed here does one real coding task, start to finish, through `hmz exec`.
 
 The task is the sample project's: write `median` and `mode` so that its tests pass. Each
-harness runs it under the `ralph_loop` builtin on its cheapest model with a capped budget,
+harness runs it under the installed `ralph_loop` on its cheapest model with a capped budget,
 and the outcome is read off the workspace -- its tests pass and git sees what changed -- not
 off anything the agent said.
 

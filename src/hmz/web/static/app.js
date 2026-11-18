@@ -200,7 +200,7 @@ document.addEventListener('keydown', (event) => {
     go('/search')
   } else if (mod && event.shiftKey && event.key.toLowerCase() === 'o') {
     event.preventDefault()
-    go('/new')
+    go('/new/chat')
   } else if (mod && event.key === '.') {
     event.preventDefault()
     toggleSidebar()

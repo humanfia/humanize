@@ -185,8 +185,8 @@ to it.
 ## Listing a flow runs its Python
 
 A flow is a directory of Python, and Humanize runs it to find out what it is. Opening `/flow`,
-or naming a flow after `$` at the prompt, runs every flow Humanize lists: the ones built in,
-the ones you installed, this project's and yours.
+or naming a flow after `$` at the prompt, runs every flow Humanize lists: the ones you
+installed, this project's and yours.
 
 Installing a flow from a [flowverse](/weaver/flowverses) therefore trusts the repository it
 comes from with this machine, the way installing a package does: install only the flows you

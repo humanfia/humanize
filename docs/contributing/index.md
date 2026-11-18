@@ -172,7 +172,7 @@ Mock another package where the test imports it, so the test holds this package t
 promises rather than to what the others happen to do.
 
 **Run a system test only when your change touches the path it covers**, such as a backend's
-driver, a built-in flow or a machine, and before a release. Never all of them on every change:
+driver, how a flow is run or a machine, and before a release. Never all of them on every change:
 they take hours together and spend real money. Name the file, as under **When a system test
 covers it** above; each is named `test_<area>_<what>.py`, for `flows`, `harness`, `machines`
 or `tui`. A test skips, saying why, where what it needs is not on this machine: a CLI, its sign-in,

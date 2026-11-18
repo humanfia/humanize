@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 
 from hmz.runtime.flowing import verses
-from hmz.runtime.flowing.finding import BUILTIN_AT
 from hmz.runtime.flowing.index import kept
 from hmz.runtime.flowing.verses import (
     INDEX,
@@ -193,13 +192,13 @@ def test_a_clone_whose_config_will_not_read_has_no_url(project: Path) -> None:
 def test_holds_says_where_each_place_keeps_its_flows(project: Path) -> None:
     del project
     official, local, user = flowverses()
-    assert holds(official) == (BUILTIN_AT, kept(OFFICIAL))
-    assert holds(local) == (local.at,)
-    assert holds(user) == (user.at,)
+    assert holds(official) == kept(OFFICIAL)
+    assert holds(local) == local.at
+    assert holds(user) == user.at
     theirs = Flowverse(
         "theirs", THEIRS, under() / "theirs" / INDEX, fetched=True, fixed=False
     )
-    assert holds(theirs) == (kept("theirs"),)
+    assert holds(theirs) == kept("theirs")
 
 
 def test_flows_lists_what_each_place_has_to_run(project: Path) -> None:
@@ -222,16 +221,14 @@ def test_flows_lists_what_each_place_has_to_run(project: Path) -> None:
     assert flows(theirs) == ["alice/kernel", "plain"]
 
 
-def test_official_lists_the_package_and_what_was_installed_once(project: Path) -> None:
+def test_official_lists_only_what_was_installed(project: Path) -> None:
     del project
     official = named(OFFICIAL)
     assert official is not None
-    builtin = flows(official)
-    assert "goal" in builtin
-    assert "chat" not in builtin
+    assert flows(official) == []
     flow_dir(kept(OFFICIAL), "goal")
-    flow_dir(kept(OFFICIAL), "zz_extra")
-    assert flows(official) == sorted([*builtin, "zz_extra"])
+    flow_dir(kept(OFFICIAL) / "alice", "kernel")
+    assert flows(official) == ["alice/kernel", "goal"]
 
 
 @pytest.mark.parametrize(

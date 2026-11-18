@@ -1,0 +1,9 @@
+/* The entries at the top of the sidebar: a new chat first and heaviest, as a chat app's begins,
+   then a new epic, search and the flows. */
+.side-nav a.side-primary {
+  font-weight: 800;
+}
+
+.side-nav a.side-primary:not([aria-current='page']) > .icon {
+  color: var(--pink);
+}

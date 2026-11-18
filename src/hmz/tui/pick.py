@@ -1344,7 +1344,7 @@ class Sheet[T](ModalScreen[T | None]):
           letters anywhere in a name find it -- nobody types a model id out to narrow a list
           of them. One of them rather than all of them run together, or a search would run
           off the end of the name it was narrowing to and finish itself in the word beside
-          it: `chat` would find `flame_chase builtin`, which is a match nobody typed.
+          it: `chat` would find `flame_chase official`, which is a match nobody typed.
         """
         if not self._typed:
             return True
