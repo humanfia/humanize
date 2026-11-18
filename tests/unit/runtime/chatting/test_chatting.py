@@ -1042,6 +1042,23 @@ def test_a_model_or_effort_changed_in_a_chat_is_its_agent_from_then_on(
     assert chosen.spec == "claude/opus:low"
 
 
+def test_a_model_called_first_leaves_what_the_harness_has_not_listed_as_text(
+    wired: Wired,
+) -> None:
+    # claude lists `/model` from the start and what it passes only once a turn was said to it.
+    wired.driver.catalog = [NativeCommand("/", "model", "the model", "call")]
+    person = Person(says=["/fix-tests now", "plain", "/nope"])
+
+    _had(wired, person, task="/model opus")
+
+    assert [(one.prompt, one.native) for one in wired.driver.requests] == [
+        ("/model opus", True),
+        ("/fix-tests now", False),
+        ("plain", False),
+    ]
+    assert person.shown[-1] == "no such command: /nope"
+
+
 # ------------------------------------------------------------------------------ a role
 
 
