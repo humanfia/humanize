@@ -94,7 +94,7 @@ Tab
 Wait+Screen /enter save/
 Sleep 400ms
 Enter
-Wait+Screen /builder · claude\/claude-sonnet-4-8:medium/
+Wait+Screen /set up: \/flow @local\/twice/
 Sleep 1500ms
 
 # The task is the next thing said. Typed here, and never sent.
