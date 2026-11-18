@@ -26,6 +26,28 @@ test('each kind of route is read, and what is not a route is not', () => {
     assert.equal(routeKind(route), null, route)
 })
 
+test('a port outside 1 to 65535 or an empty host is not a route', () => {
+  for (const route of [
+    'tcp://h:',
+    'tcp://h:0',
+    'tcp://h:65536',
+    'tcp://h:99999',
+    'tcp://:1',
+    'ws://',
+    'ws://h:/x',
+    'ws://h:99999/x',
+    'wss://:443/x',
+    'stdio:ssh://',
+    'stdio:ssh://h:0',
+    'stdio:ssh://me@:22',
+    'relay:ws://:0',
+    'webrtc:wss://h:70000',
+  ])
+    assert.equal(routeKind(route), null, route)
+  for (const [route, kind] of Object.entries({ 'tcp://h:1': 'tcp', 'tcp://h:65535': 'tcp', 'tcp://h:065535': 'tcp', 'ws://h:65535/x': 'ws', 'stdio:ssh://h:22': 'stdio:ssh' }))
+    assert.equal(routeKind(route), kind, route)
+})
+
 test('unix and stdio carriers are trusted, every other is not', () => {
   assert.ok(trusted('unix:') && trusted('stdio:local') && trusted('stdio:ssh://box') && trusted('stdio:wsl'))
   assert.ok(!trusted('tcp://box:1') && !trusted('wss://box') && !trusted('easytier:x') && !trusted('relay:ws://r') && !trusted('webrtc:ws://r'))
