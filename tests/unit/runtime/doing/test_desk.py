@@ -863,6 +863,45 @@ def test_a_terminal_is_not_read_while_nobody_has_room_for_more(
     assert got == total
 
 
+def _flooded(alice: Told, box: Box) -> str:
+    """A terminal that has printed more than its only viewer has room for, so is not read."""
+    term = _ok(alice.asks("env.term.open", env=ROOT, cols=80, rows=24))["term"]
+    pty = box.ptys[0]
+    for _ in range(24):
+        pty.prints(b"x" * (128 << 10))
+    _until(lambda: len(_term(alice.snapshot(), term)) >= desk.CREDIT)
+    time.sleep(0.2)
+    reads = pty.reads
+    time.sleep(0.2)
+    assert pty.reads == reads
+    return term
+
+
+def test_a_terminal_closed_while_nobody_has_room_for_more_is_said_to_have_ended(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    alice, _ = _going(host)
+    term = _flooded(alice, box)
+
+    _ok(alice.asks("env.term.close", term=term))
+
+    assert box.ptys[0].killed
+    alice.told("term_exit", term=term, status=137)
+
+
+def test_a_terminal_whose_env_closed_while_nobody_has_room_for_more_is_read_out(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    alice, run = _going(host)
+    term = _flooded(alice, box)
+    pty = box.ptys[0]
+
+    run.released.set()
+
+    alice.told("term_exit", term=term)
+    _until(lambda: pty.killed and pty.out.empty())
+
+
 def test_a_terminal_outlives_its_viewer_keeping_what_it_printed(
     host: tuple[Host, Workspace], box: Box
 ) -> None:
