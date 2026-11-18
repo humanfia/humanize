@@ -493,6 +493,29 @@ async def test_a_directory_a_mac_reaches_through_private_is_a_workdir_there(
     assert driver.available
 
 
+class _LoopRemote(FakeRemote):
+    """A serving half whose `/work/loop` is a link to itself, as its errno says on a Mac."""
+
+    def call(self, op: object, *, path: str) -> dict[str, Any]:
+        if path == "/work/loop":
+            return {"kind": "link", "size": 4, "mtime_ns": 0, "target": "loop"}
+        return super().call(op, path=path)
+
+    def listdir(self, path: str) -> dict[str, Any]:
+        if path == "/work/loop":
+            raise OSError(62, "Too many levels of symbolic links")
+        return super().listdir(path)
+
+
+async def test_a_link_to_itself_is_no_workdir(monkeypatch: pytest.MonkeyPatch) -> None:
+    reach(monkeypatch, _LoopRemote())
+    driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath("/work/loop"))
+
+    with pytest.raises(EnvUnavailable, match="/work/loop"):
+        await driver.probe()
+    assert not driver.available
+
+
 async def test_closing_lets_go_of_the_connection_and_kills_what_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

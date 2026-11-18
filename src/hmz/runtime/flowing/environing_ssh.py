@@ -259,9 +259,10 @@ def _is_dir_now(client: RemoteClient, path: str) -> bool:
             # The link is where the serving half looked, which is the path as it folds it.
             held = path_key(path)
             aimed = posixpath.normpath(posixpath.join(posixpath.dirname(held), target))
-            if path_key(aimed) == held:
+            if aimed != held and path_key(aimed) == held:
                 # A Mac's `/tmp` links to `/private/tmp`, which the serving half folds back
                 # to `/tmp`: no path names what is behind it, so the host follows the link.
+                # A link to itself is not that, and runs out of hops as any other loop does.
                 client.listdir(path)
                 return True
             path = aimed
