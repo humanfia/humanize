@@ -217,16 +217,20 @@ class ProcessPipe:
         if read or self._closed:
             return read
         # The end of its output: a child that failed says why on its way out.
+        self._ended()
+        return b""
+
+    def _ended(self) -> None:
+        """Raises why the child failed, where it has ended and failed."""
         try:
             code = self._process.wait(_STOPPING)
         except subprocess.TimeoutExpired:
-            return b""
+            return
         self._heard.join(_STOPPING)
         if code and not self._closed:
             argv = self._process.args
             named = argv[0] if isinstance(argv, list | tuple) else argv
             raise ConnectionError(self._said or f"{named!s} exited {code}.")
-        return b""
 
     def sendall(self, data: bytes) -> None:
         try:
@@ -234,6 +238,10 @@ class ProcessPipe:
             self._stdin.flush()
         except ValueError as closed:
             raise BrokenPipeError(str(closed)) from closed
+        except BrokenPipeError:
+            # It takes no more: a child that failed says why, as where its output ends.
+            self._ended()
+            raise
 
     def close(self) -> None:
         with self._closing:

@@ -16,6 +16,8 @@ gives up on by answering -32800, or carries on regardless (Section 6.4.7).
 The session ends when either end closes its pipe, when a frame arrives of a length no frame
 has (Section 6.3.2), or when :meth:`Peer.close` is called; each call still waiting for an
 answer then fails with :class:`Closed`, and each call being carried out is marked cancelled.
+Where it was the pipe failing that ended it, that failure is the `__cause__` of the
+:class:`Closed`: what a carrier that ended badly said, such as the last line of its process.
 """
 
 from __future__ import annotations
@@ -168,6 +170,8 @@ class Peer:
         self._pending: dict[int, Future[Any]] = {}
         self._serving: dict[str | int, Call] = {}
         self._closed = threading.Event()
+        #: What the pipe raised as it was read, where that is what ended the session.
+        self._why: OSError | None = None
         self._reader = threading.Thread(target=self._read, name=name, daemon=True)
         self._reader.start()
 
@@ -298,7 +302,9 @@ class Peer:
         with contextlib.suppress(OSError):
             self._pipe.close()
         for waiting in pending:
-            waiting.set_exception(Closed("the session closed"))
+            closed = Closed("the session closed")
+            closed.__cause__ = self._why
+            waiting.set_exception(closed)
         for call in serving:
             call.cancelled.set()
         if self._on_close is not None:
@@ -364,8 +370,8 @@ class Peer:
         except FrameError as e:
             for payload in e.whole:
                 self._take(payload)
-        except OSError:
-            pass
+        except OSError as why:
+            self._why = why
         finally:
             self.close()
 

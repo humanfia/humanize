@@ -190,17 +190,19 @@ class Dials:
 def _back(socket_: WebSocket, pipe: Pipe) -> None:
     """Carries every byte from a daemon's end back to the page, on a thread of its own.
 
-    The WebSocket is closed once that end closes.
+    The WebSocket is closed once that end closes, with what the carrier said as it ended
+    where it said anything: the last line of the `ssh` it ran.
     """
 
     def carries() -> None:
+        said = ""
         while True:
             try:
                 read = pipe.recv(_CHUNK)
-            except OSError:
-                read = b""
+            except OSError as why:
+                read, said = b"", "" if why.errno else str(why)
             if not read:
-                socket_.close(_DONE, "The daemon closed.")
+                socket_.close(_DONE, said or "The daemon closed.")
                 return
             socket_.binary(read)
 

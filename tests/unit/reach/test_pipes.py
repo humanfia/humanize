@@ -185,6 +185,22 @@ def test_a_child_that_ends_failing_raises_the_last_line_it_said() -> None:
         pipe.recv(64)
 
 
+def test_a_child_that_ended_failing_takes_no_more_saying_why() -> None:
+    reading, writing = os.pipe()
+    os.close(writing)
+    child = Child(reading, code=1, said=b"hmz: the daemon cannot be reached: full\n")
+    # Its standard input, which nothing reads any more.
+    unread, written = os.pipe()
+    os.close(unread)
+    child.stdin = cast("io.BytesIO", os.fdopen(written, "wb"))
+    pipe = ProcessPipe(cast("subprocess.Popen[bytes]", child), trusted=True)
+    with pytest.raises(
+        ConnectionError, match=r"^hmz: the daemon cannot be reached: full$"
+    ):
+        pipe.sendall(b"to it")
+    pipe.close()
+
+
 def test_a_child_that_ends_well_is_the_end_of_its_pipe() -> None:
     reading, writing = os.pipe()
     os.close(writing)

@@ -129,6 +129,21 @@ def test_a_daemon_that_cannot_be_reached_says_why(host: Host) -> None:
         remotes.close()
 
 
+def test_a_daemon_that_cannot_be_started_there_says_why(host: Host) -> None:
+    host.cannot_connect("No space left on device")
+    remotes = Remotes()
+    try:
+        with pytest.raises(Unreached) as unreached:
+            remotes.client("box")
+        assert unreached.value.seen == {
+            "state": "failed",
+            "detail": "hmz: the daemon cannot be reached: No space left on device",
+            "version": "",
+        }
+    finally:
+        remotes.close()
+
+
 def test_another_version_there_is_replaced_with_this_one(host: Host) -> None:
     host.installs("1.0.0")
     remotes = Remotes(version="1.2.3")

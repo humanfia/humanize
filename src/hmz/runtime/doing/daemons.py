@@ -715,7 +715,8 @@ class _Session:
 
         Raises:
           _Failed: If the daemon refused hello, did not answer it within 30 seconds, or
-            answered as another daemon than the one pinned.
+            answered as another daemon than the one pinned, or the carrier ended first:
+            with what the carrier said as it ended, where it said anything.
         """
         from hmz.reach import OPENING
         from hmz.rpc import Closed, Peer, RpcError, hello
@@ -731,7 +732,10 @@ class _Session:
             self.peer.close()
             raise _Failed(why.message) from why
         except Closed as why:
-            raise _Failed(f"{route} closed before it said hello.") from why
+            # What the carrier said as it ended, which an error of the system's is not.
+            said = why.__cause__
+            told = str(said) if isinstance(said, OSError) and not said.errno else ""
+            raise _Failed(told or f"{route} closed before it said hello.") from why
         except TimeoutError as why:
             self.peer.close()
             raise _Failed(f"{route} did not open within {OPENING:g} seconds.") from why
