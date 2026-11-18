@@ -260,7 +260,8 @@ frontend has ever attached or **60 s** have passed since it started. Idle means 
 - no frontend attached;
 - no run going, starting or stopping;
 - no *kept* run: a run that ended while no frontend was attached, and that nobody stopped, is
-  kept until a frontend attaches -- but never a chat folded away.
+  kept until a frontend attaches -- but never a chat folded away, nor the run of an exec
+  host (slot `exec:<hex>`).
 
 It also closes on `SIGTERM`, [`hosts.stop`](#control-requests), [`epic.quit`](#requests),
 and when its link to the daemon closes. `hosts.*` calls do not count as attaching.
@@ -294,8 +295,9 @@ over a session of its own (5 s) and returns `{}` on any failure.
 `hosts.env.*` work in the envs of the epic a host is going with, through each env's own driver on
 the run's loop, as the flow would; they attach nobody, start no host and tell the epic nothing.
 Each takes `{workspace, slot?}`, and each but `hosts.env.list` an `env`: the name of an env role,
-or `workspace` for the run's own workspace until a `LocalEnv` role takes it. A `path` is relative
-to the env's workdir.
+or `workspace` for the run's own workspace until a `LocalEnv` role takes it. Roles that share one
+env, as every `LocalEnv` role nobody passed shares the workspace, are each listed and each
+named on its own. A `path` is relative to the env's workdir.
 
 | Method | Answer |
 | --- | --- |
@@ -410,7 +412,8 @@ chat's messages by `epic.attach` on its slot, as any epic's.
   preset its assistant's [grant](/user/permissions) starts from, with the network on:
   `workspace-write` where none is given, or, with `resume`, the one the chat had. With `remember`, `agent`
   is written as the workspace's [chat agent](/reference/settings#chat-agent) once the host has
-  taken the start; a refused start leaves it as it was.
+  taken the start, a virtual nous as the concrete nous it starts at; a refused start leaves it
+  as it was.
 - **`chat.say`** serves `text` as a line in a chat is
   [served](/user/chat#what-a-line-means), and otherwise says it to the chat: the next turn
   between turns, into the open turn where the harness takes a line mid-turn, held for the next

@@ -192,6 +192,7 @@ no other `/dial` of the same route still needs them.
 | `1008` | `<route> is not dialed here.` | A `unix:` or `stdio:local` route, which `/rpc` covers, or a `webrtc:` one, which the browser opens itself. |
 | `1008` | `<route> needs the id of the daemon it reaches.` | An untrusted route without `id`. |
 | `1011` | What went wrong, as `failed` said it | The carrier did not open. |
+| `1000` | The last line the route's `ssh` or `wsl.exe` said on standard error, cut to 120 bytes | That process ended failing, such as `hmz daemon connect` there reaching no daemon. |
 | `1000` | `The daemon closed.` | The far end closed. |
 | `1000` | | The page closed, or sent a text message. |
 

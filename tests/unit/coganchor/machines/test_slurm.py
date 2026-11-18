@@ -229,7 +229,10 @@ def test_a_job_reached_over_tcp_runs_coganchor_and_is_dialled_with_its_secret(
     script = after(made, "--wrap")[0]
     named = f"coganchor-{binary.digest(built)}"
     assert f'"Linux x86_64"|"Linux amd64") p="{REMOTE_CACHE}/{named}";;' in script
-    assert script.endswith('exec "$p" anchor --listen 0.0.0.0:0 --export /w')
+    assert script.endswith(
+        'exec "$p" anchor --listen 0.0.0.0:0 --export /w'
+        ' --export "${HUMANIZE_HOME:-$HOME/.hmz}/envs"'
+    )
     assert machine.token
     assert f"HUMANIZE_TOKEN={machine.token}" in script
     assert "/opt/py" not in script

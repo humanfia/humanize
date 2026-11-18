@@ -108,6 +108,11 @@ if [ "$1" = "web" ]; then exec {python} -X faulthandler -m hmz "$@" 2>>"$HOME/we
 exec {python} -m hmz "$@"
 """
 
+#: What is put before `hmz`, so that it reaches no daemon and says why as the real one does.
+_REFUSING = """#!/bin/sh
+if [ "$2" = "connect" ]; then echo "hmz: the daemon cannot be reached: {why}" >&2; exit 1; fi
+"""
+
 _UV = """#!/bin/sh
 echo "$@" >> "$HOME/uv.log"
 for said; do case "$said" in hmz==*) version="${said#hmz==}";; esac; done
@@ -140,6 +145,11 @@ class Host:
             held.unlink(missing_ok=True)
         else:
             held.write_text(version)
+
+    def cannot_connect(self, why: str) -> None:
+        """Has its `hmz daemon connect` fail saying `why`, its version answered as before."""
+        at = self.home / ".local" / "bin" / "hmz"
+        at.write_text(_REFUSING.format(why=why) + at.read_text())
 
     def runs_epics(self) -> None:
         """Has its daemon running, which holds its epics: this process, as one alive."""

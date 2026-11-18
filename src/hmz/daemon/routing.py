@@ -161,6 +161,13 @@ class Router:
                     counted[one.fingerprint] = counted.get(one.fingerprint, 0) + 1
         return counted
 
+    def claimed(self, fingerprint: str, device: str) -> None:
+        """Reads every session a device holds open as paired, once it claimed a code."""
+        with self._lock:
+            for one in self._sessions.values():
+                if one.fingerprint == fingerprint:
+                    one.device = device
+
     @contextlib.contextmanager
     def revoking(self, session: Session) -> Generator[None]:
         """Revokes in a session's call: every session of the device is closed but that one."""

@@ -454,6 +454,21 @@ async def test_a_command_only_the_harness_interface_serves_is_refused(
     assert heard(workspace) == ["hello"]
 
 
+async def test_a_slash_line_is_said_as_text_to_a_harness_with_no_catalogue(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Chats(catalog=()).install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await chatting(pilot)
+
+        await typed(pilot, "/nonsense please")
+
+        await shows(pilot, "heard /nonsense please")
+        assert "no such command" not in screen(app)
+    assert heard(workspace) == ["hello", "/nonsense please"]
+
+
 async def test_a_harness_command_is_said_to_the_chat(workspace: Path) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await chatting(pilot)

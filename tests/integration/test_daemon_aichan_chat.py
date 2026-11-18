@@ -138,3 +138,100 @@ def test_ai_chan_calls_the_daemon_through_her_tools_over_her_link(
     assert listed() == (0, False)
     assert user.call("aichan.forget", {"id": made["id"]}, timeout=30) == {}
     assert listed() == (0, False)
+
+
+def test_ai_chans_conversation_is_not_carried_on_as_a_chat_of_its_workspace(
+    project: Path,
+) -> None:
+    from hmz import daemon
+    from hmz.rpc import RpcError
+
+    daemon.start()
+    user = _session()
+    made = user.call(
+        "aichan.create",
+        {"scope": "workspace", "workspace": str(project), "nous": AGENT, "task": "hi"},
+        timeout=60,
+    )
+    assert until(lambda: _pending(user, made), 120), _said(user, made)
+    status = user.call(
+        "hosts.status",
+        {"workspace": made["workspace"], "slot": made["slot"]},
+        timeout=30,
+    )
+    carried = {
+        "workspace": made["workspace"],
+        "slot": "chat:",
+        "task": "as a chat",
+        "resume": status["epic"],
+    }
+
+    def refused() -> str:
+        with pytest.raises(RpcError) as why:
+            user.call("chat.start", carried, timeout=60)
+        return why.value.message
+
+    # Her epic is a chat's and of this workspace, and no chat of it to carry on: neither
+    # while her host holds it, nor once her conversation is forgotten and its host gone.
+    no = f"{status['epic']} is not a chat of {made['workspace']}."
+    assert refused() == no
+    assert user.call("aichan.forget", {"id": made["id"]}, timeout=30) == {}
+    assert refused() == no
+
+
+@pytest.mark.parametrize("line", ["/model opus", "/effort high"])
+def test_ai_chan_keeps_her_nous_and_the_workspaces_chat_agent(
+    project: Path, tmp_path: Path, line: str
+) -> None:
+    from hmz import daemon
+
+    # The stand-in lists its commands as Claude Code does, so its catalog holds both lines.
+    fake = tmp_path / "bin" / "claude"
+    plain = '"session_id": session, "model": model})'
+    assert plain in fake.read_text()
+    fake.write_text(
+        fake.read_text().replace(
+            plain, '"session_id": session, "model": model, "slash_commands": []})'
+        )
+    )
+    daemon.start()
+    user = _session()
+    remembered = user.call(
+        "settings.set",
+        {"workspace": str(project), "chat": "claude/claude-haiku-4-5:low"},
+        timeout=30,
+    )["chat"]
+    made = user.call(
+        "aichan.create",
+        {"scope": "workspace", "workspace": str(project), "nous": AGENT, "task": "hi"},
+        timeout=60,
+    )
+    assert until(lambda: _pending(user, made), 120), _said(user, made)
+    sub = user.call(
+        "epic.attach",
+        {"workspace": made["workspace"], "slot": made["slot"], "replay": False},
+        timeout=30,
+    )["sub"]
+    (waiting,) = _pending(user, made)
+    user.call("epic.say", {"sub": sub, "text": line}, timeout=30)
+    assert until(
+        lambda: any(
+            one["question"] != waiting["question"] for one in _pending(user, made)
+        ),
+        120,
+    ), _said(user, made)
+
+    # Refused, her nous being hers for as long as the conversation lasts (Section 14.3.1).
+    assert "make another conversation" in _said(user, made)
+    events = [
+        json.loads(one)["event"]
+        for epic in (tmp_path / "humanize-home").rglob("epic.jsonl")
+        for one in epic.read_text().splitlines()
+    ]
+    assert events
+    assert "set" not in events
+    # Nor is she the workspace's chat: the agent it remembers for its next one is as it was.
+    settings = user.call("settings.get", {"workspace": str(project)}, timeout=30)
+    assert settings["chat"] == remembered
+    (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+    assert listed["nous"] == AGENT

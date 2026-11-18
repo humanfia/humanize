@@ -15,6 +15,7 @@ import {
   moveOf,
   pathsOf,
   picked,
+  placeOf,
   relative,
   rowsOf,
   sizeOf,
@@ -22,6 +23,7 @@ import {
   subjectHint,
   treeOf,
 } from '../../../../src/hmz/web/static/views/envs/changes_logic.js'
+import { joinPath } from '../../../../src/hmz/web/static/views/envs/files_logic.js'
 
 const b64 = (text) => Buffer.from(text).toString('base64')
 const paths = (list) => list.map((one) => one.path)
@@ -262,4 +264,14 @@ test('the changes of a diff are found as runs of lines on each side', () => {
   }
   // Past the most edits looked for, the middle is one change.
   assert.deepEqual(hunks('a\n1\n2\nz', 'a\n3\n4\nz', 1), [{ fromA: 1, toA: 3, fromB: 1, toB: 3 }])
+})
+
+test('a changed file opens in Files where it is, the workdir a directory inside the repository', () => {
+  // `env.git.status` names a file from the repository's top; Files resolves a path from the workdir.
+  const [root, workdir] = ['/repo', '/repo/pkg']
+  assert.equal(joinPath(workdir, placeOf(root, 'pkg/a.txt')), '/repo/pkg/a.txt')
+  assert.equal(joinPath(workdir, placeOf(root, 'top.txt')), '/repo/top.txt')
+  assert.equal(joinPath(workdir, placeOf(root, 'pkg/sp ace.txt')), '/repo/pkg/sp ace.txt')
+  assert.equal(joinPath('/repo', placeOf('/repo/', 'a.txt')), '/repo/a.txt')
+  assert.equal(placeOf('/', 'a.txt'), '/a.txt')
 })
