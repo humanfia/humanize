@@ -99,6 +99,35 @@ def test_her_role_works_in_her_scratch_directory_with_her_tools(tmp_path: Path) 
     assert played.close is not None
 
 
+def test_a_daemon_scope_names_no_workspace_where_she_names_none(
+    monkeypatch: pytest.MonkeyPatch, client: mock.Mock, tmp_path: Path
+) -> None:
+    # The daemon starts her chat with the workspace of her host, <home>/ai/<machine> for the
+    # scope `daemon`; that is where she runs, not a workspace of her scope.
+    monkeypatch.setattr(aichan, "linked", mock.Mock(name="linked"))
+    monkeypatch.setattr("hmz.reach.pipes.SocketPipe", mock.Mock(name="SocketPipe"))
+    monkeypatch.setattr(
+        "hmz.runtime.doing.daemons.Client.over", mock.Mock(return_value=client)
+    )
+    client.call.return_value = {"runs": []}
+
+    def listed(reach: aichan.Reach) -> Any:
+        played = aichan.role(reach, tmp_path)
+        found = next(one for one in played.tools if one.name == "epics_list")
+        assert found.takes is not None
+        asyncio.run(found.call(found.takes()))
+        return client.call.call_args.args
+
+    assert listed(aichan.Reach(scope="daemon", workspace="/home/ai/m")) == (
+        "runs.list",
+        {"limit": 20},
+    )
+    assert listed(aichan.Reach(scope="workspace", workspace="/w")) == (
+        "runs.list",
+        {"workspace": "/w", "limit": 20},
+    )
+
+
 def test_on_linux_landlock_alone_cannot_hold_her(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
