@@ -604,6 +604,10 @@ itself is drawn on stderr as `! <command>`, with what it wrote as errors and `ex
 where that is not `0`, and what it printed is written to stdout; a line the chat refuses is
 said why on stderr as `hmz chat: <reason>`.
 
+Where `--resume` cannot carry the chat's conversation on, the turn is answered in a new
+conversation in the same epic, and why is said on stderr as `hmz chat: This conversation could
+not be carried on (<reason>), so this is a new one.`
+
 | Exit | When |
 | --- | --- |
 | `0` | The turn is done. |

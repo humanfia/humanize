@@ -259,6 +259,8 @@ class _Follower:
         # Whether a turn has said how it went, which is then not said again as the chat
         # asks for its next line.
         self._answered = False
+        # What a turn answered, which the chat says back as it asks for its next line.
+        self._answer: str | None = None
         self._turn = ""
         # Where the subscription has got to, to attach again from where it was left.
         self._since: dict[str, Any] | None = None
@@ -313,6 +315,7 @@ class _Follower:
             )
             if message.get("kind") == "result":
                 self._going = self._answered = True
+                self._answer = str(message.get("text") or "").strip()
                 self._settles()
             elif message.get("kind") == "failed":
                 self._answered = True
@@ -342,9 +345,16 @@ class _Follower:
         elif kind == "asked" and message.get("mode") == "listen":
             # The chat asks for its next line, so the one it was said is taken, by a turn
             # or by none: a `!` command it ran, or a line it refused, which it says why of
-            # here alone (Section 8.9.1 and Section 8.9.6 of core.md).
-            if not self._answered and message.get("text"):
-                self._out.aside(f"{_PROG}: {message['text']}")
+            # here alone (Section 8.9.1 and Section 8.9.6 of core.md). Ahead of what a turn
+            # answered it says what only the conversation says: that this is a new one, the
+            # one carried on being gone (Section 8.7.6 of core.md).
+            said = str(message.get("text") or "").strip()
+            if self._answer is not None:
+                said = said.removesuffix(self._answer).strip()
+            elif self._answered:
+                said = ""
+            if said:
+                self._out.aside(f"{_PROG}: {said}")
             self._going = True
             self._settles()
         elif kind == "run":

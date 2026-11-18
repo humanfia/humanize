@@ -251,7 +251,9 @@ hmz chat -a claude/claude-opus-5:high "What does this repository do?"
 The message is read as [a line in a chat](#what-a-line-means) is, except that a `$` line
 naming a flow, and the names Humanize keeps, are refused: run a flow with `hmz exec`. The turn
 is drawn on stderr and the answer written to stdout, as `hmz exec` does; a `!<command>` takes
-no turn, and what it printed is written to stdout in the answer's place. It exits `0` once the
+no turn, and what it printed is written to stdout in the answer's place. Where `--resume`
+could not carry the conversation on, a `hmz chat: …` line on stderr says why, and the answer
+is a new conversation's, in the same epic. It exits `0` once the
 turn is done, `1` where the turn failed, `2` where it was refused before it started, and 128
 plus the signal's number where a signal ended it, leaving the chat to its host. It changes
 nothing this directory remembers. See [CLI › `hmz chat`](/reference/cli#hmz-chat).
