@@ -134,6 +134,13 @@ def test_the_envs_of_an_epic_are_listed_written_read_run_in_and_searched(
         assert call("hosts.env.exec", **at, argv=["sleep", "30"], seconds=1)[
             "result"
         ] == {"code": None, "stdout": "", "stderr": ""}
+        # One killed at its timeout still answers what it wrote before then.
+        assert call(
+            "hosts.env.exec",
+            **at,
+            argv=["sh", "-c", "echo hi; echo oops >&2; sleep 30"],
+            seconds=1,
+        )["result"] == {"code": None, "stdout": "hi\n", "stderr": "oops\n"}
         assert call("hosts.env.grep", **at, pattern="w.r+ld")["result"] == {
             "matches": [{"path": "notes/a.txt", "line": 2, "text": "world"}],
             "more": False,
