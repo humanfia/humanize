@@ -140,6 +140,52 @@ def test_ai_chan_calls_the_daemon_through_her_tools_over_her_link(
     assert listed() == (0, False)
 
 
+def test_an_ai_chan_conversation_is_said_to_and_asked_as_a_chat_is(
+    project: Path,
+) -> None:
+    """What a frontend drawing her epic as a chat asks of it, `chat.*` on her slot, is served."""
+    from hmz import daemon
+    from hmz.rpc import RpcError
+
+    del project
+    daemon.start()
+    user = _session()
+    made = user.call(
+        "aichan.create", {"scope": "daemon", "nous": AGENT, "task": "hello"}, timeout=60
+    )
+    host = {"workspace": made["workspace"], "slot": made["slot"]}
+    assert until(lambda: _pending(user, made), 120), _said(user, made)
+    (waiting,) = _pending(user, made)
+
+    # Her catalogue, with no permission of a chat's: she keeps her role's.
+    read = user.call("chat.commands", host, timeout=30)
+    assert read["permission"] is None
+    assert read["prefer"] == "native"
+    assert {"sigil": "/", "name": "prefer"}.items() <= {
+        (key, one[key]) for one in read["entries"] for key in ("sigil", "name")
+    }
+    with pytest.raises(RpcError) as kept:
+        user.call("chat.set", {**host, "permission": "read-only"}, timeout=30)
+    assert (kept.value.code, str(kept.value)) == (
+        409,
+        "an Ai-chan conversation keeps its permission",
+    )
+    assert user.call("chat.set", {**host, "prefer": "flow"}, timeout=30) == {}
+    assert user.call("chat.commands", host, timeout=30)["prefer"] == "flow"
+
+    # A line said to her is her next turn, which the stand-in answers.
+    assert (
+        user.call("chat.say", {**host, "text": "said as to a chat"}, timeout=30) == {}
+    )
+    assert until(
+        lambda: any(
+            one["question"] != waiting["question"] for one in _pending(user, made)
+        ),
+        120,
+    ), _said(user, made)
+    assert "said as to a chat" in _said(user, made)
+
+
 def test_ai_chans_conversation_is_not_carried_on_as_a_chat_of_its_workspace(
     project: Path,
 ) -> None:
