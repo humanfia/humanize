@@ -587,6 +587,10 @@ class HeldWorkspace:
         """The chat's workspace, alone. From any thread."""
         return self._held
 
+    def env_roles(self) -> dict[str, EnvDriver]:
+        """The chat's workspace, by the name `hosts.env.*` know it by. From any thread."""
+        return {one.role: one.driver for one in self._held}
+
 
 class _Talk:
     """One opening of a chat: its turns, its `!` commands and its conversations."""

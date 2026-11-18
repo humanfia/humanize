@@ -820,8 +820,7 @@ def test_an_env_is_asked_of_the_run_going_attaching_nobody(
     assert host.env({"do": "hosts.env.list"}) == no_flow
 
     driver = SimpleNamespace(backend="local", workdir="/w", capabilities=frozenset())
-    held = SimpleNamespace(role="box", driver=driver, parent=None)
-    run.envs = SimpleNamespace(loop=None, held_envs=lambda: (held,))
+    run.envs = SimpleNamespace(loop=None, env_roles=lambda: {"box": driver})
 
     assert host.env({"do": "hosts.env.list"}) == {
         "ok": True,
