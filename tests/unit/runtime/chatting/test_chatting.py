@@ -217,7 +217,7 @@ def wired(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Wired:
     workspace.mkdir()
     made = Wired(Driver(), Env(workspace.resolve()), workspace)
 
-    def open_agent(spec: AgentSpec, harbors: object) -> Driver:
+    def open_agent(spec: AgentSpec, harbors: object, name: str = "") -> Driver:
         made.specs.append(spec)
         return made.driver
 
