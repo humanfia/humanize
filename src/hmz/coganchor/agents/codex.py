@@ -242,6 +242,14 @@ _WRITING = {"approvalPolicy": "never", "sandbox": "danger-full-access"}
 #: holding it, and said once per agent (:meth:`CodexSession._steps`).
 _ASKING = {"approvalPolicy": "on-request", "sandbox": "workspace-write"}
 
+#: What a thread is opened under in place of :data:`_WRITING` where Codex's own sandbox holds
+#: the fence (:meth:`CodexAgent.holds`): that sandbox rather than none, which each turn then
+#: says the whole of (:func:`_held`), and nothing asked. An approval granted is a command run
+#: outside Codex's sandbox, and there nothing else is around it -- so such a thread never asks
+#: for the full access an installation may forbid, and is never stepped down to
+#: :data:`_ASKING` either.
+_HOLDING = {"approvalPolicy": "never", "sandbox": "workspace-write"}
+
 #: The sandbox an installation's requirements may forbid, and the one this driver steps down
 #: from to :data:`_ASKING`.
 _FULL = _WRITING["sandbox"]
@@ -1908,9 +1916,11 @@ class _AppServer:
         For an agent held to a fence the answer is yes: the server asks at all only where it
         was told to -- :data:`_ASKING` on a machine that forbids full access, `untrusted`
         while a hook is hung on `PERMISSION_REQUEST` -- and the fence, not the asking, is what
-        holds the grant. The one place a refusal actually stops an agent doing something is
-        the moment the backend waits on, which is this one, so a hook hung on
-        `PERMISSION_REQUEST` gets it first and may say no.
+        holds the grant: a fence held from outside, since an agent whose fence Codex's own
+        sandbox holds is never asked (:data:`_HOLDING`, :meth:`CodexAgent.holds`). The one
+        place a refusal actually stops an agent doing something is the moment the backend
+        waits on, which is this one, so a hook hung on `PERMISSION_REQUEST` gets it first and
+        may say no.
 
         For an agent with no fence the answer is no. Codex opened that thread at its own
         defaults and asks over them, and Humanize -- told nothing about this agent -- has
@@ -2835,6 +2845,10 @@ class CodexSession(SessionBase):
         forbids full access every turn asks as :data:`_ASKING` does, the first that found
         out (:meth:`_AppServer._stepped`) and every one after it alike.
 
+        But where Codex's own sandbox holds the fence (:meth:`CodexAgent.holds`): there the
+        thread is opened in that sandbox and never asks (:data:`_HOLDING`), whatever this
+        machine's Codex forbids.
+
         Args:
           server: The server the call is made on.
 
@@ -2842,6 +2856,11 @@ class CodexSession(SessionBase):
           The settings to send.
         """
         config = self._agent.config
+        if config.fence is not None and self._agent.holds(config.fence):
+            settings = sandboxing(config.fence, config.service_tier)
+            if settings.get("sandbox") == _FULL:
+                settings |= _HOLDING
+            return settings
         settings = server.permitted(config.fence, config.service_tier)
         asked = str(getattr(config, "approvals", ""))
         if (
@@ -2954,7 +2973,10 @@ class CodexSession(SessionBase):
         Args:
           server: The server the thread was just opened or picked up on.
         """
-        wanted = sandboxing(self._agent.config.fence).get("sandbox")
+        fence = self._agent.config.fence
+        if fence is not None and self._agent.holds(fence):
+            return  # Opened in Codex's own sandbox (`_HOLDING`): never stepped down.
+        wanted = sandboxing(fence).get("sandbox")
         if wanted == _FULL and server._forbids and self._agent._stepped(_FULL):
             self._narrates(
                 f"codex: this machine will not run an agent at {_FULL}, so it runs at "
@@ -3385,8 +3407,12 @@ class CodexAgent(AgentBase):
         Where `sandbox.native` names `codex`; the CLI runs here, with its work, since a
         sandbox Codex makes on this machine holds nothing of a command run on another; the
         fence carves nothing out of a grant, which `writableRoots` has no word for; and this
-        Codex's sandbox starts here (:func:`_starts`). Otherwise the fence is held from
-        outside, as though nothing had been named: never wider than the person asked for.
+        Codex's sandbox starts here (:func:`_starts`); and the agent is asked nothing. An
+        approval policy said in place of `never` -- `untrusted`, while a hook is hung on
+        `PERMISSION_REQUEST` -- puts commands to this client, which grants them, and a command
+        Codex was granted it runs outside its own sandbox, which then holds nothing. Otherwise
+        the fence is held from outside, as though nothing had been named: never wider than
+        the person asked for.
 
         Args:
           fence: The fence.
@@ -3401,6 +3427,8 @@ class CodexAgent(AgentBase):
             and self.config.machine is None
             and not (fence.keep or fence.deny)
             and not fence.open
+            and getattr(self.config, "approvals", "")
+            in ("", _HOLDING["approvalPolicy"])
             and _starts()
         )
 

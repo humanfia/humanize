@@ -1261,6 +1261,25 @@ def test_a_shell_command_is_left_to_the_chat_where_codex_s_sandbox_holds_the_fen
     assert turned["input"] == [{"type": "text", "text": "!rm -rf /"}]
 
 
+def test_a_thread_codex_s_sandbox_holds_is_opened_in_it_and_asks_nothing(
+    spawner: Spawner,
+    server: _Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Full access may be forbidden and stepped down to asking, and a yes leaves the sandbox."""
+    monkeypatch.setattr(CodexAgent, "holds", _holding)
+    held = Fence.of(
+        rules=[(".", WRITE)], online=False, workdir=tmp_path, home=tmp_path / "home"
+    )
+    _agent(fence=held).new(tmp_path)("hi")
+    (opened,) = server.called("thread/start")
+    assert (opened["sandbox"], opened["approvalPolicy"]) == ("workspace-write", "never")
+    (turned,) = server.called("turn/start")
+    assert turned["approvalPolicy"] == "never"
+    assert turned["sandboxPolicy"]["type"] == "workspaceWrite"
+
+
 def test_a_skill_and_a_file_named_in_a_line_go_as_items_beside_it(
     spawner: Spawner, server: _Server, tmp_path: Path
 ) -> None:
