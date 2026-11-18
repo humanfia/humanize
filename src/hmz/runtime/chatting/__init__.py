@@ -701,17 +701,8 @@ class _Talk:
                     listed=chat.listed,
                 )
                 entry = read.entry
-                if read.kind == "refused":
-                    message = await person.next(_said(unkept, read.why))
-                    unkept = ""
-                    continue
-                if (
-                    role is not None
-                    and read.kind == "native"
-                    and line.split(maxsplit=1)[0] in ("/model", "/effort")
-                ):
-                    # Her nous is hers while the conversation lasts (Section 14.3.1 of [CORE]).
-                    message = await person.next(_said(unkept, _KEPT_NOUS))
+                if (why := _refused(read, line, role)) is not None:
+                    message = await person.next(_said(unkept, why))
                     unkept = ""
                     continue
                 if (
@@ -1162,6 +1153,20 @@ def _conversation(before: Ran) -> tuple[Kept | None, str]:
 def _restarted(why: str) -> str:
     """What the person is told of a conversation that could not be carried on."""
     return f"This conversation could not be carried on ({why}), so this is a new one."
+
+
+def _refused(read: Resolved, line: str, role: Role | None) -> str | None:
+    """Why a line is refused rather than served, or None for one that is served."""
+    if read.kind == "refused":
+        return read.why
+    if (
+        role is not None
+        and read.kind == "native"
+        and line.split(maxsplit=1)[0] in ("/model", "/effort")
+    ):
+        # Her nous is hers while the conversation lasts (Section 14.3.1 of [CORE]).
+        return _KEPT_NOUS
+    return None
 
 
 def _said(unkept: str, answered: str) -> str:
