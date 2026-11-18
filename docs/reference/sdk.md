@@ -116,11 +116,12 @@ def run(
     profile_environment: bool = False,
     resume: bool | str | os.PathLike[str] = False,
     outworlder: OutworlderDriver | None = None,
+    backup: Iterable[str] | None = None,
 ) -> Run
 ```
 
 Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=…, profile_flow=…,
-profile_environment=…, resume=…), task, outworlder=outworlder)`. Nothing starts. Where each agent's harness runs is not a parameter:
+profile_environment=…, resume=…, backup=…), task, outworlder=outworlder)`. Nothing starts. Where each agent's harness runs is not a parameter:
 it is the `harness` setting of the [runtime](#runtimes) its work is on.
 
 The epic is held by this machine's [daemon](/reference/daemon), started where none runs, and
@@ -140,6 +141,7 @@ own, as [`run_fake`](#fakes) holds it.
 | `profile_environment` | Whether to [profile](/reference/tracing#profiling-a-run) the programs the run's agents start, as well as tracing them; as `--profile-environment`. | `False` |
 | `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
 | `outworlder` | The [driver](#outworlderdriver) answering `Outworlder` roles (e.g. `fakes.FakeOutworlder`), from this process: the run claims each such role, sets away those its `away_for` says, and answers each question with what its `run(ask, role)` returns. `None`: every role away, as under `hmz exec`. | `None` |
+| `backup` | The names of the [backup targets](/reference/settings#backup) the epic is [backed up](/user/backups) to, as `--backup`; an empty iterable: nowhere. `None`: the settings' `backup.defaults`. | `None` |
 
 Raises `OSError` where the daemon cannot be reached, and [`Refused`](#refused) for everything
 [`hmz exec` refuses at stage 3](/reference/cli#processing-order), in the same words, plus:
@@ -163,7 +165,7 @@ except Refused as why:
 
 ```python
 def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, profile_flow=False,
-           profile_environment=False, resume=False) -> Runner
+           profile_environment=False, resume=False, backup=None) -> Runner
 ```
 
 Parameters and refusals as [`run`](#hmz-run), without `task` and `outworlder`. Asks the
@@ -441,7 +443,6 @@ named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ss
 | --- | --- | --- |
 | `all(backend: str = "")` | `list[Runtime]` | By backend, then name. |
 | `find(backend, name)` | `Runtime \| None` | |
-| `where(backend, name)` | `Path` | Where it is kept. `ValueError`: bad backend or name. |
 | `new(backend, name, **fields)` | `Runtime` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. `harness="docker:gpubox"` (default `"env"`; also `"local"`) sets where the harness of work on it runs ([Remote execution › The harness setting](/reference/remote-execution#harness-setting)). |
 | `add(runtime)` | `Runtime` | Saves a new one. `ValueError`: name taken. `OSError`. |
 | `write(runtime)` | `Runtime` | Saves, replacing any of that name. `OSError`. |
@@ -533,7 +534,6 @@ wants the methods themselves. What [`Run`](#run) follows its epic with.
 | `call(method, params=None, *, idem=None, seconds=None)` | Makes one call (a method `protocol/openrpc.json` lists) and waits for its result. `idem`, where given, is added to `params` as the write's idempotency key. Raises [`Refused`](#refused) with the error's message, `code` and `data`, or with code 503 (`the daemon went away`) once the session has ended; `TimeoutError("no answer to '<method>' in <s>s")`, the call then cancelled. |
 | `heard(listener)` | Hands every notification, those already waiting first, to `listener(method, params)` on a thread of the client's own, in order; what it raises is let go. `RuntimeError` if a listener is already set. |
 | `close()` | Ends the session and every subscription of it; every epic goes on. Idempotent. |
-| `closed` | Property: whether the session has ended. |
 | `daemon_id`, `version`, `protocol`, `capabilities`, `device` | What `session.hello` answered. |
 
 ```python
@@ -571,7 +571,8 @@ class Daemon:
     workspace: str      # the project directory its host holds runs for
     pid: int            # the host process
     started: str        # UTC, ISO 8601
-    protocol: int = 0   # the frontend protocol the daemon speaks; 0 = an older Humanize's
+    protocol: str = ""  # the protocol version the daemon speaks ("3.0.0"); "" = an older Humanize's
+    slot: str = ""      # which of the workspace's hosts: "" for its own, chat:<hex> for a chat's
 ```
 
 | Member | Returns | Behaviour |
@@ -596,7 +597,8 @@ class Link:
     def start(self, flow: str | os.PathLike[str], task: str, *,
               agents: Mapping[str, Any] | None = None, envs: Mapping[str, Any] | None = None,
               params: Any = None, budget: Any = None, profile_flow: bool = False,
-              profile_environment: bool = False, resume: bool | str | os.PathLike[str] = False) -> dict[str, Any]
+              profile_environment: bool = False, resume: bool | str | os.PathLike[str] = False,
+              backup: Iterable[str] | None = None) -> dict[str, Any]
     def say(self, text: str, *, to: str = "") -> dict[str, Any]
     def answer(self, question: str, text: str | None = None,
                value: Any = None) -> dict[str, Any]
@@ -622,7 +624,7 @@ One frontend of a workspace's host, over this machine's daemon. Obtained from
 | `heard(listener)` | Delivers every message, already-queued ones first, to `listener` on a thread of the link's own, in order. `RuntimeError` if a listener is already set. |
 | `__iter__` | Yields every message in order until `gone` or `close()`. `RuntimeError` if a listener is set. |
 | `asked(said, *, seconds=None)` | Sends one [request](/reference/daemon#requests) and waits (`seconds=None`: indefinitely). Returns the reply (`ok: true`). Raises [`Refused`](#refused) with the reply's `why`, or `TimeoutError("no answer to '<do>' in <s>s")`. |
-| `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `profile_flow`, `profile_environment`: whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run). Reply carries `run`. |
+| `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `profile_flow`, `profile_environment`: whether the run's flow, and the programs its agents start, are [profiled](/reference/tracing#profiling-a-run). `backup`: the names of the backup targets the epic goes to; `None`: the settings' defaults. Reply carries `run`. |
 | `answer(question, text=None, value=None)` | The [`answer`](/reference/daemon#answering) request, with exactly one of `text` or `value`: the line typed, or a JSON value for a question with a `schema`. A value that does not fit raises `Refused` with code 400, its `data["errors"]` the reasons. |
 | `say`, `stop`, `force`, `afk`, `claim`, `release`, `board`, `aside` | The request of the same name. |
 | `close()` | Lets go of the host; runs continue. |
