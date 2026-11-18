@@ -140,6 +140,7 @@ class Plain:
         self.files = dict(files or {})
         self.mtimes = dict.fromkeys(self.files, 1.0)
         self.dirs: set[str] = set()
+        self.links: dict[str, str] = {}
         self.reads = 0
         self.ran: list[list[str]] = []
         self.answers = answers or _answers("/bin/zsh")
@@ -147,15 +148,22 @@ class Plain:
     def at(self, path: str) -> str:
         return posixpath.normpath(posixpath.join(str(self.workdir), path))
 
+    def through(self, path: str) -> str:
+        """Where a path leads, every link on the way followed."""
+        at = self.at(path)
+        while at in self.links:
+            at = self.at(posixpath.join(posixpath.dirname(at), self.links[at]))
+        return at
+
     async def read(self, path: str) -> bytes:
         self.reads += 1
         try:
-            return self.files[self.at(path)]
+            return self.files[self.through(path)]
         except KeyError:
             raise FileNotFoundError(path) from None
 
     async def write(self, path: str, data: bytes) -> None:
-        at = self.at(path)
+        at = self.through(path)
         self.files[at] = data
         self.mtimes[at] = self.mtimes.get(at, 1.0) + 1
 
@@ -200,6 +208,10 @@ class Box(Plain):
 
     async def stat(self, path: str) -> Stat:
         at = self.at(path)
+        if at in self.links:
+            # As `lstat` says a link: its own time, and the length of where it points.
+            target = self.links[at]
+            return Stat(posixpath.basename(at), "link", len(target), 5.0, target)
         kind = self._kind(at)
         if kind is None:
             raise FileNotFoundError(path)
@@ -553,6 +565,52 @@ def test_a_write_goes_only_where_the_file_is_as_it_was_read(
     assert base64.b64decode(
         _ok(alice.asks("env.read", env=ROOT, path="a.txt"))["data"]
     ) == (b"y")
+
+
+def test_a_file_read_or_written_through_a_link_is_answered_as_itself(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    alice, _ = _going(host)
+    box.links["/work/src/link.bin"] = "../z.bin"
+    box.links["/work/again.bin"] = "src/link.bin"
+
+    # The link is stated as the link it is.
+    stated = _ok(alice.asks("env.stat", env=ROOT, path="again.bin"))
+    assert (stated["kind"], stated["size"], stated["mtime"], stated["target"]) == (
+        "link",
+        12,
+        5.0,
+        "src/link.bin",
+    )
+    # What is read through it is the file, with the file's own size and time.
+    first = _ok(alice.asks("env.read", env=ROOT, path="again.bin", length=100))
+    rest = _ok(alice.asks("env.read", env=ROOT, path="again.bin", offset=100))
+    assert (first["size"], first["mtime"]) == (256, 1.0)
+    assert (rest["size"], rest["mtime"], rest["eof"]) == (256, 1.0, True)
+    assert box.reads == 1
+    # And so is what is written through it.
+    wrote = _ok(
+        alice.asks(
+            "env.write",
+            env=ROOT,
+            path="again.bin",
+            data=_b64(b"hi"),
+            if_match=first["etag"],
+        )
+    )
+    assert (wrote["size"], wrote["mtime"]) == (2, 2.0)
+    assert box.files["/work/z.bin"] == b"hi"
+    # The file changed where it is, is read again through the link.
+    box.files["/work/z.bin"] = b"yo"
+    box.mtimes["/work/z.bin"] = 3.0
+    read = _ok(alice.asks("env.read", env=ROOT, path="again.bin"))
+    assert (base64.b64decode(read["data"]), read["mtime"]) == (b"yo", 3.0)
+    # A link to nothing is no file.
+    box.links["/work/lost"] = "nowhere"
+    assert alice.asks("env.read", env=ROOT, path="lost") == {
+        "ok": False,
+        "why": "No such file: lost",
+    }
 
 
 def test_files_are_made_renamed_and_removed_and_each_is_written_down(
