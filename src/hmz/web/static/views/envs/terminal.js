@@ -108,6 +108,7 @@ export async function mount(el, ctx) {
       tab.resize.cancel()
       letGo(tab.xterm)
     }
+    strays()
     root.remove()
   }
 
@@ -163,7 +164,7 @@ export async function mount(el, ctx) {
     ctx.on('term', (message) => {
       if (state.left || !message || !message.term) return false
       const tab = tabs.find((one) => one.term === message.term)
-      if (!tab && tabs.every((one) => one.term)) return false
+      if (!tab && !tabs.some(unplaced)) return false
       const bytes = fromBase64(message.data)
       if (!tab || tab.opening) held(message.term, bytes)
       else draw(tab, bytes)
@@ -224,6 +225,7 @@ export async function mount(el, ctx) {
     const tab = made({})
     select(tab)
     if (!(await open(tab, null)) && !tab.term) drop(tab)
+    strays()
   }
 
   /** A tab, its terminal drawn and its addons loaded, not yet attached to a shell. */
@@ -429,6 +431,24 @@ export async function mount(el, ctx) {
     orphans.set(term, one)
   }
 
+  /** Whether a tab is being given a terminal not yet known: output of one unknown may be its. */
+  function unplaced(tab) {
+    return tab.opening && !tab.term
+  }
+
+  /**
+   * Acknowledges what was held and is no tab's, once no tab is still being given a terminal:
+   * output of a terminal of another environment, taken while it could not be told whose it was.
+   */
+  function strays() {
+    if (tabs.some(unplaced)) return
+    for (const [term, one] of orphans) {
+      if (tabs.some((tab) => tab.term === term)) continue
+      orphans.delete(term)
+      if (one.size + one.lost) ctx.call('env.term.ack', { term, bytes: one.size + one.lost }).catch(() => {})
+    }
+  }
+
   /**
    * What counts a tab's output for one attachment: attached again, it gets another, and what
    * the last one has yet to draw is never acknowledged to the host's new count.
@@ -485,6 +505,7 @@ export async function mount(el, ctx) {
       tab.alive = true
       exited(tab, null)
     }
+    strays()
   }
 
   async function closeTab(tab) {
