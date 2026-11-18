@@ -455,9 +455,28 @@ from, and MUST serve each line as Section 8.9 of [CORE] states.
 
 **3.6.6.8** The page MUST draw a `!` line of a chat and its output in the style of a shell.
 
-**3.6.6.9** The page MUST offer, for each chat, a toggle of its preference between `native` and
-`flow`, showing whether it comes from the settings file or the chat (`chat.set`, Section 4 of
-[DAEMON]).
+**3.6.6.9** The page MUST offer, for each chat, in the menu of the chat's bar (Section 3.6.6.10),
+the choice of its preference between `native` and `flow`, worded as what a `$` name that is both a
+skill and a flow does -- `Use the skill` or `Start the flow` -- with a mark on the one in force,
+showing whether it comes from the settings file or the chat (`chat.set`, Section 4 of [DAEMON]).
+The page MUST NOT draw that choice on the bar itself.
+
+**3.6.6.10** The bar of a chat MUST hold the chat's title, one menu and the button of its panel,
+beside what Section 3.16 puts on every bar, and MUST say how the chat stands only while the chat is
+running, asking or has failed. The menu MUST offer what the chat's right-click menu offers (Section
+3.4.4.1), the chat's `Environment` (Section 3.6.6.4) where its host has one, and the choice of
+Section 3.6.6.9.
+
+**3.6.6.11** The panel beside a chat MUST name its tabs `Details` and `Side questions` in place of
+`Epic` and `Aside` (Section 3.6.3), MUST show under `Details` everything `Epic` shows that a chat
+has, each named in plain words, and MUST say that side questions never reach the chat.
+
+**3.6.6.12** The page MUST NOT call a chat an epic or a run, nor a choice of the chat's `native`,
+in the bar, the menu, the tabs, the headings, the labels and the box of a chat's view. The box
+under a chat MUST say, while it is empty, no more than that it takes a reply, MUST say on hover
+what `/`, `$`, `@` and `!` start there, and MUST name what it completes by what each is: the
+commands, the skills and the mentions of the chat's CLI, the names hmz keeps, the flows, and the
+files.
 
 #### 3.6.7. An epic written down
 

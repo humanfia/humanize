@@ -151,6 +151,11 @@ function show(el, text) {
   tip.style.top = `${below ? box.bottom + 6 : box.top - height - 6}px`
 }
 
+/** Takes down the tip showing, if any: for what it is about once that is being used. */
+export function hideTip() {
+  hide()
+}
+
 function hide() {
   clearTimeout(waiting)
   tip?.remove()
