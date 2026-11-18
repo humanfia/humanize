@@ -708,7 +708,8 @@ def role(reach: Reach, scratch: Path) -> Role:
         raise HarnessSandboxed(unheld)
     if not scratch.is_dir():
         raise OSError(f"Ai-chan #{reach.id} has no scratch directory {scratch}")
-    link = Link(reach.workspace)
+    # A daemon scope's `workspace` is where her host runs, no workspace of her scope.
+    link = Link("" if reach.scope == "daemon" else reach.workspace)
     tools, cli = offered(link)
     return Role(
         workdir=scratch,
