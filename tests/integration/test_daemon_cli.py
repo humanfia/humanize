@@ -83,3 +83,28 @@ def test_runs_held_by_an_older_humanize_are_said_to_be_and_left_alone(
 
     assert "older Humanize" in capsys.readouterr().err
     assert Stands.opened == []
+
+
+@pytest.mark.usefixtures("workspace")
+def test_update_says_of_a_daemon_holding_no_host_that_it_runs_the_old_release(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import os
+    import sys
+
+    from hmz.cli import update
+    from hmz.coganchor import __version__, releases
+    from hmz.rpc import PROTOCOL
+
+    monkeypatch.setattr(update, "_how", lambda: [sys.executable, "-c", "pass"])
+    monkeypatch.setattr(update, "_installed", lambda: "999.0.0")
+    monkeypatch.setattr(releases, "fetch", lambda: "999.0.0")
+
+    with standing(where.at(), {"kind": "daemon", "protocol": PROTOCOL}):
+        assert daemon.daemons() == []
+        assert cli.main(["update"]) == 0
+
+    assert (
+        f"Epics held on this machine (pid {os.getpid()}) run hmz {__version__} "
+        "until that daemon stops"
+    ) in capsys.readouterr().out
