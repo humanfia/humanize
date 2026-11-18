@@ -31,6 +31,7 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.fence import Fence
+from hmz.runtime.chatting import resolve
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -189,6 +190,48 @@ def test_a_chat_s_native_input_is_served_as_claude_s_own_prompt_would(
         "/compact",
         "two",
     ]
+
+
+@pytest.mark.parametrize(
+    ("line", "said"),
+    [("/model claude-other", "Set model to claude-other"), ("/effort low", None)],
+)
+def test_a_model_or_effort_typed_as_a_chat_s_first_line_is_called(
+    claude: Standins, line: str, said: str | None
+) -> None:
+    agent = ClaudeCodeAgent(CONFIG)
+    session = agent.new()
+
+    # What a chat does with a line: reads it against the catalogue, here before any turn.
+    read = resolve(
+        line,
+        catalog=session.natives(),
+        flows=frozenset(),
+        prefer="native",
+        listed=False,
+    )
+    assert read.kind == "native"
+    assert read.entry is not None
+    assert read.entry.how == "call"
+    answered = list(session.stream(line, native=read.kind == "native"))
+
+    assert kinds(answered) == ["result"]
+    assert said is None or answered[-1].text == said
+    assert (
+        agent.config != CONFIG
+    )  # the agent the chat records is the one it was moved to
+    assert not [
+        one.stdin for one in claude.calls() if one.stdin
+    ]  # nothing was said to it
+    # A `/` line naming no entry is still text before the first turn (`core.md` 8.9.13).
+    unknown = resolve(
+        "/compact",
+        catalog=session.natives(),
+        flows=frozenset(),
+        prefer="native",
+        listed=False,
+    )
+    assert unknown.kind == "prose"
 
 
 def test_one_process_holds_the_session_across_turns(claude: Standins) -> None:

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import json
 import math
 import threading
@@ -433,7 +434,9 @@ class Runner:
                 saved(said, f"{named}: {name!r}")
             drivers[name] = said
             if isinstance(said, AgentSpec):
-                specs[name] = str(said).partition("=")[2]
+                # The concrete nous, which is what the epic's record states (6.5.1 of
+                # [FILES]), also of a role named by a virtual one.
+                specs[name] = str(dataclasses.replace(said, nous="")).partition("=")[2]
             else:
                 account = f"@{said.provider}" if said.provider else ""
                 specs[name] = (
@@ -1238,13 +1241,15 @@ def saved(said: AgentSpec, who: str) -> None:
 
 
 def agent_drivers(
-    given: Mapping[str, AgentSpec | AgentDriver], harbors: Harbors
+    given: Mapping[str, AgentSpec | AgentDriver], harbors: Harbors, name: str = ""
 ) -> dict[str, AgentDriver]:
     """A driver per agent role, made for each role given a spec, its harness put as said.
 
     Args:
       given: What each role was given: a spec, or a driver already made.
       harbors: The harness runtimes the drivers put their harnesses on.
+      name: What an agent made here is called, for a chat carried on as the agent its epic
+        wrote down, or "" for a codename apiece.
 
     Returns:
       A driver per role, which has started nothing.
@@ -1258,7 +1263,9 @@ def agent_drivers(
 
     try:
         return {
-            role: open_agent(said, harbors) if isinstance(said, AgentSpec) else said
+            role: open_agent(said, harbors, name)
+            if isinstance(said, AgentSpec)
+            else said
             for role, said in given.items()
         }
     except FlowException as why:

@@ -511,8 +511,6 @@ class ClaudeCodeSession(StreamSessionBase):
         #: answer there is.
         self._commands: tuple[str, ...] = ()
         self._skilled: frozenset[str] = frozenset()
-        #: Whether a `system/init` has said them yet.
-        self._inited = False
         #: The id Claude says this session has, taken only once a turn has landed in it.
         self._named: str | None = None
         #: Whether an answer is owed and not yet given: from the turn's prompt, or a word put
@@ -1232,7 +1230,6 @@ class ClaudeCodeSession(StreamSessionBase):
             dict.fromkeys(one for one in [*commands, *skills] if isinstance(one, str))
         )
         self._skilled = frozenset(one for one in skills if isinstance(one, str))
-        self._inited = True
 
     def natives(self) -> list[NativeCommand]:
         """What a chat may type to this conversation as at Claude Code's own prompt.
@@ -1245,10 +1242,11 @@ class ClaudeCodeSession(StreamSessionBase):
         chat records is the one the conversation runs as. `!` is the chat's own to emulate.
 
         Until a conversation has said its `system/init` -- before its first turn -- which
-        commands it has is not known, and no `/` entry is listed at all: a chat then passes
-        every `/` line as text (`core.md` 8.9.13), which print mode expands as it would have
-        anyway, rather than refusing a `/compact` it merely has not heard of yet. A native
-        `/model` or `/effort` is still called, by the driver, whatever the chat was offered.
+        commands it has is not known, and none is listed as passed: a chat then passes a `/`
+        line naming no entry as text (`core.md` 8.9.13), which print mode expands as it would
+        have anyway, rather than refusing a `/compact` it merely has not heard of yet. What is
+        called and what is refused does not hang on what a conversation says, and is listed
+        from the start: a `/model` typed as a chat's first line is called, not said.
 
         Returns:
           The catalog, as `core.md` 8.9.3 has it for `claude`.
@@ -1262,8 +1260,6 @@ class ClaudeCodeSession(StreamSessionBase):
             ),
             NativeCommand("@", "", "a file, read into the message", "pass"),
         ]
-        if not self._inited:
-            return fixed
         kept = {*_RESERVED, *_INTERACTIVE, *_CALLED}
         listed = [
             NativeCommand(

@@ -643,7 +643,8 @@ listen: ["easytier:home"]
 
 and make a pairing code there, `hmz daemon pair`. Then, on your own machine, add a **P2P** ›
 **EasyTier** daemon of the same name, with the same secret and at least one of the same nodes:
-it writes the EasyTier entry of that name here, which the route `easytier:home` opens with. A
+it writes the EasyTier entry of that name here, which the route `easytier:home` opens with; in
+[Humanize Desktop](/user/desktop), it writes it to the app as well, which opens the route itself. A
 route over EasyTier is held to the daemon's id, which only pairing gives: claim that machine's
 code under **Code**, and the daemon it adds is reached over EasyTier. Until it is paired, a P2P
 daemon fails with `easytier:home needs the id of the daemon it reaches.`

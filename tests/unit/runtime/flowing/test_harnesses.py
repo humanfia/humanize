@@ -376,6 +376,15 @@ async def test_every_session_of_an_agent_is_called_by_its_name_and_not_its_role(
     assert open_agent(_spec()).name != driver.name
 
 
+async def test_an_agent_given_a_name_is_called_by_it(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    driver = open_agent(_spec(), name="Kept1")
+
+    assert driver.name == "Kept1"
+    assert _cli(await _session(driver, tmp_path)).id == "Kept1"
+
+
 async def test_a_session_is_refused_where_it_cannot_open(
     coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

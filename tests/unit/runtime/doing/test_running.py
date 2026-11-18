@@ -371,10 +371,16 @@ def test_a_chat_is_held_as_a_run_is_with_no_flow_and_no_budget() -> None:
     assert (held.epic, held.names_epic) == (None, True)
 
 
-def test_a_chat_carried_on_is_written_into_the_epic_it_carries_on() -> None:
-    held = Chatting(cast("Any", Chat(_spec(resume=Path("/epics/e1")))))
+def test_a_chat_carried_on_has_no_epic_before_it_has_opened_the_one_it_carries_on() -> (
+    None
+):
+    chat = Chat(_spec(resume=Path("/epics/e1")))
+    held = Chatting(cast("Any", chat))
 
-    assert (held.epic, held.names_epic) == (Path("/epics/e1"), True)
+    # It may yet be refused, so what it is to carry on is not its epic until it opens it.
+    assert (held.epic, held.names_epic) == (None, True)
+    chat.epic = Path("/epics/e1")
+    assert held.epic == Path("/epics/e1")
 
 
 def test_what_a_chat_tells_of_itself_is_handed_through() -> None:
