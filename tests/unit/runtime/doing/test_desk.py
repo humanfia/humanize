@@ -412,6 +412,32 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
     del box
 
 
+def test_envs_sharing_a_chain_are_each_listed_under_an_id_of_their_own(
+    host: tuple[Host, Workspace], holding: Holding
+) -> None:
+    alice, _ = _going(host)
+    chain = "local@/work#worktree(,)"
+    one = Box(workdir="/trees/1", files={"/trees/1/one.txt": b""})
+    two = Box(workdir="/trees/2", files={"/trees/2/two.txt": b""})
+    holding.envs.append(Held("repo", chain, "local@/work", one))
+    holding.envs.append(Held("repo", chain, "local@/work", two))
+
+    listed = _envs(alice, lambda envs: len(envs) == 3)
+    assert [env["workdir"] for env in listed] == ["/work", "/trees/1", "/trees/2"]
+    assert [env["chain"] for env in listed[1:]] == [chain, chain]
+    assert [env["parent"] for env in listed[1:]] == [ROOT, ROOT]
+    first, second = (env["id"] for env in listed[1:])
+    assert len({ROOT, first, second}) == 3
+    for env, name in ((first, "one.txt"), (second, "two.txt")):
+        entries = _ok(alice.asks("env.list", env=env, path=""))["entries"]
+        assert [entry["name"] for entry in entries] == [name]
+
+    # Each keeps its id while it is held, whatever becomes of the other.
+    del holding.envs[1]
+    (_, left) = _envs(alice, lambda envs: len(envs) == 2)
+    assert (left["id"], left["workdir"]) == (second, "/trees/2")
+
+
 def test_an_env_nobody_listed_is_refused(host: tuple[Host, Workspace]) -> None:
     alice, _ = _going(host)
 

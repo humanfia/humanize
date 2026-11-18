@@ -488,18 +488,32 @@ class Desk:
                 # Not holding anything yet, or past holding it and not yet over: as it was.
                 return [one for one in before.values() if one.run == run]
         fresh: dict[str, _Env] = {}
-        chains = {one.chain: f"{run}:{one.chain}" for one in held}
+        # An environment is one driver: two may share a chain, as two worktrees of one ref do.
+        known = {
+            id(was.driver): was
+            for was in before.values()
+            if was.open and was.run == run
+        }
+        keys = {known[id(one.driver)].id for one in held if id(one.driver) in known}
+        chains: dict[str, str] = {}
         for one in held:
-            key = f"{run}:{one.chain}"
-            was = before.get(key)
-            if key in fresh or loop is None:
+            if loop is None:
                 continue
-            if was is not None and was.open and was.driver is one.driver:
+            was = known.get(id(one.driver))
+            if was is not None:
                 # The workspace is named by the role that takes it once one does.
                 was.role = one.role
                 was.declared = caps_of(frozenset(one.declared))
-                fresh[key] = was
+                fresh[was.id] = was
+                chains.setdefault(one.chain, was.id)
                 continue
+            key = f"{run}:{one.chain}"
+            for n in itertools.count(2):
+                if key not in keys:
+                    break
+                key = f"{run}:{one.chain}~{n}"
+            keys.add(key)
+            chains.setdefault(one.chain, key)
             fresh[key] = _Env(
                 id=key,
                 run=run,
