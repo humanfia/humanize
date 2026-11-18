@@ -248,19 +248,27 @@ def _shut(link: Transport | None, client: RemoteClient | None) -> None:
 
 def _is_dir_now(client: RemoteClient, path: str) -> bool:
     """Whether a directory is at a path on the host, following links, from a thread."""
-    from hmz.coganchor.proto import Op
+    from hmz.coganchor.proto import Op, path_key
 
-    for _ in range(40):
-        try:
+    try:
+        for _ in range(40):
             said = client.call(Op.STAT, path=path)
-        except OSError as error:
-            if error.errno in (errno.ENOENT, errno.ENOTDIR):
-                return False
-            raise
-        if said.get("kind") != "link":
-            return said.get("kind") == "dir"
-        target = str(said.get("target") or "")
-        path = posixpath.normpath(posixpath.join(posixpath.dirname(path), target))
+            if said.get("kind") != "link":
+                return said.get("kind") == "dir"
+            target = str(said.get("target") or "")
+            # The link is where the serving half looked, which is the path as it folds it.
+            held = path_key(path)
+            aimed = posixpath.normpath(posixpath.join(posixpath.dirname(held), target))
+            if path_key(aimed) == held:
+                # A Mac's `/tmp` links to `/private/tmp`, which the serving half folds back
+                # to `/tmp`: no path names what is behind it, so the host follows the link.
+                client.listdir(path)
+                return True
+            path = aimed
+    except OSError as error:
+        if error.errno in (errno.ENOENT, errno.ENOTDIR):
+            return False
+        raise
     return False
 
 

@@ -6,6 +6,7 @@ import asyncio
 import errno
 import signal
 from pathlib import PurePosixPath
+from typing import Any
 
 import pytest
 
@@ -456,6 +457,40 @@ async def test_a_workdir_not_on_the_host_is_unavailable(
     with pytest.raises(EnvUnavailable, match="/nowhere"):
         await driver.probe()
     assert not driver.available
+
+
+class _MacRemote(FakeRemote):
+    """A Mac's serving half: `/tmp` links into `/private`, which it folds away again."""
+
+    def call(self, op: object, *, path: str) -> dict[str, Any]:
+        if path.removeprefix("/private") == "/tmp":
+            return {"kind": "link", "size": 11, "mtime_ns": 0, "target": "private/tmp"}
+        return super().call(op, path=path)
+
+    def listdir(self, path: str) -> dict[str, Any]:
+        if path.removeprefix("/private") == "/tmp":
+            return {"entries": []}
+        return super().listdir(path)
+
+
+def _mac_path(path: str, *, fold_case: bool = False) -> str:
+    """A path as a Mac's two spellings of `/tmp` are held to one."""
+    return "/tmp" if path == "/private/tmp" else path
+
+
+@pytest.mark.parametrize("workdir", ["/tmp", "/private/tmp"])
+async def test_a_directory_a_mac_reaches_through_private_is_a_workdir_there(
+    monkeypatch: pytest.MonkeyPatch, workdir: str
+) -> None:
+    from hmz.coganchor import proto
+
+    monkeypatch.setattr(proto, "path_key", _mac_path)
+    reach(monkeypatch, _MacRemote())
+    driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath(workdir))
+
+    await driver.probe()
+
+    assert driver.available
 
 
 async def test_closing_lets_go_of_the_connection_and_kills_what_runs(
