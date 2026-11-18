@@ -62,7 +62,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, newest first. A flow's epic is a row of two lines: its arrow and task, then its flow's name; it is marked as it stands -- `●` going, a gold `●` blinking while it asks a person something nobody has looked at here yet and steady once you have, `◐` stopping, `✔` done, `✕` failed, `■` stopped or out of budget, `?` unfinished -- and `live` where a host goes with it; `●` without `live` is one another process goes with, read as it writes itself down; a [chat](/user/chat) is one line, what you asked and nothing else, as a chat app lists a conversation: a spinner beside it while its agent answers, a blinking gold dot while it asks, a red dot where it failed, and when it began where you point at it | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; **+** on a directory starts a chat there, and its right-click menu a chat or an epic |
+| **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back**, **Forward** and the bell; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark before the bell -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Awaiting input** while it asks, **Failed** where it failed, and nothing once it rests; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
 | **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A box for the first message or the task, the folder picked under it, and, for an epic, the flow picked at the top as a chat app picks a model | Start it; a chat's model and what it may touch are picked from the chips on the box, and **Options** on an epic's box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
@@ -70,14 +70,35 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | Every chat and epic, with its folder, agents, what it spent and how long it took | Find them by how they went, by folder, by flow, or by a word of their task; **Import** one. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
-The foot of the sidebar is the [daemon bar](#daemon-bar): it names the daemon the page shows,
+The foot of the sidebar is one row: the [daemon bar](#daemon-bar) and, beside it, a gear that
+opens **Settings**. The bar names the daemon the page shows,
 its host and whether it is reached, and says how many epics are going on it. Its menu holds
 **Daemon**, which opens a list of the daemons beside it to switch to, then **Settings** and
 **Usage**. Where a newer Humanize is out, the bar is marked ↑ and its menu offers
-**Update**, which copies `hmz update` to run in a terminal. The bell at the top of the sidebar
-opens your [notifications](#notifications). <kbd>⇧⌘O</kbd> opens a new chat and <kbd>⌘.</kbd> folds the sidebar away;
-off a Mac, as on Windows, they are <kbd>Ctrl+Shift+O</kbd> and <kbd>Ctrl+.</kbd>. On a phone
+**Update**, which copies `hmz update` to run in a terminal. The bell at the end of the sidebar's
+title row opens your [notifications](#notifications); **Back** and **Forward** there step through
+where the page has been, as a browser's do. <kbd>⇧⌘O</kbd> opens a new chat and <kbd>⌘.</kbd> folds the sidebar away;
+off a Mac, as on Windows, they are <kbd>Ctrl+Shift+O</kbd> and <kbd>Ctrl+.</kbd>. Drag the
+sidebar's right edge to size it -- the arrow keys do the same once it holds the focus, and a
+double click makes it 275 pixels wide again, as it starts; the browser keeps the width. On a phone
 the sidebar is a drawer behind the button in the corner.
+
+### The list {#the-list}
+
+**Group and sort**, on any heading of the list, arranges it; the browser keeps what you chose.
+
+| Choice | What it does |
+| --- | --- |
+| **Group by** | **Folder** (as it starts): a heading per directory, and **No folder** last for what has none. **Date**: **Today**, **Yesterday**, **Last 7 days**, **Last 30 days**, **Older**. **None**: one list. By date or as one list, the directories stand last under **Folders**, a row each: click one for a new chat there, and right-click it, or press **More options**, for what a directory's heading offers |
+| **Sort by** | **Last updated** (as it starts): what is going first, then by when each ended. **Created**: by when each began |
+| **Show** | **Chats** and **Epics**, each on or off: off, the list leaves them out |
+| **Reset to defaults** | By folder, last updated first, chats and epics both |
+
+A row's menu -- **More options** at its end, or a right click -- starts with **Open**, **Pin**
+and **Mark as unread**. A pinned chat or epic stands first, under **Pinned**, however the list is
+grouped, until you **Unpin** it. **Mark as unread** puts the square of an unread notification
+beside it until you open it or choose **Mark as read**, which also reads its notifications. Both
+are kept by this browser.
 
 Every view is an address: copy it, keep it, or open it in another tab. The address names the
 daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same machine; one with no
@@ -506,7 +527,7 @@ Start `hmz web` in a project, and open **New epic**:
 ### Check it worked
 
 - The terminal's transcript shows the task you typed in the browser, marked `· by browser`.
-- The sidebar lists the chat, with nothing beside it: a chat shows its spinner only while its
+- The sidebar lists the chat, with nothing beside it: a chat says **Running** only while its
   agent answers;
   **Search** shows what it spent.
 
@@ -527,8 +548,8 @@ shows a second.
 
 ### The daemon bar {#daemon-bar}
 
-The foot of the sidebar names the daemon showing, its host, a dot for whether it is reached, and
-how many epics are going on it. Click it for its menu:
+The foot of the sidebar names, on one line, the daemon showing, its host, a dot for whether it
+is reached, and how many epics are going on it. Click it for its menu:
 
 - **Daemon**, which opens beside it every daemon, with whether it is reached; pick one to switch
   to it. A remote daemon is connected to when you pick it. **Connect** on one that failed tries it
@@ -676,7 +697,8 @@ it ended.
   one of your system's: the browser's, or, in [Humanize Desktop](/user/desktop#notifications), a
   macOS one. Clicking it brings the page back on what it is about.
 - **Sidebar marks.** An epic with a notification unread has a square beside it in the
-  sidebar, and so does its workspace while folded. Opening the epic reads them.
+  sidebar, and so does its workspace while folded. Opening the epic reads them, as does
+  **Mark as read** in its menu.
 
 None is shown of the epic you are looking at -- a question or a chat turn there included: it is
 read as it comes.

@@ -242,7 +242,9 @@ def test_an_epic_asking_a_person_calls_until_one_looks(engine: str) -> None:
         )
         expect(badge).to_have_text(re.compile("waiting"))
         expect(glyph).to_have_css("animation-name", "none")
-        expect(page.locator("[data-hmz=epic] .side-mark").first).to_have_text("●")
+        expect(
+            page.locator("[data-hmz=epic] [data-hmz=epic-state]").first
+        ).to_have_text("Waiting")
         assert "hmz-seen" in page.evaluate("Object.keys(localStorage)")
 
         page.get_by_role("button", name="Stop").click()
@@ -1070,9 +1072,12 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         opened(site, engine=engine, user_agent=_APP, init=at_body) as page,
     ):
         assert page.evaluate("window.shellAtBody") == "macos"
-        # The sidebar keeps a strip for them, its top row drawn under it.
-        assert top(page, ".brand") >= strip
-        assert top(page, ".side-fold") >= strip
+        # The sidebar's top row stands beside them, in their strip: what hides the sidebar
+        # straight after them, and the mark, which they took the place of, before the bell.
+        assert left(page, ".side-fold") >= lights
+        assert top(page, ".side-fold") < strip
+        assert left(page, ".brand") > left(page, ".side-forward")
+        assert left(page, ".brand") < left(page, "[data-hmz=notifications]")
         for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
             expect(page.locator(row)).to_have_attribute(
                 "data-tauri-drag-region", "deep"
@@ -1907,7 +1912,7 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         row = page.locator("[data-hmz=epic]", has_text="remember teal")
         state = row.locator("[data-hmz=chat-state]")
         expect(state).to_have_attribute("data-state", "asking")
-        expect(state).to_have_css("animation-name", "pulse")
+        expect(state).to_have_text("Awaiting input")
 
         # Read, it is stopped: its row says nothing beside what was asked.
         row.click()

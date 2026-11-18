@@ -1,9 +1,163 @@
-/* The entries at the top of the sidebar: a new chat first and heaviest, as a chat app's begins,
-   then a new epic, search and the flows. */
-.side-nav a.side-primary {
-  font-weight: 800;
+/* The sidebar's frame, measured off Claude's desktop app: 275 wide with a splitter on its right
+   edge, a title row of 28px buttons, entries 258 by 32 set 2px apart and 8px in, and a foot of
+   one 28px row. Colours, fonts and rules are style.css's tokens; only the measures are set here. */
+
+/* ----------------------------------------------------------------------- the title row */
+
+/* The mark, then hiding the sidebar, back and forward, side by side; the bell at the far end. */
+.side-top {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 4px 7px 0 8px;
 }
 
-.side-nav a.side-primary:not([aria-current='page']) > .icon {
-  color: var(--pink);
+.side-top .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+/* The mark stands where a desktop app's window keeps its traffic lights, in as much room: the
+   three buttons after it start 84 in, as that app's do. Its name is said, not drawn. */
+.side-top .brand {
+  flex: none;
+  width: 76px;
+  height: 28px;
+  padding-left: 6px;
+}
+
+.side-top .brand img {
+  flex: none;
+}
+
+.side-top .brand strong {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* In Humanize Desktop's window on macOS the traffic lights are there themselves: the row stands
+   beside them, in their strip, the three buttons straight after them and the mark before the bell. */
+:root[data-shell='macos']:not([data-fullscreen]) .side-top {
+  margin-top: -2px;
+  padding-top: 0;
+  padding-left: 84px;
+}
+
+:root[data-shell='macos']:not([data-fullscreen]) .side-top .brand {
+  order: 1;
+  width: auto;
+  margin-left: auto;
+  padding: 0 4px;
+}
+
+:root[data-shell='macos']:not([data-fullscreen]) .side-top .notify-bell {
+  order: 2;
+  margin-left: 0;
+}
+
+/* ------------------------------------------------------------------------- the entries */
+
+/* Every entry drawn alike: the one the page is on is marked, the rest are plain. */
+.side-nav {
+  gap: 2px;
+  padding: 10px 7px 0 8px;
+  border-bottom: 0;
+}
+
+.side-nav a {
+  align-items: center;
+  height: 32px;
+  min-height: 0;
+  padding: 0 10px;
+}
+
+/* ---------------------------------------------------------------------------- the foot */
+
+/* One row: the daemon the page is of, which opens its menu, and the settings beside it. */
+.side-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px 8px 8px;
+}
+
+.side-account {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 28px;
+  gap: 8px;
+  padding: 0 6px;
+}
+
+.side-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+
+/* Its name and host, then how it stands, on one line. */
+.side-account .side-account-text {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.side-account .side-daemon {
+  flex: 1 1 auto;
+}
+
+.side-account .side-state {
+  flex: none;
+}
+
+.icon-btn.side-gear {
+  width: 28px;
+  height: 28px;
+}
+
+/* ------------------------------------------------------------------------ the splitter */
+
+/* Across the sidebar's right edge, 12px wide: dragged, it sizes the sidebar. */
+.side-split {
+  display: none;
+}
+
+@media (min-width: 861px) {
+  .sidebar {
+    position: relative;
+  }
+
+  .side-split {
+    display: block;
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    bottom: 0;
+    right: -8px;
+    width: 12px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  /* A line down the edge itself, where it is pointed at, dragged or holds the focus. */
+  .side-split::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 4px;
+    width: 2px;
+  }
+
+  .side-split:is(:hover, :focus-visible, .dragging)::after {
+    background: var(--cyan);
+  }
+
+  .side-split:focus-visible {
+    outline: none;
+  }
 }
