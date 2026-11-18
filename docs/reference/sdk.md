@@ -213,7 +213,8 @@ class Run:
 One epic, held by a daemon on a new exec slot (`exec:<hex>`) of the workspace and followed
 by a subscription of a [`Client`](#client) of its own. Made by [`Hmz.run`](#hmz-run).
 Constructing one starts nothing. If its session ends before the `ended` record, the run
-attaches again where it left off; where it cannot, it ends with
+attaches again where it left off; where it cannot, or where the host it attaches to is
+another than the one it followed (a daemon started since holds no such epic), it ends with
 `RuntimeError("the daemon went away")`. A host that lets go of it before the `ended` record
 ([`gone`](/reference/daemon#gone)) ends it with `RuntimeError(<why>)`, e.g. `the host went
 away`; one that let go of it for falling behind (`too far behind; attach again`) does not: the
