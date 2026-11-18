@@ -67,6 +67,7 @@ __all__ = [
     "Desk",
     "Held",
     "Holds",
+    "Homed",
     "Pty",
     "Refused",
     "Terminable",
@@ -222,6 +223,15 @@ class Browsable(Protocol):
 
     async def remove(self, path: str) -> None:
         """Removes a file, or a directory and everything in it."""
+        ...
+
+
+@runtime_checkable
+class Homed(Protocol):
+    """A driver whose paths may be under a home, `~/...`, that only its machine knows."""
+
+    async def absolute(self, path: str) -> str:
+        """A path as an absolute one, a leading `~` resolved to the home there."""
         ...
 
 
@@ -653,7 +663,7 @@ class Desk:
             (_entry(one) for one in entries),
             key=lambda one: (one["kind"] != "dir", one["name"]),
         )
-        return {"path": _absolute(env.driver.workdir, path), "entries": listed}
+        return {"path": self._whereabouts(env, path), "entries": listed}
 
     def _stat(self, client: str, by: str, said: dict[str, Any]) -> dict[str, Any]:
         del client, by
@@ -661,7 +671,16 @@ class Desk:
         driver = self._browsable(env)
         path = _path(said)
         found = self._missing(path, lambda: self._on(env, driver.stat(path)))
-        return {"path": _absolute(env.driver.workdir, path), **_entry(found)}
+        return {"path": self._whereabouts(env, path), **_entry(found)}
+
+    def _whereabouts(self, env: _Env, path: str) -> str:
+        """A path as an absolute one, a home it is under asked of the env machine."""
+        at = _absolute(env.driver.workdir, path)
+        driver = env.driver
+        # `~/..` is above the home, and written plainly no longer starts with `~`.
+        if not at.startswith("/") and isinstance(driver, Homed):
+            return str(self._on(env, driver.absolute(path)))
+        return at
 
     @staticmethod
     def _missing[T](path: str, doing: Callable[[], T]) -> T:

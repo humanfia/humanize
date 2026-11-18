@@ -416,6 +416,16 @@ async def test_a_path_is_the_workdirs_unless_absolute_or_under_home() -> None:
         await driver.read("nope")
 
 
+async def test_a_path_under_home_is_said_as_an_absolute_one() -> None:
+    driver = _driver(MemoryMachine(), "~/repo")
+
+    assert await driver.absolute("") == "/home/me/repo"
+    assert await driver.absolute("src/../a.py") == "/home/me/repo/a.py"
+    assert await driver.absolute("~/y") == "/home/me/y"
+    assert await driver.absolute("~/../x") == "/home/x"
+    assert await driver.absolute("/etc/./x") == "/etc/x"
+
+
 async def test_a_directory_is_listed_directories_first_then_by_name() -> None:
     machine = MemoryMachine(dirs=("/work", "/work/zeta", "/work/alpha"))
     machine.files[PurePosixPath("/work/b.txt")] = b"bee"
