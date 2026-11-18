@@ -107,10 +107,9 @@ def _start_chat(page: Page, task: str) -> None:
     """
     go(page, "/new/chat")
     expect(page.locator("div[data-hmz=new-chat]")).to_be_visible()
-    page.get_by_role("button", name="Options").click()
-    expect(page.locator("[data-role=assistant] [data-hmz=pick-model]")).to_have_value(
-        "claude-haiku-4-5"
-    )
+    expect(
+        page.locator("[data-role=assistant] [data-hmz=pick-model]")
+    ).to_have_attribute("data-value", "claude-haiku-4-5")
     page.locator("[data-hmz=composer-text]").fill(task)
     page.locator("[data-hmz=composer-text]").press("Enter")
     page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
@@ -347,6 +346,108 @@ def test_a_model_no_cli_would_list_is_typed(
         expect(page.locator(".composer-summary")).to_contain_text(
             "assistant: claude/claude-sonnet-4-5"
         )
+
+
+def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new/chat")
+        chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        # It says the model as a person reads it, and is what `-a` spells.
+        expect(chip).to_have_text("Haiku 4.5")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-haiku-4-5")
+        expect(page.get_by_role("button", name="Options")).to_have_count(0)
+        # By the button that sends, at the right of the box's bar.
+        chip_box, send_box = chip.bounding_box(), page.locator(".send").bounding_box()
+        assert chip_box
+        assert send_box
+        assert 0 <= send_box["x"] - (chip_box["x"] + chip_box["width"]) <= 16
+
+        chip.click()
+        menu = page.get_by_role("menu", name="Model")
+        models = menu.locator(".model-menu > [role=menuitem][data-value]")
+        expect(models).to_have_count(2)
+        expect(models.nth(0)).to_have_class(re.compile("chosen"))
+        expect(models.nth(0)).to_contain_text("claude-haiku-4-5")
+        menu.locator("[data-value=claude-opus-4-1]").click()
+        expect(menu).to_have_count(0)
+        expect(chip).to_have_text("Opus 4.1")
+
+        chip.click()
+        menu.get_by_role("menuitem", name="Effort").click()
+        efforts = page.locator("[data-hmz=pick-effort] [role=menuitem]")
+        expect(efforts).to_have_text(
+            ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
+        )
+        efforts.nth(2).click()
+        expect(chip).to_have_text("Opus 4.1 · Max")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
+
+        # The harness and the account it runs as are under More, in the same menu.
+        chip.click()
+        menu.get_by_role("menuitem", name="CLI").click()
+        expect(page.locator("[data-hmz=pick-cli] [role=menuitem]")).to_have_text(
+            ["claude"]
+        )
+        menu.get_by_role("menuitem", name="Account").click()
+        accounts = page.locator("[data-hmz=pick-account] [role=menuitem]")
+        expect(accounts).to_have_text(["Local", "Add account…"])
+        expect(menu.get_by_role("menuitem", name="Refresh models")).to_be_enabled()
+        # A model no CLI lists is typed, and Enter there sends nothing.
+        typed = menu.locator("[data-hmz=pick-model-typed]")
+        typed.fill("claude-sonnet-4-5")
+        typed.press("Enter")
+        expect(menu).to_have_count(0)
+        expect(page).to_have_url(re.compile(r"#/new/chat"))
+        expect(chip).to_have_text("Sonnet 4.5")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
+
+
+def test_a_chat_model_no_cli_would_list_is_typed_in_the_chip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, engine: str
+) -> None:
+    install(tmp_path, monkeypatch)
+
+    def refused(cli: str, provider: str = "", seconds: float = 0.0) -> tuple[()]:
+        raise OSError(f"{cli} is not answering")
+
+    monkeypatch.setattr(hmz.coganchor.models, "ask", refused)
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new/chat")
+        chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        expect(chip).to_have_text("Pick a model")
+        chip.click()
+        menu = page.get_by_role("menu", name="Model")
+        expect(menu.locator(".hint")).to_contain_text("claude is not answering")
+        menu.locator("[data-hmz=pick-model-typed]").fill("claude-sonnet-4-5")
+        expect(chip).to_have_text("Sonnet 4.5")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
+
+
+def test_a_chat_says_its_model_on_the_chip_of_its_box(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/new/chat")
+        chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        chip.click()
+        page.locator(".model-menu [data-value=claude-opus-4-1]").click()
+        page.locator("[data-hmz=composer-text]").fill("which model are you")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+%2F1$"))
+        said = page.locator("[data-hmz=say] [data-hmz=chat-model]")
+        expect(said).to_have_text("Opus 4.1")
+        said.click()
+        about = page.get_by_role("menu", name="Model")
+        expect(about.locator("[data-value=claude-opus-4-1]")).to_have_class(
+            re.compile("chosen")
+        )
+        expect(about.locator(".model-fact")).to_contain_text(
+            ["CLIclaude", "AccountLocal"]
+        )
+        about.get_by_role("menuitem", name="New chat").click()
+        expect(page).to_have_url(re.compile(r"#/new/chat\?workspace="))
 
 
 def test_a_chat_is_its_conversation_alone_answered_and_read(

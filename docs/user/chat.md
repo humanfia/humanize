@@ -47,10 +47,10 @@ flow, started as any other.
 | Where | A chat | A flow |
 | --- | --- | --- |
 | [`hmz`](/reference/tui) | it opens on a new chat; type a line | `$<flow> <task>`, or `/flow <flow> <task>` |
-| [`hmz web`](/user/web#starting-an-epic) | **New epic** › **Chat**: the directory, the agent, and the first message | **New epic** › **Flow** |
+| [`hmz web`](/user/web#starting-an-epic) | **New epic** › **Chat**: the directory, the model, and the first message | **New epic** › **Flow** |
 | the shell | `hmz chat "<message>"` ([below](#from-the-shell)) | [`hmz exec -f <flow>`](/user/unattended) |
 
-### The chat's agent
+### The chat's agent {#the-chats-agent}
 
 Each directory remembers the agent of the last chat started or changed in it, apart from the
 setup of its flows, and a new chat there starts with it. Where none is remembered yet, `hmz`
@@ -58,7 +58,8 @@ fills it as it fills a flow's role: the first CLI it finds. Change it:
 
 - in the terminal, with **Chat agent** on the [Workspace page of
   `/settings`](/user/settings#workspace);
-- in the browser, under **Chat** on **New epic**;
+- in the browser, from the model chip on the box of **Chat** under **New epic**, or of a chat
+  going, whose menu says the `/model` or `/effort` line below for you;
 - in the chat, with the CLI's own `/model` or `/effort`, where it has them (Claude Code,
   Codex): the chat goes on with the new model or effort, and the directory remembers it;
 - in the shell, with `hmz chat -a`, which remembers nothing.

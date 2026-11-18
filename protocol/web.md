@@ -444,6 +444,14 @@ from, and MUST serve each line as Section 8.9 of [CORE] states.
 `flow`, showing whether it comes from the settings file or the chat (`chat.set`, Section 4 of
 [DAEMON]).
 
+**3.6.6.10** The box under a chat MUST say, on a chip beside the button that sends, the model the
+chat's agent runs and its effort where one is set. The chip MUST open a menu saying the agent's
+model, effort, harness and account, and offering a new chat in the chat's workspace. Where the
+chat's catalogue holds the harness's own `/model` or `/effort` as `call` (Section 8.9.5 of [CORE]),
+the menu MUST offer the models known runnable as the agent's account, accepting a typed model, or
+the efforts its model takes, and picking one MUST say that line to the chat. The page MUST NOT
+offer to change the agent of a chat that has begun any other way.
+
 #### 3.6.7. An epic written down
 
 **3.6.7.1** An epic that has ended MUST show how it was set up -- its agents, environments,
@@ -731,9 +739,17 @@ workspace.
 state `Flow`, which MUST NOT offer a chat among its flows.
 
 **3.8.18** `Chat` MUST take a workspace, or `No workspace`, as Section 3.8.2 and Section 3.8.3
-state; the assistant's agent, set up a part at a time as Section 3.8.8 states, starting from the
-chat agent that workspace remembers (Section 8.3.8 of [CORE]); and the first message, Enter in its
-box starting the chat (`chat.start`, Section 4 of [DAEMON]) and the page going to its conversation.
+state; the assistant's agent, picked as Section 3.8.19 states, starting from the chat agent that
+workspace remembers (Section 8.3.8 of [CORE]); and the first message, Enter in its box starting the
+chat (`chat.start`, Section 4 of [DAEMON]) and the page going to its conversation.
+
+**3.8.19** `Chat` MUST offer the assistant's agent as one chip on the bar of the box, beside the
+button that sends, saying the model chosen and its effort where one is set. The chip MUST open a
+menu holding the models known runnable by the harness chosen as the account chosen, with the one
+chosen marked, asking the harness where none is known yet and accepting a typed model; the efforts
+the model chosen takes; and, under `More`, the harness, the account it runs as with a way to make
+one, and a way to ask the harness for its models again. What is picked MUST come to what `-a`
+spells, as Section 3.8.10 states.
 
 ### 3.9. Flows
 
