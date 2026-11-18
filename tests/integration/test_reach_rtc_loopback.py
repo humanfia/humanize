@@ -4,7 +4,8 @@ The daemon's side answers and a client's offers, over this machine's own interfa
 candidates alone and no STUN or TURN. Bytes cross both ways, more than a megabyte of them in
 messages of at most 16 384 bytes; an answer not the pinned daemon's, or not signed by the key of
 its certificate, is refused before the channel opens; a channel the protocol does not fix is
-refused by the daemon; and either side closing is seen by the other.
+refused by the daemon, as is an offer whose channel DTLS would not hold to the fingerprint the
+daemon reads its device from; and either side closing is seen by the other.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, cast
@@ -291,6 +293,20 @@ def test_the_daemon_refuses_a_channel_the_protocol_does_not_fix(
     assert served.refused == [str(raised.value)]
 
 
+def test_an_offer_dtls_would_not_hold_to_its_fingerprint_is_refused(
+    pool: ThreadPoolExecutor, daemon: _Device
+) -> None:
+    client, served = _joined()
+    answered = _answering(pool, served, daemon, timeout=20)
+    victim = ":".join(["AB"] * 32)
+    impostor = pool.submit(_decoy_offer, client, victim)
+    with pytest.raises(Refused, match="sha-256") as raised:
+        answered.result(30).close()
+    assert not impostor.result(30)
+    assert served.refused == [str(raised.value)]
+    assert not served.sent
+
+
 def test_a_text_message_closes_the_channel(
     pool: ThreadPoolExecutor, daemon: _Device
 ) -> None:
@@ -320,3 +336,44 @@ def _raw_offer(signals: _Signals, label: str, text: str = "") -> None:
         await connection.close()
 
     asyncio.run(run())
+
+
+def _decoy_offer(signals: _Signals, victim: str) -> bool:
+    """Offers as another device: its fingerprint in a section no channel is opened by.
+
+    The section the channel is opened by keeps the fingerprints of this connection's own
+    certificate, all but the SHA-256 one, so the offer still says one SHA-256 value: `victim`.
+
+    Returns:
+      Whether the data channel opened.
+    """
+    from aiortc import RTCConfiguration, RTCPeerConnection, RTCSessionDescription
+
+    async def run() -> bool:
+        connection = RTCPeerConnection(RTCConfiguration(iceServers=[]))
+        channel = connection.createDataChannel("hmz")
+        opened = asyncio.Event()
+        channel.on("open", opened.set)
+        await connection.setLocalDescription(await connection.createOffer())
+        head, _, media = connection.localDescription.sdp.partition("m=application")
+        media = "m=application" + media
+        mine = re.sub(r"a=fingerprint:sha-256 [^\r\n]*\r\n", "", media)
+        assert "a=fingerprint:sha-512" in mine
+        decoy = re.sub(r"a=fingerprint:[^\r\n]*\r\n", "", media)
+        decoy += f"a=fingerprint:sha-256 {victim}\r\n"
+        signals.send({"type": "offer", "sdp": head + decoy + mine})
+        try:
+            reply = await asyncio.to_thread(signals.receive, 20)
+            sdp = cast("dict[str, str]", reply)["sdp"]
+            # The answer says both sections; this side offered, and keeps, the one.
+            head, *_, last = sdp.split("m=application")
+            sdp = head.replace("BUNDLE 0 0", "BUNDLE 0") + "m=application" + last
+            await connection.setRemoteDescription(RTCSessionDescription(sdp, "answer"))
+            await asyncio.wait_for(opened.wait(), 20)
+        except (EOFError, TimeoutError):
+            return False
+        finally:
+            await connection.close()
+        return True
+
+    return asyncio.run(run())

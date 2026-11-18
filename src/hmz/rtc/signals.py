@@ -48,8 +48,9 @@ class Refused(ConnectionError):  # noqa: N818 -- what happened, not what went wr
     """A peer whose signals or channel are not what the protocol has them be, or not who it is.
 
     Raised for a signal that cannot be read, a description with no one SHA-256 fingerprint, an
-    answer whose certificate is not the daemon pinned or whose signature does not verify, and a
-    data channel other than the one an offer opens. The connection is closed by then.
+    offer with a media section that does not say it, an answer whose certificate is not the
+    daemon pinned or whose signature does not verify, and a data channel other than the one an
+    offer opens. The connection is closed by then.
     """
 
 
