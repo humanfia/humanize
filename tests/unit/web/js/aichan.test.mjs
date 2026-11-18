@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateSaid, told } from '../../../../src/hmz/web/static/aichan.js'
+import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateOf, stateSaid, told } from '../../../../src/hmz/web/static/aichan.js'
 
 const at = (path) => {
   const url = new URL(path, 'http://page')
@@ -75,4 +75,18 @@ test('a line typed to her answers what she waits on this page may answer, else i
   assert.deepEqual(told([{ question: 'q1', owner: 'other' }], 'me', 'hi'), ['say', { text: 'hi' }])
   assert.deepEqual(told([{ question: 'q1', owner: 'other' }, { question: 'q2' }], 'me', 'hi'), ['answer', { question: 'q2', text: 'hi' }])
   assert.deepEqual(told([{ question: 'q3', owner: 'me' }], 'me', 'hi'), ['answer', { question: 'q3', text: 'hi' }])
+})
+
+test('a conversation whose chat ended failed stands failed, with what the harness said', () => {
+  const failed = [{ type: 'started', run: 1 }, { type: 'ended', run: 1, how: 'failed', why: 'HarnessNotInstalled: codex is not installed here' }]
+  // Her host still holds the chat that failed, idle and between no turns: never `waiting`.
+  assert.deepEqual(stateOf({ connected: true, turn: 'done', records: failed }), { state: 'failed', why: 'HarnessNotInstalled: codex is not installed here' })
+  assert.deepEqual(stateOf({ connected: false, turn: '', records: failed }), { state: 'failed', why: 'HarnessNotInstalled: codex is not installed here' })
+  assert.equal(stateSaid('failed'), 'Failed')
+  const open = [{ type: 'started', run: 1 }]
+  assert.deepEqual(stateOf({ connected: true, turn: 'running', records: open }), { state: 'running', why: '' })
+  assert.deepEqual(stateOf({ connected: true, turn: 'done', records: open }), { state: 'waiting', why: '' })
+  assert.deepEqual(stateOf({ connected: false, turn: '', records: open }), { state: 'folded', why: '' })
+  // A chat stopped is one folded away, carried on by the next line.
+  assert.deepEqual(stateOf({ connected: false, turn: '', records: [...open, { type: 'ended', run: 1, how: 'stopped' }] }), { state: 'folded', why: '' })
 })
