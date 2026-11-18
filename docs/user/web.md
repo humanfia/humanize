@@ -415,8 +415,9 @@ needs at least one limit. The page goes to the epic once it starts.
 Ai-chan is an agent you operate Humanize through by talking to her. Her avatar, at the right of
 every view's bar, opens and closes her drawer beside the view -- a chat's bar ends as a chat
 app's does, and offers her as **Ai-chan** under **View options** instead; it stays open as you go from view
-to view, until you close it. On a phone it covers the view: close it with its button or
-<kbd>Escape</kbd>.
+to view, until you close it. What you type in it stays in it: a new chat or a new epic that
+finishes opening beside it meanwhile does not take the keys. On a phone it covers the view:
+close it with its button or <kbd>Escape</kbd>.
 
 The drawer lists every conversation with her on the daemon shown, newest first: its title, what
 it reaches, its nous, its preset, whether its network is on, and whether she is **Answering**,

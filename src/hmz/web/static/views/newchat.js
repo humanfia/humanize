@@ -7,7 +7,7 @@
 // (views/new.js), which the sidebar opens beside this one.
 
 import { call, daemon, given, hash, poll } from '../api.js'
-import { covered, go, stays } from '../app.js'
+import { beside, covered, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
@@ -146,8 +146,9 @@ export function mount(root, { query }) {
     // Under the box, at its right, before what it may touch.
     if (was) was.node.replaceWith(picker.node)
     else box.tray.prepend(picker.node)
-    // Typed into next -- but not from under a dialog opened over it, out of what is typed there.
-    if (!covered()) box.text.focus()
+    // Typed into next -- but not from under a dialog opened over it, out of what is typed there,
+    // nor out of Ai-chan's drawer beside it, gone to meanwhile.
+    if (!covered() && !beside()) box.text.focus()
   }
 
   async function start(task) {
