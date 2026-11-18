@@ -16,6 +16,7 @@ import pytest
 
 from hmz import machine
 from hmz.runtime import Holding
+from hmz.runtime.flowing import FakeOutworlder
 from hmz.sdk import Hmz, Refused
 from tests.integration.doubles_core import hmz_exec, install, write_flow
 from tests.integration.doubles_daemon import hosting
@@ -30,6 +31,22 @@ async def fetched(task, *, agents, envs, params, ctx):
     with open("fetched.txt", "a") as tasks:
         tasks.write(task + "\\n")
     return task
+"""
+
+
+#: A flow that asks its one `Outworlder` role once, and returns what it said.
+ASKING = """
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, Outworlder, flow
+
+
+class Agents(AgentCollection):
+    boss: Outworlder
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def asking(task, *, agents, envs, params, ctx):
+    boss = await agents["boss"].spawn()
+    return await agents["boss"].run(f"ok {task}?", session=boss)
 """
 
 
@@ -129,3 +146,30 @@ def test_a_clone_that_cannot_be_renamed_into_place_is_not_fetched(
     # This run's clone is removed all the same.
     (kept,) = (machine() / "pinned").iterdir()
     assert [one.name for one in kept.iterdir()] == [_commit(repository)]
+
+
+@pytest.mark.usefixtures("daemon")
+def test_a_git_flow_run_with_an_outworlder_has_its_questions_answered_by_it(
+    tmp_path: Path, project: Path
+) -> None:
+    at = tmp_path / "asking.git"
+    write_flow(at, "asking", ASKING)
+    git = ["git", "-C", str(at), "-c", "user.name=t", "-c", "user.email=t@example.com"]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "asking"], check=True)
+    boss = FakeOutworlder(reply="yes boss")
+
+    # No check answers a flow not fetched yet: its roles are claimed as it starts.
+    run = Hmz(project).run(
+        f"git+file://{at}#asking", "it", budget={"cost": 1}, outworlder=boss
+    )
+    run.start()
+    try:
+        assert run.wait(20)
+    finally:
+        run.close()
+
+    assert run.result == "yes boss"
+    assert boss.asked == ["ok it?"]
+    assert (run.ref, run.budget.cost) == ("asking:asking", 1)

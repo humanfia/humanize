@@ -239,6 +239,12 @@ the backups too, for at most 60 seconds or until `close()`.
 | `raised` | `BaseException \| None` | Once over: `asyncio.CancelledError` (stopped), `BudgetExceeded` (budget), `Refused` (refused), `RuntimeError(why)` (failed or crashed), else `None`. On a private daemon, the very exception the flow raised. |
 | `result` | `Any` | Once over: the `result` of the `ended` record (JSON). On a private daemon, the very object the flow returned. |
 
+A flow named by a [`git+` ref](/reference/flows#refs) is loaded only once fetched, so no check
+answers before the run starts: `declaration` is `{}` and `unreadable()` `""`; `budget` is the one
+given, and `ref` is `""` until the `started` record comes, which says them both. With an
+outworlder, the run claims the flow's `Outworlder` roles as that record names them, before it
+answers any question.
+
 ### Methods {#run-methods}
 
 | Method | Returns | Behaviour |
