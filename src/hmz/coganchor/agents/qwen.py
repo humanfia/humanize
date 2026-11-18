@@ -57,7 +57,7 @@ from hmz.coganchor.homes import merged, merger
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
-from .config import UNSAID, AgentConfig
+from .config import AgentConfig
 from .event import Event, Failed, Unrecoverable, Usage
 from .hooks import WAITING, Gate, Moment
 from .native import NativeCommand
@@ -128,79 +128,51 @@ _VERSION = {"$version": 4}
 _COMPILED = "NODE_COMPILE_CACHE"
 _CACHE = ("compiled", "qwen")
 
-#: What Qwen Code is run at for each rung of the ladder, as `--approval-mode`. One mode for
-#: all four, and the mode is `yolo`, which is not an oversight but the only one this CLI can
-#: be driven at from out here. Written as a table anyway, because it is the one place to
-#: change when that stops being true.
+#: What Qwen Code is run at under a fence, as `--approval-mode`: `yolo`, which is not an
+#: oversight but the only mode this CLI can be driven at from out here.
 #:
-#: Its own ladder does have three modes that say a rung of this one almost outright -- `plan`
-#: for `read-only`, `auto-edit` for `workspace-write`, `auto` for the rung where what is
-#: asked for is granted. Each of them works by *asking*, and the asking has to reach
-#: somebody. Run with a prompt for input, Qwen Code knows nobody is there and turns every
-#: such ask into a refusal the tool call ends on, which would be exactly what a rung means.
-#: Run with `stream-json` for input -- which is how a session here is held open across its
-#: turns -- it decides there is somebody on the other end of the protocol, skips that
-#: refusal, and leaves the call sitting in `awaiting_approval`.
+#: Its own ladder does have modes that would hold a grant almost outright -- `plan` for an
+#: agent that may change nothing, `auto-edit` for one that edits and asks before it runs.
+#: Each of them works by *asking*, and the asking has to reach somebody. Run with a prompt for
+#: input, Qwen Code knows nobody is there and turns every such ask into a refusal the tool
+#: call ends on. Run with `stream-json` for input -- which is how a session here is held open
+#: across its turns -- it decides there is somebody on the other end of the protocol, skips
+#: that refusal, and leaves the call sitting in `awaiting_approval`.
 #:
 #: Sitting there for good. The `can_use_tool` request that would let a client answer is only
 #: ever emitted by its interactive terminal UI running in dual-output mode, and the
 #: `confirmation_response` that would answer one is only ever read from the separate file
 #: `--input-file` names. Neither is on the protocol this driver speaks, so a turn that asks
-#: is a turn that never finishes and never says why -- and a flow that has stopped without
-#: saying so is worse than one running a rung looser than it asked for.
+#: is a turn that never finishes and never says why. And a mode that asks is not a way to
+#: hold a grant in any case: the fence holds it, and what Qwen Code is told is only which of
+#: its tools it is started with (:data:`_WRITERS`), everything left approved without asking.
 #:
-#: So the rung is said entirely as refusals, in `_WITHHELD` below, where a tool taken off the
-#: command line is refused before anything can stop to confirm it. Which costs the rungs
-#: their edges -- nothing here keeps an edit inside the workspace, Qwen Code's edit tools
-#: asking only that a path be absolute and its one sandbox wanting a container runtime that
-#: may not be there -- and that is said where the ladder is documented rather than papered
-#: over here.
-#:
-#: Four rungs and no fifth row, because what is in this table is a mode and there is no mode
-#: for saying nothing: `--approval-mode ""` is a word Qwen Code reads as a mode spelled wrong
-#: rather than as a flag withdrawn, and an empty string sitting here would read as one. So the
-#: flag and its mode are written in `_turn` only where there is a rung to write them for, and
-#: an agent carrying :data:`~hmz.coganchor.agents.config.UNSAID` is run with neither -- left
-#: at whatever `qwen` itself is run at, which is the shape the effort already has, where
-#: `_managed` puts no `model` section at all rather than an empty rung in one.
-_PERMITTED = {
-    "read-only": "yolo",
-    "workspace-write": "yolo",
-    "auto": "yolo",
-    "bypass": "yolo",
-}
+#: Written only where there is a fence. An agent driven by hand carries none and is run with
+#: no flag at all -- left at whatever `qwen` itself is run at -- since there is no mode for
+#: saying nothing: `--approval-mode ""` is a word Qwen Code reads as a mode spelled wrong
+#: rather than as a flag withdrawn.
+_APPROVAL = "yolo"
 
-#: The tools a turn is not given at each rung of the ladder, by the names Qwen Code calls
-#: them. A rung is said as refusals because the flag that carries the rest is the approval
-#: mode: what the agent may not do is taken away, and everything left is approved without
-#: being asked -- a run per turn has nobody to answer it.
+#: The tools withheld from an agent whose fence writes nothing, by the names Qwen Code calls
+#: them: the four that write a file. `save_memory` among them, since what it writes is a
+#: `QWEN.md` -- the user's own, which every later session of theirs reads as instructions, at
+#: its global scope, and which the fence may well refuse only after the model has decided it
+#: remembered something.
 #:
-#: The six at `read-only` are the five that write and the one that runs something and
-#: watches it -- `monitor` being the tool Qwen Code itself denies alongside the shell whenever
-#: it is refusing what a mode would have asked about, which is the company it keeps here too.
-#: `save_memory` among the writers, since what it writes is a `QWEN.md` -- the user's own,
-#: which every later session of theirs reads as instructions, at its global scope.
-#: At `workspace-write` it is the one tool that reaches somewhere the workspace is not. And
-#: nothing at all where no rung was asked for: a place that declared nothing takes nothing
-#: away. Written out rather than left to the reader's default, so that the table is the whole
-#: of what a config may carry.
-_WITHHELD = {
-    "read-only": (
-        "edit",
-        "monitor",
-        "notebook_edit",
-        "run_shell_command",
-        "save_memory",
-        "write_file",
-    ),
-    "workspace-write": ("web_fetch",),
-    "auto": (),
-    "bypass": (),
-    UNSAID: (),
-}
+#: The shell is kept -- `run_shell_command` reads as much as it writes, a `git log` or a test
+#: run being most of what an agent that may change nothing is for, and a write it attempts is
+#: refused by the fence around the process rather than by anything Qwen Code is told. So is
+#: `monitor`, which runs a command in the background and streams its output back to the
+#: model: a shell held open rather than a writer, governed by the same fence the shell is, and
+#: no more able than the shell to change what the fence keeps unwritten. Qwen Code's own
+#: refusing modes deny it beside the shell, which is the company it keeps here too.
+#:
+#: Nothing at all is withheld for a fence that writes somewhere -- every tool, the fence
+#: deciding where its writes land -- or for an agent with no fence, which is said nothing.
+_WRITERS = ("edit", "notebook_edit", "save_memory", "write_file")
 
-#: The two that reach the web, by the names Qwen Code calls them, taken away at every rung
-#: for an agent told not to search it rather than only at the one that already refuses them.
+#: The two that reach the web, by the names Qwen Code calls them, taken away for an agent
+#: told not to search it, whatever its fence lets it write: the network alone decides the web.
 #: Told so, rather than left unsaid: an agent nobody has been asked about carries None here
 #: and not False, and silence is not a no -- it leaves both tools where `qwen` leaves them.
 #:
@@ -689,26 +661,27 @@ class QwenCodeSession(StreamSessionBase):
             "--model",
             self._agent.config.model,
         ]
-        if rung := self._agent.config.permission:
-            # Everything the rung leaves is approved without being asked: a flow watches its
+        fence = self._agent.config.fence
+        if fence is not None:
+            # Everything the fence leaves is approved without being asked: a flow watches its
             # agent rather than gating it, and a turn waiting on an approval nobody is there
             # to give -- and, on this transport, nobody can answer -- is a flow that has
-            # stopped. Off the table rather than written here, since the day this CLI can be
-            # asked a rung it will be one line above and none here. And where there is no
-            # rung, no flag: the mode is the rung's whole saying, so an agent nobody declared
-            # one for is started with neither and runs at whatever `qwen` runs itself at.
-            argv += ["--approval-mode", _PERMITTED[rung]]
+            # stopped. And where there is no fence, no flag: an agent driven by hand is
+            # started with neither and runs at whatever `qwen` runs itself at.
+            argv += ["--approval-mode", _APPROVAL]
         if _asked(self._agent.config, "partial_messages", default=False):
             # Off in the CLI and off here, because it is a different stream to read rather
             # than more of the same one, and an install that says nothing gets what `qwen`
             # itself does. On, the words arrive as the model writes them.
             argv += ["--include-partial-messages"]
-        withheld = list(_WITHHELD.get(self._agent.config.permission, ()))
-        fence = self._agent.config.fence
+        withheld: list[str] = []
+        if fence is not None and not fence.writes:
+            withheld += _WRITERS
         if self._agent.config.web_search is False or (
             fence is not None and not fence.online
         ):
-            withheld += [one for one in _WEB_TOOLS if one not in withheld]
+            # Decided by the network alone, whatever the fence lets the agent write.
+            withheld += _WEB_TOOLS
         if withheld:
             argv += ["--exclude-tools", ",".join(withheld)]
         if (schema := self._shaping) is not None:

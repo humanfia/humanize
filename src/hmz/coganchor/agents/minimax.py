@@ -22,13 +22,15 @@ it takes one: MiniMax Code refuses a turn given a rung its model has not got rat
 at some other strength, so a rung this account's catalogue says the model lacks is refused here
 before a turn is spent finding out.
 
-Its permission ladder is three words on its command line, and none of them is read-only:
-`smart`, where its own reviewer decides what is safe and anything it would have asked about
-fails the turn, there being nobody at a headless run to ask; `full`, where nothing is asked;
-and `off`, where nothing is even reviewed. It has no sandbox of its own that holds a turn to a
-directory, so `workspace-write` is `full` held by a fence from outside, and `read-only` is a
-rung it will not take -- a flow wanting one gets its agent run at `bypass` inside a fence that
-writes nothing, which is the one read-only it can honestly be held to.
+What it may do unasked is three words on its command line, `--permission`, and none of them
+withholds a tool: `smart`, where its own reviewer decides what is safe and anything it would
+have asked about fails the turn, there being nobody at a headless run to ask; `full`, where
+nothing is asked; and `off`, where nothing is even reviewed. It has no sandbox of its own that
+holds a turn to a directory, and no way of being started without its writing tools. So a fenced
+agent is run at `full` whatever its fence says, every request granted and the fence holding the
+grant (protocol/core.md Section 4.6.2.2) -- one that writes nothing is held to that from outside,
+which is the one read-only it can honestly be held to -- and an agent nobody fenced is told
+nothing at all, and runs wherever `mcode exec` by itself would have put it.
 
 Nor can it be told to leave the web alone. Its `web_search` is not run here: the model asks for
 it and MiniMax's own service answers, on the very hosts a turn cannot be taken without -- so a
@@ -55,7 +57,7 @@ from hmz.coganchor import models
 from hmz.coganchor.backends import AUTO
 
 from .base import AgentBase, CommandSessionBase
-from .config import UNSAID, AgentConfig, Unfenced, Unserved
+from .config import AgentConfig, Unfenced, Unserved
 from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
@@ -71,18 +73,10 @@ if TYPE_CHECKING:
 #: What the CLI is installed as.
 _COMMAND = "mcode"
 
-#: What a turn is run at for each rung it takes, as `--permission`. `workspace-write` and
-#: `bypass` are one agent here, since nothing of MiniMax Code's own stops a write at the edge of
-#: the workspace: the fence around it is what does, and `full` is the rung that leaves the fence
-#: to do it rather than failing a turn on a question nobody is there to answer. `auto` is its
-#: own reviewer, `smart`, which is what it runs at when it is told nothing -- and the silence is
-#: no flag at all, leaving the turn wherever `mcode exec` itself would have put it.
-_PERMITTED = {
-    "workspace-write": ("--permission", "full"),
-    "auto": ("--permission", "smart"),
-    "bypass": ("--permission", "full"),
-    UNSAID: (),
-}
+#: What a fenced turn is run at, as `--permission`: `full`, which asks nothing and leaves the
+#: fence to hold the grant, rather than failing a turn on a question nobody is there to answer.
+#: An agent with no fence is given no flag at all. See the module.
+_GRANTED = ("--permission", "full")
 
 #: The tool it starts an agent of its own with, by the name its stream calls it. A turn that
 #: reaches for it is a turn with an agent under it, which is worth showing as that.
@@ -252,7 +246,7 @@ class MiniMaxCodeSession(CommandSessionBase):
             # path is one this machine may not have at all.
             "--cwd",
             self._workspace(),
-            *_PERMITTED[configured.permission],
+            *(_GRANTED if configured.fence is not None else ()),
         ]
         if configured.model:
             asked = configured.model
@@ -463,10 +457,6 @@ class MiniMaxCodeAgentConfig(AgentConfig):
 
 class MiniMaxCodeAgent(AgentBase):
     """MiniMax Code, driven through its own command line, one run per turn."""
-
-    #: Three of the four: it has no rung that changes nothing, so `read-only` is held by a
-    #: fence around it rather than said to it. See the module.
-    rungs: ClassVar[tuple[str, ...]] = ("workspace-write", "auto", "bypass")
 
     #: What the `usage` on the line a turn ends on counts: the input, the output, and the cache
     #: read and written to -- four figures, the input already net of the other two.

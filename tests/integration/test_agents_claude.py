@@ -8,6 +8,7 @@ says the turn it wants by what it asks.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shlex
 import subprocess
@@ -29,6 +30,7 @@ from hmz.coganchor.agents import (
     Unrecoverable,
     Verdict,
 )
+from hmz.coganchor.fence import Fence
 from tests.integration.doubles_agents import Standins, kinds, standins
 
 if TYPE_CHECKING:
@@ -349,12 +351,32 @@ def test_hooks_watch_the_prompt_and_a_refused_stop_sends_the_agent_on(
     assert claude.said() == ["first", "once more"]
 
 
-def test_a_permission_request_is_put_to_the_hook_and_refused(claude: Standins) -> None:
-    agent = ClaudeCodeAgent(
-        ClaudeCodeAgentConfig(
-            model="claude-stand-in", effort="high", permission="bypass"
-        )
-    )
+@pytest.fixture
+def fenced(monkeypatch: pytest.MonkeyPatch) -> ClaudeCodeAgentConfig:
+    """The stand-in's config with a fence that writes somewhere, the wall itself not put up.
+
+    A fence is what makes the driver route requests over the stream at all, and what is
+    checked here is how they are answered, not what the wall refuses -- which would also keep
+    the stand-in from writing down its calls.
+    """
+
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    return dataclasses.replace(CONFIG, fence=Fence(write=("/w",), online=True))
+
+
+def test_a_permission_request_is_put_to_the_hook_and_refused(
+    claude: Standins, fenced: ClaudeCodeAgentConfig
+) -> None:
+    agent = ClaudeCodeAgent(fenced)
     seen: list[Occasion] = []
 
     def gate(occasion: Occasion) -> Verdict:
@@ -370,12 +392,10 @@ def test_a_permission_request_is_put_to_the_hook_and_refused(claude: Standins) -
     assert claude.calls()[0].flag("--permission-prompt-tool") == "stdio"
 
 
-def test_a_permission_nobody_refused_is_allowed(claude: Standins) -> None:
-    agent = ClaudeCodeAgent(
-        ClaudeCodeAgentConfig(
-            model="claude-stand-in", effort="high", permission="bypass"
-        )
-    )
+def test_a_permission_nobody_refused_is_allowed(
+    claude: Standins, fenced: ClaudeCodeAgentConfig
+) -> None:
+    agent = ClaudeCodeAgent(fenced)
 
     assert agent.new()("ask") == "allow:"
 

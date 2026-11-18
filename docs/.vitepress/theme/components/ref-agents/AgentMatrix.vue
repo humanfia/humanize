@@ -7,7 +7,9 @@
 //   harness may ask for
 // - Schema, Tools: `shapes` and `takes_tools` on each session class in
 //   src/hmz/coganchor/agents/*.py
-// - Rungs, Fast: `rungs` and `service_tiers` on each agent class there
+// - Withholds: whether each driver withholds its CLI's writing tools under a fence that writes
+//   nothing, or runs it unattended and leaves that to the fence
+// - Fast: `service_tiers` on each agent class there
 // - Fork, Web off: `forks` and `searches` on each Profile in src/hmz/coganchor/backends.py (an
 //   added ACP CLI is `_speaks`); "+cwd" is `forks_elsewhere` on the session class
 // - Trace: `_READERS` in src/hmz/runtime/tracing/collector.py
@@ -39,7 +41,7 @@ type Key =
   | 'schema'
   | 'fork'
   | 'web'
-  | 'rungs'
+  | 'withholds'
   | 'fast'
   | 'tools'
   | 'trace'
@@ -64,9 +66,7 @@ const Y: Cell = { can: true, text: 'yes', tone: 'tip' }
 const N: Cell = { can: false, text: '', tone: 'info' }
 const ELSEWHERE: Cell = { can: true, text: '+cwd', tone: 'tip' }
 const IF_SERVED: Cell = { can: true, text: 'if served', tone: 'warning' }
-const ALL4: Cell = { can: true, text: 'all 4', tone: 'tip' }
-const BYPASS: Cell = { can: false, text: 'bypass', tone: 'warning' }
-const NO_RO: Cell = { can: false, text: 'no read-only', tone: 'warning' }
+const FENCED: Cell = { can: false, text: 'fence holds', tone: 'warning' }
 const HELD: Cell = { can: true, text: 'held turns', tone: 'warning' }
 
 const COLUMNS: Column[] = [
@@ -79,7 +79,7 @@ const COLUMNS: Column[] = [
   { key: 'schema', head: 'Schema held', href: '#answering-in-a-shape', filter: 'hold a schema', group: 'driver' },
   { key: 'fork', head: 'Fork', href: '#a-conversation-that-goes-two-ways', filter: 'fork', group: 'driver' },
   { key: 'web', head: 'Web off', href: '#whether-an-agent-may-search-the-web', filter: 'switch web search off', group: 'driver' },
-  { key: 'rungs', head: 'Rungs', href: '#what-an-agent-may-do', filter: 'take all four rungs', group: 'driver' },
+  { key: 'withholds', head: 'Withholds', href: '#what-an-agent-may-do', filter: 'withhold writing tools', group: 'driver' },
   { key: 'fast', head: 'Fast tier', href: '#the-service-tier', filter: 'take the fast tier', group: 'driver' },
   { key: 'tools', head: 'Tools', href: '#callbacks-as-tools', filter: 'be offered callbacks', group: 'driver' },
   { key: 'trace', head: 'Trace', href: '#state-and-logs', filter: 'be traced', group: 'driver' },
@@ -96,30 +96,30 @@ function row(
 }
 
 const ROWS: Row[] = [
-  row('agy', 'Antigravity', { schema: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
+  row('agy', 'Antigravity', { schema: Y, web: Y, withholds: Y, tools: Y, trace: Y }),
   row('claude', 'Claude Code', {
     goal: Y, loop: Y, steer: Y, perm: Y, sub: Y, ask: Y,
-    schema: Y, fork: ELSEWHERE, web: Y, rungs: ALL4, fast: Y, tools: Y, trace: Y,
+    schema: Y, fork: ELSEWHERE, web: Y, withholds: Y, fast: Y, tools: Y, trace: Y,
   }),
   row('codex', 'Codex', {
     goal: Y, steer: Y, perm: Y, sub: Y, ask: Y,
-    schema: Y, fork: ELSEWHERE, web: Y, rungs: ALL4, fast: Y, tools: Y, trace: Y,
+    schema: Y, fork: ELSEWHERE, web: Y, withholds: Y, fast: Y, tools: Y, trace: Y,
   }),
-  row('cursor-agent', 'Cursor Agent', { sub: Y, rungs: ALL4, fast: Y }),
-  row('dsh', 'DeepSeek Harness', { goal: Y, web: Y, rungs: BYPASS, tools: Y, trace: Y }),
-  row('grok', 'Grok Build', { schema: Y, fork: Y, web: Y, rungs: ALL4, tools: HELD, trace: Y }),
+  row('cursor-agent', 'Cursor Agent', { sub: Y, withholds: FENCED, fast: Y }),
+  row('dsh', 'DeepSeek Harness', { goal: Y, web: Y, withholds: FENCED, tools: Y, trace: Y }),
+  row('grok', 'Grok Build', { schema: Y, fork: Y, web: Y, withholds: Y, tools: HELD, trace: Y }),
   row('kimi', 'Kimi Code', {
     goal: Y, steer: Y, perm: Y, ask: Y,
-    fork: ELSEWHERE, web: Y, rungs: ALL4, trace: Y,
+    fork: ELSEWHERE, web: Y, withholds: Y, trace: Y,
   }),
-  row('litellm', 'a model, called directly', { schema: Y, fork: ELSEWHERE, rungs: ALL4, trace: Y }),
-  row('mcode', 'MiniMax Code', { sub: Y, schema: Y, rungs: NO_RO, trace: Y }),
-  row('mimo', 'mimocode', { fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('omp', 'Oh My Pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('opencode', 'opencode', { fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('pi', 'pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, rungs: ALL4, tools: Y, trace: Y }),
-  row('an ACP CLI', 'added on this machine', { fork: IF_SERVED, rungs: BYPASS, tools: Y }),
+  row('litellm', 'a model, called directly', { schema: Y, fork: ELSEWHERE, trace: Y }),
+  row('mcode', 'MiniMax Code', { sub: Y, schema: Y, withholds: FENCED, trace: Y }),
+  row('mimo', 'mimocode', { fork: Y, web: Y, withholds: Y, tools: Y, trace: Y }),
+  row('omp', 'Oh My Pi', { steer: Y, ask: Y, fork: Y, withholds: FENCED, tools: Y, trace: Y }),
+  row('opencode', 'opencode', { fork: Y, web: Y, withholds: Y, tools: Y, trace: Y }),
+  row('pi', 'pi', { steer: Y, ask: Y, fork: Y, withholds: Y, tools: Y, trace: Y }),
+  row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, withholds: Y, tools: Y, trace: Y }),
+  row('an ACP CLI', 'added on this machine', { fork: IF_SERVED, withholds: FENCED, tools: Y }),
 ]
 
 const picked = ref<Set<Key>>(new Set())

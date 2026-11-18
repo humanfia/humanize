@@ -514,7 +514,7 @@ mapping from each node's id, matching `[A-Za-z][A-Za-z0-9_.-]*`, to its node.
 `balance`, a strategy (Section 4.11.4.7 of [CORE]), `among`, a mapping from each nous it picks out
 of to its weight, a positive integer, and `spread`, a non-negative integer defaulting to 0.
 
-**3.6.1.10** A node's edges MUST be `on`, a mapping from a fault class (Section 4.2.13 of [CORE]) or
+**3.6.1.10** A node's edges MUST be `on`, a mapping from a fault class (Section 4.2.12 of [CORE]) or
 `*` to the id of a node, and `next`, which MUST mean the same as `on` with `*` alone.
 
 **3.6.1.11** A writer MUST write a graph that is a list of use nodes each with only a `*` edge to the
@@ -1995,7 +1995,7 @@ outside any directory **hmz** creates.
 directory of the **user** that a **harness** reads as its configuration, that holds settings, model
 or provider declarations, agents, commands, skills, hooks or tool servers.
 
-**8.2.4** The term managed item MUST carry the meaning Section 4.2.9 of [CORE] gives it.
+**8.2.4** The term managed item MUST carry the meaning Section 4.2.8 of [CORE] gives it.
 
 **8.2.5** **Virtual config home**: a process-private temporary directory on the **harness machine**
 that **hmz** creates for one **harness** process and that the process uses as its harness home.

@@ -427,15 +427,18 @@ to the head of the queue).
 
 ### Asides {#asides}
 
-An aside is a read-only side session: `permission` read-only, no goals, no skills, no allowed
-tools, MCP approval off, watched by nothing. Only the newest 256 conversations of the last run
+An aside is a read-only side session: inside a fence of its own that writes nothing (the
+read-only twin of its agent's fence, `Fence.reading()`, or one reading `/` for an agent that has
+none), its CLI told as for any such fence, no goals, no skills, no allowed tools, MCP approval
+off, watched by nothing. Only the newest 256 conversations of the last run
 can be forked. An aside about a session an earlier run kept is a fork of it carried on from
 where that run kept it -- into a directory of the aside's own in this machine's directory,
 removed as the aside is closed, never where that run keeps its sessions nor the CLI's own home --
 and a fresh copy of its agent where its CLI does not fork or the session was not kept. An aside
 is closed on `unaside`, when its frontend detaches, when a run starts, and when the host closes.
-No message announces asides. A harness with no read-only rung (`mcode`, `dsh`, ACP) is refused:
-`<harness> cannot answer a side question: it has no read-only rung`.
+No message announces asides. Every harness can answer one, `mcode`, `dsh` and ACP included; a
+machine that cannot hold the fence refuses the aside with the `Unfenced` message
+(`<Agent> cannot be held to its permission on this machine: ...`).
 
 The daemon's `btw.*` asks each side question of a session through a frontend of its own, of
 kind `btw`, on the host holding that session: the workspace's own host for the epic in view

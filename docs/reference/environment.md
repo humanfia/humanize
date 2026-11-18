@@ -181,7 +181,7 @@ watch, and never set.
 | a CLI's home variable and `XDG_CONFIG_HOME` | a native turn on another machine under an account whose credential files live in the CLI's home | a per-session `mktemp -d` directory on the target holding copies of those files, removed after the turn |
 | `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` | every `claude` turn | `1` |
 | `CLAUDE_CODE_NO_MODEL_FALLBACK` | every `claude` turn, overriding an inherited value | `1`: a refused turn stays on the requested model |
-| `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a rung, web switch or fence to express | a JSON permission table |
+| `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode`/`mimo` turns with a fence or web switch to express | a JSON permission table |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` turns whose fence does not allow reading `~/.claude.json` | `1` |
 | `MIMO_GATEWAY_MODEL` | `mimo` turns under a gateway account | the turn's model, without a leading `humanize/` |
 | `NODE_COMPILE_CACHE` | `pi`, `qwen` turns on this machine, unless already set | `$TMPDIR/humanize-<uid>/compiled/pi`, `…/compiled/qwen` |

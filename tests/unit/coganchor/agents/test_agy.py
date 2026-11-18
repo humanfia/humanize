@@ -99,9 +99,27 @@ def test_a_print_timeout_that_is_no_number_of_seconds_is_refused(
         AntigravityCLIAgentConfig(model="m", effort="", print_timeout=seconds)
 
 
-def test_read_only_without_slash_commands_is_refused() -> None:
-    with pytest.raises(Unserved, match="plan mode"):
-        _agent(permission="read-only", disable_slash_commands=True)
+def _held(*, writes: bool = False, online: bool = True) -> Fence:
+    """A fence drawn from one rule over the working directory, which writes it or reads it."""
+    return Fence.of(
+        rules=[(".", "write" if writes else "read")],
+        online=online,
+        workdir="/work",
+        home="/home/someone",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _fenceable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A machine that can put up any fence."""
+    monkeypatch.setattr(fence, "enforceable", fenceable)
+
+
+def test_a_fence_writing_nothing_is_served_without_slash_commands() -> None:
+    config = AntigravityCLIAgentConfig(
+        **configured("gemini-3-pro", {"fence": _held(), "disable_slash_commands": True})
+    )
+    assert AntigravityCLIAgent(config).config is config
 
 
 def test_a_fence_is_held_from_outside_whatever_it_is() -> None:
@@ -176,10 +194,8 @@ def test_what_a_turn_cost_is_what_the_running_total_rose_by(
 @pytest.mark.parametrize(
     ("said", "flags"),
     [
-        ({"permission": "read-only"}, ["--mode", "plan"]),
-        ({"permission": "workspace-write"}, ["--mode", "accept-edits"]),
-        ({"permission": "auto"}, ["--dangerously-skip-permissions"]),
-        ({"permission": "bypass"}, ["--dangerously-skip-permissions"]),
+        ({"fence": _held()}, ["--dangerously-skip-permissions"]),
+        ({"fence": _held(writes=True)}, ["--dangerously-skip-permissions"]),
         ({"effort": "high"}, ["--effort", "high"]),
         ({"sandbox": True}, ["--sandbox"]),
         ({"disable_slash_commands": True}, ["--disable-slash-commands"]),
@@ -230,13 +246,23 @@ def test_without_the_workspace_added_no_directory_is(
 @pytest.mark.parametrize(
     ("said", "named", "tools"),
     [
-        ({"permission": "read-only"}, "hmz-read-only", "view_file"),
         (
-            {"permission": "read-only", "web_search": True},
+            {"fence": _held()},
+            "hmz-read-only",
+            "view_file, grep_search, find_by_name, list_dir, run_command]",
+        ),
+        (
+            {"fence": _held(), "web_search": True},
             "hmz-read-only-web",
-            "search_web",
+            "run_command, read_url_content, search_web]",
+        ),
+        (
+            {"fence": _held(online=False), "web_search": True},
+            "hmz-read-only",
+            "run_command]",
         ),
         ({"web_search": False}, "hmz-offline", "run_command"),
+        ({"fence": _held(writes=True, online=False)}, "hmz-offline", "write_to_file"),
     ],
 )
 def test_what_it_may_reach_is_an_agent_of_humanize_written_into_its_virtual_home(
@@ -255,8 +281,10 @@ def test_what_it_may_reach_is_an_agent_of_humanize_written_into_its_virtual_home
 
     _turn(session)
 
-    assert option(spawned[0].args, "--agent") == named
-    home = (tmp_path / "home/.gemini" / spawned[0].args[1].partition("=")[2]).resolve()
+    argv = spawned[0].args
+    argv = argv[argv.index("agy") :]  # past the fence it is started in, if any
+    assert option(argv, "--agent") == named
+    home = (tmp_path / "home/.gemini" / argv[1].partition("=")[2]).resolve()
     defined = home / "agents" / f"{named}.md"
     assert f"name: {named}" in defined.read_text()
     assert tools in defined.read_text()
@@ -294,9 +322,8 @@ def test_a_harness_on_another_machine_has_humanize_s_agents_written_there(
     ]
 
 
-@pytest.mark.parametrize("said", [{"permission": "read-only"}, {"web_search": False}])
 def test_humanize_s_agents_hold_it_on_another_machine_whose_home_carries_them(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, said: dict[str, Any]
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from hmz.coganchor.anchor import AnchorConfig
     from hmz.coganchor.machines import AnchoredConfig
@@ -307,10 +334,10 @@ def test_humanize_s_agents_hold_it_on_another_machine_whose_home_carries_them(
             anchor=AnchorConfig(target="ssh://box", workspace=str(tmp_path))
         ),
     ):
-        assert _agent(machine=machine, **said).config.machine is machine
+        assert _agent(machine=machine, web_search=False).config.machine is machine
 
 
-@pytest.mark.parametrize("said", [{"permission": "read-only"}, {"web_search": False}])
+@pytest.mark.parametrize("said", [{"fence": _held()}, {"web_search": False}])
 def test_a_native_turn_cannot_be_held_by_humanize_s_agents(
     tmp_path: Path, said: dict[str, Any]
 ) -> None:
@@ -318,7 +345,9 @@ def test_a_native_turn_cannot_be_held_by_humanize_s_agents(
     from hmz.coganchor.machines import AnchoredConfig
 
     anchor = AnchorConfig(target="ssh://box", workspace=str(tmp_path), native=True)
-    _agent(machine=AnchoredConfig(anchor=anchor))  # every rung open: nothing to hold it
+    _agent(
+        machine=AnchoredConfig(anchor=anchor)
+    )  # unfenced, on the web: nothing to hold it
     with pytest.raises(Unserved, match="natively"):
         _agent(machine=AnchoredConfig(anchor=anchor), **said)
 
@@ -352,14 +381,14 @@ def test_an_account_naming_its_own_home_runs_there(
 def test_an_account_naming_its_own_home_cannot_be_held_to_reading(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    agent = _agent(permission="read-only")
+    agent = _agent(fence=_held())
     _own(agent, monkeypatch)
 
     with pytest.raises(Unserved, match="app_data_dir"):
         agent.homed()
 
 
-@pytest.mark.parametrize("said", [{"permission": "read-only"}, {"web_search": False}])
+@pytest.mark.parametrize("said", [{"fence": _held()}, {"web_search": False}])
 def test_an_account_naming_its_own_home_is_refused_before_its_first_turn(
     monkeypatch: pytest.MonkeyPatch, said: dict[str, Any]
 ) -> None:
@@ -401,7 +430,6 @@ def test_the_plugin_carrying_the_flow_s_callbacks_is_let_through_its_fence(
 
     argv = spawned[0].args
     plugin = [b for a, b in itertools.pairwise(argv) if a == "--add-dir"][-1]
-    monkeypatch.setattr(fence, "enforceable", fenceable)
     held = Fence(online=False)
     agent.reconfigure(dataclasses.replace(agent.config, fence=held))
     fenced = agent.fenced()
@@ -414,16 +442,20 @@ def test_the_plugin_carrying_the_flow_s_callbacks_is_let_through_its_fence(
     session.close()
 
 
-def test_an_agent_with_the_web_and_every_rung_open_is_held_to_no_agent(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize("said", [{}, {"fence": _held(writes=True)}])
+def test_an_agent_on_the_web_that_writes_or_is_unfenced_is_held_to_no_agent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, said: dict[str, Any]
 ) -> None:
     spawned = spawning(monkeypatch, answers=_answering(*_SAID))
-    agent = _agent(permission="auto", web_search=True)
+    agent = _agent(web_search=True, **said)
     heard(agent)
 
     _turn(agent.new(tmp_path))
 
-    assert "--agent" not in spawned[0].args
+    argv = spawned[0].args
+    assert "--agent" not in argv
+    assert "--mode" not in argv
+    assert ("--dangerously-skip-permissions" in argv) == bool(said)
 
 
 def test_a_slash_command_is_a_print_of_its_own(

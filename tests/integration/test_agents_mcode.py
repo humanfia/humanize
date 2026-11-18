@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.agents import Event
 
 MODEL = "custom_provider:gateway/minimax-stand-in"
-CONFIG = MiniMaxCodeAgentConfig(model=MODEL, effort="", permission="bypass")
+CONFIG = MiniMaxCodeAgentConfig(model=MODEL, effort="")
 
 MCODE = r"""
 prompt = sys.stdin.read()

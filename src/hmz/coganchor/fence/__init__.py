@@ -141,7 +141,17 @@ LINUX_SYSTEM: Final = (
 #: The same on a Mac, where the libraries and frameworks are under `/System` as well as
 #: `/usr`, `/bin/sh` reads which shell it is from `/private/var/select`, and `/etc/localtime`
 #: leads into `/private/var/db/timezone`. `/Library` and `/opt` are not among them, for the
-#: reason `/opt` is not on Linux.
+#: reason `/opt` is not on Linux -- except the developer tools. `/usr/bin/git`, `make`, `clang`
+#: and `python3` on a Mac are Apple's `xcrun` shims, which follow
+#: `/private/var/db/xcode_select_link` to the developer directory `xcode-select` chose and load
+#: `libxcrun.dylib` and the real program from there; a fence that kept them out would have
+#: `git log` fail with `xcrun: error: unable to load libxcrun` before it read anything. So the
+#: link is read, and the two places it leads on any Mac that has the tools: the Command Line
+#: Tools, and Xcode where it is installed -- the whole of `Xcode.app`, whose tools load its
+#: `SharedFrameworks` and `Frameworks` beside `Contents/Developer`, with the plist its license
+#: is checked against. A directory chosen anywhere else is added where the fence is drawn
+#: (:func:`_developer`).
+_XCODE_SELECT: Final = "/private/var/db/xcode_select_link"
 DARWIN_SYSTEM: Final = (
     "/usr",
     "/bin",
@@ -149,6 +159,10 @@ DARWIN_SYSTEM: Final = (
     "/System",
     "/private/var/select",
     "/private/var/db/timezone",
+    _XCODE_SELECT,
+    "/Library/Developer/CommandLineTools",
+    "/Library/Preferences/com.apple.dt.Xcode.plist",
+    "/Applications/Xcode.app",
     "/etc/ssl",
     "/etc/resolv.conf",
     "/etc/hosts",
@@ -212,6 +226,26 @@ SYSTEM: Final = DARWIN_SYSTEM if sys.platform == "darwin" else LINUX_SYSTEM
 DEVICES: Final = DARWIN_DEVICES if sys.platform == "darwin" else LINUX_DEVICES
 
 
+def _developer() -> tuple[str, ...]:
+    """The developer directory `xcode-select` chose, on a Mac, where it is not already read.
+
+    Read off the link itself rather than by running `xcode-select -p`, which is one more
+    program started for every fence drawn. The whole app where it is inside one, as
+    `Xcode.app` is in :data:`DARWIN_SYSTEM`. Nothing on Linux, nothing where no directory was
+    chosen, and nothing where the one chosen is among :data:`DARWIN_SYSTEM` already.
+    """
+    if sys.platform != "darwin":
+        return ()
+    try:
+        chosen = os.path.realpath(_XCODE_SELECT, strict=True)
+    except OSError:
+        return ()
+    if any(_under(chosen, one) for one in DARWIN_SYSTEM):
+        return ()
+    app, inside, _ = chosen.partition(".app/")
+    return (f"{app}.app" if inside else chosen,)
+
+
 def _accelerators() -> tuple[str, ...]:
     """The GPUs' device nodes on this machine, to write however little else is.
 
@@ -227,6 +261,11 @@ def _accelerators() -> tuple[str, ...]:
         "/dev/kfd",
         "/dev/infiniband",
     )
+
+
+def _written() -> tuple[str, ...]:
+    """What every fence writes however little its rules do: :data:`DEVICES` and the GPUs'."""
+    return (*DEVICES, *_accelerators())
 
 
 def _temporary() -> tuple[str, ...]:
@@ -414,8 +453,9 @@ class Fence:
     CLI at all.
 
     Drawn from a flow's rules by :meth:`of`, which adds the minimum every program needs to
-    run; made wider by :meth:`granting` and narrower by nothing, since a fence that can only
-    widen once built is one nobody can quietly tighten into a CLI that cannot start.
+    run; made wider by :meth:`granting`, and narrower only by :meth:`reading`, which keeps
+    that minimum -- a fence that cannot otherwise be narrowed once built is one nobody can
+    quietly tighten into a CLI that cannot start.
 
     Attributes:
       read: Absolute paths that may be read, listed and executed.
@@ -504,9 +544,10 @@ class Fence:
         in :attr:`write`; one read in :attr:`read`, or in :attr:`keep` beneath one written;
         one kept from in :attr:`deny` beneath one granted, and left out otherwise.
 
-        Then the minimum is added, whatever the rules were: :data:`SYSTEM` and the Python
-        Humanize runs on to read, :data:`DEVICES` and the GPUs' nodes to write -- each a grant,
-        which a rule carving out a path above it does not take back. A workdir that may be
+        Then the minimum is added, whatever the rules were: :data:`SYSTEM`, the developer
+        directory a Mac's `xcode-select` chose, and the Python Humanize runs on to read,
+        :data:`DEVICES` and the GPUs' nodes to write -- each a grant, which a rule carving out
+        a path above it does not take back. A workdir that may be
         written writes :data:`TEMPORARY` as well, as a workspace Codex may write does; a home
         that may be written -- by a rule at it or above it, and not only as part of a workdir
         it is inside -- writes whatever the user may change, which for anyone but root is the
@@ -554,8 +595,8 @@ class Fence:
             write=writing
         )
         return fence._at(held).granting(  # noqa: SLF001 -- its own class's
-            read=(*SYSTEM, *_ours(), *read),
-            write=(*DEVICES, *_accelerators(), *write),
+            read=(*SYSTEM, *_developer(), *_ours(), *read),
+            write=(*_written(), *write),
         )
 
     def _at(self, held: dict[str, str]) -> Fence:
@@ -634,6 +675,48 @@ class Fence:
         return any(
             access == WRITE and path.partition("/")[0] != _WORKDIR
             for path, access in self.standing
+        )
+
+    @property
+    def writes(self) -> bool:
+        """Whether this fence lets anything be written that a flow's rules said may be.
+
+        What a driver reads off the fence to tell its CLI what it may do: a fence that writes
+        nothing is one whose CLI's file-writing tools are withheld, its shell kept -- the fence
+        refuses any write the shell attempts -- and one that writes somewhere is one whose CLI
+        is given every tool, the fence holding where the writes land. Read off the rules that
+        stand (:attr:`standing`), so that a write a later rule takes back writes nothing; for a
+        fence drawn path by path, off the paths it writes beyond the minimum every program
+        needs, which are devices and not anybody's files.
+        """
+        if self.drawn:
+            return any(access == WRITE for _, access in self.standing)
+        minimum = _normal(_written())
+        return any(path not in minimum for path in self.write)
+
+    def reading(self) -> Fence:
+        """This fence with nothing written but the minimum every program needs to run.
+
+        Every path it writes is read instead, and every rule it was drawn from that writes
+        reads: the read-only twin of it, which reaches what it reaches and changes nothing --
+        what a side conversation about an agent is held to, whatever that agent may write.
+        The devices of :data:`DEVICES` and the GPUs' nodes stay written, as :meth:`of` writes
+        them whatever the rules say, and the carve-outs, the network, the hosts, the ports and
+        the scratch directory stay as they are. What the CLI itself writes -- its state, its
+        account -- coganchor grants where it spawns it, as it does for every fence.
+
+        Returns:
+          The twin, for which :attr:`writes` is False.
+        """
+        minimum = _normal(_written())
+        return dataclasses.replace(
+            self,
+            read=(*self.read, *(one for one in self.write if one not in minimum)),
+            write=tuple(one for one in self.write if one in minimum),
+            drawn=tuple(
+                (path, READ if access == WRITE else access)
+                for path, access in self.drawn
+            ),
         )
 
     @property

@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, CommandSessionBase
-from .config import UNSAID, AgentConfig, Unserved
+from .config import AgentConfig, Unserved
 from .event import Event, Failed, Usage
 from .native import NativeCommand
 
@@ -57,43 +57,29 @@ _SAYS = {"text": "text", "reasoning": "reasoning"}
 _COUNTED = ("input", "output", "reasoning")
 _CACHED = ("read", "write")
 
-#: What each rung of the ladder is, said the way opencode takes it: a permission apiece for
-#: editing a file, running a command and reaching the web, each `allow`, `ask` or `deny`. A
-#: `deny` here is the tool not being offered at all, which is what makes `read-only` real; there
-#: is no sandbox, so `workspace-write` is the same agent with nothing outside the workspace to reach
-#: for, and `auto` and `bypass` are that agent with the reaching allowed.
+#: What a grant is, said the way opencode takes it: a permission apiece for editing a file and
+#: running a command, each `allow`, `ask` or `deny`, keyed by whether the fence the agent runs in
+#: writes anything at all (:attr:`~hmz.coganchor.fence.Fence.writes`). A `deny` here is the tool
+#: not being offered at all, which is the file-writing tools withheld from a grant that writes
+#: nothing; the shell is kept, its writes being the fence's to refuse, so a grant that writes
+#: nothing still runs commands and reads with them. A grant that writes somewhere is given every
+#: tool, the fence holding where the writes land.
 #:
-#: `reach` is not a permission of the CLI's but the one answer every web-reaching tool of it
-#: gets, since more than one of them is a way out and a rung that let one through while holding
-#: the others would be a rung that means nothing. :attr:`OpencodeSession.reaches` names them,
-#: and mimocode names one more than opencode does.
+#: The web is not in a row. Every web-reaching tool gets one answer, read off `web_search` and
+#: the network the fence permits (:meth:`OpencodeSession._environment`), since more
+#: than one of them is a way out and a grant that let one through while holding the others
+#: would be a grant that means nothing. :attr:`OpencodeSession.reaches` names them, and
+#: mimocode names one more than opencode does.
 #:
-#: `ask` is never emitted. It is answerable now -- a headless run answers one itself, `once`
-#: where it was told nobody is there to and `reject` where it was not -- but those are the two
-#: answers the ends of this table already give, so a rung written as `ask` would say nothing a
-#: rung written outright does not.
-#: The unsaid rung is a row with nothing in it, which is the whole of what there is to say
-#: about it: a turn whose config names no rung is one Humanize has no business writing a
-#: permission for. The row is read key by key and the table is built out of the keys it has, so
-#: an empty row leaves the table empty -- and an empty table is no variable at all, which is
-#: the turn running at whatever the person at this machine has configured, as a bare
-#: ``opencode run`` does. What may still be in the table beside such a row is the way out to
-#: the web, that being said by `web_search` rather than by the rung.
-_PERMITTED = {
-    "read-only": {"edit": "deny", "bash": "deny", "reach": "allow"},
-    "workspace-write": {"edit": "allow", "bash": "allow", "reach": "deny"},
-    "auto": {"edit": "allow", "bash": "allow", "reach": "allow"},
-    "bypass": {"edit": "allow", "bash": "allow", "reach": "allow"},
-    UNSAID: {},
+#: `ask` is never emitted: a grant is never held by asking (protocol/core.md 4.6.2.2), and a
+#: headless run answers one itself anyway. An agent with no fence has no row at all, which is
+#: the whole of what there is to say about it: an agent driven by hand is one Humanize has no
+#: business writing a permission for, and runs at whatever the person at this machine has
+#: configured, as a bare ``opencode run`` does.
+_GRANTED = {
+    False: {"edit": "deny", "bash": "allow"},
+    True: {"edit": "allow", "bash": "allow"},
 }
-
-#: The answers that withhold nothing, and so the only ones a turn run without a table of its
-#: own can honestly be at: what decides then is whatever the person at this machine has
-#: configured, which a narrower rung would have had to overrule and has no way left to. The
-#: silence is among them for a reason of its own. Not that a table could have carried it and
-#: is not needed: there is nothing to carry, and taking the table away takes away no answer
-#: because none was given -- which is the same turn either way.
-_UNNARROWED = (UNSAID, "auto", "bypass")
 
 #: What an account made by one of opencode's gateway ways is told apart by -- the URL every
 #: one of them asks for -- the provider those ways write into its config, and the variable
@@ -106,7 +92,7 @@ _GATEWAY_MODEL = "OPENCODE_GATEWAY_MODEL"
 
 
 def _tabled(config: AgentConfig) -> bool:
-    """Whether the variable this backend carries a rung in is written for this turn.
+    """Whether the variable this backend carries a grant in is written for this turn.
 
     Three answers go in it -- what the agent may do, whether it may read the web, and where
     its tools may reach under a fence -- and the variable is the only place this backend has
@@ -126,11 +112,7 @@ def _tabled(config: AgentConfig) -> bool:
     said: bool | None = getattr(config, "permission_table", None)
     if said is not None:
         return said
-    return (
-        config.permission != UNSAID
-        or config.web_search is not None
-        or config.fence is not None
-    )
+    return config.web_search is not None or config.fence is not None
 
 
 #: What opencode's own `read` table says about particular names beneath everything it lets be
@@ -242,12 +224,12 @@ def _outside(roots: tuple[str, ...]) -> str | dict[str, str]:
 def _flagged(config: AgentConfig) -> bool:
     """Whether the flag that answers what the table left to be asked about goes on the line.
 
-    The rung alone, where the two decisions part company: what the flag grants is editing and
-    running commands, which is what a rung says and what a web answer says nothing about. A
-    turn that asked only for less -- `web_search=False` beside no rung -- would be granted
-    those two on the strength of a restriction, and a restriction is not a reason to grant
-    anything. The table still goes out for such a turn, the web answer having nowhere else to
-    go; the flag does not, and what the CLI asks about is answered as that person's own
+    The fence alone, where the two decisions part company: what the flag grants is editing and
+    running commands, which is what the grant read off a fence says and what a web answer says
+    nothing about. A turn that asked only for less -- `web_search=False` beside no fence -- would
+    be granted those two on the strength of a restriction, and a restriction is not a reason to
+    grant anything. The table still goes out for such a turn, the web answer having nowhere else
+    to go; the flag does not, and what the CLI asks about is answered as that person's own
     configuration says.
 
     Args:
@@ -255,12 +237,12 @@ def _flagged(config: AgentConfig) -> bool:
 
     Returns:
       Whether the flag goes on the command line. `unattended` is the answer where the config
-      carries one; where it does not, it is whether a rung was named at all.
+      carries one; where it does not, it is whether the agent runs in a fence at all.
     """
     said: bool | None = getattr(config, "unattended", None)
     if said is not None:
         return said
-    return config.permission != UNSAID
+    return config.fence is not None
 
 
 #: How long listing what a run is configured with may take, in seconds: a run starting up,
@@ -495,7 +477,7 @@ class OpencodeSession(CommandSessionBase):
             self._workspace(),
             "--model",
             f"{_GATEWAY}/{bare}" if (bare := self._gatewayed()) else config.model,
-            # The variant is this backend's rung, and an agent at none leaves it unsaid: a
+            # The variant is this backend's effort, and an agent at none leaves it unsaid: a
             # provider with no variants takes the flag and ignores it, but one that has them
             # would read "" as a variant it does not serve.
             *(["--variant", self.effort] if self.effort else []),
@@ -523,13 +505,13 @@ class OpencodeSession(CommandSessionBase):
 
         A flow watches its agent rather than gating it, as Humanize's own flows do, and a turn
         waiting on an approval nobody is there to give is a flow that has stopped. It answers
-        yes to everything that is not refused outright, which is why the rung below is said as
+        yes to everything that is not refused outright, which is why the grant is said as
         refusals: what the agent may not do is denied, and the flag is what carries the rest.
 
         What the flag is called is all this says. Whether a turn carries it at all is the
-        agent's `unattended`, which where nobody has said comes to whether a rung was named at
-        all. A turn that does not carry it gets the CLI's own answer instead -- a headless run
-        refuses what it is asked rather than waiting to be told.
+        agent's `unattended`, which where nobody has said comes to whether the agent runs in a
+        fence at all. A turn that does not carry it gets the CLI's own answer instead -- a
+        headless run refuses what it is asked rather than waiting to be told.
         """
         return ["--auto"]
 
@@ -556,11 +538,11 @@ class OpencodeSession(CommandSessionBase):
 
         A table the flow asked not to have written is not written at all, and the turn runs at
         whatever that person's own configuration says. `permission_table` is where that is
-        said, and the config refuses it off beside a rung or a web switch this was the only way
-        of carrying.
+        said, and the config refuses it off beside a fence or a web switch whose withholding
+        this was the only way of carrying.
 
         A table with nothing in it is not written either, and nobody has to ask for that: a
-        config that names no rung and states no web switch has nothing to put in one, and a
+        config that has no fence and states no web switch has nothing to put in one, and a
         variable set to that would be Humanize answering a question nobody put to it.
 
         And, for a gateway account, which of the gateway's models its config lists: the one
@@ -579,28 +561,25 @@ class OpencodeSession(CommandSessionBase):
             environment[type(self).configures] = self._offering(environment, lodged)
         if not _tabled(config):
             return environment
-        # A word this table has no row for falls to the row that says nothing, as codex and
-        # kimi do with theirs. Unreachable while the config validates what it carries, and
-        # written this way for the day it is not: a fall-back to `bypass` would answer a rung
-        # nobody here recognises with the loosest one there is, and the honest answer to a
-        # word Humanize cannot read is to say nothing about it.
-        rung = _PERMITTED.get(config.permission, _PERMITTED[UNSAID])
-        # A rung that already withholds the web is not asked twice: it and `web_search` say
-        # the same thing here, and either of them saying it is enough. An unsaid rung says
-        # nothing about it at all, so the switch says it alone -- and where the switch is
-        # unstated beside such a rung, the web stays out of the table as everything else does.
+        # The grant is read off the fence the flow drew, not off the one widened by what the
+        # CLI itself needs: its own state is written whatever the grant, and is not a write
+        # the agent was granted.
+        fence = config.fence
+        granted = _GRANTED[fence.writes] if fence is not None else {}
+        # The web is said by `web_search`, which a flow sets off the network its grant
+        # permits; where the switch is unstated the web stays out of the table as everything
+        # else does, and a fence that cuts the network takes the web tools away below
+        # whatever the switch says.
         reaching = (
             "deny"
             if config.web_search is False
-            else rung.get("reach") or ("allow" if config.web_search else "")
+            else ("allow" if config.web_search else "")
         )
-        allowed: dict[str, str | dict[str, str]] = {
-            named: rung[named] for named in ("edit", "bash") if named in rung
-        }
+        allowed: dict[str, str | dict[str, str]] = dict(granted)
         if reaching:
             allowed |= dict.fromkeys(type(self).reaches, reaching)
-        if (fence := self._agent.fenced()) is not None:
-            allowed |= self._fenced(fence, rung)
+        if (widened := self._agent.fenced()) is not None:
+            allowed |= self._fenced(widened, granted)
         if not allowed:
             return environment
         return {**environment, type(self).permits: json.dumps(allowed)}
@@ -671,7 +650,7 @@ class OpencodeSession(CommandSessionBase):
         return json.dumps(config, separators=(",", ":"))
 
     def _fenced(
-        self, fence: Fence, rung: dict[str, str]
+        self, fence: Fence, granted: dict[str, str]
     ) -> dict[str, str | dict[str, str]]:
         """What the table says about where the agent's own tools may reach under a fence.
 
@@ -684,28 +663,27 @@ class OpencodeSession(CommandSessionBase):
         does not let be written, not to read what it does not let be read, and its web tools
         taken away where the network is cut.
 
-        Only ever narrower than the rung. An edit the rung already denies stays denied outright,
-        and what the fence lets be written is answered as the rung answers it -- `allow` where
-        the rung is unsaid, since a fence is itself a permission said and grants what is inside
-        it. Reading is narrowed only where the fence does not let the whole system be read, and
-        writing only where it does not let the whole of it be written, so the default permission
-        says nothing here about reading at all.
+        Only ever narrower than the grant. An edit a grant that writes nothing denies stays
+        denied outright, never widened to the paths the CLI writes for itself, and what the
+        fence lets be written is answered `allow`. Reading is narrowed only where the fence
+        does not let the whole system be read, and writing only where it does not let the whole
+        of it be written, so the default permission says nothing here about reading at all.
 
         Args:
           fence: The whole of what the agent may reach, from
             :meth:`~hmz.coganchor.agents.AgentBase.fenced`.
-          rung: The rung's row of :data:`_PERMITTED`.
+          granted: The grant's row of :data:`_GRANTED`.
 
         Returns:
-          The permissions to write over the rung's.
+          The permissions to write over the grant's.
         """
         said: dict[str, str | dict[str, str]] = {}
         scratch = (fence.tmp,) if fence.tmp else ()
         writable = (*fence.write, *scratch)
         readable = (*fence.read, *writable)
         worktree = _worktree(self._workspace())
-        if os.sep not in writable and rung.get("edit") != "deny":
-            said["edit"] = _beneath(writable, worktree, rung.get("edit", "allow"))
+        if os.sep not in writable and granted.get("edit") != "deny":
+            said["edit"] = _beneath(writable, worktree, "allow")
         if os.sep not in readable:
             said["read"] = _beneath(readable, worktree, "allow", guarded=_GUARDED)
             said["external_directory"] = _outside(readable)
@@ -906,28 +884,29 @@ class OpencodeAgentConfig(AgentConfig):
         somebody else's plugin is somebody else's code inside the turn.
       unattended: Whether the turn carries the CLI's own auto-approve flag, which answers yes
         to everything the permission table has not refused outright. Unsaid, which is the flag
-        wherever the config names a rung and no flag at all where it names none: a flow that
-        declares a rung watches its agent rather than gating it, and a turn waiting on an
-        approval nobody is there to give is a flow that has stopped -- but that is a reason
-        about a declared rung, and a run that declared nothing asked for the CLI as it comes,
-        which does not come carrying this. The rung and not the web switch beside it: what
-        this grants is editing and running commands, and a turn that asked only for less has
-        asked for neither. On is the flag whatever the config says. Off, the CLI answers its
-        own asks by refusing them, which is a turn held to what it was allowed up front.
-      permission_table: Whether `permission` and `web_search` reach the CLI at all, as a table
-        written for this turn in the variable it reads one from. Unsaid, which writes one
-        wherever there is anything to put in it and leaves the variable alone where there is
-        not: a config naming no rung and stating no web switch is a turn run under whatever
-        the person at this machine has configured, which is what a bare ``opencode run`` is.
-        On says as much outright and comes to the same thing, this table holding those two
-        settings and nothing else -- asking for one where neither was said is asking for an
-        empty table. Off is that person's table for a turn that does have something to say,
-        with `unattended` still deciding what becomes of anything that table leaves to be
-        asked about. Off leaves this backend no way of saying either of the two, so a rung
-        that withholds anything and web search switched off are both refused beside it: a
-        setting the CLI never hears is a setting that lies. So is a fence that cuts the
-        network, whose web tools are taken away in this table and nowhere else; a fence that
-        does not is still held whole from outside, and only loses the rules that let its
+        wherever the agent runs in a fence and no flag at all where it runs in none: a grant is
+        never held by asking, and a turn waiting on an approval nobody is there to give is a
+        flow that has stopped -- but an agent nobody fenced is one driven by hand, which asked
+        for the CLI as it comes, and that does not come carrying this. The fence and not the
+        web switch beside it: what this grants is editing and running commands, and a turn
+        that asked only for less has asked for neither. On is the flag whatever the config
+        says. Off, the CLI answers its own asks by refusing them, which is a turn held to what
+        it was allowed up front.
+      permission_table: Whether the grant read off `fence` and `web_search` reach the CLI at
+        all, as a table written for this turn in the variable it reads one from. Unsaid, which
+        writes one wherever there is anything to put in it and leaves the variable alone where
+        there is not: a config with no fence and no web switch is a turn run under whatever the
+        person at this machine has configured, which is what a bare ``opencode run`` is. On
+        says as much outright and comes to the same thing, this table holding those settings
+        and nothing else -- asking for one where none was said is asking for an empty table.
+        Off is that person's table for a turn that does have something to say, with
+        `unattended` still deciding what becomes of anything that table leaves to be asked
+        about. Off leaves this backend no way of withholding anything, so a fence that writes
+        nothing, whose file-writing tools are withheld in this table and nowhere else, and web
+        search switched off are both refused beside it: a setting the CLI never hears is a
+        setting that lies. So is a fence that cuts the network, whose web tools are taken
+        away in this table and nowhere else; a fence that writes somewhere and does not cut
+        the network is still held whole from outside, and only loses the rules that let its
         tools refuse in words.
     """
 
@@ -954,16 +933,17 @@ class OpencodeAgentConfig(AgentConfig):
                 # the web says nothing to this table either, and nothing said is nothing
                 # that can be withheld. The same rule the rest of this package reads the
                 # three-answer `web_search` by.
-                "permission": self.permission not in _UNNARROWED,
                 "web_search": self.web_search is False,
-                # A fence that cuts the network takes the web tools away natively, whatever
-                # `web_search` says: a tool that runs at a host the fence still passes would
-                # otherwise be a way out of it.
+                # A fence that writes nothing has its file-writing tools withheld here and
+                # nowhere else (protocol/core.md 4.6.2.3), and one that cuts the network takes
+                # the web tools away here whatever `web_search` says: a tool that runs at a
+                # host the fence still passes would otherwise be a way out of it.
+                "writes": self.fence is not None and not self.fence.writes,
                 "fence": self.fence is not None and not self.fence.online,
             }
             said = {
-                "permission": f"permission={self.permission!r}",
                 "web_search": "web_search=False",
+                "writes": "a fence that writes nothing",
                 "fence": "a fence that cuts the network",
             }
             if unsayable := [

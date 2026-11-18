@@ -1,4 +1,4 @@
-"""MiniMax Code: the `mcode exec` a turn is, the rungs it refuses, and the stream read back."""
+"""MiniMax Code: the `mcode exec` a turn is, the efforts it refuses, and the stream read back."""
 
 from __future__ import annotations
 
@@ -136,7 +136,6 @@ def test_a_catalogue_that_cannot_be_read_refuses_nothing(
     ("given", "error", "match"),
     [
         ({"effort": "max"}, Unserved, "not at 'max'"),
-        ({"permission": "read-only"}, Unserved, "cannot be held to 'read-only'"),
         ({"service_tier": "fast"}, Unserved, "service tier"),
     ],
 )
@@ -180,19 +179,24 @@ def test_a_turn_is_exec_with_the_prompt_on_stdin(
 
 
 @pytest.mark.parametrize(
-    ("permission", "flags"),
+    ("given", "flags"),
     [
-        ("workspace-write", ["--permission", "full"]),
-        ("auto", ["--permission", "smart"]),
-        ("bypass", ["--permission", "full"]),
-        ("", []),
+        (Fence(read=("/",), online=True), ["--permission", "full"]),
+        (Fence(read=("/",), write=("/tmp",), online=True), ["--permission", "full"]),
+        (None, []),
     ],
+    ids=["writes-nothing", "writes-somewhere", "no-fence"],
 )
-def test_each_rung_is_its_permission(
-    spawner: Spawner, tmp_path: Path, permission: str, flags: list[str]
+def test_a_fenced_turn_asks_nothing_and_an_unfenced_one_is_told_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    spawner: Spawner,
+    tmp_path: Path,
+    given: Fence | None,
+    flags: list[str],
 ) -> None:
+    monkeypatch.setattr(fence, "enforceable", fenceable)
     spawner.answering(_turn())
-    _mcode(permission=permission).new(tmp_path)("go")
+    _mcode(fence=given).new(tmp_path)("go")
     argv = spawner.last.args
     assert argv[argv.index(str(tmp_path)) + 1 : argv.index("--model")] == flags
 

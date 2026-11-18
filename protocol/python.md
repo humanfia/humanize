@@ -94,8 +94,8 @@ Out of scope:
 - The layout and format of files hmz writes, including the progress record of a resumable epic, kept
   conversations, flowverse clones and installed flows: Section 4 of [FILES], Section 6 of [FILES],
   Section 7 of [FILES].
-- How a permission is enforced on a harness (the fence and the harness's approval rung), the harness
-  configuration layering, and each harness's accepted models and efforts: Section 4 of [CORE].
+- How a permission is enforced on a harness (the fence, and what the harness is told of it), the
+  harness configuration layering, and each harness's accepted models and efforts: Section 4 of [CORE].
 - Accounts a turn runs as: Section 5 of [CORE].
 - Where a session's harness runs (placements, harness settings, mirrors): Section 6 of [CORE].
 - Environment backends, runtimes, and how resources size a container or job: Section 7 of [CORE].
@@ -3094,7 +3094,7 @@ nothing; `NousBook.checked(name, graph)` MUST do the same for one graph of the n
 states, and MUST raise `ValueError` for a name that is no virtual nous or one already taken.
 
 **4.11.10** `NousBook.entry(said)` MUST return the concrete nous a walk of `said` starts at;
-`NousBook.faults()` MUST return every fault class (Section 4.2.13 of [CORE]) and then `*`.
+`NousBook.faults()` MUST return every fault class (Section 4.2.12 of [CORE]) and then `*`.
 
 **4.11.11** `NousBook.clear(said)` MUST remove the nous and return whether there was one, and MUST
 raise `ValueError` for a virtual nous another nous names.

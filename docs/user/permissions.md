@@ -240,10 +240,12 @@ outside:
 | `cursor-agent`, `mcode` | <Badge type="tip" text="held by Landlock, bubblewrap or Seatbelt" /> | <Badge type="danger" text="refused" /> |
 | a CLI added over ACP | <Badge type="tip" text="held by Landlock, bubblewrap or Seatbelt" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
-A role at `read-only`, with no rule that lets it write its workdir, also runs in its CLI's
-read-only mode, where the CLI has one (every CLI but `dsh`, `mcode` and CLIs added over the
-Agent Client Protocol: those run with no rung of their own, and a grant that writes nothing is
-what keeps them from writing).
+A role whose rules let it write nothing is also told so by its CLI's own controls: its
+file-writing tools are withheld and its shell is kept, so it can still run a build or a test,
+and the fence refuses any write the shell attempts. No CLI is put in a plan or asking mode for
+it. Where a CLI cannot withhold its tools (`cursor-agent`, `mcode`, `omp`, `dsh` and CLIs added
+over the Agent Client Protocol), it runs unattended and the fence alone keeps it from writing.
+The list per CLI is in [Agents](/reference/agents#what-an-agent-may-do).
 Where a CLI can be told, `network=False` also switches its web tools off.
 
 Cursor's web search and fetch cannot be switched off and run on Cursor's own servers, which it
@@ -267,21 +269,21 @@ shows. The copy runs as `@local/<flow>`.
 
 ### On a machine somebody else manages
 
-**Codex, where the organisation or the platform forbids full access.** The agent runs one step
-down, and says so once:
+**Codex, where the organisation or the platform forbids full access.** An agent whose grant
+writes somewhere runs in Codex's `workspace-write` sandbox instead, and says so once:
 
 ```text
-codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks for is granted
+codex: this machine will not run an agent at danger-full-access, so it runs at workspace-write, where what it asks for is granted
 ```
 
 It keeps the same freedom: Codex asks before it reaches past the workspace, and Humanize says
-yes.
+yes. The fence still holds where its writes land.
 
 **Claude Code, on an account whose managed settings turn off bypass mode, or as root.** The
 agent runs at `acceptEdits` instead, and says so once:
 
 ```text
-claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted
+claude: this account will not run an agent at bypassPermissions, so it runs at acceptEdits, where what it asks for is granted
 ```
 
 It keeps the same freedom: Claude asks before what `acceptEdits` does not cover, and Humanize

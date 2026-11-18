@@ -122,28 +122,24 @@ _CACHE = ("compiled", "pi")
 _TOOLS = Path(__file__).with_name("pi_tools.cjs")
 _BRIDGE = "HMZ_PI_TOOLS"
 
-#: The tools of pi's own that change something rather than look at something, which is the
-#: whole of what an agent that may change nothing is refused. `powershell` is in here for the
-#: same reason `bash` is: it is the same tool on Windows, and pi ignores a name on this list
-#: that it did not load, so naming it costs a turn on Linux nothing.
+#: The tools of pi's own that write files, which are what an agent whose fence writes nothing
+#: is not given. Its shell is kept -- `bash`, and `powershell`, the same tool on Windows -- since
+#: what it would write the fence refuses, and an agent that may look at a repository and run
+#: its tests is one that needs a shell to do it.
 #:
-#: Checked again against 0.85.1, because `--approve`/`--no-approve` arrived recently and looks
-#: like the beginning of a gate. It is not one, and it was made to say so rather than read: a
-#: turn run under `--no-approve`, which is the stricter of the pair, ran `bash` to completion
-#: and was never asked anything. pi's own security notes say why -- there is no sandbox, and
-#: project trust is "only an input-loading guard" over settings, extensions, skills and
-#: prompts that "does not restrict what the model can ask tools to do". So there is still
-#: nothing to map the four rungs onto and no `_PERMITTED` table to write, and writing one
-#: would be the failure this is here to avoid: a rung that reads as enforced and enforces
-#: nothing. `read-only` is tools withheld, and `workspace-write`, `auto` and `bypass` are one
-#: and the same agent -- and so is the silence above them, which asks for nothing at all to be
-#: said to the CLI about what its agent may do. That one costs this driver no code either:
-#: saying nothing is what pi has been served at every rung but `read-only` since there was a
-#: rung to serve, so a config that settles none of it lands on the agent it already had.
-#: A denylist rather than the `--tools read,grep,find,ls` allowlist pi documents for the same
-#: job, because that one also switches off every extension tool and turns on three built-ins
-#: pi ships disabled -- which is a different agent, not a stricter one.
-_CHANGING = ("bash", "edit", "write", "powershell")
+#: Withheld rather than asked about because there is nothing in pi to ask with. Checked again
+#: against 0.85.1, because `--approve`/`--no-approve` arrived recently and looks like the
+#: beginning of a gate. It is not one, and it was made to say so rather than read: a turn run
+#: under `--no-approve`, which is the stricter of the pair, ran `bash` to completion and was
+#: never asked anything. pi's own security notes say why -- there is no sandbox, and project
+#: trust is "only an input-loading guard" over settings, extensions, skills and prompts that
+#: "does not restrict what the model can ask tools to do". So the grant is two agents: one
+#: with these withheld and one with every tool, the fence holding where either writes. An
+#: agent with no fence, one driven by hand, is told nothing and has every tool pi ships.
+#: A denylist rather than the `--tools read,grep,find,ls,bash` allowlist pi documents for the
+#: same job, because that one also switches off every extension tool and turns on three
+#: built-ins pi ships disabled -- which is a different agent, not a stricter one.
+_WRITING = ("edit", "write")
 
 #: How long a turn being cut off is given to be aborted by pi itself before its process is
 #: ended outright. pi answers `abort` once the run has stopped, having written the call it was
@@ -331,8 +327,8 @@ class PiAgentConfig(AgentConfig):
     moving the effort mid-session are commands there rather than flags; ``--session-id``,
     because the alternative is ``--continue`` picking whichever session in this directory is
     newest and a second agent working alongside stealing the resume; and ``--exclude-tools``
-    at the `read-only` rung, which is the only thing that rung can be made of on a CLI with no
-    permission gate.
+    under a fence that writes nothing, which is the only thing that grant can be made of on a
+    CLI with no permission gate.
 
     Attributes:
       compiled: Whether node may keep what it compiled of pi in Humanize's directory for this
@@ -454,6 +450,12 @@ class PiSession(StreamSessionBase):
         #: What the process now up was last told to think at, so that a flow moving the
         #: effort mid-session is told to pi rather than left on the flag it was started with.
         self._at: str | None = None
+        #: Whether a process has been started, and the fence the one now up was started
+        #: inside: what tools it was withheld is read off that fence, and pi cannot be given
+        #: or refused a tool once it is up, so a fence moved by reconfiguring is a process
+        #: started inside the new one before the next turn.
+        self._started = False
+        self._inside: Fence | None = None
         #: Set once pi has answered an `abort`, which is once the run it was told to stop has,
         #: and the thread that would read that answer.
         self._aborted = threading.Event()
@@ -563,10 +565,11 @@ class PiSession(StreamSessionBase):
             # and refuses only where a session of that id is already there, which a freshly
             # minted one is not.
             argv += ["--fork", self._forked_from]
-        if config.permission == "read-only":
+        fence = config.fence
+        if fence is not None and not fence.writes:
             # Not a mode it is put in but tools it is not given: an agent without the ones
-            # that change anything is one that can only look, which is the rung asked for.
-            argv += ["--exclude-tools", ",".join(_CHANGING)]
+            # that write files, its shell kept and the fence refusing whatever that writes.
+            argv += ["--exclude-tools", ",".join(_WRITING)]
         for said in getattr(config, "append_system_prompt", ()):
             argv += ["--append-system-prompt", said]
         for path in getattr(config, "skill_paths", ()):
@@ -582,7 +585,6 @@ class PiSession(StreamSessionBase):
         # only be refused: not needed for a turn in 0.85.1, whose print and RPC modes do none,
         # but the grep and find tools fetch `rg` and `fd` from GitHub where this machine has
         # neither, and offline they say so at once rather than retrying into a wall.
-        fence = config.fence
         if getattr(config, "offline", False) or (
             fence is not None and not fence.online
         ):
@@ -765,11 +767,22 @@ class PiSession(StreamSessionBase):
         super()._cuts()
 
     def _stale(self) -> bool:
-        """Whether the process up was started with callbacks other than the ones offered now."""
-        return self._telling != self._agent.toolbox.names()
+        """Whether the process up was started inside another fence, or with other callbacks."""
+        return self._refenced() or self._telling != self._agent.toolbox.names()
+
+    def _refenced(self) -> bool:
+        """Whether the fence moved since the process up was started inside one.
+
+        Returns:
+          True where a process is up and the agent has been reconfigured to another fence,
+          or to none, since: the tools it was given and what it is held inside are both the
+          process's rather than a turn's.
+        """
+        return self._started and self._inside != self._agent.config.fence
 
     def _restarted(self) -> None:
         """Forgets the turn the last process was in the middle of, which this one is not."""
+        self._started, self._inside = True, self._agent.config.fence
         self._said, self._failed, self._spent, self._costing = "", None, 0, Usage()
         self._reaching, self._calling = set(), {}
         self._at = self.effort

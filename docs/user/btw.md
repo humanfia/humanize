@@ -172,12 +172,15 @@ What to look at, by number:
 
 ## What a side conversation may do
 
-Every side conversation runs read-only, with no skills, no goals and none of the flow's tools.
-It can read the workspace, but it cannot change anything and it cannot steer the flow. Its
+Every side conversation runs read-only, inside a [fence](/user/permissions) of its own that
+writes nothing (the read-only twin of its agent's fence, or one reading the whole machine), with
+no skills, no goals and none of the flow's tools. Its CLI keeps its shell but not its
+file-writing tools. It can read the workspace, but it cannot change anything and it cannot steer
+the flow. A machine that cannot hold a fence refuses the side question, saying what it needs. Its
 turns are real turns, though: they count against the run's [budget](/features/allowances).
-They do not appear on the monitor or in the run's [trace](/user/tracing). MiniMax Code,
-DeepSeek Harness and ACP agents have no read-only rung, so a side question to one of their
-sessions is refused, saying so.
+They do not appear on the monitor or in the run's [trace](/user/tracing). Every CLI can answer a
+side question, MiniMax Code, DeepSeek Harness and ACP agents included: what keeps it from
+writing is the fence it runs in, not a mode of its own.
 
 Starting a new flow, or closing `hmz`, also leaves btw mode.
 

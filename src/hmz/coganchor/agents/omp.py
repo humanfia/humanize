@@ -38,30 +38,18 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
     from pathlib import Path
 
-    from hmz.coganchor.fence import Fence
-
 #: The command omp is installed as.
 _COMMAND = "omp"
 
-#: Each rung, in omp's own approval modes. omp has no sandbox, so nothing here keeps an edit
-#: inside the workspace or a command off the network -- but it has a gate, and every tool it
-#: runs, extensions' and MCP servers' included, says which tier of it it is: a read, a write,
-#: or something it executes. `read-only` is the mode that asks before anything but a read, with
-#: every one of those askings answered no (:meth:`OhMyPiSession._answer`), so what the agent
-#: may do is what omp itself counts as looking. The other three rungs are one agent, the one
-#: that is asked nothing: there is no sandbox to tell `workspace-write` from `auto` with, and a
-#: turn waiting on an approval nobody is there to give is a flow that has stopped. The silence
-#: above them says no mode at all, leaving omp wherever its own configuration leaves it.
-_APPROVING = {
-    "read-only": "always-ask",
-    "workspace-write": "yolo",
-    "auto": "yolo",
-    "bypass": "yolo",
-}
-
-#: What omp offers on a tool it wants approved, in the order it offers them -- which is what
-#: tells an approval from a question the agent or an extension has put to the person.
-_APPROVAL = ("Approve", "Deny")
+#: The approval mode omp is run at under any fence. omp has no sandbox, so nothing it is told
+#: keeps an edit inside the workspace or a command off the network, and it has no way to be
+#: started without a tool: every tool it runs, extensions' and MCP servers' included, says which
+#: tier of its gate it is -- a read, a write, or something it executes -- and the gate only asks.
+#: Asking is not a grant hmz may hold (protocol/core.md, Section 4.6.2.2), and a turn waiting on
+#: an approval nobody is there to give is a flow that has stopped. So whatever the fence writes,
+#: omp is asked nothing and the fence holds the grant; an agent with no fence, one driven by
+#: hand, is told no mode at all, leaving omp wherever its own configuration leaves it.
+_UNATTENDED = "yolo"
 
 #: What the `get_state` asking a new process which session it opened is sent under, so that
 #: its answer is told from one to a command somebody else sent.
@@ -73,7 +61,7 @@ _HOSTING = "hmz-tools"
 
 #: What a flow's callback is called in front of the agent, ahead of the name the flow gave it:
 #: omp's own tools are called what a flow's may be -- a `write` of the flow's would otherwise
-#: be omp's, or one of those `read-only` asks about -- and opencode's are called this too.
+#: be omp's -- and opencode's are called this too.
 PREFIX = "humanize_"
 
 #: The files omp declares providers of its own in, under its home, in the order it reads them.
@@ -99,9 +87,6 @@ class OhMyPiSession(PiSession):
         super().__init__(agent, cwd)
         #: The names of the callbacks the process now up was last told of.
         self._hosting: tuple[str, ...] = ()
-        #: The approval mode and the fence the process now up was started at, or None before
-        #: one is.
-        self._launched: tuple[str | None, Fence | None] | None = None
 
     def _command(self) -> list[str]:
         """Builds the ``omp --mode rpc`` that reads commands on stdin and says events on stdout.
@@ -130,35 +115,23 @@ class OhMyPiSession(PiSession):
             self._named = None
             if self._forked_from is not None:
                 argv += ["--fork", self._forked_from]
-        if mode := _APPROVING.get(config.permission):
-            argv += ["--approval-mode", mode]
+        if config.fence is not None:
+            argv += ["--approval-mode", _UNATTENDED]
         return argv
 
-    def _launching(self) -> tuple[str | None, Fence | None]:
-        """What a process started now is started at that it cannot be told afterwards.
-
-        The rung's `--approval-mode`, and the fence it is put inside: both are the process's
-        rather than a turn's, so an agent reconfigured to another of either has the process up
-        ended before its next turn rather than going on at the old one -- while
-        :meth:`_answer` reads the new rung, which would split the two halves of `read-only`.
-        """
-        config = self._agent.config
-        return _APPROVING.get(config.permission), config.fence
-
     def _stale(self) -> bool:
-        """Whether the rung or the fence moved since the process up was started.
+        """Whether the fence moved since the process up was started inside one.
 
-        Never for the callbacks, which omp is told of without being started again.
+        A moved fence is also whether omp is told `--approval-mode` at all, so it restarts
+        omp as it restarts pi (:meth:`PiSession._refenced`). Never for the callbacks, which omp is
+        told of without being started again.
         """
-        return (
-            self._launched is not None and self._launched != self._launching()
-        ) or super(PiSession, self)._stale()
+        return self._refenced() or super(PiSession, self)._stale()
 
     def _restarted(self) -> None:
         """Forgets what the last process was told of, which this one has not been."""
         super()._restarted()
         self._hosting = ()
-        self._launched = self._launching()
 
     def _environment(self) -> Mapping[str, str]:
         """What a turn is run with, which is the provider's and nothing of pi's.
@@ -317,19 +290,6 @@ class OhMyPiSession(PiSession):
                         "toolName": call.get("name"),
                     }
         yield from super()._reaches(event)
-
-    def _answer(self, said: dict[str, Any]) -> None:
-        """Answers what omp stopped the turn to ask, refusing every approval at `read-only`.
-
-        Args:
-          said: The `extension_ui_request`, as read.
-        """
-        offered = tuple(cast("list[Any]", said.get("options") or []))
-        if self._agent.config.permission == "read-only" and offered == _APPROVAL:
-            denied = {"type": "extension_ui_response", "id": said.get("id")}
-            self._send(json.dumps(denied | {"value": _APPROVAL[1]}) + "\n")
-            return
-        super()._answer(said)
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -20,7 +20,6 @@ from hmz.coganchor.agents import (
     Failed,
     McpServer,
     Unfenced,
-    Unserved,
 )
 from hmz.coganchor.agents.acp import UNSAID, AcpConnection
 from hmz.coganchor.fence import Fence
@@ -554,13 +553,6 @@ def test_a_command_not_given_is_looked_up_where_it_was_added(
     monkeypatch.setattr(backends, "speaking", dict)
     with pytest.raises(ValueError, match="no command to start it with"):
         _ = _agent(command=()).command
-
-
-@pytest.mark.parametrize("permission", ["read-only", "workspace-write", "auto"])
-def test_only_bypass_or_no_rung_is_taken(permission: str) -> None:
-    with pytest.raises(Unserved, match="cannot be held to"):
-        _agent(permission=permission)
-    assert isinstance(_agent(permission="bypass"), AcpAgent)
 
 
 @pytest.mark.parametrize(("name", "command"), [("", "serve"), ("tools", " ")])

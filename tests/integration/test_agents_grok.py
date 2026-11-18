@@ -28,6 +28,7 @@ from hmz.coganchor.agents import (
     Unrecoverable,
     Verdict,
 )
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.gateway import gatewayable
 from hmz.coganchor.providers import Provider
 from tests.integration.doubles_agents import (
@@ -44,6 +45,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CONFIG = GrokBuildAgentConfig(model="grok-stand-in", effort="high")
+
+#: A fence that fences nothing, so the stand-in is spawned as it is rather than inside one:
+#: what the driver reads off it is a fence that writes, whose requests are granted.
+OPEN = Fence(write=("/",), online=True)
 
 GROK = r"""
 import time
@@ -179,7 +184,7 @@ def test_a_session_whose_process_exited_is_loaded_by_the_next(grok: Standins) ->
 
 def test_a_permission_request_is_put_to_the_hook_and_refused(grok: Standins) -> None:
     agent = GrokBuildAgent(
-        GrokBuildAgentConfig(model="grok-stand-in", effort="high", permission="bypass")
+        GrokBuildAgentConfig(model="grok-stand-in", effort="high", fence=OPEN)
     )
     seen: list[Occasion] = []
 
@@ -196,7 +201,7 @@ def test_a_permission_request_is_put_to_the_hook_and_refused(grok: Standins) -> 
 
 def test_a_permission_nobody_refused_is_allowed_by_its_kind(grok: Standins) -> None:
     agent = GrokBuildAgent(
-        GrokBuildAgentConfig(model="grok-stand-in", effort="high", permission="bypass")
+        GrokBuildAgentConfig(model="grok-stand-in", effort="high", fence=OPEN)
     )
 
     assert agent.new()("ask") == "yes"

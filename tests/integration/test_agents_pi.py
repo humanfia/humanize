@@ -8,6 +8,7 @@ into it; an `abort` stops it.
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 import threading
 from typing import TYPE_CHECKING
@@ -272,16 +273,35 @@ def test_a_pi_that_exits_mid_session_fails_the_turn(pi: Standins) -> None:
     assert "something broke" in str(failed.value.stderr)
 
 
-def test_an_agent_that_may_change_nothing_is_given_no_tools_that_would(
+@pytest.mark.parametrize(("writes", "withheld"), [(False, "edit,write"), (True, None)])
+def test_a_fence_that_writes_nothing_is_given_no_tools_that_write_and_keeps_its_shell(
     pi: Standins,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    writes: bool,
+    withheld: str | None,
 ) -> None:
-    PiAgent(
-        PiAgentConfig(
-            model="openai-codex/stand-in", effort="high", permission="read-only"
-        )
-    ).new()("hello")
+    from hmz.coganchor.fence import Fence
 
-    assert pi.calls()[0].flag("--exclude-tools") == "bash,edit,write,powershell"
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    # Held by nothing here: what is checked is what pi is told, not what the fence refuses.
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+    work = (tmp_path / "work").resolve()
+    work.mkdir()
+    drawn = Fence(read=("/",), write=(str(work),) if writes else ())
+    config = dataclasses.replace(CONFIG, fence=drawn)
+
+    PiAgent(config).new(work)("hello")
+
+    assert pi.calls()[0].flag("--exclude-tools") == withheld
 
 
 #: A `pi --mode rpc` that does what the real one does with `--provider`: finds that provider in

@@ -61,7 +61,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz.coganchor import backends, models
 
 from .base import AgentBase, CommandSessionBase
-from .config import UNSAID, AgentConfig, Unfenced, Unserved
+from .config import AgentConfig, Unfenced, Unserved
 from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
@@ -74,32 +74,22 @@ if TYPE_CHECKING:
 #: only be this CLI: `agent` is a name anything on a machine could have taken.
 _COMMAND = "cursor-agent"
 
-#: What a turn is run as at each rung of the ladder, in Cursor's own vocabulary. `plan` is the
-#: mode it documents as read-only -- it analyses and proposes and changes nothing; `--sandbox
-#: enabled` is its own sandbox, which is what stops a command at the edge of the workspace;
-#: `--auto-review` is its server-side classifier, which runs the safe calls itself; and
-#: `--force` is Run Everything, which is what an unattended flow has always run its agents at.
+#: What a fenced turn is run with, whatever its fence writes, and said to no other turn, in
+#: Cursor's own vocabulary:
+#: `--force` is Run Everything, which asks nothing, and `--sandbox disabled` leaves Cursor's
+#: own sandbox out of it. Its command line has no flag that withholds the tools that write
+#: files while keeping the shell -- what it takes away is all or nothing, `--mode plan` and
+#: `--mode ask`, each of which takes the shell too and holds a grant by a mode rather than by
+#: what may be reached for -- so every tool is given and the fence holds the grant, refusing
+#: whatever is written where it does not write. Its sandbox is off because it holds no part of
+#: that fence (see the module) and because, under an anchor, the command it wraps is run on
+#: the target while the wrapper opens its user namespace here, which this machine may not lend
+#: and which holds nothing of the target either way.
 #:
-#: The silence is not a fifth rung and comes to no flag at all. `cursor-agent` has a posture of
-#: its own for a turn nobody has said anything about -- what it asks before, what it runs
-#: itself, which sandbox it opens in -- and the whole of what nothing said means is that the
-#: turn is left in it. Written as a row of its own rather than left out of the table, so that
-#: the one place saying what each answer comes to says this one too.
-_PERMITTED = {
-    "read-only": ("--mode", "plan"),
-    "workspace-write": ("--force", "--sandbox", "enabled"),
-    "auto": ("--auto-review",),
-    "bypass": ("--force", "--sandbox", "disabled"),
-    UNSAID: (),
-}
-
-#: What `workspace-write` is run as where the agent's turns land on another machine and its
-#: fence writes nothing of the home or the system there: Run Everything, without Cursor's
-#: sandbox. That sandbox is `cursorsandbox` wrapped around each command, and under an anchor
-#: the command it wraps is run on the target while the wrapper opens its user namespace here,
-#: which this machine may not lend and which holds nothing of the target either way. The
-#: anchor holds the fence on both machines instead, and that fence is the rung.
-_ANCHORED = ("--force", "--sandbox", "disabled")
+#: A turn nobody fenced, one driven by hand, is not given this or any other flag, and runs in
+#: the posture `cursor-agent` keeps for a turn nobody has said anything about: what it asks
+#: before, what it runs itself, which sandbox it opens in.
+_UNASKED = ("--force", "--sandbox", "disabled")
 
 #: The tools it starts a fleet of its own with, by the names its stream calls them. A turn
 #: that reaches for one of these is a turn with agents under it, which is worth showing as
@@ -125,26 +115,6 @@ _KINDS = {
     "cache_read": "cacheReadTokens",
     "cache_write": "cacheWriteTokens",
 }
-
-
-def _abroad(config: AgentConfig) -> bool:
-    """Whether a `workspace-write` turn is held by its anchor's fence (:data:`_ANCHORED`).
-
-    Args:
-      config: What the agent runs at.
-
-    Returns:
-      True at `workspace-write` on another machine, under a fence drawn from rules that write
-      nothing but the workdir; False wherever Cursor's own sandbox is still the rung.
-    """
-    fence = config.fence
-    return (
-        config.permission == "workspace-write"
-        and config.machine is not None
-        and fence is not None
-        and bool(fence.drawn)
-        and not fence.outward
-    )
 
 
 def _about(given: dict[str, Any]) -> str:
@@ -365,7 +335,7 @@ class CursorSession(CommandSessionBase):
             # worked on here in its copy, and the far path is one this machine may not have.
             "--workspace",
             self._workspace(),
-            *(_ANCHORED if _abroad(configured) else _PERMITTED[configured.permission]),
+            *(_UNASKED if configured.fence is not None else ()),
         ]
         if getattr(configured, "trust", True):
             # It asks before it trusts a workspace it has not seen, and there is nobody at a

@@ -14,31 +14,32 @@ pub const DEFINED: [(&str, &str); 3] = [
         "hmz-read-only",
         "---
 name: hmz-read-only
-description: Reads, and changes nothing.
-tools: [view_file, grep_search, find_by_name, list_dir]
+description: Reads, and runs commands that change nothing.
+tools: [view_file, grep_search, find_by_name, list_dir, run_command]
 excludeDefaultComponents: true
 subagent: false
 ---
 # Reader
 
-You may read files and search them. You have no way of changing anything: no tool here writes
-a file or runs a command. When asked to change something, say that you cannot.
+You may read files, search them, and run commands. You may not change anything: no tool here
+writes a file, and any command that tries to write is refused. When asked to change something,
+say that you cannot.
 ",
     ),
     (
         "hmz-read-only-web",
         "---
 name: hmz-read-only-web
-description: Reads, the web included, and changes nothing.
-tools: [view_file, grep_search, find_by_name, list_dir, read_url_content, search_web]
+description: Reads, the web included, and runs commands that change nothing.
+tools: [view_file, grep_search, find_by_name, list_dir, run_command, read_url_content, search_web]
 excludeDefaultComponents: true
 subagent: false
 ---
 # Reader
 
-You may read files and search them, and read and search the web. You have no way of changing
-anything: no tool here writes a file or runs a command. When asked to change something, say
-that you cannot.
+You may read files, search them, run commands, and read and search the web. You may not change
+anything: no tool here writes a file, and any command that tries to write is refused. When
+asked to change something, say that you cannot.
 ",
     ),
     (

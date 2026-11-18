@@ -23,6 +23,7 @@ from hmz.coganchor.agents import (
     OpencodeAgent,
     OpencodeAgentConfig,
 )
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.gateway import gatewayable
 from tests.integration.doubles_agents import (
     CHATTING,
@@ -162,18 +163,33 @@ def test_a_run_that_says_nothing_or_exits_non_zero_is_a_failed_turn(
 def test_what_the_agent_may_do_is_said_in_the_cli_s_own_variable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The grant read off a fence that writes nothing; nothing at all for no fence.
+
+    The fence itself is not put up here, only what opencode is told inside it.
+    """
     stands = standins(tmp_path, monkeypatch, "OPENCODE_PERMISSION")
     stands.install("opencode", OPENCODE)
 
+    def enforceable(*, net: bool) -> bool:
+        del net
+        return True
+
+    def wrapper(fence: Fence) -> list[str]:
+        del fence
+        return []
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", enforceable)
+    monkeypatch.setattr("hmz.coganchor.fence.wrapper", wrapper)
+
     OpencodeAgent(
-        OpencodeAgentConfig(model="opencode/m", effort="high", permission="read-only")
+        OpencodeAgentConfig(model="opencode/m", effort="high", fence=Fence(read=("/",)))
     ).new()("hi")
     OpencodeAgent(OpencodeAgentConfig(model="opencode/m", effort="high")).new()("hi")
 
     reading, unsaid = stands.calls()
     permitted = json.loads(reading.env["OPENCODE_PERMISSION"] or "{}")
     assert permitted["edit"] == "deny"
-    assert permitted["bash"] == "deny"
+    assert permitted["bash"] == "allow"
     assert unsaid.env["OPENCODE_PERMISSION"] is None
 
 

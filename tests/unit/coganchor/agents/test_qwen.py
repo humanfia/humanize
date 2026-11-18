@@ -244,29 +244,30 @@ def test_partial_messages_stream_their_deltas_rather_than_the_whole(
     ]
 
 
+_WRITERS = "edit,notebook_edit,save_memory,write_file"
+_WRITES = ("/somewhere",)
+
+
 @pytest.mark.parametrize(
     ("said", "approval", "excluded"),
     [
+        # No fence: an agent driven by hand is told nothing.
         ({}, None, None),
+        ({"web_search": False}, None, "web_search,web_fetch"),
+        # A fence that writes nothing: the writers withheld, the shell and monitor kept.
+        ({"fence": Fence(online=True)}, "yolo", _WRITERS),
         (
-            {"permission": "read-only"},
+            {"fence": Fence(online=False)},
             "yolo",
-            "edit,monitor,notebook_edit,run_shell_command,save_memory,write_file",
+            f"{_WRITERS},web_search,web_fetch",
         ),
-        ({"permission": "workspace-write"}, "yolo", "web_fetch"),
-        ({"fence": Fence(online=False)}, None, "web_search,web_fetch"),
+        # A fence that writes somewhere: every tool, the web decided by the network alone.
+        ({"fence": Fence(write=_WRITES, online=True)}, "yolo", None),
+        ({"fence": Fence(write=_WRITES, online=False)}, "yolo", "web_search,web_fetch"),
         (
-            {"permission": "workspace-write", "fence": Fence(online=False)},
+            {"fence": Fence(write=_WRITES, online=True), "web_search": False},
             "yolo",
-            "web_fetch,web_search",
-        ),
-        ({"fence": Fence(online=True)}, None, None),
-        ({"permission": "auto"}, "yolo", None),
-        ({"permission": "bypass", "web_search": False}, "yolo", "web_search,web_fetch"),
-        (
-            {"permission": "workspace-write", "web_search": False},
-            "yolo",
-            "web_fetch,web_search",
+            "web_search,web_fetch",
         ),
     ],
 )

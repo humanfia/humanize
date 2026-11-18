@@ -466,7 +466,7 @@ turn and the flow go on. `derive` keeps a view's tools; a flow handed the agent 
 role's. Served where the harness's row below has Fake tools (not `acp`: its protocol is a
 plain `Agent`, which serves no mixin), where the CLI runs on this machine (harness `local`); a
 turn of one whose harness is `env` or a harness runtime is refused. On `grok`, a turn only `grok -p` can take (an `output_schema`,
-a fork's first turn, web search off, a rung that takes tools away) is refused with
+a fork's first turn, web search off, a fence that writes nothing, whose tools are withheld) is refused with
 `HarnessUnrecoverable` while tools are offered. See
 [A tool of the flow's own](/weaver/tools#fake-tools).
 
@@ -510,19 +510,19 @@ Generated from `hmz.runtime.flowing.spi.HARNESS_CAPABILITIES` and the harness pr
 
 <div class="harness-matrix">
 
-| `-a` | Goal | Loop | Steering | Permission request | Subagent start, stop | Ask user | Fake tools | [Fork](#fork) | Rungs |
+| `-a` | Goal | Loop | Steering | Permission request | Subagent start, stop | Ask user | Fake tools | [Fork](#fork) | [Writes nothing](#enforcement) |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
-| `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | read-only, workspace-write, auto, bypass |
-| `kimi` | ✓ | | ✓ | ✓ | | ✓ | | any workdir | read-only, workspace-write, auto, bypass |
-| `pi` `omp` | | | ✓ | | | ✓ | ✓ | same workdir | read-only, workspace-write, auto, bypass |
-| `dsh` | ✓ | | | | | | ✓ | no | bypass |
-| `litellm` | | | | | | | | any workdir | read-only, workspace-write, auto, bypass |
-| `cursor-agent` | | | | | ✓ | | | no | read-only, workspace-write, auto, bypass |
-| `mcode` | | | | | ✓ | | | no | workspace-write, auto, bypass |
-| `grok` `opencode` `mimo` `qwen` | | | | | | | ✓ | same workdir | read-only, workspace-write, auto, bypass |
-| `agy` | | | | | | | ✓ | no | read-only, workspace-write, auto, bypass |
-| `acp` | | | | | | | | same workdir | set by the CLI |
+| `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | `Edit`, `Write`, `NotebookEdit` |
+| `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | sandbox `read-only` |
+| `kimi` | ✓ | | ✓ | ✓ | | ✓ | | any workdir | write and edit tools |
+| `pi` `omp` | | | ✓ | | | ✓ | ✓ | same workdir | pi: `edit`, `write`; omp: fence holds |
+| `dsh` | ✓ | | | | | | ✓ | no | fence holds |
+| `litellm` | | | | | | | | any workdir | nothing said |
+| `cursor-agent` | | | | | ✓ | | | no | fence holds |
+| `mcode` | | | | | ✓ | | | no | fence holds |
+| `grok` `opencode` `mimo` `qwen` | | | | | | | ✓ | same workdir | writing tools |
+| `agy` | | | | | | | ✓ | no | reader agent |
+| `acp` | | | | | | | | same workdir | fence holds |
 
 </div>
 
@@ -647,8 +647,8 @@ are dropped, so `~/a//b/` is `~/a/b` and `./` is `.`. A path with any other star
 
 ### Enforcement
 
-A permission reaches a session twice: as a **fence** around the CLI's process tree, and as a
-**rung** of the CLI's own approval ladder.
+A permission reaches a session twice: as a **fence** around the CLI's process tree, and as
+what the CLI is **told**, which its driver reads off that same fence.
 
 **The fence.** Each rule of `rules` is resolved to an absolute path and held at its access,
 the last rule that matches a path deciding it, so a `deny` or `read_only` beneath a wider grant
@@ -663,7 +663,8 @@ except for root, which gets those temporary directories and `/run/user/0` and ke
 as the other rules say. Independently of the rules, the CLI may:
 
 - read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
-  (on macOS `/System` and `/private/var/select` instead of `/lib*` and `/sys`), its own
+  (on macOS `/System`, `/private/var/select` and the developer tools `xcode-select` chose,
+  which the `xcrun` shims in `/usr/bin` load, instead of `/lib*` and `/sys`), its own
   programs and install trees, and the Python running Humanize;
 - write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU and RDMA nodes;
   on macOS `/dev/ttys*`), `/proc` on Linux (CUDA names a thread through
@@ -722,7 +723,7 @@ both: the CLI here inside this machine's Landlock with the environment's mirror 
 workdir, and every command on the target under `hmz internal fence` again, around the
 target's own workdir, `$HOME` and minimum, the rules redrawn there from their anchors. With
 `network=False` a command on the target
-reaches no host. A CLI's own sandbox rung is not used there. A target that cannot hold the
+reaches no host. A CLI's own sandbox is not used there. A target that cannot hold the
 fence refuses the session with `HarnessSandboxed` on its first turn; a container under
 docker's default seccomp profile can hold `network=True` but not `False`. See
 [Remote execution](/reference/remote-execution#a-fence-on-both-machines).
@@ -730,7 +731,7 @@ docker's default seccomp profile can hold `network=True` but not `False`. See
 | CLI | Filesystem | Network |
 | --- | --- | --- |
 | `claude` | external; its own sandbox covers only its Bash tool and is not used | external; `WebSearch`, `WebFetch` refused by rule |
-| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; at `read-only` with `network=True` its `read-only` sandbox is told to leave commands the network |
+| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; under a fence that writes nothing with `network=True` its `read-only` sandbox is told to leave commands the network |
 | `cursor-agent` | external; its own sandbox covers only shell commands and needs a user namespace | `False` refused: its web tools run on Cursor's servers |
 | `mcode` | external; no sandbox of its own | `False` refused: its web search runs on MiniMax's service |
 | `opencode`, `mimo` | external; file tools also refuse outside the fence | external; web tools removed offline |
@@ -745,28 +746,43 @@ docker's default seccomp profile can hold `network=True` but not `False`. See
 
 "External" is Landlock (Seatbelt on macOS) plus the loopback proxy.
 
-**The rung.**
+**What the CLI is told.** Never a plan mode or an asking mode: the driver withholds what it
+can and leaves the rest to the fence.
 
-| Permission | every harness but `dsh`, `mcode`, `acp` | `dsh`, `mcode`, `acp` |
+| Fence | What the CLI is told |
+| --- | --- |
+| writes nothing (no rule leaves anything `WRITE`, e.g. `preset="read-only"` alone) | its file-writing tools withheld, its shell kept, nothing asked; the fence refuses any write the shell attempts |
+| writes somewhere | every tool, nothing asked; the fence decides where writes land |
+
+| `-a` | Writes nothing | Writes somewhere |
 | --- | --- | --- |
-| `preset="read-only"`, and `access(".")` is not `WRITE` | `read-only` (Claude Code `plan`, Codex read-only sandbox, a tool list without writers) | `bypass` |
-| anything else | `bypass` | `bypass` |
+| `claude` | `--tools default`, `--disallowedTools Edit,Write,NotebookEdit`; `bypassPermissions` | `bypassPermissions` |
+| `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` |
+| `cursor-agent` | `--force --sandbox disabled`; the fence holds | the same |
+| `agy` | Humanize's reader agent (the reading tools and `run_command`), `--dangerously-skip-permissions` | `--dangerously-skip-permissions` |
+| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_cmd`, and `web_search,web_fetch` unless `network` is `False` | `--always-approve` |
+| `kimi` | `auto`, plan mode off, write and edit tools disabled | `auto` |
+| `mcode` | `full`; the fence holds | the same |
+| `mimo`, `opencode` | `edit` denied, `bash` allowed | nothing denied |
+| `omp` | `yolo`; the fence holds | the same |
+| `pi` | `edit`, `write` withheld | nothing withheld |
+| `qwen` | `edit`, `write_file`, `notebook_edit`, `save_memory` withheld | nothing withheld |
+| `dsh`, `acp` | every request granted; the fence holds | the same |
+| `litellm` | nothing said | nothing said |
 
-- `bypass` is the CLI's no-approval mode: Codex `danger-full-access` with approval `never`;
-  Claude Code `bypassPermissions`. Where a managed policy forbids that, the CLI runs at the
-  most permissive mode left that no model reviews and Humanize answers every request yes:
-  Claude Code `acceptEdits`, Codex the `workspace-write` sandbox with approval `on-request`.
+- Where a managed policy forbids the no-approval mode, the CLI runs at the most permissive mode
+  left that no model reviews and Humanize answers every request yes: Claude Code `acceptEdits`
+  (the same tools withheld), Codex the `workspace-write` sandbox with approval `on-request`.
 - A hook only an asking CLI can deliver changes how it is started. Claude Code runs at
   `manual` instead of `bypassPermissions` while `on_permission_request` is hung. Codex runs with approval
-  policy `untrusted` while `on_permission_request` is hung, and enables its
+  policy `untrusted` instead of `never` while `on_permission_request` is hung, and enables its
   `default_mode_request_user_input` feature while `on_ask_user` is hung. Kimi Code runs at
-  coganchor's `auto` rung (Kimi's `yolo`) while either is hung. Humanize answers yes unless the
-  hook says no.
+  `yolo` instead of `auto` while either is hung. Humanize answers yes unless the hook says no.
 - `network` also switches the CLI's own web tools (on for `True`, off for `False`) where the CLI
   can be told; where it cannot (`cursor-agent`, `mcode`, `pi`, `omp`, `agy`, `acp`) the cut
   network stops them.
 
-The rungs themselves are in [Agents](/reference/agents).
+How each driver says it is in [Agents](/reference/agents#what-an-agent-may-do).
 
 ### `Agent.derive` {#derive}
 

@@ -2980,24 +2980,38 @@ def _made(runs: str) -> AgentBase | None:
 def _read_only(source: AgentBase, name: str) -> AgentBase:
     """A read-only agent like another, invisible to the run it was taken from.
 
+    Held to a fence that writes nothing (:meth:`~hmz.coganchor.fence.Fence.reading`): the
+    read-only twin of the agent's own fence, or one that reads the whole machine for an agent
+    that has none -- one made by hand, or of a run nothing fenced. Its harness is told so as
+    it is told any fence that writes nothing, and the fence holds whatever it is told; so a
+    harness that cannot be told to write nothing answers a side question as well as any.
+
     Args:
       source: The agent.
       name: What the copy is called.
 
     Raises:
-      ValueError: If the agent's harness has no read-only rung, saying so.
+      Unfenced: If the fence cannot be held on this machine, saying so -- rather than a side
+        question answered by an agent that could write.
     """
-    # The read-only rung is what a flow's `read-only` preset maps to; a backend that cannot
-    # express it is refused here rather than running a side question with write permissions.
-    if "read-only" not in type(source).rungs:
-        raise ValueError(
-            f"{source.backend} cannot answer a side question: it has no read-only rung"
-        )
-    settings: dict[str, object] = {"permission": "read-only", "goals": False}
+    from hmz.coganchor.fence import READ, Fence
+
+    fence = source.config.fence
+    reading = (
+        fence.reading()
+        if fence is not None
+        else Fence.of(rules=[("/", READ)], online=True, workdir=os.sep, home="")
+    )
+    settings: dict[str, object] = {"fence": reading, "goals": False}
     # Claude's allow-list can approve a write in a normal permission mode, and Cursor's MCP
     # approval would reach every server this workspace names on the flow's say-so.
     if hasattr(source.config, "allowed_tools"):
         settings["allowed_tools"] = ()
+    # Claude's `asks` would start the copy at `manual`, putting every request to approval, and
+    # Kimi's at `yolo` -- a source's hook hung on PERMISSION_REQUEST is not the side
+    # conversation's to wait on.
+    if hasattr(source.config, "asks"):
+        settings["asks"] = False
     if hasattr(source.config, "approve_mcps"):
         settings["approve_mcps"] = False
     # Nothing is let out of Codex's read-only sandbox.

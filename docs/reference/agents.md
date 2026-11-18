@@ -21,10 +21,9 @@ views the flow runtime makes over it (`hmz.runtime.flowing.harnesses.HarnessDriv
 | **Backend** | One coding agent CLI, named by the command it is installed as (`claude`, `codex`, …), or an [ACP CLI](#a-cli-of-your-own) added on this machine. |
 | **Profile** | `hmz.coganchor.backends.Profile`: the facts about one backend that are not code (home, logs, ladders, hosts, ways in). `backends.PROFILES` holds the built-in ones. |
 | **Agent** | An instance of a backend's `AgentBase` subclass: a backend at one config. Holds sessions. |
-| **Config** | A frozen `AgentConfig` subclass: model, effort, rung, account, machine, fence, budget, and backend fields. |
+| **Config** | A frozen `AgentConfig` subclass: model, effort, account, machine, fence, budget, and backend fields. |
 | **Session** | One conversation with the backend, identified by the backend's own id once its first turn lands. |
 | **Turn** | One prompt and everything the CLI does until it answers, ending on exactly one `result` event. |
-| **Rung** | One of the four [permission](#what-an-agent-may-do) levels: `read-only`, `workspace-write`, `auto`, `bypass`. |
 | **Effort** | How hard the model is asked to think, in the backend's own words ([Efforts](#efforts)). |
 | **Moment** | A point of a turn a [hook](#hooks) may be hung on. |
 | **Fence** | What the agent's processes may reach ([The fence](#the-fence)). |
@@ -116,7 +115,7 @@ All classes are importable from `hmz.coganchor.agents`.
 | Schema held | `SessionBase.shapes` | the CLI validates the answer against the schema; elsewhere it is asked for in the prompt and validated after |
 | Fork | `Profile.forks`; `+cwd` is `SessionBase.forks_elsewhere` | the CLI can branch a conversation; `+cwd` into another directory |
 | Web off | `Profile.searches` | `web_search=False` can be said |
-| Rungs | `AgentBase.rungs` | which [rungs](#what-an-agent-may-do) the backend takes |
+| Withholds | each driver | whether the backend can withhold its writing tools under a [fence that writes nothing](#what-an-agent-may-do), or runs unattended and leaves it to the fence |
 | Fast tier | `AgentBase.service_tiers` | `service_tier="fast"` is served |
 | Tools | `SessionBase.takes_tools`; `FakeToolAgentMixin` | [fake tools](#callbacks-as-tools) can be offered, from Python or from a flow's `_tools` |
 | Trace | `_READERS` in `hmz.runtime.tracing.collector` | `Hmz().epics.trace()` reads its logs |
@@ -165,11 +164,10 @@ subclasses it; [Backend notes](#backend-notes) lists each subclass's own fields.
 | `effort` | `str` | required | A rung of the backend's [ladder](#efforts); `""` or `"auto"` for none. |
 | `service_tier` | `str` | `"default"` | `"default"` or `"fast"` ([Service tier](#the-service-tier)). |
 | `machine` | `MachineConfig \| None` | `None` | Where turns land ([Machines](/reference/machines)). |
-| `permission` | `str` | `""` | A [rung](#what-an-agent-may-do), or `""` for none said. |
 | `provider` | `str` | `""` | The [account](/reference/providers); `""` for the CLI as signed in. |
 | `goals` | `bool` | `True` | Whether [goals](#goals) and work-past-the-turn tools are available. |
 | `web_search` | `bool \| None` | `None` | [Web search](#whether-an-agent-may-search-the-web): on, off, or unsaid. |
-| `fence` | `Fence \| None` | `None` | What the agent's processes may reach ([The fence](#the-fence)). |
+| `fence` | `Fence \| None` | `None` | What the agent's processes may reach ([The fence](#the-fence)), and the grant its CLI is [told](#what-an-agent-may-do). |
 | `budget` | `Budget \| None` | `None` | What each turn may spend ([Budgets](#cutting-a-turn-off-and-what-one-turn-may-spend)). |
 
 The config is checked twice: by `__post_init__` when it is built (`ValueError`), and by the
@@ -179,10 +177,8 @@ agent when it is made, reconfigured, or has its effort moved (`Unserved`, a `Val
 | Refused | Error and message |
 | --- | --- |
 | a tier other than `default`/`fast` | `ValueError: service_tier must be one of default, fast, not 'slow'` |
-| a rung that is not one of the four | `ValueError: permission must be one of read-only, workspace-write, auto, bypass, not 'all'` |
 | an effort off the ladder | `Unserved: claude cannot be asked to think at 'warp'; expected one of ultracode, max, xhigh, high, medium, low` |
 | a tier the backend does not serve | `Unserved: PiAgent does not support service tier 'fast'; expected default` |
-| a rung the backend does not take | `Unserved: DshAgent cannot be held to 'read-only'; expected bypass, or left unsaid for the agent as whoever installed the CLI configured it` |
 | `web_search=False` on a backend that cannot be told | `Unserved: PiAgent has no way of being told not to search the web; web_search must be on for it` |
 | a fence that cannot be held | `Unfenced: …` ([conditions](#when-a-fence-is-refused)) |
 | backend-specific combinations | listed under each backend in [Backend notes](#backend-notes) |
@@ -312,147 +308,113 @@ checked as a configured one is.
 
 The field records the tier asked for; the provider decides the tier served.
 
-## Permission rungs {#what-an-agent-may-do}
+## What the CLI is told {#what-an-agent-may-do}
 
-`AgentConfig.permission` is one of four rungs, loosest last, or `""`:
+A driver reads what an agent may do off `AgentConfig.fence` and turns it into the controls of
+its own CLI. It never holds a grant with a plan mode or an asking mode: those inject a planning
+workflow, some do not hold (agy writes in its plan mode), and they take the shell away. Where a
+CLI can withhold a tool, the tool is withheld rather than refused as it is called; where it
+cannot, the CLI runs unattended and the [fence](#the-fence) holds.
 
-| Rung | Meaning |
+| The fence | What the driver does |
 | --- | --- |
-| `read-only` | may read anything and change nothing |
-| `workspace-write` | may change the workspace it was given |
-| `auto` | may reach for anything; what it asks for is granted |
-| `bypass` | nothing is asked and nothing is checked |
-| `""` | nothing is said to the CLI: no mode, sandbox or approval flag |
+| none (an agent driven by hand) | nothing is said: the CLI's own defaults |
+| writes nothing (`Fence.writes` is False: no standing rule gives `write`) | the CLI's file-writing tools are withheld, its shell is kept, nothing is asked; the fence refuses any write the shell attempts |
+| writes somewhere | every tool, nothing asked; the fence decides where writes land |
+| `online` False | the CLI's web tools off ([Web search](#whether-an-agent-may-search-the-web)), and the fence cuts the network |
+| a `PERMISSION_REQUEST` or `ASK_USER` hook hung | the CLI's approval routing on, as each row below says |
 
-What each rung becomes, in the CLI's own terms (`—`: the same as the rung to its left;
-refused: `Unserved`):
+Per backend:
 
-| Backend | `read-only` | `workspace-write` | `auto` | `bypass` |
-| --- | --- | --- | --- | --- |
-| `agy` | plan mode, four read tools | accept-edits mode | skip permissions | — |
-| `claude` | `plan` | `acceptEdits` | `auto` | `bypassPermissions`; `acceptEdits` where the account or root forbids it; `manual` with `asks` |
-| `codex` | sandbox `read-only` | sandbox `workspace-write` | sandbox `workspace-write`, approval `on-request` | sandbox `danger-full-access` |
-| `cursor-agent` | `plan` | sandbox on | auto-review | sandbox off |
-| `dsh` | refused | refused | refused | nothing sent |
-| `grok` | three read tools | web search off | every tool | — |
-| `kimi` | `manual` and plan mode | `auto` | `yolo` | `auto` |
-| `litellm` | nothing sent | — | — | — |
-| `mcode` | refused | `full` | `smart` | `full` |
-| `mimo`, `opencode` | `edit`, `bash` denied | web tools denied | nothing denied | — |
-| `omp` | `always-ask`, every approval answered no | `yolo` | — | — |
-| `pi` | four tools withheld | nothing withheld | — | — |
-| `qwen` | six tools withheld | `web_fetch` withheld | nothing withheld | — |
-| an ACP CLI | refused | refused | refused | every request granted, `allow_once` before `allow_always` |
-
-How it is sent:
-
-| Backend | Flags or protocol |
-| --- | --- |
-| `agy` | `--mode plan --agent hmz-read-only`; `--mode accept-edits`; `--dangerously-skip-permissions` |
-| `claude` | `--permission-mode <mode>`; at `read-only` and `bypass` also `--permission-prompt-tool stdio`: at `bypass` each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses, at `read-only` each answered `deny`; at both a question goes to the ask-user hook |
-| `codex` | `sandbox` and `approvalPolicy` on `thread/start`, `thread/resume` and `turn/start`; approval `never` at every rung but `auto` |
-| `cursor-agent` | `--mode plan`; `--force --sandbox enabled`; `--auto-review`; `--force --sandbox disabled` |
-| `grok` | `--always-approve`, plus `--tools read_file,grep,list_dir` at `read-only` and `--disable-web-search` at `workspace-write` |
-| `kimi` | the session's permission mode on the daemon, and plan mode at `read-only` |
-| `mcode` | `--permission full`, `--permission smart` |
-| `mimo`, `opencode` | the `MIMOCODE_PERMISSION` / `OPENCODE_PERMISSION` table, plus `--dangerously-skip-permissions` / `--auto` |
-| `omp` | `--approval-mode always-ask` at `read-only`; `--approval-mode yolo` at `workspace-write`, `auto` and `bypass` |
-| `pi` | `--exclude-tools bash,edit,write,powershell` at `read-only` |
-| `qwen` | `--approval-mode yolo`, plus `--exclude-tools edit,monitor,notebook_edit,run_shell_command,save_memory,write_file` at `read-only` or `--exclude-tools web_fetch` at `workspace-write` |
+| Backend | Writes nothing | Writes somewhere | With a hook hung |
+| --- | --- | --- | --- |
+| `agy` | `--agent hmz-read-only` (the reading tools and `run_command`), `--dangerously-skip-permissions` | `--dangerously-skip-permissions` | — |
+| `claude` | `--tools default`, `--disallowedTools Edit,Write,NotebookEdit` (`Bash` kept), `bypassPermissions` | `bypassPermissions` | `PERMISSION_REQUEST`: `manual` in place of `bypassPermissions` |
+| `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` | `PERMISSION_REQUEST`: approval `untrusted` |
+| `cursor-agent` | `--force --sandbox disabled`: every tool, the fence holds | the same | — |
+| `dsh` | every request granted, the fence holds | the same | — |
+| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_cmd`, and `web_search,web_fetch` on the end unless web search is off | `--always-approve` | — |
+| `kimi` | `auto`, plan mode off, the write and edit tools in `disabled_tools` | `auto` | `PERMISSION_REQUEST` or `ASK_USER`: `yolo` in place of `auto` |
+| `litellm` | nothing said | nothing said | — |
+| `mcode` | `--permission full`, the fence holds | the same | — |
+| `mimo`, `opencode` | `edit` denied, `bash` allowed | nothing denied | — |
+| `omp` | `--approval-mode yolo`, the fence holds | the same | — |
+| `pi` | `edit`, `write` withheld (`bash` kept) | nothing withheld | — |
+| `qwen` | `edit`, `write_file`, `notebook_edit`, `save_memory` withheld (the shell kept) | nothing withheld | — |
+| an ACP CLI | every request granted, `allow_once` before `allow_always`; the fence holds | the same | — |
 
 Per-backend rules:
 
-- **agy**: `--mode plan` alone does not stop writes (agy 1.2 writes in it), so `read-only`
-  also starts the turn as `--agent hmz-read-only`, an agent file Humanize writes into the
-  `agents/` of the turn's [virtual home](#virtual-homes) whose only tools are `view_file`, `grep_search`,
-  `find_by_name` and `list_dir`. That home is built wherever the CLI runs, so the agent is
-  there under a harness on another machine too; a native turn runs in the target's own home,
-  so `read-only` or `web_search=False` there is refused before the first turn with
-  `Unserved: agy cannot run at read-only or off the web natively on another machine: ...`.
-  At `workspace-write` edits pass and commands are soft-denied (named in
-  `denied_actions`).
-- **claude**: `bypass` is `bypassPermissions`. An account whose managed settings carry
-  `"disableBypassPermissionsMode": "disable"` starts that turn at `default` and says so in
-  its `system/init`; the driver then moves the process to `acceptEdits` with a
-  `set_permission_mode` control request, starts every later process of the agent on that
-  account at `acceptEdits`, and says once: `claude: this account will not run an agent at
-  bypass, so it runs at acceptEdits, where what it asks for is granted`. The same holds where
-  Claude runs as root without `IS_SANDBOX=1`: it exits before the turn with
-  `--dangerously-skip-permissions cannot be used with root/sudo privileges for security
-  reasons`, and the turn is taken again at `acceptEdits`. With `ClaudeCodeAgentConfig.asks`,
-  `bypass` runs at `manual` instead, so that every tool that would change something reaches a
-  `PERMISSION_REQUEST` hook. Whatever is asked at `bypass` is
-  answered `allow` unless such a hook refuses. The CLI still enforces an organisation's `deny`
-  list. `read-only` is routed too, so that an `AskUserQuestion` asked in plan mode reaches the
-  ask-user hook (no hook: denied, nobody to ask); every other request there is denied after
-  `PERMISSION_REQUEST` hooks are told of it. At `workspace-write`, `auto` and with no rung
-  nothing is routed, and Claude decides by itself.
-- **codex**: the approval policy is `never` at every rung but `auto`. On a machine whose
-  requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once per agent,
-  as a `notice` event to whatever watches it (on stderr where nothing does):
-  `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks
-  for is granted`. `CodexAgentConfig.approvals` replaces the rung's approval policy, and is
-  kept when the rung is stepped down.
-- **kimi**: Kimi's modes are, loosest last, `manual`, `yolo`, `auto`. At `read-only` plan mode
-  vetoes `Write`, `Edit`, `TaskStop` and the cron tools, and `manual` turns everything else,
-  `Bash` included, into an approval the driver answers no; `ExitPlanMode` is an approval too.
-  Kimi `auto` denies `AskUserQuestion`, so at `workspace-write` and `bypass` no question and
-  no `NOTIFICATION` occur.
-- **mcode**: has no rung that changes nothing and no sandbox. `smart` is its own reviewer,
-  which fails the turn where it would have asked. `read-only` is refused; a flow holds it
-  read-only with a fence that writes nothing.
-- **mimo**, **opencode**: the rung goes in a permission table (`OPENCODE_PERMISSION` /
-  `MIMOCODE_PERMISSION`); any rung also adds `--auto` (opencode) or
+- **agy**: `hmz-read-only` is an agent file Humanize writes into the `agents/` of the turn's
+  [virtual home](#virtual-homes), whose tools are `view_file`, `grep_search`, `find_by_name`,
+  `list_dir` and `run_command`. That home is built wherever the CLI runs, so the agent is there
+  under a harness on another machine too; a native turn runs in the target's own home, so a
+  fence that writes nothing, or `web_search=False`, is refused there before the first turn
+  with `Unserved`.
+- **claude**: an account whose managed settings carry `"disableBypassPermissionsMode":
+  "disable"` starts that turn at `default` and says so in its `system/init`; the driver then
+  moves the process to `acceptEdits` with a `set_permission_mode` control request, starts every
+  later process of the agent on that account at `acceptEdits` with every request granted and
+  the same tools withheld, and says once: `claude: this account will not run an agent at
+  bypassPermissions, so it runs at acceptEdits, where what it asks for is granted`. The same holds where
+  Claude runs as root without `IS_SANDBOX=1`. With a `PERMISSION_REQUEST` hook hung
+  (`ClaudeCodeAgentConfig.asks`) it runs at `manual`, so every tool that would change something
+  reaches the hook, and what is asked is answered `allow` unless the hook refuses. The CLI
+  still enforces an organisation's `deny` list.
+- **codex**: on a machine whose requirements forbid `danger-full-access`, the agent runs with
+  sandbox `workspace-write` and approval `on-request`, every request granted, and says once
+  per agent, as a `notice` event to whatever watches it (on stderr where nothing does): `codex:
+  this machine will not run an agent at danger-full-access, so it runs at workspace-write, where
+  what it asks for is granted`. A fence that writes nothing is never stepped down: `read-only`
+  has nothing below it. `CodexAgentConfig.approvals` replaces the approval policy `never`, and
+  says nothing to an agent with no fence. With an `ASK_USER` hook
+  hung it is started with the feature `default_mode_request_user_input`. Both take hold from
+  the session's next turn (the app server is restarted). Where Codex's own sandbox cannot start
+  inside the fence (macOS, and Linux under Landlock), each turn under a fence is sent
+  `sandboxPolicy: {"type": "externalSandbox", "networkAccess": "enabled"|"restricted"}`, the
+  fence holding the grant.
+- **kimi**: Kimi's modes are, loosest last, `manual`, `yolo`, `auto`. The mode goes in the
+  session profile's `permission_mode`, with `plan_mode` false; the withheld tools (`Write`,
+  `Edit`, and the web tools) go in each prompt's `disabled_tools`, sent as `[]` when nothing is
+  withheld so a resumed session gets its tools back. Kimi `auto` denies `AskUserQuestion` and
+  raises no approval, so with no hook hung no question and no `NOTIFICATION` occur. It runs at
+  `yolo` instead while a `PERMISSION_REQUEST` hook is hung or `agent.ask` is set
+  (`KimiCodeCLIAgentConfig.asks` says so outright). Each approval the daemon holds on
+  `/approvals` -- what `yolo` still asks about -- is answered yes unless the hook refuses. An
+  agent driven by hand bootstraps at `manual`, where nearly every tool raises one, and each is
+  answered no: nothing said what it may do.
+- **mcode**, **dsh**, **omp**, **cursor-agent**, **ACP**: none can withhold a writing tool, so
+  each runs unattended and a fence that writes nothing is what keeps the workdir unchanged.
+  `mcode`'s `smart` is its own reviewer, which fails the turn where it would have asked, and is
+  not used.
+- **mimo**, **opencode**: what is denied goes in a permission table (`OPENCODE_PERMISSION` /
+  `MIMOCODE_PERMISSION`): `edit: deny` and `bash: allow` where the fence writes nothing, `edit`
+  and `bash` both `allow` where it writes somewhere, and the web tools as `web_search` and the
+  fence's network say. Under a fence the turn carries `--auto` (opencode) or
   `--dangerously-skip-permissions` (mimo), unless `unattended` says otherwise.
-- **omp**: no sandbox. At `read-only` omp asks before every tool it does not class as a read,
-  and the driver answers each such approval no without asking anyone. `workspace-write`, `auto`
-  and `bypass` are one agent. With no rung no flag is sent and omp's own configuration decides;
-  an approval it then asks for reaches the person as a [question](#questions).
-- **pi**: no permission gate and no sandbox; `workspace-write`, `auto` and `bypass` are one
-  agent.
-- **qwen**: always `--approval-mode yolo`; its asking modes would leave a held-open session
-  waiting on an approval nothing can answer. Nothing confines an edit to the workspace.
-- **dsh**, **ACP**: the SDK exposes no per-session sandbox or approval control; an ACP CLI's
-  only permission word is a per-call question, which is granted.
+- **grok**: `grok agent` (the held-open transport) refuses `--tools` and
+  `--disable-web-search`, so a fence that writes nothing, or web search off, takes each turn as
+  a `grok -p` run resuming the same session; a fence that writes somewhere is held open with
+  `--always-approve`. A `session/request_permission` is granted under a fence unless a
+  `PERMISSION_REQUEST` hook refuses it, and refused with no fence.
+- **qwen**: `--approval-mode yolo` under a fence, and no mode with none; its asking modes would
+  leave a held-open session waiting on an approval nothing can answer. `run_shell_command` and
+  `monitor` (a command run in the background, its output streamed back) are kept when the fence
+  writes nothing: both run commands the fence holds.
 
-### Flow permission to rung {#the-flow-api-s-permission-on-each-cli}
+### Flow permission to the fence {#the-flow-api-s-permission-on-each-cli}
 
-Under a flow the rung is derived from the role's `Permission` by
-`hmz.runtime.flowing.harnessing.rung()`, and nothing is put to anybody for approval:
+Under a flow the role's `Permission` becomes the agent's fence (`harnessing.fenced`), and
+nothing is put to anybody for approval. Every rule, and `network`, is held by the fence; the
+driver reads from the same fence what to tell its CLI, as the tables above say.
 
-1. `preset` of `read-only` whose rules do not give the workdir `write` (`access(".")` is not
-   `WRITE`) gives `read-only`; anything else gives `bypass`.
-2. If that is not `read-only` and the harness is in `ASKS` and a hook in its `ASKS` set is
-   hung, it becomes `auto`. `ASKS` is `{kimi: {PERMISSION_REQUEST, ASK_USER}}`.
-3. A rung the backend does not take becomes `bypass` (`dsh`, `mcode`, ACP CLIs).
-
-| `Permission` | every harness but `dsh`, `mcode`, ACP | `dsh`, `mcode`, ACP |
-| --- | --- | --- |
-| `read-only`, `access(".")` not `WRITE` | `read-only` | `bypass` |
-| anything else | `bypass` (`auto` for `kimi` with a `PermissionRequest` or `AskUser` hook hung) | `bypass` |
-
-- Every other rule, and `network`, is held by the [fence](#the-fence), not the rung; so is
-  the whole permission on `dsh`, `mcode` and ACP CLIs.
-- **Claude Code** with a `PermissionRequest` hook hung is given `asks=True`
-  (`harnessing.prompting`), so `bypass` runs at `manual` and every tool that would change
-  something reaches the hook. It takes hold from the session's next turn (the process is
-  restarted).
-- **Codex** with a `PermissionRequest` hook hung runs approval policy `untrusted` over its
-  rung's sandbox (`harnessing.approvals`). With an `AskUser` hook hung it is started with the
-  feature `default_mode_request_user_input` (`harnessing.ASKING_FEATURE`). Both take hold from
-  the session's next turn (the app server is restarted).
-- **Codex `read-only`** under a fence, or where bubblewrap cannot get a user namespace, starts
-  the app server with `--enable use_legacy_landlock` (asked once per process by running
-  `codex sandbox … -- true`). Where the fence leaves the network on, each `read-only` turn is
-  sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`. On macOS, where Codex's
-  own Seatbelt sandbox cannot start inside the fence's, each `read-only` or `workspace-write`
-  turn under a fence is sent `sandboxPolicy: {"type": "externalSandbox", "networkAccess":
-  "enabled"|"restricted"}` instead, the fence holding the rung. So is each such turn on Linux,
-  where Codex's own sandbox cannot start inside Landlock either, whether or not the fence is as
-  narrow as the rung (`bypass` stepped down to `auto` under a fence that writes the home).
+- A **side conversation** ([btw](/user/btw)) is held to a fence of its own that writes nothing:
+  the read-only twin of its agent's fence (`Fence.reading()`), or one that reads the whole
+  machine for an agent that has none. Its CLI is told as for any fence that writes nothing, so
+  every backend can answer a side question.
 - `network` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
-<small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
+<small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`fenced`, `searching`) and [`src/hmz/coganchor/fence/__init__.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fence/__init__.py) (`Fence.writes`, `Fence.reading`), and each driver.</small>
 
 ## Web search {#whether-an-agent-may-search-the-web}
 
@@ -471,7 +433,7 @@ Under a flow the rung is derived from the role's `Permission` by
 | `kimi` | `disabled_tools` on each prompt: `WebSearch`, `FetchURL` when off, or when the fence cuts the network |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network |
 | `mimo`, `opencode` | `webfetch: deny`, `websearch: deny`, `codesearch: deny` in the permission table |
-| `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; at `read-only`, `hmz-read-only-web` when on |
+| `agy` | `--agent hmz-offline` (default tools less `read_url_content`, `search_web` and the subagent tools) when off or when the fence cuts the network; under a fence that writes nothing, `hmz-read-only-web` when on |
 | `cursor-agent`, `mcode`, `omp`, `pi`, an ACP CLI | cannot be told: `False` is refused |
 
 Under a flow, it is the role's `network` (`True` by default), on a backend that
@@ -576,8 +538,11 @@ its state in the same way before the turn, through no such link.
 
 The minimum granted whatever the rules is `LINUX_SYSTEM` and `LINUX_DEVICES` on Linux, and
 `DARWIN_SYSTEM` (`/usr`, `/bin`, `/sbin`, `/System`, `/private/var/select`,
-`/private/var/db/timezone` and the handful of files under `/etc` a program reads to start) and
-`DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
+`/private/var/db/timezone`, the handful of files under `/etc` a program reads to start, and
+the developer tools Apple's `xcrun` shims in `/usr/bin` load: `/private/var/db/xcode_select_link`,
+`/Library/Developer/CommandLineTools`, `/Applications/Xcode.app` and Xcode's license plist
+`/Library/Preferences/com.apple.dt.Xcode.plist`, with the directory `xcode-select` chose
+wherever else it is, the whole app where it is inside one) and `DARWIN_DEVICES` on macOS, where the root directory itself is also readable and the
 pseudo-terminals `/dev/ttys*` writable. Seatbelt also lets the current user's `mds`
 directory under `DARWIN_USER_CACHE_DIR` be written, reached as the fence's own paths are and
 granted nothing where it is a link: the Security framework locks its module database there to
@@ -994,10 +959,10 @@ A refusal reaches the agent only on a backend that waits for the answer:
 
 | Backend | When it asks | Default answer with no refusing hook |
 | --- | --- | --- |
-| `claude` | at `read-only` and `bypass`: `--permission-prompt-tool stdio` routes every request over the stream | yes at `bypass`; no at `read-only`; at the other rungs and with no rung nothing is routed |
-| `codex` | through the app server, at `auto` (`on-request`) and at any rung given `approvals` | yes at every rung; no with no rung |
-| `grok` | `session/request_permission`, on the held-open transport only | yes at every rung; no with no rung |
-| `kimi` | each approval on the daemon's `/approvals`: at `auto`, and at `read-only` or no rung | yes at `auto`; no at `read-only` and with no rung |
+| `claude` | under a fence: `--permission-prompt-tool stdio` routes every request over the stream (all of them at `manual`, while `asks`) | yes under a fence; with none nothing is routed |
+| `codex` | through the app server, where the approval policy asks: `untrusted` while `approvals` says so, `on-request` where full access is forbidden | yes under a fence; no with none |
+| `grok` | `session/request_permission`, on the held-open transport only | yes under a fence; no with none |
+| `kimi` | each approval on the daemon's `/approvals`: at `yolo` under a fence while `asks`, and at the `manual` an unfenced agent starts at | yes under a fence; no with none |
 
 A hook can turn a yes into a no, never a no into a yes. Under a flow, Codex's refusal carries
 no reason, so the reason is steered into the turn instead.
@@ -1580,7 +1545,7 @@ or flow resources restart the process; an anchored turn always ends it.
 | --- | --- | --- |
 | `add_workspace` | `True` | `--add-dir <session dir>`, pinning the session's directory |
 | `print_timeout` | `86400.0` | `--print-timeout` seconds (raised from the CLI's 300; since 1.1.28 a timed-out turn exits successfully with a partial answer) |
-| `disable_slash_commands` | `False` | `--disable-slash-commands`; with `read-only`: `Unserved: agy cannot run at read-only with disable_slash_commands: its plan mode has no effect while expansion is off` |
+| `disable_slash_commands` | `False` | `--disable-slash-commands` |
 | `sandbox` | `False` | `--sandbox`, the CLI's terminal restrictions; not how a fence is held |
 
 - Usage is cumulative per conversation; each result reports its own increment. Shaped answers
@@ -1594,9 +1559,10 @@ or flow resources restart the process; an anchored turn always ends it.
   turn is started as (`hmz-read-only`, `hmz-read-only-web`, `hmz-offline`) are written into its
   `agents/` beside links to the user's own, so `~/.gemini/antigravity-cli/agents` is never
   written. An account whose arguments carry `--app_data_dir` of their own runs in that home
-  as before, without the flow's skills; there `read-only` or `web_search=False` is
-  `Unserved: agy cannot run at read-only or off the web under an account naming its own
-  --app_data_dir: ...`, said where the agent is made or reconfigured, and again at a turn
+  as before, without the flow's skills; there a fence that writes nothing, or
+  `web_search=False`, is `Unserved: agy cannot be held to reading or off the web under an
+  account naming its own --app_data_dir: ...`, said where the agent is made or reconfigured,
+  and again at a turn
   whose account a stand-in changed to one. agy replaces `jetbox_summaries_proto.pb` (its conversation
   summaries index) rather than writing through it, so that index keeps what Humanize's turns
   wrote to it only for their process.
@@ -1606,8 +1572,9 @@ or flow resources restart the process; an anchored turn always ends it.
   names restarts the process. agy runs commands in the first workspace directory by path, so
   the plugin's must sort after the session's: where it would sort before (a session under
   `/workspace` with `TMPDIR=/tmp`) the turn is refused with `Unserved: agy cannot be offered
-  tools in <dir>`. Calls need `auto` or `bypass` (or the user's own `mcp(...)` allow rule); at
-  other rungs agy denies them.
+  tools in <dir>`. A fenced turn is run with `--dangerously-skip-permissions`, so its calls go
+  through; an agent driven by hand, told nothing, has them denied unless the user's own
+  `mcp(...)` allow rule grants them.
 
 ### Claude Code {#claude-code}
 
@@ -1617,8 +1584,8 @@ or flow resources restart the process; an anchored turn always ends it.
 claude --print --input-format stream-json --output-format stream-json --verbose
   [--include-partial-messages]
   (--session-id <new uuid> | --resume <id> | --resume <parent> --fork-session)
-  [--permission-mode plan|acceptEdits|auto|bypassPermissions|manual]
-  [--permission-prompt-tool stdio]
+  [--permission-mode bypassPermissions|manual|acceptEdits]
+  [--tools default] [--permission-prompt-tool stdio]
   --settings '<json>' --model <model> [--effort <rung>] [--json-schema '<json>']
   [--disallowedTools <list>] [--allowedTools <list>] [--mcp-config '<json>']
 ```
@@ -1627,8 +1594,13 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 | --- | --- | --- |
 | `allowed_tools` | `()` | `--allowedTools` rules; at most 32, sorted, unique, no `,`, each at most 4096 characters (`ValueError: allowed_tools must be unique sorted Claude tool rules`) |
 | `partial_messages` | `True` | `--include-partial-messages` |
-| `asks` | `None` | at `bypass`, `--permission-mode manual` instead of `bypassPermissions`, so every tool that would change something is asked about. `None`: while a `PERMISSION_REQUEST` hook is hung on the agent. A flow sets it `True` while its own `PERMISSION_REQUEST` hook is hung and `False` otherwise |
+| `asks` | `None` | for a fenced agent, `--permission-mode manual` instead of `bypassPermissions`, so every tool that would change something is asked about. `None`: while a `PERMISSION_REQUEST` hook is hung on the agent. A flow sets it `True` while its own `PERMISSION_REQUEST` hook is hung and `False` otherwise |
 
+- With no fence nothing of a grant is said: no `--permission-mode`, no
+  `--permission-prompt-tool`. A fenced agent runs at `bypassPermissions` with
+  `--permission-prompt-tool stdio`, and one whose fence writes nothing also gets `--tools
+  default` with `Edit`, `Write` and `NotebookEdit` in `--disallowedTools`, which takes them off
+  its tool list; `Bash` stays, and the fence refuses its writes.
 - Every turn runs with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, so background subagents and
   commands finish inside the turn.
 - Every turn runs with `CLAUDE_CODE_NO_MODEL_FALLBACK=1`, overriding an inherited value, so
@@ -1667,7 +1639,7 @@ fall `idle` first, which ends nothing.
 | `overrides` | `()` | `-c` pairs; only `model_context_window` and `model_auto_compact_token_limit`, positive integers, the second below the first. Dropped when a stand-in changes the model. |
 | `features` | `()` | `--enable`/`--disable` pairs by `codex features list` names; `goals` and names beginning `browser_use`, `computer_use`, `standalone_web_search`, `web_search` are refused |
 | `strict_config` | `False` | `--strict-config` |
-| `approvals` | `""` | approval policy replacing the rung's: `untrusted`, `on-request`, `on-failure`, `never` |
+| `approvals` | `""` | approval policy replacing the `never` a fenced agent runs at: `untrusted`, `on-request`, `on-failure`, `never`; nothing for an agent with no fence |
 | `unsandboxed` | `()` | names of fake command lines the agent shelves that run outside Codex's sandbox, by `prefix_rule(pattern=["<name>"], decision="allow")` in `rules/hmz.rules` of the virtual home, beside links to your own rule files; every other command stays in the sandbox |
 
 | Refusal | `ValueError` message |
@@ -1695,7 +1667,8 @@ fall `idle` first, which ends nothing.
   writes into `config.toml` for each workspace it opens a writing thread in is dropped with it.
   The project's `AGENTS.md` and `.codex/config.toml` are read as Codex reads them.
 - No hook table: Codex runs hooks only once trusted in the user's `config.toml`.
-- On another machine, a sandboxed rung whose fence is at least as narrow is sent
+- On another machine, a sandbox (`read-only`, or `workspace-write` where full access is
+  forbidden) whose fence is at least as narrow is sent
   `sandboxPolicy: externalSandbox` ([Remote execution](/reference/remote-execution#a-fence-on-both-machines)).
 - Supervised with its commands on another machine (any anchor but `native`), the server starts
   with `--disable shell_snapshot` unless `features` names it: Codex writes its shell capture
@@ -1712,7 +1685,7 @@ fall `idle` first, which ends nothing.
 
 ```text
 cursor-agent --print --output-format stream-json --workspace <dir> --model <id>
-  [--resume=<chat id>] [<rung flags>] [--trust] [--stream-partial-output] [--approve-mcps]
+  [--resume=<chat id>] [--force --sandbox disabled] [--trust] [--stream-partial-output] [--approve-mcps]
   [--add-dir <dir>]... -- <prompt>
 ```
 
@@ -1730,8 +1703,9 @@ cursor-agent --print --output-format stream-json --workspace <dir> --model <id>
   is used as is. Bracket syntax (`gpt-5.2[effort=low]`) is not built.
 - The id is checked against the account's last catalogue: an unlisted rung is `Unserved`,
   naming those listed. An account never asked refuses nothing.
-- On another machine, `workspace-write` runs `--force --sandbox disabled` where the fence writes
-  nothing of the home or system.
+- `--force --sandbox disabled` goes on every fenced turn, whatever the fence writes, and on no
+  other: `cursor-agent` cannot withhold its writing tools and keep the shell, so the fence holds
+  the grant.
 - Each turn runs in a [virtual home](#virtual-homes) (`CURSOR_CONFIG_DIR`) carrying the flow's
   skills in `skills/` beside links to the user's.
 - `cursor-agent-local`, pointed at an OpenAI-compatible endpoint with
@@ -1754,8 +1728,8 @@ effort goes in the handshake.
   them. Re-read every turn, so a reconfigured agent gets a rebuilt runtime.
 - `web_search`: `False` unmounts the web; unset keeps the profile's. Under a gateway account the
   web keeps `web_fetch` and loses its DeepSeek search.
-- Every runtime runs at `DSH_PERMISSION_MODE=danger-full-access` (`bypass`): the SDK answers no
-  approval request, so the fence is what confines it.
+- Every runtime runs at `DSH_PERMISSION_MODE=danger-full-access`, every request granted: the SDK
+  answers no approval request, so the fence is what confines it.
 - Under a fence that cuts the network, a model endpoint on loopback is unreachable: the runtime
   connects to loopback directly, never through the fence's proxy.
 - `Unrecoverable`: the length refusal, a session id the runtime will not resume, and any
@@ -1777,8 +1751,8 @@ effort goes in the handshake.
 ### Grok Build {#grok-build}
 
 `grok`. Ordinary turns are `session/prompt` on a held `grok agent stdio`, which takes only a
-model, an effort, an approval, an agent profile, a plugin directory and the leader. A
-tool-withholding rung, `web_search=False`, a network-cutting fence, a shape, a fork, or any field
+model, an effort, an approval, an agent profile, a plugin directory and the leader. A fence
+that writes nothing (its tools an allowlist), `web_search=False`, a network-cutting fence, a shape, a fork, or any field
 below but `leader` set away from default sends the turn to
 `grok -p --output-format streaming-json --resume <id> …` instead. `grok -p` takes no MCP
 server, so such a turn is refused while [fake tools](#callbacks-as-tools) are offered.
@@ -1872,7 +1846,8 @@ No fields of its own.
   [Through LiteLLM](/reference/providers#through-litellm).
 - `--effort` is sent only where the account's catalogue lists the rung for the model (only
   `minimax/MiniMax-M3.1-Flash-Preview` takes rungs).
-- `read-only` is refused; `web_search=False` and a network-cutting fence are refused.
+- A fenced turn runs at `--permission full`, whatever the fence writes; an unfenced one is told
+  nothing. `web_search=False` and a network-cutting fence are refused.
 - The stream reports its `task` tool as `SUBAGENT_START`/`SUBAGENT_STOP`; usage arrives on the
   closing result, and the running cost reads its session log.
 - Each start creates `<data directory>.lock` beside its data directory: in a virtual home,
@@ -1893,7 +1868,7 @@ No fields of its own.
 
 ```text
 omp --mode rpc --model <provider/id> [--thinking <rung>]
-  [--resume <id> | --fork <parent>] [--approval-mode always-ask|yolo]
+  [--resume <id> | --fork <parent>] [--approval-mode yolo]
 ```
 
 `OhMyPiAgentConfig` adds no fields; those `PiAgentConfig` adds are not offered.
@@ -1905,10 +1880,12 @@ omp --mode rpc --model <provider/id> [--thinking <rung>]
 - A turn ends on the `agent_end` that is terminal (neither `isTerminal` nor `yielded` is
   `false`); omp sends no `agent_settled`. A prompt omp answers itself, a slash command of its own
   (`agentInvoked: false`), also ends the turn.
-- At `read-only`, an `extension_ui_request` offering exactly `Approve`, `Deny` is answered
-  `Deny` without asking anyone. Any other is a [question](#questions), as on pi.
-- `reconfigure` to another `--approval-mode`, or another fence, ends the held process before
-  the next turn, which starts one at the new one and resumes the conversation.
+- Under any fence omp runs at `--approval-mode yolo`, asked nothing, whatever the fence writes:
+  omp cannot withhold a tool, and the fence holds the grant. An agent with no fence is told no
+  mode, and runs at omp's own; an `extension_ui_request` it puts is a
+  [question](#questions), as on pi.
+- `reconfigure` to another fence, or to none, ends the held process before the next turn,
+  which starts one inside the new one and resumes the conversation.
 - Offered [fake tools](#callbacks-as-tools) are `set_host_tools` (`loadMode: essential`) ahead of
   the prompt whenever their names change; each `host_tool_call` runs on a thread of its own and
   is answered `host_tool_result`. A refused `set_host_tools` fails the turn.
@@ -1935,8 +1912,8 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 | `cli_agent` | `""` | `--agent NAME` |
 | `thinking` | `False` | `--thinking`: reasoning streamed as `reasoning` events |
 | `pure` | `False` | `--pure`: no plugins |
-| `unattended` | `None` | `--auto` (opencode) / `--dangerously-skip-permissions` (mimo); `None`: on where a rung is named |
-| `permission_table` | `None` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION` carrying the rung and web answer; `None`: written where either is said; `False` refused beside a withholding rung or `web_search=False` (`Unserved: permission_table=False withholds the only table this backend hears permission='read-only' in`) |
+| `unattended` | `None` | `--auto` (opencode) / `--dangerously-skip-permissions` (mimo); `None`: on where a fence is set |
+| `permission_table` | `None` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION` carrying the grant read off the fence and the web answer; `None`: written where a fence or `web_search` is set; `False` refused beside a fence that writes nothing, a fence that cuts the network, or `web_search=False` (`Unserved: permission_table=False withholds the only table this backend hears a fence that writes nothing in`) |
 
 - The table is written for the turn, never to a settings file. Its `read` and `edit` rules are
   relative to the top of the git checkout the session is in, or `/`.
@@ -1961,7 +1938,7 @@ opencode run --format json --dir <dir> --model <provider/id> [--variant <effort>
 ```text
 pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <parent>]
   [--thinking <rung>]
-  [--exclude-tools bash,edit,write,powershell] [--no-context-files] [--no-extensions]
+  [--exclude-tools edit,write] [--no-context-files] [--no-extensions]
   [--offline] [--append-system-prompt <s>]... [--skill <path>]...
   [--extension <hmz>/coganchor/agents/pi_tools.cjs]
 ```
@@ -1974,6 +1951,12 @@ pi --mode rpc --model <model> --session-id <id> [--provider <gateway>] [--fork <
 | `offline` | `False` | `--offline`; forced under `network=False` |
 | `append_system_prompt` | `()` | `--append-system-prompt` per entry (text or path) |
 | `skill_paths` | `()` | `--skill` per entry |
+
+`--exclude-tools edit,write` under a fence that writes nothing; `bash` (and `powershell`) is
+kept, and the fence refuses what it writes. pi has no permission gate, so nothing else is said
+about the grant, and an agent with no fence is told nothing. `reconfigure` to another fence,
+or to none, ends the held process before the next turn, which starts one with the tools the new
+one allows and resumes the conversation.
 
 `--session-id` rather than `--continue`, which resumes the newest session in the directory.
 Each process runs in a [virtual home](#virtual-homes) (`PI_CODING_AGENT_DIR`): a gateway
@@ -2173,7 +2156,6 @@ class AgentBase:
     moments: ClassVar[frozenset[Moment]]
     pursues: ClassVar[bool]
     service_tiers: ClassVar[tuple[str, ...]]
-    rungs: ClassVar[tuple[str, ...]]
     counts: ClassVar[frozenset[str]]
 
     id: str; backend: str; config: AgentConfig; effort: str  # settable

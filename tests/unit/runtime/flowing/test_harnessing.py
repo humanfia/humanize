@@ -1,4 +1,4 @@
-"""How the flow API is read into coganchor's words and back: rungs, hooks, faults, answers."""
+"""How the flow API is read into coganchor's words and back: fences, hooks, faults, answers."""
 
 from __future__ import annotations
 
@@ -43,119 +43,29 @@ from hmz.flows import (
     SessionError,
     StopHookResult,
     UnsupportedOperation,
-    allow,
     deny,
     read_only,
 )
 from hmz.runtime.flowing.harnessing import (
-    ASKING,
     ASKING_FEATURE,
-    ASKS,
-    BYPASS,
     FAULTS,
     MOMENTS,
-    READ_ONLY,
     UNTRUSTED,
-    WORKSPACE_WRITE,
     answer,
     approvals,
-    asking,
     fenced,
     fields,
     harness_error,
     prompting,
     read_shape,
-    rung,
     searching,
     verdict,
 )
 
-READ = Permission(preset="read-only")
 NONE = Permission(preset="read-only", network=False, granular=(deny("/"),))
 ALL = Permission()
-LADDER = (READ_ONLY, WORKSPACE_WRITE, ASKING, BYPASS)
 
 # ---------------------------------------------------------------------------- permission
-
-
-@pytest.mark.parametrize(
-    ("harness", "permission", "rungs", "hung", "said"),
-    [
-        (HarnessKind.CLAUDE, ALL, LADDER, frozenset[HookKind](), BYPASS),
-        (HarnessKind.CLAUDE, READ, LADDER, frozenset[HookKind](), READ_ONLY),
-        (HarnessKind.CLAUDE, NONE, LADDER, frozenset[HookKind](), READ_ONLY),
-        (
-            HarnessKind.CLAUDE,
-            Permission(preset="read-only", granular=(allow("."),)),
-            LADDER,
-            frozenset[HookKind](),
-            BYPASS,
-        ),
-        (
-            HarnessKind.CLAUDE,
-            Permission(preset="read-only", granular=(allow("./out"),)),
-            LADDER,
-            frozenset[HookKind](),
-            READ_ONLY,
-        ),
-        (
-            HarnessKind.CLAUDE,
-            Permission(granular=(read_only("."),)),
-            LADDER,
-            frozenset[HookKind](),
-            BYPASS,
-        ),
-        (
-            HarnessKind.CLAUDE,
-            Permission(preset="danger-full-access"),
-            LADDER,
-            frozenset[HookKind](),
-            BYPASS,
-        ),
-        (HarnessKind.DSH, READ, (BYPASS,), frozenset[HookKind](), BYPASS),
-        (HarnessKind.KIMI, ALL, LADDER, frozenset({HookKind.ASK_USER}), ASKING),
-        (
-            HarnessKind.KIMI,
-            ALL,
-            LADDER,
-            frozenset({HookKind.PERMISSION_REQUEST}),
-            ASKING,
-        ),
-        (HarnessKind.KIMI, ALL, LADDER, frozenset({HookKind.STOP}), BYPASS),
-        (HarnessKind.KIMI, READ, LADDER, frozenset({HookKind.ASK_USER}), READ_ONLY),
-        (HarnessKind.CODEX, ALL, LADDER, frozenset({HookKind.ASK_USER}), BYPASS),
-    ],
-    ids=[
-        "all-is-bypass",
-        "read-is-read-only",
-        "none-is-read-only",
-        "read-only-writing-the-workdir-is-bypass",
-        "read-only-writing-beneath-the-workdir-is-read-only",
-        "only-a-read-only-preset-is-read-only",
-        "full-access-is-bypass",
-        "a-cli-with-one-rung",
-        "kimi-asks-for-a-question",
-        "kimi-asks-for-a-permission",
-        "kimi-other-hooks",
-        "kimi-reading",
-        "codex-never-auto",
-    ],
-)
-def test_a_session_runs_at_the_rung_the_table_says(
-    harness: HarnessKind,
-    permission: Permission,
-    rungs: tuple[str, ...],
-    hung: frozenset[HookKind],
-    said: str,
-) -> None:
-    assert rung(harness, permission, rungs=rungs, hung=hung) == said
-
-
-def test_only_kimi_is_run_asking_and_only_for_the_hooks_asking_reaches() -> None:
-    assert set(ASKS) == {HarnessKind.KIMI}
-    assert asking(HarnessKind.KIMI, frozenset({HookKind.ASK_USER}))
-    assert not asking(HarnessKind.KIMI, frozenset())
-    assert not asking(HarnessKind.CLAUDE, frozenset({HookKind.PERMISSION_REQUEST}))
 
 
 @pytest.mark.parametrize(
@@ -172,10 +82,27 @@ def test_codex_asks_about_everything_while_a_permission_hook_is_hung(
     assert approvals(harness, hung) == said
 
 
-def test_claude_prompts_while_a_permission_hook_is_hung() -> None:
-    assert prompting(HarnessKind.CLAUDE, frozenset({HookKind.PERMISSION_REQUEST}))
-    assert not prompting(HarnessKind.CLAUDE, frozenset({HookKind.PRE_TOOL_USE}))
-    assert not prompting(HarnessKind.CODEX, frozenset({HookKind.PERMISSION_REQUEST}))
+@pytest.mark.parametrize(
+    ("harness", "hung", "said"),
+    [
+        (HarnessKind.CLAUDE, frozenset({HookKind.PERMISSION_REQUEST}), True),
+        (HarnessKind.CLAUDE, frozenset({HookKind.ASK_USER}), False),
+        (HarnessKind.CLAUDE, frozenset({HookKind.PRE_TOOL_USE}), False),
+        (HarnessKind.KIMI, frozenset({HookKind.PERMISSION_REQUEST}), True),
+        (HarnessKind.KIMI, frozenset({HookKind.ASK_USER}), True),
+        (HarnessKind.KIMI, frozenset({HookKind.STOP}), False),
+        (HarnessKind.KIMI, frozenset[HookKind](), False),
+        (HarnessKind.CODEX, frozenset({HookKind.PERMISSION_REQUEST}), False),
+        (HarnessKind.GROK, frozenset({HookKind.PERMISSION_REQUEST}), False),
+    ],
+)
+def test_claude_and_kimi_ask_only_while_a_hook_they_reach_is_hung(
+    harness: HarnessKind, hung: frozenset[HookKind], said: bool
+) -> None:
+    assert prompting(harness, hung) is said
+
+
+def test_codex_is_asked_for_its_users_questions_by_a_feature() -> None:
     assert ASKING_FEATURE == "default_mode_request_user_input"
 
 

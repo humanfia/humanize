@@ -150,8 +150,9 @@ What that comes to in practice:
   the rest of the machine stays as the other rules say.
 - **A `deny` can be undone by a later rule.** `deny("./.env")` followed by `allow(".")` leaves
   `.env` writable, since the last rule that holds a path wins.
-- **A read-only role** (`preset="read-only"`, with no rule that writes its working directory)
-  also runs in its CLI's read-only mode.
+- **A read-only role** (no rule that writes anything, such as `preset="read-only"` alone) also
+  has its CLI's file-writing tools withheld where the CLI can withhold them; its shell is
+  kept, and the fence refuses the writes it attempts.
 - **`network=False`** cuts the network, except the hosts the agent's model and login are
   at. The CLI's web tools are switched off too, where it can be told. Those hosts are
   reached through a proxy Humanize runs on loopback; where your own `HTTPS_PROXY`,
