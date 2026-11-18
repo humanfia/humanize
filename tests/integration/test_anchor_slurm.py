@@ -101,6 +101,8 @@ def test_a_job_reached_over_tcp_serves_every_connection_that_has_its_secret(
     try:
         assert anchor.target.startswith("tcp://localhost:")
         assert anchor.token
+        (submitted,) = cluster.calls("sbatch")
+        assert anchor.token not in " ".join(submitted)  # which anybody here could read
         for one in range(
             3
         ):  # one listener, many connections, and no `srun` held for any

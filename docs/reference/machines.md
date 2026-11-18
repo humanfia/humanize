@@ -240,8 +240,11 @@ sbatch --parsable
   --nodes 1 --ntasks 1
   [--partition P] [--account A] [--qos Q] [--time T] [--constraint C]
   [--cpus-per-task N] [--mem <MiB>M] [--gpus N]
-  --wrap <script>
+  --wrap <script>                          for via=srun
 ```
+
+For `via=tcp` there is no `--wrap`: the script holds the secret, so `sbatch` reads it from its
+standard input, as `#!/bin/sh` and then the script, and the secret is on no command line here.
 
 `start()` submits where `submit()` has not, follows the job with `squeue` until it is
 `RUNNING` -- asking after 1 s, then twice as long each time up to 10 s apart, and asking again

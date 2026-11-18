@@ -271,8 +271,10 @@ def _allocation(ident: str, said: Mapping[str, str]) -> Allocation:
     )
 
 
-def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProcess[str]:
-    """Runs one question for the cluster, with nothing on its stdin, for so long at most.
+def _asked(
+    argv: list[str], seconds: float | None, given: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Runs one question for the cluster, with `given` or nothing on its stdin, for so long at most.
 
     Raises:
       OSError: If it could not be run, or did not answer in time.
@@ -282,7 +284,8 @@ def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProces
             argv,
             capture_output=True,
             text=True,
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL if given is None else None,
+            input=given,
             timeout=seconds,
             check=False,
         )
@@ -335,6 +338,10 @@ class Slurm(MachineBase):
                 prefix="humanize-", ignore_cleanup_errors=True
             )
         name = config.name or Path(self._mirror.name).name
+        # A script holding the secret is read by `sbatch` from its stdin: `--wrap` would put
+        # it on a command line, which anybody on this machine could read.
+        script = self._script()
+        secret = config.via == TCP
         made = _asked(
             [
                 "sbatch",
@@ -350,10 +357,10 @@ class Slurm(MachineBase):
                 self._labelled(),
                 *config.sbatch_args,
                 *self._asks(),
-                "--wrap",
-                self._script(),
+                *(() if secret else ("--wrap", script)),
             ],
             _ASKING,
+            f"#!/bin/sh\n{script}\n" if secret else None,
         )
         job = (
             made.stdout.strip().splitlines()[-1].partition(";")[0]
@@ -506,7 +513,8 @@ class Slurm(MachineBase):
         `coganchor` is put there by `srun` once the job runs, named by the build for the node's
         platform -- which nobody has asked it yet, so the script asks and waits for that one --
         and run with no Python, whatever `python` says. The secret is set in the script rather
-        than on a command line, which anybody on the node could read.
+        than on a command line, which anybody on the node could read; :meth:`submit` keeps the
+        script off `sbatch`'s own.
 
         It exports the workspace and :data:`_DERIVED`, which every connection to it shares: a
         fence drawn again on the node is drawn around what is exported, so not `/`.
