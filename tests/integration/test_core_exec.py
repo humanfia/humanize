@@ -283,6 +283,18 @@ def test_goal_says_the_task_as_a_goal() -> None:
     assert ran.stdout.strip() == "goal met: win"
 
 
+def test_a_cost_limit_no_price_can_enforce_is_said_once() -> None:
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
+
+    assert ran.returncode == 0, ran.stderr
+    said = [
+        line for line in ran.stderr.splitlines() if "cannot stop what it spends" in line
+    ]
+    assert len(said) == 1, ran.stderr
+    assert said[0].startswith("hmz exec: nobody lists a price for ")
+    assert said[0].endswith(", so cost=1 cannot stop what it spends")
+
+
 def test_a_run_that_ended_leaves_no_agents_temporary_directory_behind() -> None:
     ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
 
