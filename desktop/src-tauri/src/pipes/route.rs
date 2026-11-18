@@ -47,12 +47,18 @@ impl Route {
 
     /// Whether the app opens it here (Section 3.12.2 of [DESKTOP]): `stdio:local` on macOS,
     /// `stdio:wsl` on Windows, and the rest but `unix` and `webrtc`, which the web view opens
-    /// itself, on both.
+    /// itself, on both -- a `stdio:ssh` one only where `ssh` reads its destination as one
+    /// destination (Section 3.3.5 of [WIRE]).
     pub fn offered(&self) -> bool {
         match self {
             Route::Local => cfg!(not(windows)),
             Route::Wsl(_) => cfg!(windows),
             Route::Unix(_) | Route::Webrtc(_) => false,
+            Route::Ssh(ssh) => {
+                let first = ssh.user.as_ref().unwrap_or(&ssh.host);
+                let said = |part: &str| !part.contains([' ', '\t', '\r', '\n', '\0']);
+                !first.starts_with('-') && said(first) && said(&ssh.host)
+            }
             _ => true,
         }
     }
@@ -175,7 +181,9 @@ fn authority(hostport: &str) -> Option<(String, Option<u16>)> {
         (host, port)
     };
     let port = match port {
-        Some(port) if port.bytes().all(|c| c.is_ascii_digit()) => Some(port.parse().ok()?),
+        Some(port) if port.bytes().all(|c| c.is_ascii_digit()) => {
+            Some(port.parse().ok().filter(|&port| port != 0)?)
+        }
         Some(_) => return None,
         None => None,
     };
@@ -315,6 +323,10 @@ mod tests {
             "tcp://h",
             "tcp://:1",
             "tcp://h:99999",
+            "tcp://h:0",
+            "ws://h:0/x",
+            "relay:wss://h:0",
+            "stdio:ssh://h:0",
             "tcp://h:1/x",
             "tcp://[::1:1",
             "http://h",
@@ -368,5 +380,21 @@ mod tests {
         ] {
             assert!(ok(route).offered(), "{route}");
         }
+    }
+
+    #[test]
+    fn offers_no_ssh_destination_ssh_would_misread() {
+        for route in [
+            "stdio:ssh://-oProxyCommand=x",
+            "stdio:ssh://-l@box",
+            "stdio:ssh://me%20x@box",
+            "stdio:ssh://a%09b",
+            "stdio:ssh://a%0Db",
+            "stdio:ssh://a%0Ab",
+            "stdio:ssh://me@a%00b",
+        ] {
+            assert!(!ok(route).offered(), "{route}");
+        }
+        assert!(ok("stdio:ssh://me@-box").offered());
     }
 }

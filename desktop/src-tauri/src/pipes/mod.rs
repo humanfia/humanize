@@ -641,6 +641,14 @@ mod tests {
             "stdio:wsl cannot be reached from here."
         );
         assert_eq!(
+            open("stdio:ssh://-oProxyCommand=x", None).unwrap_err(),
+            "stdio:ssh://-oProxyCommand=x cannot be reached from here."
+        );
+        assert_eq!(
+            open("tcp://h:0", Some("x")).unwrap_err(),
+            "tcp://h:0 is not a route."
+        );
+        assert_eq!(
             open("tcp://h:1", None).unwrap_err(),
             "tcp://h:1 needs the id of the daemon it reaches."
         );
