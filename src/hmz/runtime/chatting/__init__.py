@@ -746,7 +746,12 @@ class _Talk:
         agent = getattr(handle, "agent", None)
         if agent is None:
             return
-        cli, model, effort = self._as[0], str(agent.config.model), str(agent.effort)
+        # What the conversation runs at, which is the agent's only where the CLI's command
+        # moved the agent: Codex's moves the conversation alone.
+        conversation = getattr(handle, "coganchor", None)
+        model = str(getattr(conversation, "model", None) or agent.config.model)
+        effort = str(getattr(conversation, "effort", agent.effort))
+        cli = self._as[0]
         if (cli, model, effort) == self._as:
             return
         self._as = (cli, model, effort)
