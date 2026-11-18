@@ -1808,11 +1808,13 @@ class Host:
                 self._drops(current.number, "ended")
                 # Nobody was there to see it end, and nobody asked for it to: the next to
                 # arrive is the one it ended for. A chat ends only as somebody leaves it,
-                # its conversation kept in its epic, and so for nobody.
+                # its conversation kept in its epic, and so for nobody; an exec host's one
+                # epic is not kept either, for nothing attaches to that host again.
                 if (
                     not self._frontends
                     and not current.stopped_by
                     and current.run.kind != "chat"
+                    and not self._slot.startswith("exec:")
                 ):
                     self._keeps = True
             self._ended = {
