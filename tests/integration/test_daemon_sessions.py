@@ -220,6 +220,23 @@ def test_a_device_pairs_over_tcp_and_attaches_and_is_dropped_once_revoked(
     near.call("hosts.stop", workspace=str(workspace))
 
 
+def test_a_device_reaches_a_websocket_listener_on_an_ipv6_address(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Section 3.9.2 of daemon.md: `ws://<address>:<port>`, an IPv6 address as much as any.
+    listens("ws://[::1]:0")
+    daemon.start()
+    near = local()
+    assert until(lambda: _routes(near))
+    paired = code()
+    (route,) = paired.routes
+    assert route.startswith("ws://[::1]:")
+    assert int(route.rsplit(":", 1)[1]) > 0
+    afar = secured(route, device(tmp_path / "afar", monkeypatch), paired.id)
+    afar.call("pair.claim", token=paired.token, name="afar")
+    assert afar.call("hosts.list") == {"held": []}
+
+
 def test_listeners_open_and_close_as_the_setting_changes(workspace: Path) -> None:
     daemon.start()
     near = local()
