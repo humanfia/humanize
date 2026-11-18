@@ -1187,26 +1187,34 @@ def _acyclic(
 
 def _loops(held: Mapping[str, Nous]) -> None:
     """Refuses nous that name one another round, and virtual ones nobody wrote down."""
-
-    def own(name: str) -> Nous | None:
-        return held.get(name) or held.get(_bare(name))
-
     for one in held.values():
         for name in _named(one):
             if "/" not in name and name not in held:
                 raise ValueError(
                     f"{one.name} names {name}, which is no nous written down"
                 )
-
-    def visit(name: str, path: tuple[str, ...]) -> None:
-        if name in path:
-            raise ValueError(f"{' -> '.join((*path, name))} comes round")
-        found = own(name)
-        for onward in sorted(_named(found)) if found is not None else ():
-            visit(onward, (*path, name))
-
     for one in held.values():
-        visit(one.name, ())
+        _round(held, one.name)
+
+
+def _round(held: Mapping[str, Nous], name: str, path: tuple[str, ...] = ()) -> None:
+    """Refuses a nous that comes round to itself through those held."""
+    if name in path:
+        raise ValueError(f"{' -> '.join((*path, name))} comes round")
+    found = held.get(name) or held.get(_bare(name))
+    for onward in sorted(_named(found)) if found is not None else ():
+        _round(held, onward, (*path, name))
+
+
+def _holds(found: dict[str, Nous], one: Nous | None) -> None:
+    """Holds one entry read, unless its name is taken or it names those held round."""
+    if one is None or one.name in found:
+        return
+    try:
+        _round({**found, one.name: one}, one.name)
+    except ValueError:
+        return
+    found[one.name] = one
 
 
 def _read(held: Mapping[str, Any]) -> list[Nous]:
@@ -1216,9 +1224,7 @@ def _read(held: Mapping[str, Any]) -> list[Nous]:
     for name, row in cast(
         "dict[object, object]", said if isinstance(said, dict) else {}
     ).items():
-        one = _readone(str(name), row)
-        if one is not None and one.name not in found:
-            found[one.name] = one
+        _holds(found, _readone(str(name), row))
     was = held.get(_WAS)
     for row in cast("list[object]", was if isinstance(was, list) else []):
         if not isinstance(row, dict):
@@ -1231,9 +1237,7 @@ def _read(held: Mapping[str, Any]) -> list[Nous]:
             "timeout": row.get("timeout"),
             "then": cast("list[object]", to) if isinstance(to, list) else [],
         }
-        one = _readone(str(row.get("spec") or ""), old)
-        if one is not None and one.name not in found:
-            found[one.name] = one
+        _holds(found, _readone(str(row.get("spec") or ""), old))
     return list(found.values())
 
 
