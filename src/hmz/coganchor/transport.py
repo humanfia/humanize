@@ -1237,7 +1237,10 @@ def connect(target: Target, exports: list[str], token: str | None = None) -> Tra
       ValueError: If the target cannot be read.
     """
     if target.scheme == "tcp":
-        sock = socket.create_connection((target.host, target.port), timeout=30.0)
+        # An IPv6 literal is spelled in brackets and dialled without them, as the cog does.
+        sock = socket.create_connection(
+            (target.host.strip("[]"), target.port), timeout=30.0
+        )
         # Nagle off, the way a punched socket has it off: this protocol is a small request
         # and a small reply, over and over, and a delay waiting for a second frame that is
         # not coming is a delay per syscall the agent makes.
