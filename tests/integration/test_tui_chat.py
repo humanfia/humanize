@@ -21,6 +21,7 @@ from hmz import daemon as daemons
 from hmz.daemon.reach import Conversations
 from hmz.runtime.epic import Ran, chats, epics, read
 from hmz.tui import Humanize
+from hmz.tui.chats import Resumes
 from hmz.tui.flows import Flows
 from hmz.tui.monitoring import Monitoring
 from tests.integration.doubles_tui import (
@@ -246,7 +247,7 @@ async def test_an_ai_chan_conversation_is_not_among_the_chats_to_resume(
         await shows(pilot, f"◉ {RUNS}")
         await typed(pilot, "again")
         await shows(pilot, "heard again")
-        first, _ = chats(workspace)
+        first, second = chats(workspace)
         # The first is hers, kept; and stays hers once her conversation is forgotten.
         kept = Conversations()
         made = kept.made({"slot": "ai:1"})
@@ -255,15 +256,12 @@ async def test_an_ai_chan_conversation_is_not_among_the_chats_to_resume(
         for forgotten in (False, True):
             if forgotten:
                 assert kept.forgot(made["id"]) is not None
-            said = screen(app).count("no other chat has been had here")
             await typed(pilot, "/resume")
-            await until(
-                pilot,
-                lambda said=said: (
-                    screen(app).count("no other chat has been had here") == said + 1
-                ),
-                "none to resume",
-            )
+            await on(pilot, Resumes)
+            # The chat on the screen alone: hers is no chat to carry on from here.
+            assert rows(app) == [second.name]
+            await pilot.press("escape")
+            await until(pilot, lambda: len(app.screen_stack) == 1, "the list to close")
 
 
 async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
@@ -617,8 +615,8 @@ async def test_resume_in_a_chat_carries_on_an_earlier_one(workspace: Path) -> No
         await typed(pilot, "/resume")
         await shows(pilot, "Resume a chat", "first")
         first, second = chats(workspace)
-        # The earlier one alone: the one on the screen is the one already had.
-        assert rows(app) == [first.name]
+        # Newest first, the one on the screen among them as the one already had.
+        assert rows(app) == [second.name, first.name]
         await opens(pilot, first.name)
 
         await shows(pilot, "heard first")

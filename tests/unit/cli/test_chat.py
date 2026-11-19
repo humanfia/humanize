@@ -57,6 +57,7 @@ class _Client:
         self.asked: list[tuple[str, dict[str, Any]]] = []
         self.said: list[list[dict[str, Any]]] = [list(_TURN)]
         self.refuses: dict[str, BaseException] = {}
+        self.answers: dict[str, dict[str, Any]] = {}
         self.attached: Callable[[], None] = lambda: None
         self.listener: Callable[[str, dict[str, Any]], None] | None = None
         self.ended = False
@@ -89,6 +90,8 @@ class _Client:
             raise self.refuses[method]
         if method == "chat.start":
             return {"slot": "chat:ab12", "chat": "E"}
+        if method in self.answers:
+            return self.answers[method]
         if method == "epic.attach":
             assert self.listener is not None
             said = self.said.pop(0) if len(self.said) > 1 else self.said[0]
@@ -259,7 +262,18 @@ def test_resume_with_an_agent_carries_the_chat_on_with_that_one(
     [
         ([], "the following arguments are required: message"),
         ([""], "the message is empty"),
-        (["-x"], "the following arguments are required: message"),
+        (["-x"], "unrecognized arguments: -x"),
+        (["--list", "hello"], "--list takes no message"),
+        (
+            ["--list", "--fork", "E"],
+            "argument --fork: not allowed with argument --list",
+        ),
+        (["--archived", "hello"], "--archived goes with --list"),
+        (["--yes", "hello"], "--yes goes with --delete"),
+        (["--rename", "E"], "--rename takes the chat and then its title"),
+        (["--rename", "E", " "], "--rename takes the chat and then its title"),
+        (["--fork", "E", "-a", "codex/o3"], "--fork says nothing to a chat"),
+        (["--delete", "E", "--resume", "F"], "--delete says nothing to a chat"),
         (["one", "two"], "unrecognized arguments"),
     ],
 )
@@ -591,3 +605,196 @@ def test_what_the_chat_says_ahead_of_a_turns_answer_is_said_and_the_answer_once(
     assert captured.out == "answered\n"
     assert f"hmz chat: {unkept}\n" in captured.err
     assert "hmz chat: answered" not in captured.err
+
+
+def test_the_id_of_the_chat_is_said_on_standard_error_as_it_starts(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    assert main(["chat", "hello"]) == 0
+
+    said = capsys.readouterr()
+    assert "hmz chat: chat E\n" in said.err
+    assert said.out == "answered\n"
+    assert client.methods()[0] == "chat.start"
+
+
+def _chat_row(name: str, title: str, state: str = "resting") -> dict[str, Any]:
+    return {"id": name, "title": title, "state": state}
+
+
+def test_list_says_each_chat_of_this_directory_by_its_id_newest_first(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client.answers["chat.list"] = {
+        "chats": [
+            _chat_row("E2", "the  parser\n" + "x" * 80),
+            _chat_row("E1", "hi", "going"),
+        ],
+        "total": 2,
+    }
+
+    assert main(["chat", "--list"]) == 0
+
+    assert client.asked == [
+        (
+            "chat.list",
+            {
+                "workspace": str(workspace.workspace),
+                "archived": False,
+                "offset": 0,
+                "limit": 200,
+            },
+        )
+    ]
+    assert capsys.readouterr().out == (
+        f"E2  resting  the parser {'x' * 48}…\nE1  going  hi\n"
+    )
+    assert client.closed
+
+
+def test_list_archived_asks_for_the_archived_chats_alone(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    client.answers["chat.list"] = {"chats": [], "total": 0}
+
+    assert main(["chat", "--list", "--archived"]) == 0
+
+    assert client.params("chat.list")["archived"] is True
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize(
+    ("argv", "method", "params"),
+    [
+        (
+            ["--rename", "E", "the parser"],
+            "chat.rename",
+            {"chat": "E", "title": "the parser"},
+        ),
+        (["--archive", "E"], "chat.archive", {"chat": "E"}),
+        (["--unarchive", "E"], "chat.unarchive", {"chat": "E"}),
+    ],
+)
+def test_a_chat_is_renamed_archived_and_put_back_and_said_as_it_now_stands(
+    workspace: mock.Mock,
+    client: _Client,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    method: str,
+    params: dict[str, Any],
+) -> None:
+    del workspace
+    client.answers[method] = _chat_row("E", "the parser")
+
+    assert main(["chat", *argv]) == 0
+
+    assert client.asked == [(method, params)]
+    assert capsys.readouterr().out == "E  resting  the parser\n"
+
+
+def test_fork_says_the_id_of_the_new_chat(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    client.answers["chat.fork"] = {"chat": "F"}
+
+    assert main(["chat", "--fork", "E"]) == 0
+
+    assert client.asked == [("chat.fork", {"chat": "E"})]
+    assert capsys.readouterr().out == "F\n"
+
+
+def test_delete_with_yes_deletes_without_asking(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    assert main(["chat", "--delete", "E", "--yes"]) == 0
+
+    assert client.asked == [("chat.delete", {"chat": "E"})]
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize(
+    ("typed", "status", "methods"),
+    [
+        ("y\n", 0, ["chat.get", "chat.delete"]),
+        ("yes\n", 0, ["chat.get", "chat.delete"]),
+        ("\n", 1, ["chat.get"]),
+        ("no\n", 1, ["chat.get"]),
+    ],
+)
+def test_delete_asks_at_a_terminal_saying_it_is_for_good(
+    workspace: mock.Mock,
+    client: _Client,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    typed: str,
+    status: int,
+    methods: list[str],
+) -> None:
+    del workspace
+    client.answers["chat.get"] = _chat_row("E", "the parser")
+    stdin = mock.Mock()
+    stdin.isatty.return_value = True
+    stdin.readline.return_value = typed
+    monkeypatch.setattr("sys.stdin", stdin)
+
+    assert main(["chat", "--delete", "E"]) == status
+
+    assert client.methods() == methods
+    err = capsys.readouterr().err
+    assert "hmz chat: delete E  resting  the parser\n" in err
+    assert "for good? It cannot be brought back. [y/N] " in err
+    assert ("hmz chat: chat E was not deleted\n" in err) is bool(status)
+
+
+def test_delete_asks_nobody_off_a_terminal_and_deletes_nothing(
+    workspace: mock.Mock,
+    client: _Client,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del workspace
+    stdin = mock.Mock()
+    stdin.isatty.return_value = False
+    monkeypatch.setattr("sys.stdin", stdin)
+
+    assert main(["chat", "--delete", "E"]) == 1
+
+    assert client.methods() == ["chat.get"]
+    assert capsys.readouterr().err == (
+        "hmz chat: nobody is at a terminal to ask; say --yes\n"
+        "hmz chat: chat E was not deleted\n"
+    )
+
+
+def test_what_the_daemon_refuses_of_a_chat_is_an_error_and_exits_two(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    client.refuses["chat.fork"] = Refused("There is no chat E.", code=404)
+
+    with pytest.raises(SystemExit) as raised:
+        main(["chat", "--fork", "E"])
+
+    assert raised.value.code == 2
+    assert capsys.readouterr().err == "hmz chat: error: There is no chat E.\n"
+
+
+def test_a_daemon_that_cannot_be_reached_lists_nothing_and_exits_one(
+    workspace: mock.Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del workspace
+    monkeypatch.setattr(
+        hmz.sdk.client.Client,
+        "local",
+        mock.Mock(side_effect=OSError(errno.ECONNREFUSED, "refused")),
+        raising=False,
+    )
+
+    assert main(["chat", "--list"]) == 1
+    assert capsys.readouterr().out == ""

@@ -3464,8 +3464,10 @@ works, and carrying it on MUST return there. Where no worktree can be added, the
 refused as Section 8.3.7 states, and a chat carried on MUST NOT be given a worktree.
 
 **8.3.14** A chat MUST be backed up as an epic is (Section 11), its chat directory in place of the
-epic directory; what Section 11 states of listing and downloading the epics a target holds does not
-extend to a chat.
+epic directory. What Section 11 states of listing and downloading the epics a target holds MUST hold
+for the chats it holds too: a chat listed MUST state that it is a chat, its flow being empty, and a
+chat downloaded MUST be placed among this machine's chats (Section 6.12.12 of [FILES]) and never
+among its epics.
 
 ### 8.4. Turns
 

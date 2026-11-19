@@ -790,6 +790,28 @@ def test_a_chat_is_backed_up_as_a_run_is(
         "There is no chat 20200101-none.",
     )
 
+    # The target lists it, as a chat this machine holds, and will not download it over itself.
+    def stored() -> list[tuple[str, str, bool, bool]]:
+        said = user.call("backups.epics", {"target": "t"}, timeout=60)["epics"]
+        return [(one["key"], one["epic"], one["chat"], one["here"]) for one in said]
+
+    assert stored() == [(key, name, True, True)]
+    code, why = _refused(user, "backups.pull", target="t", key=key)
+    assert (code, "already here" in why) == (400, True)
+
+    # Deleted here, it is downloaded back among the chats, and is no epic.
+    user.call("chat.delete", {"chat": name}, timeout=30)
+    assert stored() == [(key, name, True, False)]
+    assert user.call("backups.pull", {"target": "t", "key": key}, timeout=60) == {
+        "name": name
+    }
+    assert stored() == [(key, name, True, True)]
+    back = user.call("chat.get", {"chat": name}, timeout=30)
+    assert (back["task"], back["state"], back["backup"]) == ("hello", "resting", [])
+    listed = user.call("chat.list", {"workspace": str(project)}, timeout=30)["chats"]
+    assert [one["id"] for one in listed] == [name]
+    assert user.call("runs.list", {}, timeout=30)["runs"] == []
+
 
 def test_a_chat_is_deleted_with_what_it_kept_and_never_while_it_goes(
     project: Path, user: Peer

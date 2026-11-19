@@ -78,6 +78,7 @@ from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
 
 from .asking import Asks, blocks, fields, summary
+from .chats import Resumes
 from .complete import Command, flow_names, hinted, offered, tagged
 from .envs import Reach, opens_env, used
 from .flows import INSTALLED, VERSES, Flows, Lists
@@ -107,7 +108,6 @@ from .pick import (
     Epics,
     Held,
     Leaves,
-    Picks,
     RemoteEpics,
     Reports,
     Runs,
@@ -324,6 +324,19 @@ def _old_chat(flow: str) -> bool:
 #: The calls of the chats that write nothing, which carry no `idem`.
 _CHAT_READS = frozenset({"chat.commands", "chat.list"})
 
+#: The calls that name a chat as it is written down, by its id and no workspace (Section
+#: 4.25.7 of [DAEMON]): this machine's, as the chats `/resume` lists are.
+_CHAT_NAMED = frozenset(
+    {
+        "chat.rename",
+        "chat.fork",
+        "chat.archive",
+        "chat.unarchive",
+        "chat.backup",
+        "chat.delete",
+    }
+)
+
 #: What `/stop` says in a chat with no turn open, as its host refuses one (Section 4.25 of
 #: [DAEMON]).
 _NO_TURN = "no turn is open, so there is nothing to stop"
@@ -340,9 +353,10 @@ def _chats(
 
     Args:
       afar: The daemon of another machine and its workspace, or None for this machine's.
-      method: `chat.start`, `chat.say`, `chat.commands`, `chat.set`, `chat.stop` or
-        `chat.list`.
-      params: What it takes, `workspace` included, and `slot` for a chat going on a host.
+      method: `chat.start`, `chat.say`, `chat.commands`, `chat.set`, `chat.stop`,
+        `chat.list`, or one that names a chat as it is written down.
+      params: What it takes, `workspace` included, and `slot` for a chat going on a host;
+        or `chat`, for one that names a chat.
 
     Returns:
       What it answered.
@@ -4123,6 +4137,8 @@ class Humanize(App[None]):
         method = str(said.pop("do"))
         # The chats listed are this machine's, which `/resume` carries on here whatever is
         # followed on another daemon.
+        if method in _CHAT_NAMED:
+            return _chats(None, method, said)
         afar = None if method == "chat.list" else self._afar
         workspace = afar[1] if afar is not None else str(self.hmz.workspace)
         return _chats(afar, method, {"workspace": workspace, **said})
@@ -5003,7 +5019,8 @@ class Humanize(App[None]):
         """Puts up the earlier chats of this directory, newest first, and carries one on.
 
         As `chat.list` answers them (Section 4.25 of [DAEMON]), asked off the screen; the one
-        on the screen is not among them, being the one already had.
+        on the screen is among them, ticked as the one already had, so that what the list
+        offers of a chat -- renaming, forking, archiving, backing up -- is offered of it too.
         """
 
         def listed() -> list[dict[str, Any]]:
@@ -5023,33 +5040,25 @@ class Humanize(App[None]):
             self.show(f"hmz: {why}", "red")
             return
         # Each with the host that holds it, "" for none.
-        slots = {
-            str(one.get("id") or ""): str(one.get("slot") or "")
-            for one in chats
-            if one.get("id") != self._chat_id
-        }
+        slots = {str(one.get("id") or ""): str(one.get("slot") or "") for one in chats}
         if not slots:
             self.show(
-                "hmz: no other chat has been had here, so there is nothing to resume",
-                "red",
+                "hmz: no chat has been had here, so there is nothing to resume", "red"
             )
             return
-        picked = await self.push_screen_wait(
-            _Chats(
-                [
-                    (
-                        name,
-                        _clipped(" ".join(str(one.get("title") or "").split()), 60)
-                        or name,
-                        name,
-                    )
-                    for one in chats
-                    if (name := str(one.get("id") or "")) in slots
-                ]
-            )
-        )
-        if picked:
-            self._continues(picked, slots[picked])
+        mine = self._chat_id
+
+        def asks(method: str, **said: Any) -> dict[str, Any]:
+            return self._chat_asked({"do": method, **said})
+
+        sheet = Resumes(chats, asks, mine)
+        picked = await self.push_screen_wait(sheet)
+        if mine and mine in sheet.gone and mine == self._chat_id:
+            # The chat on the screen was archived or deleted: a new one, as `/clear` starts.
+            self.action_clear()
+        if picked and picked != mine:
+            # A fork just made is on no host, and is carried on by the next line.
+            self._continues(picked, slots.get(picked, ""))
 
     def _continues(self, chat: str, slot: str | None = None) -> None:
         """Goes back to one chat chosen on `/resume` or by `/chat`, to carry the conversation on.
@@ -6712,30 +6721,6 @@ _ENV_PATIENCE = 60.0
 #:
 #: Written down here rather than beside the class, since a row names the method that carries
 #: it out and the class has to exist first.
-class _Chats(Picks):
-    """The earlier chats of this directory, newest first, to carry one on: `/resume` in a chat.
-
-    What the harness's own `/resume` is at its prompt: a list of the conversations had here,
-    one of which is picked up where it was left (Section 8.9.8 of [CORE]).
-    """
-
-    asked = "Resume a chat"
-    about = "The chats of this directory, newest first: the one picked goes on."
-
-    def __init__(self, chats: Sequence[tuple[str, str, str]]) -> None:
-        """Holds the chats to choose between.
-
-        Args:
-          chats: One `(id, its title, the line about it)` apiece, newest first.
-        """
-        super().__init__()
-        self._chats = list(chats)
-
-    def rows(self) -> list[tuple[str, str, str]]:
-        """Each chat, by its id, with its title."""
-        return list(self._chats)
-
-
 #: `/exit`, and `/quit` under the name the harnesses give it.
 _EXIT = Command(
     "exit",

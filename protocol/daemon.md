@@ -1314,9 +1314,9 @@ workspace since removed; every workspace's where absent), `status` (an ending of
 recorded for an Ai-chan conversation, kept or forgotten (Section 14.7.4 of [CORE], Section 4.16.6 of
 [FILES]), and the epic the host of an `ai:` slot holds.
 
-**4.16.1.4** No method of Section 4.16 but `runs.usage` MUST answer anything of a chat (Section 8 of
-[CORE]): a chat is no epic, and is read by `chat.*` (Section 4.25). An epic an earlier hmz
-recorded for a chat (Section 6.5.19 of [FILES]) MUST be answered as any other epic is.
+**4.16.1.4** No method of Section 4.16 but `runs.usage` and `backups.*` MUST answer anything of a
+chat (Section 8 of [CORE]): a chat is no epic, and is read by `chat.*` (Section 4.25). An epic an
+earlier hmz recorded for a chat (Section 6.5.19 of [FILES]) MUST be answered as any other epic is.
 
 #### 4.16.2. Epic rows
 
@@ -1400,10 +1400,12 @@ present 409 with that error's sentence and, in `data`, `name`, that epic's name.
 
 **4.16.8.1** `backups.epics` `{target}` MUST fetch the target afresh and answer `epics`, newest
 first, each `key` (`<machine>/<workspace>/<epic>`), `machine`, `workspace`, `epic`, `flow`, `task`,
-`began`, `ended`, `how`, `head`, and `here` (whether this machine holds that epic).
+`began`, `ended`, `how`, `head`, `chat` (whether it is a chat the target holds, Section 8.3.14 of
+[CORE], its `epic` being the chat's name and its `flow` `""`) and `here` (whether this machine holds
+that epic, or that chat).
 
 **4.16.8.2** `backups.pull` `{target, key}` MUST download that epic as `Backups.pulled` of Section
-4.13.7 of [PYTHON] does, answer `name`, and be a write.
+4.13.7 of [PYTHON] does, a chat among this machine's chats, answer `name`, and be a write.
 
 **4.16.8.3** `backups.epics` and `backups.pull` MUST each refuse 400 for an unknown target or what
 `Backups` raises `ValueError` for, and 502 where the repository cannot be reached; a refusal MUST
@@ -2288,11 +2290,11 @@ holds or a chat that has folded.
 
 #### 4.25.5. `chat.list` and `chat.get`
 
-**4.25.5.1** `chat.list` MUST take `workspace` (only that workspace's chats; every workspace's where
-absent), `archived` (boolean, `false`: `true` for the archived chats alone, otherwise those not
-archived alone), `q` (text found in the title, the first message or the name), `offset` (default
-`0`) and `limit` (default `50`, at most `200`), and MUST answer `chats` (chat rows, newest begun
-first), `total`, `offset` and `limit`.
+**4.25.5.1** `chat.list` MUST take `workspace` (only that workspace's chats, reading the chats of a
+workspace since removed; every workspace's where absent), `archived` (boolean, `false`: `true` for
+the archived chats alone, otherwise those not archived alone), `q` (text found in the title, the
+first message or the name), `offset` (default `0`) and `limit` (default `50`, at most `200`), and
+MUST answer `chats` (chat rows, newest begun first), `total`, `offset` and `limit`.
 
 **4.25.5.2** A chat row MUST hold `id` (the chat's name), `title` (Section 8.10.1 of [CORE], cut at
 240 characters), `workspace`, `workdir` (where its assistant works: the workspace, or the worktree

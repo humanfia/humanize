@@ -5186,7 +5186,7 @@
     },
     {
       "name": "backups.epics",
-      "summary": "The epics a backup target holds.",
+      "summary": "The epics and chats a backup target holds.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -5242,7 +5242,7 @@
     },
     {
       "name": "backups.pull",
-      "summary": "Download an epic from a backup target.",
+      "summary": "Download an epic or a chat from a backup target.",
       "paramStructure": "by-name",
       "params": [
         {

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 EPIC = Path("/epics/w/20261012T000000.000Z-abcdef")
+CHAT = Path("/chats/w/20261013T000000.000Z-fedcba")
 
 
 @pytest.fixture
@@ -25,7 +26,8 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     held = mock.Mock()
     ran = SimpleNamespace(at=EPIC)
     held.epics.all.return_value = [EPIC]
-    held.epics.read.side_effect = {EPIC: ran}.get
+    held.epics.read.side_effect = {EPIC: ran, CHAT: SimpleNamespace(at=CHAT)}.get
+    held.epics.chat.side_effect = {CHAT.name: CHAT}.get
     held.backups.push.return_value = ("lab", "home")
     held.verses.plain.side_effect = {
         "https://me:pw@host/epics": "https://***@host/epics"
@@ -107,7 +109,9 @@ def test_an_epic_with_no_target_anywhere_is_refused(
     assert "no backup target" in capsys.readouterr().err
 
 
-def _stored(machine: str, epic: str, how: str = "done") -> SimpleNamespace:
+def _stored(
+    machine: str, epic: str, how: str = "done", *, chat: bool = False
+) -> SimpleNamespace:
     return SimpleNamespace(
         key=f"{machine}/-w/{epic}",
         machine=machine,
@@ -115,7 +119,41 @@ def _stored(machine: str, epic: str, how: str = "done") -> SimpleNamespace:
         epic=epic,
         task="fix\nit",
         how=how,
+        chat=chat,
     )
+
+
+def test_a_chat_of_this_directory_is_backed_up_by_its_id(runtime: mock.Mock) -> None:
+    runtime.backups.state.side_effect = [
+        {},
+        {"lab": {"ok": True}, "home": {"ok": True}},
+    ]
+
+    assert main(["backup", CHAT.name]) == 0
+
+    runtime.backups.push.assert_called_once_with(runtime.epics.read(CHAT), None)
+
+
+def test_the_chats_a_target_holds_are_listed_after_its_epics_and_pulled_by_id(
+    runtime: mock.Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runtime.backups.listed.return_value = [
+        _stored("a", "e1"),
+        _stored("a", "c1", "stopped", chat=True),
+    ]
+    runtime.backups.pulled.return_value = Path("/home/chats/-w/c1")
+
+    assert main(["backup", "--list", "--to", "lab"]) == 0
+    assert capsys.readouterr().out == (
+        "lab: 1 epic\n"
+        "  a  /w  e1  done  fix it\n"
+        "lab: 1 chat\n"
+        "  a  /w  c1  stopped  fix it\n"
+    )
+
+    assert main(["backup", "--pull", "c1", "--to", "lab"]) == 0
+    runtime.backups.pulled.assert_called_once_with("lab", "a/-w/c1")
+    assert capsys.readouterr().out == "/home/chats/-w/c1\n"
 
 
 def test_each_target_lists_the_epics_it_holds(

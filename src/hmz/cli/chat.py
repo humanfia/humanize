@@ -3,6 +3,9 @@
     hmz chat -a claude/MODEL:high "what does this repository do?"
     hmz chat --resume 20261117T100000-ab12cd "and how is it tested?"
     hmz chat --worktree -a claude/MODEL:high "try the other parser"
+    hmz chat --list
+    hmz chat --rename 20261117T100000-ab12cd "the parser"
+    hmz chat --delete 20261117T100000-ab12cd --yes
 
 A chat is not a flow and not an epic (Section 8 of core.md): it has one assistant, one
 conversation and no params or budget, and it is held by this machine's daemon -- on a chat slot
@@ -14,6 +17,10 @@ answer off standard output reads it the same way from either.
 
 A signal leaves the chat to its host rather than stopping its turn, and one left between turns
 folds away on its own, to be carried on with `--resume`.
+
+And the chats written down, by the id each is listed by: `--list` says them, and `--rename`,
+`--fork`, `--archive`, `--unarchive` and `--delete` are what `chat.*` does to one (Section 15.4
+of cli.md), each asked of the daemon and none read off a file here.
 """
 
 from __future__ import annotations
@@ -44,6 +51,18 @@ _LOOKING = 0.5
 #: The prefix of everything this says on standard error that is not the turn.
 _PROG = "hmz chat"
 
+#: What is done to a chat written down, by the option that names it, and the method doing it.
+_DOES = {
+    "rename": "chat.rename",
+    "fork": "chat.fork",
+    "archive": "chat.archive",
+    "unarchive": "chat.unarchive",
+    "delete": "chat.delete",
+}
+
+#: How much of a chat's title a listing shows, on its one line.
+_TITLE = 60
+
 
 class _Line(NamedTuple):
     """An `hmz chat` line, read.
@@ -52,13 +71,21 @@ class _Line(NamedTuple):
       agent: The assistant, as `-a` spells an agent after `<role>=`, or "" for none given.
       resume: The chat to carry on, by its id, or "" for a new chat.
       worktree: Whether a new chat's assistant works in a new git worktree of this directory.
-      message: What to say.
+      message: What to say, or the title `--rename` gives.
+      does: `list`, or what is done to a chat written down (:data:`_DOES`), or "" for a turn.
+      chat: The chat that is done to, by its id.
+      archived: Whether `--list` says the archived chats.
+      yes: Whether `--delete` goes without asking.
     """
 
     agent: str
     resume: str
     worktree: bool
     message: str
+    does: str = ""
+    chat: str = ""
+    archived: bool = False
+    yes: bool = False
 
 
 class _Left(BaseException):
@@ -71,6 +98,8 @@ class _Left(BaseException):
 
 def chat(argv: list[str]) -> int:
     """Takes one turn of a chat in this directory, and prints the answer.
+
+    Or lists the chats of this directory, or does one thing to a chat written down.
 
     Args:
       argv: What followed the command name.
@@ -121,11 +150,62 @@ def _read(argv: list[str]) -> _Line:
         action="store_true",
         help="start the chat in a new git worktree of this directory",
     )
+    doing = parser.add_mutually_exclusive_group()
+    doing.add_argument(
+        "--list",
+        action="store_true",
+        help="list the chats of this directory, newest first, each by its id",
+    )
+    doing.add_argument(
+        "--rename",
+        metavar="CHAT",
+        help="give the chat of this id the title that follows",
+    )
+    doing.add_argument(
+        "--fork", metavar="CHAT", help="make a new chat that goes on from this one"
+    )
+    doing.add_argument(
+        "--archive", metavar="CHAT", help="take the chat of this id out of the lists"
+    )
+    doing.add_argument(
+        "--unarchive",
+        metavar="CHAT",
+        help="put an archived chat back among the others",
+    )
+    doing.add_argument(
+        "--delete", metavar="CHAT", help="delete the chat of this id, for good"
+    )
     parser.add_argument(
-        "message", help="what to say, after -- if it starts with a dash"
+        "--archived", action="store_true", help="with --list, the archived chats alone"
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="with --delete, delete without asking"
+    )
+    parser.add_argument(
+        "message",
+        nargs="?",
+        help="what to say, after -- if it starts with a dash; with --rename, the title",
     )
     args = parser.parse_args(argv)
-    if not args.message:
+    does = (
+        "list" if args.list else next((one for one in _DOES if getattr(args, one)), "")
+    )
+    if args.archived and does != "list":
+        parser.error("--archived goes with --list")
+    if args.yes and does != "delete":
+        parser.error("--yes goes with --delete")
+    if does:
+        if args.agent or args.resume or args.worktree:
+            parser.error(
+                f"--{does} says nothing to a chat: -a, --resume and --worktree do"
+            )
+        if does == "rename" and not (args.message or "").strip():
+            parser.error("--rename takes the chat and then its title")
+        if does != "rename" and args.message is not None:
+            parser.error(f"--{does} takes no message")
+    elif args.message is None:
+        parser.error("the following arguments are required: message")
+    elif not args.message:
         parser.error("the message is empty; a chat starts with something said")
     if args.worktree and args.resume:
         parser.error("--worktree starts a chat; one carried on works where it worked")
@@ -133,7 +213,11 @@ def _read(argv: list[str]) -> _Line:
         agent=args.agent,
         resume=args.resume,
         worktree=args.worktree,
-        message=args.message,
+        message=args.message or "",
+        does=does,
+        chat="" if does in ("", "list") else getattr(args, does),
+        archived=args.archived,
+        yes=args.yes,
     )
 
 
@@ -176,6 +260,8 @@ def _chats(argv: list[str]) -> int:
     hmz = Hmz()
     # As `hmz exec` does: only where it has been answered yes.
     hmz.reports()
+    if line.does:
+        return _manages(hmz, line)
     agent = line.agent
     if not agent and not line.resume:
         from hmz.runtime.kept import written
@@ -221,6 +307,8 @@ def _chats(argv: list[str]) -> int:
                 print(unreached(OSError(str(error))), file=sys.stderr)
                 return 1
             raise _refuse(str(error)) from error
+        # The id it is carried on by, and listed by: on standard error, as the turn is.
+        out.aside(f"{_PROG}: chat {started['chat']}")
         at = {"workspace": asked["workspace"], "slot": str(started["slot"])}
         try:
             follower.follows(client, at)
@@ -249,6 +337,112 @@ def _chats(argv: list[str]) -> int:
         print(follower.failed, file=sys.stderr)
         return 1
     return 0
+
+
+def _manages(hmz: Hmz, line: _Line) -> int:
+    """Lists the chats of this directory, or does one thing to a chat written down.
+
+    Each asked of this machine's daemon (Section 4.25 of daemon.md), which is started where
+    none runs.
+
+    Args:
+      hmz: The workspace.
+      line: The line, read.
+
+    Returns:
+      Zero once it is done; one where the daemon could not be reached, or a chat was not
+      deleted for want of a yes.
+
+    Raises:
+      SystemExit: Two for what the daemon refused.
+    """
+    from hmz.daemon import where
+    from hmz.runtime import Refused
+    from hmz.sdk.client import Client
+
+    from .output import unreached
+
+    try:
+        client = Client.local(kind="cli")
+    except OSError as error:
+        print(unreached(error), file=sys.stderr)
+        return 1
+    with client:
+
+        def asks(method: str, **params: Any) -> dict[str, Any]:
+            # A reading writes nothing, and carries no `idem`.
+            reads = method in ("chat.list", "chat.get")
+            idem = None if reads else secrets.token_urlsafe(12)
+            return dict(
+                client.call(method, params, idem=idem, seconds=_ANSWERING) or {}
+            )
+
+        try:
+            if line.does == "list":
+                chats: list[dict[str, Any]] = []
+                while True:
+                    said = asks(
+                        "chat.list",
+                        workspace=where.workspace(hmz.workspace),
+                        archived=line.archived,
+                        offset=len(chats),
+                        limit=200,
+                    )
+                    page: list[dict[str, Any]] = said.get("chats") or []
+                    chats += page
+                    if not page or len(chats) >= int(said.get("total") or 0):
+                        break
+                for one in chats:
+                    print(_row(one))
+            elif line.does == "delete":
+                if not line.yes and not _sure(asks("chat.get", chat=line.chat)):
+                    print(f"{_PROG}: chat {line.chat} was not deleted", file=sys.stderr)
+                    return 1
+                asks("chat.delete", chat=line.chat)
+            elif line.does == "fork":
+                print(asks("chat.fork", chat=line.chat)["chat"])
+            else:
+                title = {"title": line.message} if line.does == "rename" else {}
+                print(_row(asks(_DOES[line.does], chat=line.chat, **title)))
+        except Refused as error:
+            if error.code == _GONE:
+                print(unreached(OSError(str(error))), file=sys.stderr)
+                return 1
+            raise _refuse(str(error)) from error
+        except TimeoutError as error:
+            print(f"{_PROG}: {error}", file=sys.stderr)
+            return 1
+    return 0
+
+
+def _row(chat: dict[str, Any]) -> str:
+    """One chat on one line: its id, how it stands and its title (Section 15.4 of cli.md)."""
+    title = " ".join(str(chat.get("title") or "").split())
+    title = title if len(title) <= _TITLE else f"{title[: _TITLE - 1]}…"
+    return f"{chat.get('id')}  {chat.get('state')}  {title}"
+
+
+def _sure(chat: dict[str, Any]) -> bool:
+    """Asks on the terminal whether one chat is to be deleted for good, and answers.
+
+    Never asked of anything but somebody at a terminal: a line read off a pipe is not a yes.
+
+    Args:
+      chat: The chat, as `chat.get` answers it.
+
+    Returns:
+      Whether `y` or `yes` was typed.
+    """
+    if not sys.stdin.isatty():
+        print(f"{_PROG}: nobody is at a terminal to ask; say --yes", file=sys.stderr)
+        return False
+    print(
+        f"{_PROG}: delete {_row(chat)}\nfor good? It cannot be brought back. [y/N] ",
+        end="",
+        file=sys.stderr,
+        flush=True,
+    )
+    return sys.stdin.readline().strip().lower() in ("y", "yes")
 
 
 #: The code a call is refused with where the daemon's session has gone.

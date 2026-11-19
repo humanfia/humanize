@@ -1,7 +1,8 @@
 """`hmz web`'s Exomyth, driven in a browser: an epic's timeline drawn, moved over, read and timed.
 
-Each test runs chat on the stand-in `claude` from the API, as a page would start it, and opens
-the epic's Exomyth in Chromium and in WebKit, which the macOS app's window is. The canvas is
+Each test runs the project's own flow `talk` on the stand-in `claude` from the API, as a page
+would start it, and opens the epic's Exomyth in Chromium and in WebKit, which the macOS app's
+window is: a chat is no epic, and has no Exomyth. The canvas is
 reached through what the view hands `window.__exomyth`: the model drawn, the time shown, where a
 span is on the screen, and a frame drawn on demand.
 """
@@ -18,9 +19,10 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import expect
 
-from tests.integration.doubles_core import install
-from tests.integration.doubles_web import Browser, Session, served
-from tests.system.web.doubles_browser import ENGINES, chatted, go, opened
+from tests.integration.doubles_core import AGENT, install
+from tests.integration.doubles_tui import TALK
+from tests.integration.doubles_web import Browser, served
+from tests.system.web.doubles_browser import ENGINES, go, opened
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,6 +55,10 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> Pa
     project = install(tmp_path, monkeypatch)
     # The home it gives the CLI is this machine's home, which the daemon's own settings are of.
     (tmp_path / "home").mkdir(exist_ok=True)
+    # The project's own `talk`: one assistant, which answers and waits for the next line.
+    flows = project / ".hmz" / "flows" / "talk"
+    flows.mkdir(parents=True)
+    (flows / "__init__.py").write_text(TALK)
     return project
 
 
@@ -65,22 +71,42 @@ def _record(sub: str, of: str) -> Callable[[str, dict[str, Any]], bool]:
     )
 
 
-def _stops(page: Session, site: Site, name: str) -> None:
-    """Stops a chat going on its own host, as a page does, until it has ended."""
-    slot = page.call("runs.get", name=name)["slot"]
-    sub = page.call("epic.attach", workspace=str(site.here), slot=slot, replay=False)[
-        "sub"
-    ]
-    page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
-    page.until(_record(sub, "ended"), "the run ending")
-
-
-def _chatted(site: Site, task: str, *, stopped: bool = True) -> str:
-    """Runs chat on a task until it asks back, then stops it; answers with the epic's name."""
+def _stops(site: Site) -> None:
+    """Stops the epic going on the workspace's host, as a page does, until it has ended."""
     browser = Browser(site)
     browser.signs_in()
     with browser.session() as page:
-        return chatted(page, site.here, task, stopped=stopped)
+        sub = page.call("epic.attach", workspace=str(site.here), replay=False)["sub"]
+        page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
+        page.until(_record(sub, "ended"), "the run ending")
+
+
+def _ran(site: Site, task: str, *, stopped: bool = True) -> str:
+    """Runs `talk` on a task until it asks back, then stops it; answers with the epic's name."""
+    browser = Browser(site)
+    browser.signs_in()
+    here = str(site.here)
+    with browser.session() as page:
+        sub = page.call("epic.attach", workspace=here)["sub"]
+        page.call(
+            "epic.start",
+            sub=sub,
+            flow="@local/talk",
+            task=task,
+            budget={"cost": 5},
+            agents={"assistant": AGENT},
+            idem=uuid.uuid4().hex,
+        )
+        page.until(_record(sub, "asked"), "the flow's agent answering")
+        name = next(
+            str(one["name"])
+            for one in page.call("runs.list", workspace=here)["runs"]
+            if one["task"] == task
+        )
+        page.call("epic.detach", sub=sub)
+    if stopped:
+        _stops(site)
+    return name
 
 
 def _lengthened(site: Site, tmp_path: Path, name: str, calls: int) -> None:
@@ -167,13 +193,13 @@ def test_an_epic_is_drawn_as_its_processes_moved_over_and_read(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        name = _chatted(site, "draw me")
+        name = _ran(site, "draw me")
         go(page, f"/epics/{name}/exomyth")
         page.wait_for_function("() => window.__exomyth && window.__exomyth.model()")
 
         listed = page.locator("[data-hmz=exomyth-processes]")
         expect(listed.locator("button")).to_have_count(2)
-        expect(listed).to_contain_text("chat")
+        expect(listed).to_contain_text("@local/talk")
         expect(listed).to_contain_text("main")
         assert page.evaluate("window.__exomyth.rows()") >= 4
 
@@ -242,17 +268,14 @@ def test_an_epic_is_drawn_as_its_processes_moved_over_and_read(
 
 def test_an_epic_going_is_read_again_until_it_ends(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        name = _chatted(site, "follow me", stopped=False)
+        name = _ran(site, "follow me", stopped=False)
         _exomyth(page, name)
         assert page.evaluate("window.__exomyth.model().live") is True
         expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
             re.compile("running")
         )
 
-        browser = Browser(site)
-        browser.signs_in()
-        with browser.session() as asked:
-            _stops(asked, site, name)
+        _stops(site)
         page.wait_for_function("() => window.__exomyth.model().live === false")
         expect(page.locator("[data-hmz=bar] .badge")).not_to_have_text(
             re.compile("running")
@@ -261,7 +284,7 @@ def test_an_epic_going_is_read_again_until_it_ends(project: Path, engine: str) -
 
 def test_the_canvas_is_drawn_in_the_theme_shown(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _exomyth(page, _chatted(site, "colour me"))
+        _exomyth(page, _ran(site, "colour me"))
         # The gutter's foot, which nothing is drawn over, is the panel colour of the theme.
         for theme in ("light", "dark"):
             drawn, wanted = page.evaluate(
@@ -290,7 +313,7 @@ def test_fifty_thousand_spans_are_drawn_within_a_frame(
     tmp_path: Path, project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        name = _chatted(site, "lengthen me")
+        name = _ran(site, "lengthen me")
         _lengthened(site, tmp_path, name, _CALLS)
         _exomyth(page, name)
         spans = page.evaluate("window.__exomyth.model().summary.spans")
@@ -323,7 +346,7 @@ def test_an_epic_is_drawn_as_a_flame_weighed_and_zoomed(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        name = _chatted(site, "flame me")
+        name = _ran(site, "flame me")
         _flame(page, name)
         flame = "window.__exomyth.flame()"
         assert page.evaluate(f"{flame}.zoomed()") == name
@@ -385,7 +408,7 @@ def test_the_slices_are_sorted_and_shown_on_the_timeline(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _flame(page, _chatted(site, "list me"))
+        _flame(page, _ran(site, "list me"))
         table = page.locator("[data-hmz=exomyth-stats]")
         table.locator("[data-sort=count]").click()
         expect(table.locator("th[aria-sort=descending]")).to_contain_text("Count")
@@ -413,7 +436,7 @@ def test_fifty_thousand_spans_are_summed_and_drawn_as_a_flame_in_time(
     tmp_path: Path, project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        name = _chatted(site, "flame me long")
+        name = _ran(site, "flame me long")
         _lengthened(site, tmp_path, name, _CALLS)
         _flame(page, name)
         assert page.evaluate("window.__exomyth.model().summary.spans") >= 2 * _CALLS
@@ -466,9 +489,7 @@ def test_the_panel_says_a_span_a_process_and_a_range_without_overlapping(
 ) -> None:
     # At 1280 the panel is 360 pixels wide, and at 1000 it is 320.
     with served() as site, opened(site, engine=engine, width=width) as page:
-        _exomyth(
-            page, _chatted(site, "a span whose name runs on and on past the panel")
-        )
+        _exomyth(page, _ran(site, "a span whose name runs on and on past the panel"))
         details = page.locator("[data-hmz=exomyth-details]")
         expect(details).to_contain_text("Processes")
         assert page.evaluate(_OVERLAPS) == []

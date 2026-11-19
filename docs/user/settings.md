@@ -1212,6 +1212,7 @@ top names the directory.
 | --- | --- | --- |
 | Flow | Default flow | the flow last set up here, and how many agents that flow was set up with |
 | Chat | Chat agent | the agent a new chat in this directory talks to: <kbd>enter</kbd> sets up its CLI, account, model and effort, as a flow's agent is set up. It takes effect from the next chat. |
+| Chat | Archived chats | the [chats archived](/user/chat#managing) in this directory, newest first: <kbd>enter</kbd> on one puts it back on `/resume` at once, with nothing to save. |
 | Reset | Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
 
 **Forget** clears this directory only. Every other directory, and everything on the other
