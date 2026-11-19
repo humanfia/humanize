@@ -5054,14 +5054,15 @@ class Humanize(App[None]):
         self._chat_slot, self._chat_epic = "", epic.name
         self._draws_said(epic, ran)
 
-    @work
+    @work(group="said", exclusive=True)
     async def _draws_said(self, epic: Path, ran: Ran) -> None:
         """Draws what was said in a chat that has folded away, above what carries it on.
 
         Read back out of the log its last session kept, which holds the conversation whole:
         carrying a chat on forks the session before it (Section 8.7.4 of [CORE]). Slow, so
         read off the screen's thread, and drawn only while the chat is still the one to be
-        carried on -- not once a line has carried it on, or another has been gone to.
+        carried on -- not once a line has carried it on, or another has been gone to -- and
+        by the last reading asked for alone, so that one opened twice over is drawn once.
 
         Args:
           epic: The chat, by the directory it is written in.
