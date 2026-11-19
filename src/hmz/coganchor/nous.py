@@ -237,7 +237,7 @@ ANSWERS: tuple[Answer, ...] = (
         "was kept off a host by this run's fence",
         held=True,
         fix="the run's network fence keeps it off that host, which no sign-in answers; "
-        "give the role online of ALL to let it through",
+        "give the role network=True to let it through",
     ),
     Answer(
         "sandboxed",
