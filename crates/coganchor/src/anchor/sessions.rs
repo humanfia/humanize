@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
 use serde_json::Value;
@@ -300,6 +300,8 @@ fn start(
     let shared = Arc::new(Shared {
         reaped: Mutex::new(false),
         done: AtomicBool::new(false),
+        held: Mutex::new(false),
+        let_go: Condvar::new(),
     });
     let (stdin, inbox) = mpsc::channel::<Option<Vec<u8>>>();
 
@@ -338,9 +340,10 @@ fn start(
         .into_iter()
         .map(|(file, stream)| {
             let outbox = Arc::clone(&outbox);
+            let shared = Arc::clone(&shared);
             thread::Builder::new()
                 .name(format!("pump-{id}"))
-                .spawn(move || pump(id, file, stream, &*outbox))
+                .spawn(move || pump(id, file, stream, &*outbox, &shared))
         })
         .collect::<io::Result<Vec<_>>>();
     let pumps = match pumps {
@@ -555,10 +558,19 @@ fn feed_stdin(input: Option<Input>, inbox: mpsc::Receiver<Option<Vec<u8>>>) {
 
 /// Streams one output descriptor as `CHUNK`s until its end. A pty master has two ways of
 /// saying the child holding the other end is gone, as `_read_stream` explains: Linux fails
-/// the read with `EIO`, macOS ends the file. Both end the output.
-fn pump(id: u64, mut file: File, stream: Stream, outbox: &dyn Outbox) {
+/// the read with `EIO`, macOS ends the file. Both end the output. Nothing is read while the
+/// client holds the command (`HOLD`), so that what it writes fills its pipe or its terminal
+/// and it waits there.
+fn pump(id: u64, mut file: File, stream: Stream, outbox: &dyn Outbox, shared: &Shared) {
     let mut buffer = vec![0u8; CHUNK_SIZE];
     loop {
+        let held = shared.held.lock().unwrap_or_else(|e| e.into_inner());
+        drop(
+            shared
+                .let_go
+                .wait_while(held, |held| *held)
+                .unwrap_or_else(|e| e.into_inner()),
+        );
         match file.read(&mut buffer) {
             Ok(0) => return,
             Ok(n) => {
@@ -606,6 +618,10 @@ struct Shared {
     reaped: Mutex<bool>,
     /// Whether the closing `RSP` (or `ERR`) has been sent.
     done: AtomicBool,
+    /// Whether the client holds the command: its output is not read meanwhile.
+    held: Mutex<bool>,
+    /// Told when the client lets go of it.
+    let_go: Condvar,
 }
 
 /// A running command, as the connection sees it.
@@ -663,11 +679,20 @@ impl Sink for ExecSink {
         }
     }
 
+    /// Stops the reading of the command's output, or starts it again. What was read before
+    /// the client asked is still sent.
+    fn hold(&mut self, held: bool) {
+        *self.shared.held.lock().unwrap_or_else(|e| e.into_inner()) = held;
+        self.shared.let_go.notify_all();
+    }
+
     fn is_done(&self) -> bool {
         self.shared.done.load(Ordering::SeqCst)
     }
 
     fn shutdown(&mut self) {
+        // Let go of first: the output is read to its end before the command is reaped.
+        self.hold(false);
         self.signal(libc::SIGKILL);
         let _ = self.stdin.send(None);
     }
@@ -847,6 +872,58 @@ mod tests {
         let text = String::from_utf8(output(&frames, Stream::Stdout)).unwrap();
         assert_eq!(text, "24 80\r\ngo\r\n50 132\r\n");
         assert_eq!(reply(&frames).meta, crate::meta! {"exit_code" => 0});
+    }
+
+    #[test]
+    fn a_held_command_waits_in_its_terminal_and_loses_nothing() {
+        // Far more than a terminal or a pipe keeps: unread, it stops the command.
+        let mut meta = sh("stty -echo; echo ready; read go; seq 1 300000; echo E-N-D");
+        meta.insert("tty".into(), Value::Bool(true));
+        let (sink, out) = run(meta);
+        let mut sink = sink.unwrap();
+        let deadline = Instant::now() + WAIT;
+        while !output(&out.frames(), Stream::Stdout).ends_with(b"ready\r\n") {
+            assert!(Instant::now() < deadline, "{:?}", out.frames());
+            thread::sleep(Duration::from_millis(10));
+        }
+        sink.hold(true);
+        sink.feed(Stream::Stdin, b"go\n").unwrap();
+        // At most what one read was already waiting for arrives, then nothing more.
+        let mut seen = usize::MAX;
+        let deadline = Instant::now() + WAIT;
+        loop {
+            thread::sleep(Duration::from_millis(300));
+            let now = output(&out.frames(), Stream::Stdout).len();
+            if now == seen {
+                break;
+            }
+            assert!(Instant::now() < deadline);
+            seen = now;
+        }
+        assert!(seen <= CHUNK_SIZE, "{seen} bytes read of a held command");
+        assert!(!out.frames().iter().any(|f| f.kind == Kind::Rsp));
+
+        sink.hold(false);
+        let frames = out.closed(WAIT);
+        let text = String::from_utf8(output(&frames, Stream::Stdout)).unwrap();
+        let numbers: String = (1..=300_000).map(|n| format!("{n}\r\n")).collect();
+        let wanted = format!("ready\r\n{numbers}E-N-D\r\n");
+        assert_eq!(text.len(), wanted.len());
+        assert!(
+            text == wanted,
+            "what a held command wrote came out of order"
+        );
+        assert_eq!(reply(&frames).meta, crate::meta! {"exit_code" => 0});
+    }
+
+    #[test]
+    fn a_held_command_is_let_go_of_when_the_connection_goes() {
+        let (sink, out) = run(sh("echo up; sleep 30"));
+        let mut sink = sink.unwrap();
+        sink.hold(true);
+        sink.shutdown();
+        let frames = out.closed(WAIT);
+        assert_eq!(reply(&frames).meta, crate::meta! {"signal" => 9});
     }
 
     #[test]

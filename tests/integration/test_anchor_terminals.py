@@ -108,6 +108,31 @@ async def test_a_terminal_is_typed_at_resized_and_exits(
     await pty.kill()
 
 
+async def test_what_a_terminal_prints_and_nobody_reads_waits_in_the_terminal(
+    driver: MachineEnvDriver,
+) -> None:
+    # About 15 MiB, which is more than is kept unread of a terminal anywhere.
+    most = 2_000_000
+    counting = f"awk 'BEGIN {{ for (n = 1; n <= {most}; n++) print n }}'"
+    pty = await driver.pty(
+        ["/bin/sh", "-c", f"stty -echo; echo ready; {counting}; echo E-N-D"],
+        cols=80,
+        rows=24,
+    )
+    seen = bytearray()
+    await _until(pty, seen, rb"ready\r\n")
+
+    await asyncio.sleep(3.0)  # nobody reads, as when every viewer is far behind
+    said = bytes(seen) + await _drained(pty)
+
+    # A line whose writing a full terminal held up may be ended `\r\r\n`, as macOS ends it.
+    lines = re.split(rb"\r+\n", said)
+    assert lines[-2:] == [b"E-N-D", b""]
+    assert len(lines) == most + 2, "some of what it printed was let go of"
+    assert lines[:most] == [b"%d" % n for n in range(1, most + 1)]
+    assert await pty.wait() == 0
+
+
 async def test_the_login_shell_is_opened_with_no_program(
     driver: MachineEnvDriver,
 ) -> None:
