@@ -275,7 +275,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(side.locator("[data-hmz=epic]")).to_have_count(6)
         assert _box(side) == (0, 0, 275, 792)
         # The splitter lies across its right edge.
-        assert _box(side.locator("[data-hmz=side-split]")) == (269, 0, 12, 792)
+        assert _box(side.locator("[data-hmz=side-split]")) == (272, 0, 8, 792)
 
         # The title row: the mark, where a desktop app's window keeps its traffic lights, then
         # hiding it, back and forward, side by side from 84 in; the bell last.
@@ -302,7 +302,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         # The entries: 258 by 32, 2px apart, 8px in, all drawn alike but the one the page is on.
         entries = side.locator(".side-nav a")
         assert [_box(one) for one in entries.all()] == [
-            (8, 46 + 34 * at, 258, 32) for at in range(4)
+            (8, 48 + 34 * at, 258, 32) for at in range(4)
         ]
         expect(entries.nth(0)).to_have_attribute("aria-current", "page")
         weights = {
@@ -311,23 +311,23 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         }
         assert len(weights) == 1
 
-        # A heading 24 tall, a chat's row 258 by 32 under it, rows 2px apart.
+        # A heading as wide and as tall as a row, a chat's row 258 by 32 under it, rows 2px apart.
         group = side.locator("[data-hmz=workspace][data-path='/w']")
         head = group.locator(".side-folder")
-        assert _box(head) == (14, 204, 248, 24)
+        assert _box(head) == (8, 202, 258, 32)
         chats = group.locator("[data-hmz=epic][data-kind=chat]")
         # The two going first, then, past the flow's epic of two lines, the two that are not.
         assert [_box(one) for one in chats.all()] == [
-            (8, top, 258, 32) for top in (234, 268, 355, 389)
+            (8, top, 258, 32) for top in (236, 270, 362, 396)
         ]
         # What sorts the list and what starts a chat stand at the heading's end once pointed at.
         sort, add = head.locator(".side-sort"), head.locator(".side-add")
         expect(sort).to_have_css("opacity", "0")
         head.hover()
         expect(sort).to_have_css("opacity", "1")
-        assert _box(head.locator(".side-toggle")) == (14, 204, 196, 24)
-        assert _box(sort) == (214, 204, 24, 24)
-        assert _box(add) == (238, 204, 24, 24)
+        assert _box(head.locator(".side-toggle")) == (8, 202, 206, 32)
+        assert _box(sort) == (214, 206, 24, 24)
+        assert _box(add) == (238, 206, 24, 24)
         expect(add).to_have_attribute("aria-label", "New chat in w")
 
         # A chat says how it stands in quiet words straight after its title, and no more:
@@ -349,7 +349,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
             title = _box(group.locator(f".side-item[data-epic={name}] .side-label"))
             state = _box(said[name])
             assert title[0] == 18
-            assert state[0] == title[0] + title[2] + 6
+            assert state[0] == title[0] + title[2] + 8
 
         # Its menu's button, 24 by 24 at its far end, once the row is pointed at or holds
         # the focus.
@@ -361,7 +361,7 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(more).to_have_css("opacity", "0")
         chat.hover()
         expect(more).to_have_css("opacity", "1")
-        assert _box(more) == (238, 238, 24, 24)
+        assert _box(more) == (238, 240, 24, 24)
 
         # A flow's epic keeps what makes it another kind, on a first line as tall as a chat's.
         flow = group.locator(".side-item[data-epic=e1]")
@@ -370,14 +370,27 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         expect(flow.locator("[data-hmz=epic-state]")).to_have_text("Done")
         assert _box(flow.locator(".side-line").first)[3] == 32
         title = _box(flow.locator(".side-label").first)
-        assert _box(flow.locator("[data-hmz=epic-state]"))[0] == title[0] + title[2] + 6
+        assert _box(flow.locator("[data-hmz=epic-state]"))[0] == title[0] + title[2] + 8
         flow.hover()
         assert _box(flow.locator("[data-hmz=row-menu]"))[0] == 238
 
         # The foot: one row, the daemon bar and the settings beside it.
-        assert _box(side.locator("[data-hmz=daemon-bar]")) == (8, 756, 222, 28)
+        bar = side.locator("[data-hmz=daemon-bar]")
+        assert _box(bar) == (8, 754, 226, 32)
+        # Pressed on its name for as long as a hand presses, it opens its menu, every choice
+        # of which leads with an icon.
+        x, y, _, _ = _box(bar.locator("[data-hmz=daemon-name]"))
+        page.mouse.move(x + 4, y + 8)
+        page.mouse.down()
+        page.wait_for_timeout(80)
+        page.mouse.up()
+        picker = page.locator("[data-hmz=daemon-picker]")
+        expect(picker.locator(".choice-mark svg")).to_have_count(3)
+        expect(picker.locator(".choice-mark:not(:has(svg))")).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(picker).to_have_count(0)
         gear = side.get_by_role("button", name="Settings", exact=True)
-        assert _box(gear) == (236, 756, 28, 28)
+        assert _box(gear) == (238, 756, 28, 28)
         gear.click()
         page.wait_for_url(re.compile(r"#/settings/general$"))
         expect(page.locator("[data-hmz=overlay]")).to_be_visible()
@@ -415,6 +428,9 @@ def test_the_sidebar_is_sized_by_its_splitter_and_stays_so(engine: str) -> None:
         expect(split).to_have_attribute("aria-valuenow", "340")
         assert _box(side)[2] == 340
         assert _box(page.locator("[data-hmz=page]"))[0] == 340
+        # A theme painted again leaves it as wide.
+        page.evaluate("window.hmzPaint()")
+        assert _box(side)[2] == 340
         # Kept for the next visit.
         again(page)
         assert _box(side)[2] == 340
@@ -724,6 +740,23 @@ def test_more_options_is_a_popup_button_that_keeps_the_focus(engine: str) -> Non
         expect(menu).to_have_count(1)
         more.click()
         expect(menu).to_have_count(0)
+
+        # One popup at a time: another row's menu opened by the keyboard, with no press
+        # outside the first, shuts the first.
+        more.click()
+        expect(menu).to_have_count(1)
+        next_more = page.locator(
+            "[data-hmz=epics] .side-item:not([data-epic=rests]) [data-hmz=row-menu]"
+        ).first
+        next_more.focus()
+        page.keyboard.press("Enter")
+        expect(next_more).to_have_attribute("aria-expanded", "true")
+        expect(more).to_have_attribute("aria-expanded", "false")
+        expect(menu).to_have_count(1)
+        expect(page.locator(".popover:visible")).to_have_count(1)
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
+        expect(next_more).to_be_focused()
 
         # A choice made, the focus is on the row's button still, wherever the row went.
         more.click()

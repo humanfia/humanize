@@ -31,7 +31,9 @@ export function mount(root, { query }) {
       },
     )
   }
-  if (inApp) go()
+  // No file named, there is nothing to import: it says what it imports, and how one is picked.
+  if (!path) fill(body, h('p', { class: 'dim', 'data-hmz': 'import-none' }, 'No file is named: this address imports a ', h('code', {}, '.hmzepic'), ' already on this machine, by its path. To pick one from the disk, press Import under Actions in Search.'))
+  else if (inApp) go()
   else
     fill(
       body,

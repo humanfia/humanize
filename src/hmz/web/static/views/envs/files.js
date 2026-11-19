@@ -6,8 +6,11 @@
 // letters of its path. What can be decided without a page is in files_logic.js.
 
 import { fill, h, icon, iconButton } from '../../dom.js'
-import { menuOn } from '../../ui.js'
+import * as layers from '../../layers.js'
+import { menuOf, menuOn } from '../../ui.js'
 import * as L from './files_logic.js'
+import { splitter } from './split.js'
+import { menuKey } from './tree.js'
 
 /** How tall a row of the explorer and of the search's results is, in pixels. */
 const ROW = 22
@@ -172,6 +175,8 @@ export async function mount(el, ctx) {
   const quickNote = h('div', { class: 'files-quick-note' })
   const quick = h('div', { class: 'files-quick', role: 'dialog', 'aria-label': 'Go to file', hidden: true, 'data-hmz': 'files-quick' }, quickInput, quickNote, quickList)
   const panel = h('div', { class: 'files', 'data-hmz': 'files' }, sideBox, main, quick)
+  // The explorer takes two fifths of the panel at most, as files.css lays it out.
+  sideBox.after(splitter(panel, { name: '--files-side', key: 'hmz-files-side', label: 'Resize the explorer', kind: 'files-split', most: (whole) => whole * 0.4, hmz: 'files-split' }))
   fill(el, panel)
 
   // The editor ------------------------------------------------------------------------------------
@@ -201,7 +206,8 @@ export async function mount(el, ctx) {
     return cm.EditorState.create({
       doc: text,
       extensions: [
-        cm.keymap.of([cm.indentWithTab]),
+        // Before the editor's own keys: its Go to line is opened as the page opens it, one panel at a time.
+        cm.keymap.of([{ key: 'Mod-Alt-g', run: () => (panelTo('goto'), true) }, cm.indentWithTab]),
         cm.basicSetup,
         themeC.of(cm.themeFor(ctx.theme())),
         langC.of(cm.languageFor(L.baseName(doc.path)) || []),
@@ -667,12 +673,39 @@ export async function mount(el, ctx) {
       statusBox,
       h('span', { class: ['files-state', `is-${doc.conflict ? 'error' : doc.saver.state}`], 'data-hmz': 'files-saved' }, saving),
       h('span', { class: 'files-gap' }),
-      h('button', { class: 'files-status-item', type: 'button', title: 'Go to line', 'data-hmz': 'files-position', onclick: () => cm.gotoLine(view) }, `Ln ${line.number}, Col ${head - line.from + 1}`, chosen ? ` (${chosen} selected)` : '', state.selection.ranges.length > 1 ? ` · ${state.selection.ranges.length} cursors` : ''),
-      h('span', { class: 'files-status-item' }, doc.bom ? 'UTF-8 with BOM' : 'UTF-8'),
+      // As files.css orders them: where the bar has no room for them all, the last give way first.
       h('button', { class: 'files-status-item', type: 'button', title: 'Change the line endings', 'data-hmz': 'files-eol', onclick: () => toggleEol(doc) }, doc.eol === '\r\n' ? 'CRLF' : 'LF'),
       h('span', { class: 'files-status-item', 'data-hmz': 'files-language' }, L.languageOf(doc.path)),
       h('button', { class: ['files-status-item', wrap && 'on'], type: 'button', title: 'Wrap lines (Alt+Z)', 'aria-pressed': wrap ? 'true' : 'false', 'data-hmz': 'files-wrap', onclick: () => toggleWrap() }, 'Wrap'),
+      h('button', { class: 'files-status-item', type: 'button', title: 'Go to line', 'data-hmz': 'files-position', onclick: () => panelTo('goto') }, `Ln ${line.number}, Col ${head - line.from + 1}`, chosen ? ` (${chosen} selected)` : '', state.selection.ranges.length > 1 ? ` · ${state.selection.ranges.length} cursors` : ''),
+      h('span', { class: 'files-status-item', 'data-hmz': 'files-encoding' }, doc.bom ? 'UTF-8 with BOM' : 'UTF-8'),
     )
+    reach()
+  }
+
+  /**
+   * What the bar has no room for falls under its one line, where it is not seen: it is not
+   * reached by a key or a press there either.
+   */
+  function reach() {
+    const line = statusBox.offsetHeight
+    for (const item of statusBox.children) item.inert = line > 0 && item.offsetTop - statusBox.offsetTop >= line
+  }
+  const barSized = new ResizeObserver(reach)
+  barSized.observe(statusBox)
+
+  /**
+   * Shows one of the editor's own panels, `find` or `goto`, in place of the other: one at a
+   * time. Go to line asked for again closes it, as asking for neither closes both.
+   */
+  function panelTo(which) {
+    const goto = view.dom.querySelector('.cm-goto-line .cm-dialog-close')
+    goto?.click()
+    if (which === 'find') return cm.openSearchPanel(view)
+    cm.closeSearchPanel(view)
+    if (which !== 'goto') return
+    if (goto) view.focus()
+    else cm.gotoLine(view)
   }
 
   function toggleEol(doc) {
@@ -862,21 +895,22 @@ export async function mount(el, ctx) {
     const input = h('input', { class: 'files-rename', type: 'text', spellcheck: 'false', 'aria-label': naming.kind === 'rename' ? 'New name' : naming.kind === 'dir' ? 'Folder name' : 'File name', 'data-hmz': 'files-name' })
     input.value = naming.kind === 'rename' ? L.baseName(naming.path) : ''
     let done = false
-    const finish = async (keep) => {
+    // The tree has the focus back unless it went on to something else, which keeps it.
+    const finish = async (keep, away = false) => {
       if (done) return
       done = true
       const what = naming
       naming = null
       if (keep) await named(what, input.value.trim())
       drawTree()
-      treeBox.focus()
+      if (!away) treeBox.focus()
     }
     input.addEventListener('keydown', (event) => {
       event.stopPropagation()
       if (event.key === 'Enter') finish(true)
       else if (event.key === 'Escape') finish(false)
     })
-    input.addEventListener('blur', () => finish(Boolean(input.value.trim())))
+    input.addEventListener('blur', (event) => finish(Boolean(input.value.trim()), Boolean(event.relatedTarget)))
     requestAnimationFrame(() => {
       input.focus()
       const dot = input.value.lastIndexOf('.')
@@ -913,7 +947,7 @@ export async function mount(el, ctx) {
   function entryMenu(row) {
     const dir = row.kind === 'dir' ? row.path : L.parentOf(row.path)
     return [
-      { head: L.relative(row.path, tree.root) },
+      { head: L.relative(row.path, tree.root), path: true },
       row.kind !== 'dir' && { label: 'Open', glyph: 'open', act: () => open(row.path, { pin: true }) },
       { label: 'New file…', glyph: 'file', act: () => startNew('file', dir) },
       { label: 'New folder…', glyph: 'folder', act: () => startNew('dir', dir) },
@@ -1000,12 +1034,20 @@ export async function mount(el, ctx) {
       Delete: () => row && !closed && remove(row.path),
       Backspace: () => (event.metaKey || event.ctrlKey) && row && !closed && remove(row.path),
     }
-    const act = keys[event.key]
+    const act = menuKey(event) ? () => menuAt(row) : keys[event.key]
     if (!act) return
     event.preventDefault()
     act()
   })
   const within = (path) => L.within(path, tree.root)
+
+  /** Opens an entry's menu under its row, brought into view: the tree has the focus back as it closes. */
+  function menuAt(row) {
+    if (!row) return
+    tree.view.show(rows.indexOf(row))
+    const at = tree.view.element(row.path)
+    if (at) menuOf(at, treeBox)
+  }
 
   filterBox.addEventListener('input', () => {
     filter = filterBox.value
@@ -1177,14 +1219,7 @@ export async function mount(el, ctx) {
         return made
       }
       const span = L.matchOn(row.text, searching.query, searching, row.column || 1)
-      let text = row.text
-      let at = span
-      // A match far along a long line is shown with what is just before it.
-      const cut = span && span[0] > 40 ? span[0] - 24 : 0
-      if (cut) {
-        text = `…${text.slice(cut)}`
-        at = [span[0] - cut + 1, span[1] - cut + 1]
-      }
+      const { text, span: at } = L.snippet(row.text, span)
       const said_ = at ? [text.slice(0, at[0]), h('mark', {}, text.slice(at[0], at[1])), text.slice(at[1])] : [text]
       const made = h('div', { class: 'files-result', role: 'listitem', tabindex: '0', 'data-hmz': 'files-result', 'data-path': row.path, 'data-line': String(row.line), title: `${L.relative(row.path, tree.root)}:${row.line}` }, h('span', { class: 'files-line' }, String(row.line)), h('span', { class: 'files-text' }, said_))
       const go = () => open(row.path, { line: row.line, column: (span ? span[0] : (row.column || 1) - 1) + 1 })
@@ -1268,9 +1303,21 @@ export async function mount(el, ctx) {
 
   let picks = []
   let picked = 0
+  /** The list over the panel, as one thing that floats: closed, the editor or the tree has the focus. */
+  const quickLayer = {
+    node: quick,
+    kind: 'panel',
+    close: quickClose,
+    get back() {
+      return inView ? view.contentDOM : treeBox
+    },
+  }
 
   async function quickOpen() {
+    // In place of the editor's own panels, not over them.
+    panelTo('')
     quick.hidden = false
+    layers.opened(quickLayer)
     quickInput.value = ''
     quickInput.focus()
     drawQuick()
@@ -1326,8 +1373,9 @@ export async function mount(el, ctx) {
   }
 
   function quickClose() {
+    if (quick.hidden) return
+    layers.closed(quickLayer)
     quick.hidden = true
-    if (inView) view.focus()
   }
 
   function choose() {
@@ -1347,7 +1395,6 @@ export async function mount(el, ctx) {
       ArrowDown: () => ((picked = Math.min(picks.length - 1, picked + 1)), drawQuick()),
       ArrowUp: () => ((picked = Math.max(0, picked - 1)), drawQuick()),
       Enter: () => choose(),
-      Escape: () => quickClose(),
     }
     const act = keys[event.key]
     if (!act) return
@@ -1355,7 +1402,6 @@ export async function mount(el, ctx) {
     event.stopPropagation()
     act()
   })
-  quickInput.addEventListener('blur', () => setTimeout(() => !quick.contains(document.activeElement) && (quick.hidden = true), 0))
 
   // Keys, the page and what is heard ---------------------------------------------------------------
 
@@ -1370,7 +1416,10 @@ export async function mount(el, ctx) {
     else if (mod_ && event.shiftKey && key === 'f') act = () => searchFor()
     else if (mod_ && event.shiftKey && key === 'e') act = () => (sideTo('explorer'), tabs.active ? revealInTree(tabs.active, true) : treeBox.focus())
     else if (mod_ && !event.shiftKey && key === 's') act = () => current()?.saver.now()
-    else if (mod_ && !event.shiftKey && key === 'g' && inView) act = () => cm.gotoLine(view)
+    else if (mod_ && !event.shiftKey && key === 'g' && inView) act = () => panelTo('goto')
+    else if (mod_ && !event.shiftKey && key === 'f' && view.dom.contains(document.activeElement)) act = () => panelTo('find')
+    // Find closes itself from the text; Go to line, only from its own field.
+    else if (key === 'escape' && view.hasFocus && view.dom.querySelector('.cm-goto-line')) act = () => panelTo('')
     else if (mod_ && !event.shiftKey && key === 'w' && tabs.active) act = () => close(tabs.active)
     else if (event.altKey && !mod_ && event.code === 'KeyZ') act = () => toggleWrap()
     if (!act) return
@@ -1466,6 +1515,7 @@ export async function mount(el, ctx) {
       window.removeEventListener('pagehide', flushAll)
       window.removeEventListener('focus', poll)
       seeing.disconnect()
+      barSized.disconnect()
       theming.disconnect()
       scheme.removeEventListener('change', retheme)
       off?.()

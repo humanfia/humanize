@@ -142,9 +142,7 @@ def test_a_notice_heard_is_a_card_that_opens_it(engine: str) -> None:
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         wire.tell(page, _notice(4, "failed", epic="big-fix"))
-        card = page.locator(
-            "[data-hmz=notification-toasts] [data-hmz=notification-toast]"
-        )
+        card = page.locator("[data-hmz=toasts] [data-hmz=notification-toast]")
         expect(card).to_have_count(1)
         expect(card).to_contain_text("Failed · Local")
         expect(page.locator("[data-hmz=notification-count]")).to_have_text("1")
@@ -189,6 +187,35 @@ def test_the_bell_is_there(engine: str) -> None:
         expect(page.locator("[data-hmz=notifications]")).to_be_visible()
 
 
+def test_the_bells_menu_is_the_one_popup_open(engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        noticed(page, "local", _notice(1, "done"))
+        bell = page.locator("[data-hmz=notifications]")
+        menu = page.locator("[data-hmz=notification-menu]")
+        picker = page.locator("[data-hmz=daemon-picker]")
+        bar = page.locator("[data-hmz=daemon-bar]")
+
+        # Another menu opened by the keyboard, with no press outside the bell's, shuts it.
+        bell.click()
+        expect(menu).to_be_visible()
+        bar.focus()
+        page.keyboard.press("Enter")
+        expect(picker).to_be_visible()
+        expect(menu).to_be_hidden()
+        expect(bell).to_have_attribute("aria-expanded", "false")
+
+        # And the bell's, opened by the keyboard, shuts that one.
+        bell.focus()
+        page.keyboard.press("Enter")
+        expect(menu).to_be_visible()
+        expect(picker).to_be_hidden()
+
+        # Search opened by its key leaves no menu up under it.
+        page.keyboard.press("Control+k")
+        expect(page.locator("[data-hmz=dialog-search]")).to_be_visible()
+        expect(menu).to_be_hidden()
+
+
 @pytest.mark.parametrize("system", [True, False])
 def test_the_browser_shows_one_while_the_page_is_not_looked_at(
     engine: str, system: bool
@@ -202,7 +229,7 @@ def test_the_browser_shows_one_while_the_page_is_not_looked_at(
         wire.tell(page, _notice(5, "done", text="All green"))
         expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
         if system:
-            page.wait_for_function("window.shown.length > 0")
+            page.wait_for_function("() => window.shown.length > 0")
             assert page.evaluate("window.shown") == [
                 {"title": "Done · Local", "body": "ralph · All green", "tag": "local:5"}
             ]
@@ -222,7 +249,7 @@ def test_the_app_shows_one_through_its_own_notifications(engine: str) -> None:
         page.evaluate(_APP_NOTIFIES)
         wire.tell(page, _notice(6, "asked", text="Ship it?"))
         expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
-        page.wait_for_function("window.shown.length > 0")
+        page.wait_for_function("() => window.shown.length > 0")
         assert page.evaluate("window.shown") == [
             {
                 "command": "notify",

@@ -20,12 +20,47 @@ const LABEL = 34
 const ACROSS = 4
 /** The least a graph is shrunk to fit its height as it opens: past it, it is dragged through. */
 const SMALLEST = 0.55
+/** A view too short to stand two nodes one over another is a strip: what is in it is seen whole, or not read. */
+const STRIP = 2 * (HEAD + ROW + FOOT) + DOWN
 /** How far it zooms out and in. */
 const LEAST = 0.2
 const MOST = 3
 /** How far a press moves before it drags the paper rather than clicks what is on it. */
 const SLOP = 4
 const BOW = 42
+
+/**
+ * How many agents stand side by side: as many as the view is wide enough for, at most four, and
+ * two however narrow it is where it is shorter than it is wide, which has the room beside a node
+ * that it has not under it.
+ *
+ * @param {{width: number, height: number}} view The canvas.
+ * @returns {number}
+ */
+export function abreast(view) {
+  const fits = Math.min(ACROSS, Math.floor((view.width + APART) / ((WIDE + APART) * 0.75)) || ACROSS)
+  return Math.max(view.height < view.width ? 2 : 1, fits)
+}
+
+/**
+ * How near a graph is drawn as it opens: as wide as the view and, where the view is tall enough,
+ * with the room round its frames, never so small it cannot be read -- one taller than that is
+ * dragged through. A strip is no view to drag through: however short it is, every frame is whole
+ * in it and clear of the controls in its corners -- between their columns or between their rows,
+ * whichever leaves the frames larger.
+ *
+ * @param {{width: number, height: number}} view The canvas.
+ * @param {{width: number, height: number}} stage The frames with the room round them.
+ * @param {{width: number, height: number}} frames The frames alone, in the stage's middle.
+ * @param {{width: number, height: number}} corner What a control in a corner takes of the view, its margins counted.
+ * @returns {number} The scale.
+ */
+export function fit(view, stage, frames, corner) {
+  const roomy = Math.min(1, (view.width - 32) / stage.width, Math.max(SMALLEST, (view.height - 32) / stage.height))
+  if (view.height >= STRIP) return Math.max(LEAST, roomy)
+  const clear = Math.max((view.width - 2 * corner.width) / frames.width, (view.height - 2 * corner.height) / frames.height)
+  return Math.max(LEAST, Math.min(roomy, (view.height - 32) / frames.height, clear))
+}
 
 /**
  * @param {{open: (name: string) => void}} handlers What picking an agent does.
@@ -55,6 +90,8 @@ export function graph({ open }) {
   // Until it is moved, the graph keeps to the middle of a view that grows or shrinks.
   let moved = false
   let size = { width: 0, height: 0 }
+  // The frames stand in the stage's middle, with room round them for the bows.
+  let framed = { width: 0, height: 0 }
   let shape = ''
   let fitted = false
   let placing = []
@@ -78,14 +115,16 @@ export function graph({ open }) {
     show()
   }
 
-  /** The graph as it opens: as wide as the view, not so small it cannot be read, in its middle. */
+  /** The graph as it opens: fitted to the view, in its middle. */
   function recenter() {
     if (!canvas.clientWidth || !size.width) return
     const width = canvas.clientWidth
     const height = canvas.clientHeight
-    at = Math.min(1, (width - 32) / size.width, Math.max(SMALLEST, (height - 32) / size.height))
+    // The zoom control keeps to one corner, as far from the edges as what stands in the others.
+    at = fit({ width, height }, size, framed, { width: zoom.offsetWidth + 2 * zoom.offsetLeft, height: 2 * (height - zoom.offsetTop) - zoom.offsetHeight })
     x = (width - size.width * at) / 2
-    y = Math.max(16, (height - size.height * at) / 2)
+    // One too tall for the view opens on its top, to be dragged down through.
+    y = framed.height * at > height - 32 ? 16 : (height - size.height * at) / 2
     moved = false
     show()
   }
@@ -185,8 +224,7 @@ export function graph({ open }) {
     for (const now of nows) now.style.left = pct(to)
   }
 
-  /** How many agents stand side by side: as many as the view is wide enough for, at most four. */
-  const across = () => Math.max(1, Math.min(ACROSS, Math.floor((canvas.clientWidth + APART) / ((WIDE + APART) * 0.75)) || ACROSS))
+  const across = () => abreast({ width: canvas.clientWidth, height: canvas.clientHeight })
   let last = null
   new ResizeObserver(() => {
     if (last && across() !== laidAcross) {
@@ -245,7 +283,8 @@ export function graph({ open }) {
     // Stacked one over another, they bow out to the sides instead.
     const room = INSET + Math.min(200, widest * 0.16)
     const aside = INSET + (laidAcross === 1 ? WIDE * 0.4 : 0)
-    size = { width: widest + 2 * aside, height: Math.max(y - DOWN * 0.6, HEAD) + 2 * room }
+    framed = { width: widest, height: Math.max(y - DOWN * 0.6, HEAD) }
+    size = { width: framed.width + 2 * aside, height: framed.height + 2 * room }
     for (const box of Object.values(boxes)) {
       box.x += aside
       box.y += room

@@ -3,7 +3,8 @@
 // And what it asks of one conversation's side copy, beside the run, which never reaches the run.
 
 import { call } from './api.js'
-import { acting, confirming, fill, h, icon, problem } from './dom.js'
+import { confirming } from './confirm.js'
+import { acting, fill, h, icon, problem } from './dom.js'
 import { ask } from './held.js'
 import { chipSelect, composer } from './composer.js'
 import { choice, menu, section, submenu } from './shell.js'
@@ -189,7 +190,6 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
   function aside(id, to = null) {
     const one = { id, to, said: [], question: '', posting: false }
     let target = ''
-    const title = h('span', { class: 'aside-title' })
     const named = h('span', { class: 'chip-value' })
     const tab = h('button', { class: 'chip-btn aside-tab', type: 'button', 'data-hmz': 'btw-tab', onclick: () => show(one) }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), named)
     const leave = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'btw-close' }, 'Close')
@@ -201,7 +201,6 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
       picked.textContent = key || UNPICKED
       picker.dataset.value = key
     }
-    menu(picker, (close) => whom(target, close, pick), { label: 'Ask it of' })
     const box = composer({
       placeholder: chat ? 'Ask a side question' : 'Ask about the epic',
       label: 'Side question',
@@ -225,7 +224,9 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
       },
     })
     box.node.dataset.hmz = 'btw'
-    const node = h('div', { class: 'aside-one', 'data-hmz': 'btw-aside' }, h('div', { class: 'aside-head' }, title, leave), log, h('div', { class: 'aside-to' }, picker), box.node)
+    // The menu opens clear of the box under its button: what is typed there stays in sight.
+    menu(picker, (close) => whom(target, close, pick), { by: box.node, label: 'Ask it of' })
+    const node = h('div', { class: 'aside-one', 'data-hmz': 'btw-aside' }, h('div', { class: 'aside-head' }, leave), log, h('div', { class: 'aside-to' }, picker), box.node)
     leave.addEventListener('click', async () => {
       leave.disabled = true
       leave.textContent = 'Closing…'
@@ -241,7 +242,7 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
     let was = ''
     const draw = () => {
       const who = one.to === null ? unasked : `btw · ${one.to}`
-      title.textContent = named.textContent = who
+      named.textContent = who
       tab.classList.toggle('busy', Boolean(one.question))
       tab.setAttribute('aria-pressed', String(shown === one))
       leave.hidden = one.to === null

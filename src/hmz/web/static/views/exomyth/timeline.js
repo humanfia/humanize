@@ -8,6 +8,8 @@
 // shows it all; a wheel scrolls, sideways or with Shift pans, with Ctrl (a pinch) zooms.
 
 import { h } from '../../dom.js'
+import { chain } from '../../layers.js'
+import { EDGE } from '../../shell.js'
 import { menuOn } from '../../ui.js'
 import { clock, firstEnding, lasted, locate } from './model.js'
 
@@ -23,7 +25,7 @@ const DRAG = 3
 
 /** Each category's colour, as a theme token. */
 const TOKENS = {
-  flow: '--primary',
+  flow: '--ink-3',
   session: '--lane-3',
   turn: '--lane-1',
   llm: '--lane-2',
@@ -86,9 +88,10 @@ export function timeline(told) {
       ink3: read('--ink-3'),
       line: read('--line'),
       strong: read('--line-strong'),
-      hover: read('--hover'),
+      selected: parseFloat(read('--selected-mix')) / 100 || 0.1,
+      round: parseFloat(read('--radius-xs')) || 0,
       onFill: read('--on-fill'),
-      onPrimary: read('--on-primary'),
+      onInk: read('--on-ink'),
       pink: read('--pink'),
       cyan: read('--cyan'),
       sans: read('--sans') || 'sans-serif',
@@ -293,8 +296,8 @@ export function timeline(told) {
   function ruler(step) {
     ctx.fillStyle = colours.surface
     ctx.fillRect(0, 0, width, RULER)
-    ctx.fillStyle = colours.ink
-    ctx.fillRect(0, RULER - 2, width, 2)
+    ctx.fillStyle = colours.line
+    ctx.fillRect(0, RULER - 1, width, 1)
     ctx.font = `10px ${colours.mono}`
     ctx.textBaseline = 'middle'
     ctx.fillStyle = colours.ink3
@@ -316,23 +319,29 @@ export function timeline(told) {
       const said = lasted(range.to - range.from)
       const wide = ctx.measureText(said).width + 10
       const x = Math.max(gutter, Math.min((from + to) / 2 - wide / 2, width - wide))
-      ctx.fillStyle = colours.pink
-      ctx.fillRect(x, 3, wide, RULER - 8)
+      chip(x, wide, colours.pink)
       ctx.fillStyle = colours.onFill
       ctx.fillText(said, x + 5, RULER / 2 - 1)
     } else if (pointer && pointer.x > gutter) {
       const said = clock(tOf(pointer.x), step / 100)
       const wide = ctx.measureText(said).width + 10
       const x = Math.min(pointer.x + 1, width - wide)
-      ctx.fillStyle = colours.cyan
-      ctx.fillRect(x, 3, wide, RULER - 8)
+      chip(x, wide, colours.cyan)
       ctx.fillStyle = colours.onFill
       ctx.fillText(said, x + 5, RULER / 2 - 1)
     }
     ctx.restore()
   }
 
-  /** A process's head: where open, a line over its span of time; folded, its spans in brief. */
+  /** The ground of what the ruler says of the pointer or of the stretch picked: a mark's corners. */
+  function chip(x, wide, colour) {
+    ctx.fillStyle = colour
+    ctx.beginPath()
+    ctx.roundRect(x, 3, wide, RULER - 8, colours.round)
+    ctx.fill()
+  }
+
+  /** A process's head: where open, a hairline over its span of time; folded, its spans in brief. */
   function heads(row, y) {
     const process = model.processes[row.process]
     if (folded.has(row.process)) {
@@ -347,7 +356,7 @@ export function timeline(told) {
     const to = Math.min(width, xOf(process.end))
     if (to < gutter || from > width) return
     ctx.fillStyle = swatch(process)
-    ctx.fillRect(from, y + HEAD - 6, Math.max(1, to - from), 3)
+    ctx.fillRect(from, y + HEAD - 5, Math.max(1, to - from), 1)
   }
 
   /**
@@ -431,7 +440,7 @@ export function timeline(told) {
       if (fits < 2) return
       text = `${said.slice(0, fits)}…`
     }
-    ctx.fillStyle = model.strings[track.cat[i]] === 'flow' ? colours.onPrimary : colours.onFill
+    ctx.fillStyle = model.strings[track.cat[i]] === 'flow' ? colours.onInk : colours.onFill
     ctx.fillText(text, x + 4, y)
   }
 
@@ -479,7 +488,7 @@ export function timeline(told) {
     }
   }
 
-  /** Each agent's colour, as its lane, in the order agents first appear; a flow in ink. */
+  /** Each agent's colour, as its lane, in the order agents first appear; a flow in quiet ink. */
   function swatch(process) {
     if (process.kind === 'flow') return colours.flow
     if (process.kind === 'os') return colours.process
@@ -489,7 +498,7 @@ export function timeline(told) {
   function gutters(scroll) {
     ctx.fillStyle = colours.surface
     ctx.fillRect(0, RULER, gutter, height - RULER)
-    ctx.fillStyle = colours.strong
+    ctx.fillStyle = colours.line
     ctx.fillRect(gutter - 1, RULER, 1, height - RULER)
     ctx.save()
     ctx.beginPath()
@@ -504,10 +513,10 @@ export function timeline(told) {
       const indent = 8 + Math.min(process.level, 8) * 12
       if (row.track < 0) {
         if (picked && picked.process === row.process && picked.span === undefined) {
-          ctx.fillStyle = colours.hover
+          ctx.globalAlpha = colours.selected
+          ctx.fillStyle = colours.ink
           ctx.fillRect(0, y, gutter - 1, HEAD)
-          ctx.fillStyle = colours.pink
-          ctx.fillRect(0, y, 3, HEAD)
+          ctx.globalAlpha = 1
         }
         caret(indent, y + HEAD / 2, !folded.has(row.process))
         ctx.fillStyle = swatch(process)
@@ -587,7 +596,8 @@ export function timeline(told) {
   }
 
   function tipped(it, x, y) {
-    if (!it || it.span === undefined) {
+    // Nothing is said beside the pointer while a menu is open: the chart's own opens there.
+    if (!it || it.span === undefined || chain().length) {
       tip.hidden = true
       return
     }
@@ -600,8 +610,8 @@ export function timeline(told) {
     tip.hidden = false
     const box = tip.getBoundingClientRect()
     // Kept over the chart, clear of the panel beside it.
-    tip.style.left = `${Math.max(4, Math.min(x + 14, canvas.getBoundingClientRect().right - box.width - 4))}px`
-    tip.style.top = `${y + 18 + box.height > innerHeight ? y - box.height - 8 : y + 18}px`
+    tip.style.left = `${Math.max(EDGE, Math.min(x + 14, canvas.getBoundingClientRect().right - box.width - EDGE))}px`
+    tip.style.top = `${y + 18 + box.height > innerHeight - EDGE ? y - box.height - 8 : y + 18}px`
   }
 
   let pressed = null
@@ -670,6 +680,9 @@ export function timeline(told) {
     tip.hidden = true
     draw()
   })
+
+  // The chart's menu opens where the tip stands.
+  canvas.addEventListener('contextmenu', () => (tip.hidden = true))
 
   canvas.addEventListener('dblclick', (event) => {
     const { x, y } = local(event)

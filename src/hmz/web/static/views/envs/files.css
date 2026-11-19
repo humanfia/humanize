@@ -1,15 +1,23 @@
 /* The Files panel: the explorer or a search on the left, the tabs and the editor on the right,
-   a status bar under it. Every colour is one of the page's tokens. */
+   a status bar under it. Every colour and every size is one of the page's tokens. A strip of
+   tabs or tools stands --strip-h tall over its hairline, as the other panels' strips do. The
+   panel answers to its own width, not the window's: where it is narrow the explorer stands over
+   the editor.
+
+   The explorer is as wide as it was dragged to (--files-side), about a third of the panel
+   until it is, and never more than two fifths of it, in whole pixels: the line between the two
+   is the frame's own, in a column of its own. */
 
 .files {
+  --strip-h: 36px;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(180px, var(--files-side, 260px)) minmax(0, 1fr);
+  grid-template-columns: round(min(40%, var(--files-side, clamp(200px, 32%, 260px))), 1px) var(--border-w) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   background: var(--surface);
   color: var(--ink);
-  font: 13px var(--sans);
+  font: var(--text-md)/20px var(--sans);
 }
 
 .files [hidden] {
@@ -23,33 +31,68 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  border-right: 1px solid var(--line);
   background: var(--side);
-  resize: horizontal;
   overflow: hidden;
 }
 
-.files-side-tabs {
+/* The strips of tabs: as tall as a tab and the room around it, over a hairline. */
+.files-side-tabs,
+.files-tabs {
   display: flex;
-  border-bottom: 1px solid var(--line);
+  align-items: center;
+  flex: none;
+  gap: var(--space-4);
+  min-height: calc(var(--strip-h) + var(--border-w));
+  padding: var(--space-4);
+  border-bottom: var(--border);
+  background: var(--surface);
+}
+
+/* The explorer's tabs stand on the edge the panel's tabs over them and the field under them do. */
+.files-side-tabs {
+  padding-inline: var(--space-8);
+}
+
+.files-side-tab,
+.files-tab {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: var(--control-h-sm);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--ink-3);
+  font: 500 var(--text-md)/20px var(--sans);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
 }
 
 .files-side-tab {
-  flex: 1;
-  padding: 6px 8px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--ink-2);
-  font: 600 11px var(--sans);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
+  padding: 0 var(--space-8);
 }
 
-.files-side-tab[aria-selected='true'] {
+:is(.files-side-tab, .files-tab):hover {
+  background: var(--hover);
   color: var(--ink);
-  border-bottom-color: var(--live);
+}
+
+.files-side-tab:active {
+  background: var(--pressed);
+}
+
+.files-side-tab[aria-selected='true'],
+.files-tab.active {
+  background: var(--selected);
+  color: var(--ink);
+}
+
+:is(.files-side-tab, .files-tab):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .files-explorer,
@@ -58,58 +101,79 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  gap: 6px;
-  padding: 6px 8px 0;
 }
 
 .files-pane-head {
   display: flex;
   align-items: center;
-  gap: 2px;
+  flex: none;
+  gap: var(--space-4);
+  min-height: var(--strip-h);
+  padding: 0 var(--space-8);
 }
 
 .files-pane-head .icon-btn {
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
 }
 
 .files-pane-head .icon {
-  width: 15px;
-  height: 15px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
+/* What the explorer is rooted at, and what the search pane is: a label at the pane's text edge. */
 .files-root {
   flex: 1;
   min-width: 0;
+  padding-left: var(--space-8);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 600 11px var(--sans);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-2);
+  font: 500 var(--text-sm)/16px var(--sans);
+  color: var(--ink-3);
 }
 
-.files-filter,
-.files-input {
-  width: 100%;
-  min-height: var(--control-h-sm) !important;
-  padding: 3px 6px;
-  font-size: 12.5px;
+/* The panel's own fields: small ones, set in from the pane's edges as its rows' marks are. */
+input:is(.files-filter, .files-input) {
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
 }
 
+/* What empties a field is the page's small cross, not the browser's own. */
+.files input[type='search']::-webkit-search-cancel-button {
+  appearance: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin: 0;
+  background: var(--ink-3);
+  mask: var(--envs-cross) center / contain no-repeat;
+  cursor: pointer;
+}
+
+.files-explorer > .files-filter,
+.files-search > .files-query,
+.files-search > .files-input {
+  flex: none;
+  margin: 0 var(--space-8);
+}
+
+.files-search > .files-input {
+  margin-top: var(--space-4);
+}
+
+/* The list ends short of what stands under it, so that a row brought into view at its foot --
+   the last one, picked -- does not touch that. */
 .files-tree,
 .files-results {
   position: relative;
   flex: 1;
   min-height: 0;
+  margin: var(--space-8) 0 var(--space-4);
   overflow: auto;
-  margin: 0 -8px;
   outline: none;
-}
-
-.files-tree:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--live);
 }
 
 .files-sizer {
@@ -117,47 +181,59 @@
   min-width: 100%;
 }
 
+/* A row stands 22px tall, which files.js lays the list out by. */
 .files-row,
 .files-result,
 .files-result-file {
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  left: var(--space-4);
+  right: var(--space-4);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
   height: 22px;
-  padding: 0 8px 0 calc(8px + var(--depth, 0) * 12px);
+  padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--depth, 0) * var(--indent));
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
 }
 
-.files-row:hover,
-.files-result:hover,
-.files-result-file:hover {
+:is(.files-row, .files-result, .files-result-file):hover {
   background: var(--hover);
-}
-
-.files-row.current {
-  color: var(--live-ink);
+  color: var(--ink);
 }
 
 .files-row.selected {
-  background: var(--live-soft);
+  background: var(--selected);
+  color: var(--ink);
 }
 
-.files-tree:focus .files-row.selected {
-  box-shadow: inset 0 0 0 1px var(--live);
+/* The file being edited. */
+.files-row.current {
+  color: var(--ink);
+  font-weight: 500;
 }
 
+/* Where the keys are in the tree is ringed while it is the keys that are used, and once: on
+   the row they are on, or on the tree where they are on none yet. */
+.files-tree:focus-visible .files-row.selected,
+.files-tree:focus-visible:not(:has(.files-row.selected)) {
+  outline: 1px solid var(--link);
+  outline-offset: -1px;
+}
+
+/* A folder still being read, or one that could not be: a line where its files would stand. */
 .files-row.is-loading,
 .files-row.is-error {
-  cursor: default;
+  margin: 0;
+  padding-left: calc(var(--space-8) + var(--icon-sm) + var(--depth, 0) * var(--indent));
+  background: none;
   color: var(--ink-3);
   font-style: italic;
-  padding-left: calc(28px + var(--depth, 0) * 12px);
+  cursor: default;
 }
 
 .files-row.is-error {
@@ -168,15 +244,15 @@
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   color: var(--ink-3);
 }
 
 .files-twisty .icon {
   width: 12px;
   height: 12px;
-  transition: transform 0.1s;
+  transition: transform var(--dur) var(--ease);
 }
 
 .files-twisty.open .icon {
@@ -187,23 +263,19 @@
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 18px;
+  width: 20px;
   height: 16px;
   color: var(--ink-3);
 }
 
 .files-icon .icon {
-  width: 14px;
-  height: 14px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
-.files-folder {
-  color: var(--gold);
-}
-
+/* A file's kind in a few letters, in the colour its language is given. */
 .files-badge {
-  font: 700 8px/1 var(--mono);
-  letter-spacing: -0.02em;
+  font: 600 var(--text-xs)/16px var(--mono);
 }
 
 .files-badge.lane-1 { color: var(--lane-1); }
@@ -224,60 +296,83 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--ink-3);
-  font-size: 11.5px;
+  font-size: var(--text-sm);
 }
 
-.files-rename {
+/* A name being given or changed: a field in the name's place, inside the row. */
+input.files-rename {
   flex: 1;
   min-width: 0;
   height: 20px;
-  min-height: 20px !important;
-  padding: 0 4px;
-  font-size: 12.5px;
-  border-color: var(--live);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-md);
 }
 
 .files-tree-error {
-  margin: 0;
-  font-size: 12px;
+  margin: var(--space-8) var(--space-8) 0;
+  font-size: var(--text-sm);
 }
 
 /* ----------------------------------------------------------------- search */
 
 .files-query {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .files-query .files-input {
   flex: 1;
 }
 
+/* How the search reads what is typed: a letter or two, filled while it is on. */
 .files-toggle {
   flex: none;
-  width: var(--control-h-sm);
-  border: 1px solid transparent;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
   background: none;
-  color: var(--ink-2);
-  font: 600 11px var(--mono);
+  color: var(--ink-3);
+  font: 600 var(--text-xs)/16px var(--mono);
   cursor: pointer;
 }
 
+.files-toggle:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
 .files-toggle[aria-pressed='true'] {
-  border-color: var(--live);
-  background: var(--live-soft);
+  background: var(--selected);
   color: var(--ink);
 }
 
 .files-summary {
-  color: var(--ink-3);
-  font-size: 12px;
+  flex: none;
   min-height: 16px;
+  margin-top: var(--space-8);
+  padding: 0 var(--space-16);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: 16px;
+}
+
+.files-summary:empty {
+  display: none;
+}
+
+.files-summary .error,
+.files-quick-note .error {
+  display: block;
+  margin: 0;
 }
 
 .files-result-file {
-  padding-left: 8px;
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .files-result-file .files-dir {
@@ -287,29 +382,33 @@
 
 .files-count {
   flex: none;
-  padding: 0 5px;
-  border-radius: 8px;
-  background: var(--line);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--selected);
   color: var(--ink-2);
-  font: 11px var(--mono);
+  font: 600 var(--text-xs)/16px var(--sans);
+  text-align: center;
 }
 
+/* A line that matches, under its file: its number where the file's badge stands. */
 .files-result {
-  padding-left: 26px;
-  font: 12px var(--mono);
+  padding-left: calc(var(--space-8) + var(--icon-sm));
+  font: var(--text-sm) var(--mono);
 }
 
 .files-result:focus-visible {
-  outline: 1px solid var(--live);
+  outline: 1px solid var(--link);
   outline-offset: -1px;
 }
 
 .files-line {
   flex: none;
   min-width: 28px;
+  padding-right: var(--space-4);
   color: var(--ink-3);
   text-align: right;
-  padding-right: 6px;
 }
 
 .files-text {
@@ -319,6 +418,7 @@
 }
 
 .files mark {
+  border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--gold) 40%, transparent);
   color: inherit;
 }
@@ -333,43 +433,25 @@
 }
 
 .files-tabs {
-  display: flex;
-  flex: none;
   overflow-x: auto;
   overflow-y: hidden;
-  min-height: 34px;
-  background: var(--side);
-  border-bottom: 1px solid var(--line);
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.files-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .files-tab {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  max-width: 240px;
-  padding: 0 4px 0 10px;
-  border-right: 1px solid var(--line);
-  color: var(--ink-2);
-  cursor: pointer;
-  user-select: none;
-}
-
-.files-tab:hover {
-  background: var(--hover);
+  gap: var(--space-4);
+  max-width: 220px;
+  padding: 0 var(--space-2) 0 var(--space-8);
 }
 
 /* The one being dragged along the strip. */
 .files-tab.dragging {
   opacity: 0.6;
   cursor: grabbing;
-}
-
-.files-tab.active {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: inset 0 2px 0 var(--live);
 }
 
 .files-tab.preview .files-tab-name {
@@ -388,16 +470,20 @@
 
 .files-tab-dir {
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: var(--text-sm);
+  font-weight: 400;
   white-space: nowrap;
 }
 
 .files-tab-close {
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  flex: none;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  padding: 0;
   border: 0;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-3);
   cursor: pointer;
@@ -405,14 +491,44 @@
 }
 
 .files-tab-close .icon {
-  width: 13px;
-  height: 13px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .files-tab.active .files-tab-close,
 .files-tab:hover .files-tab-close,
 .files-tab.dirty .files-tab-close {
   visibility: visible;
+}
+
+/* Under a finger nothing is pointed at: every tab's is there already. */
+@media (hover: none) {
+  .files-tab-close {
+    visibility: visible;
+  }
+}
+
+/* Under a finger the panel's small buttons are taken hold of in more room than they are drawn
+   in: 40px up and down, as the page's are, and sideways as far as the next thing leaves. The
+   field under the search's stands that much further down, clear of it. */
+@media (pointer: coarse) {
+  .files-query {
+    gap: var(--space-8);
+  }
+
+  .files-search > .files-input {
+    margin-top: var(--space-8);
+  }
+
+  :is(.files-tab-close, .files-toggle) {
+    position: relative;
+  }
+
+  :is(.files-tab-close, .files-toggle)::after {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--space-8)) calc(-1 * var(--space-4));
+  }
 }
 
 .files-tab-close:hover {
@@ -424,7 +540,7 @@
   display: none;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: currentColor;
 }
 
@@ -449,15 +565,17 @@
   display: none;
 }
 
+/* What is to be known about the file shown, across the pane over the editor: plain, or washed
+   in what it warns of. */
 .files-banner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--line);
-  background: var(--raised);
-  font-size: 12.5px;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: var(--border);
+  background: var(--quiet);
+  color: var(--ink);
 }
 
 .files-banner > span {
@@ -465,12 +583,21 @@
   min-width: 160px;
 }
 
+.files-banner:is(.warn, .danger) {
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+}
+
 .files-banner.warn {
-  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  --tone: var(--budget);
 }
 
 .files-banner.danger {
-  background: color-mix(in srgb, var(--fail) 12%, var(--surface));
+  --tone: var(--fail);
+}
+
+.files-banner .btn {
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
 }
 
 .files-body {
@@ -496,7 +623,7 @@
 
 .files-editor .cm-scroller {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .files-other {
@@ -506,30 +633,42 @@
 .files-welcome,
 .files-notice {
   max-width: 460px;
-  margin: 48px auto;
-  padding: 0 16px;
-  color: var(--ink-2);
+  margin: var(--space-40) auto;
+  padding: 0 var(--gutter);
+  color: var(--ink-3);
   text-align: center;
 }
 
 .files-notice strong,
 .files-welcome strong {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-4);
   color: var(--ink);
-  font-size: 14px;
+  font: 600 var(--text-lg)/22px var(--sans);
+}
+
+:is(.files-welcome, .files-notice) p {
+  margin: 0;
 }
 
 .files-notice .row {
   justify-content: center;
+  margin-top: var(--space-12);
+}
+
+.files-welcome kbd {
+  padding: 0 var(--space-4);
+  border: var(--border);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-xs);
 }
 
 .files-image {
   display: grid;
   place-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   min-height: 100%;
-  padding: 16px;
+  padding: var(--gutter);
   background-color: var(--paper);
   background-image:
     linear-gradient(45deg, var(--grid) 25%, transparent 25%, transparent 75%, var(--grid) 75%),
@@ -548,22 +687,23 @@
 .files-caption {
   margin: 0;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
+/* Whose text each half of a comparison is, over the two. */
 .files-merge-head {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink-2);
-  font: 600 11px var(--sans);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  align-items: center;
+  height: calc(var(--strip-h) + var(--border-w));
+  padding: 0 var(--gutter);
+  border-bottom: var(--border);
+  color: var(--ink-3);
+  font: 500 var(--text-sm)/16px var(--sans);
 }
 
 .files-merge {
-  height: calc(100% - 26px);
+  height: calc(100% - var(--strip-h) - var(--border-w));
   overflow: auto;
 }
 
@@ -571,32 +711,41 @@
   min-height: 100%;
 }
 
+/* The bar is one line tall, and what it says is never cut short: where there is no room for
+   all of it, what does not fit falls to a line under the bar, which is not seen. What is to
+   stay therefore stands first -- whether the tab is written, then what is pressed, the line
+   endings and the wrapping, with the language between them -- then where the caret is, and the
+   encoding last. */
 .files-status {
   display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
   align-items: center;
   flex: none;
-  gap: 2px;
-  min-height: 24px;
-  padding: 0 6px;
-  border-top: 1px solid var(--line);
-  background: var(--side);
-  color: var(--ink-2);
-  font-size: 12px;
+  gap: var(--space-8);
+  height: calc(var(--control-h-xs) + var(--border-w));
+  padding: var(--space-2) var(--space-12) 0;
+  border-top: var(--border);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: 16px;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: clip;
 }
 
 .files-gap {
   flex: 1;
 }
 
-.files-state {
-  padding: 0 6px;
+.files-state,
+.files-status-item {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
 }
 
-.files-state.is-saving,
-.files-state.is-dirty {
-  color: var(--ink-3);
+.files-state:empty {
+  display: none;
 }
 
 .files-state.is-error {
@@ -604,8 +753,8 @@
 }
 
 .files-status-item {
-  padding: 2px 6px;
   border: 0;
+  border-radius: var(--radius-xs);
   background: none;
   color: inherit;
   font: inherit;
@@ -621,35 +770,44 @@ button.files-status-item:hover {
 }
 
 .files-status-item.on {
-  color: var(--live-ink);
+  background: var(--selected);
+  color: var(--ink);
 }
 
 /* ----------------------------------------------------------------- quick open */
 
 .files-quick {
   position: absolute;
-  top: 8px;
+  top: var(--space-8);
   left: 50%;
-  z-index: 20;
+  z-index: var(--z-float);
   display: flex;
   flex-direction: column;
-  width: min(560px, calc(100% - 32px));
-  max-height: min(420px, calc(100% - 16px));
-  padding: 6px;
-  transform: translateX(-50%);
-  border: 2px solid var(--edge, var(--ink));
+  width: min(560px, calc(100% - 2 * var(--space-16)));
+  max-height: min(420px, calc(100% - 2 * var(--space-8)));
+  padding: var(--space-4);
+  translate: -50% 0;
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
   background: var(--raised);
-  box-shadow: var(--shadow);
 }
 
+/* The field stands bare over the list, a hairline between them. */
 .files-quick .files-input {
-  min-height: var(--control-h) !important;
-  font-size: 13.5px;
+  flex: none;
+  height: var(--control-h);
+  border: 0;
+  border-bottom: var(--border);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: none;
+  font-size: var(--text);
+  outline: none;
 }
 
 .files-quick-note {
+  padding: var(--space-4) var(--space-8) 0;
   color: var(--ink-3);
-  font-size: 11.5px;
+  font-size: var(--text-sm);
 }
 
 .files-quick-note:empty {
@@ -658,25 +816,29 @@ button.files-status-item:hover {
 
 .files-quick-list {
   overflow: auto;
-  margin-top: 4px;
+  margin-top: var(--space-4);
 }
 
 .files-pick {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 6px;
+  gap: var(--space-8);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-md);
+  color: var(--ink-2);
   white-space: nowrap;
   cursor: pointer;
 }
 
 .files-pick:hover {
   background: var(--hover);
+  color: var(--ink);
 }
 
 .files-pick.active {
-  background: var(--live-soft);
+  background: var(--selected);
+  color: var(--ink);
 }
 
 .files-pick .files-name {
@@ -684,32 +846,42 @@ button.files-status-item:hover {
   max-width: 60%;
 }
 
+/* The letters that matched what was typed. */
 .files-pick mark {
   background: none;
-  color: var(--live-ink);
-  font-weight: 700;
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .files-quick-empty {
-  padding: 8px 6px;
+  padding: var(--space-4) var(--space-8);
   color: var(--ink-3);
 }
 
-/* ----------------------------------------------------------------- a phone */
+/* ----------------------------------------------------------------- a narrow panel */
 
-@media (max-width: 700px) {
+/* Narrow -- a phone, or the panel beside a chat in a small window -- the explorer stands over
+   the editor, each as wide as the panel. */
+@container envs-pane (max-width: 479px) {
   .files {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(140px, 38%) minmax(0, 1fr);
+    grid-template-rows: minmax(140px, round(38%, 1px)) minmax(0, 1fr);
   }
 
   .files-side {
-    resize: none;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: var(--border);
   }
 
-  .files-quick {
-    width: calc(100% - 32px);
+  .files-split {
+    display: none;
+  }
+
+  /* Until a file is open the explorer has the panel to itself. */
+  .files:not(:has(.files-tab)) {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .files:not(:has(.files-tab)) > .files-main {
+    display: none;
   }
 }

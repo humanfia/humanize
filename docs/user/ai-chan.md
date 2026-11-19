@@ -139,8 +139,10 @@ What to look at, by number:
 - **On the page**, the drawer stays open from view to view until you close it, and lists each
   conversation as **Answering**, **Waiting** or **Folded away**. A conversation you open whose
   first turn failed says **Failed**, with what her harness said, and takes no more lines: start
-  a new one. Its form also takes a **Title**, made from the task where you leave it empty. On a
-  phone the drawer covers the view; <kbd>esc</kbd> or its close button puts it away.
+  a new one. Its form also takes a **Title**, made from the task where you leave it empty. Where
+  the window has no room for the drawer and a view's panel both, opening one closes the other.
+  On a phone the drawer covers the view, and the sidebar's drawer closes as it opens;
+  <kbd>esc</kbd> or its close button puts it away.
 - **Stopping** interrupts her turn and leaves the conversation between turns. It does not end
   it.
 - **Forgetting** removes the conversation from the list and deletes her scratch directory. It

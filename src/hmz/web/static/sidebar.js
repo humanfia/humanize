@@ -10,7 +10,8 @@
 import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
 import { pick } from './importing.js'
-import { copy, menuButton, menuOn, toast } from './ui.js'
+import { chain } from './layers.js'
+import { copy, menuButton, menuOn, posted, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
 import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, epicRow, harnessRow, pathOf } from './chats.js'
@@ -76,7 +77,8 @@ function splitter() {
   const el = h('div', { class: 'side-split', role: 'separator', tabindex: '0', 'aria-orientation': 'vertical', 'aria-label': 'Resize sidebar', title: 'Resize sidebar', 'aria-controls': 'sidebar', 'aria-valuemin': WIDTHS.least, 'aria-valuemax': WIDTHS.most, 'data-hmz': 'side-split' })
   const set = (wide, keeps) => {
     const now = widthOf(wide)
-    document.documentElement.style.setProperty('--side-wide', `${now}px`)
+    // On the frame it sizes, not the root, whose own properties a theme painted takes away.
+    document.querySelector('.app').style.setProperty('--side-wide', `${now}px`)
     el.setAttribute('aria-valuenow', String(now))
     if (keeps) keep('hmz-side-wide', now === WIDTHS.usual ? null : String(now))
   }
@@ -164,14 +166,7 @@ export function mountSidebar(root, context, where) {
       'div',
       { class: 'side-foot' },
       bar.el,
-      iconButton('gear', 'Settings', {
-        class: 'side-gear',
-        'data-hmz': 'settings-open',
-        onclick: () => {
-          settleSidebar()
-          location.hash = hash('/settings/general')
-        },
-      }),
+      iconButton('gear', 'Settings', { class: 'side-gear', 'data-hmz': 'settings-open', onclick: () => (location.hash = hash('/settings/general')) }),
     ),
     splitter(),
   )
@@ -203,6 +198,8 @@ export function mountSidebar(root, context, where) {
   let dry = false
   /** Whether the list is to be drawn again once the menu open in it has closed. */
   let stale = false
+  /** Whether a press is on the list: a finger or a button down on it and not yet up. */
+  let pressing = false
   /** Which epics are opened out, by name, as this browser last left them. */
   const opened = new Set(JSON.parse(kept('hmz-opened', '[]') || '[]'))
   /** Which epics were folded here, the one in front among them. */
@@ -350,8 +347,9 @@ export function mountSidebar(root, context, where) {
   }
 
   function draw() {
-    // A menu open in the list, or from a row of it, stands until it is closed: the list is drawn again then.
-    if (list.querySelector('.popover, [aria-haspopup][aria-expanded=true], .title-edit')) {
+    // A menu open from the list, or at the pointer, acts on the rows it was opened over, as a
+    // title's field stands in its row: the list is drawn again once that is closed.
+    if (list.querySelector('.title-edit') || chain().some((one) => (one.anchor ? list.contains(one.anchor) : one.kind !== 'panel'))) {
       stale = true
       return
     }
@@ -403,16 +401,7 @@ export function mountSidebar(root, context, where) {
           focus('.side-toggle')
         })
         const sort = iconButton('sliders', 'Group and sort', { class: 'side-sort', 'data-hmz': 'list-menu-open' })
-        // A choice made, the button that opened the menu has the focus back, as Escape gives it.
-        menu(
-          sort,
-          (close) =>
-            listMenu(() => {
-              close()
-              sort.focus()
-            }),
-          { label: 'Group and sort' },
-        )
+        menu(sort, listMenu, { label: 'Group and sort' })
         const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : '/new/chat'
         const head = h(
           'div',
@@ -503,7 +492,7 @@ export function mountSidebar(root, context, where) {
   function folderMenu(path, count, fold = null) {
     const at = encodeURIComponent(path)
     return [
-      { head: path },
+      { head: path, path: true },
       { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
       { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${at}`) },
       { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${at}`) },
@@ -736,8 +725,13 @@ export function mountSidebar(root, context, where) {
   })
   // A row pinned or marked, from wherever its menu was opened.
   window.addEventListener('hmz:list', () => data && draw())
-  // The menu that held a drawing back has closed, by a choice, a click elsewhere or Escape.
-  for (const closed of ['click', 'keyup']) document.addEventListener(closed, () => setTimeout(() => stale && data && draw()), true)
+  // What held a drawing back is gone: the menu closed, by whatever closed it, or the title's
+  // field done with. A press on the list that closed it is still on its way to a click, and the
+  // row under it stays until then.
+  window.addEventListener('pointerdown', (event) => (pressing = list.contains(event.target)), true)
+  for (const over of ['pointerup', 'pointercancel']) window.addEventListener(over, () => (pressing = false), true)
+  window.addEventListener('hmz:layers', () => stale && data && !pressing && draw())
+  for (const ended of ['click', 'keyup']) document.addEventListener(ended, () => setTimeout(() => stale && data && draw()), true)
   // Another daemon's epics and workspaces: nothing of the last one's is drawn until they are read.
   window.addEventListener('hmz:daemon', () => {
     data = null
@@ -822,17 +816,17 @@ export function epicMenu(run, { rename = null } = {}) {
   ]
 }
 
-let notice = null
+/** What takes away the last thing said to be going. */
+let done = () => {}
 
 /**
  * Says what was asked of the server is going, in a toast that stays until it answers -- the menu
  * it was asked from is closed by then -- and gives back the answer.
  */
 function working(said, asked) {
-  notice?.remove()
-  const mine = (notice = h('div', { class: 'toast notice working', role: 'status', 'data-hmz': 'working' }, h('span', { class: 'dot live', 'aria-hidden': 'true' }), `${said}…`))
-  document.body.append(mine)
-  return asked.finally(() => mine.remove())
+  done()
+  const mine = (done = posted(h('div', { class: 'toast notice working', role: 'status', 'data-hmz': 'working' }, h('span', { class: 'dot live', 'aria-hidden': 'true' }), `${said}…`)))
+  return asked.finally(mine)
 }
 
 /**
@@ -878,10 +872,15 @@ function daemonBar() {
   let live = { of: '', count: 0 }
   /** A newer release of hmz than the one serving the page, as Local last learned it. */
   let newer = ''
-  const avatar = h('span', { class: 'side-avatar', 'aria-hidden': 'true' })
-  const title = h('b', { 'data-hmz': 'daemon-name' })
-  const host = h('span', { class: 'side-host', 'data-hmz': 'daemon-host' })
-  const state = h('span', { class: 'side-state', 'data-hmz': 'state' })
+  // Each holds one text, written where it changes and never put in place of another: the bar
+  // is drawn again between a press and its release, and WebKit makes no click of the two once
+  // the text pressed on is gone.
+  const avatar = h('span', { class: 'side-avatar', 'aria-hidden': 'true' }, '')
+  const title = h('b', { 'data-hmz': 'daemon-name' }, '')
+  const host = h('span', { class: 'side-host', 'data-hmz': 'daemon-host' }, '')
+  const dot = h('span', { 'aria-hidden': 'true' })
+  const state = h('span', { class: 'side-state', 'data-hmz': 'state' }, dot, '')
+  const say = (el, text) => el.lastChild.nodeValue === text || (el.lastChild.nodeValue = text)
   const badge = h('span', { class: 'side-badge', 'data-hmz': 'newer', hidden: true }, '↑')
   const el = h(
     'button',
@@ -912,13 +911,14 @@ function daemonBar() {
     greet(name)
     const { state: how, detail } = stateOf(name)
     const up = how === 'up'
-    avatar.textContent = named(name).slice(0, 1).toUpperCase()
-    title.textContent = named(name)
-    host.textContent = hosts.get(name) || ''
+    say(avatar, named(name).slice(0, 1).toUpperCase())
+    say(title, named(name))
+    say(host, hosts.get(name) || '')
     el.title = [named(name), hosts.get(name), detail].filter(Boolean).join(' · ')
     el.dataset.state = how
     const going = live.of === name ? live.count : 0
-    fill(state, h('span', { class: ['dot', `daemon-${how}`, up && going && 'live'], 'aria-hidden': 'true' }), up ? (going ? `${going} live` : 'idle') : STATES[how] || how)
+    dot.className = `dot daemon-${how}${up && going ? ' live' : ''}`
+    say(state, up ? (going ? `${going} live` : 'idle') : STATES[how] || how)
   }
   const read = () =>
     known().then(
@@ -937,6 +937,7 @@ function daemonBar() {
       submenu({
         label: 'Daemon',
         about: named(daemon()),
+        glyph: 'home',
         hmz: 'daemons',
         items: () => [
           daemons.flatMap((one) => {

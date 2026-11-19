@@ -57,7 +57,7 @@ export function permissionChip({ value = null, pick = () => {}, up = false } = {
       }),
       h('p', { class: 'permission-note' }, NOTE),
     ],
-    { label: 'Permissions', up },
+    { label: 'Permissions', up, align: 'end' },
   )
   set(now)
   return { node, value: () => now, set }

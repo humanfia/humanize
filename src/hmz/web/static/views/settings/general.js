@@ -39,7 +39,7 @@ export function draw(holder, query, parts, scope) {
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Harness sessions'), h('label', { class: 'check' }, harness, 'List in sidebar'), h('span', { class: 'hint' }, 'The sessions each harness had of its own in a folder, which Humanize did not run, listed after its chats. They are only read: continuing one copies it into a chat, and the harness’s own files are never changed.')),
           h('div', { class: 'field', 'data-hmz': 'ai-chan-setting' }, h('span', { class: 'label' }, 'Ai-chan'), aiChan.node, h('span', { class: 'hint' }, 'The nous a new Ai-chan conversation starts with: a nous by its name, or an agent such as claude/claude-opus-5. With none, each conversation names its own.')),
           h('div', { class: 'field' }, h('span', { class: 'label' }, 'Error reports'), reports, h('span', { class: 'hint' }, 'Whether Humanize sends a report of its own crashes. Nothing anybody typed, no file and no credential is ever sent.')),
-          h('div', { class: 'row' }, save, scope.batch(() => [['settings.set', said()]])),
+          h('div', { class: 'row' }, save, scope.batch(() => [['settings.set', said()]], { small: false })),
         ),
       ),
     )

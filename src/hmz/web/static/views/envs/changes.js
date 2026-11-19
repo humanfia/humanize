@@ -5,11 +5,16 @@
 // snapshots. It reads the environment again on its own: when something is done in it, when a turn
 // ends, when the window comes back, and every few seconds while it is seen.
 
-import { fill, h, icon, problem, svg } from '../../dom.js'
+import { empty, fill, h, icon, problem, svg } from '../../dom.js'
+import { menuOf, menuOn } from '../../ui.js'
 import { bytesText, chosen, commitPlan, decoded, fullDate, groupsOf, hunks, LARGE, MEANING, moveOf, pathsOf, picked, placeOf, relative, rowsOf, sizeOf, subjectHint } from './changes_logic.js'
+import { splitter } from './split.js'
+import { menuKey } from './tree.js'
 
 /** How tall a row of the list stands, as changes.css draws it. */
 const ROW = 24
+/** The narrowest a diff is drawn side by side unasked: under it each side is too narrow to read. */
+const TIGHT = 560
 /** How often the panel reads the environment again while it is seen. */
 const POLL = 5000
 /** The refusal of an environment that is no more. */
@@ -85,7 +90,12 @@ export async function mount(el, ctx) {
   let rows = []
   let seen = ''
   let view = keep('view') === 'tree' ? 'tree' : 'list'
-  let mode = keep('diff') === 'inline' ? 'inline' : 'side'
+  /** How a diff is drawn, once chosen: `side` or `inline`. */
+  let mode = ['side', 'inline'].find((one) => one === keep('diff')) || ''
+  /** Whether the diff has no room for two sides. */
+  let tight = false
+  /** How a diff is drawn: as chosen, and until then side by side where both sides have room. */
+  const drawnAs = () => mode || (tight ? 'inline' : 'side')
   const collapsed = new Set()
   let pick = { selected: new Set(), anchor: null }
   let cursor = null
@@ -151,7 +161,7 @@ export async function mount(el, ctx) {
   // The diff of the file picked.
   const diffTitle = h('span', { class: 'ch-diff-title' })
   const counter = h('span', { class: 'ch-counter', 'data-hmz': 'diff-counter' })
-  const modeButton = tool('side', '', { 'data-hmz': 'diff-mode', onclick: () => setMode(mode === 'side' ? 'inline' : 'side') })
+  const modeButton = tool('side', '', { 'data-hmz': 'diff-mode', onclick: () => setMode(drawnAs() === 'side' ? 'inline' : 'side') })
   const diffMove = tool('plus', 'Stage Changes', { 'data-hmz': 'diff-move', onclick: () => diff && move([diff.entry]) })
   const diffHead = h(
     'div',
@@ -168,8 +178,13 @@ export async function mount(el, ctx) {
   )
   const diffBody = h('div', { class: 'ch-diff-body', 'data-hmz': 'diff-body' })
   const pane = h('div', { class: 'ch-diff', 'data-hmz': 'changes-diff', hidden: true }, diffHead, diffBody)
+  // What stands in the diff's place while none is open.
+  const blank = h('div', { class: 'ch-diff', 'data-hmz': 'changes-blank', hidden: true }, h('div', { class: 'ch-notice' }, empty('No change open', 'Pick a file in the list to see its diff.')))
 
-  const root = h('div', { class: 'changes', 'data-hmz': 'changes' }, side, pane)
+  const root = h('div', { class: 'changes', 'data-hmz': 'changes' }, side, pane, blank)
+  // The line that sizes the list: it takes two fifths of the panel at most and 200px at least, as changes.css lays it out.
+  const line = splitter(root, { name: '--ch-side', key: 'hmz-changes-side', label: 'Resize the list of changes', least: 200, most: (whole) => whole * 0.4, hmz: 'changes-split' })
+  side.after(line)
   fill(el, root)
 
   // ---- What is said where something went wrong.
@@ -335,15 +350,20 @@ export async function mount(el, ctx) {
     framed = requestAnimationFrame(draw)
   })
 
+  /** What can be done to a row, in the order it is offered: each as its icon, its name and what `act` does by it. */
   function actionsOf(row) {
-    const tools = []
-    if (row.kind === 'file' && row.entry.letter !== 'D') tools.push(tool('open', 'Open File', { 'data-act': 'open', tabindex: '-1' }))
-    if (row.group === 'changes') tools.push(tool('discard', row.kind === 'file' ? 'Discard Changes' : 'Discard All Changes', { 'data-act': 'discard', tabindex: '-1' }))
-    if (row.group === 'untracked') tools.push(tool('trash', row.kind === 'file' ? 'Delete File' : 'Delete All Untracked Files', { 'data-act': 'discard', tabindex: '-1' }))
     const all = row.kind === 'file' ? '' : ' All'
-    if (row.group === 'staged') tools.push(tool('minus', `Unstage${all} Changes`, { 'data-act': 'unstage', tabindex: '-1' }))
-    else tools.push(tool('plus', `Stage${all} Changes`, { 'data-act': 'stage', tabindex: '-1' }))
-    return h('span', { class: 'ch-acts' }, tools)
+    return [
+      row.kind === 'file' && row.entry.letter !== 'D' && ['open', 'Open File', 'open'],
+      row.group === 'changes' && ['discard', row.kind === 'file' ? 'Discard Changes' : 'Discard All Changes', 'discard'],
+      row.group === 'untracked' && ['trash', row.kind === 'file' ? 'Delete File' : 'Delete All Untracked Files', 'discard'],
+      row.group === 'staged' ? ['minus', `Unstage${all} Changes`, 'unstage'] : ['plus', `Stage${all} Changes`, 'stage'],
+    ].filter(Boolean)
+  }
+
+  /** A row's buttons, shown as it is pointed at. */
+  function toolsOf(row) {
+    return h('span', { class: 'ch-acts' }, actionsOf(row).map(([name, label, what]) => tool(name, label, { 'data-act': what, tabindex: '-1' })))
   }
 
   function rowOf(row, index) {
@@ -364,7 +384,7 @@ export async function mount(el, ctx) {
         { ...props, 'aria-expanded': String(row.open), 'data-hmz': 'changes-group' },
         h('span', { class: ['ch-twist', row.open && 'open'] }, glyph('chevron')),
         h('span', { class: 'ch-title' }, row.title),
-        actionsOf(row),
+        toolsOf(row),
         h('span', { class: 'ch-count', 'data-hmz': 'changes-count' }, String(row.count)),
       )
     } else if (row.kind === 'dir') {
@@ -373,7 +393,7 @@ export async function mount(el, ctx) {
         { ...props, 'aria-expanded': String(row.open), 'data-path': row.path, title: row.path },
         h('span', { class: ['ch-twist', row.open && 'open'] }, glyph('chevron')),
         h('span', { class: 'ch-name' }, row.name),
-        actionsOf(row),
+        toolsOf(row),
       )
     } else {
       const one = row.entry
@@ -384,12 +404,19 @@ export async function mount(el, ctx) {
         h('span', { class: ['ch-name', one.letter === 'D' && 'gone'] }, one.name),
         view === 'list' && one.dir ? h('span', { class: 'ch-dir' }, one.dir) : null,
         h('span', { class: 'ch-grow' }),
-        actionsOf(row),
+        toolsOf(row),
         h('span', { class: `ch-letter st-${one.letter === '?' ? 'Q' : one.letter}`, 'data-hmz': 'change-letter' }, one.letter),
       )
     }
     el.style.setProperty('--depth', String(row.depth))
     el.style.top = `${index * ROW}px`
+    // The same in its menu, which a right click and the menu key open, what cannot be undone
+    // last: nothing where it has closed.
+    menuOn(el, () => {
+      if (closed) return []
+      const items = actionsOf(row).map(([name, label, what]) => ({ label, glyph: PAGE[name], danger: what === 'discard', act: () => act(what, row) }))
+      return [...items.filter((one) => !one.danger), '-', ...items.filter((one) => one.danger)]
+    })
     return el
   }
 
@@ -481,6 +508,13 @@ export async function mount(el, ctx) {
     } else if (event.key === 'Enter' && row) {
       if (row.kind === 'file') openDiff(row.entry)
       else fold(row)
+    } else if ((event.key === 'Delete' || (event.key === 'Backspace' && mod)) && row) {
+      if (actionsOf(row).some(([, , what]) => what === 'discard')) act('discard', row)
+    } else if (menuKey(event) && row) {
+      // The menu of the row the keys are on, under it: the list has the focus back as it closes.
+      reveal(at)
+      draw()
+      menuOf(spacer.querySelector(`[data-index="${at}"]`), list)
     } else return
     event.preventDefault()
   })
@@ -668,6 +702,15 @@ export async function mount(el, ctx) {
     pane.hidden = true
     root.classList.remove('diffing')
     fill(diffBody)
+    drawBlank()
+  }
+
+  /**
+   * Says that no diff is open, in the room one would have: none where the list has the panel
+   * to itself, which is where the line that sizes it is not drawn.
+   */
+  function drawBlank() {
+    blank.hidden = Boolean(diff) || !line.getClientRects().length
   }
 
   function drawDiffHead() {
@@ -680,8 +723,8 @@ export async function mount(el, ctx) {
       h('span', { class: 'ch-side-label' }, diff.staged ? 'Index' : 'Working Tree'),
     )
     diffTitle.title = one.path
-    const label = mode === 'side' ? 'Show the diff inline' : 'Show the diff side by side'
-    fill(modeButton, glyph(mode === 'side' ? 'inline' : 'side'))
+    const label = drawnAs() === 'side' ? 'Show the diff inline' : 'Show the diff side by side'
+    fill(modeButton, glyph(drawnAs() === 'side' ? 'inline' : 'side'))
     modeButton.title = label
     modeButton.setAttribute('aria-label', label)
     const staging = diff.group !== 'staged'
@@ -704,6 +747,7 @@ export async function mount(el, ctx) {
     diff = { entry: one, group: one.group, path: one.path, staged: one.group === 'staged', raw: null, view: null, hunks: null, at: -1, sides: null, allowed: false, big: false, size: 0 }
     pane.hidden = false
     root.classList.add('diffing')
+    drawBlank()
     drawDiffHead()
     fill(diffBody, h('p', { class: 'loading', role: 'status' }, 'Reading the diff…'))
     await fetchDiff(diff, true)
@@ -793,7 +837,7 @@ export async function mount(el, ctx) {
     fill(diffBody)
     colours = JSON.stringify(ctx.theme())
     const base = [cm.basicSetup, cm.EditorView.editable.of(false), cm.EditorState.readOnly.of(true), cm.themeFor(ctx.theme()), cm.languageFor(d.path)].filter(Boolean)
-    if (mode === 'side') {
+    if (drawnAs() === 'side') {
       d.view = new cm.MergeView({ a: { doc: d.sides.old, extensions: base }, b: { doc: d.sides.now, extensions: base }, parent: diffBody, collapseUnchanged: FOLD, gutter: true })
       d.view.dom.dataset.hmz = 'diff-side'
     } else {
@@ -830,6 +874,20 @@ export async function mount(el, ctx) {
     if (diff.sides) drawEditor(diff)
   }
 
+  // The diff's own width, not the window's, says whether two sides fit: one drawn as nobody
+  // chose is drawn again as that changes.
+  const sized = new ResizeObserver(() => {
+    drawBlank()
+    const now = diffBody.clientWidth > 0 && diffBody.clientWidth < TIGHT
+    if (now === tight) return
+    tight = now
+    if (mode || !diff) return
+    drawDiffHead()
+    if (diff.sides) drawEditor(diff)
+  })
+  sized.observe(diffBody)
+  sized.observe(root)
+
   /** The diff drawn again in the page's colours, once they change. */
   let colours = JSON.stringify(ctx.theme())
   function rethemed() {
@@ -843,12 +901,18 @@ export async function mount(el, ctx) {
   const scheme = matchMedia('(prefers-color-scheme: dark)')
   scheme.addEventListener('change', rethemed)
 
+  /**
+   * F7 steps through the changes of the diff open, pressed in the panel -- or nowhere, while the
+   * panel is seen: a browser that gives a button pressed no focus leaves the keys on the page.
+   */
   function keyed(event) {
     if (event.key !== 'F7' || !diff) return
+    const at = document.activeElement
+    if (!root.contains(at) && !(at === document.body && seenNow())) return
     event.preventDefault()
     step(event.shiftKey ? -1 : 1)
   }
-  root.addEventListener('keydown', keyed)
+  document.addEventListener('keydown', keyed)
 
   // ---- When it reads again.
 
@@ -887,8 +951,9 @@ export async function mount(el, ctx) {
       cancelAnimationFrame(framed)
       removeEventListener('focus', focused)
       document.removeEventListener('visibilitychange', shown)
-      root.removeEventListener('keydown', keyed)
+      document.removeEventListener('keydown', keyed)
       themed.disconnect()
+      sized.disconnect()
       scheme.removeEventListener('change', rethemed)
       for (const off of offs) if (typeof off === 'function') off()
       diff?.view?.destroy()

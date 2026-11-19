@@ -6,22 +6,22 @@
 
 import { call, client, daemon, onState } from './api.js'
 import { ago, fill, h, headline, icon, iconButton } from './dom.js'
-import { addressOf, gathered, kindOf as wantedAs, of } from './notified.js'
-import { inApp, menu, section } from './shell.js'
+import { addressOf, gathered, kindOf as wantedAs, lineOf, of } from './notified.js'
+import { inApp, menu, section, settleSidebar } from './shell.js'
 import { stored } from './stored.js'
+import { posted } from './ui.js'
 
-/** What each kind is called, and the mark it is drawn with. */
+/** What each kind is called, and the icon and the tone it is marked with: a chat that waits on a word is marked as a chat is, a question by a mark of its own. */
 const KINDS = {
-  done: ['Done', '✔', 'done'],
-  failed: ['Failed', '✕', 'failed'],
-  stopped: ['Stopped', '■', 'stopped'],
-  asked: ['Question', '?', 'asking'],
-  listening: ['Waiting', '›', 'asking'],
+  done: ['Done', 'check', 'done'],
+  failed: ['Failed', 'close', 'failed'],
+  stopped: ['Stopped', 'stop', 'stopped'],
+  asked: ['Question', 'question', 'asking'],
+  listening: ['Waiting', 'thread', 'asking'],
 }
 
-/** How long a card stays, and how many stand at once. */
+/** How long a card stays. */
 const SHOWN = 6000
-const CARDS = 3
 
 /** The notifications this browser keeps, and what it wants told of them. */
 export const kept = gathered(stored('hmz-notifications'))
@@ -31,7 +31,6 @@ let items = []
 let button = null
 let count = null
 let drawMenu = null
-let cards = null
 /** Where the page is, as the sidebar is told it. */
 let where = null
 
@@ -52,7 +51,7 @@ export function bell(at) {
     const read = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'notifications-read', onclick: () => markRead(null) }, 'Mark read')
     const clear = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'notifications-clear', onclick: clearAll }, 'Clear')
     return [h('div', { class: 'notify-menu', 'data-hmz': 'notification-menu' }, h('div', { class: 'notify-head' }, section('Notifications'), read, clear), list)]
-  }, { label: 'Notifications' })
+  }, { label: 'Notifications', align: 'end' })
   start()
   return button
 }
@@ -167,16 +166,18 @@ function drawList(list, close) {
 }
 
 function mark(item) {
-  const [, glyph, tone] = KINDS[wantedAs(item)] || ['', '·', 'idle']
-  return h('span', { class: `choice-mark tone-${tone}`, 'aria-hidden': 'true' }, h('span', { class: 'glyph' }, glyph))
+  const [, glyph, tone] = KINDS[wantedAs(item)] || ['', 'bell', 'idle']
+  return h('span', { class: `choice-mark glyph tone-${tone}`, 'aria-hidden': 'true' }, icon(glyph))
 }
 
 const kindOf = (item) => (KINDS[wantedAs(item)] || [item.kind])[0]
 const daemonOf = (item) => (!item.daemon || item.daemon === 'local' ? 'Local' : item.daemon)
-const about = (item) => [item.flow, item.text || (item.task ? headline(item.task) : of(item))].filter(Boolean).join(' · ')
+const about = (item) => [item.flow, lineOf(item.text) || (item.task ? headline(item.task) : of(item))].filter(Boolean).join(' · ')
 
 function opens(item) {
   if (items.some((one) => one.key === item.key && !one.read)) markRead([item.key])
+  // Where the page is on it already the address does not change, and the drawer is still not left over it.
+  settleSidebar()
   location.hash = addressOf(item)
 }
 
@@ -192,23 +193,14 @@ async function clearAll() {
   await kept.clear().catch(() => {})
 }
 
-/** A card for a notification as it comes, at the foot of the window, gone after a moment. */
+/** A card for a notification as it comes, in the corner of the page kept for what is said for a moment, gone after one. */
 function card(item) {
-  if (!cards) {
-    cards = h('div', { class: 'notify-toasts', 'data-hmz': 'notification-toasts', role: 'status', 'aria-live': 'polite' })
-    document.body.append(cards)
-  }
-  const shut = iconButton('close', 'Dismiss', { class: 'notify-shut' })
-  const one = h(
-    'div',
-    { class: 'notify-card', 'data-hmz': 'notification-toast' },
-    h('button', { class: 'notify-open', type: 'button', onclick: () => (one.remove(), opens(item)) }, mark(item), h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, `${kindOf(item)} · ${daemonOf(item)}`), h('span', { class: 'choice-about' }, about(item)))),
-    shut,
+  const one = h('div', { class: 'notify-card', role: 'status', 'data-hmz': 'notification-toast' })
+  const away = posted(one, SHOWN)
+  one.append(
+    h('button', { class: 'notify-open', type: 'button', onclick: () => (away(), opens(item)) }, mark(item), h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, `${kindOf(item)} · ${daemonOf(item)}`), h('span', { class: 'choice-about' }, about(item)))),
+    iconButton('close', 'Dismiss', { class: 'notify-shut', onclick: away }),
   )
-  shut.addEventListener('click', () => one.remove())
-  cards.prepend(one)
-  while (cards.children.length > CARDS) cards.lastChild.remove()
-  setTimeout(() => one.remove(), SHOWN)
 }
 
 /** One the system shows, while the page is not looked at and the settings let it. */

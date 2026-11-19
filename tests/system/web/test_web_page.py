@@ -282,9 +282,20 @@ def test_an_epic_asking_a_person_calls_until_one_looks(engine: str) -> None:
         assert "hmz-seen" in page.evaluate("Object.keys(localStorage)")
 
         page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
+        _answer(page, "Stop this epic?", "Stop")
         expect(badge).to_have_text(re.compile("stopped"))
         expect(badge).to_have_class(re.compile("tone-stopped"))
+
+
+def _answer(within: Page | Locator, ask: str, yes: str) -> None:
+    """Answers the question a button asks beside itself: the button stays, the popup asks.
+
+    The popup is focused on the answer that does nothing, and is the one transient open.
+    """
+    asked = within.get_by_role("dialog", name=ask)
+    expect(asked.get_by_role("button", name="Cancel")).to_be_focused()
+    asked.get_by_role("button", name=yes).click()
+    expect(asked).to_have_count(0)
 
 
 def _near(at: dict[str, float], x: float, y: float) -> bool:
@@ -311,7 +322,7 @@ def test_the_graph_is_dragged_anywhere_zoomed_by_the_wheel_and_recentred(
         expect(agent.locator("[data-hmz=graph-session]")).to_be_visible()
         # Stopped, so nothing it goes on to do redraws the graph while it is moved.
         page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
+        _answer(page, "Stop this epic?", "Stop")
         expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
             re.compile("stopped")
         )
@@ -457,8 +468,8 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         assert pane["y"] + pane["height"] - (under["y"] + under["height"]) == 8
         if width > 860:
             # A chat app's own numbers, in a window 792 high: the row inside the box at
-            # 716 to 744, the chips under it at 760 to 784.
-            assert (inside[0]["y"], inside[0]["height"]) == (716, 28)
+            # 715 to 743, the chips under it at 760 to 784.
+            assert (inside[0]["y"], inside[0]["height"]) == (715, 28)
             assert (under["y"], under["height"]) == (760, 24)
 
         # Under the box: where it runs at the left, how at the right, each 24px high.
@@ -476,18 +487,30 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
             box = chips.nth(at).bounding_box()
             assert box
             assert box["height"] == 24
-        # Set in from the box's edges, as a chat app's are: on a wide page the first
-        # starts a hair right of the Add button, and the last ends as far from the edge.
-        inset = 12 if width > 860 else 4
-        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + inset
-        if width > 860:
-            assert _at(page, "[data-hmz=environment]")["x"] == inside[0]["x"] + 2
-        # The row ends, as a chat app's does, with the ring that says what was used.
+        # Set in from the box's edges, as a chat app's are, on a phone too: the first
+        # starts a hair right of the Add button.
+        inset = 12
+        first = _at(page, "[data-hmz=environment]")
+        assert first["x"] == boxed["x"] + inset
+        assert first["x"] == inside[0]["x"] + 3
+        # The row ends, as a chat app's does, with the ring that says what was used: as
+        # far from the box's edge as the first chip is from the other. On a phone the
+        # two ends do not fit side by side: the second stands under the first, still
+        # ending at that edge, and the row is never scrolled sideways.
         last = _at(page, "[data-hmz=start] [data-hmz=new-usage]")
         assert last["width"] == 24
-        assert (
-            abs(last["x"] + last["width"] - (boxed["x"] + boxed["width"] - inset)) <= 1
-        )
+        end = boxed["x"] + boxed["width"] - inset
+        assert abs(last["x"] + last["width"] - end) <= 1
+        if width <= 860:
+            second = _at(page, "[data-hmz=start] [data-hmz=pick-model]")
+            assert second["x"] >= first["x"]
+            assert second["y"] == first["y"] + first["height"] + 4
+            assert page.evaluate(
+                "document.documentElement.scrollWidth <= innerWidth"
+                " && document.querySelector('[data-hmz=start] [data-hmz=composer-under]')"
+                ".scrollWidth <= document.querySelector('[data-hmz=start]"
+                " [data-hmz=composer-under]').clientWidth"
+            )
         expect(view.locator("[data-hmz=environment]")).to_have_text("Local")
         # Said, to whoever cannot see it, with what it picks.
         expect(view.locator("[data-hmz=environment]")).to_have_attribute(
@@ -521,15 +544,15 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         view.locator("[data-hmz=composer-add]").click()
         adding = page.get_by_role("menu", name="Add")
         expect(adding.get_by_role("menuitem")).to_have_text(["Add files"])
-        assert _at(page, "[role=menu][aria-label=Add]")["width"] == 218
+        assert _at(page, "[role=menu][aria-label=Add]")["width"] == 180
         adding.get_by_role("menuitem", name="Add files").click()
         expect(text).to_have_value("@")
         expect(page.locator("[data-hmz=completions]")).to_contain_text("@notes.md")
         text.fill("")
 
         # In the middle, the chats that wait on their person, as a chat app lists them:
-        # the list alone, 320 wide at most, its rows of 32px set in 4px, each opening
-        # its chat, each dismissed with a 28px button inside the row, at its right.
+        # the list alone, 320 wide at most, its rows of 32px as wide as it, each opening
+        # its chat, each dismissed with a 24px button inside the row, at its right.
         steps = view.locator("[data-hmz=next-steps]")
         expect(steps).to_have_attribute("aria-label", "Next steps")
         expect(steps.locator("h2")).to_have_count(0)
@@ -541,10 +564,10 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         assert listed["width"] == min(320, pane["width"] - (40 if width > 860 else 28))
         assert abs(listed["x"] + listed["width"] / 2 - middle) <= 1
         lined = _at(page, "[data-hmz=next-step]")
-        assert (lined["x"], lined["width"]) == (listed["x"] + 4, listed["width"] - 8)
+        assert (lined["x"], lined["width"]) == (listed["x"], listed["width"])
         assert lined["height"] == 32
         dismiss = _at(page, "[data-hmz=next-dismiss]")
-        assert (dismiss["width"], dismiss["height"]) == (28, 28)
+        assert (dismiss["width"], dismiss["height"]) == (24, 24)
         assert dismiss["x"] + dismiss["width"] == lined["x"] + lined["width"] - 4
         expect(row.locator("a")).to_have_attribute("href", f"#/chats/{_WAITING['id']}")
         # Dismissed, it is off the list in this browser, a reload later too.
@@ -1043,7 +1066,7 @@ def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
     with served() as site, opened(site, engine=engine) as page:
         go(page, f"/epics/{origin}")
         page.get_by_role("link", name="Resume").first.click()
-        page.get_by_role("button", name="Options").click()
+        page.get_by_role("button", name="Options", exact=True).click()
         minutes = page.get_by_label("Longest it may take, in minutes")
         expect(minutes).to_have_value("525600")
         page.locator("[data-hmz=composer-text]").press("Enter")
@@ -1056,7 +1079,7 @@ def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
 
         # Kept for the flow as settings says a year, and a new epic of it opens on it.
         go(page, "/new?flow=flame_chase")
-        page.get_by_role("button", name="Options").click()
+        page.get_by_role("button", name="Options", exact=True).click()
         expect(minutes).to_have_value("525600")
 
 
@@ -1303,7 +1326,7 @@ def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
         assert saved.suggested_filename == "Night.hmztheme"
         written = Path(saved.path()).read_text()
         night.get_by_role("button", name="Delete").click()
-        night.get_by_role("button", name="Delete").click()
+        _answer(night, "Delete Night?", "Delete")
         expect(night).to_have_count(0)
 
         page.locator("[data-hmz=theme-file]").set_input_files(
@@ -1364,7 +1387,7 @@ def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
         assert written["dark"]["colors"]["paper"] == "#201008"
 
         dusk.get_by_role("button", name="Delete").click()
-        dusk.get_by_role("button", name="Delete").click()
+        _answer(dusk, "Delete Dusk?", "Delete")
         expect(dusk).to_have_count(0)
         page.locator("[data-hmz=theme-file]").set_input_files(
             {
@@ -1740,22 +1763,22 @@ def test_an_epic_is_read_by_its_agents_logs_and_its_agents_as_a_list(
         page.locator("[data-hmz=bar] .crumbs a").click()
         page.locator(".shape-switch").get_by_role("button", name="Graph").click()
         page.get_by_role("button", name="Stop").click()
-        page.get_by_role("button", name="Stop").click()
+        _answer(page, "Stop this epic?", "Stop")
 
 
+@pytest.mark.usefixtures("talking")
 def test_an_ended_epic_is_exported_and_its_address_copied(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _start_chat(page, "keep me")
+        # A flow's epic: a chat is no epic, and is not exported.
+        _start_talk(page, "keep me")
         stop(page)
 
-        # A chat's bar is its title, one menu and the panel's button: what is done to the
-        # chat is in that menu.
-        more = page.locator("[data-hmz=chat-menu]")
-        more.click()
+        # What is done to an ended epic is in its bar.
+        actions = page.locator("[data-hmz=bar]")
         with page.expect_download() as saving:
-            page.get_by_role("menuitem", name="Export").click()
+            actions.get_by_role("button", name="Export").click()
         saved = saving.value
         assert saved.suggested_filename.endswith(".hmzepic")
         assert Path(saved.path()).read_bytes()[:2] == b"\x1f\x8b"
@@ -1763,10 +1786,9 @@ def test_an_ended_epic_is_exported_and_its_address_copied(
         # WebKit lets a click write unasked, and knows no permission to write by.
         writes = ["clipboard-write"] if engine == "chromium" else []
         page.context.grant_permissions(["clipboard-read", *writes])
-        more.click()
-        page.get_by_role("menuitem", name="Copy link").click()
-        expect(page.locator(".toast")).to_have_text("Link copied")
-        assert page.url.startswith(page.evaluate("navigator.clipboard.readText()"))
+        actions.get_by_role("button", name="Copy link").click()
+        expect(actions.get_by_role("button", name="Copied")).to_be_visible()
+        assert page.evaluate("navigator.clipboard.readText()") == page.url
 
 
 @pytest.mark.usefixtures("talking")
@@ -1835,8 +1857,9 @@ def test_an_epic_backed_up_elsewhere_is_downloaded_and_opened(
         expect(page.locator("[data-hmz=download-target]")).to_be_hidden()
         stored.get_by_role("button", name="Download").click()
 
+        # A flow's epic, it opens on its graph, and is listed.
         page.wait_for_url(re.compile(rf".*#/epics/{re.escape(name)}"))
-        expect(page.locator("[data-hmz=thread]")).to_be_visible()
+        expect(page.locator("[data-hmz=graph]")).to_be_visible()
         expect(page.locator("[data-hmz=epic]")).to_have_count(1)
 
         go(page, "/download")
@@ -1853,8 +1876,11 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: fit me")
         _details(page)
         inspector = page.locator("[data-hmz=inspector]")
-        expect(inspector.locator("[data-hmz=environments]")).to_contain_text(
-            re.compile(r"\w+/1 local · ")
+        # What it works in said whole after its session, its path under them, whole on hover.
+        works = inspector.locator("[data-hmz=environments] li").first
+        expect(works).to_contain_text(re.compile(r"\w+/1 local"))
+        expect(works.locator(".path")).to_have_attribute(
+            "title", re.compile(rf"{re.escape(project.name)}$")
         )
         expect(inspector.locator("[data-hmz=spending]")).to_contain_text("cache write")
         assert not re.search(
@@ -2112,7 +2138,7 @@ def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
         # Stop, which stays stopping until the epic says it is.
         holding("epic.stop")
         page.get_by_role("button", name="Stop", exact=True).click()
-        page.get_by_role("button", name="Stop", exact=True).click()
+        _answer(page, "Stop this epic?", "Stop")
         stopping = page.get_by_role("button", name="Stopping…")
         expect(stopping).to_be_disabled()
         # The bar drawn again, for another view of the epic, asks no second time.
@@ -2221,18 +2247,19 @@ _DRAG = """([kinds, name, bytes]) => {
 }"""
 
 
+@pytest.mark.usefixtures("talking")
 def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
     project: Path, tmp_path: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
-        _start_chat(page, "take me home")
+        # A flow's epic: a chat is no epic, and is not exported.
+        _start_talk(page, "take me home")
         stop(page)
         found = re.search(r"#/epics/([^/]+)", page.url)
         assert found is not None
         name = found[1]
-        page.locator("[data-hmz=chat-menu]").click()
         with page.expect_download() as saving:
-            page.get_by_role("menuitem", name="Export").click()
+            page.locator("[data-hmz=bar]").get_by_role("button", name="Export").click()
         archive = tmp_path / saving.value.suggested_filename
         saving.value.save_as(archive)
         at = _call(page, "runs.get", {"name": name})["at"]
@@ -2313,7 +2340,7 @@ def test_an_exported_epic_is_imported_by_picking_dropping_or_its_path(
             raise AssertionError(f"{app.url} says {said!r}") from why
         go(app, f"/epics/{name}")
         expect(app.locator("[data-hmz=foreign]")).to_contain_text(
-            "cannot be continued here: the workspace it ran in, /nowhere/at/all, is not"
+            "not resumable here: the workspace it ran in, /nowhere/at/all, is not"
         )
         expect(app.get_by_role("link", name="Resume")).to_have_count(0)
 

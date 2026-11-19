@@ -7,7 +7,8 @@
 // makes a pairing code for another device, and lists the devices paired with it.
 
 import { call, daemons, forget, hello, kindOf as kindNamed, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
-import { acting, ago, confirming, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { acting, ago, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pathPicker } from '../../paths.js'
 import { easytier } from '../../rpc/easytier.js'
 import { parsePairing } from '../../rpc/index.js'

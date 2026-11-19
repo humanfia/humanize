@@ -109,9 +109,16 @@ export function mount(root, { query }) {
     }
     if (to) search.setAttribute('aria-activedescendant', to.id)
     else search.removeAttribute('aria-activedescendant')
-    // The line over the foot takes its room from the list, so the one moved to is looked for after.
+    // The line over the foot takes from the list what room it has not, and what can be done
+    // rises with it. By a key the one moved to is looked for after; under the pointer nothing
+    // moves, so where that would cover the line pointed at, no more is said of it, and while
+    // the pointer is on what can be done the line keeps the room it had.
+    const room = body.clientHeight
+    if (!scroll && to?.classList.contains('search-action')) detail.style.minHeight ||= `${detail.offsetHeight}px`
+    else detail.style.minHeight = ''
     fill(detail, told && runs.has(active) ? more(runs.get(active)) : null)
     if (scroll) to?.scrollIntoView({ block: 'nearest' })
+    else if (body.clientHeight < room && Math.round(to.getBoundingClientRect().bottom) > Math.round(to.closest('.search-group').nextElementSibling.getBoundingClientRect().top)) fill(detail)
   }
   /** One line of the list: moved to as the pointer comes over it, and opened as it is pressed. */
   const option = (el, key) => {
@@ -279,7 +286,7 @@ export function mount(root, { query }) {
   const actions = () =>
     h(
       'div',
-      { class: 'search-group', role: 'group', 'aria-label': 'Actions' },
+      { class: 'search-group', role: 'group', 'aria-label': 'Actions', onpointerleave: () => (detail.style.minHeight = '') },
       h('div', { class: 'search-heading', 'aria-hidden': 'true' }, 'Actions'),
       option(h('a', { class: 'search-action', href: hash('/new/chat'), 'data-hmz': 'search-new-chat' }, 'New chat'), 'new-chat'),
       option(h('button', { class: 'search-action', type: 'button', 'data-hmz': 'import', onclick: pick }, 'Import'), 'import'),
@@ -317,9 +324,11 @@ export function mount(root, { query }) {
                   option(
                     h(
                       'a',
-                      { class: ['result', run.held && 'held'], href: hash(pathOf(run)), title: run.task, 'data-hmz': 'epic', 'data-kind': run.kind },
-                      h('span', { class: 'result-task' }, headline(run.task)),
-                      standing.said ? h('span', { class: 'result-how', 'data-hmz': 'result-how' }, standing.said) : null,
+                      { class: ['result', run.held && 'held'], href: hash(pathOf(run)), 'data-hmz': 'epic', 'data-kind': run.kind },
+                      // Said whole where pointed at, where its one line is not all of it.
+                      h('span', { class: 'result-task', title: run.task }, headline(run.task)),
+                      // Toned as the sidebar's row says it: one that waits on its person stands out.
+                      standing.said ? h('span', { class: ['result-how', `tone-${tone(standing.how)}`], 'data-hmz': 'result-how', 'data-state': standing.how }, standing.said) : null,
                       h('span', { class: 'result-where', title: run.workspace }, nameOf(run.workspace)),
                       h('span', { class: 'result-when', title: when(run.began) }, ago(run.began)),
                       h('span', { class: 'result-more' }, more(run, standing)),

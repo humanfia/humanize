@@ -66,7 +66,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A plain heading at the top, the chats that wait on you listed in the middle, and at the foot a box for the first message or the task, with where it runs under it at the left and, for an epic, the flow picked beside the heading | Start it; a chat's model and what it may touch are picked from the chips under the box at its right, and **Options** under an epic's box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
-| **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and what one declares. **Flowverses**: a card for each index flows are installed from, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
+| **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and, one chosen, what it declares under the cards. **Flowverses**: a card for each index flows are installed from, saying where it is fetched from and how many of its flows are installed, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
 | **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | A box over the middle of the window: the field, the tabs **All**, **Chats** and **Epics**, then every chat and epic a line apiece, newest first, each saying how it stands in the words its row in the sidebar says it in -- a chat that rests says nothing -- and under them **Actions**, which stay in sight however many were found. Once you move to one, by key or pointer, a line over the foot says the rest of it: its folder, flow, agents, what it spent and how long it took; on a phone or a touch screen that stands under each | Type a word of the task; <kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens (what you typed, even before it is listed), <kbd>Alt</kbd> <kbd>Enter</kbd> (<kbd>⌥</kbd> on a Mac) or the menu key opens the menu of the one you are on, <kbd>Esc</kbd> closes, and gives the keys back to where they were -- the box you were typing into; <kbd>Tab</kbd> stays within it; <kbd>←</kbd> <kbd>→</kbd> change the tab and <kbd>/</kbd> opens **Filters** -- how it went, folder, and, off **Chats**, flow -- while the field is empty; **New chat** or **Import** under **Actions**. Search leaves no step behind: **Back** after it is closed goes to what was open before, and from a chat it opened to the view it was opened over. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
@@ -82,7 +82,9 @@ off a Mac, as on Windows, they are <kbd>Ctrl+Shift+O</kbd> and <kbd>Ctrl+.</kbd>
 sidebar's right edge to size it -- the arrow keys do the same once it holds the focus, and a
 double click makes it 275 pixels wide again, as it starts; the browser keeps the width. On a phone
 the sidebar is a drawer behind the button in the corner: open, it holds the keys, and
-<kbd>Esc</kbd> closes it.
+<kbd>Esc</kbd> closes it. There the drawer, the panel beside a view and
+[Ai-chan's drawer](#ai-chan) each cover the view, so one is open at a time: opening one closes
+the others, and going to another view closes the sidebar's.
 
 ### The list {#the-list}
 
@@ -119,12 +121,29 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 flows, search it, copy its path, settings), an epic (open, pin, mark as unread, its Exomyth, resume, a new
 epic like it, copy its link, task or name, export, upload, stop), a chat (open, pin, mark as unread, rename, a new chat
 like it, fork, copy its link, first message or ID, upload, archive, delete -- see [Managing a chat](#managing-a-chat)), an agent or a session, a node on the graph, a flow or flowverse card, a search
-result, a line of a thread (copy it, or the whole thread). Only text to read or write -- a thread,
+result, a line of a thread (copy it, or the whole thread; by the keys, <kbd>Tab</kbd> to the thread,
+<kbd>↑</kbd> <kbd>↓</kbd> to a line, then <kbd>Alt</kbd> <kbd>Enter</kbd> or the menu key). Only text to read or write -- a thread,
 a task, a path, an error -- is selected as on a web page, and keeps the browser's own menu; the
 page's buttons, tabs, labels and headings are not. What a menu sends off -- stopping or uploading an
 epic, forgetting a folder, connecting a daemon -- says `Stopping…`, `Uploading…` and the like at
-the foot of the page until the daemon answers. **Hover** over anything cut short -- a folder's name,
+the top right of the page, under its bar, where [toasts](#notifications) are, until the daemon
+answers. **Hover** over anything cut short -- a folder's name,
 a task, a path -- to read it in full.
+
+**Menus**, and whatever else floats over the page for a moment -- the list a choice opens beside
+its menu, the bell's list, a form a button opens to be typed into -- are open one at a time:
+opening one closes the others, save the one it was opened from. A menu opens on the choice in
+force, or its first; <kbd>↑</kbd> <kbd>↓</kbd> move through its choices and go round at its ends,
+<kbd>Home</kbd> and <kbd>End</kbd> go to the first and the last, <kbd>→</kbd> opens the list
+beside a choice and <kbd>←</kbd> closes it. <kbd>Esc</kbd> closes the topmost alone -- the list
+beside a menu, then the menu, then the dialog they were opened in -- and gives the keys back to
+what opened it. A press anywhere else closes them all, and still does what it was pressed on:
+the button of another menu opens that one in the same click. They also close when the button
+that opened one is pressed again, when the keys move out of them, when what one stands by is
+scrolled away, when a dialog opens, the sidebar is folded or the page goes to another view, and,
+for a menu, when the window is sized or left; a form being typed into stays through those two.
+Nothing on the page casts a shadow: what floats is set off by its own surface and a line a pixel
+thick around it, and a dialog by the dimmed page behind it.
 
 **Paths** are browsed for rather than typed: the folder button beside a path opens a list of
 what is in a folder; click your way in, and press **Choose** (or click a file, where a file is
@@ -145,14 +164,21 @@ monitor is:
 
 The graph's paper has no edge: drag anywhere on it, a node included, or slide two fingers over a
 trackpad to move it; pinch, or turn a mouse's wheel, to zoom about the pointer. **Recenter**, at the bottom left beside the zoom,
-brings the graph back to the middle of the view.
+brings the graph back as it opened: in the middle of the view, as wide as it, and never so small
+it cannot be read -- one too tall for that opens on its top, to drag down through. Only in the short
+strip a waiting question leaves it is it drawn smaller, two agents side by side, with every frame of
+it in sight. Until you move or zoom it, it is fitted again as the view grows or shrinks.
 
-The panel beside it (the button at the top right shows and hides it) holds:
+The panel beside it (the button at the top right shows and hides it; where the window has no
+room for it and [Ai-chan's drawer](#ai-chan) both, with 480 pixels left to the view, opening one
+closes the other) holds:
 
 - **Epic.** How long it has been going, what it has spent and how fast, a meter for each limit of
   its [budget](/features/allowances), the task, who handed to whom in words, **Spending** by
-  model and kind of token (`≥` marks a figure that is only a floor), **Environments** -- where
-  each session works and where its harness went, each a link into that environment's files, shell
+  model and kind of token (each model's name over its figures; a count is cut short, as `18.0k`,
+  and said exactly where you point at it; `≥` marks a figure that is only a floor),
+  **Environments** -- what each session works in, with its path under it, and where its harness
+  went, each a link into that environment's files, shell
   and changes while the epic is held (see [Into its environments](/features/environments)) -- the
   **Frontends** reading it, the flows going or the flows it called, and how it was set up and
   where it is written down. A chat calls this **Details**; its panes are picked on its bar, not
@@ -197,14 +223,15 @@ And under the graph, while it goes:
 
 ### A session {#a-session}
 
-A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
-lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
+A session opens as its thread, on what was said last, drawn as the terminal draws it: an agent's
+words on a dot, your lines set apart on the right, a tool on a mark of its own, and
+`✻ Worked for …` closing a turn.
 
 A [chat](/user/chat) is only its conversation, as a chat app's is, wherever it is opened: your
 first message, then
 each reply and each line you typed under it, on the right. The box under it is how you answer --
 between turns it is your next turn, and while the agent asks something mid-turn it answers
-that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
+that, the answers it offers buttons under its question, at the end of the conversation. It has no graph, no agents
 or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and nothing
 that ends it: it is `running` while its agent answers and `stopped` once the turn ends -- asking,
 blinking, until you have looked at it, even once it has folded away. A chat is no epic: it is
@@ -445,7 +472,9 @@ Ai-chan is an agent you operate Humanize through by talking to her. Her avatar, 
 every view's bar, opens and closes her drawer beside the view -- a chat's bar ends as a chat
 app's does, and offers her as **Ai-chan** under **View options** instead; it stays open as you go from view
 to view, until you close it. What you type in it stays in it: a new chat or a new epic that
-finishes opening beside it meanwhile does not take the keys. On a phone it covers the view:
+finishes opening beside it meanwhile does not take the keys. Where opening it would leave the
+view under 480 pixels beside a panel already open, that panel closes for it, as hers does for a
+panel opened after. On a phone it covers the view:
 close it with its button or <kbd>Escape</kbd>.
 
 The drawer lists every conversation with her on the daemon shown, newest first: its title, what
@@ -480,7 +509,7 @@ daemon:
 | --- | --- |
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
 | **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
-| **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
+| **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: **Edit** it (what you leave blank stays as it was), or make one; under **More options** at the end of its row, or on a right click of it, ask what it runs again (**Refresh models**), copy it to another CLI, or remove it, which asks first in the row |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
@@ -492,6 +521,10 @@ daemon:
 Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
 until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
 kept and opened again. Picking one changes nothing else on screen.
+
+**Download**, opened from **Backup**, and **Delete**, opened from **Workspace**, are dialogs of
+their own. Closed -- by **Close**, <kbd>Esc</kbd> or a press beside it -- either goes back to the
+Settings page it was opened from; opened by its own address, it closes to the view under it.
 
 **Batch apply**, on **General**, **Fallback**, **Runtimes** and **Backup**, copies what the page
 holds to other daemons at once. Tick the daemons, or **All**, then **Apply**. Each daemon then
@@ -531,8 +564,13 @@ showing. **Duplicate** copies any theme, or a whole pair. **Edit** opens one of 
 - **Name**, and the **Base** it is made on, Light or Dark, whose colour any you leave blank is.
   In a pair, the name is both themes', and **Side** switches between its light and its dark.
 - Every colour, by what it colours: **Backgrounds** (page, sidebar, surface, raised),
-  **Text**, **Controls** (button, its text, primary button, its text, field, edge), **Lines**,
-  **Accents** and the **Graph**'s lanes. Pick one or type any CSS colour, such as
+  **Text**, **Controls** (button, its text, primary button, its text, field, edge), **Lines**
+  (line, strong line, hover, scrim), **Accents** and the **Graph**'s lanes. **Edge** is the line
+  around a button, the strong line where you leave it blank. **Hover** is the fill under what
+  the pointer is on, in every preset a faint tint of the text's colour and never an accent's;
+  what is selected or pressed is a stronger tint of the text's colour, worked out from it, and
+  no colour of its own. The **strong line** is around what floats and what is typed into, the
+  **line** between everything else, and the **scrim** dims the page behind a dialog. Pick one or type any CSS colour, such as
   `#102030` or `rgba(255, 255, 255, 0.1)`; × gives back the base's.
 - **Pictures** behind the **Page**, **Sidebar**, **Panel** and **Dialog**: a PNG, JPEG, GIF,
   WebP, AVIF or SVG -- an animated SVG moves -- each to **Cover**, **Fit** or **Tile** its plane.
@@ -759,8 +797,10 @@ or how it ended.
   **menu**: the latest notifications of every daemon, newest first, each labelled with its
   daemon. Click one to open its epic or its chat, switching to its daemon; mark them all read, or clear
   them. This browser keeps the newest 200.
-- **Toasts.** A new notification also shows as a card in the corner of the page for a few
-  seconds.
+- **Toasts.** A new notification also shows as a card at the top right of the page, under its
+  bar, for six seconds or until you close it: three at the most, the newest first, in one column
+  with what a menu sent off and what was copied. While a dialog is open only the newest is
+  shown, at the foot of the window.
 - **System notifications.** While the page is hidden or not focused, a notification is also
   one of your system's: the browser's, or, in [Humanize Desktop](/user/desktop#notifications), a
   macOS one. Clicking it brings the page back on what it is about.

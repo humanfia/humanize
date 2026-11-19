@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { addressOf, gathered, KEPT, kindOf, of } from '../../../../src/hmz/web/static/notified.js'
+import { addressOf, gathered, KEPT, kindOf, lineOf, of } from '../../../../src/hmz/web/static/notified.js'
 import { stored } from '../../../../src/hmz/web/static/stored.js'
 import { fakeIndexedDB } from './helpers.mjs'
 
@@ -76,4 +76,18 @@ test('a notice of an epic opens the epic, or, for what waits on a person, the ep
   assert.equal(of(ended), 'e2')
   assert.equal(addressOf(ended), '#/epics/e2')
   assert.equal(addressOf({ ...ended, kind: 'asked' }), '#/live?workspace=%2Fw')
+})
+
+test('a notice says one line of plain words: the first of its text that says anything, without Markdown\'s marks', () => {
+  assert.equal(lineOf('Here is what the **notes** come to.\n\n## Three themes\n\n1. **Starting is too many clicks.**'), 'Here is what the notes come to.')
+  assert.equal(lineOf('\n\n## Which `env` first?\n- staging'), 'Which env first?')
+  assert.equal(lineOf('---\n> - [The plan](https://example.com/plan) is _done_, ~~nearly~~'), 'The plan is done, nearly')
+  assert.equal(lineOf('```js\nconst total = a * b * c\n```'), 'const total = a * b * c')
+  assert.equal(lineOf('1. *First*, read `snake_case_name` in src/a_b.py'), 'First, read snake_case_name in src/a_b.py')
+  // What is no Markdown is said as it is, and nothing is said of nothing.
+  assert.equal(lineOf("HarnessUnrecoverable: Command 'claude' returned non-zero exit status 1."), "HarnessUnrecoverable: Command 'claude' returned non-zero exit status 1.")
+  assert.equal(lineOf('#42 is fixed; 2 * 3 is 6'), '#42 is fixed; 2 * 3 is 6')
+  assert.equal(lineOf(''), '')
+  assert.equal(lineOf(undefined), '')
+  assert.equal(lineOf('***\n|---|---|'), '')
 })

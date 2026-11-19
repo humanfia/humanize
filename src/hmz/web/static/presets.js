@@ -132,7 +132,7 @@ export function colours(scheme, said) {
     'on-fill': legible(ink) >= legible(paper) ? ink : paper,
     line: through(ink, 0.12),
     'line-strong': through(ink, light ? 0.28 : 0.3),
-    hover: through(said.accent, 0.1),
+    hover: through(ink, light ? 0.06 : 0.08),
     scrim: light ? through(ink, 0.45) : 'rgba(0, 0, 0, 0.6)',
   }
   for (const [role, tokens] of Object.entries(ROLES)) for (const token of tokens) made[token] = said[role]

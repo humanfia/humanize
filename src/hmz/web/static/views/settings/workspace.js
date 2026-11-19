@@ -6,7 +6,8 @@
 import { daemon, given, hash, started } from '../../api.js'
 import { archiving, deletingAt } from '../../chat-actions.js'
 import { pathOf } from '../../chats.js'
-import { acting, ago, confirming, fill, h, headline, pathText, problem, when } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { acting, ago, fill, h, headline, pathText, problem, when } from '../../dom.js'
 
 export function draw(holder, query, parts, scope) {
   let workspace = query.get('workspace') || ''
@@ -112,7 +113,10 @@ export function draw(holder, query, parts, scope) {
     .then((here) => scope.call('workspaces.list', given({ here: scope.name === 'local' ? here : '' })))
     .then((answer) => {
     if (!workspace) workspace = answer.here || answer.workspaces[0]?.path || ''
-    fill(choosing, answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace }, one.path)))
+    // Each by its folder's name, which tells them apart where a path's start does not: two of
+    // one name, with the folder each is in before it. The whole path is said under the picker.
+    const twin = (one) => answer.workspaces.some((other) => other !== one && other.name === one.name)
+    fill(choosing, answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace, title: one.path }, twin(one) ? one.path.split('/').slice(-2).join('/') : one.name)))
     read()
   }, (error) => fill(body, problem(error)))
 }

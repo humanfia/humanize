@@ -4,11 +4,13 @@
 // it, uninstalling it and copying it into the workspace whole. Flowverses: every index flows are
 // installed out of, fetched or written into -- not this project's flows or yours, which are no
 // index -- and, one opened, every flow it lists, every release of each, installing, switching
-// and uninstalling one; with adding, fetching and removing one. Nothing opens until chosen.
+// and uninstalling one; with adding, fetching and removing one. Nothing opens until chosen, and
+// what a card opens stands under the cards, so that none of them moves as it does.
 
 import { call, given, hash, poll, refresh } from '../api.js'
 import { stays } from '../app.js'
-import { acting, confirming, empty, fill, h, icon, permitted, problem } from '../dom.js'
+import { confirming } from '../confirm.js'
+import { acting, fill, h, icon, pathText, permitted, problem } from '../dom.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
 import { bar, tabbed } from '../shell.js'
 import { copy, menuOn, toast } from '../ui.js'
@@ -23,7 +25,7 @@ export function mount(root, { query }) {
     workspace = path
     chosen = ''
     watch()
-  })
+  }, { end: true })
   const tabs = h('div', { class: 'flows-tabs' })
   const said = h('div', { class: 'flows-said', 'aria-live': 'polite' })
   const list = h('div', { class: 'gallery', 'data-hmz': 'flows' }, h('p', { class: 'loading', role: 'status' }, 'Reading the flows…'))
@@ -34,7 +36,7 @@ export function mount(root, { query }) {
       'div',
       { class: 'view' },
       bar({ title: 'Flows', actions: [place.node] }),
-      h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, tabs, said, shown, list)),
+      h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, tabs, said, list, shown)),
     ),
   )
 
@@ -59,16 +61,36 @@ export function mount(root, { query }) {
     if (tab === 'installed') {
       stop = poll('flows.list', { workspace }, 30000, drawFlows)
       if (chosen) show(chosen)
-      else {
-        shown.hidden = false
-        fill(shown, empty('Pick a flow.', ' What it declares is shown here.'))
-      }
+      else open()
     } else {
       stop = () => {}
       // Nothing of a flowverse is shown, nor the form adding one, until its card is chosen.
       if (verse) openVerse(verse)
       else close()
     }
+  }
+
+  /** Puts what a card opened under the cards, or, of nothing, nothing: where the view is, unmoved. */
+  function put(...made) {
+    shown.hidden = !made.length
+    fill(shown, ...made)
+  }
+
+  /**
+   * Shows what a card opened, scrolled no further than it takes to be seen, nor so far that the
+   * card it was opened from leaves the view.
+   */
+  function open(...made) {
+    put(...made)
+    if (!made.length) return
+    const scroller = shown.closest('.view-scroll')
+    const view = scroller.getBoundingClientRect()
+    const box = shown.getBoundingClientRect()
+    const card = list.querySelector('.card[aria-pressed=true]')
+    const needed = Math.min(box.top - view.top, box.bottom - view.bottom)
+    // How far under the view's top its card is, where the card is in the view to be kept there.
+    const kept = card ? card.getBoundingClientRect().top - view.top : -1
+    scroller.scrollTop += Math.max(0, kept < 0 ? needed : Math.min(needed, kept))
   }
 
   /** Says what changed, and reads again what it changed. */
@@ -167,13 +189,12 @@ export function mount(root, { query }) {
       card.classList.toggle('chosen', card.dataset.flow === name)
       card.setAttribute('aria-pressed', String(card.dataset.flow === name))
     }
-    shown.hidden = false
-    fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
+    put(h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let flow
     try {
       flow = await call('flows.get', { name, workspace })
     } catch (error) {
-      if (chosen === name) fill(shown, problem(error))
+      if (chosen === name) open(problem(error))
       return
     }
     // Another flow was chosen while this one was read: what it says is no longer asked for.
@@ -185,8 +206,7 @@ export function mount(root, { query }) {
     if (!name.startsWith('@local/')) actions.push(acting('Copy here', () => change('flows.fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
     if (installed) actions.push(confirming({ label: 'Uninstall', ask: `Uninstall ${name}?`, yes: 'Uninstall', no: 'Cancel', act: () => change('flowverses.uninstall', { flow: name }) }))
     const params = Object.entries(flow.params.properties || {})
-    fill(
-      shown,
+    open(
       h('header', {}, h('div', {}, h('div', { class: 'kicker' }, installed ? `${installed.verse} · ${installed.version}` : 'flow'), h('h2', {}, flow.name)), h('div', { class: 'row' }, actions)),
       flow.description ? h('p', { class: 'prose' }, flow.description) : null,
       h(
@@ -230,8 +250,10 @@ export function mount(root, { query }) {
               one.fixed ? h('span', { class: 'node-tag' }, 'Built in') : null,
               one.edited ? h('span', { class: 'node-tag' }, 'Edited') : null,
               !one.fetched ? h('span', { class: 'node-tag' }, 'Not fetched') : null,
+              one.installed ? h('span', { class: 'node-tag' }, `${one.installed} installed`) : null,
             ),
-            h('span', { class: 'card-about' }, one.url || 'local', one.installed ? ` · ${one.installed} installed` : ''),
+            // Where it is fetched from, its end kept: a path's start says the least of it.
+            h('span', { class: 'card-about' }, one.url ? pathText(one.url) : 'local'),
           )
           // The one open closes when chosen again.
           card.addEventListener('click', () => (one.name === verse ? close() : openVerse(one.name)))
@@ -248,8 +270,7 @@ export function mount(root, { query }) {
           close()
           if (was) return
           event.currentTarget.setAttribute('aria-pressed', 'true')
-          shown.hidden = false
-          fill(shown, addVerse())
+          open(addVerse())
         } }, h('span', { class: 'card-mark', 'aria-hidden': 'true' }, icon('plus')), h('span', { class: 'card-name' }, 'Add flowverse')),
       ),
     )
@@ -271,8 +292,7 @@ export function mount(root, { query }) {
     verse = ''
     stays({ tab: 'verses', workspace })
     choose('')
-    shown.hidden = true
-    fill(shown)
+    open()
   }
 
   function addVerse() {
@@ -303,13 +323,12 @@ export function mount(root, { query }) {
     verse = name
     stays({ tab: 'verses', workspace, verse: name })
     choose(name)
-    shown.hidden = false
-    fill(shown, h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
+    put(h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let index
     try {
       index = await call('flowverses.get', { name })
     } catch (error) {
-      if (verse === name) fill(shown, problem(error))
+      if (verse === name) open(problem(error))
       return
     }
     if (verse !== name) return
@@ -322,8 +341,7 @@ export function mount(root, { query }) {
       await change('flowverses.remove', { name })
       close()
     } }))
-    fill(
-      shown,
+    open(
       h('header', {}, h('div', {}, h('div', { class: 'kicker' }, 'flowverse'), h('h2', {}, name)), h('div', { class: 'row' }, actions)),
       h('p', { class: 'dim mono' }, index.url || 'local'),
       index.edited ? h('p', { class: 'note' }, 'Something is written into it: fetching resets it to what its repository says.') : null,

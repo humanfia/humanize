@@ -377,6 +377,14 @@ def test_a_schema_is_asked_as_one_form_under_what_it_shows(engine: str) -> None:
         _start_talk(page, "review this")
         card = _card(page)
         expect(card).to_be_visible()
+        # Long as the form is, the graph over it keeps its floor and the box under it
+        # stays whole in the window: the form scrolls between them.
+        graph = page.locator(".epic-main").bounding_box()
+        box = page.locator("[data-hmz=say]").bounding_box()
+        assert graph is not None
+        assert box is not None
+        assert graph["height"] >= 260
+        assert box["y"] + box["height"] <= 860
         # Read, then decide: the question, what it shows, then the form.
         blocks = card.locator("[data-hmz=ask-block]")
         expect(blocks).to_have_count(len(_CONTEXT))

@@ -556,3 +556,20 @@ test('the match on a result line is found again to be picked out', () => {
   assert.deepEqual(L.matchOn('a.b', '.', {}), [1, 2])
   assert.equal(L.matchOn('x', '(', { regex: true }), null)
 })
+
+test('a result line is said with its match in sight: no indentation, and little before the match', () => {
+  // A short lead is said whole, less its indentation.
+  assert.deepEqual(L.snippet('    retry = 3', [4, 9]), { text: 'retry = 3', span: [0, 5] })
+  assert.deepEqual(L.snippet('  if retry:', [5, 10]), { text: 'if retry:', span: [3, 8] })
+  // A long one is cut to its last characters, an ellipsis in place of the rest.
+  const line = '- move the queue worker onto the retry helper'
+  const said = L.snippet(line, [33, 38])
+  assert.equal(said.text, '…worker onto the retry helper')
+  assert.equal(said.text.slice(...said.span), 'retry')
+  assert.equal(said.span[0], L.LEAD + 1)
+  // Exactly as much as is kept before a match is cut nowhere.
+  assert.deepEqual(L.snippet(`${'a'.repeat(L.LEAD)}retry`, [L.LEAD, L.LEAD + 5]), { text: `${'a'.repeat(L.LEAD)}retry`, span: [L.LEAD, L.LEAD + 5] })
+  // A match in the indentation keeps what it matched; a line whose match is not found is said bare.
+  assert.deepEqual(L.snippet('\t\tx', [1, 2]), { text: '\tx', span: [0, 1] })
+  assert.deepEqual(L.snippet('   plain', null), { text: 'plain', span: null })
+})

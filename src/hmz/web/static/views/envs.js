@@ -15,12 +15,14 @@
 import { hash } from '../api.js'
 import { stays } from '../app.js'
 import { pathOf } from '../chats.js'
-import { empty, fill, h, headline, pathText, problem } from '../dom.js'
+import { empty, fill, h, headline, icon, pathText, problem } from '../dom.js'
 import { watch } from '../epic.js'
 import { hearing, hosted } from '../held.js'
+import { modal } from '../layers.js'
 import { bar, keep, kept } from '../shell.js'
 import { COLOURS } from '../themes.js'
-import { clampWidth, factsOf, nameOf, offOf, panelsOf, paramsOf, pick, tabOf, treeOf, usable } from './envs/tree.js'
+import { splitter } from './envs/split.js'
+import { factsOf, nameOf, offOf, panelsOf, paramsOf, pick, tabOf, treeOf, usable } from './envs/tree.js'
 
 /** Each panel's module, loaded the first time it is opened. */
 const PANELS = {
@@ -28,10 +30,6 @@ const PANELS = {
   terminal: () => import('./envs/terminal.js'),
   changes: () => import('./envs/changes.js'),
 }
-
-/** How wide the list of environments is until it is dragged, and how far a key moves it. */
-const WIDE = 240
-const STEP = 16
 
 /** The tokens a theme is told to a panel by: every colour a theme sets, and the fonts. */
 const TOKENS = [...COLOURS.flatMap(([, tokens]) => tokens.map(([token]) => token)), 'live', 'live-soft', 'sans', 'mono']
@@ -50,20 +48,23 @@ export function themeNow() {
   return { dark: document.documentElement.dataset.theme === 'dark', tokens }
 }
 
-/** Asks a question that is answered yes or no, over the page, until it is answered. */
+/**
+ * Asks a question that is answered yes or no, over the page, until it is answered: it opens on
+ * `no`, and Escape, a press beside it and the page going elsewhere all answer that.
+ */
 export function confirmed(text, { yes = 'OK', no = 'Cancel' } = {}) {
   return new Promise((resolve) => {
     const dialog = h(
       'dialog',
       { class: 'envs-confirm', 'data-hmz': 'envs-confirm', 'aria-label': text },
-      h('form', { method: 'dialog' }, h('p', {}, text), h('div', { class: 'row envs-confirm-row' }, h('button', { class: 'btn quiet', value: 'no' }, no), h('button', { class: 'btn danger', value: 'yes', autofocus: true }, yes))),
+      h('form', { method: 'dialog' }, h('p', {}, text), h('div', { class: 'row envs-confirm-row' }, h('button', { class: 'btn quiet', value: 'no', autofocus: true }, no), h('button', { class: 'btn danger', value: 'yes' }, yes))),
     )
     dialog.addEventListener('close', () => {
       resolve(dialog.returnValue === 'yes')
       dialog.remove()
     })
     document.body.append(dialog)
-    dialog.showModal()
+    modal(dialog, 'no')
   })
 }
 
@@ -146,49 +147,18 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
   let left = false
 
   const list = h('div', { class: 'envs-tree', role: 'tree', 'aria-label': 'Environments', 'data-hmz': 'envs-tree' })
-  const resizer = h('div', { class: 'envs-resizer', role: 'separator', tabindex: '0', 'aria-orientation': 'vertical', 'aria-label': 'Resize the list of environments', 'aria-valuemin': '160', 'data-hmz': 'envs-resizer' })
   const notice = h('div', { class: 'envs-notice', 'data-hmz': 'envs-notice' })
   const head = h('div', { class: 'envs-head', 'data-hmz': 'envs-head' })
   const tabs = h('div', { class: 'tabs envs-tabs', role: 'tablist', 'aria-label': 'Panels', 'data-hmz': 'envs-tabs' })
   const panes = h('div', { class: 'envs-panes', 'data-hmz': 'envs-panes' })
   const main = h('section', { class: 'envs-main', 'aria-label': 'Environment' }, notice, head, tabs, panes)
-  const split = h('div', { class: 'envs-split' }, compact ? null : [h('nav', { class: 'envs-side', 'aria-label': 'Environments' }, list), resizer], main)
+  const split = h('div', { class: 'envs-split' }, main)
+  // The list, and the line that sizes it: in a side panel, the pick in the head stands for both.
+  // The list takes half the frame at most, and leaves the one picked 560px, as frame.css lays them out.
+  if (!compact) split.prepend(h('nav', { class: 'envs-side', 'aria-label': 'Environments' }, list), splitter(split, { name: '--envs-tree', key: 'hmz-envs-tree', label: 'Resize the list of environments', most: (whole) => Math.min(whole / 2, whole - 560), hmz: 'envs-resizer' }))
   fill(el, h('div', { class: ['envs', compact && 'envs-compact'], 'data-hmz': 'envs' }, split))
 
-  // ---------------------------------------------------------------- the list, and its width
-
-  let width = Number(kept('hmz-envs-tree', '')) || WIDE
-  const widen = (to, kept_ = false) => {
-    width = clampWidth(to, split.clientWidth || innerWidth)
-    split.style.setProperty('--envs-tree', `${width}px`)
-    resizer.setAttribute('aria-valuenow', String(width))
-    if (kept_) keep('hmz-envs-tree', width === WIDE ? null : String(width))
-  }
-  widen(width)
-  resizer.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    const from = event.clientX
-    const was = width
-    resizer.setPointerCapture(event.pointerId)
-    resizer.classList.add('dragging')
-    const move = (moving) => widen(was + moving.clientX - from)
-    const up = () => {
-      resizer.removeEventListener('pointermove', move)
-      resizer.classList.remove('dragging')
-      widen(width, true)
-    }
-    resizer.addEventListener('pointermove', move)
-    resizer.addEventListener('pointerup', up, { once: true })
-    resizer.addEventListener('pointercancel', up, { once: true })
-  })
-  resizer.addEventListener('dblclick', () => widen(WIDE, true))
-  resizer.addEventListener('keydown', (event) => {
-    const to = { ArrowLeft: width - STEP, ArrowRight: width + STEP, Home: 0, End: Infinity }[event.key]
-    if (to === undefined) return
-    event.preventDefault()
-    widen(to, true)
-  })
+  // ---------------------------------------------------------------- the list
 
   list.addEventListener('click', (event) => {
     const item = event.target.closest('[data-env]')
@@ -234,7 +204,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
               'data-env': one.id,
               'data-hmz': 'envs-item',
             },
-            h('span', { class: 'envs-glyph', 'aria-hidden': 'true' }, node.depth ? '↳' : '▣'),
+            h('span', { class: 'envs-glyph', 'aria-hidden': 'true' }, icon(node.depth ? 'fork' : 'home')),
             h('span', { class: 'envs-name' }, nameOf(one)),
             h('span', { class: 'envs-item-meta' }, state || one.backend || ''),
           ),
@@ -320,7 +290,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
         h('b', { class: envs.length > 1 ? 'envs-named' : '', 'data-hmz': 'envs-name' }, nameOf(env)),
         env.chain && env.role && env.chain !== env.role && !compact ? h('span', { class: 'envs-chip' }, env.role) : null,
         off ? h('span', { class: 'envs-chip off', 'data-hmz': 'envs-state' }, off) : null,
-        compact && full ? h('a', { class: 'icon-btn envs-full', href: full(env.id, current.tab), 'aria-label': 'Open in its own view', title: 'Open in its own view', 'data-hmz': 'envs-full' }, '⤢') : null,
+        compact && full ? h('a', { class: 'icon-btn envs-full', href: full(env.id, current.tab), 'aria-label': 'Open in its own view', title: 'Open in its own view', 'data-hmz': 'envs-full' }, icon('open')) : null,
       ),
       h(
         'div',

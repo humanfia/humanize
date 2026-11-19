@@ -1,25 +1,52 @@
-/* The sidebar's list, measured off Claude's desktop app: a group is a 24px heading over its rows,
-   with what sorts the list and what starts a chat in it at its end; a row is 258 by 32, its title
-   on the left and, straight after it in the same line, how it stands in quiet words, with a menu
-   at its far end. A
-   chat is that one line; a flow's epic keeps what makes it another kind -- what opens it out, and
-   its flow under its title. Every colour and font is a token of style.css. */
+/* The sidebar's list, measured off Claude's desktop app: a group is a heading over its rows, as
+   tall as one, with what sorts the list and what starts a chat in it at its end; a row is 258 by
+   32, its title 18 in from the sidebar's edge and, straight after it in the same line, how it
+   stands in quiet words, with a menu at its far end. A chat is that one line; a flow's epic keeps
+   what makes it another kind -- its flow under its title, and before that what opens it out.
+   Every colour and font is a token of style.css, and how a row stands is said there. */
 
 .side-scroll {
-  padding: 0 7px 12px 8px;
+  padding: 0 var(--side-gutter) var(--space-12);
+}
+
+/* Beside the view the rows are as wide as the entries over them whether or not the list
+   scrolls: where the page draws the scrollbar it stands in the gutter at the list's right,
+   which is as wide as the bar. */
+@media (min-width: 861px) {
+  @supports selector(::-webkit-scrollbar) {
+    .side-scroll {
+      padding-right: 0;
+      overflow-x: hidden;
+    }
+
+    .side-runs {
+      width: calc(var(--side-wide) - var(--border-w) - 2 * var(--side-gutter));
+    }
+  }
 }
 
 /* ------------------------------------------------------------------- A group's heading */
 
+/* The first stands 20 under the entries, 8 of which is theirs; the rest 16 under the one before,
+   or 4 where that one is folded and shows no rows: headings on their own stand as a list. */
 .side-group {
-  margin-top: 24px;
+  margin-top: var(--space-12);
+}
+
+.side-group + .side-group {
+  margin-top: var(--space-16);
+}
+
+.side-group:has(> .side-folder .side-toggle[aria-expanded='false']) + .side-group {
+  margin-top: var(--space-4);
 }
 
 .side-folder {
   display: flex;
   align-items: center;
-  height: 24px;
-  margin: 0 4px 6px 6px;
+  height: var(--row-h);
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-4) 0 0;
 }
 
 .side-folder-head {
@@ -34,19 +61,19 @@
 .side-folder .side-toggle {
   flex: 1 1 auto;
   min-width: 0;
-  width: auto;
-  height: 24px;
+  height: var(--row-h);
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 4px;
-  padding: 0 4px;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) 0 calc(var(--side-label) - var(--side-gutter));
+  border-radius: var(--radius-md);
 }
 
 .side-folder-name {
   min-width: 0;
   display: flex;
-  font: 500 12px var(--sans);
+  font: 500 var(--text-md) / 20px var(--sans);
   color: var(--ink-3);
 }
 
@@ -62,8 +89,6 @@
 
 /* The arrow is faint while the group is open and nothing points at it, and plain once folded. */
 .side-folder .side-toggle .icon {
-  width: 12px;
-  height: 12px;
   opacity: 0.45;
 }
 
@@ -74,58 +99,43 @@
 }
 
 .side-folder > .side-unread {
-  margin: 0 6px 0 2px;
+  margin: 0 var(--space-6) 0 var(--space-2);
 }
 
-/* What starts a chat here keeps its room at the heading's end, and what sorts the list takes
-   its own beside it, where the heading is pointed at or holds the focus: neither is drawn until
-   then. */
-.side-folder-head {
-  margin-right: 4px;
-}
-
+/* What sorts the list and what starts a chat here keep their room at the heading's end, and are
+   drawn only where the heading is pointed at or holds the focus, or while the menu is open: the
+   heading's name never moves for them. */
 .icon-btn:is(.side-sort, .side-add) {
-  width: 24px;
-  height: 24px;
-  overflow: hidden;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
   opacity: 0;
 }
 
-.icon-btn.side-sort {
-  width: 0;
-  border-width: 0;
-}
-
-.side-folder:is(:hover, :focus-within) .icon-btn:is(.side-sort, .side-add) {
-  width: 24px;
+.side-folder:is(:hover, :focus-within) .icon-btn:is(.side-sort, .side-add),
+.icon-btn.side-sort[aria-expanded='true'] {
   opacity: 1;
-}
-
-.icon-btn:is(.side-sort, .side-add) .icon {
-  width: 16px;
-  height: 16px;
 }
 
 /* That it holds nothing is said under its name, where its rows would start. */
 .side-group > .side-quiet.nested {
-  padding: 4px 10px;
+  padding-block: var(--space-6);
 }
 
 /* -------------------------------------------------------------------------------- A row */
 
 .side-item + .side-item {
-  margin-top: 2px;
+  margin-top: var(--space-2);
 }
 
 .side-run > a {
-  align-items: center;
-  gap: 6px;
+  font: 400 var(--text) / 20px var(--sans);
 }
 
 /* Room is kept at its end for its menu, whether or not that is drawn. */
 :is(.side-chat, .side-place) > a {
-  height: 32px;
-  padding: 0 32px 0 10px;
+  height: var(--row-h);
+  padding: 0 calc(var(--control-h-xs) + var(--space-8)) 0 calc(var(--side-label) - var(--side-gutter));
 }
 
 /* Its title is as wide as its words, cut short where the line is not: what stands after it
@@ -140,35 +150,19 @@
   margin-left: auto;
 }
 
-/* How it stands, in the same line, said quietly; a failure in the colour of one. */
-.side-status {
-  flex: none;
-  font-size: 12px;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-
-.side-status:is([data-state='failed'], .tone-failed) {
-  color: var(--fail);
-}
-
 /* A flow's epic that asks calls for its person, as its page's mark does. */
 .side-flow .side-status.tone-asking {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
-.side-run > a[aria-current='page'] .side-status {
-  color: inherit;
-  opacity: 0.7;
-}
-
 /* What can be done to it, at its far end where it is pointed at or holds the focus. */
 .icon-btn.side-menu {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
+  top: var(--space-4);
+  right: var(--space-4);
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
   opacity: 0;
 }
 
@@ -177,89 +171,92 @@
   opacity: 1;
 }
 
-.side-menu .icon {
-  width: 16px;
-  height: 16px;
-}
-
-.side-run.current > .side-menu {
-  color: var(--on-ink);
-}
-
-.side-run.current > .side-menu:hover {
-  background: color-mix(in srgb, var(--on-ink) 18%, transparent);
-}
-
 /* ------------------------------------------------------------------------ A flow's epic */
 
+/* Two lines: its title where a chat's is, and under it its flow. */
 .side-flow > a {
   flex-direction: column;
   align-items: stretch;
   gap: 0;
-  padding: 0 0 6px calc(10px + var(--side-slot));
+  padding: 0 0 var(--space-8) calc(var(--side-label) - var(--side-gutter));
 }
 
 .side-line {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
   min-width: 0;
 }
 
 /* Its first line is a chat's: as tall, its words and its menu where a chat's are. */
 .side-flow .side-line:first-child {
-  height: 32px;
-  padding-right: 32px;
+  height: var(--row-h);
+  padding-right: calc(var(--control-h-xs) + var(--space-8));
 }
 
-/* What opens it out stands before its title, always there to press. */
+/* What opens it out leads its second line, always there to press, in a wider room than it is drawn in. */
 .side-flow > .side-toggle {
   position: absolute;
-  inset: 4px auto auto 6px;
-  height: 24px;
+  inset: var(--row-h) auto auto calc(var(--side-label) - var(--side-gutter));
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xs);
 }
 
+.side-flow > .side-toggle::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--space-4));
+}
+
+/* Too small to hold a ring inside it: the ring goes round it. */
+.side-flow > .side-toggle:focus-visible {
+  outline-offset: 2px;
+}
+
+/* Its second line ends where its first does, short of the menu: what stands at the end of
+   either is on one edge down the list. That room, the menu's width after the line's gap, is the
+   first thing a narrow sidebar takes back: the flow's name is cut only once it is gone. */
 .side-sub {
-  padding-right: 10px;
-  color: var(--ink-3);
+  height: 16px;
+  padding-left: calc(var(--icon) + var(--space-4));
+}
+
+.side-sub::after {
+  content: '';
+  flex: 0 100000 var(--control-h-xs);
 }
 
 /* The flow it is of, said quietly under its title. */
 .side-tag {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 5px;
-  font: 11px var(--mono);
+  gap: var(--space-4);
+  font: var(--text-xs) / 16px var(--mono);
+  color: var(--ink-3);
 }
 
 .side-tag .icon {
-  width: 11px;
-  height: 11px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
-.side-flow > a[aria-current='page'] .side-sub {
-  color: inherit;
-  opacity: 0.7;
+/* Under an epic opened out, in place of its agents: that they are read, that it has none. */
+.side-item > .side-quiet.nested {
+  padding: var(--space-4) calc(var(--side-label) + var(--space-16));
 }
 
 /* ------------------------------------------------------------ The rows a group holds back */
 
 /* The last row of a group that shows only some of its rows: it brings the rest. */
 .side-more {
-  display: block;
   width: 100%;
-  height: 32px;
-  margin: 2px 0 0;
-  padding: 0 10px;
-  font: 12px var(--sans);
-  text-align: left;
-}
-
-.side-more:hover:not(:disabled) {
-  background: var(--hover);
-  text-decoration: none;
+  height: var(--row-h);
+  margin: var(--space-2) 0 0;
+  padding: 0 calc(var(--side-label) - var(--side-gutter));
+  font: var(--text-sm) / 16px var(--sans);
 }
 
 .side-more:disabled {
@@ -268,42 +265,19 @@
 
 /* What reads a page more of the list, under its last group. */
 .side-more-list {
-  margin-top: 24px;
+  margin-top: var(--space-16);
 }
 
 /* ------------------------------------------------------------------------- A row's menu */
 
-/* As a desktop app's: narrow, each choice one line of 28px, what it is about one line over them. */
+/* As a desktop app's: narrow, what it is about one line over its choices. */
 .popover.context.row-menu {
-  min-width: 154px;
   max-width: 260px;
-}
-
-.row-menu .choice {
-  align-items: center;
-  min-height: 28px;
-  padding-block: 0;
-}
-
-.row-menu .context-head {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 /* ------------------------------------------------------------------- `Group and sort` */
 
-.popover:has(> .list-menu) {
-  min-width: 192px;
-}
-
-/* Each choice one line, 28px: what it is, and what stands chosen at its end. */
-.list-menu .choice {
-  align-items: center;
-  min-height: 28px;
-  padding: 0 8px;
-}
-
+/* Each choice one line: what it is, and what stands chosen at its end. */
 .list-menu > .choice > .choice-mark,
 .list-menu > .choice-sub > .choice > .choice-mark {
   display: none;
@@ -314,7 +288,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .list-menu > .choice-sub > .choice .choice-about {
@@ -328,25 +302,22 @@
 
 /* Under a finger nothing is pointed at: what a pointer would bring out is there already. */
 @media (hover: none) {
-  .icon-btn:is(.side-sort, .side-add) {
-    width: 24px;
+  .icon-btn:is(.side-sort, .side-add, .side-menu) {
     opacity: 1;
   }
+}
 
-  .icon-btn.side-sort {
-    border-width: 1px;
+/* Under a finger what opens an epic out takes a wider room still. */
+@media (pointer: coarse) {
+  .side-flow > .side-toggle::after {
+    inset: calc(-1 * var(--space-8));
   }
-
-  .icon-btn.side-menu {
-    opacity: 1;
-  }
-
 }
 
 /* A session a harness had of its own, after the chats: said quietly, as it is only read, with
    its harness at the row's end. */
 .side-harness > a {
-  padding-right: 10px;
+  padding-right: calc(var(--side-label) - var(--side-gutter));
 }
 
 .side-harness > a > .side-label {
@@ -356,10 +327,5 @@
 
 .side-harness-name {
   margin-left: auto;
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
-.side-harness > a[aria-current='page'] > .side-label {
-  color: inherit;
+  font: var(--text-xs) / 16px var(--mono);
 }

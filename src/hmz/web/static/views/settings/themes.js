@@ -5,7 +5,8 @@
 // page as it is changed and kept at once.
 
 import { hash } from '../../api.js'
-import { confirming, fill, h, iconButton, problem } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { fill, h, iconButton, problem } from '../../dom.js'
 import { choice, menu } from '../../shell.js'
 import { menuOn, toast } from '../../ui.js'
 import * as look from '../../themes.js'

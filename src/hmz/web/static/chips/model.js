@@ -105,10 +105,7 @@ export function modelChip(name, kept, changed = () => {}) {
     const none = offered.asking && !offered.models.length
     const typed = other('pick-model-typed', offered.unlisted ? chosen.model : '', {
       typing: (model) => pick({ model, effort: '' }),
-      entered: () => {
-        close()
-        button.focus()
-      },
+      entered: close,
     })
     const account = offered.accounts.find((one) => one.value === chosen.account)
     const refresh = choice({ label: 'Refresh models', glyph: 'resume', act: picked.refresh, close })

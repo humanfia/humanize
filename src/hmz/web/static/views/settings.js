@@ -10,6 +10,7 @@
 import { call, daemon, hash, known } from '../api.js'
 import { shut, stays } from '../app.js'
 import { fill, h, iconButton, problem } from '../dom.js'
+import { modal } from '../layers.js'
 import { dragged } from '../shell.js'
 
 /** Every page, by the word in the address that opens it, in its group. */
@@ -56,7 +57,8 @@ export function mount(root, { parts, query }) {
       h('h4', { class: 'settings-group' }, label),
       Object.entries(PAGES)
         .filter(([, one]) => one.group === group)
-        .map(([key, one]) => (links[key] = h('a', { href: href(key), 'aria-current': key === name ? 'page' : null }, one.label))),
+        // The dialog opens on the page it shows: its link has the focus.
+        .map(([key, one]) => (links[key] = h('a', { href: href(key), 'aria-current': key === name ? 'page' : null, autofocus: key === name }, one.label))),
     ]),
   )
   const picker = h('select', { 'aria-label': 'Daemon', 'data-hmz': 'settings-daemon' }, h('option', { value: chosen }, called({ name: chosen })))
@@ -75,6 +77,8 @@ export function mount(root, { parts, query }) {
       body,
     ),
   )
+  // In the middle of the strip the pages are across a narrow window.
+  links[name].scrollIntoView({ block: 'nearest', inline: 'center' })
 
   let listed = [{ name: 'local' }]
   let leaving = null
@@ -89,7 +93,7 @@ export function mount(root, { parts, query }) {
       call: (method, params = {}) => call(method, params, { on }),
       // What a page puts in the address beside its own, so the daemon picked stays in it.
       query: query.get('daemon') ? { daemon: chosen } : {},
-      batch: (calls, { off = '' } = {}) => batchButton(root, on, () => listed, calls, off),
+      batch: (calls, { off = '', small = true } = {}) => batchButton(root, on, () => listed, calls, off, small),
     }
   }
 
@@ -137,17 +141,21 @@ export function mount(root, { parts, query }) {
 
 /**
  * Copies what a page holds to other daemons: a dialog of every daemon but the one it came from,
- * ticked as they are wanted, and what each said once it was sent there.
+ * ticked as they are wanted, and what each said once it was sent there. The button is given in
+ * a group of its own, which stands at the end of a card's heading, after why it can do nothing
+ * where it cannot.
  *
  * @param {HTMLElement} root Where the dialog is drawn.
  * @param {string} from The daemon the page holds what it holds of.
  * @param {() => {name: string}[]} known Every daemon there is, as last read.
  * @param {(() => Array<[string, object]>) | null} calls What is called: each method and its params.
  * @param {string} off Why nothing can be, where nothing can.
+ * @param {boolean} small Whether the button is as small as a card's own are, not a form's.
  */
-function batchButton(root, from, known, calls, off) {
-  const button = h('button', { class: 'btn quiet', type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, 'Batch apply')
-  if (off) return h('span', { class: 'row' }, button, h('span', { class: 'hint', 'data-hmz': 'batch-off' }, off))
+function batchButton(root, from, known, calls, off, small) {
+  const button = h('button', { class: ['btn quiet', small && 'small'], type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, 'Batch apply')
+  const group = h('span', { class: 'row' }, off ? h('span', { class: 'hint', 'data-hmz': 'batch-off' }, off) : null, button)
+  if (off) return group
   button.addEventListener('click', () => {
     const others = known().filter((one) => one.name !== from)
     const boxes = others.map((one) => ({ one, box: h('input', { type: 'checkbox', 'data-daemon': one.name }) }))
@@ -165,20 +173,10 @@ function batchButton(root, from, known, calls, off) {
         ? h('div', { class: 'form' }, h('label', { class: 'check' }, all, h('b', {}, 'All')), boxes.map(({ one, box }) => h('label', { class: 'check' }, box, called(one))))
         : h('p', { class: 'dim' }, 'No other daemon.'),
       results,
-      h('div', { class: 'row' }, others.length ? apply : null, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, 'Close')),
+      h('div', { class: 'row' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, 'Close'), others.length ? apply : null),
     )
-    // Escape closes this dialog, not Settings under it, wherever the focus is.
-    const escape = (event) => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      event.preventDefault()
-      dialog.close()
-    }
-    document.addEventListener('keydown', escape, true)
-    dialog.addEventListener('close', () => {
-      document.removeEventListener('keydown', escape, true)
-      dialog.remove()
-    })
+    // Closed, the button it was opened by has the focus back in every browser.
+    dialog.addEventListener('close', () => (dialog.remove(), button.focus()))
     apply.addEventListener('click', async () => {
       const picked = boxes.filter(({ box }) => box.checked).map(({ one }) => one)
       if (!picked.length) return
@@ -210,7 +208,8 @@ function batchButton(root, from, known, calls, off) {
       apply.disabled = false
     })
     root.append(dialog)
-    dialog.showModal()
+    // Over Settings, which Escape and a press beside this one leave open.
+    modal(dialog)
   })
-  return button
+  return group
 }

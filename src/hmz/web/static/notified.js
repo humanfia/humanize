@@ -3,7 +3,7 @@
 // its daemon and whether it is read; where each daemon's notices are taken up again; and which
 // kinds the user wants told of, read afresh for every notice. Kept in a store of values by key --
 // IndexedDB's, on the page -- and never in any daemon's settings. What a notice is of, and where
-// it opens, is said here too.
+// it opens, and what its text says in one line, is said here too.
 
 /** Every kind the user can switch on or off, by its word, as `Notifications` names it. */
 export const KINDS = /** @type {const} */ (['done', 'failed', 'stopped', 'asked', 'listening'])
@@ -31,6 +31,25 @@ export function addressOf(item) {
   if (item.chat) return `${at}chats/${encodeURIComponent(item.chat)}`
   if ((item.kind === 'asked' || item.kind === 'listening' || !item.epic) && item.workspace) return `${at}live?${new URLSearchParams({ workspace: item.workspace, ...(item.slot ? { slot: item.slot } : {}) })}`
   return item.epic ? `${at}epics/${encodeURIComponent(item.epic)}` : `${at}live`
+}
+
+/**
+ * What a notice's text says in one line, as plain words: the first line of it that says anything,
+ * without the marks Markdown writes a heading, a quote, a list, emphasis, code and a link with.
+ *
+ * @param {string} text A notice's text: one line, or a whole reply.
+ */
+export function lineOf(text) {
+  for (const line of String(text || '').split('\n')) {
+    const said = line
+      .replace(/^\s*(?:(?:```|~~~).*|(?:#{1,6}|>|[-*+]|\d+[.)])(?:\s+|$))+/, '')
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/(\*\*|__|~~|`+)(.+?)\1/g, '$2')
+      .replace(/(^|[^\w*])([*_])(?=\S)(.*?\S)\2(?![\w*])/g, '$1$3')
+      .trim()
+    if (/[\p{L}\p{N}]/u.test(said)) return said
+  }
+  return ''
 }
 
 /** What the user wants told: every kind and the system's notifications, until said otherwise. */

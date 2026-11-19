@@ -84,11 +84,41 @@ def test_a_daemon_is_removed_once_confirmed(project: Path, engine: str) -> None:
         kept(page, _BOX)
         go(page, "/settings/daemons")
         row = page.locator("[data-hmz=daemon][data-name=box]")
-        row.get_by_role("button", name="Remove").click()
+        # Its button stays as it is, and asks by itself: nothing beside it moves.
+        remove = row.locator("button[aria-haspopup=dialog]")
+        expect(remove).to_have_text("Remove")
+        asked = page.get_by_role("dialog", name="Remove box?")
+        before = remove.bounding_box()
+        remove.click()
+        expect(asked.get_by_role("button", name="Cancel")).to_be_focused()
+        expect(remove).to_have_attribute("aria-expanded", "true")
+        assert remove.bounding_box() == before
         assert _kept(page) == [_BOX]
-        row.get_by_role("button", name="Cancel").click()
-        row.get_by_role("button", name="Remove").click()
-        row.get_by_role("button", name="Remove").click()
+        asked.get_by_role("button", name="Cancel").click()
+        expect(asked).to_have_count(0)
+        expect(remove).to_have_attribute("aria-expanded", "false")
+
+        # Escape takes the question back, and that alone: Settings stays, on the button.
+        remove.click()
+        expect(asked).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(asked).to_have_count(0)
+        expect(remove).to_be_focused()
+        expect(page.locator("[data-hmz=settings-daemons]")).to_be_visible()
+        assert _kept(page) == [_BOX]
+
+        # It is the one thing that floats, and a press elsewhere takes it back unanswered.
+        remove.click()
+        expect(asked).to_be_visible()
+        expect(page.locator(".popover:visible")).to_have_count(1)
+        page.locator("[data-hmz=write-daemon] [data-hmz=daemon-kind]").get_by_role(
+            "button", name="SSH"
+        ).click()
+        expect(asked).to_have_count(0)
+        assert _kept(page) == [_BOX]
+
+        remove.click()
+        asked.get_by_role("button", name="Remove").click()
         expect(row).to_have_count(0)
         assert _kept(page) == []
 
@@ -264,3 +294,58 @@ def test_an_account_saved_or_made_says_so_until_it_is_answered(
         expect(creating).to_be_disabled()
         wire.answer(page, "accounts.create", accounts)
         expect(made.get_by_role("button", name="Create")).to_be_enabled()
+
+
+def test_what_else_is_done_with_an_account_is_behind_more_options(
+    project: Path, engine: str
+) -> None:
+    one = {
+        "cli": "claude",
+        "name": "work",
+        "way": "api-key",
+        "sets": ["KEY"],
+        "models": [],
+        "asked": None,
+        "serves": ["pi"],
+    }
+    listed = {"accounts": [one], "backends": [], "gateway": "LiteLLM"}
+    none = {**listed, "accounts": []}
+    wire = Wire(
+        faked={
+            "accounts.list": lambda _: {"result": listed},
+            "accounts.copy": lambda _: {"result": listed},
+            "accounts.remove": lambda _: {"result": none},
+        }
+    )
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, "/settings/accounts")
+        row = page.locator("[data-hmz=account]")
+        more = row.get_by_role("button", name="More options")
+        more.click()
+        menu = page.get_by_role("menu")
+        expect(menu.get_by_role("menuitem")).to_have_text(
+            ["Refresh models", "Copy to pi", "Remove"]
+        )
+        menu.get_by_role("menuitem", name="Copy to pi").click()
+        expect(page.locator(".toast")).to_have_text("Copied to pi")
+        ((copied),) = wire.params("accounts.copy")
+        assert copied["into"] == "pi"
+
+        # Removing asks first, in the row, on the safe answer: Escape takes the question back
+        # and leaves Settings open.
+        more.click()
+        page.get_by_role("menuitem", name="Remove").click()
+        asked = row.locator("[data-hmz=account-removing]")
+        expect(asked).to_contain_text("Remove claude@work, credentials and all?")
+        expect(asked.get_by_role("button", name="Cancel")).to_be_focused()
+        page.keyboard.press("Escape")
+        expect(asked).to_have_count(0)
+        expect(more).to_be_focused()
+        assert wire.params("accounts.remove") == []
+
+        more.click()
+        page.get_by_role("menuitem", name="Remove").click()
+        asked.get_by_role("button", name="Remove").click()
+        expect(row).to_have_count(0)
+        ((removed),) = wire.params("accounts.remove")
+        assert (removed["cli"], removed["name"]) == ("claude", "work")
