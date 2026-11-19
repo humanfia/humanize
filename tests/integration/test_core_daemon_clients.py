@@ -24,6 +24,7 @@ from hmz.flows import (
     CapabilityMissing,
     GoalCommandAgentMixin,
     HarnessKind,
+    OutworlderAway,
     ParamsError,
     RequirementError,
 )
@@ -298,3 +299,56 @@ async def test_run_fake_raises_the_flow_apis_exception_for_a_run_refused_before_
 
     assert await fakes.run_fake("aims:aims", params={"rounds": 3}) == 3
     assert _temporaries() == before
+
+
+#: A flow that asks its one `Outworlder` role for a review, which has a field with no default.
+REVIEWED = """
+import pydantic
+
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, Outworlder, flow
+
+
+class Review(pydantic.BaseModel):
+    ok: bool
+    notes: str = ""
+
+
+class Agents(AgentCollection):
+    human: Outworlder
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def reviewed(task, *, agents, envs, params, ctx):
+    human = await agents["human"].spawn()
+    said = await agents["human"].run(task, session=human, output_schema=Review)
+    return said.model_dump()
+"""
+
+
+async def test_run_fake_tells_a_fake_outworlders_function_that_a_schema_is_asked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = install(tmp_path, monkeypatch)
+    write_flow(project / ".hmz" / "flows", "reviewed", REVIEWED)
+    given: list[Any] = []
+
+    def reply(prompt: str, *, output_schema: Any = None) -> dict[str, Any] | str:
+        given.append(output_schema)
+        if output_schema is not None:
+            return {"ok": False, "notes": f"not {prompt}"}
+        return "fine"
+
+    human = fakes.FakeOutworlder(reply)
+    nobody = fakes.FakeOutworlder()
+
+    said = await fakes.run_fake("reviewed:reviewed", "this", outworlder=human)
+    # Nothing scripted answers a schema with nothing, at once, rather than three times over
+    # with text that is no value of it.
+    with pytest.raises(OutworlderAway, match="a Review"):
+        await fakes.run_fake("reviewed:reviewed", "this", outworlder=nobody)
+
+    assert said == {"ok": False, "notes": "not this"}
+    # The schema itself: the model is the flow's, which only the host holds.
+    assert given == [human.asks[0].schema]
+    assert given[0]["title"] == "Review"
+    assert [ask.errors for ask in nobody.asks] == [()]

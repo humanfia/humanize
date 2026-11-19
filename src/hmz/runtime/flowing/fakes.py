@@ -251,6 +251,17 @@ class _Script:
         else:
             self.queue = deque(cast("Iterable[Any]", said))
 
+    async def said(self, prompt: str, schema: object, **context: Any) -> Any:
+        """The next answer as it was scripted, or None where nothing was."""
+        if self.call is not None:
+            said = self.call(prompt, output_schema=schema, **context)
+            if inspect.isawaitable(said):
+                said = await said
+            return said
+        if self.queue is not None:
+            return self.queue.popleft() if self.queue else None
+        return self.constant
+
     async def next(
         self,
         prompt: str,
@@ -258,14 +269,7 @@ class _Script:
         who: str,
         **context: Any,
     ) -> Any:
-        if self.call is not None:
-            said = self.call(prompt, output_schema=schema, **context)
-            if inspect.isawaitable(said):
-                said = await said
-        elif self.queue is not None:
-            said = self.queue.popleft() if self.queue else None
-        else:
-            said = self.constant
+        said = await self.said(prompt, schema, **context)
         if said is None:
             return _default(schema, who)
         return _as(said, schema, who)
@@ -1446,7 +1450,8 @@ class FakeOutworlder:
     Args:
       reply: What they answer with; see :data:`Reply`. A mapping is the value of the schema
         asked for. A function of the prompt is given the schema asked for as
-        `output_schema`.
+        `output_schema`: its model where the ask has one, and its JSON Schema where it has
+        not, as an SDK run's ask has not. To such an ask nothing scripted answers nothing.
       away: Whether nobody is there.
 
     Attributes:
@@ -1473,7 +1478,12 @@ class FakeOutworlder:
         del role
         self.asked.append(ask.prompt)
         self.asks.append(ask)
-        return await self._script.next(ask.prompt, ask.model, "the outworlder")
+        if ask.model is not None or ask.schema is None:
+            return await self._script.next(ask.prompt, ask.model, "the outworlder")
+        # An SDK run's ask has the schema and not its model: the answer goes as scripted, for
+        # the host to validate, and nothing scripted is no answer.
+        said = await self._script.said(ask.prompt, ask.schema)
+        return "" if said is None else said
 
     def show(
         self, context: tuple[dict[str, Any], ...], session: str, role: str

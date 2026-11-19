@@ -449,7 +449,10 @@ pydantic model, so its validators are tested the same way.
 
 `FakeOutworlder(reply)` is somebody at the prompt answering from a script, and `.asked` is
 every prompt put to them. `reply=` takes the same forms as an agent's, except that a function
-is called with the prompt and `output_schema=` only: a person has no session.
+is called with the prompt and `output_schema=` only: a person has no session. Its
+`output_schema` is the JSON Schema asked for, a `dict`, rather than the model, and `None` for
+text; and with nothing scripted a schema is answered as an away person answers it: with its
+defaults, or `OutworlderAway` where a field has none.
 `FakeOutworlder(away=True)` is nobody there, and so is leaving it out.
 
 ::: details The flow under test: `.hmz/flows/talk/__init__.py`, from [The person as an agent](/weaver/human-agent)
