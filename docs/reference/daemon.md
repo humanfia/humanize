@@ -671,7 +671,7 @@ SDK page; transport behaviour:
 
 | Aspect | Through the daemon (`reached`) | In process (`linked`) |
 | --- | --- | --- |
-| Made by | `Daemon.link(name="", kind="sdk", *, replay=True)`, `hmz.daemon.reached(at, workspace, name="", kind="sdk", *, replay=True)` | `hmz.daemon.linked(host, name="", kind="tui", *, replay=True)` |
+| Made by | `Daemon.link(name="", kind="sdk", *, replay=True)`, `hmz.daemon.link.reached(at, workspace, name="", kind="sdk", *, replay=True, slot="")` | `hmz.daemon.linked(host, name="", kind="tui", *, replay=True)` |
 | Attach failure | `OSError` (nothing listening; `session.hello` or `epic.attach` refused or not answered within 10 s) | `RuntimeError("this host has closed")` |
 | Requests | `epic.<do>` with its `sub`, writes with an `idem` of their own; `seconds` honoured: `TimeoutError("no answer to '<do>' in <s>s")`, the call then cancelled | Run synchronously; `seconds` ignored |
 | Refusal | `Refused(why)` | `Refused(why)` |
@@ -707,10 +707,15 @@ def older(daemon: Daemon) -> str: ...
 class Older(RuntimeError): ...                      # the runs are held by an older Humanize
 def attach(kind: str, name: str = "", *, workspace=None, slot: str = "") -> Link: ...
 def linked(host: Host, name: str = "", kind: str = "tui", *, replay: bool = True) -> Link: ...
+Hmz, Host, Refused                                  # hmz.runtime's, fetched on access
+```
+
+Two more ways to a `Link` are not names of `hmz.daemon`; they are `hmz.daemon.link`'s:
+
+```python
 def reached(at: Path, workspace: str, name: str = "", kind: str = "sdk", *,
             replay: bool = True, slot: str = "") -> Link: ...
 def remote(remotes: Remotes, daemon: str, workspace: str, slot: str = "") -> Link: ...
-Hmz, Host, Refused                                  # hmz.runtime's, fetched on access
 ```
 
 `hmz.daemon.link.remote` reaches the runs of a workspace on another machine through that
