@@ -551,7 +551,8 @@ def test_a_nous_skipped_past_a_timeout_fails_with_the_fault_before_it() -> None:
     )
     nous.put(Nous("v", tries=3, policy="constant", timeout=15, graph=inner))
     _skipped_past_fifteen_seconds()
-    pool = Node("c", balance="round-robin", among=(("claude/c", 1), ("claude/d", 1)))
+    late = "claude/never-begun"
+    pool = Node("c", balance="round-robin", among=((late, 1), ("claude/d", 1)))
     nous.put(
         Nous(
             "v",
@@ -562,6 +563,10 @@ def test_a_nous_skipped_past_a_timeout_fails_with_the_fault_before_it() -> None:
         )
     )
     _skipped_past_fifteen_seconds()
+    # A member that was never begun was not rate-limited: it is still the first one picked.
+    among = ((late, 1), ("claude/e", 1))
+    nous.put(Nous("next", graph=Graph("n", (Node("n", balance="cost", among=among),))))
+    assert _walked("next", {}) == [late]
 
 
 def _skipped_past_fifteen_seconds() -> None:
@@ -575,9 +580,7 @@ def _skipped_past_fifteen_seconds() -> None:
     step = walk.next()
     while isinstance(step, Run):
         steps.append(step.nous)
-        clock.now += (
-            10  # every turn takes ten seconds, so the third is past v's fifteen
-        )
+        clock.now += 10  # ten seconds a turn, so the third is past v's fifteen
         step = walk.next("throttled")
     # claude/c is never begun, and v fails `throttled` as its last turn did: p's edge is taken.
     assert step is None
