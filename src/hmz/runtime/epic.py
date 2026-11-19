@@ -108,6 +108,7 @@ __all__ = [
     "Session",
     "Sub",
     "Uncarried",
+    "adopted",
     "called",
     "chats",
     "ending",
@@ -380,6 +381,8 @@ class Ran(NamedTuple):
       archived: Whether a chat was last set archived.
       workdir: Where a chat's assistant works, where that is not its workspace, or "".
       forked: The chat a chat was forked from, by its name, or "".
+      adopted: The session of a harness's own a chat was made from, as `<harness>:<id>`, or
+        "".
       updated: When its record was last written.
     """
 
@@ -413,6 +416,7 @@ class Ran(NamedTuple):
     archived: bool = False
     workdir: str = ""
     forked: str = ""
+    adopted: str = ""
     updated: str = ""
 
     @property
@@ -1387,6 +1391,75 @@ def forked(chat: Path) -> Path:
     return at
 
 
+def adopted(
+    workspace: Path,
+    agent: Drove,
+    session: str,
+    files: Mapping[str, Path],
+    *,
+    title: str = "",
+) -> Path:
+    """A new chat that goes on from a copy of a session a harness had of its own.
+
+    The session's files are copied into the chat's directory, laid out as its CLI lays out
+    its home, and the chat's record says it began as that session stands, opened it, and
+    rests: carried on, it goes on from the copy, and the files copied are as they were.
+
+    Args:
+      workspace: The workspace the chat is of.
+      agent: The chat's assistant, of the harness whose session it is.
+      session: The session, by the id its harness gave it.
+      files: Every file of the session, by where it is under its CLI's home.
+      title: What the chat is titled by: the first line the session was told.
+
+    Returns:
+      The new chat's directory.
+
+    Raises:
+      ValueError: Where a file of the session cannot be copied.
+    """
+    at = (
+        home()
+        / "chats"
+        / _PLAIN.sub("-", str(workspace.resolve()))
+        / f"{_stamp()}-{uuid.uuid4().hex[:6]}"
+    )
+    kept = at / SESSIONS / agent.backend
+    try:
+        for under, source in files.items():
+            (kept / under).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, kept / under)
+    except OSError as why:
+        shutil.rmtree(at, ignore_errors=True)
+        raise ValueError(f"{session} cannot be continued: {why}") from why
+    lines: list[dict[str, Any]] = [
+        {
+            "event": "began",
+            "at": _now(),
+            "task": title,
+            "workspace": str(workspace.resolve()),
+            "agents": [agent._asdict()],
+            "title": title,
+            "adopted": f"{agent.backend}:{session}",
+        },
+        {
+            "event": "opened",
+            "at": _now(),
+            "agent": agent.name,
+            "backend": agent.backend,
+            "provider": agent.provider or LOCAL,
+            "session": session,
+            "name": called(agent.name, agent.backend, agent.provider, session),
+            "where": f"{SESSIONS}/{agent.backend}",
+        },
+        {"event": "ended", "at": _now(), "how": "stopped"},
+    ]
+    (at / CHATTED).write_text(
+        "".join(json.dumps(one) + "\n" for one in lines), encoding="utf-8"
+    )
+    return at
+
+
 def epics(workspace: Path | str | None = None) -> list[Path]:
     """The epics run in one workspace, oldest first.
 
@@ -1732,6 +1805,7 @@ def read(epic: Path) -> Ran | None:
         ),
         workdir=str(began.get("workdir") or ""),
         forked=str(began.get("forked") or ""),
+        adopted=str(began.get("adopted") or ""),
         updated=str(events[-1].get("at") or ""),
     )
 

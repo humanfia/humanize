@@ -44,6 +44,7 @@ def held(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
 class _Settings:
     flow, ai_chan, details, enable_sentry = "ralph", "", False, None
+    harness_sessions = False
 
     def __init__(self) -> None:
         self.forgot = False
@@ -127,6 +128,7 @@ def test_listeners_and_a_credential_sent_back_as_true_are_written(
         ({"ice_servers": [{"urls": "http://x"}]}, "ice_servers is a list of"),
         ({"ice_servers": [{"urls": "turn:new", "credential": True}]}, "Type the"),
         ({"details": "yes"}, "details is true or false."),
+        ({"harness_sessions": 1}, "harness_sessions is true or false."),
         ({"chat": "opus"}, "chat is an agent as -a spells one: "),
         ({"prefer": "both"}, "prefer is native or flow."),
     ],
@@ -143,6 +145,17 @@ def test_a_value_refused_writes_nothing(
     assert (refused.value.code, refused.value.message.startswith(why)) == (400, True)
     assert json.dumps(held) == before
     assert hmz.settings.details is False
+
+
+def test_listing_harness_sessions_is_off_until_it_is_set(held: dict[str, Any]) -> None:
+    del held
+    hmz = _hmz()
+    assert settings.read(hmz)["harness_sessions"] is False
+
+    assert settings.write(hmz, {"harness_sessions": True})["harness_sessions"] is True
+
+    assert hmz.settings.harness_sessions is True
+    assert settings.write(hmz, {"details": True})["harness_sessions"] is True
 
 
 def test_forgetting_says_whether_there_was_anything(held: dict[str, Any]) -> None:

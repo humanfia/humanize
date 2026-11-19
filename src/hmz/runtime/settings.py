@@ -161,6 +161,20 @@ class Settings:
         """Writes down whether `/epics` lists the epics of this whole machine."""
         self._sets("every_epic", on)
 
+    @property
+    def harness_sessions(self) -> bool:
+        """Whether the interfaces list the sessions each harness had of its own in a workspace.
+
+        This machine's rather than a workspace's, as `details` is (Section 3.4.14 of
+        files.md). Off unless somebody says otherwise: what is listed is what Humanize ran.
+        """
+        return self._held.get("harness_sessions") is True
+
+    @harness_sessions.setter
+    def harness_sessions(self, on: bool) -> None:
+        """Writes down whether the interfaces list each harness's own sessions."""
+        self._sets("harness_sessions", on)
+
     def answers(self, *, enable_sentry: bool) -> None:
         """Writes down whether Humanize reports its own failures.
 

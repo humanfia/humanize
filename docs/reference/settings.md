@@ -49,6 +49,7 @@ enable_sentry: false               # this machine
 details: true                      # this machine
 ai_chan: claude/claude-opus-5:high # this machine
 every_epic: true                   # this machine
+harness_sessions: true             # this machine
 chat:                              # this machine
   prefer: native                   # native or flow: what `$<name>` is in a chat where both
 sandbox:                           # this machine; written by hand
@@ -106,6 +107,7 @@ backup:                            # this machine
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
 | <span id="ai-chan"></span>`ai_chan` | `str`: a nous's name, or `cli[@account]/model:effort` | `""`: no default, `/ai` asks for one | `/settings` › General › **Ai-chan**; web **Settings › General › Ai-chan** | the TUI and the web page, as their forms' default; the daemon, as `aichan.create` is given no `nous` | the next Ai-chan conversation made; one made keeps its nous |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
+| <span id="harness-sessions"></span>`harness_sessions` | `bool` (only `true` is on) | `false`: only what Humanize ran is listed | `/settings` › General › **Harness sessions**; web **Settings › General › Harness sessions**; `settings.set` `harness_sessions` | the web page's sidebar and the TUI's `/resume` in a chat | the web sidebar at once; the TUI the next time `/resume` is typed. It governs what the interfaces list: [`chat.harness.list`](/reference/daemon#harness-sessions) answers either way |
 | <span id="chat-prefer"></span>`chat.prefer` | `str`: `native` or `flow` (any other value reads as `native`) | `native` | `/settings` › General › **Chat prefers for `$`**; `settings.set` `prefer` | every chat, through its host | the next `$` line of every [chat](/user/chat#a-name-that-is-both) that has no preference of its own (`/prefer`, the web's **Skill or flow** menu, `chat.set`), which is kept in that chat's record |
 | `daemons` | list of `{name, id, routes}`: `id` the daemon id pinned, 52 base32 characters, or `""` until it first answers over a trusted route, which pins it; `routes` the routes it is reached by (Section 3.3 of `protocol/wire.md`), in the order they are raced, the first a trusted one (`stdio:ssh://…`, `stdio:local`, `stdio:wsl`) where `id` is `""`. An entry an earlier release wrote, `{via, host, user, port, identity_file, proxy_jump, options, alias}` or `{via: easytier, secret, peers}`, is read as the `stdio:ssh` or `easytier:<name>` route it reached, and written so at the next write, an EasyTier one's secret and nodes moving to `easytier` | `[]`: Local alone | `Remotes.pair` from a pairing code, the terminal interface's [Daemons](/user/settings#daemons) page and its **Import…** | the terminal interface, `hmz exec`, the SDK; never the web page, which keeps [its own](/reference/web#kept) | at once: a daemon added is reached the first time it is asked for, one removed is let go of |
 | `notifications` | `{kinds: {done, failed, stopped, asked, listening}: bool, system: bool}` | every kind told, and shown by the system too; only `false` turns one off | [`/settings notifications`](/reference/tui#notifications-page) | `hmz`; never the web page, which keeps [its own](/reference/web#kept) | immediately: the next notice of a kind is told or not |
@@ -306,6 +308,7 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | General | Details | `details` | switch |
 | General | Ai-chan | `ai_chan` | pick |
 | General | Chat prefers for $ | `chat.prefer` | pick: `native`, `flow` |
+| General | Harness sessions | `harness_sessions` | switch |
 | General | Error reports | `enable_sentry` | switch |
 | General | What is sent | — | shows the lists |
 | Workspace | Default flow | `workspaces.<path>.flow` | read-only |

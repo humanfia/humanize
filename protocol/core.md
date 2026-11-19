@@ -91,6 +91,7 @@ normative. It is cited by the tag [CORE].
   - [8.8. Drawing a chat](#88-drawing-a-chat)
   - [8.9. Native input](#89-native-input)
   - [8.10. Renaming, forking, archiving and deleting](#810-renaming-forking-archiving-and-deleting)
+  - [8.11. Harness sessions](#811-harness-sessions)
 - [9. Side Questions](#9-side-questions)
   - [9.1. Scope](#91-scope)
   - [9.2. Terminology](#92-terminology)
@@ -3357,7 +3358,8 @@ This section defines the chat: a session of its own, apart from every **epic**, 
 **user** talks to one **agent**, one turn at a time, in one conversation, in one **workspace**. It
 states how a chat starts, takes turns, reports its status, runs beside epics and other chats, folds
 away, is carried on and ends, how it is renamed, forked, archived and deleted, what every
-**frontend** draws and refuses for it, and how it takes the input its harness takes natively.
+**frontend** draws and refuses for it, how it takes the input its harness takes natively, and how a
+session a harness had of its own is continued as a chat.
 
 Out of scope:
 
@@ -3693,6 +3695,36 @@ MUST NOT be recoverable through hmz.
 
 **8.10.5** Section 8.10.2 to Section 8.10.4 MUST NOT apply to an Ai-chan conversation, which is
 forgotten as Section 14 states.
+
+### 8.11. Harness sessions
+
+**8.11.1** A harness session is a session a harness had in a workspace that hmz did not run: one
+that harness keeps in its own home, and that no chat and no epic of this machine opened.
+
+**8.11.2** hmz MUST only read a harness session: it MUST NOT write, move or remove any file under a
+harness's own home on account of one.
+
+**8.11.3** A frontend MUST list the harness sessions of a workspace only while the setting
+`harness_sessions` is `true` (Section 3.4.14 of [FILES]). It MUST list them after the chats of that
+workspace, each marked with its harness, MUST draw one with what was said in it, and MUST NOT take
+a message in one.
+
+**8.11.4** Continuing a harness session (`chat.harness.adopt` in Section 4 of [DAEMON]) MUST make a
+new chat of that workspace that goes on from a copy of the session: the new chat MUST hold a copy of
+the session's files, MUST be titled by the first line the user said in the session, or by the
+session's id where its row gives no title, MUST have as its agent the session's harness at the
+model the session last ran on, or the agent of that harness the request names, MUST say which
+session it was made from, and MUST rest until it is carried on, which MUST continue the copy
+(Section 8.7). Continuing MUST NOT change the harness session.
+
+**8.11.5** A session a chat was made from MUST NOT be listed as a harness session while that chat
+exists.
+
+**8.11.6** Continuing MUST be refused, saying why, for a harness whose sessions cannot be carried on
+from a copy, and for a session that does not say the model it ran on where the request names no
+agent.
+
+**8.11.7** An Ai-chan conversation MUST NOT be listed as a harness session.
 
 ## 9. Side Questions
 

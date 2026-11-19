@@ -5,6 +5,9 @@ backed up and deleted here, by its name, off its own record. What is said to a c
 a host -- `chat.start`, `chat.say`, `chat.commands`, `chat.set` and `chat.stop` -- is the
 daemon's own to carry to that host (:mod:`hmz.daemon.methods`).
 
+A session a harness had of its own, which no chat or epic wrote down, is listed, read and
+adopted as a chat by `chat.harness.*` (Section 4.25.8): its harness's files are only read.
+
 Nothing of Ai-chan's is a chat here (Section 4.25.5.6): her conversations are kept as chats
 are, are listed by `aichan.list` alone, and are only read here, by `chat.get`.
 """
@@ -12,6 +15,7 @@ are, are listed by `aichan.list` alone, and are only read here, by `chat.get`.
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hmz.daemon import reach
@@ -22,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping
 
     from hmz.rpc import Call, Handler
+    from hmz.runtime.doing.adopting import Found
     from hmz.runtime.epic import Ran
 
 __all__ = ["CHATS", "METHODS", "detail", "hosted", "listed", "row", "state"]
@@ -115,6 +120,7 @@ def detail(
         "task": ran.task,
         "prefer": ran.prefer,
         "forked": ran.forked,
+        "adopted": ran.adopted,
         "agents": whole["agents"],
         "sessions": whole["sessions"],
         # The sessions it opened before it was last carried on, which are its earlier ones.
@@ -287,6 +293,95 @@ def _delete(call: Call) -> dict[str, Any]:
     return {}
 
 
+def _harnessed(call: Call) -> tuple[Path, list[Found]]:
+    """The workspace a call names, and the sessions each harness had of its own there.
+
+    Those no chat and no epic of this machine opened, last written first (Section 4.25.8.2).
+    """
+    from hmz.runtime.doing import adopting
+
+    said = str(call.params["workspace"])
+    workspaces.place(said, made=True)
+    # As it was said, not resolved: a harness wrote down the path it was run under.
+    workspace = Path(said).expanduser()
+    owned = {
+        (one.backend, one.ident)
+        for held in (runs.RUNS, CHATS)
+        for ran in held.all()
+        for one in ran.sessions
+    }
+    return workspace, adopting.listed(workspace, owned)
+
+
+def _harness_row(one: Found, workspace: Path) -> dict[str, Any]:
+    """One harness session as a harness session row (Section 4.25.8.3 of daemon.md)."""
+    return {
+        "id": one.ident,
+        "harness": one.harness,
+        "title": one.title,
+        "workspace": str(workspace.resolve()),
+        "model": one.model,
+        "began": one.began,
+        "updated": one.updated,
+    }
+
+
+def _harness_named(call: Call) -> tuple[Path, Found]:
+    """The harness session a call names.
+
+    Raises:
+      RpcError: 404 for one no harness has of its own in that workspace.
+    """
+    harness, session = str(call.params["harness"]), str(call.params["session"])
+    workspace, found = _harnessed(call)
+    for one in found:
+        if (one.harness, one.ident) == (harness, session):
+            return workspace, one
+    raise RpcError(
+        Code.NOT_FOUND, f"There is no {harness} session {session} of {workspace}."
+    )
+
+
+def _harness_list(call: Call) -> dict[str, Any]:
+    offset = runs.within(call, "offset", 0, 0)
+    limit = runs.within(call, "limit", 50, 1, runs.PAGE)
+    workspace, found = _harnessed(call)
+    return {
+        "sessions": [
+            _harness_row(one, workspace) for one in found[offset : offset + limit]
+        ],
+        "total": len(found),
+        "offset": offset,
+        "limit": limit,
+    }
+
+
+def _harness_get(call: Call) -> dict[str, Any]:
+    from hmz.runtime.doing import adopting
+
+    workspace, one = _harness_named(call)
+    said = _harness_row(one, workspace)
+    if call.params.get("trace") is True:
+        said["trace"] = adopting.said(one)
+    return said
+
+
+def _harness_adopt(call: Call) -> dict[str, Any]:
+    from hmz.runtime.doing import adopting
+
+    harness = str(call.params["harness"])
+    if harness not in adopting.HARNESSES:
+        raise RpcError(
+            Code.CONFLICT, f"A session of {harness} cannot be continued in a chat."
+        )
+    workspace, one = _harness_named(call)
+    try:
+        at = adopting.adopt(one, workspace, str(call.params.get("agent") or ""))
+    except ValueError as why:
+        raise RpcError(Code.CONFLICT, runs.reason(str(why))) from why
+    return {"chat": at.name}
+
+
 #: The methods of `chat.*` that name a chat as it is written down.
 METHODS: Mapping[str, Handler] = {
     "chat.list": _list,
@@ -297,4 +392,7 @@ METHODS: Mapping[str, Handler] = {
     "chat.unarchive": _archives(archived=False),
     "chat.backup": _backup,
     "chat.delete": _delete,
+    "chat.harness.list": _harness_list,
+    "chat.harness.get": _harness_get,
+    "chat.harness.adopt": _harness_adopt,
 }
