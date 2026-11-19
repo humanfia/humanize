@@ -244,6 +244,14 @@ pub fn inside(directory: &str) -> io::Result<Vec<Bridge>> {
 /// `directory`, and runs the program inside it. Its status; 126 where the bridges could not be
 /// made and the program never ran, 127 where it could not be run.
 pub fn main(directory: &str, argv: &[OsString]) -> i32 {
+    // It goes when bubblewrap does, which goes when the wrapper does. Said again here, though
+    // `--die-with-parent` said it before bubblewrap became this: becoming a program under
+    // another AppArmor profile, as Ubuntu's for `bwrap` makes of it, forgets it was said.
+    // SAFETY: integer arguments only.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0)
+    };
     let bridges = match inside(directory) {
         Ok(bridges) => bridges,
         Err(why) => {
