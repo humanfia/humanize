@@ -4,19 +4,21 @@
 const UNRESERVED = "[A-Za-z0-9._~-]"
 const PCT = '%[0-9A-Fa-f]{2}'
 const SUB = "[!$&'()*+,;=]"
-const HOST = `(?:\\[[0-9A-Fa-f:.vV]+\\]|(?:${UNRESERVED}|${PCT}|${SUB})*)`
+// Section 3.3.4: a host is never empty, and a port is a decimal number from 1 to 65535.
+const HOST = `(?:\\[[0-9A-Fa-f:.vV]+\\]|(?:${UNRESERVED}|${PCT}|${SUB})+)`
+const PORT = '0*(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])'
 const USERINFO = `(?:${UNRESERVED}|${PCT}|${SUB}|:)*`
 const SEGMENT = `(?:${UNRESERVED}|${PCT}|${SUB}|[:@])*`
-const WS_URL = `wss?://${HOST}(?::[0-9]*)?(?:/${SEGMENT})*`
+const WS_URL = `wss?://${HOST}(?::${PORT})?(?:/${SEGMENT})*`
 const SSH_PARAM = `(?:identity=|jump=|option=)(?:${UNRESERVED}|${PCT}|=)+`
 
 /** Each kind of route, as the grammar names it, and the pattern of it. */
 const KINDS = /** @type {const} */ ([
   ['unix', new RegExp(`^unix:(?:/(?:${UNRESERVED}|${PCT}|/)*)?$`)],
   ['stdio:local', /^stdio:local$/],
-  ['stdio:ssh', new RegExp(`^stdio:ssh://(?:${USERINFO}@)?${HOST}(?::[0-9]*)?(?:\\?${SSH_PARAM}(?:&${SSH_PARAM})*)?$`)],
+  ['stdio:ssh', new RegExp(`^stdio:ssh://(?:${USERINFO}@)?${HOST}(?::${PORT})?(?:\\?${SSH_PARAM}(?:&${SSH_PARAM})*)?$`)],
   ['stdio:wsl', new RegExp(`^stdio:wsl(?::(?:${UNRESERVED}|${PCT})+)?$`)],
-  ['tcp', new RegExp(`^tcp://${HOST}:[0-9]*$`)],
+  ['tcp', new RegExp(`^tcp://${HOST}:${PORT}$`)],
   ['ws', new RegExp(`^${WS_URL}$`)],
   ['easytier', /^easytier:[A-Za-z0-9][A-Za-z0-9._-]*$/],
   ['relay', new RegExp(`^relay:${WS_URL}$`)],
