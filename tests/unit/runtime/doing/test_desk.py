@@ -766,6 +766,20 @@ def test_a_search_reads_what_grep_said(host: tuple[Host, Workspace], box: Box) -
     assert box.ran[-1][5:7] == ["E", "i"]
 
 
+def test_a_search_the_tool_cannot_read_is_refused_in_its_words(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    box.answers = _answers(
+        "rg\n", 2, "rg: regex parse error:\n    (\n    ^\nerror: unclosed group\n"
+    )
+    alice, _ = _going(host)
+
+    assert alice.asks("env.search", env=ROOT, query="(", regex=True) == {
+        "ok": False,
+        "why": "error: unclosed group",
+    }
+
+
 def test_a_search_reads_a_path_with_a_colon_from_grep(
     host: tuple[Host, Workspace], box: Box
 ) -> None:
