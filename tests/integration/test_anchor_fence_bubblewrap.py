@@ -8,8 +8,11 @@ port the program listens on is reached from outside it the same way.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import select
+import signal
 import socket
 import subprocess
 import sys
@@ -284,3 +287,50 @@ def test_a_port_the_program_listens_on_is_reached_past_a_cut_network(
     finally:
         held.kill()
         held.wait()
+
+
+@_bwrapped
+@pytest.mark.skipif(sys.platform != "linux", reason="bubblewrap is Linux's")
+def test_a_program_past_a_cut_network_goes_when_its_wrapper_is_killed(
+    tmp_path: Path,
+) -> None:
+    """The relay the program is started beneath is no place for it to outlive the wrapper."""
+    work = tmp_path / "work"
+    work.mkdir()
+    fence = Fence.of(
+        rules=[(".", READ)], online=False, workdir=work, home=tmp_path / "nobody"
+    )
+    # It says its pid, then holds its output open for as long as it lives.
+    stays = "import os, time\nprint(os.getpid(), flush=True)\ntime.sleep(120)\n"
+    held = subprocess.Popen(
+        [
+            sys.executable,
+            "-Pm",
+            "hmz",
+            "internal",
+            "fence",
+            f"--policy={fence.dumps()}",
+            "--sandbox=bwrap",
+            "--",
+            sys.executable,
+            "-I",
+            "-c",
+            stays,
+        ],
+        cwd=work,
+        env=os.environ,
+        stdout=subprocess.PIPE,
+    )
+    assert held.stdout is not None
+    program = int(held.stdout.readline())
+    try:
+        held.kill()
+        held.wait()
+        # The output ends once nothing that held it is left: the program among them.
+        ended, _, _ = select.select([held.stdout], [], [], 30)
+        assert ended, "the program outlived its wrapper"
+        assert held.stdout.read() == b""
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(program, signal.SIGKILL)
+        held.stdout.close()
