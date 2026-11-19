@@ -180,6 +180,14 @@ pub fn refused(config: &AnchorConfig, harness: &Target, net: &str) -> Result<(),
                 .into(),
         );
     }
+    if harness.scheme != "local" && config.target.scheme == "tcp" {
+        return Err(
+            "a tcp:// target is a serving half somebody else left listening, which Humanize \
+             can start nothing beside; a harness on another machine has no way to be \
+             introduced to it"
+                .into(),
+        );
+    }
     if net != "local" && net != "remote" {
         return Err(format!(
             "unsupported net {}; expected local or remote",
@@ -477,6 +485,16 @@ mod tests {
             },
             "peer:// target",
         );
+        for harness in ["ssh://box", "same"] {
+            refuses(
+                AnchorConfig {
+                    harness: harness.into(),
+                    target: target("tcp", "h:1", None),
+                    ..config()
+                },
+                "tcp:// target",
+            );
+        }
         let said = check(&config(), "both").unwrap_err();
         assert_eq!(said, "unsupported net 'both'; expected local or remote");
         for (named, instead) in [("/a", "b"), ("a", "/b"), ("/only-half", "")] {

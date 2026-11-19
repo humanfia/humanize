@@ -574,6 +574,26 @@ class Asked:
         return b"", b""
 
 
+async def test_a_harness_runtime_for_work_on_a_tcp_target_is_refused_as_it_is_settled(
+    coganchor: type[CLI],
+) -> None:
+    listening = AnchoredConfig(
+        anchor=AnchorConfig(target="tcp://node7:40123", workspace="/w", token="s3cret")
+    )
+    harbors: Any = Runtime()
+
+    with pytest.raises(HarnessUnrecoverable) as refused:
+        await open_agent(_spec(), harbors).open(
+            _on(listening), permission=Permission(), skills=(), hooks=HookTable()
+        )
+
+    said = str(refused.value)
+    assert said.startswith(
+        "ssh@[box]: claude's harness cannot run where its harness setting (docker:gpu) says: "
+    )
+    assert "a tcp:// target is a serving half somebody else left listening" in said
+
+
 @pytest.fixture
 def answering(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every machine asked whether it has the CLI says it has, and is not started."""
