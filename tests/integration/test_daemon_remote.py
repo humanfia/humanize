@@ -341,3 +341,25 @@ def test_a_daemon_over_easytier_is_paired_reached_again_and_its_easytier_reaped(
     assert all(_gone(pid) for pid in joined)
     assert remotes.state("far")["state"] == "idle"
     assert all(_SECRET not in " ".join(argv) for argv, _ in network.told())
+
+
+def test_a_connect_over_stdio_that_is_interrupted_exits_without_a_traceback(
+    served: _Served,
+) -> None:
+    connected = subprocess.Popen(
+        [sys.executable, "-m", "hmz", "daemon", "connect", "--stdio"],
+        env=served.env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        assert connected.stdout is not None
+        assert connected.stdout.readline() == b"hmz-stdio/1\n"
+        # As the desktop app stops the process of every pipe it closes.
+        connected.send_signal(signal.SIGINT)
+        _, said = connected.communicate(timeout=PATIENCE)
+    finally:
+        connected.kill()
+        connected.wait(10)
+    assert (connected.returncode, said) == (128 + signal.SIGINT, b"")
