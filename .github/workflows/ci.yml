@@ -76,20 +76,24 @@ jobs:
               - src/hmz/runtime/**
               - src/hmz/flows/**
               - src/hmz/coganchor/**
-            unit-cli: [*shared, src/hmz/cli/**, tests/unit/cli/**]
-            unit-coganchor: [*shared, src/hmz/coganchor/**, tests/unit/coganchor/**]
-            unit-daemon: [*shared, src/hmz/daemon/**, tests/unit/daemon/**]
-            unit-flows: [*shared, src/hmz/flows/**, tests/unit/flows/**]
-            unit-runtime: [*shared, src/hmz/runtime/**, tests/unit/runtime/**]
-            unit-sdk: [*shared, src/hmz/sdk/**, tests/unit/sdk/**]
-            unit-tui: [*shared, src/hmz/tui/**, tests/unit/tui/**]
-            unit-web: [*shared, src/hmz/web/**, tests/unit/web/**]
+            # tests/unit/conftest.py is under every unit test, and under no other.
+            unit: &unit
+              - *shared
+              - tests/unit/conftest.py
+            unit-cli: [*unit, src/hmz/cli/**, tests/unit/cli/**]
+            unit-coganchor: [*unit, src/hmz/coganchor/**, tests/unit/coganchor/**]
+            unit-daemon: [*unit, src/hmz/daemon/**, tests/unit/daemon/**]
+            unit-flows: [*unit, src/hmz/flows/**, tests/unit/flows/**]
+            unit-runtime: [*unit, src/hmz/runtime/**, tests/unit/runtime/**]
+            unit-sdk: [*unit, src/hmz/sdk/**, tests/unit/sdk/**]
+            unit-tui: [*unit, src/hmz/tui/**, tests/unit/tui/**]
+            unit-web: [*unit, src/hmz/web/**, tests/unit/web/**]
             # The RPC package holds protocol/openrpc.json to the protocol's text.
-            unit-rpc: [*shared, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
-            unit-trust: [*shared, src/hmz/trust/**, tests/unit/trust/**]
-            unit-reach: [*shared, src/hmz/reach/**, tests/unit/reach/**]
-            unit-relay: [*shared, src/hmz/relay/**, tests/unit/relay/**]
-            unit-rtc: [*shared, src/hmz/rtc/**, tests/unit/rtc/**]
+            unit-rpc: [*unit, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
+            unit-trust: [*unit, src/hmz/trust/**, tests/unit/trust/**]
+            unit-reach: [*unit, src/hmz/reach/**, tests/unit/reach/**]
+            unit-relay: [*unit, src/hmz/relay/**, tests/unit/relay/**]
+            unit-rtc: [*unit, src/hmz/rtc/**, tests/unit/rtc/**]
             integration-agents:
               - *shared
               - *kernel

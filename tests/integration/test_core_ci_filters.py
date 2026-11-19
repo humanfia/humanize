@@ -5,6 +5,8 @@ touch for `tests/integration/test_<topic>_*.py` to run. Read here against what t
 import, with `ast`: the `hmz` packages they name, the doubles beside them, and what those
 doubles import in turn. A path a filter leaves out is a change that merges with the topic's
 tests never run on it.
+
+A unit package's filter is read the same way against the `conftest.py` files above it.
 """
 
 from __future__ import annotations
@@ -114,3 +116,20 @@ def test_a_topic_runs_when_what_its_tests_import_changed(topic: str) -> None:
     )
 
     assert not skipped, f"a change to {skipped} would not run the {topic} topic"
+
+
+@pytest.mark.parametrize(
+    "package",
+    # The directories that hold tests: a run leaves a `__pycache__` beside them.
+    sorted({p.parent.name for p in (ROOT / "tests/unit").glob("*/test_*.py")}),
+)
+def test_a_package_runs_when_what_every_unit_test_starts_from_changed(
+    package: str,
+) -> None:
+    filters = _filters()[f"unit-{package}"]
+    # pytest loads both for every package: their fixtures are under every unit test.
+    runs = ["tests/conftest.py", "tests/unit/conftest.py"]
+
+    skipped = [path for path in runs if not any(f.fullmatch(path) for f in filters)]
+
+    assert not skipped, f"a change to {skipped} would not run tests/unit/{package}"
