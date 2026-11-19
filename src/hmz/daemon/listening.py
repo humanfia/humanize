@@ -55,6 +55,9 @@ def spec(text: str) -> Route:
     route names (Section 3.3.4 of wire.md), and the route of the listener is the port taken.
     So a `tcp` or `ws` spec of port `0` is read as a route of another port, and then given `0`.
 
+    A `ws` spec is `ws://<address>:<port>` alone: a daemon serves no `wss`, takes a port only
+    as it is told one, and answers at no path.
+
     Raises:
       ValueError: `<spec> is not a listener.`
     """
@@ -69,11 +72,23 @@ def spec(text: str) -> Route:
         route = Route.parse(read)
     except ValueError:
         route = None
-    if route is None or route.kind not in _KINDS:
+    if (
+        route is None
+        or route.kind not in _KINDS
+        or (route.kind == "ws" and not _plain(route.url))
+    ):
         raise ValueError(f"{text} is not a listener.")
     if anywhere:
         route = dataclasses.replace(route, port=0, url=text if route.url else "")
     return route
+
+
+def _plain(url: str) -> bool:
+    """Whether a WebSocket URL is `ws://<address>:<port>` and no more: the one a daemon serves."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    return url == f"ws://{parts.netloc}" and parts.port is not None
 
 
 class Listener:
