@@ -880,7 +880,7 @@ function daemonBar() {
   const host = h('span', { class: 'side-host', 'data-hmz': 'daemon-host' }, '')
   const dot = h('span', { 'aria-hidden': 'true' })
   const state = h('span', { class: 'side-state', 'data-hmz': 'state' }, dot, '')
-  const say = (el, text) => el.lastChild.data === text || (el.lastChild.data = text)
+  const say = (el, text) => el.lastChild.nodeValue === text || (el.lastChild.nodeValue = text)
   const badge = h('span', { class: 'side-badge', 'data-hmz': 'newer', hidden: true }, '↑')
   const el = h(
     'button',
