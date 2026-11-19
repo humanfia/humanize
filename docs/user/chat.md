@@ -109,7 +109,7 @@ your checkout:
 hmz chat --worktree -a claude/claude-opus-5:high "Try the other parser."
 ```
 
-From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
+In `hmz web` it is the **Worktree** box under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
 a new worktree of the repository holding the directory, detached at its `HEAD` and on no
 branch, under [`envs/`](/reference/files#environments) in Humanize's home, and the agent works
 there in place of the directory. The chat is still a chat of the directory it was started in:
@@ -295,9 +295,9 @@ talking in it, a chat can be:
 | backed up now | `chat.backup` | uploads it to its [backup targets](/user/backups), as an epic is backed up: **Upload** in a chat's menu in `hmz web` |
 | deleted | `chat.delete` | removes its record and the sessions kept with it, for good: Humanize cannot bring it back. Refused while the chat is going -- a host holds it, between turns included -- so delete it once it has folded away. No epic and no [worktree](#worktree) is removed |
 
-Renaming, forking, archiving and deleting are methods of the daemon only, for now: `hmz` and
-`hmz web` have no command or button for them yet. Call one from a program, as any
-[method of the daemon](/reference/daemon) is called.
+In `hmz web` each is in the chat's menu, and the archived chats of a directory are listed in
+its settings: see [Managing a chat](/user/web#managing-a-chat). `hmz` has no command for them
+yet: call one from a program, as any [method of the daemon](/reference/daemon) is called.
 
 ## Where a chat is kept {#where-a-chat-is-kept}
 

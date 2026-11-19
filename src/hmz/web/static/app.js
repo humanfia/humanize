@@ -30,6 +30,7 @@ const DIALOGS = {
   search: () => import('./views/search.js'),
   download: () => import('./views/download.js'),
   settings: () => import('./views/settings.js'),
+  delete: () => import('./views/chatdelete.js'),
 }
 
 // The strip kept across its top for the window's traffic lights moves the window, as a title bar.
@@ -121,6 +122,11 @@ export function renamed(path) {
   behind = path
   // The sidebar marks the row the address names, as it does where the address changes.
   window.dispatchEvent(new CustomEvent('hmz:renamed'))
+}
+
+/** The address of the view drawn under whatever dialog is open. */
+export function under() {
+  return behind
 }
 
 /** Whether the address names a dialog, over the view drawn: what that view does is not to say. */

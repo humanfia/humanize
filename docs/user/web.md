@@ -108,8 +108,8 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 
 **Right-click** anything for what can be done to it: a folder in the sidebar (new chat here, new epic here, its
 flows, search it, copy its path, settings), an epic (open, pin, mark as unread, its Exomyth, resume, a new
-epic like it, copy its link, task or name, export, upload, stop), a chat (open, pin, mark as unread, a new chat
-like it, copy its link, first message or ID, upload), an agent or a session, a node on the graph, a flow or flowverse card, a search
+epic like it, copy its link, task or name, export, upload, stop), a chat (open, pin, mark as unread, rename, a new chat
+like it, fork, copy its link, first message or ID, upload, archive, delete -- see [Managing a chat](#managing-a-chat)), an agent or a session, a node on the graph, a flow or flowverse card, a search
 result, a line of a thread (copy it, or the whole thread). Only text to read or write -- a thread,
 a task, a path, an error -- is selected as on a web page, and keeps the browser's own menu; the
 page's buttons, tabs, labels and headings are not. What a menu sends off -- stopping or uploading an
@@ -228,7 +228,8 @@ flows** `$` and **Run a shell command** `!` -- and what it offers as you type is
 **Skills** (the CLI's own), **Humanize** (the names Humanize keeps), **Flows**, and for `@`
 **Files** (the folder's paths) and **Mentions** (what else the CLI takes after `@`).
 
-A chat reads as a chat app's session. Its bar holds its title and, right after it, one
+A chat reads as a chat app's session. Its bar holds its title -- a button: press it to
+[rename the chat](#managing-a-chat) where it stands -- and, right after it, one
 **More options** menu (`⋯`); at the far right, a button each for **Details**, **Terminal**,
 **Changes** and **Files**, then **View options**. Each button opens its pane beside the
 conversation and shuts it again -- the bar runs over the pane too, so the button stays where
@@ -242,7 +243,8 @@ something to say: who **is responding** while a turn is open, that it is waiting
 that it failed. While a turn is open the button that sends is **Stop**: it stops that turn, and
 the chat stays, waiting for your next line; what you type and send with <kbd>Enter</kbd>
 meanwhile is still delivered to that turn. The menu holds what a right click on the chat offers
--- a new chat like it, copying its link, **Upload** -- with **Environment** while a host
+-- **Rename**, a new chat like it, **Fork**, copying its link, **Upload**, **Archive** and
+**Delete** -- with **Environment** while a host
 holds it, and **Skill or flow**: whether a `$` name that is both a skill and a flow uses the
 skill or starts the flow, with a mark on the one in force and whether that comes from the
 settings or from this chat. Picking the other sets this chat's own
@@ -250,8 +252,22 @@ settings or from this chat. Picking the other sets this chat's own
 
 The pane beside a chat has **Details** in place of **Epic** -- its usage, its first
 message, where it works, and under **About this chat** its ID, where it is saved, its
+folder, **Works in** where it works in [a worktree](/user/chat#worktree) rather than in its
 folder, when it started, its model, options, limits and sessions -- and **Side questions**
 in place of **Aside**, which works the same.
+
+#### Managing a chat {#managing-a-chat}
+
+What a chat can be besides talked in -- [renamed, forked, archived and
+deleted](/user/chat#managing) -- is in its menu: **More options** on its row in the sidebar or
+a right click on it, and the `⋯` menu of its bar.
+
+| | What it does |
+| --- | --- |
+| **Rename** | Turns the title into a field, where it stands: on the chat's bar -- pressing the title there does the same -- or in its row of the sidebar. <kbd>Enter</kbd>, or clicking away, saves it; <kbd>Esc</kbd> leaves it as it was. The bar and the row both follow |
+| **Fork** | Makes a new chat from a copy of the conversation so far and opens it; it rests until you say something in it. Refused while a turn is open, in the daemon's own words |
+| **Archive** | Takes the chat off the sidebar and out of Search, and changes nothing else of it. Still open, or opened again by its address, it reads as before, with **Unarchive** on its bar and in its menu. The archived chats of a directory are listed in [Settings](#settings) under **Workspace**, each with **Unarchive** and **Delete** |
+| **Delete** | Asks first, in a dialog: deleting permanently removes the chat's record and the sessions kept with it, cannot be undone, and leaves a worktree the chat worked in on disk. **Cancel**, <kbd>Esc</kbd> or **Delete**. A chat still going -- a host holds it, between turns included -- is refused, in the daemon's own words: delete it once it has folded away. Deleted from its own view, the page opens a new chat |
 
 The next chip under the box names what the chat's agent may touch -- **Read only**, **Edit
 this folder** or **Full access** -- and opens a menu of the three, the one in force checked.
@@ -356,7 +372,9 @@ one for its whole path -- **Open folder…**, or **No folder**.
 
 A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from the folder chip; the
 model, from the chip under the box at its right; and type the first
-message. <kbd>Enter</kbd> starts the chat, and the page goes to its conversation. There is no
+message. Tick **Worktree**, after the folder chip, to start it in [a git worktree of its
+own](/user/chat#worktree): it cannot be ticked with **No folder**, nor in a directory that is in
+no git repository, and says which where you point at it. <kbd>Enter</kbd> starts the chat, and the page goes to its conversation. There is no
 flow, budget or params to set. **+** in the box offers **Add files**, which types `@` and
 completes the folder's files -- with **No folder** picked there are none to name, and it says
 **Pick a folder first**; what else a line can start with is offered [under a
@@ -457,7 +475,7 @@ daemon:
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
-| **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
+| **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there; and under **Archived chats**, the chats of that directory that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
 | **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |

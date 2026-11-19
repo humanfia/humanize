@@ -441,8 +441,14 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         assert _box(page, "[data-hmz=inspector]")["y"] == 45
         page.mouse.click(before["x"] + 14, before["y"] + 14)
         expect(panel).to_be_hidden()
-        # The title is a button that opens the same.
+        # The title is a button that renames the chat where it stands, and opens no pane.
         bar.locator("[data-hmz=chat-title]").click()
+        renaming = bar.locator("[data-hmz=title-edit]")
+        expect(renaming).to_have_value("hello there")
+        renaming.press("Escape")
+        expect(renaming).to_have_count(0)
+        expect(panel).to_be_hidden()
+        details.click()
         expect(panel).to_be_visible()
         expect(details).to_have_attribute("aria-pressed", "true")
         # The pane is picked on the bar: it is headed by its name, with no tabs of its own.

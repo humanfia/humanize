@@ -226,6 +226,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
 | `#/settings/<page>[?daemon=&days=]` | A dialog: `themes`, `daemons` or `notifications`, the page's own; or `general`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`, of the daemon `daemon` names (the one shown without it); `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
+| `#/delete/<id>[?daemon=]` | A dialog asking before a chat is deleted: `Cancel` or `Delete`. Of the daemon `daemon` names (the one shown without it). |
 
 Every address above is of one daemon. `#/@<name>/<view>` -- `#/@local/new`, `#/@gpu/epics/<name>`
 -- is that view of the daemon named; an address naming none is Local's. The page shows only the
