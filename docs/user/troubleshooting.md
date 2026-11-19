@@ -508,7 +508,7 @@ again.
 
 **Verify.** `hmz` opens.
 
-### `hmz: fell too far behind; open it again` {#hmz-too-far-behind-attach-again}
+### `hmz: too far behind; attach again` {#hmz-too-far-behind-attach-again}
 
 **Symptom.** The interface closed with this.
 
@@ -712,7 +712,7 @@ models to ask the CLI what this account runs now. Then choose one of those.
 
 **Verify.** The model is in the list **Check again** brings back, and the next turn goes through.
 
-### `(retired: the model is gone or was never this account's; another place is what answers it)`
+### `(retired: the model is gone or was never this account's; another nous is what answers it)`
 
 **Symptom.** A turn fails with this bracket, and goes straight to the next nous.
 
@@ -1084,29 +1084,20 @@ container made one of these first, or a link stands in its place.
 **Verify.** The turn starts, and `docker exec <container> ls -ld /tmp/humanize-<UID>` shows a
 `drwx------` directory owned by that UID.
 
-### `Humanize intercepts syscalls with a Linux seccomp filter and a ptrace supervisor, and this host is 'darwin'. …`
+### `hmz: a mirrored session needs Linux on x86-64 or aarch64`
 
-**Symptom.** An agent whose work lands elsewhere will not start on a Mac.
-
-**Cause.** An agent supervised here while its work lands elsewhere can only run on Linux.
-
-**Fix.** Run Humanize inside a Linux virtual machine: Docker Desktop, colima and lima each give
-you one, on Intel and Apple silicon alike. The Mac can still be a target for an agent running
-somewhere else.
-
-**Verify.** The same line, run in the Linux machine, starts the agent.
-
-### `Humanize has a register map for aarch64, x86_64; this host reports 'riscv64', …`
-
-**Symptom.** An agent whose work lands elsewhere will not start on this machine.
+**Symptom.** An agent whose work lands elsewhere will not start on a Mac, or on a Linux machine
+of another architecture.
 
 **Cause.** An agent supervised here while its work lands elsewhere must run on an x86-64 or
 aarch64 Linux machine.
 
-**Fix.** Run it from one of those. The target can be Linux or macOS on either architecture, this
+**Fix.** On a Mac, run Humanize inside a Linux virtual machine: Docker Desktop, colima and lima
+each give you one, on Intel and Apple silicon alike. On another architecture, run it from an
+x86-64 or aarch64 Linux machine. The target can be Linux or macOS on either architecture, this
 machine included.
 
-**Verify.** The agent starts.
+**Verify.** The same line, run in the Linux machine, starts the agent.
 
 ### `the target speaks protocol …, this Humanize speaks …`
 
