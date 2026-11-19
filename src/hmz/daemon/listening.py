@@ -112,14 +112,30 @@ class Listener:
         self._identity = identity
         self._opened = opened
         self._closed = threading.Event()
+        self._settled = threading.Event()
         self._held: list[Callable[[], object]] = []
         self._lock = threading.Lock()
         threading.Thread(target=self._keeps, daemon=True, name="hmz-listen").start()
+
+    def settled(self, timeout: float | None = None) -> bool:
+        """Waits until it has a route, could not be opened once, or is closed.
+
+        It opens on a thread of its own, so whoever reads `route` the moment it was made
+        would find none where one is a moment away.
+
+        Args:
+          timeout: How many seconds to wait at most, forever where None.
+
+        Returns:
+          Whether it has.
+        """
+        return self._settled.wait(timeout)
 
     def close(self) -> None:
         """Stops listening, and stops whatever it started."""
         with self._lock:
             self._closed.set()
+            self._settled.set()
             held, self._held = self._held, []
         for one in held:
             with contextlib.suppress(Exception):
@@ -152,6 +168,8 @@ class Listener:
                         one()
             else:
                 return
+            finally:
+                self._settled.set()
             self._closed.wait(backoff.next())
 
     def _opens(self, route: Route) -> None:
@@ -166,6 +184,7 @@ class Listener:
 
     def _says(self, route: str) -> None:
         self.route = route
+        self._settled.set()
         self._opened(route)
 
     def _tcp(self, host: str, port: int, route: Route) -> None:

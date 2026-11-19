@@ -220,7 +220,8 @@ the socket; the setting's are opened and closed as it changes.
 | `easytier:<name>` | The EasyTier entry of that name joined, its virtual address `10.144.144.1` reaching port 41817 of the loopback. |
 
 A listener's route -- `0.0.0.0` named by this machine's host name, port `0` by the port taken --
-is what `pair.create` puts in a code. A `relay:` and a `webrtc:` listener of one relay share
+is what `pair.create` puts in a code; one still being opened, as the daemon has just started, is
+waited for up to 5 s. A `relay:` and a `webrtc:` listener of one relay share
 one registration there, which takes both kinds of join. One that cannot be opened is written to
 `daemon.log` and tried again after 1 s, doubling to 60 s.
 
