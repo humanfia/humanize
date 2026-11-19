@@ -360,6 +360,12 @@
   background: var(--hover);
 }
 
+/* The one being dragged along the strip. */
+.files-tab.dragging {
+  opacity: 0.6;
+  cursor: grabbing;
+}
+
 .files-tab.active {
   background: var(--surface);
   color: var(--ink);

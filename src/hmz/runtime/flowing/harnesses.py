@@ -785,12 +785,14 @@ class HarnessDriver:
             return machine  # a runtime that is this machine, which is `local`
         # No mirror of this machine's named for it: a harness elsewhere keeps its own, under
         # that machine's cache, between turns.
-        put = dataclasses.replace(
-            machine,
-            anchor=dataclasses.replace(
+        try:
+            anchor = dataclasses.replace(
                 machine.anchor, harness=there.anchor.target, shadow=None
-            ),
-        )
+            )
+        except ValueError as refused:
+            # Work that no harness on another machine can be introduced to.
+            raise HarnessUnrecoverable(f"{self._spec}: {refused}") from refused
+        put = dataclasses.replace(machine, anchor=anchor)
         # Built and let go: a fence is drawn around this machine's paths, and a role held to
         # one cannot have its harness on a machine of its own.
         self._made_as(dataclasses.replace(config, machine=put))
