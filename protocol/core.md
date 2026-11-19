@@ -3705,7 +3705,8 @@ that harness keeps in its own home, and that no chat and no epic of this machine
 
 **8.11.2** hmz MUST only read a harness session: it MUST NOT write, move or remove any file under a
 harness's own home on account of one, and MUST open a database a harness keeps its sessions in
-read-only.
+read-only. What a read-only reader of such a database marks in the shared-memory file beside it
+while it reads (the `-shm` of a database in write-ahead mode) is no such write.
 
 **8.11.3** A frontend MUST list the harness sessions of a workspace only while the setting
 `harness_sessions` is `true` (Section 3.4.14 of [FILES]). It MUST list them after the chats of that
