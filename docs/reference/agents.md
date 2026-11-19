@@ -1435,7 +1435,7 @@ Each fault adjusts a concrete nous's retries (`nous.ANSWERS`):
 | `retired` | none | — | no | the model is gone or was never this account's; another nous is what answers it |
 | `contended` | 3 | constant | no | two turns of it are sharing one database |
 | `dropped` | 1 | the nous's | yes | |
-| `fenced` | none | — | no | the run's network fence keeps it off that host, which no sign-in answers; give the role online of ALL to let it through |
+| `fenced` | none | — | no | the run's network fence keeps it off that host, which no sign-in answers; give the role network=True to let it through |
 | `killed` | 1 | constant | yes | the machine it runs on may be out of memory |
 | `missing` | none | — | no | |
 | `sandboxed` | none | — | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |

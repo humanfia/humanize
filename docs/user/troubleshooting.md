@@ -658,7 +658,7 @@ another machine, sign its CLI in there instead.
 
 **Verify.** The CLI answers when you run it yourself, and the next turn goes through.
 
-### `(fenced: the run's network fence keeps it off that host, which no sign-in answers; give the role online of ALL to let it through)`
+### `(fenced: the run's network fence keeps it off that host, which no sign-in answers; give the role network=True to let it through)`
 
 **Symptom.** A turn fails with this bracket, after the CLI said
 `hmz: <host>:<port> is not a host this run may reach`, often beside a `403 Forbidden`.
