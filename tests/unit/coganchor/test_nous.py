@@ -540,6 +540,53 @@ def test_a_virtual_nous_is_walked_again_as_its_envelope_says() -> None:
     assert _walked("v", {"kimi/x": "dropped"}) == ["kimi/x", "wait 1", "kimi/x"]
 
 
+def test_a_nous_skipped_past_a_timeout_fails_with_the_fault_before_it() -> None:
+    inner = Graph(
+        "a",
+        (
+            Node("a", use="claude/a", on=(("throttled", "b"),)),
+            Node("b", use="claude/b", on=(("throttled", "c"),)),
+            Node("c", use="claude/c"),
+        ),
+    )
+    nous.put(Nous("v", tries=3, policy="constant", timeout=15, graph=inner))
+    _skipped_past_fifteen_seconds()
+    late = "claude/never-begun"
+    pool = Node("c", balance="round-robin", among=((late, 1), ("claude/d", 1)))
+    nous.put(
+        Nous(
+            "v",
+            tries=3,
+            policy="constant",
+            timeout=15,
+            graph=Graph("a", (*inner.nodes[:2], pool)),
+        )
+    )
+    _skipped_past_fifteen_seconds()
+    # A member that was never begun was not rate-limited: it is still the first one picked.
+    among = ((late, 1), ("claude/e", 1))
+    nous.put(Nous("next", graph=Graph("n", (Node("n", balance="cost", among=among),))))
+    assert _walked("next", {}) == [late]
+
+
+def _skipped_past_fifteen_seconds() -> None:
+    outer = Graph(
+        "x", (Node("x", use="v", on=(("throttled", "y"),)), Node("y", use="codex/o"))
+    )
+    nous.put(Nous("p", graph=outer))
+    clock = _Clock()
+    walk = nous.Walk("p", clock=clock)
+    steps: list[str] = []
+    step = walk.next()
+    while isinstance(step, Run):
+        steps.append(step.nous)
+        clock.now += 10  # ten seconds a turn, so the third is past v's fifteen
+        step = walk.next("throttled")
+    # claude/c is never begun, and v fails `throttled` as its last turn did: p's edge is taken.
+    assert step is None
+    assert steps == ["claude/a", "claude/b", "codex/o"]
+
+
 def test_a_throttled_virtual_nous_waits_at_least_the_throttled_wait() -> None:
     nous.put(Nous("v", tries=1, policy="none", graph=nous.chain(["kimi/x"])))
     assert _walked("v", {"kimi/x": "throttled"}) == ["kimi/x", "wait 30", "kimi/x"]
