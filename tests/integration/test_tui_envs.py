@@ -18,6 +18,7 @@ from tests.integration.doubles_tui import (
     SIZE,
     nothing_installed,
     on,
+    onto,
     opens,
     rows,
     screen,
@@ -324,6 +325,45 @@ async def test_changes_are_grouped_and_one_is_staged_from_the_list(host: Host) -
 
         await until(pilot, lambda: bool(host.called("env.git.stage")), "the stage")
         assert host.called("env.git.stage") == [{"env": "1:coder", "paths": ["b.py"]}]
+
+
+async def test_unstaging_a_staged_rename_names_the_path_it_was_renamed_from_too(
+    host: Host,
+) -> None:
+    host.status["files"] = [
+        {
+            "path": "b.txt",
+            "orig": "a.txt",
+            "index": "R",
+            "worktree": ".",
+            "state": "changed",
+        },
+        {"path": "c.py", "index": "M", "worktree": ".", "state": "changed"},
+    ]
+    app = Humanize(link=_linked(host))
+    async with app.run_test(size=SIZE) as pilot:
+        await typed(pilot, "/env coder")
+        await on(pilot, Changes)
+        await shows(pilot, "Staged Changes (2)", "← a.txt")
+        await onto(pilot, "Staged Changes\x1fb.txt")
+
+        await pilot.press("u")
+
+        await until(pilot, lambda: bool(host.called("env.git.unstage")), "the unstage")
+        assert host.called("env.git.unstage") == [
+            {"env": "1:coder", "paths": ["a.txt", "b.txt"]}
+        ]
+
+        app.screen.query_one("#act-unstage-all").focus()
+        await pilot.press("enter")
+
+        await until(
+            pilot, lambda: len(host.called("env.git.unstage")) == 2, "unstage all"
+        )
+        assert host.called("env.git.unstage")[-1] == {
+            "env": "1:coder",
+            "paths": ["a.txt", "b.txt", "c.py"],
+        }
 
 
 async def test_somebody_s_hand_in_an_environment_is_a_dim_line(host: Host) -> None:
