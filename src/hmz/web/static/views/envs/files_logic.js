@@ -539,6 +539,51 @@ export function moveTab(state, path, before) {
   return { ...state, tabs }
 }
 
+/** How far a pressed tab is moved before it is being dragged, in pixels. */
+export const DRAG = 4
+
+/**
+ * Where a tab let go at `x` goes: the path of the first tab whose middle is past it, to stand
+ * before that one, or null for the end. `boxes` are the tabs' `{path, left, right}`, in order.
+ */
+export function dropBefore(boxes, x) {
+  return boxes.find((box) => x < (box.left + box.right) / 2)?.path ?? null
+}
+
+/**
+ * Lets a tab be dragged along its strip by the pointer, `drop` called with where it was let go,
+ * as `moveTab` takes it. By pointer events and not the browser's drag and drop: a desktop web
+ * view takes every drag over its window for the files dropped on it, and the page hears of none.
+ */
+export function dragTab(tab, drop) {
+  tab.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || event.target.closest('.files-tab-close')) return
+    const from = event.clientX
+    let dragging = false
+    tab.setPointerCapture(event.pointerId)
+    const move = (moving) => {
+      if (!dragging && Math.abs(moving.clientX - from) < DRAG) return
+      dragging = true
+      tab.classList.add('dragging')
+    }
+    const end = (ending) => {
+      tab.removeEventListener('pointermove', move)
+      tab.removeEventListener('pointerup', end)
+      tab.removeEventListener('pointercancel', end)
+      tab.classList.remove('dragging')
+      if (!dragging || ending.type !== 'pointerup') return
+      const boxes = [...tab.parentElement.children].map((one) => {
+        const { left, right } = one.getBoundingClientRect()
+        return { path: one.dataset.path, left, right }
+      })
+      drop(dropBefore(boxes, ending.clientX))
+    }
+    tab.addEventListener('pointermove', move)
+    tab.addEventListener('pointerup', end)
+    tab.addEventListener('pointercancel', end)
+  })
+}
+
 /** The tabs with a path renamed, or every path under a directory renamed. */
 export function renameTabs(state, from, to) {
   const moved = (path) => (within(path, from) ? to + path.slice(from.length) : path)

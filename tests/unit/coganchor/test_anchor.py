@@ -66,6 +66,8 @@ CUT = Fence(write=("/w",), drawn=(("/", "read"), (".", "write")), online=False)
         ({"harness": "nowhere"}, "unsupported target"),
         ({"native": True, "harness": "ssh://box"}, "native session has no harness"),
         ({"harness": "same", "target": "peer://t@h:1"}, "peer:// target"),
+        ({"harness": "ssh://box", "target": "tcp://h:1"}, "tcp:// target"),
+        ({"harness": "same", "target": "tcp://h:1"}, "tcp:// target"),
         ({"net": "both"}, "unsupported net"),
         ({"redirects": (("/a", "b"),)}, "unsupported redirect"),
         ({"redirects": (("a", "/b"),)}, "unsupported redirect"),

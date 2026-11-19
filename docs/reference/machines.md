@@ -1319,7 +1319,7 @@ from hmz.coganchor.machines import (
 from hmz.coganchor.machines.store import (
     SSHRuntime, DockerRuntime, SwarmRuntime, AppleContainerRuntime, SlurmRuntime, new, add,
     write, find,
-    runtimes, remove, where, under, imports, daemon_of, node_of,
+    runtimes, remove, imports, daemon_of, node_of,
 )
 from hmz.coganchor.transport import Endpoint
 from hmz.coganchor.agents import anchored
@@ -1333,7 +1333,7 @@ from hmz.sdk import Hmz  # Hmz().runtimes
 | `new(backend, name, **fields)` | build and check, unwritten |
 | `add(runtime)` | write a new one |
 | `write(runtime)` | write, replacing |
-| `remove(backend, name) -> bool` | delete its directory |
+| `remove(backend, name) -> bool` | take it out of `settings.yaml`; whether there was one |
 | `hosts(config=None)` | ssh config hosts, resolved |
 | `import_ssh(config=None, names=None, *, update=False)` | import ssh config hosts |
 | `resolve(runtime) -> SSHHost` | what `ssh -G` makes of a runtime |

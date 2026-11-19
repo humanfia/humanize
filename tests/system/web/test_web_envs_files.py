@@ -118,6 +118,46 @@ def test_a_file_is_opened_edited_and_saved_and_a_conflict_offered(engine: str) -
         page.screenshot(path=str(_shots() / f"envs_files_{engine}.png"))
 
 
+def test_a_tab_is_dragged_along_the_strip_by_the_pointer(engine: str) -> None:
+
+    with served() as site, opened(site, engine=engine) as page:
+        _mounted(page)
+        tabs = page.locator("[data-hmz=files-tab]")
+        for name in ("main.py", "README.md"):
+            page.locator(f"[data-hmz=files-tree] [data-path='/w/{name}']").click()
+            page.locator(f"[data-hmz=files-tab][data-path='/w/{name}']").dblclick()
+        expect(tabs).to_have_count(2)
+
+        def order() -> list[str | None]:
+            return [tab.get_attribute("data-path") for tab in tabs.all()]
+
+        assert order() == ["/w/main.py", "/w/README.md"]
+
+        # Pressed, moved past the middle of the next tab and let go: it stands after it. Only
+        # the pointer is asked, never the browser's drag and drop, which the app's window keeps.
+        first = tabs.nth(0).bounding_box()
+        second = tabs.nth(1).bounding_box()
+        assert first is not None
+        assert second is not None
+        height = first["y"] + first["height"] / 2
+        page.mouse.move(first["x"] + 20, height)
+        page.mouse.down()
+        page.mouse.move(second["x"] + second["width"] - 4, height, steps=5)
+        expect(tabs.nth(0)).to_have_class(re.compile("dragging"))
+        page.mouse.up()
+        assert order() == ["/w/README.md", "/w/main.py"]
+        expect(page.locator("[data-hmz=files-tab].dragging")).to_have_count(0)
+
+        # A press that goes nowhere is still a click, on the tab and on its close button.
+        tabs.nth(0).click()
+        expect(page.locator("[data-hmz=files-tab].active")).to_have_attribute(
+            "data-path", "/w/README.md"
+        )
+        tabs.nth(0).hover()
+        tabs.nth(0).locator("[data-hmz=files-tab-close]").click()
+        assert order() == ["/w/main.py"]
+
+
 def test_the_explorer_makes_renames_and_removes_files(engine: str) -> None:
 
     with served() as site, opened(site, engine=engine) as page:
