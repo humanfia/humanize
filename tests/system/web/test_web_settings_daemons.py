@@ -356,11 +356,15 @@ class _EasyTier:
         return {"result": {"networks": self.networks}}
 
 
-def test_an_easytier_daemon_takes_a_secret_and_nodes(
-    project: Path, engine: str
+def test_an_easytier_daemon_takes_a_secret_nodes_and_a_pairing_code(
+    project: Path, tmp_path: Path, engine: str
 ) -> None:
     fake = _EasyTier({"result": _NODES})
-    with served() as site, opened(site, engine=engine, routed=fake.wire.routes) as page:
+    with (
+        another(tmp_path) as gpu,
+        served() as site,
+        opened(site, engine=engine, routed=fake.wire.routes) as page,
+    ):
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
         kinds = form.locator("[data-hmz=daemon-kind]")
@@ -393,6 +397,11 @@ def test_an_easytier_daemon_takes_a_secret_and_nodes(
         )
         assert not fake.writes
         form.locator("#daemon-secret").fill("ü" * 8)
+        # What is no pairing code is refused before the secret is written.
+        add.click()
+        expect(form.locator(".error")).to_have_text("That is not a pairing code.")
+        assert not fake.writes
+        form.locator("#daemon-code").fill(gpu.code())
         add.click()
         row = page.locator("[data-hmz=daemon][data-name=edge]")
         expect(row.locator("[data-hmz=daemon-via]")).to_have_text("P2P · EasyTier")
@@ -406,13 +415,23 @@ def test_an_easytier_daemon_takes_a_secret_and_nodes(
                 ],
             }
         ]
-        assert _kept(page) == [{"name": "edge", "id": "", "routes": ["easytier:edge"]}]
+        # Claimed, it is held to the id its code gave: its EasyTier route first, as this
+        # machine names it, then the code's other routes.
+        [entry] = _kept(page)
+        assert len(entry["id"]) == 52
+        assert entry["routes"] == ["easytier:edge", f"tcp://127.0.0.1:{gpu.port}"]
 
 
-def test_without_the_community_list_nodes_are_typed(project: Path, engine: str) -> None:
+def test_without_the_community_list_nodes_are_typed(
+    project: Path, tmp_path: Path, engine: str
+) -> None:
     unreadable = {"error": {"code": 503, "message": "The node list could not be read."}}
     fake = _EasyTier(unreadable)
-    with served() as site, opened(site, engine=engine, routed=fake.wire.routes) as page:
+    with (
+        another(tmp_path) as gpu,
+        served() as site,
+        opened(site, engine=engine, routed=fake.wire.routes) as page,
+    ):
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
         form.get_by_role("button", name="P2P").click()
@@ -421,6 +440,7 @@ def test_without_the_community_list_nodes_are_typed(project: Path, engine: str) 
         )
         form.get_by_label("Name").fill("edge")
         form.locator("#daemon-secret").fill("a secret of enough bytes")
+        form.locator("#daemon-code").fill(gpu.code())
         add = form.get_by_role("button", name="Add", exact=True)
         add.click()
         expect(form.locator(".error").last).to_have_text(
