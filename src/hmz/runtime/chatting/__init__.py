@@ -819,7 +819,7 @@ class _Talk:
     def _changed(self, handle: SessionHandle) -> None:
         """Writes the assistant down again where a `/model` or `/effort` changed it.
 
-        As the chat's agent from then on: recorded in the chat as a `set` (Section 6.6.5 of
+        As the chat's agent from then on: recorded in the chat as a `set` (Section 6.12.6 of
         [FILES]) and remembered for the workspace's next chat (Section 8.9.5 of [CORE]).
         """
         from hmz.coganchor.backends import AUTO, written
@@ -1136,7 +1136,7 @@ def _set_again(
     """Writes what a chat carried on is now, where it is not what its record said it was.
 
     Its agent, where it was given another, and its own preference and its permission, where
-    this opening overrides the one it had (Section 6.6.5 of [FILES]).
+    this opening overrides the one it had (Section 6.12.6 of [FILES]).
     """
     agents = (
         {"agents": [now._asdict()]}

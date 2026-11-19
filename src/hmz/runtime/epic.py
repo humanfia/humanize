@@ -852,7 +852,7 @@ class Epic:
             new one -- a chat carried on, which is one conversation and so one record --
             saying it was opened again where it said it began.
           kind: `flow`, or `chat` for a chat, whose record says nothing of a flow, its envs,
-            params or budget, nor of profiling (Section 6.6 of [FILES]).
+            params or budget, nor of profiling (Section 6.12 of [FILES]).
           prefer: A chat's own preference, where it has one, or None.
           permission: A chat's permission, where it is not `workspace-write`, or None.
           workdir: Where a chat's assistant works, where that is not its workspace, or "".
@@ -1632,7 +1632,7 @@ def read(epic: Path) -> Ran | None:
     )
     usages = [one for one in events if one.get("event") == "usage"]
     # A chat's agent, its own preference and its permission are what the last line to say
-    # each says, its `began` among them: any is `set` again as the chat goes (Section 6.5.21
+    # each says, its `began` among them: any is `set` again as the chat goes (Section 6.12.6
     # of [FILES]).
     kind = CHAT if journal(epic).name == CHATTED else _kind(began)
     said_so = [began, *(one for one in events if one.get("event") == "set")]
