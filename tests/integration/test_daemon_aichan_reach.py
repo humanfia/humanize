@@ -190,6 +190,14 @@ def test_a_workspace_scoped_ai_chan_is_held_to_her_reach(
             _refused(ai, "hosts.stop", {"workspace": str(project)})
             == "Ai-chan is read-only, and hosts.stop changes things."
         )
+        # A side conversation of an agent and a directory she chooses would be confined by
+        # nothing of hers: it is not opened, on a host she reaches or any other.
+        sub = ai.call("epic.attach", {"workspace": str(project)}, timeout=30)["sub"]
+        assert (
+            _refused(ai, "epic.aside", {"sub": sub, "runs": AGENT, "cwd": str(other)})
+            == "Ai-chan cannot call epic.aside."
+        )
+        assert ai.call("epic.detach", {"sub": sub}, timeout=30) == {}
         # What she reaches and only reads, she is answered.
         assert ai.call("hosts.status", {"workspace": str(project)}, timeout=30)
         assert ai.call("flows.list", {"workspace": str(project)}, timeout=30)

@@ -1782,6 +1782,10 @@ then acting on every workspace, or on the machine alone -- MUST be held as a met
 and `epic.attach` with `slot` `chat:` or `exec:` alone, which makes a host, as one whose
 `x-hmz-writes` is `true`.
 
+**4.21.2.7** `epic.aside` with `runs`, `recall`, `kept` or `cwd` (Section 4.8.8.3) MUST be held as a
+method whose `scope` is `never`: the session it opens is of an agent and in a directory the call
+chooses, which no reach confines.
+
 #### 4.21.3. Refusals
 
 **4.21.3.1** A call of a session carrying a reach MUST be refused 403, by the first of the following
