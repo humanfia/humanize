@@ -39,6 +39,7 @@ from tests.integration.doubles_tui import (
     stand_in,
     typed,
     until,
+    wrapped,
 )
 
 if TYPE_CHECKING:
@@ -205,7 +206,7 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "1 session")
+        await wrapped(pilot, "1 session")
         await pilot.press("enter")
         await on(pilot, Does)
         await opens(pilot, "upload")

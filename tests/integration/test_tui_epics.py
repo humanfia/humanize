@@ -39,6 +39,7 @@ from tests.integration.doubles_tui import (
     trail,
     typed,
     until,
+    wrapped,
 )
 
 if TYPE_CHECKING:
@@ -115,11 +116,7 @@ async def test_a_run_ended_is_listed_with_its_task_and_what_it_came_to(
         # Who it was run by, what it spent and how long it took, as the web lists it.
         await shows(pilot, f"· {OWN}", "hello · ", " · $0.00 · 200 out · took ")
         # Apart: an agent's name long enough wraps the row between the two, or within this.
-        await until(
-            pilot,
-            lambda: "1 session" in " ".join(screen(app).replace("│", " ").split()),
-            "its sessions",
-        )
+        await wrapped(pilot, "1 session")
         assert listed(app) == [one.name for one in epics(workspace)]
 
 
@@ -143,7 +140,7 @@ async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
         await ran(pilot)
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "1 session")
+        await wrapped(pilot, "1 session")
         await pilot.press("enter")
         await shows(pilot, "resume epic", "export epic")
 
@@ -257,7 +254,7 @@ async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each
         # The button under it, as the graph of the run going has it across its top.
         await pilot.press("tab", "enter")
         await on(pilot, Exomyth)
-        await shows(pilot, "1 session")
+        await wrapped(pilot, "1 session")
         await pilot.press("escape")
         await on(pilot, Graph)
 
