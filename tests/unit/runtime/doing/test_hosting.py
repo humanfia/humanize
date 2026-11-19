@@ -2463,6 +2463,77 @@ def test_an_aside_asking_an_agent_that_cannot_be_made_is_refused(host: Host) -> 
     }
 
 
+@dataclass
+class Reading:
+    """A fence, as far as a side conversation reads one: its twin that writes nothing."""
+
+    writes: bool = True
+
+    def reading(self) -> Reading:
+        return Reading(writes=False)
+
+
+@dataclass
+class Hooked(Config):
+    """A Codex agent's settings as they stand while its flow's hooks are hung on it."""
+
+    fence: Reading = field(default_factory=Reading)
+    goals: bool = True
+    approvals: str = "untrusted"
+    features: tuple[tuple[str, bool], ...] = (
+        ("default_mode_request_user_input", True),
+        ("shell_snapshot", False),
+    )
+
+
+@dataclass(eq=False)
+class Working(Session):
+    cwd: str = "/w"
+
+
+@dataclass(eq=False)
+class Copied(Agent):
+    """An agent that can be copied, which is what a side conversation is opened on."""
+
+    copies: list[Agent] = field(default_factory=list[Agent])
+
+    def clone(self, *, config: Config, name: str, skills: tuple[str, ...]) -> Agent:
+        del skills
+        self.copies.append(Copied(id=name, backend=self.backend, config=config))
+        return self.copies[-1]
+
+    def watch(self, listener: object) -> None:
+        del listener
+
+    def new(self, cwd: str | None) -> Session:
+        return Working(cwd=cwd or "")
+
+
+def test_an_aside_of_a_codex_agent_is_asked_nothing_whatever_hooks_its_source_has(
+    host: Host, where: Workspace
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    agent = Copied(backend="codex", config=Hooked())
+    _opened(run, agent, Working())
+    alice.told("opened", key="NeiKos496/1")
+
+    assert alice.asks("aside", key="NeiKos496/1") == {
+        "ok": True,
+        "side": "s1",
+        "forked": False,
+    }
+
+    # The source's hooks are not hung on the copy, so neither is what they were told with:
+    # its thread opens at the `never` of a fence that writes nothing, and it asks no user.
+    copy = cast("Hooked", agent.copies[0].config)
+    assert (copy.fence.writes, copy.goals) == (False, False)
+    assert copy.approvals == ""
+    assert copy.features == (("shell_snapshot", False),)
+    assert cast("Hooked", agent.config).approvals == "untrusted"
+    run.released.set()
+
+
 # ------------------------------------------------------------------ closing
 
 

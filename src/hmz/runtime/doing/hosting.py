@@ -3050,6 +3050,7 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
         question answered by an agent that could write.
     """
     from hmz.coganchor.fence import READ, Fence
+    from hmz.runtime.flowing.harnessing import ASKING_FEATURE
 
     fence = source.config.fence
     reading = (
@@ -3072,6 +3073,18 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
     # Nothing is let out of Codex's read-only sandbox.
     if hasattr(source.config, "unsandboxed"):
         settings["unsandboxed"] = ()
+    # Codex's `approvals` would open the copy's thread at `untrusted` over the `never` its
+    # fence is told with, and its asking feature would let it ask a user nobody plays: both
+    # are there for hooks hung on the source, and none is hung on the copy.
+    if hasattr(source.config, "approvals"):
+        settings["approvals"] = ""
+    features = cast(
+        "tuple[tuple[str, Any], ...] | None", getattr(source.config, "features", None)
+    )
+    if features is not None:
+        settings["features"] = tuple(
+            one for one in features if one[0] != ASKING_FEATURE
+        )
     clone = source.clone(
         config=dataclasses.replace(source.config, **settings), name=name, skills=()
     )
