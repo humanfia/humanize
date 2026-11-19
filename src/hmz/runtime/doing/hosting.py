@@ -2348,8 +2348,19 @@ class Host:
             current is not None
             and current.number == number
             and not self._closed
-            and not self._away_of.get(role, self._away_all)
+            and not self._nobody(role)
         )
+
+    def _nobody(self, role: str) -> bool:
+        """Whether nobody is there to answer as a role. Under the lock.
+
+        A chat's person is nobody's outworlder, so away is never said of them: nobody is
+        there for a chat only once it has folded away.
+        """
+        current = self._current
+        if current is not None and current.run.kind == "chat":
+            return self._folded
+        return self._away_of.get(role, self._away_all)
 
     def _asks(self, number: int, question: Question) -> str | None:
         """Puts what a run asks whoever is outside it to every frontend, and waits.
@@ -2528,7 +2539,7 @@ class Host:
                 if not self._live(number, role):
                     self._withdraws(
                         asked,
-                        "away" if self._away_of.get(role, self._away_all) else "over",
+                        "away" if self._nobody(role) else "over",
                     )
                     return None
                 if (
@@ -2718,7 +2729,7 @@ class Host:
         before it looks would leave its question waiting for nobody.
         """
         self._snap("away", all=self._away_all, of=dict(self._away_of))
-        for asked in [one for one in self._questions if self.away_for(one.role)]:
+        for asked in [one for one in self._questions if self._nobody(one.role)]:
             self._withdraws(asked, "away")
         self._spoke.notify_all()
 

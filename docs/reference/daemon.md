@@ -660,7 +660,7 @@ After `gone` the subscription has ended: a call naming it is refused 410.
 | Client ids | `c1`, `c2`, … per host; never reused. |
 | Claims | A claimed `Outworlder` role may be answered, spoken to (`outworlder:<role>`) and set away only by its holder. `take: true` takes it from another holder, which learns it only from the `claims` and `pending` snapshots. Claims are released when the holder detaches; its questions' `owner` becomes `null`. Claims are not persisted. Claims do not restrict `say` to agents. |
 | Questions | Recorded only while the run is current, the host open, and the role not away; otherwise the flow gets no answer at once. Shown to every frontend with `owner`. Answerable by the owner, or by anybody where `owner` is `null`; the first answer wins. They stay pending with nobody attached. |
-| Away | Held by the host, per role. `afk` with `role` sets that role. Without `role`: with no claims, sets every role and clears per-role values; with claims, roles held by other frontends keep their value. Outlives the frontend that set it. |
+| Away | Held by the host, per role. `afk` with `role` sets that role. Without `role`: with no claims, sets every role and clears per-role values; with claims, roles held by other frontends keep their value. Outlives the frontend that set it. A chat's person, an Ai-chan conversation's included, is no outworlder: away withdraws nothing a chat waits on, and the chat goes on. |
 | Runs | Any frontend may `start`, `stop`, `force` or `quit`. |
 | Late arrival | A frontend attaching mid-run with `replay: true` reads the run from its `started` record. |
 

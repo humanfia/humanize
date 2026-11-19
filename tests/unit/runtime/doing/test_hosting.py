@@ -2186,6 +2186,28 @@ def test_a_chat_nobody_reads_between_turns_folds_away(
     ) == folded | {"code": 409}
 
 
+def test_a_chat_goes_on_whoever_is_said_to_be_away(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+
+    # Its person is nobody's outworlder: away is said of none of what it waits on.
+    assert alice.asks("afk", on=True) == {"ok": True}
+    time.sleep(0.3)
+    assert chat.lines == []
+    assert host.status()["state"] != "idle"
+
+    # Its next message is still its next turn, and what it asks then still waits.
+    chat.asks.append(("which?", ()))
+    assert alice.asks("chat.say", text="one")["ok"] is True
+    assert alice.told("asked", run=1, mode="ask")["text"] == "which?"
+    assert alice.asks("chat.say", text="red")["ok"] is True
+    alice.told("asked", run=1, mode="listen", text="you said one")
+    assert chat.answers == ["red"]
+    assert chat.lines == ["one"]
+
+
 def test_a_chat_carried_on_names_the_epic_it_carries_on_in(
     chatting: tuple[Host, Told], where: Workspace, tmp_path: Path
 ) -> None:
