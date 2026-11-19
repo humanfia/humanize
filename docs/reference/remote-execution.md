@@ -157,7 +157,9 @@ Parsing rules:
   absolute or under `~/` (the node's home) and holding no newline, carriage return, NUL or `"`.
   It is accepted so that older spellings still parse, and is not used: nothing on the node
   needs a Python.
-- `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits.
+- `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits. An IPv6 host is
+  written in brackets (`tcp://[::1]:7000`), which are kept in the target and stripped when
+  it is dialled.
 - `peer://`: `TICKET@HOST:PORT`; brackets around an IPv6 host are stripped.
 
 | Input | `ValueError` message |
