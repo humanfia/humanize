@@ -320,6 +320,7 @@ as a usage error and exits 2.
 | `target` or `harness` not a [target spelling](#targets) | the target parse message |
 | `native=True` with a harness on another machine | `a native session has no harness to put anywhere: the CLI on the target is the one that runs, so --harness and --native ask for opposite things` |
 | a `peer://` target with any `harness` but `local` | `a peer:// target is a meeting Humanize books for a harness it is placing; naming both is naming the same introduction twice` |
+| a `tcp://` target with a harness on another machine (`same` included) | `a tcp:// target is a serving half somebody else left listening, which Humanize can start nothing beside; a harness on another machine has no way to be introduced to it` |
 | `net` not `local` or `remote` | `unsupported net 'X'; expected local or remote` (the option: `argument --net: invalid choice: …`) |
 | a redirect that is not two absolute paths | `unsupported redirect 'a=b'; expected two absolute paths` |
 | an empty hush, or one containing `=` | `unsupported hush 'A=B'; expected a variable name` |
@@ -336,7 +337,7 @@ Refused only when a turn is started:
 | Condition | Error |
 | --- | --- |
 | no agent named | `ValueError: no agent given` (native), `ValueError: no agent command given` (supervised) |
-| a harness on a `tcp://` or `peer://` machine, or `same` with such a target | `ValueError: nothing is started on the far side of tcp://h:1` |
+| a harness on a `tcp://` or `peer://` machine | `ValueError: nothing is started on the far side of tcp://h:1` |
 | `chdir` outside the workspace | `ValueError: <chdir> is not inside <workspace>` |
 | the agent not on this machine's `PATH` (supervised) | `FileNotFoundError: <name>: not found on PATH` |
 
