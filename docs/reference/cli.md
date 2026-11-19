@@ -1027,7 +1027,7 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
 | `126` | `internal fence` | The fence could not be put up; the program never ran. |
 | `127` | `internal anchor --native` | The target has no such CLI. |
-| `130` | `hmz exec`, `hmz chat`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made; for `hmz chat`, leaving the chat to its host. |
+| `130` | `hmz exec`, `hmz chat`, `hmz daemon connect`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made; for `hmz chat`, leaving the chat to its host. |
 | `129`, `143` | `hmz exec`, `hmz chat` | `SIGHUP`, `SIGTERM`, as `SIGINT` is. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
 | *flow's* | `internal cli` | What the flow answered the run with. |

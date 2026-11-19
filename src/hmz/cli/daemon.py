@@ -179,12 +179,27 @@ def _unreached(why: OSError) -> int:
 
 def _connect() -> int:
     """`hmz daemon connect --stdio`: standard streams spliced to the daemon's socket."""
+    import contextlib
+    import os
     import signal
 
-    from hmz import daemon
-    from hmz.reach import SYNC, dial, splice, stdio
+    def interrupted(_signal: int, _frame: object) -> None:
+        # Somebody stopping the line, as the desktop app stops the process of every pipe it
+        # closes: it exits as the interrupt would have had it, without a traceback. Ended
+        # here rather than raised, which into the wait of the splice may leave a lock of it
+        # released twice, and that is a traceback as well.
+        os._exit(128 + signal.SIGINT)
 
+    held = False
+    with contextlib.suppress(ValueError):  # off the main thread, where none reaches
+        # An interrupt somebody chose to have ignored stays so.
+        if signal.getsignal(signal.SIGINT) is signal.default_int_handler:
+            signal.signal(signal.SIGINT, interrupted)
+            held = True
     try:
+        from hmz import daemon
+        from hmz.reach import SYNC, dial, splice, stdio
+
         try:
             pipe = dial("unix:", start=daemon.start)
         except OSError as why:
@@ -193,10 +208,9 @@ def _connect() -> int:
         # What the client discards everything up to: what a shell printed before this ran.
         here.sendall(SYNC)
         splice(here, pipe)
-    except KeyboardInterrupt:
-        # Somebody stopping the line, as the desktop app stops the process of every pipe it
-        # closes: it exits as the interrupt would have had it, without a traceback.
-        raise SystemExit(128 + signal.SIGINT) from None
+    finally:
+        if held:
+            signal.signal(signal.SIGINT, signal.default_int_handler)
     return 0
 
 
