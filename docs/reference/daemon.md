@@ -523,7 +523,9 @@ A session over a scoped link carries its conversation's **reach**: `scope`, `wor
 | `never` | pairing, devices, credentials, the network's secrets, `aichan.*` | nobody |
 
 A call with no `workspace` where the method names one is held as `daemon`, and so is
-`epic.attach` with `scratch`. `flows.check` of a flow named by a path (`./x`, `/x`, `~/x`) or a
+`epic.attach` with `scratch`. `epic.aside` with `runs`, `recall`, `kept` or `cwd` is held as
+`never`: it opens a session of an agent and in a directory the call chooses, which no reach
+confines, so Ai-chan asks a side question only of a session of the last epic (`key`). `flows.check` of a flow named by a path (`./x`, `/x`, `~/x`) or a
 repository (`git+...`) is held as a write, since checking a flow loads it in the daemon's own
 process: a `read-only` Ai-chan checks a flow only by the name it is on offer under. A call is refused 403, with no
 effect, by the first that holds:

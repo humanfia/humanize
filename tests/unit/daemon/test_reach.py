@@ -98,6 +98,31 @@ def test_a_call_naming_no_workspace_is_held_as_the_daemons(
     )
 
 
+@pytest.mark.parametrize("scope", ["daemon", "workspace", "epic"])
+@pytest.mark.parametrize("chosen", ["runs", "recall", "kept", "cwd"])
+def test_an_aside_of_an_agent_the_call_chooses_is_never_hers(
+    kept: Conversations, scope: str, chosen: str
+) -> None:
+    hosted = mock.Mock(workspace="/w", slot="")
+    hosted.status.return_value = {"epic": "e1"}
+    held = _held(
+        kept,
+        scope,
+        preset="danger-full-access",
+        epic="e1",
+        subs={"u1": mock.Mock(hosted=hosted)},
+    )
+
+    assert held.refusal("epic.aside", {"sub": "u1", chosen: "/x"}) == (
+        "Ai-chan cannot call epic.aside."
+    )
+    # A session of the last epic, and a turn of a side conversation open, stay hers to ask.
+    assert held.refusal("epic.aside", {"sub": "u1", "key": "a/1", "fork": True}) is None
+    assert (
+        held.refusal("epic.aside", {"sub": "u1", "side": "s1", "prompt": "?"}) is None
+    )
+
+
 def test_a_new_chat_is_a_write(kept: Conversations) -> None:
     held = _held(kept)
 
