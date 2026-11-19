@@ -267,10 +267,11 @@ class Held:
         if scope != "epic":
             return ""
         if "epic" in annotated and "sub" not in annotated:
-            epic = str(params.get(annotated["epic"]) or "")
+            # Or the chat a side question names in its place (Section 4.15.1 of daemon.md).
+            epic = str(params.get(annotated["epic"]) or params.get("chat") or "")
             if not epic and workspace:
                 hosted = self._hosts.get(workspace, slot)
-                epic = str(hosted.status().get("epic") or "") if hosted else ""
+                epic = _held(hosted.status()) if hosted else ""
                 return "" if self.epic(epic, workspace) else f"the epic {epic}"
             # An epic named is reached by where it was run, not by the workspace named.
             if self.reach.scope == "workspace" and not self.workspace(
@@ -311,7 +312,7 @@ class Held:
             return self.workspace(workspace)
         if epic is None:
             hosted = self._hosts.get(workspace, slot)
-            epic = str(hosted.status().get("epic") or "") if hosted else ""
+            epic = _held(hosted.status()) if hosted else ""
         return bool(epic) and epic == self.reach.epic
 
     def notice(self, notice: Mapping[str, Any]) -> bool:
@@ -319,7 +320,7 @@ class Held:
         return self.host(
             str(notice.get("workspace") or ""),
             str(notice.get("slot") or ""),
-            str(notice.get("epic") or ""),
+            _held(notice),
         )
 
     # -- answers cut to it (Section 4.21.4 of daemon.md)
@@ -345,9 +346,7 @@ class Held:
                     one
                     for one in running
                     if self.host(
-                        str(one["workspace"]),
-                        str(one["slot"] or ""),
-                        str(one.get("epic") or ""),
+                        str(one["workspace"]), str(one["slot"] or ""), _held(one)
                     )
                 ]
             }
@@ -362,13 +361,18 @@ class Held:
         return said
 
 
-def ran_in(name: str) -> str:
-    """The workspace an epic was run in, by its name, or "" where there is no such epic."""
-    from hmz.runtime.epic import every, read
+def _held(said: Mapping[str, Any]) -> str:
+    """The epic a host, a notice or a run going names, or the chat, which a reach reaches alike."""
+    return str(said.get("epic") or said.get("chat") or "")
 
-    for at in every():
-        if at.name == name and (ran := read(at)) is not None:
-            return _whole(ran.workspace) if ran.workspace else ""
+
+def ran_in(name: str) -> str:
+    """The workspace an epic was run in or a chat had in, by its name, or "" for neither."""
+    from hmz.runtime.epic import read
+
+    at = epic_at(name)
+    if at is not None and (ran := read(at)) is not None:
+        return _whole(ran.workspace) if ran.workspace else ""
     return ""
 
 

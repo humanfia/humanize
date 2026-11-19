@@ -222,23 +222,26 @@ See [Picking a run up](/user/resuming).
 `$name` line are refused. `/flow` on its own opens the agents of the running flow instead. What
 you save there is what the next run starts with; the running one keeps what it started with.
 
-## A chat is not stopped
+## A chat is not ended {#a-chat-is-not-stopped}
 
 A [chat](/user/chat), which `hmz` opens on, is not a flow: it is one conversation, and reads as
 Claude Code does. Its status line says `running` while the assistant answers and `done` once
-it waits for you, and nothing on it stops the chat:
+it waits for you. Its open turn can be stopped; the chat itself goes on:
 
 - <kbd>ctrl+c</kbd> clears the line. On an empty one, it says `— press ctrl+c again to exit —`,
   and a second press leaves `hmz`.
-- `/stop` is not offered. Typed anyway, it says `hmz: a chat is not stopped: /clear starts another`.
+- `/stop` interrupts the turn the assistant is taking: `That turn was stopped.` is said in the
+  chat, which waits for your next line. With no turn open it says
+  `hmz: no turn is open, so there is nothing to stop`. There is no force stop.
 - `/clear` starts a new chat, leaving this one to fold away: the next line you type starts it.
 - `/exit`, `/quit` and <kbd>ctrl+q</kbd> leave without asking.
 
 A flow started from the chat, with `$<flow>` or `/flow <flow> <task>`, is stopped as any flow
 is; the chat waits on its own meanwhile, and `/chat` brings it back.
 
-There is no monitor, no <kbd>shift+tab</kbd> between views, and no Exomyth in `/epics` for a
-chat either: the transcript is the whole of it.
+There is no monitor, no <kbd>shift+tab</kbd> between views, and no row in `/epics` for a chat
+either, which is no epic: the transcript is the whole of it, and `/resume` in a chat goes back
+to an earlier one.
 
 ## What does not stop a flow
 

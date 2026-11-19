@@ -106,25 +106,16 @@ def test_does_offers_upload_where_there_is_a_target_and_says_how_backups_went() 
         ("git+https://x/flows#chat", None),
     ],
 )
-def test_a_chat_is_continued_and_not_offered_in_exomyth(
+def test_what_an_earlier_hmz_kept_of_a_chat_is_read_and_never_carried_on(
     flow: str, kind: str | None
 ) -> None:
     does = _does(resumable=True, flow=flow, kind=kind)
 
-    assert [one[0] for one in does.rows()] == [
-        "continue",
-        "graph",
-        "export",
-        *_COPIES,
-    ]
-    assert does.asked == "2026-10-12 01:02 · chat"
-
-
-def test_a_chat_that_cannot_be_continued_says_so() -> None:
-    does = _does(resumable=False, flow="", kind="chat")
-
     assert [one[0] for one in does.rows()] == ["graph", "export", *_COPIES]
-    assert does.nothing() == "this chat cannot be continued here"
+    assert does.asked == "2026-10-12 01:02 · chat"
+    assert does.nothing() == (
+        "this epic is of a chat an earlier hmz had, and cannot be carried on"
+    )
 
 
 @pytest.mark.parametrize(

@@ -1264,7 +1264,7 @@ machine, and MUST NOT start or reach a daemon.
 ### 15.1. Synopsis
 
 ```text
-hmz chat [-a <agent>] [--resume <epic>] [--] <message>
+hmz chat [-a <agent>] [--resume <chat> | --worktree] [--] <message>
 ```
 
 **15.1.1** `hmz chat` MUST take one turn of a chat (Section 8 of [CORE]) in the current directory as
@@ -1280,9 +1280,10 @@ be the one used.
 **15.1.3** Without `-a`, `hmz chat` MUST use the chat agent the workspace remembers (Section 3.5.1.9
 of [FILES]), and MUST refuse where none is remembered, saying to give one with `-a`.
 
-**15.1.4** `--resume <epic>` MUST carry on the chat of that epic name in this workspace, in that
-same epic (Section 8.7 of [CORE]), with `<message>` as its next turn and with its own agent unless
-`-a` is given.
+**15.1.4** `--resume <chat>` MUST carry on the chat of that id in this workspace (Section 8.7 of
+[CORE]; `chat.start` with `resume` the id, Section 4.25 of [DAEMON]), with `<message>` as its next
+turn and with its own agent unless `-a` is given. `<chat>` MUST be the id of a chat, which is the
+name of its directory; `hmz chat` MUST NOT name a chat an epic, and MUST NOT carry on an epic.
 
 **15.1.5** `<message>` MUST be exactly one positional argument and MUST NOT be empty; a message that
 begins with `-` MUST be given after `--`.
@@ -1291,6 +1292,12 @@ begins with `-` MUST be given after `--`.
 names a flow and a name Section 8.9.7 of [CORE] keeps MUST be refused, naming it.
 
 **15.1.7** `hmz chat` MUST NOT change the remembered setup of any workspace.
+
+**15.1.8** `--worktree` MUST start the chat with its assistant working in a new git worktree of the
+workspace (`chat.start` with `worktree` true, Section 4.25 of [DAEMON]). `--worktree` together with
+`--resume` MUST be refused before anything is asked of the daemon: a chat carried on works where it
+worked. Where the workspace is no git repository, the refusal of `chat.start` MUST be written as
+Section 15.3.2 states.
 
 ### 15.2. Output
 

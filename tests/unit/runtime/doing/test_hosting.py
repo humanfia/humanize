@@ -256,7 +256,7 @@ class FakeChatting:
     """A chat held as a run is, talking to its person: each line said answered by an echo.
 
     Before a turn it asks what `asks` holds, one question a turn; it ends on an empty line,
-    or fails as `fails` says before it has an epic.
+    or fails as `fails` says before it is written down anywhere.
     """
 
     agent: str
@@ -311,7 +311,7 @@ class FakeChatting:
         self.going.set()
         if self.fails is not None:
             raise self.fails
-        self.epic = self.epic or Path("/epics/20260101-chat")
+        self.epic = self.epic or Path("/chats/20260101-chat")
         return asyncio.run(self._talks())
 
     async def _talks(self) -> ChatEnd:
@@ -349,7 +349,7 @@ class Flows:
 
 @dataclass
 class Epics:
-    """The epics of a workspace, as far as starting a chat reads them: its chats, by name."""
+    """What a workspace wrote down, as far as starting a chat reads it: its chats, by name."""
 
     kept: dict[str, Path] = field(default_factory=dict[str, Path])
 
@@ -390,11 +390,13 @@ class Workspace:
         prefer: str | None = None,
         role: Any = None,
         permission: str | None = None,
+        worktree: bool = False,
     ) -> FakeChatting:
         self.asked_chats.append(
             {"agent": agent, "task": task, "resume": resume, "prefer": prefer}
             | ({} if role is None else {"role": role})
             | ({} if permission is None else {"permission": permission})
+            | ({"worktree": True} if worktree else {})
         )
         made = FakeChatting(
             agent,
@@ -1684,7 +1686,7 @@ def chatting(where: Workspace) -> Iterator[tuple[Host, Told]]:
 def _chatted(host: Host, alice: Told, where: Workspace, **said: Any) -> FakeChatting:
     """A chat started on its host, which has asked for its second message."""
     answer = alice.asks("chat.start", agent="claude/opus:high", task="hello", **said)
-    assert answer == {"ok": True, "run": 1, "epic": "20260101-chat", "slot": "chat:1"}
+    assert answer == {"ok": True, "run": 1, "chat": "20260101-chat", "slot": "chat:1"}
     chat = where.chats[-1]
     alice.told("asked", run=1, mode="listen", text="you said hello")
     return chat
@@ -1729,12 +1731,24 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
         assert where.asked_chats[-1]["role"] is mock.sentinel.role
         chat = where.chats[-1]
         # Stopping her stops her open turn alone, and she goes on between turns.
-        refused = alice.asks("stop")
-        assert refused["why"] == "Ai-chan is not answering, so there is nothing to stop"
+        hers = {
+            "ok": False,
+            "why": "Ai-chan is not answering, so there is nothing to stop",
+            "code": 409,
+        }
+        assert alice.asks("stop") == hers
+        assert alice.asks("chat.stop") == hers
         chat.turning = True
         assert alice.asks("stop") == {"ok": True}
-        assert chat.interrupted == 1
-        assert host.status()["state"] == "running"
+        chat.turning = True
+        assert alice.asks("chat.stop") == {"ok": True}
+        assert chat.interrupted == 2
+        status = host.status()
+        assert (status["state"], status["epic"], status["chat"]) == (
+            "running",
+            "",
+            "20260101-chat",
+        )
     finally:
         host.close()
 
@@ -1810,14 +1824,33 @@ def test_a_chat_starts_on_its_own_host_and_says_it_is_a_chat(
             "prefer": "flow",
         }
     ]
+    # A chat is no epic: its host says which chat, and no epic at all.
     status = host.status()
-    assert (status["epic_kind"], status["flow"], status["epic"]) == (
-        "chat",
-        "",
-        "20260101-chat",
-    )
+    assert (status["epic_kind"], status["flow"]) == ("chat", "")
+    assert (status["epic"], status["chat"]) == ("", "20260101-chat")
     assert (status["turn"], status["budget"]) == ("done", None)
     assert chat.person is not None
+    # As whoever attaches next is told of it.
+    late = Told(host, "bob").told("run")
+    assert (late["epic"], late["chat"], late["turn"]) == ("", "20260101-chat", "done")
+
+
+def test_a_flows_host_names_its_epic_and_no_chat(host: Host, where: Workspace) -> None:
+    alice = Told(host, "alice")
+    where.next_run = FakeRun(epic=Path("/epics/20260101-ralph"))
+    alice.asks("start", flow="ralph", task="fix it")
+    alice.told("started", run=1)
+
+    status = host.status()
+
+    assert (status["epic_kind"], status["epic"], status["chat"]) == (
+        "flow",
+        "20260101-ralph",
+        "",
+    )
+    late = Told(host, "bob").told("run")
+    assert (late["epic"], late["chat"]) == ("20260101-ralph", "")
+    where.runs[-1].released.set()
 
 
 def test_a_chat_is_started_on_a_chat_host_alone_and_once(
@@ -1869,7 +1902,7 @@ def test_a_chat_start_missing_what_it_takes_is_refused(
     assert where.chats == []
 
 
-def test_a_chat_that_fails_before_its_epic_is_refused_with_why(
+def test_a_chat_that_fails_before_it_is_written_down_is_refused_with_why(
     chatting: tuple[Host, Told], where: Workspace
 ) -> None:
     _, alice = chatting
@@ -1885,7 +1918,7 @@ def test_a_chat_that_fails_before_its_epic_is_refused_with_why(
     alice.told("ended", run=1, how="crashed")
 
 
-def test_a_chat_that_is_refused_before_its_epic_is_refused_with_why(
+def test_a_chat_that_is_refused_before_it_is_written_down_is_refused_with_why(
     chatting: tuple[Host, Told], where: Workspace
 ) -> None:
     _, alice = chatting
@@ -1964,12 +1997,113 @@ def test_an_empty_line_ends_a_chat_stopped(
     ended = alice.told("ended", run=1)
     assert (ended["how"], ended["why"], ended["result"]) == ("stopped", "", None)
     assert chat.lines == [""]
-    assert host.status()["ended"]["kind"] == "chat"
-    assert alice.asks("chat.say", text="hello?") == {
+    last = host.status()["ended"]
+    assert (last["kind"], last["epic"], last["chat"]) == ("chat", "", "20260101-chat")
+    ended_ = {
         "ok": False,
-        "why": "this chat has ended; carry it on from its epic",
+        "why": "this chat has ended; carry it on with chat.start",
         "code": 409,
     }
+    assert alice.asks("chat.say", text="hello?") == ended_
+    assert alice.asks("chat.stop") == ended_
+
+
+def test_a_chats_open_turn_is_stopped_and_the_chat_goes_on_between_turns(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    no_turn = {
+        "ok": False,
+        "why": "no turn is open, so there is nothing to stop",
+        "code": 409,
+    }
+    # Between turns there is nothing to stop, and the chat is not ended for the asking.
+    assert alice.asks("chat.stop") == no_turn
+    assert host.chatted({"do": "stop", "by": "bob"}) == no_turn
+
+    chat.turning = True
+    assert alice.asks("chat.stop") == {"ok": True}
+
+    assert (chat.interrupted, chat.stopped) == (1, False)
+    assert host.status()["state"] == "running"
+    # Still there, between turns: it takes what is said next.
+    assert alice.asks("chat.stop") == no_turn
+    assert alice.asks("chat.say", text="and more") == {"ok": True}
+    alice.told("asked", run=1, mode="listen", text="you said and more")
+    assert chat.lines == ["and more"]
+
+
+def test_stopping_a_chats_host_stops_its_open_turn_and_never_the_chat(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+
+    # `epic.stop` of a chat's host is `chat.stop`, to the word.
+    assert alice.asks("stop") == {
+        "ok": False,
+        "why": "no turn is open, so there is nothing to stop",
+        "code": 409,
+    }
+    chat.turning = True
+    assert alice.asks("stop") == {"ok": True}
+
+    assert (chat.interrupted, chat.stopped) == (1, False)
+    assert host.status()["state"] == "running"
+    assert not [one for one in alice.snapshot() if one["type"] == "ended"]
+    assert alice.asks("chat.say", text="and more") == {"ok": True}
+    alice.told("asked", run=1, mode="listen", text="you said and more")
+
+
+def test_a_chat_is_stopped_on_a_host_going_with_one_alone(
+    host: Host, chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    nothing = {"ok": False, "why": "no chat is going here", "code": 409}
+    assert Told(host, "alice").asks("chat.stop") == nothing
+    _, bob = chatting
+    assert bob.asks("chat.stop") == nothing
+    assert where.chats == []
+
+
+def test_a_new_chat_is_started_in_a_worktree_and_one_carried_on_never(
+    chatting: tuple[Host, Told], where: Workspace, tmp_path: Path
+) -> None:
+    host, alice = chatting
+    where.epics.kept["20250101-chat"] = tmp_path / "20250101-chat"
+    # Refused before anything is started: a chat carried on works where it worked.
+    refused = alice.asks(
+        "chat.start", task="more", resume="20250101-chat", worktree=True
+    )
+    assert refused == {
+        "ok": False,
+        "why": "a chat carried on works where it worked",
+        "code": 400,
+    }
+    assert where.chats == []
+
+    _chatted(host, alice, where, worktree=True)
+
+    assert where.asked_chats == [
+        {
+            "agent": "claude/opus:high",
+            "task": "hello",
+            "resume": None,
+            "prefer": None,
+            "worktree": True,
+        }
+    ]
+
+
+@pytest.mark.parametrize("said", [{}, {"worktree": False}, {"worktree": "yes"}])
+def test_a_chat_works_in_its_workspace_unless_a_worktree_is_asked_for(
+    said: dict[str, Any], where: Workspace
+) -> None:
+    checked = hosting.chat_checked(
+        cast("Any", where), {"agent": "claude/opus", "task": "hi", **said}
+    )
+
+    assert (checked["ok"], checked["worktree"]) == (True, False)
 
 
 def test_an_empty_line_said_mid_turn_ends_the_chat_once_the_turn_is_done(
@@ -2178,7 +2312,7 @@ def test_a_chat_nobody_reads_between_turns_folds_away(
     assert host.status()["ended"]["how"] == "stopped"
     folded = {
         "ok": False,
-        "why": "this chat has folded away; carry it on from its epic",
+        "why": "this chat has folded away; carry it on with chat.start",
     }
     assert host.chatted({"do": "say", "text": "again"}) == folded | {"code": 409}
     assert host.chatted(
@@ -2186,25 +2320,26 @@ def test_a_chat_nobody_reads_between_turns_folds_away(
     ) == folded | {"code": 409}
 
 
-def test_a_chat_carried_on_names_the_epic_it_carries_on_in(
+def test_a_chat_carried_on_is_named_by_its_name_and_goes_on_in_its_directory(
     chatting: tuple[Host, Told], where: Workspace, tmp_path: Path
 ) -> None:
     _, alice = chatting
-    epic = tmp_path / "20250101-chat"
-    where.epics.kept[epic.name] = epic
+    kept = tmp_path / "20250101-chat"
+    where.epics.kept[kept.name] = kept
 
-    answer = alice.asks("chat.start", task="more", resume=epic.name)
+    answer = alice.asks("chat.start", task="more", resume=kept.name)
 
-    assert answer == {"ok": True, "run": 1, "epic": "20250101-chat", "slot": "chat:1"}
-    # Its own agent and permission, as its epic says, where none is named.
+    assert answer == {"ok": True, "run": 1, "chat": "20250101-chat", "slot": "chat:1"}
+    # Its own agent and permission, as its record says, where none is named.
     assert where.asked_chats[-1] == {
         "agent": "claude/opus:high",
         "task": "more",
-        "resume": str(epic),
+        "resume": str(kept),
         "prefer": None,
         "permission": "read-only",
     }
-    assert alice.told("started", run=1)["resume"] == str(epic)
+    # Whoever follows the host is told which chat by its name, never where it is kept.
+    assert alice.told("started", run=1)["resume"] == "20250101-chat"
     refused = alice.asks("chat.start", task="more", resume="20200101-nothing")
     assert (refused["why"], refused["code"]) == (
         f"20200101-nothing is not a chat of {where.workspace}.",

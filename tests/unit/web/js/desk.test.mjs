@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, toggled, unmoved, usageSaid } from '../../../../src/hmz/web/static/desk.js'
+import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, stoppable, toggled, unmoved, usageSaid } from '../../../../src/hmz/web/static/desk.js'
 
 test('the Add menu offers the four prefixes a line starts with, each a short label', () => {
   assert.deepEqual(ADDS.map((one) => one.sigil), ['@', '/', '$', '!'])
@@ -134,4 +134,11 @@ test('a box takes the focus once its form is read only where the focus was not m
   // Moved to something else since, by a key, the pointer or a dialog closing: it stays there.
   assert.equal(unmoved(link, chip, loose), false)
   assert.equal(unmoved(body, chip, loose), false)
+})
+
+test('the button of a chat box stops only while its host says a turn is open', () => {
+  assert.equal(stoppable('running'), true)
+  assert.equal(stoppable('done'), false)
+  assert.equal(stoppable(''), false)
+  assert.equal(stoppable(), false)
 })

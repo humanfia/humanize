@@ -2,7 +2,8 @@
 // notices of every daemon the page follows gathered into one list, the newest 200, each naming
 // its daemon and whether it is read; where each daemon's notices are taken up again; and which
 // kinds the user wants told of, read afresh for every notice. Kept in a store of values by key --
-// IndexedDB's, on the page -- and never in any daemon's settings.
+// IndexedDB's, on the page -- and never in any daemon's settings. What a notice is of, and where
+// it opens, is said here too.
 
 /** Every kind the user can switch on or off, by its word, as `Notifications` names it. */
 export const KINDS = /** @type {const} */ (['done', 'failed', 'stopped', 'asked', 'listening'])
@@ -19,6 +20,17 @@ export const KEPT = 200
 export function kindOf(notice) {
   if (notice.kind === 'done' && String(notice.slot || '').startsWith('chat:')) return 'listening'
   return notice.kind
+}
+
+/** What a notice is of, by name: its chat, whose `epic` is "", else its epic. */
+export const of = (item) => item.chat || item.epic || ''
+
+/** Where a notification opens: the chat it is of; the epic going for what waits on a person, else the epic itself. */
+export function addressOf(item) {
+  const at = !item.daemon || item.daemon === 'local' ? '#/' : `#/@${encodeURIComponent(item.daemon)}/`
+  if (item.chat) return `${at}chats/${encodeURIComponent(item.chat)}`
+  if ((item.kind === 'asked' || item.kind === 'listening' || !item.epic) && item.workspace) return `${at}live?${new URLSearchParams({ workspace: item.workspace, ...(item.slot ? { slot: item.slot } : {}) })}`
+  return item.epic ? `${at}epics/${encodeURIComponent(item.epic)}` : `${at}live`
 }
 
 /** What the user wants told: every kind and the system's notifications, until said otherwise. */

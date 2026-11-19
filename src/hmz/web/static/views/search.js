@@ -8,6 +8,7 @@
 // the terminal interface.
 
 import { given, hash, poll } from '../api.js'
+import { pathOf } from '../chats.js'
 import { shut, stays } from '../app.js'
 import { chatting, markOf } from '../epic.js'
 import { nameOf, workspaces } from '../places.js'
@@ -17,7 +18,7 @@ import { pick } from '../importing.js'
 import { menuOf, menuOn } from '../ui.js'
 import { dragged } from '../shell.js'
 import { ago, flowName, empty, fill, h, headline, icon, iconButton, lasting, tone, when } from '../dom.js'
-import { PAGE, TABS, asked, chosenOf, filtered, heading, hints, keyed, moved, nothing, onFlow, onTab, paged, turned } from '../search-model.js'
+import { PAGE, TABS, asked, chosenOf, filtered, found as gathered, heading, hints, keyed, moved, nothing, onFlow, onTab, paged, turned } from '../search-model.js'
 
 /** How a run can have ended, in the order the filter offers them. */
 const ENDINGS = ['running', 'done', 'failed', 'stopped', 'unfinished']
@@ -125,6 +126,8 @@ export function mount(root, { query }) {
   // ---------------------------------------------------------------- what is asked for
 
   let stop = () => {}
+  /** What each host runs. */
+  let running = []
   /** Whether Enter was pressed while the list was still of what was asked for before. */
   let opening = false
   /** What waits for the typing to pause before it asks. */
@@ -137,9 +140,29 @@ export function mount(root, { query }) {
     body.setAttribute('aria-busy', 'true')
     stays({ kind: chosen.kind, status: chosen.status, flow: chosen.flow, workspace: chosen.workspace, q: chosen.q, offset: chosen.offset || '' })
     marked()
-    // A chat is of no flow: the filter by flow is offered where an epic can be found.
+    // A chat is of no flow and is not found by how it went: those filters are offered where an
+    // epic can be found.
     flows.hidden = chosen.kind === 'chat'
-    stop = poll('runs.list', given(asked(chosen)), 5000, draw)
+    statuses.hidden = chosen.kind === 'chat'
+    // The chats and the epics are each asked for, and drawn as one list once each has answered.
+    const wanted = chosen
+    const got = asked(wanted).map(() => null)
+    const heard = (error = null) => (got.every(Boolean) ? draw(gathered(wanted, got, running), error) : error && draw(null, error))
+    const stops = asked(wanted).map(([method, params], at) =>
+      poll(method, given(params), 5000, (data, error) => {
+        if (data) got[at] = data
+        heard(error)
+      }),
+    )
+    // What a chat going waits on, as its host says it, as the sidebar marks it.
+    stops.push(
+      poll('hosts.running', {}, 4000, (answer) => {
+        if (!answer) return
+        running = answer.running
+        heard()
+      }),
+    )
+    stop = () => stops.forEach((one) => one())
   }
   const choose = (next) => {
     chosen = next
@@ -246,8 +269,9 @@ export function mount(root, { query }) {
       run.flow ? h('span', { class: 'mono', title: run.flow }, flowName(run.flow)) : null,
       run.agents.map((one) => h('span', { class: 'chip', title: `${one.role} · ${one.runs}` }, one.name, h('span', { class: 'dim' }, one.runs.split(':')[0]))),
       h('span', { class: 'mono' }, run.spent ? `${run.spent.money || '—'} · ${run.spent.tokens} out` : '—'),
-      run.ended ? h('span', { class: 'mono' }, `took ${lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000)}`) : null,
-      h('span', { class: 'mono' }, `${run.sessions} session${run.sessions === 1 ? '' : 's'}`),
+      // A chat is never over: when it was last heard of is no end to have taken until.
+      run.ended && !chatting(run) ? h('span', { class: 'mono' }, `took ${lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000)}`) : null,
+      typeof run.sessions === 'number' ? h('span', { class: 'mono' }, `${run.sessions} session${run.sessions === 1 ? '' : 's'}`) : null,
       run.resumable && !run.held && run.how !== 'running' && run.how !== 'done' ? h('span', { class: 'node-tag' }, 'Resumable') : null,
     )
 
@@ -293,7 +317,7 @@ export function mount(root, { query }) {
                   option(
                     h(
                       'a',
-                      { class: ['result', run.held && 'held'], href: hash(`/epics/${encodeURIComponent(run.name)}`), title: run.task, 'data-hmz': 'epic', 'data-kind': run.kind },
+                      { class: ['result', run.held && 'held'], href: hash(pathOf(run)), title: run.task, 'data-hmz': 'epic', 'data-kind': run.kind },
                       h('span', { class: 'result-task' }, headline(run.task)),
                       standing.said ? h('span', { class: 'result-how', 'data-hmz': 'result-how' }, standing.said) : null,
                       h('span', { class: 'result-where', title: run.workspace }, nameOf(run.workspace)),

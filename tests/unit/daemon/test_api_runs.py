@@ -225,23 +225,23 @@ def _ran(flow: str, **said: Any) -> Any:
 
 
 @pytest.mark.parametrize(
-    ("ran", "turn", "ending", "kind", "flow", "how"),
+    ("ran", "ending", "kind", "flow", "how"),
     [
-        # A chat says so, and no flow; going while its turn is, and stopped between.
-        (_ran("", kind="chat"), "running", "running", "chat", "", "running"),
-        (_ran("", kind="chat"), "done", "running", "chat", "", "stopped"),
-        (_ran("", kind="chat"), "", "done", "chat", "", "stopped"),
-        (_ran("", kind="chat"), "", "failed", "chat", "", "failed"),
-        # As an earlier hmz wrote one: the flow `chat`, and no kind.
-        (_ran("chat"), "done", "running", "chat", "", "stopped"),
+        # One an earlier hmz recorded for a chat says so, and no flow, and how it went as
+        # any epic does: no turn of a chat is an epic's any more.
+        (_ran("", kind="chat"), "running", "chat", "", "running"),
+        (_ran("", kind="chat"), "stopped", "chat", "", "stopped"),
+        (_ran("", kind="chat"), "failed", "chat", "", "failed"),
+        (_ran("", kind="chat"), "unfinished", "chat", "", "unfinished"),
+        # As a still earlier one wrote it: the flow `chat`, and no kind.
+        (_ran("chat"), "done", "chat", "", "done"),
         # A flow named chat now is a flow, said as it went.
-        (_ran("chat", kind="flow"), "", "done", "flow", "chat", "done"),
-        (_ran("ralph"), "", "running", "flow", "ralph", "running"),
+        (_ran("chat", kind="flow"), "done", "flow", "chat", "done"),
+        (_ran("ralph"), "running", "flow", "ralph", "running"),
     ],
 )
-def test_an_epic_row_says_its_kind_and_a_chats_state_by_its_turn(
+def test_an_epic_row_says_its_kind_and_how_it_went(
     ran: Any,
-    turn: str,
     ending: str,
     kind: str,
     flow: str,
@@ -256,21 +256,32 @@ def test_an_epic_row_says_its_kind_and_a_chats_state_by_its_turn(
 
     monkeypatch.setattr(hmz.runtime.epic, "ending", ends)
 
-    said = runs.row(ran, held=True, turn=turn)
+    said = runs.row(ran, held=True)
 
     assert (said["kind"], said["flow"], said["how"]) == (kind, flow, how)
+    # Where a chat is in its turn is its chat row's to say (`chat.list`), never an epic's.
+    assert "turn" not in said
 
 
-def test_a_host_going_with_a_chat_holds_the_chat_not_a_flow_of_its_name() -> None:
-    chat, named = _ran("", kind="chat"), _ran("", kind="flow")
-    going = [
-        {"workspace": "/w", "kind": "chat", "flow": "", "task": "hello", "turn": "done"}
-    ]
+def test_a_host_going_with_a_chat_holds_no_epic() -> None:
+    old, named = _ran("", kind="chat"), _ran("", kind="flow")
+    chatting = {
+        "workspace": "/w",
+        "kind": "chat",
+        "flow": "",
+        "epic": "",
+        "chat": "20260101-abc",
+        "task": "hello",
+        "turn": "done",
+        "slot": "chat:1",
+    }
 
-    held = runs.held_by([named, chat], going)
+    # Neither an epic of its chat's name, nor one of no flow begun with its task.
+    assert runs.held_by([named, old], [chatting]) == {}
 
-    assert list(held) == [chat.at]
-    assert held[chat.at]["turn"] == "done"
+    flowing = {"workspace": "/w", "kind": "flow", "flow": "", "task": "hello"}
+    held = runs.held_by([named], [chatting, flowing | {"slot": "", "asking": ["1:q"]}])
+    assert held == {named.at: {"slot": "", "asking": ["1:q"]}}
 
 
 def test_a_list_leaves_out_every_ai_chan_epic_and_one_her_host_holds(
@@ -316,7 +327,7 @@ def test_a_list_leaves_out_every_ai_chan_epic_and_one_her_host_holds(
     assert said["flows"] == ["chat"]
 
 
-def test_a_list_asked_for_one_kind_holds_only_that_kind(
+def test_a_list_holds_an_epic_recorded_for_a_chat_beside_the_flows_and_finds_it_as_chat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from pathlib import Path
@@ -347,12 +358,38 @@ def test_a_list_asked_for_one_kind_holds_only_that_kind(
 
     kept = cast("Any", SimpleNamespace(all=every, going=goes))
 
-    def names(kind: str) -> list[str]:
-        return [one["name"] for one in runs.listed(kept, [], what=kind)["runs"]]
+    said = runs.listed(kept, [])
 
-    assert names("") == ["a", "b"]
-    assert names("chat") == ["a"]
-    assert names("flow") == ["b"]
-    # What is counted is what is listed: every epic, or those of the kind asked for.
-    assert sum(runs.listed(kept, [], what="")["counts"].values()) == 2
-    assert sum(runs.listed(kept, [], what="chat")["counts"].values()) == 1
+    # No kind is asked for any more: every epic is listed, and counted.
+    assert [(one["name"], one["kind"]) for one in said["runs"]] == [
+        ("a", "chat"),
+        ("b", "flow"),
+    ]
+    assert (said["total"], said["counts"], said["flows"]) == (
+        2,
+        {"done": 2},
+        ["chat", "ralph"],
+    )
+    only = runs.listed(kept, [], flow="chat")
+    assert [one["name"] for one in only["runs"]] == ["a"]
+
+
+def test_a_chat_is_named_as_one_where_there_is_none_of_a_name() -> None:
+    def none() -> list[Any]:
+        return []
+
+    def hmz(workspace: str) -> Any:
+        del workspace
+
+    for kept, what in (
+        (runs.Runs(hmz, none, "chat"), "chat"),
+        (runs.Runs(hmz, none), "epic"),
+    ):
+        for name in ("20260101-abc", "", ".", "a/b"):
+            with pytest.raises(RpcError) as refused:
+                kept.named(name)
+            assert (refused.value.code, refused.value.message) == (
+                404,
+                f"There is no {what} {name}.",
+            )
+        assert kept.all() == []

@@ -88,7 +88,7 @@ class _Client:
         if method in self.refuses:
             raise self.refuses[method]
         if method == "chat.start":
-            return {"slot": "chat:ab12", "epic": "E"}
+            return {"slot": "chat:ab12", "chat": "E"}
         if method == "epic.attach":
             assert self.listener is not None
             said = self.said.pop(0) if len(self.said) > 1 else self.said[0]
@@ -119,7 +119,6 @@ def workspace(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> mock.Mock:
     held = mock.Mock()
     held.workspace = tmp_path
     held.flows.find.side_effect = find
-    held.epics.under.return_value = tmp_path / ".humanize" / "epics"
     monkeypatch.setattr(hmz.sdk, "Hmz", mock.Mock(return_value=held), raising=False)
     monkeypatch.setattr(hmz.daemon.where, "workspace", str)
     # The remembered agent, as a file writes it.
@@ -195,15 +194,56 @@ def test_without_an_agent_or_one_remembered_the_chat_is_refused(
     assert client.asked == []
 
 
-def test_resume_carries_the_chat_of_that_epic_on_with_its_own_agent(
+def test_resume_carries_the_chat_of_that_id_on_with_its_own_agent(
     workspace: mock.Mock, client: _Client
 ) -> None:
     workspace.settings.chat_agent = None
-    assert main(["chat", "--resume", "20261117T0000", "and then?"]) == 0
+    assert main(["chat", "--resume", "20261117T000000-ab12cd", "and then?"]) == 0
     started = client.params("chat.start")
     assert "agent" not in started
-    assert started["resume"] == str(workspace.epics.under() / "20261117T0000")
+    assert started["resume"] == "20261117T000000-ab12cd"
     assert started["task"] == "and then?"
+    assert "worktree" not in started
+
+
+def test_worktree_starts_the_chat_in_a_new_worktree(
+    workspace: mock.Mock, client: _Client
+) -> None:
+    del workspace
+    assert main(["chat", "--worktree", "-a", "codex/o3", "hello"]) == 0
+    started = client.params("chat.start")
+    assert started["worktree"] is True
+    assert "resume" not in started
+
+
+def test_a_chat_started_without_worktree_does_not_ask_for_one(
+    workspace: mock.Mock, client: _Client
+) -> None:
+    del workspace
+    assert main(["chat", "hello"]) == 0
+    assert "worktree" not in client.params("chat.start")
+
+
+def test_worktree_is_refused_with_resume(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    with pytest.raises(SystemExit) as raised:
+        main(["chat", "--worktree", "--resume", "E", "and then?"])
+    assert raised.value.code == 2
+    assert "one carried on works where it worked" in capsys.readouterr().err
+    assert client.asked == []
+
+
+def test_a_worktree_the_daemon_refuses_is_said_as_it_says_it(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    client.refuses["chat.start"] = Refused("this is no git repository", code=400)
+    with pytest.raises(SystemExit) as raised:
+        main(["chat", "--worktree", "hello"])
+    assert raised.value.code == 2
+    assert capsys.readouterr().err == ("hmz chat: error: this is no git repository\n")
 
 
 def test_resume_with_an_agent_carries_the_chat_on_with_that_one(
@@ -426,7 +466,7 @@ def test_a_turn_done_is_done_however_the_chat_takes_its_end(
 ) -> None:
     del workspace
     client.refuses["chat.say"] = Refused(
-        "this chat has folded away; carry it on from its epic", code=409
+        "this chat has folded away; carry it on with chat.start", code=409
     )
     assert main(["chat", "hello"]) == 0
     assert capsys.readouterr().out == "answered\n"

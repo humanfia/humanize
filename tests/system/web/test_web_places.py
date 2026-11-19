@@ -45,12 +45,12 @@ def other(tmp_path: Path) -> Path:
 
 
 def _ran(browser: Browser, workspace: Path, task: str) -> None:
-    """Starts a chat in a workspace and stops it once it has answered, as a page would."""
+    """Starts a chat in a workspace and rests it once it has answered, as a page would."""
     with browser.session() as page:
         chatted(page, workspace, task)
 
 
-def test_every_workspaces_epics_are_listed_and_found_by_workspace(
+def test_every_workspaces_chats_are_listed_and_found_by_workspace(
     project: Path, other: Path
 ) -> None:
     here = project.resolve()
@@ -61,15 +61,17 @@ def test_every_workspaces_epics_are_listed_and_found_by_workspace(
         _ran(browser, other, "in the second")
 
         with browser.session() as page:
-            listed = page.call("runs.list")["runs"]
-            assert {(one["task"], one["workspace"]) for one in listed} == {
+            listed = page.call("chat.list")["chats"]
+            assert {(one["title"], one["workspace"]) for one in listed} == {
                 ("in the first", str(here)),
                 ("in the second", str(other)),
             }
-            only = page.call("runs.list", workspace=str(other))["runs"]
-            assert [one["task"] for one in only] == ["in the second"]
+            only = page.call("chat.list", workspace=str(other))["chats"]
+            assert [one["title"] for one in only] == ["in the second"]
             (one,) = only
-            assert page.call("runs.get", name=one["name"])["workspace"] == str(other)
+            assert page.call("chat.get", chat=one["id"])["workspace"] == str(other)
+            # A chat is no epic: none is listed among the epics.
+            assert page.call("runs.list")["runs"] == []
             places = page.call("workspaces.list", here=str(here))
         assert places["here"] == str(here)
         assert [one["path"] for one in places["workspaces"]][:1] == [str(here)]
@@ -157,7 +159,7 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("over there")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+$"))
+        page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
         folder = page.locator(f"[data-hmz=workspace][data-path='{other}']")
         expect(folder.locator("[data-hmz=epic]")).to_contain_text("over there")
         stop(page)
@@ -182,7 +184,7 @@ def test_an_epic_is_started_in_no_workspace_in_a_new_directory(
         ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("nowhere in particular")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/[^/]+/sessions/[^/]+$"))
+        page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
         # Under a folder of its own, made in the temporary directory.
         made = f"[data-hmz=workspace][data-path^='{scratch.resolve()}/hmz-']"
         expect(page.locator(made).locator("[data-hmz=epic]")).to_contain_text(

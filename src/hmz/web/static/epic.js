@@ -3,28 +3,35 @@
 // who handed to whom -- off the records of the run going, as the terminal interface's monitor
 // works them out, or off the epic written down and, once read, the logs it kept.
 //
+// A chat is no epic: it is listed and read by `chat.*`, by its id (Section 3.5.20 of
+// protocol/web.md). Its row and its record are read here into the shape an epic's have
+// (chats.js), marked a chat by their `kind`, so that every list and the view of a conversation
+// draw the two alike where they are alike.
+//
 // An agent goes by its own name, never by the role it fills: the role is only a parameter it
 // was given, said beside the name. A session is named as the run going names it,
 // `<agent>/<n>`, the n-th its agent opened; a run written down names its sessions the same
 // way, in the order they were opened, so an address to a session stays one as its run ends.
 
 import { call, daemon, poll } from './api.js'
+import { chatDetail, epicRow } from './chats.js'
 import { flowName, lane, lasting } from './dom.js'
 import { current, follow, placed } from './held.js'
 import { keep, kept } from './shell.js'
 
 /**
- * Follows one epic, or -- named "" -- the one going on a host: what it wrote down, read again
+ * Follows one epic or chat, or -- named "" -- the one going on a host: what it wrote down, read again
  * every so often, and the records of the host going with it while one is -- and after, for as
  * long as they are still of it. An epic written down long ago reaches no runs at all.
  *
- * @param {string} name The epic, or "" for the one going.
+ * @param {string} name The epic, or the chat's id, or "" for the one going.
  * @param {string|{workspace: string, slot: string}} where The host to look for the one going on,
  *   for an epic not named: a workspace's own, or a chat's.
  * @param {(seen: {detail: object|null, error: Error|null, held: object|null, going: object|null, none: boolean, workspace: string}) => void} told
+ * @param {{chat?: boolean}} [of] Whether what is named is a chat.
  * @returns {() => void} What stops following.
  */
-export function watch(name, where, told) {
+export function watch(name, where, told, { chat: aChat = false } = {}) {
   const seen = { detail: null, error: null, held: null, going: null, none: false, workspace: placed(where).workspace }
   let unfollow = null
   let followed = ''
@@ -51,15 +58,17 @@ export function watch(name, where, told) {
     if (host && follows(host)) return
     const run = seen.held ? going(seen.held) : null
     const standing = seen.held && seen.held.standing.run
-    // Named by the host once it writes one: the epic going there -- or, on a chat's host, which
-    // holds that chat alone, the chat it wrote, over before the page came as it may be.
-    const chat = Boolean(run && standing && standing.epic && asked.slot.startsWith('chat:'))
-    // Read once for each life of the host's: a chat carried on goes on in the same epic, which
+    // Named by the host once it writes one: the epic going there, or the chat (`chat`, its
+    // `epic` then "") -- on a chat's host, which holds that chat alone, over before the page
+    // came as it may be.
+    const wrote = standing ? standing.chat || standing.epic || '' : ''
+    const chat = Boolean(run && wrote && asked.slot.startsWith('chat:'))
+    // Read once for each life of the host's: a chat carried on goes on in the same record, which
     // has by then written down what it opened before.
-    const life = !name && run && (run.live || chat) && standing.epic ? `${standing.epic}\n${seen.held.epoch}` : ''
+    const life = !name && run && (run.live || chat) && wrote ? `${wrote}\n${seen.held.epoch}` : ''
     if (life && life !== named) {
       named = life
-      call('runs.get', { name: standing.epic }).then((found) => {
+      whole(wrote, Boolean(standing.chat)).then((found) => {
         if (named !== life) return
         seen.detail = found
         tell()
@@ -68,14 +77,14 @@ export function watch(name, where, told) {
     seen.none = !name && Boolean(seen.held && (seen.held.connected || seen.held.gone)) && !(run && (run.live || chat))
     // The records of the epic going are this one's while it goes, and still once it has ended,
     // for as long as the records held are of it rather than of one started since.
-    const ours = Boolean(seen.detail && run && ((standing && standing.epic === seen.detail.name) || seen.detail.held || same(seen.detail, run.started)))
+    const ours = Boolean(seen.detail && run && (wrote === seen.detail.name || seen.detail.held || same(seen.detail, run.started)))
     seen.going = !name || ours ? run : null
     told(seen)
   }
   const stop = name
-    ? poll('runs.get', { name }, 4000, (data, error) => {
+    ? poll(aChat ? 'chat.get' : 'runs.get', aChat ? { chat: name } : { name }, 4000, (data, error) => {
         seen.error = error
-        if (data) seen.detail = data
+        if (data) seen.detail = aChat ? chatDetail(data) : epicRow(data)
         tell()
       })
     : () => {}
@@ -84,6 +93,11 @@ export function watch(name, where, told) {
     stop()
     if (unfollow) unfollow()
   }
+}
+
+/** An epic, or a chat, whole, as the view reads either. */
+function whole(name, chat) {
+  return chat ? call('chat.get', { chat: name }).then(chatDetail) : call('runs.get', { name }).then(epicRow)
 }
 
 /** Whether the start the records say is the start an epic wrote down, as the server matches them. */
@@ -95,10 +109,10 @@ function same(detail, started) {
 const SAME = 120
 
 /**
- * Whether an epic is a chat, read as a conversation rather than as a flow: by its kind -- an epic
- * row's or a `started` record's `kind`, a host's `epic_kind` -- and, where none is given, as an
- * epic written before chats had a kind of their own, by its flow named `chat` (Section 8.3.5 of
- * protocol/core.md).
+ * Whether what is read is a chat, read as a conversation rather than as a flow: by its kind -- a
+ * row's as chats.js says it, a `started` record's `kind`, a host's `epic_kind` --
+ * and, where none is given, as a host's run of before chats had a kind of their own, by its flow
+ * named `chat` (Section 8.3.5 of protocol/core.md).
  *
  * @param {{kind?: string, epic_kind?: string, flow?: string}} epic
  */

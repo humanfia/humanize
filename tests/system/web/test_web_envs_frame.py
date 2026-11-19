@@ -326,7 +326,7 @@ def test_a_phone_folds_the_list_into_a_picker(project: Path, engine: str) -> Non
         assert gutter == "16px"
 
 
-#: The chat faked: its slot, its epic, and the run it has going.
+#: The chat faked: its slot, its id, the run it has going, and what `chat.get` answers of it.
 _SLOT = "chat:fake"
 #: The chat's host, as an address's query names it.
 _HOST = urlencode({"workspace": _FAKE, "slot": _SLOT})
@@ -347,33 +347,29 @@ _STARTED = {
     "at": 1794879452.0,
 }
 _DETAIL: dict[str, Any] = {
-    "name": _CHAT,
+    "id": _CHAT,
+    "title": "hello there",
     "workspace": _FAKE,
-    "slot": _SLOT,
-    "flow": "chat",
-    "task": "hello there",
+    "workdir": _FAKE,
+    "agent": "claude/claude-haiku-4-5",
+    "model": "claude-haiku-4-5",
     "began": "2026-11-17T00:00:00.000Z",
-    "ended": None,
-    "how": "running",
+    "updated": "2026-11-17T00:00:00.000Z",
+    "state": "going",
+    "slot": _SLOT,
+    "asking": [],
+    "permission": "workspace-write",
+    "archived": False,
+    "spent": None,
+    "at": "/nowhere/chat",
+    "task": "hello there",
+    "prefer": "",
+    "forked": "",
     "agents": [{"name": "Ada", "role": "assistant", "runs": "claude/claude-haiku-4-5"}],
     "sessions": [],
-    "resumable": True,
-    "spent": None,
-    "held": True,
-    "asking": [],
+    "earlier": 0,
     "backup": [],
     "backed": {},
-    "at": "/nowhere/epic",
-    "ref": "chat:chat",
-    "envs": [],
-    "used": [],
-    "params": {},
-    "budget": None,
-    "picked_up": "",
-    "earlier": 0,
-    "picks_up": False,
-    "foreign": "",
-    "calls": [],
 }
 
 
@@ -384,7 +380,7 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
                 "result": {"sub": _SUB, "workspace": _FAKE, "slot": _SLOT}
             },
             "epic.detach": lambda _: {"result": {}},
-            "runs.get": lambda _: {"result": _DETAIL},
+            "chat.get": lambda _: {"result": _DETAIL},
         }
     )
 
@@ -411,7 +407,8 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
                 "type": "run",
                 "state": "running",
                 "run": 1,
-                "epic": _CHAT,
+                "epic": "",
+                "chat": _CHAT,
                 "slot": _SLOT,
                 "turn": "",
                 **_STARTED,

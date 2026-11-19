@@ -104,10 +104,11 @@ conversation), `outworlder` and `monitor`.
 
 ### Chat {#chat}
 
-An epic of kind `chat` -- or, with no epic of a flow on the screen, the chat this interface
-holds and has not started yet -- is one conversation, read as Claude Code reads one. It is told
-by the epic's kind, never by a flow's name: a flow named `chat` is a flow. The interface opens
-on a new chat, its agent the chat agent remembered for this directory, else the first that
+A chat -- the one a chat's host holds, or, with no epic of a flow on the screen, the chat this
+interface holds and has not started yet -- is one conversation, read as Claude Code reads one.
+It is not an epic: it is kept under its own id, listed by `chat.list` and never by `/epics`. It
+is told by its host's kind, never by a flow's name: a flow named `chat` is a flow. The
+interface opens on a new chat, its agent the chat agent remembered for this directory, else the first that
 [fills by default](#default-fill).
 
 | | |
@@ -116,14 +117,14 @@ on a new chat, its agent the chat agent remembered for this directory, else the 
 | View | Its conversation alone, landed on as any run's first is but with no `─ reading <agent> ─` line: no round, and [`←`](#key-left) opens no monitor. |
 | Above the prompt | No outworlder line, and its agent's line marks neither `reading` nor `unread`. |
 | Status line | `running` while a turn is open, `done` once it waits for you ([left side](#status-left)). |
-| Stopping | None: `/stop` is refused, and [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) starts another chat and leaves this one going. |
+| Stopping | `/stop` interrupts the open turn (`chat.stop`) and leaves the chat between turns, `That turn was stopped.` said in it; with no turn open it is refused, `no turn is open, so there is nothing to stop`. Nothing ends a chat or forces its turn: [`ctrl+c`](#ctrl-c) twice leaves. [`/clear`](#clear-command) starts another chat and leaves this one going. |
 | Leaving | [`/exit`](#leaving-and-letting-go), `/quit` and `ctrl+q` ask nothing. |
-| Beside it | Each chat runs on a host of its own, its own epic, beside every other chat and the flow of this directory, which may be started or `/resume`d while chats go. A chat nobody reads for **60 s** between turns folds away. |
+| Beside it | Each chat runs on a host of its own, beside every other chat and the flow of this directory, which may be started or `/resume`d while chats go. A chat nobody reads for **60 s** between turns folds away. |
 | Starting a flow | `$<flow> <task>` or `/flow <flow> <task>` puts the flow on the screen, on this directory's own host, and leaves the chat going on its own; `/chat` brings it back, as it stands or, folded away meanwhile, as it was left, carried on by the next line. A line said while no epic of a flow is going goes to the chat. |
 | Its harness's own input | A line starting `/`, `$`, `!` or `@` is first read as the harness reads it at its own prompt, against the catalogue the chat's host gives (`chat.commands`): its commands and skills are said to it, a `!` command runs for the chat and is drawn dim, as a shell draws it, with what it printed under it, and a command only the harness's own interface serves is refused, `<cmd> is served only by the harness's own interactive interface`. Humanize keeps `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`, `/settings`, `/chat` and `/prefer`. A `/` naming nothing is `no such command` where the catalogue has any `/` entry and the chat has taken a turn, and is said as text otherwise. |
 | `$` names both | A `$<name>` that is both a skill and a flow runs the skill unless the chat prefers flows: `/prefer` says which and where it comes from (the settings file, or this chat), `/prefer native\|flow` sets it for this chat. `/flow <name> <task>` always starts the flow. |
-| `/resume` | Lists the other chats of this directory, newest first; the one picked is carried on. |
-| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume epic`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
+| `/resume` | Lists the other chats of this directory that are not archived, newest first, by title, as the daemon's `chat.list` answers them; the one picked is read where it is while a host holds it, and otherwise carried on, the same chat (`chat.start` with `resume` its id), by the next line you say: `say something to continue chat <id>`. |
+| `/epics` | Lists no chat of this machine. An epic an earlier hmz recorded for a chat is listed as an epic named `chat`, read as any other, with no `Exomyth` row and no way to carry it on. |
 | `!` lines | A `!` line and its output are drawn dim, in the style of a shell. |
 
 #### Native input {#native-input}
@@ -281,7 +282,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
 | <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
 | <span id="cmd-claim"></span>`/claim` | `[on\|off]` | `outworlder` | on an outworlder another frontend holds | — |
-| <span id="cmd-stop"></span>`/stop` | — | all | no run going, a [chat](#chat) going, or it is stopping; following [Ai-chan](#ai-chan), her turn not open | — |
+| <span id="cmd-stop"></span>`/stop` | — | all | no run going, or it is stopping; in a [chat](#chat), no turn open; following [Ai-chan](#ai-chan), her turn not open | — |
 | <span id="cmd-exit"></span>`/exit` | — | all | never | — |
 | <span id="cmd-quit"></span>`/quit` | — | all | never | — |
 | <span id="cmd-chat"></span>`/chat` | — | all | the [chat](#chat) is on the screen | — |
@@ -303,7 +304,7 @@ Each command's line in the completion list:
 | `/clear` | `Clear the screen` | `Start a new chat` — a [chat](#chat) |
 | `/afk` | `Toggle whether an agent may ask you` | |
 | `/claim` | `Answer for this outworlder exclusively; off releases it` | |
-| `/stop` | `Stop the flow without confirmation` | |
+| `/stop` | `Stop the flow without confirmation` | `Stop the turn, and go on with the chat` — a [chat](#chat) |
 | `/exit`, `/quit` | `Exit` | `Exit; a running flow can be left running` — a run but a [chat](#chat) is going |
 | `/chat` | `Back to the chat, which went on while a flow was on the screen` | |
 | `/prefer` | `What $<name> runs where it names a skill and a flow` | |
@@ -324,7 +325,7 @@ Every message is red and prefixed `hmz: `.
 | `/afk`, `/claim` | argument not `on`/`off` | `expected 'on' or 'off', not '<word>'` |
 | `/claim off` | not held by this frontend | `<role> is not yours to release` |
 | `/stop` | nothing running | `no flow is running` |
-| `/stop` | a [chat](#chat) on the screen | `a chat is not stopped: /clear starts another` |
+| `/stop` | a [chat](#chat) on the screen, no turn open | `no turn is open, so there is nothing to stop` |
 | `/chat` | the chat is on the screen | `the chat is already on the screen` |
 | `/chat` | any argument | `/chat takes no arguments` |
 | `/prefer` | not in a chat | `/prefer works only in a chat: /chat goes back to it` |
@@ -373,7 +374,7 @@ in the same epic, when the next line is said.
 Only in a [chat](#chat). Alone, says the chat's preference -- what a `$<name>` that is both a
 native skill and a flow is read as -- and whether it comes from the settings
 ([`chat.prefer`](/reference/settings#chat-prefer), `native` unless set) or from this chat.
-`/prefer native` and `/prefer flow` set this chat's own, which is written in its epic and
+`/prefer native` and `/prefer flow` set this chat's own, which is written in the chat and
 survives carrying it on.
 
 ### `/btw [question]` {#btw-command}
@@ -394,8 +395,8 @@ machine's (`@local`) until another is turned to -- or on `@<daemon>`, one of tho
 ### `/resume` {#resume}
 
 Outside a [chat](#chat), see [`/resume`](#carrying-the-last-one-on-outright). In a chat, opens a
-pick list of this directory's earlier chats, newest first, and carries on the one picked, in
-its own epic.
+pick list of this directory's earlier chats, newest first, and carries on the one picked, the
+same [chat](#chat).
 
 ### `/env [role]` {#env-command}
 
@@ -1280,12 +1281,12 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | `graph` | `its agents, called flows and sessions, read back`. Opens its [graph](#an-epic-s-graph). |
 | `upload` | `back the epic up to its targets, or the defaults`. Offered where a [backup target](#backup-page) exists. Queues a backup to the targets the epic was started with, else the defaults, and goes back to the runs at once: `backing <name> up to <a>, <b>` (repeated in the transcript on close), `no default backup target: mark one on /settings backup`, or `<why>` in red. `hmz` waits up to 15 s for it on close. |
 | `export epic` | `the entire epic as an archive, with its trace`. Opens **Export epic** (below), then writes the archive there (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
-| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
+| `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for an epic of kind `chat`. |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
-A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume epic`: the one a host still holds is read where it is, and one folded away is set up and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
+A [chat](#chat) is no epic and is not listed here: `/resume` in a chat goes back to one. An epic an earlier hmz recorded for a chat (kind `chat`) is listed, named `chat`, and read as any other, but offers neither `resume epic` nor `Exomyth`: `this epic is of a chat an earlier hmz had, and cannot be carried on`.
 
-Rows in order: `resume epic` or `continue`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
+Rows in order: `resume epic`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
 
 ### An epic's graph {#an-epic-s-graph}
 
@@ -1326,7 +1327,7 @@ session the [Daemons page](#daemons-page) reaches it by, off the screen.
 | Element | Value |
 | --- | --- |
 | Title | `Epics on <daemon>` |
-| About | `Every epic <daemon> holds, newest first: workspace, task, status, and session count.` |
+| About | `Every epic <daemon> holds and every chat going there, newest first: workspace, task, status, and session count.` A chat a host there holds (`chat.list`, the rows with a `slot`) is a row named `chat`, with its title and how it stands; its menu is **follow** and **copy id** alone. |
 | Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<workspace> · <task\|no task> · <n> session(s) · <how>` |
 | Buttons | **Search…** (flow, task, run name, workspace); **New epic…**, as `n`; **Refresh**; **Daemon…**, as above |
 | Keys | `enter menu   / search   tab actions   esc close` |

@@ -7,13 +7,14 @@
 // (views/new.js), which the sidebar opens beside this one.
 
 import { call, daemon, given, hash, poll } from '../api.js'
+import { chatRow, pathOf } from '../chats.js'
 import { covered, focusing, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
 import { NO_FOLDER, dismissing, nextSteps, stepKey } from '../desk.js'
 import { fill, h, headline, iconButton, problem } from '../dom.js'
-import { chatting, markOf, waitsOn } from '../epic.js'
+import { markOf, waitsOn } from '../epic.js'
 import { permissionChip } from '../chips/permission.js'
 import { chatAsk } from '../held.js'
 import { readBackends } from '../pickers.js'
@@ -57,7 +58,9 @@ export function mount(root, { query }) {
 
   // The chats of this daemon that wait on their person, each opened by its row, and dismissed
   // from the list in this browser until it asks again.
-  let runs = []
+  let chats = []
+  /** What each host runs, which says what a chat going waits on. */
+  let running = []
   const DISMISSED = 'hmz-next-dismissed'
   const dismissed = () => {
     try {
@@ -71,8 +74,8 @@ export function mount(root, { query }) {
   const keyOf = (run) => `${daemon()} ${stepKey(run, waits(run))}`
   function drawSteps() {
     const waiting = nextSteps(
-      runs,
-      chatting,
+      chats.map((one) => chatRow(one, running)),
+      () => true,
       (run) => markOf(run.how, { chat: true, turn: run.turn, asked: run.asking || [], epic: run.name }),
       dismissed().filter((one) => one.startsWith(`${daemon()} `)).map((one) => one.slice(daemon().length + 1)),
       waits,
@@ -88,7 +91,7 @@ export function mount(root, { query }) {
           h(
             'li',
             { class: 'next-step', 'data-hmz': 'next-step', 'data-epic': run.name },
-            h('a', { href: hash(`/epics/${encodeURIComponent(run.name)}`), title: run.task }, h('span', { class: 'dot waiting', role: 'img', 'aria-label': 'Waiting' }), h('span', { class: 'next-title' }, headline(run.task)), h('span', { class: 'next-state' }, 'Asked a question')),
+            h('a', { href: hash(pathOf(run)), title: run.task }, h('span', { class: 'dot waiting', role: 'img', 'aria-label': 'Waiting' }), h('span', { class: 'next-title' }, headline(run.task)), h('span', { class: 'next-state' }, 'Asked a question')),
             iconButton('close', 'Dismiss', {
               'data-hmz': 'next-dismiss',
               onclick: () => {
@@ -101,10 +104,15 @@ export function mount(root, { query }) {
       ),
     )
   }
-  // As many as `runs.list` answers at once: a chat waits while a host holds it, or was left lately.
-  const unlisted = poll('runs.list', { limit: 200 }, 4000, (answer) => {
+  // As many as `chat.list` answers at once: a chat waits while a host holds it, or was left lately.
+  const unlisted = poll('chat.list', { limit: 200 }, 4000, (answer) => {
     if (!answer) return
-    runs = answer.runs || []
+    chats = answer.chats || []
+    drawSteps()
+  })
+  const unheld = poll('hosts.running', {}, 4000, (answer) => {
+    if (!answer) return
+    running = answer.running
     drawSteps()
   })
   // Looked at in its own view, a chat waits on nobody any more.
@@ -159,7 +167,7 @@ export function mount(root, { query }) {
       picker?.open()
       throw new Error('Pick a model for the chat.')
     }
-    // A new chat's own host, beside every other epic here; the agent is remembered for the next.
+    // A new chat's own host, beside every epic here; the agent is remembered for the next.
     const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), remember: !scratch, scratch })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
@@ -173,6 +181,7 @@ export function mount(root, { query }) {
     // Left, what is still being read draws nothing.
     loading = null
     unlisted()
+    unheld()
     window.removeEventListener('hmz:seen', drawSteps)
     window.removeEventListener('hashchange', back)
     picker?.leave()

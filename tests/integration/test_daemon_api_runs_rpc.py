@@ -1,7 +1,8 @@
 """`runs.*`, `backups.*` and `files.*` served over a real socket pair, as a client calls them.
 
 An epic written down is listed, read, carried away a chunk at a time as the archive the web
-interface hands a browser, and read back in from the chunks it was sent as.
+interface hands a browser, and read back in from the chunks it was sent as. A chat is no epic:
+`chat.*` reads it, by its name, off a record of its own.
 """
 
 from __future__ import annotations
@@ -18,10 +19,12 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.daemon.api import backups, files, runs
+from hmz.daemon.api import backups, chats, files, runs
 from hmz.rpc import PROTOCOL, Call, Dispatcher, Peer, RpcError, admit, hello
 from hmz.runtime.epic import Epic
+from hmz.runtime.epic import chats as written_chats
 from tests.integration.doubles_core import install
+from tests.integration.doubles_daemon import old_chat
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -33,16 +36,15 @@ _CHUNK = 4096
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A project, and an epic of a chat written down in it."""
+    """A project, and an epic an earlier hmz recorded for a chat written down in it."""
     at = install(tmp_path, monkeypatch)
-    with Epic("", "hello there", at, kind="chat"):
-        pass
+    old_chat(at, "hello there")
     return at
 
 
 @pytest.fixture
 def client(project: Path) -> Iterator[Peer]:
-    """A client's end of a session whose other end serves the runs family, greeted."""
+    """A client's end of a session whose other end serves the runs and chats, greeted."""
     del project
     served = Dispatcher()
 
@@ -51,7 +53,7 @@ def client(project: Path) -> Iterator[Peer]:
         return {"daemon_id": "d", "protocol": PROTOCOL, "paired": True}
 
     served.register("session.hello", greets)
-    for family in (runs, backups, files):
+    for family in (runs, chats, backups, files):
         for name, handler in family.METHODS.items():
             served.register(name, handler)
     ours, theirs = socket.socketpair()
@@ -119,7 +121,7 @@ def test_an_epic_is_listed_read_carried_away_in_chunks_and_read_back_in(
     listed = client.call("runs.list", {"workspace": str(project)}, timeout=30)
     (run,) = listed["runs"]
     name = run["name"]
-    # An epic an earlier hmz wrote of the flow `chat` reads as a chat, of no flow.
+    # An epic an earlier hmz recorded for a chat reads as a chat, of no flow.
     assert (run["kind"], run["flow"], run["task"], listed["total"]) == (
         "chat",
         "",
@@ -161,15 +163,61 @@ def test_an_epic_is_listed_read_carried_away_in_chunks_and_read_back_in(
     assert "is already here" in again.message
 
 
-def test_a_chats_own_preference_is_read_with_its_epic(
+def test_a_chat_is_read_by_chat_get_and_is_none_of_the_runs(
     project: Path, client: Peer
 ) -> None:
-    (plain,) = client.call("runs.list", {"workspace": str(project)}, timeout=30)["runs"]
-    with Epic("", "start the flows", project, kind="chat", prefer="flow") as epic:
-        name = epic.path.name
-    # The override its epic records, which carrying it on keeps; "" of a chat with none.
-    assert client.call("runs.get", {"name": name}, timeout=30)["prefer"] == "flow"
-    assert client.call("runs.get", {"name": plain["name"]}, timeout=30)["prefer"] == ""
+    (old,) = client.call("runs.list", {"workspace": str(project)}, timeout=30)["runs"]
+    with Epic("", "plain words", project, kind="chat") as plain:
+        plain.stopped()
+    with Epic(
+        "",
+        "start the flows",
+        project,
+        kind="chat",
+        prefer="flow",
+        permission="read-only",
+    ) as chat:
+        chat.stopped()
+    name = chat.path.name
+
+    # The runs are as they were: the one epic, and neither chat by any name for it.
+    listed = client.call("runs.list", {"workspace": str(project)}, timeout=30)
+    assert [one["name"] for one in listed["runs"]] == [old["name"]]
+    assert (listed["total"], listed["flows"]) == (1, ["chat"])
+    for method in ("runs.get", "runs.trace", "runs.bundle", "runs.backup"):
+        gone = _refused(client, method, {"name": name})
+        assert (gone.code, gone.message) == (404, f"There is no epic {name}.")
+    # No kind is asked of the runs any more.
+    invalid = _refused(client, "runs.list", {"kind": "chat"})
+    assert (invalid.code, invalid.message) == (-32602, "runs.list takes no kind.")
+    # Nor is anything of a chat's said of an epic: not even of one recorded for a chat.
+    whole = client.call("runs.get", {"name": old["name"]}, timeout=30)
+    assert whole["kind"] == "chat"
+    for absent in ("earlier", "permission", "prefer"):
+        assert absent not in whole
+
+    # The chats are listed newest first, and the override each records is read with it.
+    said = client.call("chat.list", {"workspace": str(project)}, timeout=30)
+    assert [one["id"] for one in said["chats"]] == [name, plain.path.name]
+    assert [(one["permission"], one["state"]) for one in said["chats"]] == [
+        ("read-only", "resting"),
+        ("workspace-write", "resting"),
+    ]
+    assert client.call("chat.get", {"chat": name}, timeout=30)["prefer"] == "flow"
+    assert (
+        client.call("chat.get", {"chat": plain.path.name}, timeout=30)["prefer"] == ""
+    )
+    absent = _refused(client, "chat.get", {"chat": old["name"]})
+    assert (absent.code, absent.message) == (404, f"There is no chat {old['name']}.")
+
+    # Deleted, a chat is gone from disk; the epic recorded for a chat is still there.
+    assert client.call("chat.delete", {"chat": name}, timeout=30) == {}
+    assert written_chats() == [plain.path]
+    assert not chat.path.exists()
+    assert (
+        client.call("runs.get", {"name": old["name"]}, timeout=30)["name"]
+        == old["name"]
+    )
 
 
 def test_a_handle_is_refused_what_it_cannot_carry(client: Peer) -> None:

@@ -287,7 +287,10 @@ async def test_a_chat_followed_on_another_daemon_is_not_this_directorys(
         await typed(pilot, "/epics @box")
         await on(pilot, RemoteEpics)
         await shows(pilot, "hi far")
-        await _menu(pilot, str(made["epic"]))
+        # A chat going there is no epic of that daemon, and is listed as a chat to follow.
+        await shows(pilot, " · chat")
+        await _menu(pilot, str(made["chat"]))
+        assert "export" not in screen(pilot.app)
         await onto(pilot, "follow")
         await pilot.press("enter")
         await until(pilot, lambda: len(pilot.app.screen_stack) == 1, "the chat")

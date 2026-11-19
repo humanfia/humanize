@@ -2,7 +2,8 @@
 // forward, a new chat, a new epic, finding one, the flows, and the chats and epics of this machine
 // in groups -- by folder, by date or as one, as `Group and sort` says -- each a row of its title
 // and how it stands, with a menu at its end; a flow's epic opens out into its agents, and each
-// agent into the sessions it opened, and a chat, its one conversation, opens into nothing. Under
+// agent into the sessions it opened, and a chat, its one conversation, opens into nothing. The
+// chats are read by `chat.list` and the epics by `runs.list`, as one list. Under
 // them, in one row, the daemon the page is of, how many epics are going on it and a picker of the
 // daemons, and the settings. A splitter on its right edge sizes it.
 
@@ -11,6 +12,7 @@ import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuButton, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
+import { chatRow, epicRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { bell, readOf, unreadOn } from './notifications.js'
 import { nameOf } from './places.js'
@@ -18,7 +20,7 @@ import { CHAT_SAID, chatState, epicSaid, rowTitle, wording } from './sidebar-row
 import { DEFAULTS, GROUPS, SHOWS, SORTS, WIDTHS, arranged, paged, toggled, viewOf, viewText, widthOf } from './sidebar-view.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
 
-/** How many epics a page of the list holds. */
+/** How many chats, and how many epics, a page of the list holds. */
 const PAGE = 60
 
 /** Which entry of the sidebar an address is of: a new chat's own, else the one its first part names. */
@@ -177,7 +179,13 @@ export function mountSidebar(root, context, where) {
   })
 
   let limit = PAGE
+  /** The rows listed, chats and epics as one, and how many of them the daemon holds. */
   let data = null
+  /** What `chat.list` and `runs.list` last answered, and which of them the list still waits on. */
+  let read = {}
+  let waiting = new Set()
+  /** What each host runs, which says what a chat going waits on. */
+  let running = []
   let places = null
   /** What `Group and sort` chose, as this browser last left it. */
   let view = viewOf(kept(VIEW, ''))
@@ -202,20 +210,29 @@ export function mountSidebar(root, context, where) {
   const strays = new Map()
 
   let stop = () => {}
+  /** The list of what was read: the chats and the epics, each as a row of it. */
+  const gather = () => {
+    if (read.chats && read.runs) data = { runs: [...read.chats.chats.map((one) => chatRow(one, running)), ...read.runs.runs.map(epicRow)], total: read.chats.total + read.runs.total }
+  }
   const watch = () => {
     stop()
-    stop = poll('runs.list', { limit }, 4000, (answer, error) => {
-      if (answer) {
-        if (asked !== null) dry = answer.runs.length <= asked
-        data = answer
+    waiting = new Set(['chats', 'runs'])
+    const heard = (which) => (answer, error) => {
+      if (answer) read[which] = answer
+      waiting.delete(which)
+      gather()
+      // A page more was asked of both: how many it brought is told once both have answered.
+      if (!waiting.size) {
+        // Asked for more and refused, or brought none: the list asks for no more by itself.
+        if (asked !== null) dry = Boolean(error) || !data || data.runs.length <= asked
+        asked = null
+        loading = null
       }
-      // Asked for more and refused: the list asks for no more by itself.
-      if (error && asked !== null) dry = true
-      asked = null
-      loading = null
       if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Loading…'))
       else draw()
-    })
+    }
+    const stops = [poll('chat.list', { limit }, 4000, heard('chats')), poll('runs.list', { limit }, 4000, heard('runs'))]
+    stop = () => stops.forEach((one) => one())
   }
   /** Reads a page more of the list, for a group or for the list itself. */
   const further = (by) => {
@@ -237,7 +254,13 @@ export function mountSidebar(root, context, where) {
   watchPlaces()
   // How many epics are going on the daemon shown, as its hosts say.
   // An Ai-chan conversation is hers, listed in her drawer, and no epic of the sidebar's to count.
-  poll('hosts.running', {}, 4000, (answer) => answer && bar.going(answer.running.filter((one) => !String(one.slot || '').startsWith('ai:')).length))
+  poll('hosts.running', {}, 4000, (answer) => {
+    if (!answer) return
+    running = answer.running
+    bar.going(running.filter((one) => !String(one.slot || '').startsWith('ai:')).length)
+    gather()
+    if (data) draw()
+  })
 
   /** Keeps what `Group and sort` chose, and draws the list by it. */
   const choose = (next) => {
@@ -282,8 +305,10 @@ export function mountSidebar(root, context, where) {
         strays.set(name, { run, at: Date.now() })
         if (data) draw()
       }
-      // One that cannot be read is no row.
-      call('runs.get', { name }).then(told, () => told(null))
+      // An epic, else a chat by that id; one that cannot be read is no row.
+      call('runs.get', { name })
+        .then(epicRow, () => call('chat.get', { chat: name }).then((one) => chatRow(one, running)))
+        .then(told, () => told(null))
     }
     return rows
   }
@@ -297,7 +322,7 @@ export function mountSidebar(root, context, where) {
     stale = false
     const held = spot()
     const { parts, query } = where()
-    const here = parts[0] === 'epics' ? parts[1] : ''
+    const here = parts[0] === 'epics' || parts[0] === 'chats' ? parts[1] : ''
     for (const link of root.querySelectorAll('.side-nav a')) {
       if (link.dataset.nav === entryOf(parts)) link.setAttribute('aria-current', 'page')
       else link.removeAttribute('aria-current')
@@ -475,7 +500,7 @@ export function mountSidebar(root, context, where) {
     // row is the chat, with nothing under it, current wherever in it the page is.
     const chat = chatting(run)
     const shown = !chat && (opened.has(run.name) || run.name === here) && !folded.has(run.name)
-    const link = hash(`/epics/${encodeURIComponent(run.name)}`)
+    const link = hash(pathOf(run))
     const toggle = chat ? null : h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? 'Collapse' : 'Expand' }, icon('chevron'))
     toggle?.addEventListener('click', () => {
       if (shown) {
@@ -638,7 +663,7 @@ export function mountSidebar(root, context, where) {
     for (const link of root.querySelectorAll('.side-top .brand, .side-nav a')) link.setAttribute('href', hash(`/${link.dataset.nav || 'new'}`))
     // A row marked unread here is read once the page comes to it.
     const { parts } = where()
-    if (parts[0] === 'epics' && marksHere(UNREAD).has(parts[1])) mark(UNREAD, parts[1], false)
+    if ((parts[0] === 'epics' || parts[0] === 'chats') && marksHere(UNREAD).has(parts[1])) mark(UNREAD, parts[1], false)
     if (data) draw()
   })
   // The view drawn took another address -- a chat just started, named -- whose row is marked.
@@ -652,6 +677,8 @@ export function mountSidebar(root, context, where) {
   // Another daemon's epics and workspaces: nothing of the last one's is drawn until they are read.
   window.addEventListener('hmz:daemon', () => {
     data = null
+    read = {}
+    running = []
     places = null
     limit = PAGE
     asked = null
@@ -671,14 +698,15 @@ function marked() {
   return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': 'Unread', title: 'Unread' })
 }
 
-/** What can be done to one epic, from wherever it is listed. */
+/** What can be done to one chat or epic, from wherever it is listed. */
 export function epicMenu(run) {
-  const base = hash(`/epics/${encodeURIComponent(run.name)}`)
+  const base = hash(pathOf(run))
   // Going, whether a host holds it or another process does -- `hmz exec`, say.
   const going = run.held || run.how === 'running'
-  // A chat is its conversation alone: no log of every session, no timeline, and never stopped;
-  // it is carried on by saying something in it, not resumed from a form, and one like it is a new
-  // chat with its agent.
+  // A chat is its conversation alone: no log of every session, no timeline, no archive to
+  // export, and never stopped from here; it is carried on by saying something in it, not resumed
+  // from a form, and one like it is a new chat with its agent. An epic an earlier hmz recorded
+  // for a chat is of no flow to start another of.
   const chat = chatting(run)
   const resumes = !chat && run.resumable && !going && run.how !== 'done'
   const assistant = chat ? (run.agents[0] || {}).runs || '' : ''
@@ -705,13 +733,15 @@ export function epicMenu(run) {
     resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
     chat
       ? { label: said.like, glyph: 'thread', href: hash(`/new/chat?${new URLSearchParams(given({ workspace: run.workspace, agent: assistant }))}`) }
-      : { label: said.like, glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
+      : run.flow === 'chat'
+        ? null
+        : { label: said.like, glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
     '-',
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
     { label: said.task, glyph: 'copy', act: () => copy(run.task, said.tasked) },
     { label: said.name, glyph: 'copy', act: () => copy(run.name, said.named) },
-    going ? null : { label: 'Export', glyph: 'download', act: () => working('Exporting', exported(run.name)).catch((error) => toast(error.message)) },
-    { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run.name) },
+    going || chat ? null : { label: 'Export', glyph: 'download', act: () => working('Exporting', exported(run.name)).catch((error) => toast(error.message)) },
+    { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run) },
     run.held && !chat ? '-' : null,
     run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => working('Stopping', ask({ workspace: run.workspace, slot: run.slot }, 'stop')).then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
   ]
@@ -731,11 +761,11 @@ function working(said, asked) {
 }
 
 /**
- * Backs an epic up to its targets now, behind the page: how it went is read as the epic is.
- * Unnoticed, it is for a button that says it is busy itself.
+ * Backs an epic up to its targets now -- or a chat, by `chat.backup` -- behind the page: how it
+ * went is read as the epic is. Unnoticed, it is for a button that says it is busy itself.
  */
-export function upload(name, { noticed = true } = {}) {
-  const asked = call('runs.backup', { name })
+export function upload(run, { noticed = true } = {}) {
+  const asked = chatting(run) ? call('chat.backup', { chat: run.name }) : call('runs.backup', { name: run.name })
   return (noticed ? working('Uploading', asked) : asked).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
 }
 

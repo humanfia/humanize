@@ -17,14 +17,17 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import Acts, AiChanNew, AiChans, AiForgets
 from tests.integration.doubles_tui import (
+    OWN,
     RUNS,
     SIZE,
     heard,
     on,
     onto,
     opened,
+    own_flow,
     picks,
     screen,
+    set_up_own_flow,
     shows,
     stand_in,
     typed,
@@ -213,14 +216,23 @@ async def test_every_line_said_to_her_is_drawn_before_what_she_answers_it(
 async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_daemon(
     workspace: Path, daemon: Private
 ) -> None:
+    own_flow(workspace)
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
+        # A chat is no epic, and a conversation made over one is the workspace's.
         await opened(pilot)
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
+        form = await _new(pilot)
+        assert form.shown(form.asked()[0]) == "workspace"
+        await pilot.press("escape")
+
+        await set_up_own_flow(pilot)
+        await typed(pilot, f"${OWN} make it so")
+        await shows(pilot, "the flow is done")
 
         form = await _new(pilot)
-        # The chat just had is the epic last on the host followed.
+        # The flow just run is the epic last on the host followed.
         assert form.shown(form.asked()[0]) == "epic"
         await shows(pilot, "the epic ")
         await picks(pilot, "scope", "daemon")

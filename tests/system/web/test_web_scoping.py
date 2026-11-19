@@ -104,13 +104,13 @@ def test_an_epic_started_on_a_daemon_stays_on_it(project: Path, engine: str) -> 
         ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("hello there")
         page.locator("[data-hmz=composer-text]").press("Enter")
-        page.wait_for_url(re.compile(r".*#/@local/epics/[^/]+/sessions/[^/]+%2F1$"))
+        page.wait_for_url(re.compile(r".*#/@local/chats/[^/?]+$"))
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: hello there")
 
         # The epic followed, and its links, are the daemon's.
         assert [one for one in wire.params("epic.attach") if one.get("figures")]
         expect(page.locator("[data-hmz=epic]").first).to_have_attribute(
-            "href", re.compile(r"^#/@local/epics/")
+            "href", re.compile(r"^#/@local/chats/")
         )
         stop(page)
 

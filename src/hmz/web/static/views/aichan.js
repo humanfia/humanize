@@ -299,10 +299,11 @@ export function mount(app, where) {
       const detail = seen.detail
       if (detail && detail.earlier && traced !== detail.earlier) {
         traced = detail.earlier
-        call('runs.trace', { name: detail.name }).then(
+        // Her conversation is a chat's record, read by the id her host says (`chat.get`).
+        call('chat.get', { chat: detail.name, trace: true }).then(
           (read) => {
             const before = sessionsOf(detail)[detail.earlier - 1]
-            const found = before && read.sessions.find((each) => each.key === before.traced)
+            const found = before && read.trace.find((each) => each.key === before.traced)
             if (found && found.actions.length) fill(earlier, saidTraced({ ...found, label: before.key }))
           },
           () => {},

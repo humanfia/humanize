@@ -187,6 +187,67 @@ def test_answers_are_cut_to_the_reach(kept: Conversations) -> None:
     ) == {"running": []}
 
 
+def test_a_chat_a_host_holds_is_reached_as_the_epic_of_one_is(
+    kept: Conversations,
+) -> None:
+    class Chatting(_Hosts):
+        """Hosts of chats, each naming its chat and no epic."""
+
+        def get(self, workspace: str, slot: str) -> Any:
+            hosted = super().get(workspace, slot)
+            if hosted is not None:
+                hosted.status.return_value = {
+                    "epic": "",
+                    "chat": self._held[workspace, slot],
+                }
+            return hosted
+
+    hosts = Chatting({("/w", "chat:1"): "c1", ("/w", "chat:2"): "c2"})
+    reach = Reach(1, "epic", "/w", "c1", "danger-full-access", network=False)
+    held = Held(reach, _Session(), hosts, kept)  # pyright: ignore[reportArgumentType]
+
+    # Scoped to a chat by its name, she reaches the host that holds it, and no other's.
+    assert held.host("/w", "chat:1")
+    assert not held.host("/w", "chat:2")
+    assert held.refusal("chat.say", {"workspace": "/w", "slot": "chat:1"}) is None
+    assert held.refusal("chat.stop", {"workspace": "/w", "slot": "chat:2"}) == (
+        "chat.stop is out of Ai-chan's scope: the host chat:2 of /w."
+    )
+    assert held.notice({"workspace": "/w", "slot": "chat:1", "epic": "", "chat": "c1"})
+    assert not held.notice(
+        {"workspace": "/w", "slot": "chat:2", "epic": "", "chat": "c2"}
+    )
+    running = [
+        {"workspace": "/w", "slot": "chat:1", "epic": "", "chat": "c1"},
+        {"workspace": "/w", "slot": "chat:2", "epic": "", "chat": "c2"},
+    ]
+    assert held.answered("hosts.running", {"running": running}) == {
+        "running": running[:1]
+    }
+
+
+def test_a_chat_was_had_where_its_record_says_as_an_epic_was_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import hmz.runtime.epic
+
+    def none() -> list[Path]:
+        return []
+
+    def chats() -> list[Path]:
+        return [tmp_path / "c1"]
+
+    def read(at: Path) -> Any:
+        return mock.Mock(workspace=str(tmp_path)) if at.name == "c1" else None
+
+    monkeypatch.setattr(hmz.runtime.epic, "every", none)
+    monkeypatch.setattr(hmz.runtime.epic, "chats", chats)
+    monkeypatch.setattr(hmz.runtime.epic, "read", read)
+
+    assert reaching.ran_in("c1") == str(tmp_path.resolve())
+    assert reaching.ran_in("none") == ""
+
+
 def test_the_reach_of_a_call_is_what_lists_are_cut_by(kept: Conversations) -> None:
     held = _held(kept)
 
@@ -302,3 +363,62 @@ def test_her_host_has_her_chat_anew_then_carried_on(
 
     said = hosted.chat.call_args.args[0]
     assert (said["task"], said["resume"]) == ("", "/e/20260101-chat")
+
+
+def test_her_conversation_is_named_by_the_chat_its_host_writes(
+    kept: Conversations,
+) -> None:
+    links = Links(mock.Mock(), mock.Mock())
+    links.kept = kept
+    kept.made(
+        {
+            "slot": "ai:1",
+            "scope": "daemon",
+            "workspace": "/w",
+            "epic": "",
+            "nous": "claude/opus",
+            "preset": "read-only",
+            "network": False,
+        }
+    )
+    links.tasks["ai:1"] = "hi"
+    hosted = mock.Mock(slot="ai:1")
+    hosted.peer.closed = False
+    hosted.chat.return_value = {"ok": True}
+    # Her host names no epic: she is kept as a chat is, and says which by `chat`.
+    hosted.status.side_effect = [
+        {"epic": "", "chat": ""},
+        {"epic": "", "chat": "20260101-hers"},
+    ]
+
+    links.after(hosted)
+
+    for one in threading.enumerate():
+        if one.name == "hmz-ai-epic":
+            one.join(10)
+    conversation = kept.of("ai:1")
+    assert conversation is not None
+    assert conversation["record"] == "20260101-hers"
+    assert kept.epics() == {"20260101-hers"}
+
+
+def test_what_her_conversation_is_kept_in_is_a_chat_or_an_earlier_epic(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import hmz.runtime.epic
+
+    chat, epic = tmp_path / "chats" / "w" / "c1", tmp_path / "epics" / "w" / "e1"
+
+    def chats() -> list[Path]:
+        return [chat]
+
+    def every() -> list[Path]:
+        return [epic]
+
+    monkeypatch.setattr(hmz.runtime.epic, "chats", chats)
+    monkeypatch.setattr(hmz.runtime.epic, "every", every)
+
+    assert reaching.epic_at("c1") == chat
+    # One an earlier hmz began is kept as an epic, and is carried on there.
+    assert reaching.epic_at("e1") == epic
+    assert reaching.epic_at("none") is None

@@ -19,7 +19,7 @@ hmz                                    open the terminal interface
 hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
-hmz chat [-a <agent>] [--resume <epic>] [--] <message>  say one message to an agent here
+hmz chat [-a <agent>] [--resume <chat> | --worktree] [--] <message>  say one message to an agent here
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz daemon serve|connect --stdio|pair|devices|install|uninstall  this machine's daemon
 hmz relay serve [--listen <host>:<port>]  relay daemons and the devices that reach them
@@ -572,10 +572,11 @@ A run that ends because its budget was reached is not a failure: stderr gets
 ## `hmz chat` {#hmz-chat}
 
 Takes one turn of a [chat](/user/chat) in the current directory (the *workspace*), with nobody
-at a prompt, and ends it. A chat is not a flow: it has one agent, no params and no budget.
+at a prompt, and ends it. A chat is not a flow and not an epic: it has one agent, no params
+and no budget, and is kept under its own id.
 
 ```text
-usage: hmz chat [-h] [-a SPEC] [--resume EPIC] message
+usage: hmz chat [-h] [-a SPEC] [--resume CHAT] [--worktree] message
 ```
 
 `hmz chat` starts the chat on a new chat slot (`chat:`, see
@@ -586,7 +587,8 @@ is done, and then ends the chat with an empty next message.
 | Option | Value | Occurrences | Default | Meaning |
 | --- | --- | --- | --- | --- |
 | <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]`, or the name of a virtual nous | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
-| <span id="chat-resume"></span>`--resume` | an epic directory name | 0‥1 | — | Carry that chat of this workspace on, in the same epic, with `message` as its next turn and its own agent unless `-a` is given. |
+| <span id="chat-resume"></span>`--resume` | a chat's id, as `chat.list` and the chat's page name it | 0‥1 | — | Carry that chat of this workspace on (`chat.start` with `resume`), with `message` as its next turn and its own agent unless `-a` is given. An epic is not carried on, one an earlier hmz recorded for a chat included. |
+| <span id="chat-worktree"></span>`--worktree` | flag | 0‥1 | off | Start the chat with its assistant working in a new git worktree of the workspace (`chat.start` with `worktree`). Refused with `--resume` before the daemon is asked: a chat carried on works where it worked. In a directory that is no git repository the daemon refuses the start, exit `2`. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | `message` | positional string | exactly 1 (**required**, not empty) | — | The first message, or the next. Put `--` before one that starts with `-`. |
 
@@ -605,7 +607,7 @@ where that is not `0`, and what it printed is written to stdout; a line the chat
 said why on stderr as `hmz chat: <reason>`.
 
 Where `--resume` cannot carry the chat's conversation on, the turn is answered in a new
-conversation in the same epic, and why is said on stderr as `hmz chat: This conversation could
+conversation in the same chat, and why is said on stderr as `hmz chat: This conversation could
 not be carried on (<reason>), so this is a new one.`
 
 | Exit | When |

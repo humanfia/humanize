@@ -1,7 +1,9 @@
 // The box a person types into at the foot of a view, as in a chat: it grows with what is
 // typed, Enter sends it and Shift+Enter starts a new line, and what refused it is said over it.
 // Given what to complete with, it offers, over itself, what the word being typed could become,
-// picked with the arrows and taken with Tab or Enter, as a terminal's prompt completes.
+// picked with the arrows and taken with Tab or Enter, as a terminal's prompt completes. Told
+// what stops what it is typed to (`stops`), its button stops that in place of sending, while
+// Enter still sends what is typed.
 
 // A box of a chat's -- a new chat's, a chat's, a new epic's -- is drawn as a chat app's desk
 // (`desk`): inside it only the Add button, what is typed and the button that sends; every
@@ -57,8 +59,36 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
       form.requestSubmit()
     }
   })
+  /** What the button does in place of sending, while there is something to stop. */
+  let stop = null
+  const stops = (act) => {
+    if (Boolean(act) !== Boolean(stop)) {
+      const said = act ? 'Stop' : 'Send'
+      send.classList.toggle('stop', Boolean(act))
+      send.setAttribute('aria-label', said)
+      send.title = said
+      send.dataset.hmz = act ? 'stop' : 'send'
+      fill(send, icon(act ? 'stop' : 'send'))
+    }
+    stop = act
+  }
+  send.dataset.hmz = 'send'
   form.addEventListener('submit', async (event) => {
     event.preventDefault()
+    // The button pressed, while there is something to stop, stops it: what refused is said.
+    if (stop && event.submitter === send) {
+      if (send.disabled) return
+      send.disabled = true
+      try {
+        await stop()
+        fill(said)
+      } catch (error) {
+        fill(said, problem(error))
+      } finally {
+        send.disabled = false
+      }
+      return
+    }
     if ((!empty && !text.value.trim()) || send.disabled) return
     send.disabled = true
     form.classList.add('busy')
@@ -77,12 +107,12 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
       send.disabled = false
       form.classList.remove('busy')
       form.removeAttribute('aria-busy')
-      send.setAttribute('aria-label', 'Send')
+      send.setAttribute('aria-label', stop ? 'Stop' : 'Send')
     }
   })
   // Measured again whenever its box changes, so one built before it is shown fits once shown.
   new ResizeObserver(() => requestAnimationFrame(grow)).observe(text)
-  return { node: form, text, tray, left, said, send, again: () => offered?.again() }
+  return { node: form, text, tray, left, said, send, stops, again: () => offered?.again() }
 }
 
 /**

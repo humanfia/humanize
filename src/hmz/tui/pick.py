@@ -118,7 +118,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AI_NEW",
-    "CONTINUES",
     "DETACHES",
     "EXPORTED",
     "RESUMES",
@@ -11586,10 +11585,6 @@ class Adjusted(NamedTuple):
 #: names would be two things to learn.
 RESUMES, _EXPORTS = "resume", "export"
 
-#: And going back to a chat, which is carried on rather than picked up: the conversation goes on
-#: in the same epic, by an agent that remembers it. Answered outside this module, as resuming is.
-CONTINUES = "continue"
-
 #: Backing a run up by hand, to the targets it was started with or else the defaults.
 _UPLOADS = "upload"
 
@@ -11602,8 +11597,9 @@ _COPY_NAME, _COPY_TASK, _COPY_PATH = "copy-name", "copy-task", "copy-path"
 #: And reading it as its graph, its called flows and its sessions (:mod:`hmz.tui.epic`).
 _GRAPH = "graph"
 
-#: The kind of epic that is a conversation rather than a flow, which has no timeline to draw,
-#: and the flow an earlier hmz ran one as.
+#: The kind of an epic an earlier hmz kept a chat as -- a chat is no epic now, and is listed
+#: by `chat.list` and never here -- which has no timeline to draw; and the flow one earlier
+#: still ran one as.
 _CHAT = "chat"
 
 #: The kinds an epic can be (Section 3.2.13 of [CORE]).
@@ -11727,11 +11723,14 @@ def _took(ran: Ran) -> str:
 
 
 def chatting(epic: Ran | Mapping[str, Any] | str) -> bool:
-    """Whether an epic is a chat: a conversation, which has no timeline and nothing to stop.
+    """Whether an epic is of a chat: a conversation, which has no timeline and nothing to stop.
 
-    Read off the epic's kind, which every record, row and status written now carries (Section
-    3.2.13 of [CORE]). Where none is said, the epic was written by an hmz that ran a chat as
-    the flow `chat`, and it is a chat where that is its flow (Section 6.5.20 of [FILES]).
+    The host of a chat going, as its status says it, or an epic an earlier hmz kept a chat
+    as, which is read and never carried on: a chat is written down as no epic now (Section
+    8 of [CORE]). Read off the kind, which every record, row and status written now carries
+    (Section 3.2.13 of [CORE]). Where none is said, the epic was written by an hmz that ran
+    a chat as the flow `chat`, and it is a chat where that is its flow (Section 6.5.20 of
+    [FILES]).
 
     Args:
       epic: The epic as a run read back off its record; as a row or a status says it, its kind
@@ -11813,7 +11812,9 @@ class Does(Picks):
         """
         super().__init__()
         self._ran = ran
-        self._resumable = resumable and not foreign
+        # Never what an earlier hmz kept of a chat, which is read and no more: a chat is
+        # carried on as a chat, by `/resume` in one, and this is none.
+        self._resumable = resumable and not foreign and not chatting(ran)
         self._foreign = foreign
         self._uploads = uploads
         self.asked = f"{_when(ran.began)}{_DOT}{_named(ran)}"
@@ -11838,9 +11839,7 @@ class Does(Picks):
         somebody who was not there is a bundle with the timeline already in it.
         """
         held: list[tuple[str, str, str]] = []
-        if self._resumable and chatting(self._ran):
-            held.append((CONTINUES, "continue", "carry the conversation on"))
-        elif self._resumable:
+        if self._resumable:
             held.append(
                 (
                     RESUMES,
@@ -11878,12 +11877,11 @@ class Does(Picks):
         """Why carrying on is not one of the things there are to do, where it is not."""
         if self._resumable:
             return ""
-        chat = chatting(self._ran)
+        if chatting(self._ran):
+            # What an earlier hmz kept of a chat, which is read and no more.
+            return "this epic is of a chat an earlier hmz had, and cannot be carried on"
         if self._foreign:
-            what = "chat cannot be continued" if chat else "epic cannot be resumed"
-            return f"this {what} here: {escape(self._foreign)}"
-        if chat:
-            return "this chat cannot be continued here"
+            return f"this epic cannot be resumed here: {escape(self._foreign)}"
         return (
             f"{escape(self._ran.flow)} is not resumable, so this epic cannot be resumed"
         )
@@ -12732,7 +12730,7 @@ class Epics(Sheet[Doing]):
         """
         return (
             self._ours(ran)
-            # A chat is continued rather than resumed, which its own sheet offers.
+            # What an earlier hmz kept of a chat is read, and never carried on.
             and not chatting(ran)
             and self._picks_up(ran.flow)
             and _hmz().epics.picks_up(ran.at)
@@ -12793,10 +12791,8 @@ class Epics(Sheet[Doing]):
                 Does(
                     ran,
                     # Of another directory, what it recorded: a flow named here is not
-                    # necessarily the one it ran, and carrying it on is refused anyway. A
-                    # chat here is always offered, the one going included: whether one gone
-                    # can be carried on is said as it is asked to be.
-                    resumable=(chatting(ran) or self._picks_up(ran.flow))
+                    # necessarily the one it ran, and carrying it on is refused anyway.
+                    resumable=self._picks_up(ran.flow)
                     if self._ours(ran)
                     else ran.resumable,
                     # Of this directory but brought from elsewhere: why it cannot go on here.
@@ -12836,7 +12832,7 @@ class Epics(Sheet[Doing]):
             if to is not None:
                 await self._exports(ran, to)
                 return
-        if said in (RESUMES, CONTINUES) and not self._ours(ran):
+        if said == RESUMES and not self._ours(ran):
             # Refused rather than picked up here: a flow carries on in the directory it
             # works in, and this is not the one this epic's work is in.
             self._said = (
@@ -13104,6 +13100,10 @@ class RemoteEpics(Sheet[Doing]):
     holds is followed as an epic of this machine is, by the interface itself, which this
     answers with; the rest is its archive brought here, backing it up there, and copying what
     it is.
+
+    And the chats a host there holds, each a row named `chat` and never an epic: a chat is
+    listed by `chat.list` and not among a daemon's epics (Section 4.25 of [DAEMON]), and one
+    going there is followed from here, which is all there is to do with it.
     """
 
     BINDINGS: ClassVar = [Binding("n", "starts", "new epic", show=False)]
@@ -13152,14 +13152,33 @@ class RemoteEpics(Sheet[Doing]):
         self._settles_focus()
 
     def _read(self) -> list[dict[str, Any]]:
-        """Every epic the daemon holds, newest first, a page of them at a time."""
+        """Every epic the daemon holds, a page at a time, and its chats going: newest first."""
         ran: list[dict[str, Any]] = []
         while True:
             said = _rpc(self._daemon, "runs.list", {"offset": len(ran), "limit": 200})
             page = cast("list[dict[str, Any]]", said.get("runs") or [])
             ran += page
             if not page or len(ran) >= int(said.get("total") or 0):
-                return ran
+                break
+        going = cast(
+            "list[dict[str, Any]]",
+            _rpc(self._daemon, "chat.list", {"limit": 200}).get("chats") or [],
+        )
+        ran += [
+            {
+                "name": one.get("id"),
+                "kind": _CHAT,
+                "began": one.get("began"),
+                "task": one.get("title"),
+                "workspace": one.get("workspace"),
+                "how": one.get("state"),
+                "held": True,
+                "slot": one.get("slot"),
+            }
+            for one in going
+            if one.get("slot")
+        ]
+        return sorted(ran, key=lambda one: str(one.get("began") or ""), reverse=True)
 
     def actions(self) -> list[Action]:
         """Searching them, starting one there, reading them again, and turning to another daemon."""
@@ -13241,8 +13260,8 @@ class RemoteEpics(Sheet[Doing]):
     def _fill(self) -> None:
         """Puts the epics up, the first a search found or the one the cursor was on."""
         self.query_one("#about", Label).update(
-            f"Every epic {escape(self._daemon)} holds, newest first: workspace, task, "
-            "status, and session count."
+            f"Every epic {escape(self._daemon)} holds and every chat going there, newest "
+            "first: workspace, task, status, and session count."
         )
         listing = self.query_one("#choices", OptionList)
         at = listing.highlighted
@@ -13274,7 +13293,12 @@ class RemoteEpics(Sheet[Doing]):
                             [
                                 _homed(str(one.get("workspace") or "")),
                                 _asked_for(str(one.get("task") or "")) or "no task",
-                                _many(int(one.get("sessions") or 0), "session"),
+                                # A chat is one conversation, and says no count of them.
+                                *(
+                                    [_many(int(one.get("sessions") or 0), "session")]
+                                    if "sessions" in one
+                                    else []
+                                ),
                                 str(one.get("how") or ""),
                             ]
                         ),
@@ -13301,11 +13325,30 @@ class RemoteEpics(Sheet[Doing]):
         self._footed(Key("enter", "menu"), Key("esc", "close"))
 
     def menu(self) -> tuple[str, list[Action]] | None:
-        """What can be done from here with the epic under the cursor."""
+        """What can be done from here with the epic under the cursor, or the chat."""
         one = self._under()
         if one is None:
             return None
         name = str(one.get("name", ""))
+        if "sessions" not in one:
+            # A chat going there, which is no epic to export or back up: followed, and named.
+            return (
+                name,
+                [
+                    Action(
+                        FOLLOWS,
+                        "follow",
+                        "read it as it goes, and say the next line",
+                        lambda: self._follows(one),
+                    ),
+                    Action(
+                        _COPY_NAME,
+                        "copy id",
+                        name,
+                        lambda: self._copies(name, "id"),
+                    ),
+                ],
+            )
         return (
             name,
             [

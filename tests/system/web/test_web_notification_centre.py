@@ -55,14 +55,15 @@ _APP_NOTIFIES = """() => {
 
 
 def _notice(id_: int, kind: str, **more: Any) -> dict[str, Any]:
-    """A notice, as a daemon makes one."""
+    """A notice, as a daemon makes one: of an epic, until `more` names a chat and no epic."""
     return {
         "id": id_,
         "kind": kind,
         "workspace": "/w",
         "slot": "",
         "epic": f"e{id_}",
-        "flow": "chat",
+        "chat": "",
+        "flow": "ralph",
         "task": "Fix it",
         "role": "",
         "text": "",
@@ -151,12 +152,21 @@ def test_a_notice_heard_is_a_card_that_opens_it(engine: str) -> None:
         assert page.evaluate("location.hash") == "#/epics/big-fix"
         expect(card).to_have_count(0)
         expect(page.locator("[data-hmz=notification-count]")).to_be_hidden()
+        # A chat's names the chat, and no epic: it opens the chat, at its own address.
+        wire.faked["chat.get"] = lambda _: None
+        turn = _notice(5, "done", slot="chat:ab", epic="", chat="c5", flow="")
+        wire.tell(page, turn)
+        expect(card).to_have_count(1)
+        expect(card).to_contain_text("Waiting · Local")
+        card.locator(".notify-open").click()
+        assert page.evaluate("location.hash") == "#/chats/c5"
+        expect(page.locator("[data-hmz=notification-count]")).to_be_hidden()
         # Followed from the last heard, when the page is opened again.
         assert (
             page.evaluate(
                 "async () => (await import('/notifications.js')).kept.after('local')"
             )
-            == 4
+            == 5
         )
 
 
@@ -168,7 +178,7 @@ def test_a_kind_switched_off_is_not_told(engine: str) -> None:
               .kept.prefer({ kinds: { listening: false } })"""
         )
         # A chat's turn done is a chat turn.
-        wire.tell(page, _notice(5, "done", slot="chat:ab"))
+        wire.tell(page, _notice(5, "done", slot="chat:ab", epic="", chat="c5"))
         wire.tell(page, _notice(6, "stopped"))
         expect(page.locator("[data-hmz=notification-toast]")).to_have_count(1)
         assert [one["id"] for one in _items(page)] == [6]
@@ -194,7 +204,7 @@ def test_the_browser_shows_one_while_the_page_is_not_looked_at(
         if system:
             page.wait_for_function("window.shown.length > 0")
             assert page.evaluate("window.shown") == [
-                {"title": "Done · Local", "body": "chat · All green", "tag": "local:5"}
+                {"title": "Done · Local", "body": "ralph · All green", "tag": "local:5"}
             ]
         else:
             page.wait_for_timeout(500)
@@ -217,7 +227,7 @@ def test_the_app_shows_one_through_its_own_notifications(engine: str) -> None:
             {
                 "command": "notify",
                 "title": "Question · Local",
-                "body": "chat · Ship it?",
+                "body": "ralph · Ship it?",
                 "address": "#/live?workspace=%2Fw",
             }
         ]
@@ -236,7 +246,8 @@ _RUNS: dict[str, Any] = {
             "name": name,
             "workspace": "/w",
             "task": f"Fix {name}",
-            "flow": "chat",
+            "kind": "flow",
+            "flow": "ralph",
             "how": "done",
             "held": False,
             "began": "2026-10-12T09:00:00Z",

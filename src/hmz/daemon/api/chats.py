@@ -256,7 +256,10 @@ def _fork(call: Call) -> dict[str, Any]:
     from hmz.runtime.epic import forked
 
     ran = _named(call)
-    if state(ran, hosted().get(ran.name)) in ("turn", "asking"):
+    # Not while its conversation may be written: a turn open on a host, or any process
+    # but a host holding it, which says nothing of its turns.
+    status = hosted().get(ran.name)
+    if status.get("turn") != "done" if status else CHATS.going(ran):
         raise RpcError(
             Code.CONFLICT, f"Chat {ran.name} has a turn open; fork it once it is done."
         )

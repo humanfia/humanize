@@ -145,8 +145,8 @@ def test_it_is_drawn_in_the_terminals_colours_unless_asked_otherwise(
         (Humanize.nothing_to_resume, False),
         (Humanize.in_btw, False),
         (Humanize.leaves_btw, False),
-        # On a chat, which is never stopped.
-        (Humanize.refused_stop, "a chat is not stopped: /clear starts another"),
+        # On a chat with no turn open, as its host would refuse it.
+        (Humanize.refused_stop, "no turn is open, so there is nothing to stop"),
         (Humanize.refused_resume, ""),
         (Humanize.refused_chat, "the chat is already on the screen"),
         (Humanize.refused_prefer, ""),

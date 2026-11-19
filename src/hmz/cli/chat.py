@@ -1,19 +1,19 @@
 """`hmz chat`: one turn of a chat, said from a command line, with nobody at a prompt.
 
     hmz chat -a claude/MODEL:high "what does this repository do?"
-    hmz chat --resume 2026-11-17T10-00-00 "and how is it tested?"
+    hmz chat --resume 20261117T100000-ab12cd "and how is it tested?"
+    hmz chat --worktree -a claude/MODEL:high "try the other parser"
 
-A chat is not a flow (Section 8 of core.md): it has one assistant, one conversation and no
-params or budget, and it is held, as every epic is, by this machine's daemon -- on a chat slot
+A chat is not a flow and not an epic (Section 8 of core.md): it has one assistant, one
+conversation and no params or budget, and it is held by this machine's daemon -- on a chat slot
 of its own, which `chat.start` makes. This starts it there, follows it as one more frontend
 while its first turn is taken, and then says the empty next message that ends a chat, since
 nobody is at a prompt to say another (Section 8.4.8 of core.md). The turn is drawn as `hmz
 exec` draws one, by the same :class:`hmz.cli.output.Shown`, so that a script reading the
 answer off standard output reads it the same way from either.
 
-A signal leaves the chat to its host rather than stopping it: a chat is never stopped (Section
-8.5.4 of core.md), and one left between turns folds away on its own, to be carried on with
-`--resume`.
+A signal leaves the chat to its host rather than stopping its turn, and one left between turns
+folds away on its own, to be carried on with `--resume`.
 """
 
 from __future__ import annotations
@@ -50,12 +50,14 @@ class _Line(NamedTuple):
 
     Attributes:
       agent: The assistant, as `-a` spells an agent after `<role>=`, or "" for none given.
-      resume: The epic of a chat to carry on, by name, or "" for a new chat.
+      resume: The chat to carry on, by its id, or "" for a new chat.
+      worktree: Whether a new chat's assistant works in a new git worktree of this directory.
       message: What to say.
     """
 
     agent: str
     resume: str
+    worktree: bool
     message: str
 
 
@@ -111,8 +113,13 @@ def _read(argv: list[str]) -> _Line:
     parser.add_argument(
         "--resume",
         default="",
-        metavar="EPIC",
-        help="carry on the chat of this epic here, in that same epic",
+        metavar="CHAT",
+        help="carry on the chat of this id here",
+    )
+    parser.add_argument(
+        "--worktree",
+        action="store_true",
+        help="start the chat in a new git worktree of this directory",
     )
     parser.add_argument(
         "message", help="what to say, after -- if it starts with a dash"
@@ -120,7 +127,14 @@ def _read(argv: list[str]) -> _Line:
     args = parser.parse_args(argv)
     if not args.message:
         parser.error("the message is empty; a chat starts with something said")
-    return _Line(agent=args.agent, resume=args.resume, message=args.message)
+    if args.worktree and args.resume:
+        parser.error("--worktree starts a chat; one carried on works where it worked")
+    return _Line(
+        agent=args.agent,
+        resume=args.resume,
+        worktree=args.worktree,
+        message=args.message,
+    )
 
 
 def _refuse(why: str) -> SystemExit:
@@ -189,8 +203,9 @@ def _chats(argv: list[str]) -> int:
         # Left out, rather than null, for a chat carried on with its own agent.
         asked["agent"] = agent
     if line.resume:
-        # The epic directory, which a name is found under in this workspace.
-        asked["resume"] = str(hmz.epics.under() / line.resume)
+        asked["resume"] = line.resume
+    if line.worktree:
+        asked["worktree"] = True
     try:
         client = Client.local(kind="cli")
     except OSError as error:

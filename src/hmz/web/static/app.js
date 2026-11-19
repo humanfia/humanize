@@ -1,5 +1,5 @@
 // The page itself, laid out as Codex and Claude lay theirs out: the sidebar of every workspace's
-// epics on the left, and whichever view the address names beside it -- a new chat or epic, its graph, one session's
+// chats and epics on the left, and whichever view the address names beside it -- a new chat or epic, its graph, one session's
 // thread, the flows -- and Ai-chan's drawer beside it, with finding a run and the settings opened
 // over it as dialogs. Routed by the address's fragment, so that every view of the page is an
 // address that can be kept, shared or opened again, and the server serves one page for all of
@@ -19,6 +19,7 @@ import './importing.js'
 const VIEWS = {
   new: () => import('./views/new.js'),
   live: () => import('./views/epic.js'),
+  chats: () => import('./views/epic.js'),
   epics: () => import('./views/epic.js'),
   flows: () => import('./views/flows.js'),
   envs: () => import('./views/envs.js'),

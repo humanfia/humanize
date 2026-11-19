@@ -993,7 +993,8 @@ class _Talk:
 
         self.turning = True
         self.between = False
-        self._failed = False
+        # One that landed as the last turn ended stopped nothing, and stops nothing now.
+        self._failed = self._interrupted = False
         try:
             answered = await handle.turn(
                 TurnRequest(prompt, native=native), self._spending

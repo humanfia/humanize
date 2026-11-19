@@ -275,12 +275,13 @@ up; see [Humanize in CI](/user/ci). More in [Troubleshooting](/user/troubleshoot
 
 ## A chat is carried on {#a-chat-is-carried-on}
 
-A [chat](/user/chat) is never picked up into a new run: it is one conversation, and it goes on
-in its own epic. Carry one on by saying something in it -- `continue` on its row in `/epics`,
-`/resume` in a chat, which lists this directory's earlier chats newest first, the chat's page
-in [`hmz web`](/user/web), or `hmz chat --resume <epic> "<message>"`. Its agent remembers what
-was said, its own [preference](/user/chat#a-name-that-is-both) is kept, and the epic reads as
-`running` again until the chat ends again, having spent what each stretch spent.
+A [chat](/user/chat) is never picked up into a new run: it is one conversation and no epic,
+and it goes on as the same chat. Carry one on by saying something in it -- `/resume` in a chat,
+which lists this directory's earlier chats newest first, the chat's page in
+[`hmz web`](/user/web), or `hmz chat --resume <chat id> "<message>"`. Its agent remembers what
+was said, its own [preference](/user/chat#a-name-that-is-both) is kept, and it works where it
+worked, having spent what each stretch spent. `/epics` lists no chat; an epic an earlier hmz
+recorded for a chat is read there and cannot be carried on.
 
 ## Make a flow resumable
 

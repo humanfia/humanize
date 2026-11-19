@@ -25,7 +25,10 @@ pytestmark = pytest.mark.parametrize("engine", ENGINES)
 
 
 def _row(name: str, **more: Any) -> dict[str, Any]:
-    """An epic row as `runs.list` answers one: a chat that rests, until `more` says otherwise."""
+    """A row of the list: a chat that rests, until `more` says otherwise.
+
+    Said as an epic row is; `_listed` says a chat's as `chat.list` and its host do.
+    """
     return {
         "name": name,
         "workspace": "/w",
@@ -77,11 +80,85 @@ def _answers(runs: list[dict[str, Any]], total: int | None = None) -> dict[str, 
     }
 
 
+def _chat(row: dict[str, Any]) -> dict[str, Any]:
+    """A chat's row as `chat.list` answers it: what it waits on between turns its host says."""
+    held = row["held"]
+    turn = row.get("turn") == "running"
+    how = row["how"]
+    return {
+        "id": row["name"],
+        "title": row["task"],
+        "workspace": row["workspace"],
+        "workdir": row["workspace"],
+        "agent": row["agents"][0]["runs"],
+        "model": "sonnet",
+        "began": row["began"],
+        "updated": row["ended"] or row["began"],
+        "state": "failed"
+        if how == "failed"
+        else "turn"
+        if turn
+        else "going"
+        if held
+        else "resting",
+        "slot": f"chat:{row['name']}" if held else "",
+        "asking": [],
+        "permission": "workspace-write",
+        "archived": False,
+        "spent": None,
+    }
+
+
+def _listed(
+    rows: list[dict[str, Any]], total: int | None = None, limit: int | None = None
+) -> dict[str, dict[str, Any]]:
+    """What the daemon answers of the rows of a list, by method.
+
+    The chats by `chat.list`, the epics by `runs.list`, and of each chat a host holds, what
+    it waits on, by `hosts.running`. `total` is how many the daemon holds of both, where
+    more than it answers: those not answered are chats. `limit` is how many chats it answers.
+    """
+    chats = [_chat(one) for one in rows if one["kind"] == "chat"]
+    epics = [one for one in rows if one["kind"] != "chat"]
+    more = 0 if total is None else total - len(rows)
+    held = [one for one in rows if one["kind"] == "chat" and one["held"]]
+    return {
+        "chat.list": {
+            "chats": chats[:limit],
+            "total": len(chats) + more,
+            "offset": 0,
+            "limit": 60,
+        },
+        "runs.list": _answers(epics),
+        "hosts.running": {
+            "running": [
+                {
+                    "state": "running",
+                    "run": 1,
+                    "kind": "chat",
+                    "flow": "",
+                    "epic": "",
+                    "chat": one["name"],
+                    "task": one["task"],
+                    "workspace": one["workspace"],
+                    "slot": f"chat:{one['name']}",
+                    "turn": "running" if one.get("turn") == "running" else "done",
+                    "asking": one["asking"],
+                }
+                for one in held
+            ]
+        },
+    }
+
+
 def _wire(runs: list[dict[str, Any]], **faked: Any) -> Wire:
-    """Local's lists answered here: `runs` its epics, `/w` and `/empty` among its workspaces."""
+    """Local's lists answered here: `runs` its chats and epics, `/w` and `/empty` its workspaces."""
     return Wire(
         faked={
-            "runs.list": lambda _: {"result": _answers(runs)},
+            **{
+                method: (lambda _, said=said: {"result": said})
+                for method, said in _listed(runs).items()
+            },
             "workspaces.list": lambda _: {
                 "result": {"workspaces": [{"path": "/w"}, {"path": "/empty"}]}
             },
@@ -121,9 +198,12 @@ def test_what_the_sidebar_sends_off_says_it_is_going(engine: str) -> None:
         faked={
             # A page more is held until it is given; the first page, and what the new chat
             # form in front reads for itself, are answered at once.
-            "runs.list": lambda params: (
-                None if params.get("limit") == 120 else {"result": _answers(_MANY, 23)}
+            "chat.list": lambda params: (
+                None
+                if params.get("limit") == 120
+                else {"result": _listed(_MANY, 23)["chat.list"]}
             ),
+            "runs.list": lambda _: {"result": _listed(_MANY)["runs.list"]},
             "runs.get": lambda _: None,
             "runs.backup": lambda _: None,
             "workspaces.list": lambda _: {
@@ -178,8 +258,9 @@ def test_what_the_sidebar_sends_off_says_it_is_going(engine: str) -> None:
         expect(rows).to_have_count(22)
         expect(more).to_have_text("Loading…")
         expect(more).to_be_disabled()
+        assert wire.params("chat.list")[-1] == {"limit": 120}
         assert wire.params("runs.list")[-1] == {"limit": 120}
-        wire.answer(page, "runs.list", _answers(_MANY, 23))
+        wire.answer(page, "chat.list", _listed(_MANY, 23)["chat.list"])
         expect(more).to_have_count(0)
         expect(rows).to_have_count(22)
 
@@ -459,7 +540,6 @@ def test_a_row_is_pinned_and_marked_unread_from_its_menu(engine: str) -> None:
                 "Copy link",
                 "Copy first message",
                 "Copy ID",
-                "Export",
                 "Upload",
             ]
         )
@@ -496,6 +576,7 @@ def test_a_row_is_pinned_and_marked_unread_from_its_menu(engine: str) -> None:
 def test_a_list_by_date_with_nothing_in_it_keeps_a_heading(engine: str) -> None:
     wire = Wire(
         faked={
+            "chat.list": lambda _: {"result": _listed([])["chat.list"]},
             "runs.list": lambda _: {"result": _answers([])},
             "workspaces.list": lambda _: {"result": {"workspaces": []}},
         }
@@ -519,7 +600,10 @@ def test_a_list_by_folder_with_nothing_to_show_keeps_a_heading(engine: str) -> N
     # A daemon with no workspace, its one chat of no folder, and Show without the chats.
     wire = Wire(
         faked={
-            "runs.list": lambda _: {"result": _answers([_row("lone", workspace="")])},
+            "chat.list": lambda _: {
+                "result": _listed([_row("lone", workspace="")])["chat.list"]
+            },
+            "runs.list": lambda _: {"result": _answers([])},
             "workspaces.list": lambda _: {"result": {"workspaces": []}},
         }
     )
@@ -655,9 +739,10 @@ def test_the_list_reads_no_more_than_it_is_asked_to(engine: str) -> None:
     many = [_row(f"r{at:03d}", workspace=f"/f{at % 40:02d}") for at in range(400)]
     wire = Wire(
         faked={
-            "runs.list": lambda params: {
-                "result": _answers(many[: params["limit"]], len(many))
+            "chat.list": lambda params: {
+                "result": _listed(many, limit=params["limit"])["chat.list"]
             },
+            "runs.list": lambda _: {"result": _answers([])},
             "workspaces.list": lambda _: {"result": {"workspaces": []}},
         }
     )
@@ -668,7 +753,8 @@ def test_the_list_reads_no_more_than_it_is_asked_to(engine: str) -> None:
         # Read again and again as it is, it asks for the one page; the new chat form in front
         # reads the chats that wait for itself, two hundred at once.
         page.wait_for_timeout(5000)
-        assert {one["limit"] for one in wire.params("runs.list")} - {200} == {60}
+        assert {one["limit"] for one in wire.params("chat.list")} - {200} == {60}
+        assert {one["limit"] for one in wire.params("runs.list")} == {60}
         expect(rows).to_have_count(60)
 
         # The list ends with what reads a page more.
@@ -676,7 +762,7 @@ def test_the_list_reads_no_more_than_it_is_asked_to(engine: str) -> None:
         expect(more).to_have_text("Show more")
         more.click()
         expect(rows).to_have_count(120)
-        assert {one["limit"] for one in wire.params("runs.list")} - {200} == {60, 120}
+        assert {one["limit"] for one in wire.params("chat.list")} - {200} == {60, 120}
         expect(more).to_have_text("Show more")
 
 
@@ -684,7 +770,8 @@ def test_a_group_shown_in_full_holds_nothing_back_later(engine: str) -> None:
     listed = {"runs": [_row(f"c{at:02d}") for at in range(23)]}
     wire = Wire(
         faked={
-            "runs.list": lambda _: {"result": _answers(listed["runs"])},
+            "chat.list": lambda _: {"result": _listed(listed["runs"])["chat.list"]},
+            "runs.list": lambda _: {"result": _answers([])},
             "workspaces.list": lambda _: {"result": {"workspaces": []}},
         }
     )

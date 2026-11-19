@@ -1725,7 +1725,7 @@ def read(epic: Path) -> Ran | None:
         kind=kind,
         prefer=str(preferred or "") if kind == CHAT else "",
         permission=str(permitted or "") if kind == CHAT else "",
-        title=str(titled or "") or (task.strip().splitlines() or [""])[0],
+        title=str(titled or "") or (task.strip().splitlines() or [""])[0].rstrip(),
         archived=next(
             (one["archived"] is True for one in reversed(said_so) if "archived" in one),
             False,
