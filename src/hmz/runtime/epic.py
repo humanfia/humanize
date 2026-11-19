@@ -46,11 +46,14 @@ failed, or interrupted. A closed epic of a flow is never reopened: running the f
 another run, with sessions of its own, and so another epic -- which is what a flow that says it
 can be picked up again is picked up as.
 
-A chat (:mod:`hmz.runtime.chatting`) is an epic too, of a kind of its own: one assistant and
-one conversation, no flow, and so no flow, params, envs or budget written down. It is the one
-epic that is opened again: a chat carried on is the same conversation, and so the same epic,
-which says it was `reopened` rather than beginning twice, and says it was `set` each time its
-own preference is. What a resumable flow keeps is the engine's journal
+A chat (:mod:`hmz.runtime.chatting`) is no epic, and is written down the same way, in a
+directory of its own -- `~/.hmz/chats/<workspace>/<when>-<which>/`, its record `chat.jsonl` and
+its sessions beside it -- by the same code: one assistant and one conversation, and so no
+flow, params, envs or budget written down. It is the one record that is opened again: a chat
+carried on is the same conversation, and so the same directory, which says it was `reopened`
+rather than beginning twice, and says it was `set` each time something of it is. A chat an
+earlier Humanize wrote as an epic of kind `chat` still reads back as that epic. What a
+resumable flow keeps is the engine's journal
 (:mod:`hmz.runtime.flowing.journaling`), written into the epic of the run keeping it; a run
 picking it up is handed a copy of it in an epic of its own, which the engine compacts and goes
 on appending to.
@@ -86,6 +89,7 @@ if TYPE_CHECKING:
 __all__ = [
     "BACKED",
     "CHAT",
+    "CHATTED",
     "ENDINGS",
     "FLOW",
     "JOURNAL",
@@ -105,13 +109,16 @@ __all__ = [
     "Sub",
     "Uncarried",
     "called",
+    "chats",
     "ending",
     "epics",
     "foreign",
+    "forked",
     "found",
     "going",
     "harbor",
     "harnessed",
+    "journal",
     "logs",
     "note",
     "opened",
@@ -181,8 +188,11 @@ ENDINGS = (RUNNING, "done", "failed", "stopped", UNFINISHED)
 #: The kind of an epic a flow runs, and of every epic whose record says no kind.
 FLOW = "flow"
 
-#: The kind of an epic that is a chat (Section 8 of [CORE]).
+#: The kind of an epic an earlier Humanize wrote for a chat, and of every chat's record.
 CHAT = "chat"
+
+#: The file a chat's record is written to, inside the chat's directory (Section 8 of [CORE]).
+CHATTED = "chat.jsonl"
 
 #: What a session opened as the account this machine is already signed into is written under.
 #: A word rather than the empty string it is configured as: this goes in a directory name and
@@ -360,12 +370,17 @@ class Ran(NamedTuple):
         under in settings.
       backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
         "" where it went -- and `why` it was backed up.
-      kind: :data:`FLOW`, or :data:`CHAT` for a chat -- one whose record says so, or one an
-        earlier Humanize wrote of the flow `chat`, which was what a chat was then.
+      kind: :data:`FLOW`, or :data:`CHAT` for a chat's record and for an epic an earlier
+        Humanize wrote for a chat: one whose record says so, or one of the flow `chat`.
       prefer: A chat's own preference (Section 8.9.10 of [CORE]), as it was last set, or ""
         where it goes by the person's.
       permission: A chat's permission (Section 8.3.9 of [CORE]), as it was last set, or ""
         where its record gives none: `workspace-write`, for a chat that has one.
+      title: A chat's title, as it was last set, else the first line of its first message.
+      archived: Whether a chat was last set archived.
+      workdir: Where a chat's assistant works, where that is not its workspace, or "".
+      forked: The chat a chat was forked from, by its name, or "".
+      updated: When its record was last written.
     """
 
     at: Path
@@ -394,10 +409,15 @@ class Ran(NamedTuple):
     kind: str = FLOW
     prefer: str = ""
     permission: str = ""
+    title: str = ""
+    archived: bool = False
+    workdir: str = ""
+    forked: str = ""
+    updated: str = ""
 
     @property
     def chat(self) -> bool:
-        """Whether this epic is a chat rather than a flow's."""
+        """Whether this is a chat's record, or an epic an earlier Humanize wrote for one."""
         return self.kind == CHAT
 
     @property
@@ -754,8 +774,7 @@ def resumed(flow: str, workspace: Path | str | None = None) -> Path | None:
         began = next(
             (one for one in _events(epic) if one.get("event") == "began"), None
         )
-        if began is None or not began.get("resumable") or _kind(began) == CHAT:
-            # A chat is carried on from a list of epics, never as the last one to resume.
+        if began is None or not began.get("resumable"):
             continue
         if flow not in (began.get("ref"), began.get("flow")):
             continue
@@ -773,7 +792,11 @@ class Uncarried(Exception):  # noqa: N818 -- named for what happened, as Refused
 
 
 class Epic:
-    """One run of one flow, or one chat: the directory it is written to, and what happened to it."""
+    """One run of one flow, or one chat: the directory it is written to, and what happened to it.
+
+    A chat is written under `chats/` of Humanize's home, into :data:`CHATTED`; a run under
+    `epics/`, into :data:`JOURNAL`.
+    """
 
     def __init__(
         self,
@@ -796,8 +819,9 @@ class Epic:
         kind: Literal["flow", "chat"] = "flow",
         prefer: str | None = None,
         permission: str | None = None,
+        workdir: str = "",
     ) -> None:
-        """Opens an epic, and writes down what it is a run of.
+        """Opens an epic, or a chat's record, and writes down what it is a run of.
 
         Args:
           flow: The flow being run, as it was named; "" for a chat, which has none.
@@ -824,13 +848,14 @@ class Epic:
             written down with the rest so that a run picked up again is profiled as the run
             it goes on from was.
           backup: The git repositories it is backed up to, by name.
-          reopened: Whether the run goes on in the epic it is picked up from rather than a
-            new one -- a chat carried on, which is one conversation and so one epic -- saying
-            it was opened again where it said it began.
+          reopened: Whether it goes on in the directory it is picked up from rather than a
+            new one -- a chat carried on, which is one conversation and so one record --
+            saying it was opened again where it said it began.
           kind: `flow`, or `chat` for a chat, whose record says nothing of a flow, its envs,
-            params or budget, nor of profiling (Section 6.5.19 of [FILES]).
+            params or budget, nor of profiling (Section 6.6 of [FILES]).
           prefer: A chat's own preference, where it has one, or None.
           permission: A chat's permission, where it is not `workspace-write`, or None.
+          workdir: Where a chat's assistant works, where that is not its workspace, or "".
 
         Raises:
           Uncarried: Where the journal of the epic picked up is there and cannot be copied.
@@ -840,7 +865,7 @@ class Epic:
             picked_up
             if picked_up is not None and reopened
             else home()
-            / "epics"
+            / ("chats" if kind == CHAT else "epics")
             / _PLAIN.sub("-", str((workspace or Path.cwd()).resolve()))
             # The moment names it and six hex say which, since two processes may start flows
             # in one millisecond and neither is the other's run. To the millisecond, and never
@@ -848,7 +873,10 @@ class Epic:
             # sort in: which run a flow is picked up from is the last of them, and two named
             # alike would otherwise be ordered by the hex, which is to say at random.
             / f"{_stamp()}-{uuid.uuid4().hex[:6]}",
-            JOURNAL,
+            # As the directory carried on has it: one an earlier Humanize wrote is an epic's.
+            (journal(picked_up).name if reopened and picked_up else CHATTED)
+            if kind == CHAT
+            else JOURNAL,
             (workspace or Path.cwd()).resolve(),
             flow,
         )
@@ -886,13 +914,13 @@ class Epic:
         if kind == CHAT:
             self.write(
                 "began",
-                kind=CHAT,
                 task=task,
                 workspace=str(self._where),
                 agents=[one._asdict() for one in agents],
                 **({"backup": list(backup)} if backup else {}),
                 **({"prefer": prefer} if prefer else {}),
                 **({"permission": permission} if permission else {}),
+                **({"workdir": workdir} if workdir else {}),
             )
             return
         from hmz.coganchor.machines.store import SPELLING
@@ -1265,6 +1293,100 @@ def under(workspace: Path | str | None = None) -> Path:
     )
 
 
+def journal(at: Path) -> Path:
+    """The file one directory's own record is written to: an epic's, or a chat's.
+
+    Args:
+      at: An epic's directory, or a chat's.
+    """
+    own = at / JOURNAL
+    return own if own.is_file() else at / CHATTED
+
+
+def chats(workspace: Path | str | None = None) -> list[Path]:
+    """The chats had on this machine, oldest first: of one workspace, or of every one.
+
+    Args:
+      workspace: Whose, or None for every workspace's.
+
+    Returns:
+      One directory per chat, ordered by the moment it began, which is what each is named.
+    """
+    kept = home() / "chats"
+    found: list[Path] = []
+    with contextlib.suppress(OSError):
+        for under in (
+            [kept / _PLAIN.sub("-", str(Path(workspace).resolve()))]
+            if workspace is not None
+            else kept.iterdir()
+        ):
+            with contextlib.suppress(OSError):
+                found += (one for one in under.iterdir() if (one / CHATTED).is_file())
+    return sorted(found, key=lambda one: one.name)
+
+
+def forked(chat: Path) -> Path:
+    """A new chat that goes on from a copy of the conversation one chat has kept so far.
+
+    The sessions the chat keeps are copied whole, and the new chat's record says it began
+    as that one stands, opened those sessions, and rests: carried on, it goes on from the
+    copy, and the chat it was forked from is as it was.
+
+    Args:
+      chat: The chat's directory.
+
+    Returns:
+      The new chat's directory.
+
+    Raises:
+      ValueError: For a directory that is no chat's, and for a chat whose conversation is
+        not kept in it -- one its harness kept elsewhere, or none yet -- which leaves
+        nothing to copy.
+    """
+    ran = read(chat) if (chat / CHATTED).is_file() else None
+    if ran is None:
+        raise ValueError(f"{chat.name} is not a chat")
+    last = ran.sessions[-1] if ran.sessions else None
+    if last is None or not where(chat, last).is_relative_to(chat):
+        raise ValueError(
+            f"{chat.name} cannot be forked: its conversation is not kept in the chat"
+        )
+    at = chat.parent / f"{_stamp()}-{uuid.uuid4().hex[:6]}"
+    at.mkdir(parents=True)
+    try:
+        shutil.copytree(chat / SESSIONS, at / SESSIONS, symlinks=True)
+    except OSError as why:
+        shutil.rmtree(at, ignore_errors=True)
+        raise ValueError(f"{chat.name} cannot be forked: {why}") from why
+    lines: list[dict[str, Any]] = [
+        {
+            "event": "began",
+            "at": _now(),
+            "task": ran.task,
+            "workspace": ran.workspace,
+            "agents": [one._asdict() for one in ran.agents],
+            "title": ran.title,
+            "forked": chat.name,
+            **({"backup": list(ran.backup)} if ran.backup else {}),
+            **({"prefer": ran.prefer} if ran.prefer else {}),
+            **({"permission": ran.permission} if ran.permission else {}),
+            **({"workdir": ran.workdir} if ran.workdir else {}),
+        },
+        # Each session it kept, as it was opened: what carrying the copy on goes on from.
+        *(
+            one
+            for one in _events(chat)
+            if one.get("event") == "opened"
+            and not Path(str(one.get("where") or "")).is_absolute()
+        ),
+        {"event": "ended", "at": _now(), "how": "stopped"},
+    ]
+    (at / CHATTED).write_text(
+        "".join(json.dumps(one) + "\n" for one in lines), encoding="utf-8"
+    )
+    return at
+
+
 def epics(workspace: Path | str | None = None) -> list[Path]:
     """The epics run in one workspace, oldest first.
 
@@ -1374,7 +1496,7 @@ def _events(epic: Path) -> list[dict[str, Any]]:
       One record apiece, less whatever could not be read as one: a run that died mid-line
       left a line rather than an epic, and the rest of it is still what happened.
     """
-    at = epic / JOURNAL if epic.is_dir() else epic
+    at = journal(epic) if epic.is_dir() else epic
     try:
         lines = at.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
@@ -1401,7 +1523,7 @@ def records(epic: Path) -> list[Path]:
       in: a name says which flow before it says which call of it, and what happened in what
       order is what the lines themselves say.
     """
-    at = epic / JOURNAL
+    at = journal(epic)
     held = [at] if at.is_file() else []
     # A directory that went while it was being read is the records that were read, the way
     # a record that cannot be read at all is an epic with nothing in it.
@@ -1512,7 +1634,7 @@ def read(epic: Path) -> Ran | None:
     # A chat's agent, its own preference and its permission are what the last line to say
     # each says, its `began` among them: any is `set` again as the chat goes (Section 6.5.21
     # of [FILES]).
-    kind = _kind(began)
+    kind = CHAT if journal(epic).name == CHATTED else _kind(began)
     said_so = [began, *(one for one in events if one.get("event") == "set")]
     driven = next((one["agents"] for one in reversed(said_so) if "agents" in one), None)
     preferred = next(
@@ -1521,6 +1643,8 @@ def read(epic: Path) -> Ran | None:
     permitted = next(
         (one["permission"] for one in reversed(said_so) if "permission" in one), ""
     )
+    task = str(began.get("task") or "")
+    titled = next((one["title"] for one in reversed(said_so) if "title" in one), "")
     agents: list[Drove] = []
     for one in cast("list[Any]", driven if isinstance(driven, list) else []):
         if not isinstance(one, dict):
@@ -1551,7 +1675,7 @@ def read(epic: Path) -> Ran | None:
     return Ran(
         at=epic,
         flow=str(began.get("flow") or ""),
-        task=str(began.get("task") or ""),
+        task=task,
         workspace=str(began.get("workspace") or ""),
         began=str(began.get("at") or ""),
         ended=str(ended.get("at") or "") if ended else "",
@@ -1601,6 +1725,14 @@ def read(epic: Path) -> Ran | None:
         kind=kind,
         prefer=str(preferred or "") if kind == CHAT else "",
         permission=str(permitted or "") if kind == CHAT else "",
+        title=str(titled or "") or (task.strip().splitlines() or [""])[0],
+        archived=next(
+            (one["archived"] is True for one in reversed(said_so) if "archived" in one),
+            False,
+        ),
+        workdir=str(began.get("workdir") or ""),
+        forked=str(began.get("forked") or ""),
+        updated=str(events[-1].get("at") or ""),
     )
 
 
@@ -1639,7 +1771,7 @@ def note(epic: Path, event: str, **said: Any) -> None:
       event: What happened.
       said: What is worth saying about it.
     """
-    with (epic / JOURNAL).open("a", encoding="utf-8") as stream:
+    with journal(epic).open("a", encoding="utf-8") as stream:
         stream.write(json.dumps({"event": event, "at": _now(), **said}) + "\n")
 
 

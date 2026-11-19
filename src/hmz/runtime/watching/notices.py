@@ -242,6 +242,7 @@ def _noticed(
                     "workspace": workspace,
                     "slot": now.get("slot") or "",
                     "epic": ended.get("epic") or "",
+                    "chat": ended.get("chat") or "",
                     # A chat has no flow, and is told of as what it is.
                     "flow": "chat"
                     if chat
@@ -279,6 +280,7 @@ def _noticed(
                 "workspace": workspace,
                 "slot": now.get("slot") or "",
                 "epic": now.get("epic") or "",
+                "chat": now.get("chat") or "",
                 "flow": "chat" if chat else now.get("flow") or "",
                 "task": now.get("task") or "",
                 "role": one.get("role") or "",

@@ -394,6 +394,7 @@ class Holding(Hmz):
         prefer: Prefer | None = None,
         role: Role | None = None,
         permission: str | None = None,
+        worktree: bool = False,
     ) -> Chatting:
         """A chat in this workspace, in this process, set up and ready to be had.
 
@@ -405,7 +406,7 @@ class Holding(Hmz):
           agent: The assistant, as `-a` spells an agent after `<role>=`.
           task: Its first message.
           person: Who it is had with.
-          resume: The epic directory of a chat to carry on, or None for a new one.
+          resume: The directory of a chat to carry on, or None for a new one.
           prefer: This chat's own preference for a `$` name that is both a native skill and
             a flow, or None to go by the person's setting.
           role: What its assistant is beyond its agent -- Ai-chan's, for a conversation
@@ -413,6 +414,8 @@ class Holding(Hmz):
           permission: The preset its assistant is held to -- `read-only`,
             `workspace-write` or `danger-full-access` -- or None for the one a chat carried
             on had, and `workspace-write` for a new one.
+          worktree: Whether a new chat's assistant works in a new git worktree of this
+            workspace.
 
         Returns:
           The chat, held as a run is. Nothing has started: `run()` has it, here.
@@ -428,5 +431,6 @@ class Holding(Hmz):
             prefer=prefer,
             role=role,
             permission=permission,
+            worktree=worktree,
         )
         return Chatting(Chat(spec, person=person))

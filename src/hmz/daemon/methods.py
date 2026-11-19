@@ -89,7 +89,7 @@ _NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_termi
 
 
 #: Why a chat whose host folded it away takes nothing more (Section 4.25.2.4).
-_FOLDED = "this chat has folded away; carry it on from its epic"
+_FOLDED = "this chat has folded away; carry it on with chat.start"
 
 
 def _refused(code: int, message: str, data: dict[str, Any] | None = None) -> Exception:
@@ -297,7 +297,7 @@ class _Methods:
             running.append(
                 {
                     key: status.get(key)
-                    for key in ("state", "run", "flow", "epic", "task", "turn")
+                    for key in ("state", "run", "flow", "epic", "chat", "task", "turn")
                     if key in status
                 }
                 | {
@@ -444,7 +444,7 @@ class _Methods:
         if not checked["ok"]:
             raise _refused(int(checked["code"]), str(checked["why"]))
         # An Ai-chan conversation is carried on by attaching to its slot (Section 4.22.5.2),
-        # and its epic is none of a workspace's (Section 14.7.4 of core.md).
+        # and is none of a workspace's chats (Section 14.7.4 of core.md).
         resumed = Path(checked["resume"] or "").name
         if resumed in self._router.links.kept.epics():
             raise _refused(404, f"{resumed} is not a chat of {named}.")
@@ -456,13 +456,14 @@ class _Methods:
                 "do": "start",
                 "agent": checked["agent"],
                 "task": checked["task"],
-                "resume": checked["resume"],
+                "resume": resumed or None,
                 "prefer": checked["prefer"],
                 "permission": checked["permission"],
+                "worktree": checked["worktree"],
                 "remember": params.get("remember") is True,
             },
         )
-        return {"slot": hosted.slot, "epic": str(started.get("epic") or "")}
+        return {"slot": hosted.slot, "chat": str(started.get("chat") or "")}
 
     def chat_say(self, call: Call) -> dict[str, Any]:
         """Says one line to a chat (Section 4.25.2)."""
@@ -489,6 +490,11 @@ class _Methods:
         if refused:
             raise _refused(400, refused)
         self._chatted(call, self._chat_held(call), {"do": "set", **said})
+        return {}
+
+    def chat_stop(self, call: Call) -> dict[str, Any]:
+        """Stops a chat's open turn, leaving the chat between turns (Section 4.25.6)."""
+        self._chatted(call, self._chat_held(call), {"do": "stop"})
         return {}
 
     def epic(self, do: str) -> Handler:
@@ -621,6 +627,7 @@ class _Methods:
             "chat.say": self.chat_say,
             "chat.commands": self.chat_commands,
             "chat.set": self.chat_set,
+            "chat.stop": self.chat_stop,
         }
 
 

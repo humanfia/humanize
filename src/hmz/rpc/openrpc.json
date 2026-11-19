@@ -541,7 +541,7 @@
     },
     {
       "name": "hosts.running",
-      "summary": "Every host whose epic is going or stopping.",
+      "summary": "Every host whose epic or chat is going or stopping.",
       "paramStructure": "by-name",
       "params": [],
       "result": {
@@ -4089,6 +4089,12 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "chat",
+          "schema": {
+            "type": "string"
+          }
         }
       ],
       "result": {
@@ -4170,6 +4176,12 @@
         },
         {
           "name": "epic",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "chat",
           "schema": {
             "type": "string"
           }
@@ -4539,15 +4551,6 @@
           "name": "flow",
           "schema": {
             "type": "string"
-          }
-        },
-        {
-          "name": "kind",
-          "schema": {
-            "enum": [
-              "chat",
-              "flow"
-            ]
           }
         },
         {
@@ -9054,7 +9057,8 @@
               "string",
               "null"
             ]
-          }
+          },
+          "description": "The name of a chat of the workspace to carry on."
         },
         {
           "name": "prefer",
@@ -9078,6 +9082,12 @@
           }
         },
         {
+          "name": "worktree",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
           "name": "remember",
           "schema": {
             "type": "boolean"
@@ -9096,13 +9106,13 @@
           "type": "object",
           "required": [
             "slot",
-            "epic"
+            "chat"
           ],
           "properties": {
             "slot": {
               "$ref": "#/components/schemas/Slot"
             },
-            "epic": {
+            "chat": {
               "type": "string"
             }
           }
@@ -9444,6 +9454,548 @@
         "slot": "slot"
       },
       "x-hmz-writes": true
+    },
+    {
+      "name": "chat.stop",
+      "summary": "Stop a chat's open turn, leaving the chat between turns.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "stop",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.list",
+      "summary": "The chats written down.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "archived",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "q",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "offset",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "chats",
+            "total",
+            "offset",
+            "limit"
+          ],
+          "properties": {
+            "chats": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Chat"
+              }
+            },
+            "total": {
+              "type": "integer"
+            },
+            "offset": {
+              "type": "integer"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "workspace",
+        "workspace": "workspace"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "chat.get",
+      "summary": "One chat, whole, and what was said in it where asked.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "trace",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "get",
+        "schema": {
+          "$ref": "#/components/schemas/Chat"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "chat.rename",
+      "summary": "Change a chat's title.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "rename",
+        "schema": {
+          "$ref": "#/components/schemas/Chat"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.fork",
+      "summary": "A new chat that goes on from a copy of a chat's conversation so far.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "fork",
+        "schema": {
+          "type": "object",
+          "required": [
+            "chat"
+          ],
+          "properties": {
+            "chat": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.archive",
+      "summary": "Archive a chat, which hides it from the list.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "archive",
+        "schema": {
+          "$ref": "#/components/schemas/Chat"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.unarchive",
+      "summary": "Put an archived chat back in the list.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "unarchive",
+        "schema": {
+          "$ref": "#/components/schemas/Chat"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.delete",
+      "summary": "Remove a chat and the sessions it kept, for good.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "delete",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     }
   ],
   "components": {
@@ -9523,6 +10075,7 @@
           "workspace",
           "slot",
           "epic",
+          "chat",
           "flow",
           "task",
           "role",
@@ -9549,6 +10102,9 @@
             "type": "string"
           },
           "epic": {
+            "type": "string"
+          },
+          "chat": {
             "type": "string"
           },
           "flow": {
@@ -9579,6 +10135,7 @@
           "epic_kind",
           "flow",
           "epic",
+          "chat",
           "task",
           "pending",
           "ended",
@@ -9596,6 +10153,7 @@
           "epic_kind": {},
           "flow": {},
           "epic": {},
+          "chat": {},
           "task": {},
           "pending": {},
           "ended": {},
@@ -10032,6 +10590,80 @@
           "created": {
             "type": "string"
           }
+        }
+      },
+      "Chat": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "workspace",
+          "workdir",
+          "agent",
+          "model",
+          "began",
+          "updated",
+          "state",
+          "slot",
+          "asking",
+          "permission",
+          "archived",
+          "spent"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "workdir": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "began": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "going",
+              "turn",
+              "asking",
+              "failed",
+              "resting"
+            ]
+          },
+          "slot": {
+            "type": "string"
+          },
+          "asking": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permission": {
+            "enum": [
+              "read-only",
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "spent": {}
         }
       }
     },

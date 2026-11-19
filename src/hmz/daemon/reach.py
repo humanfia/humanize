@@ -373,10 +373,13 @@ def ran_in(name: str) -> str:
 
 
 def epic_at(name: str) -> Path | None:
-    """The directory of an epic, by its name, or None where there is none."""
-    from hmz.runtime.epic import every
+    """The directory of a chat or an epic, by its name, or None where there is none.
 
-    return next((at for at in every() if at.name == name), None)
+    An Ai-chan conversation is kept as a chat is; one an earlier hmz began is kept as an epic.
+    """
+    from hmz.runtime.epic import chats, every
+
+    return next((at for at in (*chats(), *every()) if at.name == name), None)
 
 
 class Conversations:
@@ -560,10 +563,10 @@ class Links:
             self._admit(SocketPipe(one, trusted=True), reach)
 
     def after(self, hosted: Hosted) -> None:
-        """Starts the epic of a conversation's host, which has just come up (Section 4.22.5).
+        """Starts the chat of a conversation's host, which has just come up (Section 4.22.5).
 
-        Anew, its task the first message, the first time; carrying on its epic every later
-        time. The epic's name is written down once the host has named it.
+        Anew, its task the first message, the first time; carrying it on every later time.
+        Its name is written down once the host has named it.
 
         Raises:
           RpcError: 404 where the conversation was forgotten, and 409 where the host refused.
@@ -619,9 +622,10 @@ class Links:
             ).start()
 
     def _names(self, hosted: Hosted, ident: int) -> None:
-        """Writes down the epic a conversation's host writes, once it has named it."""
+        """Writes down what a conversation's host writes it in, once it has named it."""
         while hosted.peer is not None and not hosted.peer.closed:
-            epic = str(hosted.status().get("epic") or "")
+            status = hosted.status()
+            epic = str(status.get("chat") or status.get("epic") or "")
             if epic:
                 self.kept.changed(ident, record=epic)
                 return
