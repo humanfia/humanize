@@ -46,7 +46,9 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 | the `reach` topic | those of `agents`, `daemon`, `reach`, `rpc`, `rtc` or `trust` |
 | the `relay` topic | `cli`, `reach`, `relay`, `rpc`, `rtc` or `trust` |
 | `tests/unit/rpc` | also anything in `protocol/`: it holds `protocol/openrpc.json` to the protocol's text |
-| `node --test 'tests/unit/web/js/*.test.mjs'` | `src/hmz/web/static/`, `tests/unit/web/js/` or `ci.yml` |
+| `tests/unit/daemon` | also `protocol/openrpc.json`: it holds what the daemon serves to the document's methods |
+| the `web` topic | also `protocol/web.md`: it holds the policy a page is served with to the document's |
+| `node --test 'tests/unit/web/js/*.test.mjs'` | `src/hmz/web/static/`, `tests/unit/web/js/`, `ci.yml` or `protocol/openrpc.json`, which it holds the page's writes to |
 | a topic | also its own files in `tests/integration/`, and the doubles its tests import: `doubles_core.py` counts for `core`, `daemon`, `anchor` and `web`, `doubles_daemon.py` for `daemon`, `core`, `tui` and `web`, `doubles_ssh.py` for `daemon`, `tui`, `web` and `reach`, `doubles_easytier.py` for `daemon`, `anchor` and `reach`, and `tests/unit/relay/doubles_relay.py` for `relay` |
 | `vendor` | `src/hmz/web/vendor/`, `src/hmz/web/static/vendor/` or `ci.yml` |
 | `coganchor` | `crates/coganchor/` or `ci.yml` |
@@ -54,8 +56,8 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 
 `runtime`, `flows` and `coganchor` import each other, so a topic that runs one runs all three.
 The other topics' rows follow what their tests import, and `hmz`, which loads a package only
-when a command needs it. A test that comes to run a package or a double its row leaves out
-takes it into the row in `ci.yml`'s `changes`: `tests/integration/test_core_ci_filters.py`
+when a command needs it. A test that comes to run a package or a double, or to read a document
+of `protocol/`, that its row leaves out takes it into the row in `ci.yml`'s `changes`: `tests/integration/test_core_ci_filters.py`
 fails until it does.
 
 | Job | Checks | Run it yourself |

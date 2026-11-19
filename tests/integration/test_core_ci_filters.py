@@ -6,7 +6,9 @@ import, with `ast`: the `hmz` packages they name, the doubles beside them, and w
 doubles import in turn. A path a filter leaves out is a change that merges with the topic's
 tests never run on it.
 
-A unit package's filter is read the same way against the `conftest.py` files above it.
+A unit package's filter is read the same way against the `conftest.py` files above it. And a
+test that reads a document of `protocol/` holds the code to it, so the filter of its package,
+of its topic, or of the page's node tests lists that document.
 """
 
 from __future__ import annotations
@@ -28,6 +30,11 @@ HERE = Path(__file__).parent
 
 #: The topics the `tests` job runs, one at a time.
 TOPICS = ("core", "agents", "tui", "daemon", "anchor", "web", "reach", "relay")
+
+#: A document of `protocol/` named as a path a test opens: the directory and the name as two
+#: strings a `/` joins in Python, one string of both in the page's tests. Prose that names a
+#: document closes no quote after it.
+READ = re.compile(r"""protocol(?:["']\s*/\s*["']|/)([\w.-]+)["']""")
 
 
 def _pattern(glob: str) -> re.Pattern[str]:
@@ -101,6 +108,17 @@ def _imported(file: Path, seen: set[Path]) -> set[str]:
     return paths
 
 
+def _unheld(files: set[Path], filters: list[re.Pattern[str]]) -> list[str]:
+    """The documents of `protocol/` that `files` read and `filters` leave out."""
+    read = {
+        f"protocol/{name}"
+        for file in files
+        for name in READ.findall(file.read_text())
+        if (ROOT / "protocol" / name).is_file()
+    }
+    return sorted(path for path in read if not any(f.fullmatch(path) for f in filters))
+
+
 @pytest.mark.parametrize("topic", TOPICS)
 def test_a_topic_runs_when_what_its_tests_import_changed(topic: str) -> None:
     filters = _filters()[f"integration-{topic}"]
@@ -133,3 +151,34 @@ def test_a_package_runs_when_what_every_unit_test_starts_from_changed(
     skipped = [path for path in runs if not any(f.fullmatch(path) for f in filters)]
 
     assert not skipped, f"a change to {skipped} would not run tests/unit/{package}"
+
+
+@pytest.mark.parametrize("topic", TOPICS)
+def test_a_topic_runs_when_the_protocol_its_tests_read_changed(topic: str) -> None:
+    files: set[Path] = set()
+    for test in HERE.glob(f"test_{topic}_*.py"):
+        _imported(test, files)
+
+    skipped = _unheld(files, _filters()[f"integration-{topic}"])
+
+    assert not skipped, f"a change to {skipped} would not run the {topic} topic"
+
+
+@pytest.mark.parametrize(
+    "package",
+    sorted({p.parent.name for p in (ROOT / "tests/unit").glob("*/test_*.py")}),
+)
+def test_a_package_runs_when_the_protocol_its_tests_read_changed(package: str) -> None:
+    files = set((ROOT / "tests/unit" / package).rglob("*.py"))
+
+    skipped = _unheld(files, _filters()[f"unit-{package}"])
+
+    assert not skipped, f"a change to {skipped} would not run tests/unit/{package}"
+
+
+def test_the_page_runs_when_the_protocol_its_tests_read_changed() -> None:
+    files = set((ROOT / "tests/unit/web/js").glob("*.mjs"))
+
+    skipped = _unheld(files, _filters()["js"])
+
+    assert not skipped, f"a change to {skipped} would not run the page's node tests"
