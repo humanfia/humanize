@@ -905,14 +905,21 @@ mod tests {
 
         sink.hold(false);
         let frames = out.closed(WAIT);
+        // A line whose writing a full terminal held up may be ended `\r\r\n`, as macOS
+        // ends it.
         let text = String::from_utf8(output(&frames, Stream::Stdout)).unwrap();
-        let numbers: String = (1..=300_000).map(|n| format!("{n}\r\n")).collect();
-        let wanted = format!("ready\r\n{numbers}E-N-D\r\n");
-        assert_eq!(text.len(), wanted.len());
+        let lines: Vec<&str> = text
+            .lines()
+            .map(|line| line.trim_end_matches('\r'))
+            .collect();
+        let numbers: Vec<String> = (1..=300_000).map(|n| n.to_string()).collect();
+        assert_eq!(lines.len(), numbers.len() + 2);
+        assert_eq!(lines[0], "ready");
         assert!(
-            text == wanted,
-            "what a held command wrote came out of order"
+            lines[1..=numbers.len()] == numbers[..],
+            "what a held command wrote was lost or came out of order"
         );
+        assert_eq!(lines[numbers.len() + 1], "E-N-D");
         assert_eq!(reply(&frames).meta, crate::meta! {"exit_code" => 0});
     }
 
