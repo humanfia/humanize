@@ -4161,7 +4161,8 @@ class Humanize(App[None]):
         one menu either way, so that a flow is set up in one place however it was reached for.
 
         Args:
-          named: A flow to open the menu already holding, or "" for the one in force.
+          named: A flow to open the menu already holding, or "" for the one running, or the
+            one in force where none is.
           running: Whether a flow is running, which is what takes the flows away.
           page: Which page to open on where no flow is named.
 
@@ -4178,10 +4179,14 @@ class Humanize(App[None]):
         # What is in hand is what is in hand for the flow the interface is set up on. A menu
         # opened straight into another flow is handed none, and reads what that one was last
         # set up with here -- which is what turning to it would have read.
-        holding = not named or named == self._flow_named
+        # And a menu opened under an epic is on the flow that epic runs (Section 7.9.3 of
+        # [TUI]), which another frontend may have started and is then not the one in hand.
+        going = self._run.flow if running and self._run is not None else ""
+        flow = named or going or self._flow_named
+        holding = flow == self._flow_named
         chosen = await self.push_screen_wait(
             Flows(
-                named or self._flow_named,
+                flow,
                 self._models if holding else {},
                 self._params if holding else None,
                 agents,
