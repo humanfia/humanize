@@ -4,7 +4,8 @@
 // epic they hold here. A URL is shown with nothing signed into it, and one left as shown is kept
 // as written.
 
-import { acting, confirming, fill, h, problem } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { acting, fill, h, problem } from '../../dom.js'
 import { toast } from '../../ui.js'
 
 /** Each policy, as it is ticked. */

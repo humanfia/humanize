@@ -97,7 +97,7 @@ def test_the_daemon_picked_is_the_one_read_and_written(
             "href", "#/settings/backup?daemon=gpu"
         )
 
-        page.locator("[data-hmz=settings-general] input[type=checkbox]").check()
+        page.locator("[data-hmz=settings-general] input[type=checkbox]").first.check()
         page.get_by_role("button", name="Save").click()
         expect(page.get_by_role("button", name="Saved")).to_be_visible()
         assert _settings(page, "gpu")["details"] is True
@@ -126,7 +126,7 @@ def test_batch_apply_sends_the_page_to_each_daemon_ticked(
         paired(page, "gpu", gpu.code())
         kept(page, _LAB)
         go(page, "/settings/general")
-        page.locator("[data-hmz=settings-general] input[type=checkbox]").check()
+        page.locator("[data-hmz=settings-general] input[type=checkbox]").first.check()
         page.locator("[data-hmz=batch-apply]").click()
         dialog = page.locator("[data-hmz=batch-dialog]")
         expect(dialog.locator("label.check")).to_have_text(["All", "gpu", "lab"])
@@ -147,6 +147,13 @@ def test_batch_apply_sends_the_page_to_each_daemon_ticked(
         expect(dialog).to_have_count(0)
         expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
         assert _settings(page, "local")["details"] is False
+
+        # A press beside it closes it as Escape does, and Settings stays.
+        page.locator("[data-hmz=batch-apply]").click()
+        expect(dialog).to_be_visible()
+        page.mouse.click(4, 4)
+        expect(dialog).to_have_count(0)
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
 
 
 def test_accounts_keep_their_secrets_on_their_daemon(

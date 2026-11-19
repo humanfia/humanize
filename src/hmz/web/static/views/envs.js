@@ -18,6 +18,7 @@ import { pathOf } from '../chats.js'
 import { empty, fill, h, headline, pathText, problem } from '../dom.js'
 import { watch } from '../epic.js'
 import { hearing, hosted } from '../held.js'
+import { modal } from '../layers.js'
 import { bar, keep, kept } from '../shell.js'
 import { COLOURS } from '../themes.js'
 import { clampWidth, factsOf, nameOf, offOf, panelsOf, paramsOf, pick, tabOf, treeOf, usable } from './envs/tree.js'
@@ -50,20 +51,23 @@ export function themeNow() {
   return { dark: document.documentElement.dataset.theme === 'dark', tokens }
 }
 
-/** Asks a question that is answered yes or no, over the page, until it is answered. */
+/**
+ * Asks a question that is answered yes or no, over the page, until it is answered: it opens on
+ * `no`, and Escape, a press beside it and the page going elsewhere all answer that.
+ */
 export function confirmed(text, { yes = 'OK', no = 'Cancel' } = {}) {
   return new Promise((resolve) => {
     const dialog = h(
       'dialog',
       { class: 'envs-confirm', 'data-hmz': 'envs-confirm', 'aria-label': text },
-      h('form', { method: 'dialog' }, h('p', {}, text), h('div', { class: 'row envs-confirm-row' }, h('button', { class: 'btn quiet', value: 'no' }, no), h('button', { class: 'btn danger', value: 'yes', autofocus: true }, yes))),
+      h('form', { method: 'dialog' }, h('p', {}, text), h('div', { class: 'row envs-confirm-row' }, h('button', { class: 'btn quiet', value: 'no', autofocus: true }, no), h('button', { class: 'btn danger', value: 'yes' }, yes))),
     )
     dialog.addEventListener('close', () => {
       resolve(dialog.returnValue === 'yes')
       dialog.remove()
     })
     document.body.append(dialog)
-    dialog.showModal()
+    modal(dialog, 'no')
   })
 }
 

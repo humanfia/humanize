@@ -1,6 +1,6 @@
 /* The Environments frame: the list of a host's environments beside the one picked, with its
-   panels under a row of tabs; in a chat's side panel, the one picked alone. Every colour is a
-   token of style.css, as everywhere on the page. */
+   panels under a row of tabs; in a chat's side panel, the one picked alone. Every colour and
+   every size is a token of style.css, as everywhere on the page. */
 
 .view-envs {
   display: flex;
@@ -11,6 +11,7 @@
 
 .envs-holder {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
 }
@@ -23,13 +24,18 @@
   background: var(--paper);
 }
 
+/* Beside a chat or an epic the frame stands on the panel's own ground. */
+.envs-compact {
+  background: none;
+}
+
 .envs-split {
   --envs-tree: 240px;
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: var(--envs-tree) 6px minmax(0, 1fr);
+  grid-template-columns: var(--envs-tree) var(--border-w) minmax(0, 1fr);
 }
 
 .envs-compact .envs-split {
@@ -41,16 +47,29 @@
 .envs-side {
   min-height: 0;
   overflow-y: auto;
+  padding: var(--space-8);
   background: var(--side);
-  padding: 8px 0 16px;
 }
 
+.envs-tree {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* A role's name over its environments: a lowercase key, said as a label. */
 .envs-role {
-  padding: 12px 14px 4px;
-  font: 600 11px var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  height: var(--control-h-sm);
+  padding: var(--space-6) var(--space-8);
+  font: 500 var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
+}
+
+.envs-role::first-letter {
+  text-transform: uppercase;
+}
+
+.envs-role:not(:first-child) {
+  margin-top: var(--space-8);
 }
 
 .envs-item {
@@ -58,13 +77,18 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 6px;
-  padding: 5px 12px 5px calc(14px + var(--depth) * 16px);
-  border-left: 3px solid transparent;
+  align-content: center;
+  gap: var(--space-6);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-8) 0 calc(var(--space-8) + var(--depth) * var(--indent));
+  border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-md);
   user-select: none;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
 }
 
 .envs-item:hover {
@@ -72,25 +96,28 @@
   color: var(--ink);
 }
 
+.envs-item:active {
+  background: var(--pressed);
+}
+
 .envs-item:focus-visible {
-  outline: 2px solid var(--edge);
+  outline: var(--focus-ring);
   outline-offset: -2px;
 }
 
 .envs-item.chosen {
-  border-left-color: var(--cyan);
-  background: var(--live-soft);
+  background: var(--selected);
   color: var(--ink);
-  font-weight: 600;
 }
 
+/* One that has closed or cannot be reached is said quietly, and says which beside its name. */
 .envs-item.off {
-  opacity: 0.55;
+  color: var(--ink-3);
 }
 
 .envs-glyph {
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .envs-name {
@@ -101,21 +128,23 @@
 }
 
 .envs-item-meta {
-  font: 11px var(--mono);
+  font: var(--text-xs) var(--mono);
   color: var(--ink-3);
-  font-weight: 400;
 }
 
+/* The line between the list and the one picked, with room either side of it to take hold of. */
 .envs-resizer {
+  position: relative;
+  z-index: var(--z-float);
+  margin: 0 calc(-1 * var(--space-4));
+  background: linear-gradient(var(--line), var(--line)) center / var(--border-w) 100% no-repeat;
   cursor: col-resize;
-  background: var(--line);
   touch-action: none;
 }
 
-.envs-resizer:hover,
-.envs-resizer:focus-visible,
-.envs-resizer.dragging {
-  background: var(--cyan);
+.envs-resizer:is(:hover, :focus-visible, .dragging) {
+  background-image: linear-gradient(var(--link), var(--link));
+  background-size: var(--space-2) 100%;
   outline: none;
 }
 
@@ -129,32 +158,39 @@
 }
 
 .envs-notice {
-  padding: 0 16px;
+  padding: 0 var(--gutter);
 }
 
 .envs-head {
   flex: none;
-  padding: 10px 16px 8px;
-  border-bottom: 1px solid var(--line);
+  padding: var(--space-12) var(--gutter) var(--space-8);
+}
+
+/* Where the panel is picked on a chat's bar there are no tabs under the head, which keeps the line. */
+.chat-pane .envs-head {
+  border-bottom: var(--border);
 }
 
 .envs-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   min-width: 0;
+  min-height: var(--control-h-xs);
 }
 
 .envs-title b {
-  font: 700 14px var(--mono);
+  font: 600 var(--text)/20px var(--mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.envs-select {
+select.envs-select {
   flex: 1;
   min-width: 0;
+  height: var(--control-h-sm);
+  font-size: var(--text-md);
 }
 
 /* Beside the tree, the picker it folds into is not shown; in a side panel, it is, in the name's place. */
@@ -164,7 +200,7 @@
 }
 
 .envs-off {
-  padding: 8px 0;
+  padding: var(--space-8) 0;
   color: var(--ink-2);
 }
 
@@ -176,31 +212,40 @@
   opacity: 0.7;
 }
 
-.envs-full {
+.icon-btn.envs-full {
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
   margin-left: auto;
-  font-size: 16px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-lg);
 }
 
+/* What kind of environment it is, and that it is closed: a tag beside its name. */
 .envs-chip {
-  font: 600 11px var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 1px 6px;
-  border: 1px solid var(--line-strong);
-  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 20px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--tone, var(--ink)) 12%, transparent);
+  color: var(--tone-ink, var(--ink-2));
+  font: 500 var(--text-sm)/20px var(--sans);
+  white-space: nowrap;
 }
 
 .envs-chip.off {
-  border-color: var(--fail);
-  color: var(--fail);
+  --tone: var(--fail);
+  --tone-ink: var(--fail);
 }
 
 .envs-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 14px;
-  margin-top: 4px;
-  font-size: 12.5px;
+  gap: var(--space-2) var(--space-12);
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 16px;
   color: var(--ink-3);
   min-width: 0;
 }
@@ -212,18 +257,24 @@
 }
 
 .envs-uses {
-  color: var(--cyan-ink);
+  color: var(--ink-2);
 }
 
+/* The panels' tabs: a bar of the frame's own, as tall as the view's with its line, which is the
+   one line between the head and the panel. */
 .envs-tabs {
   flex: none;
-  padding: 6px 16px 0;
-  border-bottom-width: 1px;
+  flex-wrap: nowrap;
+  min-height: var(--bar-h);
+  padding: var(--space-8) var(--space-8) 0;
+  border-bottom: var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .envs-used {
-  margin-left: 4px;
-  color: var(--cyan);
+  margin-left: var(--space-4);
+  color: var(--ink-3);
 }
 
 .envs-panes {
@@ -242,9 +293,12 @@
 }
 
 .envs-pane > .loading,
-.envs-pane > .error,
+.envs-pane > .error {
+  margin: var(--space-16) var(--gutter);
+}
+
 .envs-unavailable {
-  padding: 0 16px;
+  padding: 0 var(--gutter);
 }
 
 .envs-pane-body {
@@ -258,12 +312,12 @@
 /* ------------------------------------------------------------------ asking before doing */
 
 .envs-confirm {
-  max-width: min(440px, calc(100vw - 32px));
-  padding: 20px;
+  width: min(var(--dialog-sm), 100vw - 2 * var(--space-16));
+  padding: var(--gutter);
   color: var(--ink);
   background: var(--paper);
-  border: 2px solid var(--ink);
-  box-shadow: 8px 8px 0 var(--cyan);
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
 }
 
 .envs-confirm::backdrop {
@@ -271,28 +325,44 @@
 }
 
 .envs-confirm p {
-  margin: 0 0 16px;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .envs-confirm-row {
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
+}
+
+/* What is asked about cannot be undone, and the button that does it is filled to say so. */
+.envs-confirm .btn.danger {
+  background: var(--fail);
+  color: var(--on-ink);
+  border-color: transparent;
+}
+
+.envs-confirm .btn.danger:hover {
+  background: color-mix(in srgb, var(--fail) 88%, var(--paper));
 }
 
 /* ------------------------------------------------------------------ a chat's side panel */
 
+/* As wide as the view gives it, and as tall: its panels fill it. */
 .inspector.envs-wide {
-  width: min(62vw, 980px);
   display: flex;
   flex-direction: column;
+  width: auto;
   overflow: hidden;
 }
 
+/* The panels scroll themselves, so what holds them does not. */
 .inspector.envs-wide > .panel-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .inspector.envs-wide .panel-pane {
@@ -300,6 +370,14 @@
   min-height: 0;
   display: flex;
   padding: 0;
+}
+
+/* An environment shares the view, not the window: it takes half of what is beside the sidebar,
+   980px at the most, and leaves the conversation no less than 360px. */
+@media (min-width: 861px) {
+  .view-epic:has(> .inspector.envs-wide:not([hidden])) {
+    grid-template-columns: minmax(min(360px, 100%), 1fr) minmax(0, min(50%, 980px));
+  }
 }
 
 /* ------------------------------------------------------------------ a phone */
@@ -325,17 +403,8 @@
     flex: 1;
   }
 
-  .envs-head,
-  .envs-tabs,
-  .envs-notice,
-  .envs-pane > .loading,
-  .envs-unavailable {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
+  /* The sheet an environment is worked in stands taller than one that is only read. */
   .inspector.envs-wide {
-    width: auto;
     height: 80vh;
     max-height: 80vh;
   }

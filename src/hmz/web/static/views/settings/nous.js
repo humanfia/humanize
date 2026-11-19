@@ -5,7 +5,8 @@
 // node picks among several by a strategy, and each node's edges say, by fault class or `*`,
 // which node a turn goes to once it fails there.
 
-import { acting, confirming, fill, h, iconButton, lasting, problem } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { acting, fill, h, iconButton, lasting, problem } from '../../dom.js'
 import { batched, concrete, freshId, graphSaid, held, removed, renamed, withEffort, written } from '../../nous.js'
 import { parted, readBackends } from '../../pickers.js'
 

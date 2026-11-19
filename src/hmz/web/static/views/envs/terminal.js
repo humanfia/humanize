@@ -8,6 +8,7 @@
 // so a page slow to draw slows the shell rather than drowning in its output (protocol/core.md).
 
 import { fill, h, icon, iconButton } from '../../dom.js'
+import * as layers from '../../layers.js'
 import {
   binary,
   closedRefusal,
@@ -597,7 +598,8 @@ export async function mount(el, ctx) {
     if (tab.tabEl.querySelector('input')) return
     const input = h('input', { class: 'term-rename', 'data-hmz': 'term-rename', value: tabTitle(tab), 'aria-label': 'Terminal name', spellcheck: 'false' })
     let done = false
-    const finish = (keep) => {
+    // The terminal has the keys back unless the focus went on to something else, which keeps it.
+    const finish = (keep, away = false) => {
       if (done) return
       done = true
       if (keep) {
@@ -611,14 +613,14 @@ export async function mount(el, ctx) {
       }
       input.replaceWith(tab.title)
       tab.retitle()
-      if (state.active === tab) tab.xterm.focus()
+      if (!away && state.active === tab) tab.xterm.focus()
     }
     input.addEventListener('keydown', (event) => {
       event.stopPropagation()
       if (event.key === 'Enter') finish(true)
       else if (event.key === 'Escape') finish(false)
     })
-    input.addEventListener('blur', () => finish(true))
+    input.addEventListener('blur', (event) => finish(true, Boolean(event.relatedTarget)))
     tab.title.replaceWith(input)
     input.focus()
     input.select()
@@ -736,7 +738,11 @@ export async function mount(el, ctx) {
     notice.replaceChildren()
   }
 
-  /** The find bar over the terminal shown: Ctrl/Cmd+F, Enter for the next, Shift+Enter back. */
+  /**
+   * The find bar over the terminal shown: Ctrl/Cmd+F, Enter for the next, Shift+Enter back. It
+   * floats by the panel, which is pressed, typed into and scrolled under it, and closed, the
+   * terminal shown has the keys again.
+   */
   function findBar() {
     const input = h('input', { class: 'term-find-input', 'data-hmz': 'term-find', type: 'search', placeholder: 'Find', 'aria-label': 'Find in terminal', spellcheck: 'false' })
     const count = h('span', { class: 'term-find-count', 'data-hmz': 'term-find-count', 'aria-live': 'polite' })
@@ -768,13 +774,9 @@ export async function mount(el, ctx) {
     }
     input.addEventListener('input', () => find(true, true))
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        find(!event.shiftKey)
-      } else if (event.key === 'Escape') {
-        event.preventDefault()
-        close()
-      }
+      if (event.key !== 'Enter') return
+      event.preventDefault()
+      find(!event.shiftKey)
     })
     cased.addEventListener('click', () => {
       cased.setAttribute('aria-pressed', String(cased.getAttribute('aria-pressed') !== 'true'))
@@ -783,16 +785,29 @@ export async function mount(el, ctx) {
     back.addEventListener('click', () => find(false))
     next.addEventListener('click', () => find(true))
     shut_.addEventListener('click', () => close())
+    const layer = {
+      node,
+      kind: 'panel',
+      close,
+      get anchor() {
+        return root
+      },
+      get back() {
+        return state.active?.xterm.textarea
+      },
+    }
     function close() {
+      if (node.hidden) return
+      layers.closed(layer)
       node.hidden = true
       count.textContent = ''
       state.active?.search.clearDecorations()
-      state.active?.xterm.focus()
     }
     return {
       node,
       open() {
         node.hidden = false
+        layers.opened(layer)
         const selected = state.active?.xterm.getSelection()
         if (selected && !selected.includes('\n')) input.value = selected
         input.focus()

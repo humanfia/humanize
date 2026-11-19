@@ -1,39 +1,13 @@
-/* The permission chip on a chat's box (chips/permission.js): a quiet name and a chevron, as a
-   chat app keeps its mode beside what is typed, and the note under its menu. */
-.permission-chip {
-  border-color: transparent;
-  background: transparent;
-  font-family: var(--sans);
-}
-
-.permission-chip:hover,
-.permission-chip:focus-visible {
-  border-color: var(--line-strong);
-}
-
-.permission-chip .chip-value {
-  font: 500 12.5px var(--sans);
-}
-
-.permission-chip .icon {
-  width: 12px;
-  height: 12px;
-  color: var(--ink-3);
-}
-
-.permission-chip[aria-expanded='true'] .icon {
-  color: inherit;
-}
-
+/* The permission chip on a chat's box (chips/permission.js): a chip as the ones beside it are,
+   red while it lets a chat do anything, and the note under its menu. */
 .permission-chip[data-permission='danger-full-access']:not([aria-expanded='true']) .chip-value {
   color: var(--fail);
 }
 
 .permission-note {
-  margin: 4px 0 0;
-  padding: 8px 8px 4px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  line-height: 1.4;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-8);
+  border-top: var(--border);
+  font: var(--text-sm) / 16px var(--sans);
   color: var(--ink-3);
 }

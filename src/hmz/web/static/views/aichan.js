@@ -8,7 +8,8 @@
 import { call, onDaemon, poll, refresh } from '../api.js'
 import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateOf, stateSaid, told } from '../aichan.js'
 import { composer } from '../composer.js'
-import { acting, confirming, fill, h, icon, problem } from '../dom.js'
+import { confirming } from '../confirm.js'
+import { acting, fill, h, icon, problem } from '../dom.js'
 import { sessionsOf, watch } from '../epic.js'
 import { ask, current, follow } from '../held.js'
 import { nousField } from '../pickers.js'
@@ -24,9 +25,6 @@ const EVERY = 3000
 
 /** How long a line said to a conversation folded away waits for her to be carried on. */
 const CARRYING = 30000
-
-/** A screen as narrow as a phone's, on which the drawer covers the view. */
-const narrow = matchMedia('(max-width: 860px)')
 
 /**
  * Mounts the drawer beside the page, once.
@@ -339,12 +337,14 @@ export function mount(app, where) {
     return watch('', host, draw)
   }
 
-  // Opened and closed by her avatar on any view's bar; on a phone, Escape closes it too.
+  // Opened and closed by her avatar on any view's bar, and closed by Escape from inside it:
+  // the last thing the key closes, after whatever floats and whatever a box of hers took it
+  // for. On a phone, where it covers the view, the page closes it by Escape from anywhere.
   addEventListener('hmz:aichan', () => panel.set(panel.node.hidden))
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || panel.node.hidden || event.defaultPrevented) return
-    if (!document.querySelector('.overlay').hidden) return
-    if (narrow.matches || panel.node.contains(document.activeElement)) panel.set(false)
+  panel.node.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return
+    event.preventDefault()
+    panel.set(false)
   })
   // Another daemon's conversations are others: the drawer goes back to the list of them.
   onDaemon(() => {

@@ -8,9 +8,46 @@
      .choices   segmented options; mark the chosen button aria-pressed="true"
      .error     a plain sentence of what is wrong, beside a field (role="alert") */
 
+/* What each token is where the page says none of it: Humanize's light colours, and the numbers
+   every rule below is cut from. The page's own come in a rule after this sheet, and win. */
 :root {
-  --kit-gap: 12px;
   color-scheme: light dark;
+  --paper: rgb(244, 248, 249);
+  --raised: rgb(255, 255, 255);
+  --ink: rgb(20, 26, 31);
+  --ink-2: rgb(67, 80, 88);
+  --ink-3: rgb(93, 106, 114);
+  --line: rgba(20, 26, 31, 0.12);
+  --line-strong: rgba(20, 26, 31, 0.28);
+  --hover: rgba(20, 26, 31, 0.06);
+  --selected: color-mix(in srgb, var(--ink) 10%, transparent);
+  --quiet: color-mix(in srgb, var(--ink) 4%, transparent);
+  --pink: rgb(236, 111, 163);
+  --link: rgb(11, 112, 128);
+  --fail: rgb(207, 53, 82);
+  --control: var(--raised);
+  --control-ink: var(--ink);
+  --primary: var(--ink);
+  --on-primary: var(--paper);
+  --field: var(--raised);
+  --edge: var(--line-strong);
+  --focus-ring: 2px solid var(--link);
+  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, Menlo, monospace;
+  --border-w: 1px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --control-h-xs: 24px;
+  --control-h: 32px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --kit-gap: var(--space-12);
 }
 
 *,
@@ -21,44 +58,46 @@
 
 html {
   background: transparent;
-  color: var(--ink, #141a1f);
-  font: 14px/1.5 var(--sans, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  color: var(--ink);
+  font: 14px/20px var(--sans);
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
 }
 
+/* Room for a focus ring on what stands at the frame's edge. */
 body {
   margin: 0;
-  padding: 2px 4px 6px 2px;
+  padding: var(--space-2);
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--pink, #ec6fa3) 30%, transparent);
+  background: color-mix(in srgb, var(--pink) 30%, transparent);
 }
 
 h1,
 h2,
 h3,
 h4 {
-  margin: 0 0 8px;
-  line-height: 1.25;
-  font-weight: 700;
+  margin: 0 0 var(--space-8);
+  font-weight: 600;
 }
 
 h1 {
-  font-size: 20px;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 h2 {
-  font-size: 17px;
+  font-size: 15px;
+  line-height: 22px;
 }
 
 h3 {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 h4 {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 p {
@@ -66,17 +105,21 @@ p {
 }
 
 a {
-  color: var(--link, #0b7080);
+  color: var(--link);
 }
 
 small,
 .muted {
-  color: var(--ink-3, #5d6a72);
+  color: var(--ink-3);
+}
+
+small {
+  font-size: 12px;
 }
 
 hr {
   border: 0;
-  border-top: 1px solid var(--line, rgba(20, 26, 31, 0.12));
+  border-top: var(--border-w) solid var(--line);
   margin: var(--kit-gap) 0;
 }
 
@@ -84,22 +127,23 @@ code,
 kbd,
 pre,
 samp {
-  font-family: var(--mono, ui-monospace, Menlo, monospace);
-  font-size: 12.5px;
+  font-family: var(--mono);
+  font-size: 12px;
 }
 
 :not(pre) > code {
-  padding: 1px 4px;
-  background: var(--hover, rgba(31, 179, 199, 0.1));
+  padding: 1px var(--space-4);
+  border-radius: var(--radius-xs);
+  background: var(--hover);
 }
 
 pre {
   margin: 0 0 var(--kit-gap);
-  padding: 10px 12px;
+  padding: var(--space-12);
   overflow: auto;
-  background: var(--surface, #fbfdfd);
-  border: 1px solid var(--line, rgba(20, 26, 31, 0.12));
-  line-height: 1.45;
+  background: var(--quiet);
+  border: var(--border-w) solid var(--line);
+  border-radius: var(--radius-md);
 }
 
 img,
@@ -116,7 +160,7 @@ video {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .stack {
@@ -125,11 +169,11 @@ video {
 }
 
 .card {
-  padding: 14px 16px;
+  padding: var(--space-16);
   margin: 0 0 var(--kit-gap);
-  background: var(--raised, #fff);
-  border: 2px solid var(--edge, #141a1f);
-  box-shadow: 3px 3px 0 var(--edge, #141a1f);
+  background: var(--raised);
+  border: var(--border-w) solid var(--line);
+  border-radius: var(--radius-lg);
 }
 
 /* ------------------------------------------------------------------- tables */
@@ -143,20 +187,17 @@ table {
 
 th,
 td {
-  padding: 6px 8px;
+  padding: var(--space-6) var(--space-8);
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--line, rgba(20, 26, 31, 0.12));
+  border-bottom: var(--border-w) solid var(--line);
 }
 
 th {
-  color: var(--ink-2, #435058);
-  font-weight: 600;
-  border-bottom-color: var(--line-strong, rgba(20, 26, 31, 0.28));
-}
-
-tbody tr:hover {
-  background: var(--hover, rgba(31, 179, 199, 0.1));
+  color: var(--ink-3);
+  font: 500 12px/16px var(--sans);
+  vertical-align: bottom;
+  border-bottom-color: var(--line-strong);
 }
 
 /* ------------------------------------------------------------------ controls */
@@ -176,61 +217,79 @@ input[type='button'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: var(--control-h, 32px);
-  padding: 6px 12px;
-  border: 2px solid var(--edge, #141a1f);
-  border-radius: 0;
-  background: var(--control, #fff);
-  color: var(--control-ink, #141a1f);
-  font: 600 13px var(--sans, system-ui, sans-serif);
+  gap: var(--space-6);
+  min-height: var(--control-h);
+  padding: var(--space-4) var(--space-12);
+  border: var(--border-w) solid var(--edge);
+  border-radius: var(--radius-md);
+  background: var(--control);
+  color: var(--control-ink);
+  font: 500 13px/20px var(--sans);
   cursor: pointer;
-  box-shadow: 3px 3px 0 var(--edge, #141a1f);
   text-decoration: none;
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s,
+    color 0.12s;
 }
 
 button:hover:not(:disabled),
 .button:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 var(--pink, #ec6fa3);
+  background: color-mix(in srgb, var(--control-ink) 6%, var(--control));
 }
 
-button:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--pink, #ec6fa3);
+button:active:not(:disabled),
+.button:active {
+  background: color-mix(in srgb, var(--control-ink) 10%, var(--control));
+}
+
+button[aria-pressed='true'] {
+  background: var(--selected);
+  border-color: var(--ink);
 }
 
 button.primary,
 button[type='submit'],
 input[type='submit'] {
-  background: var(--primary, #141a1f);
-  color: var(--on-primary, #f4f8f9);
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: transparent;
 }
 
+:is(button.primary, button[type='submit'], input[type='submit']):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 88%, var(--paper));
+}
+
+:is(button.primary, button[type='submit'], input[type='submit']):active:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 80%, var(--paper));
+}
+
+/* A button with no frame of its own. */
 button.quiet {
-  border: 1px solid var(--line-strong, rgba(20, 26, 31, 0.28));
-  box-shadow: none;
-  font-weight: 500;
+  border-color: transparent;
+  background: none;
+  color: var(--ink-2);
 }
 
 button.quiet:hover:not(:disabled) {
-  transform: none;
-  box-shadow: none;
-  background: var(--hover, rgba(31, 179, 199, 0.1));
+  background: var(--hover);
+  color: var(--ink);
+}
+
+button.quiet:active:not(:disabled) {
+  background: var(--selected);
 }
 
 button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
+  opacity: 0.45;
+  cursor: default;
 }
 
 label {
   display: block;
-  margin: 0 0 4px;
-  font-weight: 600;
-  font-size: 13px;
+  margin: 0 0 var(--space-4);
+  color: var(--ink-2);
+  font: 500 13px/20px var(--sans);
 }
 
 input:not([type='checkbox'], [type='radio'], [type='submit'], [type='button']),
@@ -238,96 +297,126 @@ select,
 textarea {
   display: block;
   width: 100%;
-  min-height: var(--control-h, 32px);
-  padding: 6px 8px;
-  background: var(--field, #fff);
-  border: 1px solid var(--line-strong, rgba(20, 26, 31, 0.28));
-  border-radius: 0;
-  font-size: 13.5px;
+  min-height: var(--control-h);
+  padding: var(--space-4) var(--space-8);
+  background: var(--field);
+  border: var(--border-w) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  font: 14px/20px var(--sans);
+  transition: border-color 0.12s;
 }
 
 textarea {
-  min-height: 80px;
+  min-height: 72px;
+  padding: var(--space-6) var(--space-8);
   resize: vertical;
-  line-height: 1.45;
 }
 
+:where(input, select, textarea):where(:not(:disabled)):hover {
+  border-color: var(--ink-3);
+}
+
+/* The field being written in takes the link's colour and a soft ring of it. */
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--edge, #141a1f);
-  outline: none;
+  border-color: var(--link);
+  outline: 2px solid color-mix(in srgb, var(--link) 30%, transparent);
+  outline-offset: 0;
+}
+
+:is(input, select, textarea):disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 input[type='checkbox'],
 input[type='radio'] {
   width: 16px;
   height: 16px;
-  margin: 0 6px 0 0;
+  margin: 0 var(--space-6) 0 0;
   vertical-align: -3px;
-  accent-color: var(--cyan-ink, #0b7080);
+  accent-color: var(--primary);
+}
+
+input:is([type='checkbox'], [type='radio']):focus {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 ::placeholder {
-  color: var(--ink-3, #5d6a72);
+  color: var(--ink-3);
   opacity: 1;
 }
 
 :focus-visible {
-  outline: 2px solid var(--cyan, #1fb3c7);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
 fieldset {
   margin: 0 0 var(--kit-gap);
-  padding: 10px 12px 12px;
-  border: 1px solid var(--line-strong, rgba(20, 26, 31, 0.28));
+  padding: var(--space-12);
+  border: var(--border-w) solid var(--line);
+  border-radius: var(--radius-md);
 }
 
 legend {
-  padding: 0 4px;
-  font-weight: 600;
+  padding: 0 var(--space-4);
+  color: var(--ink-2);
+  font: 500 13px/20px var(--sans);
 }
 
-/* A few options side by side, the chosen one filled. */
+/* A few options side by side: a quiet track, and the chosen one raised out of it. */
 .choices {
   display: inline-flex;
   flex-wrap: wrap;
-  border: 2px solid var(--edge, #141a1f);
+  width: fit-content;
+  max-width: 100%;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--selected);
 }
 
 .choices button {
-  min-height: var(--control-h, 32px);
+  min-height: var(--control-h-xs);
+  padding: 0 var(--space-12);
   border: 0;
-  border-right: 1px solid var(--line-strong, rgba(20, 26, 31, 0.28));
-  box-shadow: none;
-  background: var(--control, #fff);
-  color: var(--ink-2, #435058);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
 }
 
-.choices button:last-child {
-  border-right: 0;
+.choices button:hover:not(:disabled),
+.choices button:active:not(:disabled) {
+  background: none;
+  color: var(--ink);
 }
 
-.choices button:hover:not(:disabled) {
-  transform: none;
-  box-shadow: none;
-  background: var(--hover, rgba(31, 179, 199, 0.1));
+.choices button[aria-pressed='true'],
+.choices button[aria-pressed='true']:hover {
+  background: var(--raised);
+  color: var(--ink);
+  outline: var(--border-w) solid var(--line);
+  outline-offset: -1px;
 }
 
-.choices button[aria-pressed='true'] {
-  background: var(--primary, #141a1f);
-  color: var(--on-primary, #f4f8f9);
+.choices button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .error {
-  margin: 4px 0 0;
-  color: var(--fail, #cf3552);
-  font-size: 12.5px;
+  margin: var(--space-4) 0 0;
+  color: var(--fail);
+  font-size: 12px;
 }
 
-[aria-invalid='true'] {
-  border-color: var(--fail, #cf3552) !important;
+[aria-invalid='true'],
+:is(input, select, textarea)[aria-invalid='true'],
+:is(input, select, textarea)[aria-invalid='true']:focus {
+  border-color: var(--fail);
 }
 
 [hidden] {

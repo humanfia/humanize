@@ -10,6 +10,8 @@ import { bytesText, chosen, commitPlan, decoded, fullDate, groupsOf, hunks, LARG
 
 /** How tall a row of the list stands, as changes.css draws it. */
 const ROW = 24
+/** The narrowest a diff is drawn side by side unasked: under it each side is too narrow to read. */
+const TIGHT = 560
 /** How often the panel reads the environment again while it is seen. */
 const POLL = 5000
 /** The refusal of an environment that is no more. */
@@ -85,7 +87,12 @@ export async function mount(el, ctx) {
   let rows = []
   let seen = ''
   let view = keep('view') === 'tree' ? 'tree' : 'list'
-  let mode = keep('diff') === 'inline' ? 'inline' : 'side'
+  /** How a diff is drawn, once chosen: `side` or `inline`. */
+  let mode = ['side', 'inline'].find((one) => one === keep('diff')) || ''
+  /** Whether the diff has no room for two sides. */
+  let tight = false
+  /** How a diff is drawn: as chosen, and until then side by side where both sides have room. */
+  const drawnAs = () => mode || (tight ? 'inline' : 'side')
   const collapsed = new Set()
   let pick = { selected: new Set(), anchor: null }
   let cursor = null
@@ -151,7 +158,7 @@ export async function mount(el, ctx) {
   // The diff of the file picked.
   const diffTitle = h('span', { class: 'ch-diff-title' })
   const counter = h('span', { class: 'ch-counter', 'data-hmz': 'diff-counter' })
-  const modeButton = tool('side', '', { 'data-hmz': 'diff-mode', onclick: () => setMode(mode === 'side' ? 'inline' : 'side') })
+  const modeButton = tool('side', '', { 'data-hmz': 'diff-mode', onclick: () => setMode(drawnAs() === 'side' ? 'inline' : 'side') })
   const diffMove = tool('plus', 'Stage Changes', { 'data-hmz': 'diff-move', onclick: () => diff && move([diff.entry]) })
   const diffHead = h(
     'div',
@@ -680,8 +687,8 @@ export async function mount(el, ctx) {
       h('span', { class: 'ch-side-label' }, diff.staged ? 'Index' : 'Working Tree'),
     )
     diffTitle.title = one.path
-    const label = mode === 'side' ? 'Show the diff inline' : 'Show the diff side by side'
-    fill(modeButton, glyph(mode === 'side' ? 'inline' : 'side'))
+    const label = drawnAs() === 'side' ? 'Show the diff inline' : 'Show the diff side by side'
+    fill(modeButton, glyph(drawnAs() === 'side' ? 'inline' : 'side'))
     modeButton.title = label
     modeButton.setAttribute('aria-label', label)
     const staging = diff.group !== 'staged'
@@ -793,7 +800,7 @@ export async function mount(el, ctx) {
     fill(diffBody)
     colours = JSON.stringify(ctx.theme())
     const base = [cm.basicSetup, cm.EditorView.editable.of(false), cm.EditorState.readOnly.of(true), cm.themeFor(ctx.theme()), cm.languageFor(d.path)].filter(Boolean)
-    if (mode === 'side') {
+    if (drawnAs() === 'side') {
       d.view = new cm.MergeView({ a: { doc: d.sides.old, extensions: base }, b: { doc: d.sides.now, extensions: base }, parent: diffBody, collapseUnchanged: FOLD, gutter: true })
       d.view.dom.dataset.hmz = 'diff-side'
     } else {
@@ -829,6 +836,18 @@ export async function mount(el, ctx) {
     drawDiffHead()
     if (diff.sides) drawEditor(diff)
   }
+
+  // The diff's own width, not the window's, says whether two sides fit: one drawn as nobody
+  // chose is drawn again as that changes.
+  const sized = new ResizeObserver(() => {
+    const now = diffBody.clientWidth > 0 && diffBody.clientWidth < TIGHT
+    if (now === tight) return
+    tight = now
+    if (mode || !diff) return
+    drawDiffHead()
+    if (diff.sides) drawEditor(diff)
+  })
+  sized.observe(diffBody)
 
   /** The diff drawn again in the page's colours, once they change. */
   let colours = JSON.stringify(ctx.theme())
@@ -889,6 +908,7 @@ export async function mount(el, ctx) {
       document.removeEventListener('visibilitychange', shown)
       root.removeEventListener('keydown', keyed)
       themed.disconnect()
+      sized.disconnect()
       scheme.removeEventListener('change', rethemed)
       for (const off of offs) if (typeof off === 'function') off()
       diff?.view?.destroy()

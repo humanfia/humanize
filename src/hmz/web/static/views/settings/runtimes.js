@@ -4,7 +4,8 @@
 // the hosts an ssh config names.
 
 import { call, onDaemon } from '../../api.js'
-import { acting, confirming, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { acting, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pathPicker } from '../../paths.js'
 
 const GIB = 2 ** 30

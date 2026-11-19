@@ -5,6 +5,7 @@
 import { daemon, hash, imported, refresh } from './api.js'
 import { h, iconButton, problem } from './dom.js'
 import { fromBase64 } from './rpc/pipe.js'
+import { posted } from './ui.js'
 
 /** What an epic's archive is named with. */
 const SUFFIX = '.hmzepic'
@@ -12,13 +13,12 @@ const SUFFIX = '.hmzepic'
 /** The most a daemon takes of one, which is told before any of it is sent. */
 const LARGEST = 2 * 1024 ** 3
 
-/** What is said of the import going, or of how it failed, until the next or until closed. */
-let notice = null
+/** What takes away what is said of the import going, or of how it failed: said until the next or until closed. */
+let unsay = () => {}
 
 function say(...kids) {
-  notice?.remove()
-  notice = kids.length ? h('div', { class: 'toast notice', role: 'status', 'data-hmz': 'import-notice' }, kids) : null
-  if (notice) document.body.append(notice)
+  unsay()
+  unsay = kids.length ? posted(h('div', { class: 'toast notice', role: 'status', 'data-hmz': 'import-notice' }, kids)) : () => {}
 }
 
 /** Says why an import failed, until closed. */

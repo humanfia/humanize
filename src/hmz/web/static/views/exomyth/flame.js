@@ -12,6 +12,7 @@
 // frame after anything changes, a frame narrower than a pixel left out with all it holds.
 
 import { h } from '../../dom.js'
+import { EDGE } from '../../shell.js'
 import { clock, counted, firstEnding, lasted } from './model.js'
 import { stats } from './stats.js'
 
@@ -586,8 +587,8 @@ export function mount(el, model, range, told = {}) {
     tip.hidden = false
     const shape = tip.getBoundingClientRect()
     // Kept over the chart, clear of the panel beside it.
-    tip.style.left = `${Math.max(4, Math.min(cx + 14, canvas.getBoundingClientRect().right - shape.width - 4))}px`
-    tip.style.top = `${cy + 18 + shape.height > innerHeight ? cy - shape.height - 8 : cy + 18}px`
+    tip.style.left = `${Math.max(EDGE, Math.min(cx + 14, canvas.getBoundingClientRect().right - shape.width - EDGE))}px`
+    tip.style.top = `${cy + 18 + shape.height > innerHeight - EDGE ? cy - shape.height - 8 : cy + 18}px`
   }
 
   function local(event) {

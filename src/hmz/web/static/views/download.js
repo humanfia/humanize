@@ -13,8 +13,16 @@ import { dragged } from '../shell.js'
 export function mount(root, { query }) {
   const picker = h('select', { 'aria-label': 'Target', 'data-hmz': 'download-target', hidden: true })
   const body = h('div', { class: 'dialog-body', 'data-hmz': 'stored' }, h('p', { class: 'loading', role: 'status' }, 'Reading the targets…'))
+  /** Closes this dialog alone: one step back where it was opened over another, as from Settings, else the way any dialog closes. */
+  const leave = () => (history.state && history.state.over > 1 ? history.back() : shut())
   root.setAttribute('aria-label', 'Download')
-  fill(root, dragged(h('div', { class: 'dialog-head' }, icon('download'), h('h2', { class: 'dialog-title' }, 'Download'), picker, iconButton('close', 'Close', { onclick: shut })), 'deep', 'narrow'), body)
+  fill(root, dragged(h('div', { class: 'dialog-head' }, icon('download'), h('h2', { class: 'dialog-title' }, 'Download'), picker, iconButton('close', 'Close', { onclick: leave })), 'deep', 'narrow'), body)
+  // Escape closes this dialog as `Close` does, before the page closes every dialog open by it.
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
+    leave()
+  })
   /** Which target was asked of last: one answering after another was picked draws nothing. */
   let asking = ''
   let gone = false

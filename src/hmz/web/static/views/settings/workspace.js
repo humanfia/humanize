@@ -6,7 +6,8 @@
 import { daemon, given, hash, started } from '../../api.js'
 import { archiving, deletingAt } from '../../chat-actions.js'
 import { pathOf } from '../../chats.js'
-import { acting, ago, confirming, fill, h, headline, pathText, problem, when } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { acting, ago, fill, h, headline, pathText, problem, when } from '../../dom.js'
 
 export function draw(holder, query, parts, scope) {
   let workspace = query.get('workspace') || ''

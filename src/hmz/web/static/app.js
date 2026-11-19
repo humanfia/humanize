@@ -9,8 +9,9 @@
 import { daemon, hash, hello, started } from './api.js'
 import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
+import { dismiss } from './layers.js'
 import { mountSidebar } from './sidebar.js'
-import { dragged, kept, toggleSidebar } from './shell.js'
+import { dragged, kept, settlePanel, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
 import './importing.js'
@@ -176,7 +177,8 @@ export function shut() {
 
 async function route(event) {
   if (out) return
-  // Told before anything of the address is drawn: a menu open closes, and gives its focus back.
+  // Told before anything of the address is drawn: whatever floats closes and gives its focus
+  // back, and the drawer the sidebar is on a narrow window closes.
   window.dispatchEvent(new CustomEvent('hmz:route'))
   const mine = ++routed
   routedTo = location.hash
@@ -275,6 +277,8 @@ async function open(mine, load, parts, query) {
   try {
     const module = await load()
     if (mine !== routed) return
+    // Nothing is left floating over it: what was opened while it loaded closes first.
+    dismiss('dialog')
     if (overlay.hidden) focused = document.activeElement
     fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), dialog)
     overlay.hidden = false
@@ -347,7 +351,10 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('keydown', (event) => {
   const mod = event.metaKey || event.ctrlKey
-  if (event.key === 'Tab' && !overlay.hidden) return held(event)
+  // A dialog of the browser's own over the page -- a confirmation -- is modal: Escape is its
+  // own, and the page under it is not folded or closed by a key.
+  const modal = Boolean(document.querySelector('dialog[open]'))
+  if (event.key === 'Tab' && !overlay.hidden) return modal || held(event)
   if (mod && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     go('/search')
@@ -356,12 +363,20 @@ document.addEventListener('keydown', (event) => {
     go('/new/chat')
   } else if (mod && event.key === '.') {
     event.preventDefault()
-    toggleSidebar()
-  } else if (event.key === 'Escape' && !overlay.hidden) {
+    // The page under a dialog takes no key.
+    if (overlay.hidden && !modal) toggleSidebar()
+  } else if (event.key !== 'Escape' || modal || event.defaultPrevented) {
+    return
+  } else if (!overlay.hidden) {
+    event.preventDefault()
     shut()
-  } else if (event.key === 'Escape' && document.querySelector('.app').classList.contains('side-open')) {
+  } else if (document.querySelector('.app').classList.contains('side-open')) {
     // The drawer the sidebar is on a narrow window closes as a dialog does.
+    event.preventDefault()
     toggleSidebar(false)
+  } else if (settlePanel()) {
+    // And so does the panel that is over the view there.
+    event.preventDefault()
   }
 })
 

@@ -733,6 +733,11 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         page.keyboard.press("ArrowLeft")
         expect(page.locator("[data-hmz=pick-cli]")).to_have_count(0)
         expect(more).to_be_visible()
+        # And so does More, by Escape: one press closes one menu, the topmost.
+        page.keyboard.press("Escape")
+        expect(more).to_have_count(0)
+        expect(menu).to_be_visible()
+        expect(menu.get_by_role("menuitem", name="More")).to_be_focused()
         page.keyboard.press("Escape")
         expect(menu).to_have_count(0)
 

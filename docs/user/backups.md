@@ -126,6 +126,7 @@ In [`hmz web`](/user/web), **Download** on **Settings → Backup** lists what a
 target holds by machine and then by directory, the ones already here marked **Here**; pick the
 target where there is more than one. **Download** on an epic brings it here and opens it;
 a [chat](/user/chat) a target holds is listed among them as `chat`, and comes back as a chat.
+Closing the list, by **Close** or Escape, goes back to Settings.
 In `hmz`, **download…** on [`/settings backup`](/user/settings#backup) does the same with the
 keys: <kbd>enter</kbd> on an epic brings it here, and `/epics` lists it.
 

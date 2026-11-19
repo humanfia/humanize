@@ -12,6 +12,7 @@
 
 import { added, addsOf } from './desk.js'
 import { fill, h, icon, iconButton, problem } from './dom.js'
+import { yields } from './layers.js'
 import { choice, menu } from './shell.js'
 
 /**
@@ -166,6 +167,8 @@ function completer(text, complete) {
   let items = []
   let active = 0
   let asked = 0
+  /** What says it closed by itself, while it is open. */
+  let done = null
 
   async function again() {
     const mine = ++asked
@@ -185,7 +188,13 @@ function completer(text, complete) {
 
   function draw() {
     list.hidden = !shown
-    if (!shown) return fill(list)
+    // Open, it yields to whatever floats: a menu opening closes it, as a dialog does (layers.js).
+    if (shown) done ||= yields(close)
+    else {
+      done?.()
+      done = null
+      return fill(list)
+    }
     let at = 0
     fill(
       list,

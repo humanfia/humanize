@@ -8,6 +8,8 @@
 // shows it all; a wheel scrolls, sideways or with Shift pans, with Ctrl (a pinch) zooms.
 
 import { h } from '../../dom.js'
+import { chain } from '../../layers.js'
+import { EDGE } from '../../shell.js'
 import { menuOn } from '../../ui.js'
 import { clock, firstEnding, lasted, locate } from './model.js'
 
@@ -86,7 +88,7 @@ export function timeline(told) {
       ink3: read('--ink-3'),
       line: read('--line'),
       strong: read('--line-strong'),
-      hover: read('--hover'),
+      selected: parseFloat(read('--selected-mix')) / 100 || 0.1,
       onFill: read('--on-fill'),
       onPrimary: read('--on-primary'),
       pink: read('--pink'),
@@ -293,8 +295,8 @@ export function timeline(told) {
   function ruler(step) {
     ctx.fillStyle = colours.surface
     ctx.fillRect(0, 0, width, RULER)
-    ctx.fillStyle = colours.ink
-    ctx.fillRect(0, RULER - 2, width, 2)
+    ctx.fillStyle = colours.line
+    ctx.fillRect(0, RULER - 1, width, 1)
     ctx.font = `10px ${colours.mono}`
     ctx.textBaseline = 'middle'
     ctx.fillStyle = colours.ink3
@@ -504,10 +506,10 @@ export function timeline(told) {
       const indent = 8 + Math.min(process.level, 8) * 12
       if (row.track < 0) {
         if (picked && picked.process === row.process && picked.span === undefined) {
-          ctx.fillStyle = colours.hover
+          ctx.globalAlpha = colours.selected
+          ctx.fillStyle = colours.ink
           ctx.fillRect(0, y, gutter - 1, HEAD)
-          ctx.fillStyle = colours.pink
-          ctx.fillRect(0, y, 3, HEAD)
+          ctx.globalAlpha = 1
         }
         caret(indent, y + HEAD / 2, !folded.has(row.process))
         ctx.fillStyle = swatch(process)
@@ -587,7 +589,8 @@ export function timeline(told) {
   }
 
   function tipped(it, x, y) {
-    if (!it || it.span === undefined) {
+    // Nothing is said beside the pointer while a menu is open: the chart's own opens there.
+    if (!it || it.span === undefined || chain().length) {
       tip.hidden = true
       return
     }
@@ -600,8 +603,8 @@ export function timeline(told) {
     tip.hidden = false
     const box = tip.getBoundingClientRect()
     // Kept over the chart, clear of the panel beside it.
-    tip.style.left = `${Math.max(4, Math.min(x + 14, canvas.getBoundingClientRect().right - box.width - 4))}px`
-    tip.style.top = `${y + 18 + box.height > innerHeight ? y - box.height - 8 : y + 18}px`
+    tip.style.left = `${Math.max(EDGE, Math.min(x + 14, canvas.getBoundingClientRect().right - box.width - EDGE))}px`
+    tip.style.top = `${y + 18 + box.height > innerHeight - EDGE ? y - box.height - 8 : y + 18}px`
   }
 
   let pressed = null
@@ -670,6 +673,9 @@ export function timeline(told) {
     tip.hidden = true
     draw()
   })
+
+  // The chart's menu opens where the tip stands.
+  canvas.addEventListener('contextmenu', () => (tip.hidden = true))
 
   canvas.addEventListener('dblclick', (event) => {
     const { x, y } = local(event)

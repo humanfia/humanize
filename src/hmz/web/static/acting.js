@@ -3,7 +3,8 @@
 // And what it asks of one conversation's side copy, beside the run, which never reaches the run.
 
 import { call } from './api.js'
-import { acting, confirming, fill, h, icon, problem } from './dom.js'
+import { confirming } from './confirm.js'
+import { acting, fill, h, icon, problem } from './dom.js'
 import { ask } from './held.js'
 import { chipSelect, composer } from './composer.js'
 import { choice, menu, section, submenu } from './shell.js'

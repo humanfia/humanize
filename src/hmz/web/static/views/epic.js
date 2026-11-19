@@ -18,7 +18,8 @@ import { asides, board, outworlders, question, saying } from '../acting.js'
 import { settle } from '../asking/card.js'
 import { call, exported, given, hash } from '../api.js'
 import { go, renamed } from '../app.js'
-import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
+import { confirming } from '../confirm.js'
+import { acting, ago, badge, flowName, pathText, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { modelName, parted } from '../chips/agent.js'
 import { modelFact } from '../chips/model.js'
 import { PANES, chipNamed, paneOf, standing as standingSaid, stoppable, toggled, usageSaid } from '../desk.js'
@@ -191,7 +192,7 @@ export function mount(root, { parts, query }) {
       const actions = []
       if (!chat && going && run.state === 'running') actions.push(stopWaits ? h('button', { class: 'btn danger', type: 'button', disabled: true }, 'Stopping…') : confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => stopping(detail.name) }))
       else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
-      if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
+      if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn primary', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
       if (!chat) actions.push(h('a', { class: 'icon-btn', href: hash(`/epics/${encodeURIComponent(detail.name)}/exomyth`), 'aria-label': 'Exomyth', title: 'Exomyth', 'data-hmz': 'exomyth-open' }, icon('chart')))
       if (!going) actions.push(h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Export', title: 'Export', onclick: () => exported(detail.name).catch((error) => toast(error.message)) }, icon('download')))
       // How each target last took it, said on hover; read again as the epic is.

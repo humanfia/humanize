@@ -142,9 +142,7 @@ def test_a_notice_heard_is_a_card_that_opens_it(engine: str) -> None:
     wire = Wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         wire.tell(page, _notice(4, "failed", epic="big-fix"))
-        card = page.locator(
-            "[data-hmz=notification-toasts] [data-hmz=notification-toast]"
-        )
+        card = page.locator("[data-hmz=toasts] [data-hmz=notification-toast]")
         expect(card).to_have_count(1)
         expect(card).to_contain_text("Failed · Local")
         expect(page.locator("[data-hmz=notification-count]")).to_have_text("1")

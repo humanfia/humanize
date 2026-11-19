@@ -4,6 +4,7 @@
 // open is this browser's own, kept between visits.
 
 import { h, icon, iconButton } from './dom.js'
+import { closed, dismiss, opened } from './layers.js'
 
 const app = () => document.querySelector('.app')
 const narrow = matchMedia('(max-width: 860px)')
@@ -33,6 +34,9 @@ export function keep(name, value) {
 
 /** Opens or folds the sidebar: a drawer over the page on a narrow screen, a column beside it otherwise. */
 export function toggleSidebar(open) {
+  // No menu is left floating by a sidebar that folded under it: one that held the focus gives
+  // it back to what opened it first, which is then looked at below.
+  dismiss('fold')
   const root = app()
   const side = root.querySelector('.sidebar')
   const within = side.contains(document.activeElement)
@@ -61,6 +65,9 @@ export function toggleSidebar(open) {
 /** Opens or closes the drawer the sidebar is on a narrow screen: the page under it is out of reach while it is open. */
 function drawer(open) {
   const root = app()
+  if (root.classList.contains('side-open') !== open) dismiss('fold')
+  // One thing over the view at a time: the drawer opening closes the panel that is.
+  if (open) for (const pane of panes) pane.shut()
   root.classList.toggle('side-open', open)
   document.querySelector('.scrim').hidden = !open
   root.querySelector('.main').inert = open
@@ -68,8 +75,11 @@ function drawer(open) {
 
 /** Closes the drawer the sidebar is on a narrow screen, once somewhere in it was picked. */
 export function settleSidebar() {
-  if (narrow.matches) drawer(false)
+  if (narrow.matches && app().classList.contains('side-open')) drawer(false)
 }
+
+// The page gone elsewhere, by whatever was pressed: the drawer is not left over it.
+addEventListener('hmz:route', settleSidebar)
 
 /**
  * A row along the top of the window, which in Humanize Desktop's window moves it where it is
@@ -112,9 +122,11 @@ export function bar({ title = '', sub = null, actions = [], lead = null, aichan 
   )
 }
 
-/** Room kept between a popup and the window's edge, and between it and what opened it. */
-const EDGE = 8
-const GAP = 6
+/** Room kept between whatever floats and the window's edge, and between it and what opened it. */
+export const EDGE = 8
+export const GAP = 6
+/** How far a menu opened from a choice of another stands over that one. */
+const LAP = 4
 
 /**
  * Puts a popup by what opened it, against the window rather than whatever holds it -- a dialog
@@ -129,45 +141,47 @@ const GAP = 6
  */
 export function place(pop, anchor, { align = 'start', up = false, span = false } = {}) {
   const box = anchor.getBoundingClientRect()
+  // A chip under a box that is typed into opens over the whole box, never on it.
+  const top = Math.min(box.top, (anchor.closest('.composer-desk')?.querySelector('.composer-box') ?? anchor).getBoundingClientRect().top)
   if (span) pop.style.width = `${box.width}px`
   pop.style.removeProperty('--room')
-  const room = { below: innerHeight - box.bottom - GAP - EDGE, above: box.top - GAP - EDGE }
+  const room = { below: innerHeight - box.bottom - GAP - EDGE, above: top - GAP - EDGE }
   const [first, second] = up ? ['above', 'below'] : ['below', 'above']
   const side = pop.offsetHeight <= room[first] || room[first] >= room[second] ? first : second
   pop.style.setProperty('--room', `${Math.max(room[side], 80)}px`)
   const { offsetWidth: wide, offsetHeight: tall } = pop
-  pop.style.top = `${side === 'below' ? box.bottom + GAP : Math.max(EDGE, box.top - GAP - tall)}px`
+  pop.style.top = `${side === 'below' ? box.bottom + GAP : Math.max(EDGE, top - GAP - tall)}px`
   const left = align === 'end' ? box.right - wide : box.left
   pop.style.left = `${Math.max(EDGE, Math.min(left, innerWidth - wide - EDGE))}px`
 }
 
-/** Places a popup and keeps it by what opened it as the page scrolls, the window is sized or the popup grows; says how to stop. */
+/**
+ * Places a popup and keeps it by what opened it as the window is sized or the popup grows; says
+ * how to stop. What opened it scrolled away, it is closed (layers.js), not sent after it.
+ */
 export function follow(pop, anchor, how) {
-  const again = (event) => {
-    if (!event || !(event.target instanceof Node) || !pop.contains(event.target)) place(pop, anchor, how)
-  }
+  const again = () => place(pop, anchor, how)
   again()
   // Placed again in the next frame rather than inside the observer's own: placing it sizes it,
   // which said there would be a size the observer is not told of, and an error.
   let frame = 0
   const grown = new ResizeObserver(() => {
     cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => again())
+    frame = requestAnimationFrame(again)
   })
   grown.observe(pop)
-  addEventListener('scroll', again, true)
   addEventListener('resize', again)
   return () => {
     grown.disconnect()
     cancelAnimationFrame(frame)
-    removeEventListener('scroll', again, true)
     removeEventListener('resize', again)
   }
 }
 
 /**
  * A menu by the button that opens it: a list of choices, each with what it is about and a
- * mark on the one chosen, closed by a choice, a click elsewhere or Escape.
+ * mark on the one chosen, closed by a choice, the button pressed again, and whatever closes
+ * every layer (layers.js): a press elsewhere, Escape, the focus leaving, another one opening.
  *
  * @param {HTMLElement} anchor What it opens under.
  * @param {() => Node[]} items What it holds, made each time it opens.
@@ -178,43 +192,24 @@ export function menu(anchor, items, { align = 'start', up = false, span = false,
   let unfollow = () => {}
   anchor.setAttribute('aria-haspopup', 'menu')
   anchor.setAttribute('aria-expanded', 'false')
-  const close = () => {
+  const layer = { node: null, anchor, close }
+  function close() {
     if (!open) return
+    closed(layer)
     unfollow()
     open.remove()
     open = null
     anchor.setAttribute('aria-expanded', 'false')
-    document.removeEventListener('pointerdown', outside, true)
-    document.removeEventListener('keydown', escape, true)
-    removeEventListener('hmz:route', away)
-  }
-  // The page gone elsewhere -- a dialog opened over it by a key, say -- it is not left open over
-  // that; what opened it has the focus it held, before the page looks at what holds it.
-  const away = () => {
-    const held = open && open.contains(document.activeElement)
-    close()
-    if (held) anchor.focus()
-  }
-  const outside = (event) => {
-    if (open && !open.contains(event.target) && !anchor.contains(event.target)) close()
-  }
-  const escape = (event) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation()
-      close()
-      anchor.focus()
-    }
   }
   anchor.addEventListener('click', () => {
     if (open) return close()
     // Not what the window is dragged by, though it opens in a row that is.
     open = dragged(h('div', { class: 'popover', role: 'menu', 'aria-label': label }, items(close)), 'false')
     anchor.after(open)
+    layer.node = open
+    opened(layer)
     unfollow = follow(open, anchor, { align, up, span })
     anchor.setAttribute('aria-expanded', 'true')
-    document.addEventListener('pointerdown', outside, true)
-    document.addEventListener('keydown', escape, true)
-    addEventListener('hmz:route', away)
     // On the one chosen, where one is, as a desktop app's menu opens on it.
     ;(open.querySelector('.choice.chosen') || open.querySelector('button, a'))?.focus()
   })
@@ -238,7 +233,9 @@ export function choice({ label, about = '', chosen = false, href = null, glyph =
 
 /**
  * A choice in a menu that opens a menu of its own beside it: on a pointer resting on it, a click,
- * or the right arrow; shut as the pointer leaves both, by the left arrow, or with the menu it is in.
+ * a tap or the right arrow; shut as the pointer leaves both, by the left arrow or Escape, by the
+ * choice pressed again once the menu was gone into, by another of its menu's opening, or with
+ * the menu it is in.
  */
 export function submenu({ label, about = '', glyph = null, items, hmz = null }) {
   const opener = h(
@@ -251,9 +248,16 @@ export function submenu({ label, about = '', glyph = null, items, hmz = null }) 
   const holder = h('div', { class: 'choice-sub' }, opener)
   let open = null
   let leaving = 0
-  const shut = () => {
-    open?.remove()
+  /** Whether it was gone into, by a click, a tap or a key: the choice pressed again then shuts it. */
+  let entered = false
+  const layer = { node: null, anchor: opener, close: shut }
+  function shut() {
+    clearTimeout(leaving)
+    if (!open) return
+    closed(layer)
+    open.remove()
     open = null
+    entered = false
     opener.setAttribute('aria-expanded', 'false')
   }
   const show = (focus) => {
@@ -261,32 +265,26 @@ export function submenu({ label, about = '', glyph = null, items, hmz = null }) 
     if (!open) {
       open = h('div', { class: 'popover sub', role: 'menu', 'aria-label': label, 'data-hmz': hmz }, items())
       holder.append(open)
+      layer.node = open
+      opened(layer)
       opener.setAttribute('aria-expanded', 'true')
-      // Beside the menu it is in, on the right where there is room, else on the left, else -- on
-      // a phone -- over it, under the choice that opened it or, with no room there, above it.
-      const outer = holder.closest('.popover').getBoundingClientRect()
-      const row = opener.getBoundingClientRect()
-      const { offsetWidth: wide, offsetHeight: tall } = open
-      const right = outer.right + wide + EDGE <= innerWidth
-      const beside = right || outer.left - wide >= EDGE
-      const left = right ? outer.right - 2 : beside ? outer.left - wide + 2 : outer.left + 12
-      const top = beside ? row.top - 8 : row.bottom + tall + EDGE <= innerHeight ? row.bottom : row.top - tall
-      open.style.left = `${Math.max(EDGE, Math.min(left, innerWidth - wide - EDGE))}px`
-      open.style.top = `${Math.max(EDGE, Math.min(top, innerHeight - tall - EDGE))}px`
+      beside(open, holder.closest('.popover'), opener)
     }
-    if (focus) open.querySelector('button, a')?.focus()
+    if (focus) {
+      entered = true
+      // On the one chosen, where one is, as the menu it is in opens on its own.
+      ;(open.querySelector('.choice.chosen') || open.querySelector('button, a'))?.focus()
+    }
   }
   holder.addEventListener('pointerenter', (event) => event.pointerType === 'mouse' && show(false))
   holder.addEventListener('pointerleave', (event) => {
     if (event.pointerType === 'mouse') leaving = setTimeout(shut, 250)
   })
-  opener.addEventListener('click', () => (open && !open.contains(document.activeElement) ? open.querySelector('button, a')?.focus() : show(true)))
+  opener.addEventListener('click', () => (open && entered ? shut() : show(true)))
   holder.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowRight' && event.target === opener) show(true)
-    else if (event.key === 'ArrowLeft' && open) {
-      shut()
-      opener.focus()
-    } else return
+    else if (event.key === 'ArrowLeft' && open) shut()
+    else return
     event.preventDefault()
     // One opened from a choice of another shuts alone: the one it is in stays open.
     event.stopPropagation()
@@ -294,16 +292,95 @@ export function submenu({ label, about = '', glyph = null, items, hmz = null }) 
   return holder
 }
 
+/**
+ * Puts a menu opened from a choice beside the menu that choice is in, a little over its edge,
+ * its first choice level with the one that opened it: on the right where there is room, else on
+ * the left -- but never, opened from a menu that is itself beside another, back over those it
+ * came from: it stays on the right, moved in from the window's edge. With no room on either
+ * side -- on a phone -- it stands over its menu, under the choice or, with no room there, above.
+ * Opened from a menu that stands over a box typed into, it ends over that box as well.
+ */
+function beside(pop, parent, opener) {
+  const outer = parent.getBoundingClientRect()
+  const row = opener.getBoundingClientRect()
+  const typed = opener.closest('.composer-desk')?.querySelector('.composer-box').getBoundingClientRect()
+  const foot = typed && outer.bottom <= typed.top ? typed.top - GAP : innerHeight - EDGE
+  pop.style.setProperty('--room', `${foot - EDGE}px`)
+  const { offsetWidth: wide, offsetHeight: tall } = pop
+  const edge = getComputedStyle(pop)
+  const right = parent.classList.contains('sub') || outer.right - LAP + wide + EDGE <= innerWidth
+  const flank = right || outer.left + LAP - wide >= EDGE
+  const left = right ? outer.right - LAP : flank ? outer.left + LAP - wide : outer.left + 12
+  const top = flank ? row.top - parseFloat(edge.paddingTop) - parseFloat(edge.borderTopWidth) : row.bottom + tall <= foot ? row.bottom : row.top - tall
+  pop.style.left = `${Math.max(EDGE, Math.min(left, innerWidth - wide - EDGE))}px`
+  pop.style.top = `${Math.max(EDGE, Math.min(top, foot - tall))}px`
+}
+
 /** A heading among a menu's choices. */
 export function section(label) {
   return h('div', { class: 'popover-head', role: 'presentation' }, label)
+}
+
+/** Every side panel made that may still be in the page. */
+const panes = new Set()
+/** The least width a view keeps beside the panels open by it, on a wide window. */
+const VIEW = 480
+
+/** The panels open in the page, letting go of those a view left behind. */
+function shown() {
+  for (const pane of panes) {
+    if (pane.node.isConnected) pane.seen = true
+    else if (pane.seen) panes.delete(pane)
+  }
+  return [...panes].filter((pane) => pane.node.isConnected && !pane.node.hidden)
+}
+
+/** How wide the view is left by the panels open in it and beside it. */
+function left() {
+  const main = app().querySelector('.main')
+  return shown().reduce((wide, pane) => wide - (main.contains(pane.node) ? pane.node.getBoundingClientRect().width : 0), main.getBoundingClientRect().width)
+}
+
+/**
+ * Makes room for a panel the person opened: on a narrow screen it is the one thing over the
+ * view, so the others and the sidebar's drawer close; on a wide one the others close only
+ * where the view would be left too narrow to read, the one opened taking their place.
+ */
+function roomFor(pane) {
+  const others = shown().filter((one) => one !== pane)
+  if (narrow.matches) {
+    if (app().classList.contains('side-open')) drawer(false)
+    for (const one of others) one.shut()
+  } else if (others.length && left() < VIEW) for (const one of others) one.shut()
+}
+
+let settling = 0
+
+/**
+ * Looks, once what was drawn is in the page, at the panels open as they were last left: where
+ * they leave the view too narrow, the view's own gives way to one kept beside every view, and
+ * is not kept as shut for it.
+ */
+function settle() {
+  cancelAnimationFrame(settling)
+  settling = requestAnimationFrame(() => {
+    const main = app().querySelector('.main')
+    for (let open = shown(); !narrow.matches && open.length > 1 && left() < VIEW; open = shown()) (open.find((one) => main.contains(one.node)) ?? open.at(-1)).yields()
+  })
+}
+
+/** Closes the panel that is over the view on a narrow screen, where one is: whether one was. */
+export function settlePanel() {
+  const open = narrow.matches ? shown() : []
+  for (const pane of open) pane.shut()
+  return open.length > 0
 }
 
 /**
  * The panel a view keeps beside it, as Claude keeps an artifact or ChatGPT a canvas: open or
  * shut as this browser last left it, and over the view on a narrow screen. A panel of its own
  * -- Ai-chan's drawer -- is kept by its own `key`, shut where never left open, and told each
- * time it opens or shuts.
+ * time it opens or shuts. One opened closes another where the view has no room for both.
  *
  * @param {string} label
  * @param {{key?: string, open?: boolean, hmz?: string, kind?: string, told?: (open: boolean) => void}} [how]
@@ -313,13 +390,24 @@ export function sidePanel(label, { key = 'hmz-panel', open: first = true, hmz = 
   const shut = iconButton('close', 'Close panel', { class: 'panel-close' })
   const node = h('aside', { class: ['inspector', kind], 'aria-label': label, 'data-hmz': hmz }, shut, body)
   const toggle = iconButton('panel', 'Toggle panel', { class: 'panel-toggle' })
-  const set = (open) => {
+  const show = (open) => {
     node.hidden = !open
     toggle.setAttribute('aria-pressed', String(open))
-    if (!narrow.matches) keep(key, open === first ? null : open ? 'open' : 'shut')
     told(open)
   }
-  const read = () => set(!narrow.matches && kept(key, first ? 'open' : 'shut') === 'open')
+  const pane = { node, shut: () => node.hidden || set(false), yields: () => show(false) }
+  const set = (open) => {
+    show(open)
+    if (!narrow.matches) keep(key, open === first ? null : open ? 'open' : 'shut')
+    if (open) roomFor(pane)
+  }
+  // Open as it was last left, where the view has the room: another open beside it is looked
+  // at once both are in the page.
+  const read = () => {
+    show(!narrow.matches && kept(key, first ? 'open' : 'shut') === 'open')
+    panes.add(pane)
+    settle()
+  }
   read()
   toggle.addEventListener('click', () => set(node.hidden))
   shut.addEventListener('click', () => set(false))

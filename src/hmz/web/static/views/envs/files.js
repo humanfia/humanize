@@ -6,6 +6,7 @@
 // letters of its path. What can be decided without a page is in files_logic.js.
 
 import { fill, h, icon, iconButton } from '../../dom.js'
+import * as layers from '../../layers.js'
 import { menuOn } from '../../ui.js'
 import * as L from './files_logic.js'
 
@@ -667,12 +668,26 @@ export async function mount(el, ctx) {
       statusBox,
       h('span', { class: ['files-state', `is-${doc.conflict ? 'error' : doc.saver.state}`], 'data-hmz': 'files-saved' }, saving),
       h('span', { class: 'files-gap' }),
-      h('button', { class: 'files-status-item', type: 'button', title: 'Go to line', 'data-hmz': 'files-position', onclick: () => cm.gotoLine(view) }, `Ln ${line.number}, Col ${head - line.from + 1}`, chosen ? ` (${chosen} selected)` : '', state.selection.ranges.length > 1 ? ` · ${state.selection.ranges.length} cursors` : ''),
+      h('button', { class: 'files-status-item', type: 'button', title: 'Go to line', 'data-hmz': 'files-position', onclick: () => panelTo('goto') }, `Ln ${line.number}, Col ${head - line.from + 1}`, chosen ? ` (${chosen} selected)` : '', state.selection.ranges.length > 1 ? ` · ${state.selection.ranges.length} cursors` : ''),
       h('span', { class: 'files-status-item' }, doc.bom ? 'UTF-8 with BOM' : 'UTF-8'),
       h('button', { class: 'files-status-item', type: 'button', title: 'Change the line endings', 'data-hmz': 'files-eol', onclick: () => toggleEol(doc) }, doc.eol === '\r\n' ? 'CRLF' : 'LF'),
       h('span', { class: 'files-status-item', 'data-hmz': 'files-language' }, L.languageOf(doc.path)),
       h('button', { class: ['files-status-item', wrap && 'on'], type: 'button', title: 'Wrap lines (Alt+Z)', 'aria-pressed': wrap ? 'true' : 'false', 'data-hmz': 'files-wrap', onclick: () => toggleWrap() }, 'Wrap'),
     )
+  }
+
+  /**
+   * Shows one of the editor's own panels, `find` or `goto`, in place of the other: one at a
+   * time. Go to line asked for again closes it, as asking for neither closes both.
+   */
+  function panelTo(which) {
+    const goto = view.dom.querySelector('.cm-goto-line .cm-dialog-close')
+    goto?.click()
+    if (which === 'find') return cm.openSearchPanel(view)
+    cm.closeSearchPanel(view)
+    if (which !== 'goto') return
+    if (goto) view.focus()
+    else cm.gotoLine(view)
   }
 
   function toggleEol(doc) {
@@ -862,21 +877,22 @@ export async function mount(el, ctx) {
     const input = h('input', { class: 'files-rename', type: 'text', spellcheck: 'false', 'aria-label': naming.kind === 'rename' ? 'New name' : naming.kind === 'dir' ? 'Folder name' : 'File name', 'data-hmz': 'files-name' })
     input.value = naming.kind === 'rename' ? L.baseName(naming.path) : ''
     let done = false
-    const finish = async (keep) => {
+    // The tree has the focus back unless it went on to something else, which keeps it.
+    const finish = async (keep, away = false) => {
       if (done) return
       done = true
       const what = naming
       naming = null
       if (keep) await named(what, input.value.trim())
       drawTree()
-      treeBox.focus()
+      if (!away) treeBox.focus()
     }
     input.addEventListener('keydown', (event) => {
       event.stopPropagation()
       if (event.key === 'Enter') finish(true)
       else if (event.key === 'Escape') finish(false)
     })
-    input.addEventListener('blur', () => finish(Boolean(input.value.trim())))
+    input.addEventListener('blur', (event) => finish(Boolean(input.value.trim()), Boolean(event.relatedTarget)))
     requestAnimationFrame(() => {
       input.focus()
       const dot = input.value.lastIndexOf('.')
@@ -1268,9 +1284,21 @@ export async function mount(el, ctx) {
 
   let picks = []
   let picked = 0
+  /** The list over the panel, as one thing that floats: closed, the editor or the tree has the focus. */
+  const quickLayer = {
+    node: quick,
+    kind: 'panel',
+    close: quickClose,
+    get back() {
+      return inView ? view.contentDOM : treeBox
+    },
+  }
 
   async function quickOpen() {
+    // In place of the editor's own panels, not over them.
+    panelTo('')
     quick.hidden = false
+    layers.opened(quickLayer)
     quickInput.value = ''
     quickInput.focus()
     drawQuick()
@@ -1326,8 +1354,9 @@ export async function mount(el, ctx) {
   }
 
   function quickClose() {
+    if (quick.hidden) return
+    layers.closed(quickLayer)
     quick.hidden = true
-    if (inView) view.focus()
   }
 
   function choose() {
@@ -1347,7 +1376,6 @@ export async function mount(el, ctx) {
       ArrowDown: () => ((picked = Math.min(picks.length - 1, picked + 1)), drawQuick()),
       ArrowUp: () => ((picked = Math.max(0, picked - 1)), drawQuick()),
       Enter: () => choose(),
-      Escape: () => quickClose(),
     }
     const act = keys[event.key]
     if (!act) return
@@ -1355,7 +1383,6 @@ export async function mount(el, ctx) {
     event.stopPropagation()
     act()
   })
-  quickInput.addEventListener('blur', () => setTimeout(() => !quick.contains(document.activeElement) && (quick.hidden = true), 0))
 
   // Keys, the page and what is heard ---------------------------------------------------------------
 
@@ -1370,7 +1397,10 @@ export async function mount(el, ctx) {
     else if (mod_ && event.shiftKey && key === 'f') act = () => searchFor()
     else if (mod_ && event.shiftKey && key === 'e') act = () => (sideTo('explorer'), tabs.active ? revealInTree(tabs.active, true) : treeBox.focus())
     else if (mod_ && !event.shiftKey && key === 's') act = () => current()?.saver.now()
-    else if (mod_ && !event.shiftKey && key === 'g' && inView) act = () => cm.gotoLine(view)
+    else if (mod_ && !event.shiftKey && key === 'g' && inView) act = () => panelTo('goto')
+    else if (mod_ && !event.shiftKey && key === 'f' && view.dom.contains(document.activeElement)) act = () => panelTo('find')
+    // Find closes itself from the text; Go to line, only from its own field.
+    else if (key === 'escape' && view.hasFocus && view.dom.querySelector('.cm-goto-line')) act = () => panelTo('')
     else if (mod_ && !event.shiftKey && key === 'w' && tabs.active) act = () => close(tabs.active)
     else if (event.altKey && !mod_ && event.code === 'KeyZ') act = () => toggleWrap()
     if (!act) return

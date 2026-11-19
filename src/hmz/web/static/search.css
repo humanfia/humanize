@@ -1,127 +1,169 @@
 /* Search, laid out as Claude's window lays its own out (Section 3.10.4 of protocol/web.md): a
    box 672 by 584 over the middle of the window, the field across its top, a row of tabs 29 high
-   under it, what was found a line apiece, and a foot that says what the keys do. The numbers
-   are that window's, measured; the colours, the edges and the type are this page's own. */
+   under it, what was found a line apiece, and a foot that says what the keys do. Whatever it
+   says starts on one edge, 25 in from the box's left; the colours, the edges and the type are
+   this page's own. */
 
 .dialog-search-box .dialog-head {
-  gap: 32px;
-  /* The field stands 18 under the box's top edge and 25 in from its left, the edge counted. */
-  padding: 16px 8px 8px 23px;
+  min-height: 0;
+  padding: var(--space-16) var(--space-16) var(--space-8) var(--space-24);
   border-bottom: 0;
 }
 
-.dialog-search-box .dialog-search {
-  height: 32px;
-  min-height: 32px;
+/* The field is drawn bare: what is typed into it is all there is to see of it, and its caret
+   says where the keys go. */
+.dialog-search {
+  flex: 1;
+  height: var(--control-h);
   padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--text-lg);
+  outline: none;
 }
 
 /* `Close` beside it is the one cross of the row: the browser's own, in the field, is not drawn. */
-.dialog-search-box .dialog-search::-webkit-search-cancel-button {
+.dialog-search::-webkit-search-cancel-button {
   display: none;
-}
-
-.dialog-search-box .dialog-head .icon-btn {
-  width: 28px;
-  height: 28px;
 }
 
 /* The tabs, and at their right what opens the filters. */
 .search-types {
+  flex: none;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  height: 43px;
-  flex: none;
-  padding: 0 23px;
-  border-bottom: 1px solid var(--line);
+  gap: var(--space-8);
+  padding: 0 var(--space-16) var(--space-8);
+  border-bottom: var(--border);
 }
 
 .search-tabs {
   display: flex;
   flex: 1;
+  gap: var(--space-4);
   min-width: 0;
 }
 
 .search-tabs button,
 .search-filtering {
   height: 29px;
-  padding: 0 10px;
+  padding: 0 var(--space-8);
   border: 0;
+  border-radius: var(--radius-md);
   background: none;
   color: var(--ink-3);
-  font: 14px var(--sans);
+  font: 500 var(--text-md)/20px var(--sans);
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
 }
 
 .search-tabs button:hover,
 .search-filtering:hover {
-  color: var(--ink);
   background: var(--hover);
+  color: var(--ink);
 }
 
-.search-tabs button[aria-selected='true'] {
+.search-tabs button:active,
+.search-filtering:active {
+  background: var(--pressed);
+}
+
+.search-tabs button[aria-selected='true'],
+.search-filtering[aria-expanded='true'] {
+  background: var(--selected);
   color: var(--ink);
-  font-weight: 600;
-  box-shadow: inset 0 -2px 0 var(--ink);
 }
 
 .search-filtering {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-}
-
-.search-filtering[aria-expanded='true'] {
-  color: var(--ink);
-  background: var(--hover);
+  gap: var(--space-6);
 }
 
 .search-filtering .icon {
-  width: 14px;
-  height: 14px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
-.dialog-search-box .dialog-filters {
+/* The filters: one row under the tabs, how it went at the left and where and by what after it,
+   each as narrow as it must be for the row to hold them all. */
+.dialog-filters {
   flex: none;
-  padding: 8px 23px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  border-bottom: var(--border);
 }
 
-.dialog-search-box .dialog-filters[hidden] {
-  display: none;
+.dialog-filters .segmented {
+  flex: none;
+  flex-wrap: nowrap;
 }
 
-/* What was found: 10 in from the box's sides, the edge counted, and 10 under the tabs. */
+.dialog-filters .segmented button {
+  padding: 0 var(--space-6);
+  white-space: nowrap;
+}
+
+/* How many each holds is said plainly after its name: six of them stand in the one row. */
+.dialog-filters .segmented .count {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.dialog-filters select {
+  flex: 1 1 0;
+  height: var(--control-h-sm);
+  font-size: var(--text-md);
+}
+
+/* What was found: its lines 9 in from the box's sides, the edge counted, so that what they say
+   starts where the field does. What can be done stays in sight under it, and a line moved to is
+   brought clear of that and of the top. */
 .dialog-search-box .dialog-body {
-  padding: 10px 9px 0;
+  padding: var(--space-8) var(--space-8) 0;
+  scroll-padding-block: var(--space-8) calc(2 * var(--row-h) + var(--control-h-sm) + var(--space-24));
 }
 
 .search-group + .search-group {
-  margin-top: 3px;
+  margin-top: var(--space-8);
+}
+
+.dialog-search-box .results {
+  display: grid;
+  gap: var(--space-2);
 }
 
 /* What can be done stays in sight under what was found, however much of that there is: the list
-   scrolls behind it, and a line moved to is brought clear of it. */
-.dialog-search-box .dialog-body {
-  scroll-padding-bottom: 112px;
-}
-
+   scrolls behind it. */
 .search-list > .search-group:last-child:not(:first-child) {
   position: sticky;
   bottom: 0;
+  z-index: var(--z-sticky);
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-8) calc(-1 * var(--space-8)) 0;
+  padding: var(--space-4) var(--space-8) var(--space-8);
   background: var(--paper);
-  border-top: 1px solid var(--line);
+  border-top: var(--border);
 }
 
-/* What a group is headed by: a quiet line, 14 in and 14 down, its first row 37 under its top. */
+/* What a group is headed by: a quiet line, and at its right how many there are. */
 .search-heading {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  height: 37px;
-  padding: 14px 14px 9px;
-  font: 12px/14px var(--sans);
+  gap: var(--space-12);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-16);
+  font: 500 var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
 }
 
@@ -129,13 +171,14 @@
 .search-action {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-12);
   width: 100%;
-  height: 36px;
-  padding: 0 14px;
+  height: var(--row-h);
+  padding: 0 var(--space-16);
   border: 0;
+  border-radius: var(--radius-md);
   background: none;
-  font: inherit;
+  font: 400 var(--text)/20px var(--sans);
   color: var(--ink);
   text-align: left;
   text-decoration: none;
@@ -146,10 +189,15 @@
   font-weight: 400;
 }
 
+.dialog-search-box .result:hover,
+.search-action:hover {
+  background: var(--hover);
+}
+
 /* The one the arrows, or the pointer, moved to: the one Enter opens. */
 .dialog-search-box .result.active,
 .search-action.active {
-  background: var(--hover);
+  background: var(--selected);
 }
 
 .result-how,
@@ -159,8 +207,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--ink-3);
+}
+
+/* One whose epic is going says so behind the live dot. */
+.result.held .result-how::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-6);
+  border-radius: var(--radius-full);
+  background: var(--live);
 }
 
 /* What else there is to say of one, in a line over the foot once a key or the pointer has moved
@@ -170,9 +229,11 @@
   flex: none;
   display: flex;
   align-items: center;
-  min-height: 32px;
-  padding: 5px 21px;
-  border-top: 1px solid var(--line);
+  min-height: var(--control-h);
+  padding: var(--space-4) var(--space-24);
+  border-top: var(--border);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
 }
 
 .search-detail:empty {
@@ -184,6 +245,68 @@
   display: none;
 }
 
+.dialog-search-box .search-foot {
+  height: 40px;
+  padding: 0 var(--space-16) 0 var(--space-24);
+  gap: var(--space-16);
+}
+
+/* A key the pages beside them leave no room for is left unsaid whole, not cut: it goes on to a
+   line under, which is not shown. */
+.search-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-20) var(--space-16);
+  flex: 1;
+  height: 18px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.search-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.search-hint kbd {
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-4);
+  border: var(--border);
+  border-radius: var(--radius-xs);
+  font: var(--text-xs)/16px var(--mono);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.search-hint kbd:first-of-type {
+  margin-left: var(--space-2);
+}
+
+.search-pages {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: none;
+  white-space: nowrap;
+}
+
+/* The box is 672 by 584 over the middle of a wide window, and no taller than the window lets it
+   be, however much was found: what was found scrolls inside it. */
+@media (min-width: 861px) {
+  .dialog.dialog-search-box {
+    width: min(100%, 672px);
+    height: min(584px, 100%);
+  }
+}
+
+/* A narrow window, which the box fills, or one where nothing hovers: what else there is to say
+   of a line stands under it, the filters go on to as many rows as they need, and no key is at
+   hand to say anything of. */
 @media (max-width: 860px), (hover: none) {
   .search-detail {
     display: none;
@@ -192,10 +315,10 @@
   .dialog-search-box .result {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px 12px;
+    gap: var(--space-4) var(--space-12);
     height: auto;
-    min-height: 36px;
-    padding: 8px 14px;
+    min-height: var(--row-h);
+    padding: var(--space-8) var(--space-16);
   }
 
   /* The line under says both, with the rest. */
@@ -211,86 +334,16 @@
   }
 }
 
-.dialog-search-box .search-foot {
-  flex: none;
-  height: 42px;
-  /* What it says stands 21 over the box's bottom edge, a little under the foot's own middle. */
-  padding: 4px 14px 0 19px;
-  gap: 16px;
-  font-size: 12px;
-}
-
-/* A key the pages beside them leave no room for is left unsaid whole, not cut: it goes on to a
-   line under, which is not shown. */
-.search-hints {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 18px 16px;
-  flex: 1;
-  height: 18px;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.search-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.search-hint kbd {
-  min-width: 18px;
-  padding: 0 4px;
-  border: 1px solid var(--line-strong);
-  font-size: 11px;
-  line-height: 15px;
-  text-align: center;
-}
-
-.search-hint kbd:first-of-type {
-  margin-left: 2px;
-}
-
-.search-pages {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  white-space: nowrap;
-}
-
-.search-pages[hidden] {
-  display: none;
-}
-
-.search-pages .btn {
-  min-height: 22px;
-  height: 22px;
-}
-
-/* The box is as tall as the window lets it be and no taller, however much was found: what was
-   found scrolls inside it. */
-.overlay:has(> .dialog-search-box) {
-  grid-template-rows: minmax(0, 1fr);
-}
-
-@media (min-width: 861px) {
-  /* 127 under the top of a window 792 high, as measured: a sixth of the window, not its middle. */
-  .overlay:has(> .dialog-search-box) {
-    padding-top: 16vh;
-  }
-
-  .dialog.dialog-search-box {
-    width: min(100%, 672px);
-    height: min(584px, 100%);
-    max-height: none;
-  }
-}
-
-/* A narrow window, which the box fills: no key is at hand there to say anything of. */
 @media (max-width: 860px) {
+  .dialog-filters {
+    flex-wrap: wrap;
+  }
+
+  .dialog-filters .segmented {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+  }
+
   .search-hints {
     visibility: hidden;
   }

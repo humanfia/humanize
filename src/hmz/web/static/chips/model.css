@@ -1,5 +1,5 @@
-/* The chip on a chat's box that says which model answers it (chips/model.js): quiet, at the right
-   of the box's bar, by the button that sends. */
+/* The chip on a chat's box that says which model answers it (chips/model.js): a chip as the ones
+   beside it are, at the right under the box, and what its menu draws that no other does. */
 
 .model-pick {
   display: inline-flex;
@@ -16,48 +16,36 @@
   opacity: 0.5;
 }
 
-.model-chip {
-  border-color: transparent;
-  background: none;
-}
-
-.model-chip:hover:not([aria-expanded='true']) {
-  background: var(--hover);
-}
-
-.model-chip .chip-value {
-  font-weight: 500;
-}
-
-.model-chip .icon {
-  color: var(--ink-3);
-}
-
-.model-chip[aria-expanded='true'] .icon {
-  color: inherit;
-}
-
 .model-menu {
   display: contents;
 }
 
+/* What the menu has to say of its list: that it is being read, or why there is none. */
 .model-menu .hint {
-  margin: 2px 8px 6px;
-  font-size: 12px;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-8);
+  border-top: var(--border);
+  font: var(--text-sm) / 16px var(--sans);
   color: var(--ink-3);
 }
 
-.popover .model-menu .menu-filter {
-  margin: 4px 0 2px;
+.model-menu .hint:first-child {
+  margin: 0;
+  border-top: 0;
 }
 
-/* A part of a chat's agent that is said, not picked. */
+.popover .model-menu .menu-filter {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+/* A part of a chat's agent that is said, not picked: its name where a choice's is, past the
+   room a choice keeps for its mark. */
 .model-fact {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 4px 8px 4px 34px;
-  font-size: 12.5px;
+  gap: var(--space-16);
+  padding: var(--space-4) var(--space-8) var(--space-4) calc(var(--space-8) + 16px + var(--space-8));
+  font: var(--text-md) / 20px var(--sans);
 }
 
 .model-fact .label {
@@ -77,7 +65,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-12);
   min-width: 0;
 }
 

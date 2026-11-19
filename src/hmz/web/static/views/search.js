@@ -109,9 +109,11 @@ export function mount(root, { query }) {
     }
     if (to) search.setAttribute('aria-activedescendant', to.id)
     else search.removeAttribute('aria-activedescendant')
-    // The line over the foot takes its room from the list, so the one moved to is looked for after.
+    // The line over the foot takes its room from the list, so the one moved to is looked for
+    // after: by a key always, by the pointer where that room was taken from over it.
+    const room = body.clientHeight
     fill(detail, told && runs.has(active) ? more(runs.get(active)) : null)
-    if (scroll) to?.scrollIntoView({ block: 'nearest' })
+    if (scroll || body.clientHeight < room) to?.scrollIntoView({ block: 'nearest' })
   }
   /** One line of the list: moved to as the pointer comes over it, and opened as it is pressed. */
   const option = (el, key) => {
@@ -317,8 +319,9 @@ export function mount(root, { query }) {
                   option(
                     h(
                       'a',
-                      { class: ['result', run.held && 'held'], href: hash(pathOf(run)), title: run.task, 'data-hmz': 'epic', 'data-kind': run.kind },
-                      h('span', { class: 'result-task' }, headline(run.task)),
+                      { class: ['result', run.held && 'held'], href: hash(pathOf(run)), 'data-hmz': 'epic', 'data-kind': run.kind },
+                      // Said whole where pointed at, where its one line is not all of it.
+                      h('span', { class: 'result-task', title: run.task }, headline(run.task)),
                       standing.said ? h('span', { class: 'result-how', 'data-hmz': 'result-how' }, standing.said) : null,
                       h('span', { class: 'result-where', title: run.workspace }, nameOf(run.workspace)),
                       h('span', { class: 'result-when', title: when(run.began) }, ago(run.began)),

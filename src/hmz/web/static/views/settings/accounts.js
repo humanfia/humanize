@@ -5,7 +5,8 @@
 // through the local LiteLLM gateway are listed last, under a group of their own -- and where the
 // extra they need is missing, the group says so and the line that adds it is said under it.
 
-import { acting, ago, confirming, fill, h, problem } from '../../dom.js'
+import { confirming } from '../../confirm.js'
+import { acting, ago, fill, h, problem } from '../../dom.js'
 
 export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'accounts' }, h('p', { class: 'loading', role: 'status' }, 'Reading the accounts…'))

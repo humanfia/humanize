@@ -5,6 +5,7 @@
 import { call, daemon, onDaemon, started } from './api.js'
 import { chipNamed } from './desk.js'
 import { fill, h, icon } from './dom.js'
+import { closed, opened } from './layers.js'
 import { pathItems, pathParts, typing } from './natives.js'
 import { pathPicker } from './paths.js'
 import { choice, dragged, follow, menu, section } from './shell.js'
@@ -113,6 +114,13 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
     button.setAttribute('aria-label', chipNamed('Folder', said.textContent))
   }
 
+  // Pressed while the form is open, the button shuts it, as it shuts its menu: heard before the
+  // menu hears of it, which then opens nothing.
+  button.addEventListener('click', (event) => {
+    if (opening.hidden) return
+    event.stopImmediatePropagation()
+    shut()
+  })
   menu(
     button,
     (close) => [
@@ -135,24 +143,28 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
     changed(to)
   }
 
-  // Kept by the button while it is open, as a menu is.
+  // Kept by the button while it is open, as a menu is, and closed by what closes one (layers.js):
+  // a panel, which keeps what is typed into it while the window is sized or left.
   let unfollow = () => {}
+  const layer = { node: opening, anchor: button, kind: 'panel', close: shut }
   function shut() {
+    if (opening.hidden) return
+    closed(layer)
     unfollow()
     opening.hidden = true
+    button.setAttribute('aria-expanded', 'false')
   }
 
   function open() {
     opening.hidden = false
+    opened(layer)
     unfollow = follow(opening, button, {})
+    button.setAttribute('aria-expanded', 'true')
     problem_.textContent = ''
     typed.value = ''
     typed.focus()
   }
 
-  typed.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') shut()
-  })
   const openButton = opening.querySelector('[type=submit]')
   opening.addEventListener('submit', async (event) => {
     event.preventDefault()

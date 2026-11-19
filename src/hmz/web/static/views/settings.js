@@ -10,6 +10,7 @@
 import { call, daemon, hash, known } from '../api.js'
 import { shut, stays } from '../app.js'
 import { fill, h, iconButton, problem } from '../dom.js'
+import { modal } from '../layers.js'
 import { dragged } from '../shell.js'
 
 /** Every page, by the word in the address that opens it, in its group. */
@@ -75,6 +76,12 @@ export function mount(root, { parts, query }) {
       body,
     ),
   )
+  // The dialog opens on the page it shows: once it is drawn its link has the focus, in the
+  // middle of the strip the pages are across a narrow window.
+  queueMicrotask(() => {
+    links[name].focus()
+    links[name].scrollIntoView({ block: 'nearest', inline: 'center' })
+  })
 
   let listed = [{ name: 'local' }]
   let leaving = null
@@ -165,20 +172,10 @@ function batchButton(root, from, known, calls, off) {
         ? h('div', { class: 'form' }, h('label', { class: 'check' }, all, h('b', {}, 'All')), boxes.map(({ one, box }) => h('label', { class: 'check' }, box, called(one))))
         : h('p', { class: 'dim' }, 'No other daemon.'),
       results,
-      h('div', { class: 'row' }, others.length ? apply : null, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, 'Close')),
+      h('div', { class: 'row' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, 'Close'), others.length ? apply : null),
     )
-    // Escape closes this dialog, not Settings under it, wherever the focus is.
-    const escape = (event) => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      event.preventDefault()
-      dialog.close()
-    }
-    document.addEventListener('keydown', escape, true)
-    dialog.addEventListener('close', () => {
-      document.removeEventListener('keydown', escape, true)
-      dialog.remove()
-    })
+    // Closed, the button it was opened by has the focus back in every browser.
+    dialog.addEventListener('close', () => (dialog.remove(), button.focus()))
     apply.addEventListener('click', async () => {
       const picked = boxes.filter(({ box }) => box.checked).map(({ one }) => one)
       if (!picked.length) return
@@ -210,7 +207,8 @@ function batchButton(root, from, known, calls, off) {
       apply.disabled = false
     })
     root.append(dialog)
-    dialog.showModal()
+    // Over Settings, which Escape and a press beside this one leave open.
+    modal(dialog)
   })
   return button
 }

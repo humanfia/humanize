@@ -84,10 +84,24 @@ def test_a_file_is_opened_edited_and_saved_and_a_conflict_offered(engine: str) -
         expect(banner).to_have_count(0)
         expect(content).to_have_text("theirs")
 
-        # Quick open, by a few letters of the name.
+        # Quick open closes by Escape from wherever the focus is and by a press outside
+        # it, and takes the keys from a name being typed in the tree.
         page.locator("[data-hmz=files-editor] .cm-content").click()
         page.keyboard.press("Control+p")
         quick = page.locator("[data-hmz=files-quick-input]")
+        expect(quick).to_be_focused()
+        page.keyboard.press("Escape")
+        expect(quick).to_be_hidden()
+        expect(page.locator("[data-hmz=files-editor] .cm-content")).to_be_focused()
+        page.locator("[data-hmz=files-new-file]").click()
+        expect(page.locator("[data-hmz=files-name]")).to_be_focused()
+        page.keyboard.press("Control+p")
+        expect(quick).to_be_focused()
+        page.locator("[data-hmz=files-editor] .cm-content").click()
+        expect(quick).to_be_hidden()
+
+        # Quick open, by a few letters of the name.
+        page.keyboard.press("Control+p")
         expect(quick).to_be_focused()
         quick.fill("utl")
         expect(page.locator("[data-hmz=files-pick]").first).to_have_attribute(

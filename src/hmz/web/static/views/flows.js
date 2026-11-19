@@ -8,7 +8,8 @@
 
 import { call, given, hash, poll, refresh } from '../api.js'
 import { stays } from '../app.js'
-import { acting, confirming, empty, fill, h, icon, permitted, problem } from '../dom.js'
+import { confirming } from '../confirm.js'
+import { acting, empty, fill, h, icon, permitted, problem } from '../dom.js'
 import { firstWorkspace, workspacePicker } from '../places.js'
 import { bar, tabbed } from '../shell.js'
 import { copy, menuOn, toast } from '../ui.js'

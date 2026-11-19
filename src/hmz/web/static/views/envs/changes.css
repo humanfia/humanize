@@ -1,41 +1,52 @@
 /* An environment's Changes panel: the list of changed files beside the diff of the one picked, as
-   Source Control lays them out. Every colour is a token of style.css. A row stands --ch-row tall,
-   which changes.js lays the list out by. */
+   Source Control lays them out. Every colour and every size is a token of style.css. A row stands
+   --ch-row tall, which changes.js lays the list out by, and a head --strip-h over its hairline, as
+   the other panels' strips do. The panel answers to its own width, not the window's: where it is
+   narrow the diff takes the list's place. */
 
 .changes {
   --ch-row: 24px;
-  display: grid;
-  grid-template-columns: minmax(260px, 360px);
+  --strip-h: 36px;
+  container: changes / inline-size;
+  display: flex;
   height: 100%;
   min-height: 0;
   color: var(--ink);
-  background: var(--paper);
-  font-size: 13px;
+  background: var(--surface);
+  font: var(--text-md)/20px var(--sans);
 }
 
-.changes.diffing {
-  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+.changes .icon {
+  width: var(--icon);
+  height: var(--icon);
 }
 
 .ch-side {
   display: flex;
   flex-direction: column;
+  flex: 0 0 clamp(260px, 34%, 360px);
   min-height: 0;
   min-width: 0;
-  border-right: 1px solid var(--line);
-  background: var(--surface);
+  border-right: var(--border);
+  background: var(--side);
 }
 
 .ch-grow {
   flex: 1 1 auto;
 }
 
-.ch-head {
+.ch-head,
+.ch-diff-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
+  flex: none;
+  gap: var(--space-4);
+  min-height: calc(var(--strip-h) + var(--border-w));
+  padding: 0 var(--space-8);
+  border-bottom: var(--border);
+}
+
+.ch-head {
   color: var(--ink-2);
 }
 
@@ -49,22 +60,39 @@
 
 .ch-sync {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--space-6);
+  margin-left: var(--space-4);
   color: var(--ink-3);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
+.ch-sync:empty {
+  display: none;
+}
+
+/* A tool of the panel: an icon alone, in a head or at the end of a row. */
 .ch-tool {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  flex: none;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: var(--radius-sm);
+  background: none;
   color: var(--ink-2);
   cursor: pointer;
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.ch-tool .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .ch-tool:hover:not(:disabled) {
@@ -72,21 +100,31 @@
   color: var(--ink);
 }
 
+.ch-tool:active:not(:disabled) {
+  background: var(--pressed);
+}
+
+.ch-tool[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--ink);
+}
+
 .ch-tool:focus-visible {
-  outline: 2px solid var(--live);
+  outline: var(--focus-ring);
   outline-offset: -2px;
 }
 
 .ch-tool:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: default;
 }
 
 .ch-banner {
   margin: 0;
-  padding: 6px 10px;
-  background: color-mix(in srgb, var(--gold) 18%, transparent);
-  color: var(--budget-ink);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: var(--border);
+  background: color-mix(in srgb, var(--budget) 10%, transparent);
+  color: var(--ink);
 }
 
 .ch-errors:empty {
@@ -94,51 +132,40 @@
 }
 
 .ch-errors .error {
-  margin: 6px 8px;
+  margin: var(--space-8);
 }
 
 .ch-box {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border-bottom: 1px solid var(--line);
+  flex: none;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  border-bottom: var(--border);
 }
 
 .ch-message {
-  width: 100%;
   min-height: 56px;
-  resize: vertical;
-  padding: 6px 8px;
-  border: 1px solid var(--line-strong);
-  background: var(--field);
-  color: var(--ink);
-  font: inherit;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-
-.ch-message:focus {
-  outline: 2px solid var(--live);
-  outline-offset: -1px;
+  font: var(--text-sm)/16px var(--mono);
 }
 
 .ch-box-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .ch-amend {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-6);
   color: var(--ink-2);
   cursor: pointer;
 }
 
 .ch-hint {
   color: var(--ink-3);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -153,14 +180,12 @@
 .ch-reason {
   margin: 0;
   color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: 16px;
 }
 
 .ch-reason:empty {
   display: none;
-}
-
-.ch-reason.error {
-  color: var(--fail);
 }
 
 .ch-list {
@@ -172,7 +197,8 @@
 }
 
 .ch-list:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--live);
+  outline: 1px solid var(--link);
+  outline-offset: -1px;
 }
 
 .ch-spacer {
@@ -181,14 +207,14 @@
 
 .ch-row {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: var(--space-4);
+  right: var(--space-4);
   height: var(--ch-row);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding-left: calc(6px + var(--depth, 0) * 14px);
-  padding-right: 8px;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--depth, 0) * var(--indent));
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -199,19 +225,18 @@
 }
 
 .ch-row.picked {
-  background: color-mix(in srgb, var(--pink) 18%, transparent);
+  background: var(--selected);
 }
 
 .ch-list:focus .ch-row.cursor {
-  box-shadow: inset 0 0 0 1px var(--live);
+  outline: 1px solid var(--link);
+  outline-offset: -1px;
 }
 
+/* What a group of changes is: staged, changed, untracked. */
 .ch-kind-group {
-  font-weight: 600;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-2);
+  font: 500 var(--text-sm)/16px var(--sans);
+  color: var(--ink-3);
 }
 
 .ch-title {
@@ -220,8 +245,14 @@
 
 .ch-twist {
   display: inline-flex;
+  flex: none;
   color: var(--ink-3);
-  transition: transform 0.1s;
+  transition: transform var(--dur) var(--ease);
+}
+
+.ch-twist .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .ch-twist.open {
@@ -239,30 +270,27 @@
 
 .ch-dir,
 .ch-orig {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
-.ch-orig {
-  flex: 0 1 auto;
-}
-
-.ch-dir {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
+/* What can be done to a change stands at the end of its row, its room kept whether it is shown
+   or not, so that nothing in the row moves when it is pointed at. */
 .ch-acts {
-  display: none;
-  gap: 2px;
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-2);
+  visibility: hidden;
 }
 
 .ch-row:hover .ch-acts,
 .ch-row.picked .ch-acts,
 .ch-list:focus .ch-row.cursor .ch-acts {
-  display: inline-flex;
+  visibility: visible;
 }
 
 .changes.closed .ch-acts,
@@ -271,13 +299,14 @@
 }
 
 .ch-count {
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--line);
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--selected);
   color: var(--ink-2);
-  font-size: 11px;
-  font-weight: 600;
+  font: 600 var(--text-xs)/16px var(--sans);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -287,19 +316,19 @@
 }
 
 summary .ch-count {
-  margin-left: 6px;
+  display: inline-block;
+  margin-left: var(--space-6);
+  vertical-align: top;
 }
 
+/* What happened to a file, in git's own letter: green where it is new, red where it is gone or
+   in conflict. */
 .ch-letter {
-  width: 14px;
+  width: 16px;
   flex: 0 0 auto;
-  font-family: var(--mono);
-  font-weight: 700;
+  color: var(--ink-2);
+  font: 600 var(--text-sm) var(--mono);
   text-align: center;
-}
-
-.st-M {
-  color: var(--budget-ink);
 }
 
 .st-A,
@@ -307,28 +336,24 @@ summary .ch-count {
   color: var(--done);
 }
 
-.st-D {
+.st-D,
+.st-U {
   color: var(--fail);
 }
 
-.st-R,
-.st-C {
-  color: var(--cyan-ink);
-}
-
-.st-U {
-  color: var(--pink-ink);
+.ch-none,
+.ch-quiet {
+  margin: 0;
+  padding: var(--space-12) var(--gutter);
+  color: var(--ink-3);
 }
 
 .ch-none {
   flex: 1 1 auto;
-  margin: 0;
-  padding: 12px;
-  color: var(--ink-3);
 }
 
 .ch-section {
-  border-top: 1px solid var(--line);
+  border-top: var(--border);
   max-height: 40%;
   overflow: auto;
   flex: 0 0 auto;
@@ -337,20 +362,22 @@ summary .ch-count {
 .ch-section summary {
   position: sticky;
   top: 0;
-  padding: 4px 8px;
-  background: var(--surface);
-  color: var(--ink-2);
-  font-weight: 600;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  z-index: var(--z-sticky);
+  min-height: var(--control-h-sm);
+  padding: var(--space-6) var(--space-8);
+  background: var(--side);
+  color: var(--ink-3);
+  font: 500 var(--text-sm)/16px var(--sans);
   cursor: pointer;
 }
 
-.ch-quiet {
-  margin: 0;
-  padding: 6px 10px;
-  color: var(--ink-3);
+.ch-section summary:hover {
+  color: var(--ink);
+}
+
+.ch-section summary:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .ch-commit-row {
@@ -359,19 +386,14 @@ summary .ch-count {
   grid-template-areas:
     'hash subject when'
     'hash author when';
-  column-gap: 8px;
-  padding: 4px 10px;
-}
-
-.ch-commit-row:hover {
-  background: var(--hover);
+  column-gap: var(--space-8);
+  padding: var(--space-4) var(--gutter);
 }
 
 .ch-hash {
   grid-area: hash;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--link);
+  color: var(--ink-2);
+  font: var(--text-xs)/20px var(--mono);
 }
 
 .ch-subject {
@@ -384,7 +406,8 @@ summary .ch-count {
 .ch-author {
   grid-area: author;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-sm);
+  line-height: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -393,25 +416,31 @@ summary .ch-count {
 .ch-when {
   grid-area: when;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
 .ch-snapshot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
+  gap: var(--space-8);
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-8) 0 var(--gutter);
+}
+
+.ch-snapshot .btn {
+  height: var(--control-h-xs);
+  border-radius: var(--radius-sm);
 }
 
 .ch-snapshots .error {
-  margin: 6px 10px;
+  margin: var(--space-8);
 }
 
 .ch-ref {
   flex: 1 1 auto;
-  font-family: var(--mono);
-  font-size: 12px;
+  color: var(--ink-2);
+  font: var(--text-sm) var(--mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -420,39 +449,50 @@ summary .ch-count {
 .ch-diff {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
 }
 
-.ch-diff-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
-}
-
+/* Which file the diff is of: its name gives way last, the folder it is in first. */
 .ch-diff-title {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--space-6);
   min-width: 0;
+  padding: 0 var(--space-8);
   overflow: hidden;
   white-space: nowrap;
 }
 
+.ch-diff-title .ch-name {
+  flex: 0 1 auto;
+  min-width: 3ch;
+  font-weight: 500;
+}
+
+.ch-diff-title .ch-dir {
+  flex-shrink: 100;
+}
+
+/* Which side of the index the diff is of: a tag after the name. */
 .ch-side-label {
-  padding: 0 6px;
-  border: 1px solid var(--line-strong);
-  color: var(--ink-3);
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 20px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  color: var(--ink-2);
+  font: 500 var(--text-sm)/20px var(--sans);
 }
 
 .ch-counter {
+  flex: none;
   min-width: 64px;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-sm);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -475,30 +515,46 @@ summary .ch-count {
 
 .ch-diff-body > .loading,
 .ch-diff-body > .error {
-  margin: 12px;
+  margin: var(--space-12) var(--gutter);
 }
 
 .ch-notice {
   margin: 0;
-  padding: 16px;
+  padding: var(--gutter);
   color: var(--ink-2);
 }
 
 .ch-notice p {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-8);
 }
 
-@media (max-width: 860px) {
-  .changes,
-  .changes.diffing {
-    grid-template-columns: minmax(0, 1fr);
+/* Narrow -- a phone, or the panel beside a chat -- the list has the panel to itself, and the
+   diff of the change picked takes its place until it is closed. */
+@container changes (max-width: 720px) {
+  .ch-side {
+    flex: 1 1 auto;
+    border-right: 0;
   }
 
-  .changes.diffing .ch-side {
+  .changes.diffing > .ch-side {
     display: none;
   }
 
+  .ch-counter {
+    min-width: 0;
+  }
+}
+
+/* On a phone the name of the file is kept before which side of the index it is. */
+@container changes (max-width: 480px) {
+  .ch-diff-title :is(.ch-dir, .ch-side-label) {
+    display: none;
+  }
+}
+
+/* Where nothing can be pointed at, what can be done to a change is always shown. */
+@media (hover: none) {
   .ch-acts {
-    display: inline-flex;
+    visibility: visible;
   }
 }

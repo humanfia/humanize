@@ -10,7 +10,8 @@
 import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
 import { pick } from './importing.js'
-import { copy, menuButton, menuOn, toast } from './ui.js'
+import { chain } from './layers.js'
+import { copy, menuButton, menuOn, posted, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
 import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, epicRow, harnessRow, pathOf } from './chats.js'
@@ -164,14 +165,7 @@ export function mountSidebar(root, context, where) {
       'div',
       { class: 'side-foot' },
       bar.el,
-      iconButton('gear', 'Settings', {
-        class: 'side-gear',
-        'data-hmz': 'settings-open',
-        onclick: () => {
-          settleSidebar()
-          location.hash = hash('/settings/general')
-        },
-      }),
+      iconButton('gear', 'Settings', { class: 'side-gear', 'data-hmz': 'settings-open', onclick: () => (location.hash = hash('/settings/general')) }),
     ),
     splitter(),
   )
@@ -350,8 +344,9 @@ export function mountSidebar(root, context, where) {
   }
 
   function draw() {
-    // A menu open in the list, or from a row of it, stands until it is closed: the list is drawn again then.
-    if (list.querySelector('.popover, [aria-haspopup][aria-expanded=true], .title-edit')) {
+    // A menu open from the list, or at the pointer, acts on the rows it was opened over, as a
+    // title's field stands in its row: the list is drawn again once that is closed.
+    if (list.querySelector('.title-edit') || chain().some((one) => (one.anchor ? list.contains(one.anchor) : one.kind !== 'panel'))) {
       stale = true
       return
     }
@@ -403,16 +398,7 @@ export function mountSidebar(root, context, where) {
           focus('.side-toggle')
         })
         const sort = iconButton('sliders', 'Group and sort', { class: 'side-sort', 'data-hmz': 'list-menu-open' })
-        // A choice made, the button that opened the menu has the focus back, as Escape gives it.
-        menu(
-          sort,
-          (close) =>
-            listMenu(() => {
-              close()
-              sort.focus()
-            }),
-          { label: 'Group and sort' },
-        )
+        menu(sort, listMenu, { label: 'Group and sort' })
         const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : '/new/chat'
         const head = h(
           'div',
@@ -736,8 +722,11 @@ export function mountSidebar(root, context, where) {
   })
   // A row pinned or marked, from wherever its menu was opened.
   window.addEventListener('hmz:list', () => data && draw())
-  // The menu that held a drawing back has closed, by a choice, a click elsewhere or Escape.
-  for (const closed of ['click', 'keyup']) document.addEventListener(closed, () => setTimeout(() => stale && data && draw()), true)
+  // What held a drawing back is gone: the menu closed, by whatever closed it, or the title's
+  // field done with. A press on the list that closed it is still on its way to a click, and the
+  // row under it stays until then.
+  window.addEventListener('hmz:layers', () => stale && data && !list.matches(':active') && draw())
+  for (const ended of ['click', 'keyup']) document.addEventListener(ended, () => setTimeout(() => stale && data && draw()), true)
   // Another daemon's epics and workspaces: nothing of the last one's is drawn until they are read.
   window.addEventListener('hmz:daemon', () => {
     data = null
@@ -822,17 +811,17 @@ export function epicMenu(run, { rename = null } = {}) {
   ]
 }
 
-let notice = null
+/** What takes away the last thing said to be going. */
+let done = () => {}
 
 /**
  * Says what was asked of the server is going, in a toast that stays until it answers -- the menu
  * it was asked from is closed by then -- and gives back the answer.
  */
 function working(said, asked) {
-  notice?.remove()
-  const mine = (notice = h('div', { class: 'toast notice working', role: 'status', 'data-hmz': 'working' }, h('span', { class: 'dot live', 'aria-hidden': 'true' }), `${said}…`))
-  document.body.append(mine)
-  return asked.finally(() => mine.remove())
+  done()
+  const mine = (done = posted(h('div', { class: 'toast notice working', role: 'status', 'data-hmz': 'working' }, h('span', { class: 'dot live', 'aria-hidden': 'true' }), `${said}…`)))
+  return asked.finally(mine)
 }
 
 /**
