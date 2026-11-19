@@ -136,6 +136,20 @@ async def test_what_dollar_prefers_in_a_chat_is_saved_for_this_machine(
     assert kept(tmp_path)["chat"] == {"prefer": "flow"}
 
 
+async def test_listing_harness_sessions_is_saved_for_this_machine(
+    workspace: Path, tmp_path: Path
+) -> None:
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await into_settings(pilot, "general")
+        await shows(pilot, "Harness sessions", "to continue as chats")
+
+        await picks(pilot, "harness_sessions", "on")
+        await shows(pilot, "unsaved changes")
+        await leaves(pilot)
+
+    assert kept(tmp_path)["harness_sessions"] is True
+
+
 async def test_the_chat_agent_set_up_on_the_workspace_page_is_remembered_there(
     workspace: Path, tmp_path: Path
 ) -> None:

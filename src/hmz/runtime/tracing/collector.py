@@ -279,7 +279,14 @@ def _gathered(
                 collected += reader(home, root, names, window)
 
     named = {ident: name for name, opened in (agents or {}).items() for ident in opened}
-    known = {item.key: item for item in collected}
+    # A session kept by Humanize as a copy of one its CLI still has -- a harness session
+    # continued as a chat -- is read in both places and is one session: the fuller reading.
+    known: dict[str, Session] = {}
+    for item in collected:
+        held = known.get(item.key)
+        if held is None or len(item.actions) > len(held.actions):
+            known[item.key] = item
+    collected = list(known.values())
     for item in collected:
         # Whatever ran a session ran every sub-agent under it, whatever those were
         # configured with themselves, so each is named after the root it hangs from.

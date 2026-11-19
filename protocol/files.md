@@ -212,8 +212,8 @@ MUST keep its mode.
 
 **3.3.3.6** Every write MUST set the key `spelling` to `2`.
 
-**3.3.3.7** Where a write of `enable_sentry`, `details`, `ai_chan`, `every_epic`, `chat`, `backup` or a
-workspace entry fails, or the file is unreadable, the process MUST keep the change in effect for
+**3.3.3.7** Where a write of `enable_sentry`, `details`, `ai_chan`, `every_epic`, `chat`,
+`harness_sessions`, `backup` or a workspace entry fails, or the file is unreadable, the process MUST keep the change in effect for
 itself for as long as it runs and MUST NOT report an error.
 
 **3.3.3.8** Where a write of `nous`, `clis`, `daemons`, `notifications`, `listen`,
@@ -382,6 +382,13 @@ it (Section 4.24.4.10 of [DAEMON]); an absent value, or any value but `true`, MU
 **3.4.13.1** `chat.prefer` MUST be `native` or `flow`, the preference of every chat of this machine
 whose own is not overridden (Section 8.9.10 of [CORE]); an absent value or any other MUST be read as
 `native`.
+
+#### 3.4.14. `harness_sessions`
+
+**3.4.14.1** `harness_sessions` MUST be a boolean that says whether a frontend lists, with the chats
+of a workspace, the harness sessions of that workspace (Section 8.11 of [CORE]).
+
+**3.4.14.2** Any value of `harness_sessions` other than `true` MUST be read as `false`.
 
 ### 3.5. `workspaces`
 
@@ -1723,7 +1730,7 @@ going; `sessions/`, as Section 6.9.5 and Section 6.9.6 specify it for an epic di
 
 **6.12.4** The chat record MUST be a JSON Lines file of events (Section 6.2.6), appended and never
 rewritten, and MUST contain no events other than those of Section 6.12.5 to Section 6.12.8 and
-of Section 6.12.12.
+of Section 6.12.13.
 
 **6.12.5** The first event of a chat record MUST be `began`, with the keys:
 
@@ -1737,7 +1744,10 @@ of Section 6.12.12.
   (Section 8.3.9 of [CORE]); present only where it is not `workspace-write`;
 - `workdir`: string, the absolute path of the worktree its assistant works in (Section 8.3.13 of
   [CORE]); present only where it works in one;
-- `title`: string, the title of the **chat** as it began; present only for a fork;
+- `title`: string, the title of the **chat** as it began; present only for a fork and for a
+  **chat** made from a harness session;
+- `adopted`: string, `<harness>:<id>`, the harness session this **chat** was made from (Section
+  8.11.4 of [CORE]); present only for such a **chat**;
 - `forked`: string, the name of the **chat** this one is a fork of (Section 8.10.2 of [CORE]);
   present only for a fork.
 
@@ -1775,7 +1785,14 @@ chat directory under the workspace key of its host's **workspace**. One an earli
 as an epic of kind `chat` MUST go on being recorded in that epic directory, `reopened` and `set`
 written into its epic record as Section 6.12.6 and Section 6.12.7 specify them for a chat record.
 
-**6.12.12** `hmz` MUST place a **chat** downloaded from a backup target (Section 8.3.14 of [CORE])
+**6.12.12** A **chat** made from a harness session (Section 8.11.4 of [CORE]) MUST be a new chat
+directory holding, under `sessions/<harness>/`, a copy of every file under the paths that harness
+keeps a session in whose path under the harness's own home holds the session id, at that same
+path; and a chat record of a `began` whose `task` and `title` are the title of the new chat
+(Section 8.11.4 of [CORE]), with `adopted`; an `opened` that gives that harness, that session id and the `where`
+`sessions/<harness>`; and an `ended` whose `how` is `stopped`.
+
+**6.12.13** `hmz` MUST place a **chat** downloaded from a backup target (Section 8.3.14 of [CORE])
 at `<home>/chats/<ws>/<chat name>/`, as Section 6.11.2 to Section 6.11.7 state for an imported
 **epic**, `<home>/chats/` in place of `<home>/epics/` and the chat record in place of the epic
 record. It MUST write `imported` into the chat record as Section 6.5.16 specifies it, a reader MUST

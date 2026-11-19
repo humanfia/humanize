@@ -342,3 +342,24 @@
   }
 
 }
+
+/* A session a harness had of its own, after the chats: said quietly, as it is only read, with
+   its harness at the row's end. */
+.side-harness > a {
+  padding-right: 10px;
+}
+
+.side-harness > a > .side-label {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+.side-harness-name {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.side-harness > a[aria-current='page'] > .side-label {
+  color: inherit;
+}

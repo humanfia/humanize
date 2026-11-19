@@ -442,6 +442,22 @@ by `Last updated` (3.5.17.2), a chat that rests MUST stand by its `updated`.
 said as `chat`. The page MUST NOT draw it as a chat, and MUST NOT offer to resume it, to start a
 new epic like it, or to say anything in it.
 
+**3.5.21** While the setting `harness_sessions` is `true` (Section 3.4.14 of [FILES]), and only
+then, the sidebar, grouped by folder, MUST list in each workspace's group, after its chats and
+epics, the harness sessions of that workspace (Section 8.11 of [CORE]) as `chat.harness.list`
+answers them (Section 4.25.8 of [DAEMON]), newest first, at most 50 of a workspace. Grouped
+otherwise, the sidebar MUST NOT list them.
+
+**3.5.21.1** A harness session's row MUST be told by its title, or by its id where it has none,
+MUST name its harness, MUST be drawn apart from a chat's -- quieter -- and MUST count among the
+rows its group shows before `Show N more` (3.5.17). It MUST NOT be pinned, marked unread, renamed,
+archived or deleted, and MUST NOT be among what Search finds.
+
+**3.5.21.2** A harness session's address MUST be `#/harness/<harness>/<id>?workspace=<path>`. Its
+view MUST draw what was said in it, read with `chat.harness.get` and `trace`, MUST say that it is
+only read, MUST NOT offer anything to type in, and MUST offer `Continue in chat`, which MUST call
+`chat.harness.adopt` and open the chat it answers.
+
 ### 3.6. An epic
 
 #### 3.6.1. Common rules
@@ -1130,9 +1146,10 @@ another, MUST be part of the address, and picking it MUST change nothing else on
 
 #### 3.11.2. Daemon pages
 
-**3.11.2.1** `General` MUST let the user set whether a turn's working is shown, `Ai-chan`, the nous
-a new Ai-chan conversation defaults to (none until one is picked), and whether errors are reported,
-as Section 14.3.2 of [CORE] and Section 12 of [CORE] specify.
+**3.11.2.1** `General` MUST let the user set whether a turn's working is shown, `Harness
+sessions`, whether the sidebar lists them (Section 3.5.21; off until set), `Ai-chan`, the nous a new
+Ai-chan conversation defaults to (none until one is picked), and whether errors are reported, as
+Section 14.3.2 of [CORE] and Section 12 of [CORE] specify.
 
 **3.11.2.2** `Accounts` MUST list every account by its harness, way in and the names of the
 variables it sets, and MUST let the user ask again what it runs, correct it, copy it to another

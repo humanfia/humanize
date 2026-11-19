@@ -160,6 +160,7 @@ class _Listed(Picks):
         chats: Sequence[Mapping[str, Any]],
         asks: Callable[..., dict[str, Any]] = calls,
         current: str = "",
+        after: Sequence[tuple[str, str, str]] = (),
     ) -> None:
         """Holds the chats.
 
@@ -167,9 +168,13 @@ class _Listed(Picks):
           chats: Each as a chat row of `chat.list`, newest first.
           asks: What asks the daemon one thing of its chats, as :func:`calls` does.
           current: The chat already had, by its id, which is ticked, or "" for none.
+          after: Rows listed after the chats that are none and have no menu, each `(what
+            picking it answers with, what it is called, the line about it)`: the sessions a
+            harness had of its own.
         """
         super().__init__(current)
         self._chats = [dict(one) for one in chats]
+        self._after = list(after)
         self._asks = asks
         #: The chats that left the list, by id: archived, put back or deleted.
         self.gone: set[str] = set()
@@ -181,7 +186,7 @@ class _Listed(Picks):
         return [
             (str(one.get("id") or ""), _titled(one), str(one.get("id") or ""))
             for one in self._chats
-        ]
+        ] + self._after
 
     def nothing(self) -> str:
         """What became of the last thing done."""

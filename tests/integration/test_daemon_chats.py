@@ -442,6 +442,7 @@ def test_a_chat_is_written_down_as_a_chat_and_is_no_epic(
         "task",
         "prefer",
         "forked",
+        "adopted",
         "agents",
         "sessions",
         "earlier",
@@ -683,6 +684,130 @@ def test_a_chat_is_forked_into_a_new_one_that_goes_on_from_a_copy(
     assert (
         sorted(one.relative_to(at) for one in (at / SESSIONS).rglob("*.jsonl")) == kept
     )
+
+
+def _harness_session(tmp_path: Path, project: Path, ident: str, said: str) -> Path:
+    """A session the stand-in `claude` had of its own in the project, as it logs one."""
+    plain = "".join(one if one.isalnum() else "-" for one in str(project))
+    log = tmp_path / "claude" / "projects" / plain / f"{ident}.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {
+            "type": "user",
+            "sessionId": ident,
+            "cwd": str(project),
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "message": {"role": "user", "content": said},
+        },
+        {
+            "type": "assistant",
+            "sessionId": ident,
+            "cwd": str(project),
+            "timestamp": "2026-01-01T00:00:05+00:00",
+            "message": {
+                "model": MODEL,
+                "role": "assistant",
+                "content": [{"type": "text", "text": f"did: {said}"}],
+            },
+        },
+    ]
+    log.write_text("".join(json.dumps(one) + "\n" for one in rows))
+    return log
+
+
+def test_a_harness_session_is_listed_read_and_continued_as_a_chat_from_a_copy(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    ident = "0a0a0a0a-1111-4222-8333-444444444444"
+    log = _harness_session(tmp_path, project, ident, "the word is guava")
+    before = log.read_bytes()
+    # A chat Humanize had here keeps its sessions itself: none of them is a harness session.
+    link, _, _, mine = _chat(project, "a chat of humanize's own")
+    _ended(link, user, mine)
+    named = {"workspace": str(project), "harness": "claude", "session": ident}
+
+    listed = user.call("chat.harness.list", {"workspace": str(project)}, timeout=30)
+
+    assert (listed["total"], listed["offset"], listed["limit"]) == (1, 0, 50)
+    (row,) = listed["sessions"]
+    assert set(row) == {
+        "id",
+        "harness",
+        "title",
+        "workspace",
+        "model",
+        "began",
+        "updated",
+    }
+    assert (row["id"], row["harness"], row["title"], row["model"]) == (
+        ident,
+        "claude",
+        "the word is guava",
+        MODEL,
+    )
+    assert row["workspace"] == str(project.resolve())
+    read = user.call("chat.harness.get", {**named, "trace": True}, timeout=30)
+    (session,) = read["trace"]
+    assert session["key"] == f"claude:{ident}"
+    assert sorted(one["category"] for one in session["actions"]) == ["message", "turn"]
+    assert _refused(user, "chat.harness.get", **named | {"session": "none"}) == (
+        404,
+        f"There is no claude session none of {project}.",
+    )
+    assert _refused(user, "chat.harness.adopt", **named | {"harness": "opencode"}) == (
+        409,
+        "A session of opencode cannot be continued in a chat.",
+    )
+
+    adopted = user.call("chat.harness.adopt", named, timeout=30)["chat"]
+
+    whole = user.call("chat.get", {"chat": adopted, "trace": True}, timeout=30)
+    assert (whole["adopted"], whole["state"], whole["title"], whole["agent"]) == (
+        f"claude:{ident}",
+        "resting",
+        "the word is guava",
+        f"{AGENT}:auto",
+    )
+    # Read once, though its harness still has the session the chat holds a copy of.
+    assert [one["key"] for one in whole["trace"]] == [f"claude:{ident}"]
+    copy = _directory(adopted)
+    assert [
+        one.relative_to(copy / SESSIONS).parts[0] for one in copy.rglob(log.name)
+    ] == ["claude"]
+    assert next(copy.rglob(log.name)).read_bytes() == before
+    began = _events(copy)[0]
+    assert (began["event"], began["adopted"]) == ("began", f"claude:{ident}")
+    ids = [
+        one["id"]
+        for one in user.call("chat.list", {"workspace": str(project)}, timeout=30)[
+            "chats"
+        ]
+    ]
+    assert ids == [adopted, mine]
+    # A chat's now, and so no harness session; refused as none from here on.
+    again = user.call("chat.harness.list", {"workspace": str(project)}, timeout=30)
+    assert again["sessions"] == []
+    assert _refused(user, "chat.harness.adopt", **named)[0] == 404
+
+    # Carried on, the chat goes on from the copy; the harness's own session is as it was.
+    carried, _, _, name = _chat(project, "what was the word?", agent="", resume=adopted)
+    try:
+        assert name == adopted
+        last = started(tmp_path)[-1]
+        assert "--resume" in last["argv"]
+        went = user.call("chat.get", {"chat": adopted}, timeout=30)["sessions"]
+        assert (went[0]["ident"], went[-1]["parent"]) == (ident, ident)
+    except BaseException:
+        carried.close()
+        raise
+    assert log.read_bytes() == before
+    assert sorted(one.name for one in log.parent.iterdir()) == [log.name]
+
+    # Deleted, the chat gives the session back to the list it came from.
+    _ended(carried, user, adopted)
+    user.call("chat.delete", {"chat": adopted}, timeout=30)
+    back = user.call("chat.harness.list", {"workspace": str(project)}, timeout=30)
+    assert [one["id"] for one in back["sessions"]] == [ident]
 
 
 def test_a_chat_with_no_conversation_kept_in_it_is_not_forked(

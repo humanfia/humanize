@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from hmz.runtime.epic import Called, Ran, Session
     from hmz.runtime.tracing.timeline import Timeline
 
-__all__ = ["Epics", "kind"]
+__all__ = ["Epics", "kind", "transcribed"]
 
 
 def kind(ran: Ran) -> Literal["flow", "chat"]:
@@ -223,7 +223,7 @@ class Epics:
 
         with tempfile.TemporaryDirectory(dir=machine()) as scratch:
             _, document = self.traced(epic, output=Path(scratch) / "trace.json")
-        return _sessions_of(document)
+        return transcribed(document)
 
     def timeline(self, epic: Path) -> Timeline:
         """Lays one run out as an Exomyth timeline: its sessions, flows, Python and programs.
@@ -381,7 +381,7 @@ class Epics:
         )
 
 
-def _sessions_of(document: dict[str, Any]) -> list[dict[str, Any]]:
+def transcribed(document: dict[str, Any]) -> list[dict[str, Any]]:
     """What each session of a trace said and did, in the order it did it.
 
     Args:

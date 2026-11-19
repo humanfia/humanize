@@ -464,7 +464,7 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
 | Method | Fields (default) | Answer | Refusals |
 | --- | --- | --- | --- |
 | `chat.list` | `workspace` (only that workspace's chats, a workspace since removed included; every workspace's without it), `archived` (`false`: `true` lists the archived chats alone, otherwise those not archived alone), `q` (text found in the title, the first message or the name), `offset` (`0`), `limit` (`50`, at most `200`) | `chats` ([chat rows](#chat-rows), newest begun first), `total`, `offset`, `limit` | — |
-| `chat.get` | `chat`, `trace` (`false`) | the chat row, with `at` (its directory), `task` (its first message, whole), `prefer` (its own preference, `""` for none), `forked` (the name of the chat it was forked from, `""` for none), `agents` and `sessions` (as `runs.get` answers them), `earlier` (how many of its sessions it opened before it was last carried on), `backup` and `backed` (as an epic row's); with `trace`, also `trace`: what `runs.trace` answers as `sessions` for an epic, each session's actions | 404 |
+| `chat.get` | `chat`, `trace` (`false`) | the chat row, with `at` (its directory), `task` (its first message, whole), `prefer` (its own preference, `""` for none), `forked` (the name of the chat it was forked from, `""` for none), `adopted` (the [harness session](#harness-sessions) it was made from, `<harness>:<id>`, `""` for none), `agents` and `sessions` (as `runs.get` answers them), `earlier` (how many of its sessions it opened before it was last carried on), `backup` and `backed` (as an epic row's); with `trace`, also `trace`: what `runs.trace` answers as `sessions` for an epic, each session's actions | 404 |
 | `chat.rename` | `chat`, `title` (1 to 240 characters) | the chat row | 400 `A chat's title says something.` for white space alone; 404 |
 | `chat.fork` | `chat` | `chat`, the new chat's name | 409 `Chat <name> has a turn open; fork it once it is done.`, also while a process that is no host holds it; 409 `<name> cannot be forked: its conversation is not kept in the chat.`; 404 |
 | `chat.archive`, `chat.unarchive` | `chat` | the chat row | 404 |
@@ -501,6 +501,45 @@ nothing in the web page calls `chat.rename`, `chat.fork`, `chat.archive`, `chat.
 A chat backed up is listed and downloaded with the epics of its target: `backups.epics` answers
 it among `epics` with `chat` `true`, its `epic` the chat's id and its `flow` `""`, and
 `backups.pull` downloads it into this machine's chats.
+
+#### A harness's own sessions {#harness-sessions}
+
+A **harness session** is a session a coding agent CLI had in a workspace that Humanize did not
+run: one the CLI keeps in its own home (`~/.claude`, `~/.codex`, …), which no chat and no epic
+of this machine opened. The daemon only reads them; nothing under a CLI's home is written,
+moved or removed.
+
+| Method | Fields (default) | Answer | Refusals |
+| --- | --- | --- | --- |
+| `chat.harness.list` | `workspace`, `offset` (`0`), `limit` (`50`, at most `200`) | `sessions` (harness session rows, last written first), `total`, `offset`, `limit` | — |
+| `chat.harness.get` | `workspace`, `harness`, `session`, `trace` (`false`) | the harness session row; with `trace`, also `trace`, as `chat.get` answers it, of that session and the sub-agents it started | 404 |
+| `chat.harness.adopt` | `workspace`, `harness`, `session`, `agent` (an agent of that harness; without it, the harness at the model the session last ran on) | `chat`, the new chat's name | 409 `A session of <harness> cannot be continued in a chat.`; 409 saying why, for an `agent` of another harness, a session that says no model where no `agent` is given, or files that cannot be copied; 404 |
+
+404 is `There is no <harness> session <session> of <workspace>.`
+
+A harness session row holds `id` (the id its harness gave it), `harness`, `title` (the first
+line said in it, cut at 240 characters; `""` where the head of its log gives none),
+`workspace`, `model` (the model it last ran on, `""` where its log gives none), `began` and
+`updated` (when its log was last written).
+
+- **Which are listed.** Those of `claude`, `codex`, `grok`, `pi`, `omp` and `qwen`, each only
+  where it is installed on the daemon's machine, that worked in the workspace's directory.
+  Left out: a sub-agent's or a fork's thread; every session a chat or an epic of this machine
+  opened, by harness and session id -- which is every one Humanize ran, and every one already
+  adopted; and a harness whose home is inside Humanize's own. A harness whose home cannot be
+  read lists nothing and fails nothing. The other harnesses keep their sessions in a database
+  shared by every session, or cannot carry one on from a copy, and are not listed.
+- **What listing costs.** At most the first and the last 128 KiB of each session's log; a log
+  that has not changed since it was last read is not opened again. `chat.harness.get` with
+  `trace` reads one session whole.
+- **`chat.harness.list` answers whatever [`harness_sessions`](/reference/settings#harness-sessions)
+  says.** That setting is whether the web page and the TUI *show* them.
+- **`chat.harness.adopt`** makes a new chat of that workspace from a copy of the session: the
+  files of the session are copied into the chat's `sessions/<harness>/`, the chat is titled by
+  the session's first line, says in `adopted` where it came from, and rests until `chat.start`
+  carries it on with `resume`, which continues the copy. The harness's own session is left
+  exactly as it was, and is no longer listed while the chat exists; delete the chat and it is
+  listed again.
 
 #### Chat rows {#chat-rows}
 

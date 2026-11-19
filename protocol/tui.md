@@ -428,16 +428,24 @@ with `resume` the chat's id), the interface saying so.
 **7.12.5.3** `/resume` MUST NOT list or carry on an epic an earlier Humanize recorded for a chat
 (Section 17.2.3).
 
-**7.12.5.4** `m` on a chat of the pick list MUST open its menu (Section 15.2.7) with these rows,
+**7.12.5.4** While the setting `harness_sessions` is `true` (Section 3.4.14 of [FILES]), and only
+then, the pick list MUST hold, after the chats, the harness sessions of this directory (Section
+8.11 of [CORE]) as this machine's daemon lists them (`chat.harness.list`, Section 4.25.8 of
+[DAEMON]), each by its title, or by its id where it has none, with a line that names its harness
+and says it is read-only. Picking one MUST continue it as a chat (`chat.harness.adopt`) and MUST
+then go to that chat as Section 7.12.5.2 states for a chat no host holds; a refusal MUST be said.
+
+**7.12.5.5** `m` on a chat of the pick list MUST open its menu (Section 15.2.7) with these rows,
 each done by this machine's daemon (Section 4.25.7 of [DAEMON]): `rename`, which asks for a title
 on a form that opens on the chat's own (`chat.rename`); `fork` (`chat.fork`), which closes the list
 and goes on with the new chat as Section 7.12.5.2 states for a chat no host holds; `archive`
 (`chat.archive`); `upload`, offered where a backup target exists, which queues a backup of the chat
 to the targets it was started with, else the defaults, without waiting for it (`chat.backup`);
 `delete`, which asks in a box saying that the deletion is permanent, whose first answer keeps the
-chat, and deletes on the other (`chat.delete`); and `copy id`.
+chat, and deletes on the other (`chat.delete`); and `copy id`. The row of a harness session
+(Section 7.12.5.4) MUST have no menu.
 
-**7.12.5.5** A chat archived or deleted MUST leave the pick list at once, and the list's message
+**7.12.5.6** A chat archived or deleted MUST leave the pick list at once, and the list's message
 line MUST say what became of each thing done from a menu, what the daemon refused included. Where
 the chat of this frontend was archived or deleted, closing the list MUST start a new chat as
 `/clear` does (Section 7.14.2).
@@ -1245,8 +1253,9 @@ Ai-chan conversation made.
 thinking and harness output; **Ai-chan**, the nous a new Ai-chan conversation defaults to (Section
 14.3.2 of [CORE]): `none`, the current one, another nous, or an agent set up on the agent sheet
 titled `Set up Ai-chan`; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
-whose own is not overridden (Section 8.9.10 of [CORE]); **Error reports**, on or off; and **What is
-sent**, which says what error reports include and exclude.
+whose own is not overridden (Section 8.9.10 of [CORE]); **Harness sessions**, whether `/resume` in a
+chat lists them (Section 7.12.5.4); **Error reports**, on or off; and **What is sent**, which says
+what error reports include and exclude.
 
 **19.2.2** Once answered, **Error reports** MUST NOT return to unanswered.
 

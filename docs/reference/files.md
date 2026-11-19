@@ -354,7 +354,7 @@ The events of `chat.jsonl`:
 
 | `event` | When | Fields |
 | --- | --- | --- |
-| `began` | the chat begins; once, first | `task` (its first message), `workspace`, `agents` (one entry, whose `agent` is `assistant`, as an epic's), and, each only where it applies: `backup` (its targets), `prefer` (`native` or `flow`, its own preference), `permission` (`read-only` or `danger-full-access`; none is `workspace-write`), `workdir` (the [worktree](/user/chat#worktree) its assistant works in), `title` and `forked` (the chat it is a fork of; a fork only) |
+| `began` | the chat begins; once, first | `task` (its first message), `workspace`, `agents` (one entry, whose `agent` is `assistant`, as an epic's), and, each only where it applies: `backup` (its targets), `prefer` (`native` or `flow`, its own preference), `permission` (`read-only` or `danger-full-access`; none is `workspace-write`), `workdir` (the [worktree](/user/chat#worktree) its assistant works in), `title` and `forked` (the chat it is a fork of; a fork only), `adopted` (`<harness>:<id>`, the [harness session](/reference/daemon#harness-sessions) it was made from, with `title`; such a chat only) |
 | `set` | its preference, agent, permission or title is set, or it is archived or put back | any of `prefer`, `agents` (as `began` gives them), `permission`, `title`, `archived` (bool); a reader takes each from the last event that gives it, `began` included, a chat with no `title` being titled by the first line of its `task` |
 | `opened` | a session's CLI has given it an id | as an epic's [`opened`](/reference/tracing#epic-jsonl) |
 | `reopened` | the chat is carried on; never another `began` | `task`, the message that carried it on |
@@ -364,7 +364,9 @@ The events of `chat.jsonl`:
 
 A chat is removed only by [`chat.delete`](/reference/daemon#chats), which removes the directory
 whole and never the worktree a `workdir` names, or by you, while the chat is not going. A fork
-is a new directory holding a copy of `sessions/`.
+is a new directory holding a copy of `sessions/`. A chat made from a harness session is a new
+directory holding, under `sessions/<harness>/`, a copy of that session's files as the CLI lays
+them out, with an `opened` for it and an `ended`: the CLI's own files are only read.
 
 A chat an earlier Humanize began is an epic under `H/epics/`, whose `began` gives `kind`
 `chat`: it stays there, read as an epic, and is not a chat.

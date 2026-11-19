@@ -11,20 +11,23 @@ are stood in for (:class:`Chats`).
 
 from __future__ import annotations
 
+import json
 import sys
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from hmz import daemon as daemons
 from hmz.daemon.reach import Conversations
 from hmz.runtime.epic import Ran, chats, epics, read
+from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.chats import Resumes
 from hmz.tui.flows import Flows
 from hmz.tui.monitoring import Monitoring
 from tests.integration.doubles_tui import (
+    MODEL,
     OWN,
     PRINTED,
     RUNS,
@@ -35,6 +38,7 @@ from tests.integration.doubles_tui import (
     heard,
     leaves,
     on,
+    onto,
     opened,
     opens,
     own_flow,
@@ -521,6 +525,74 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
     # Said once, to the chat it was set for: the chat keeps it from there on.
     assert [one["prefer"] for one in starts] == ["flow", None]
     assert (read(first) or Ran(first)).prefer == "flow"
+
+
+def _harness_session(tmp_path: Path, workspace: Path, ident: str, said: str) -> Path:
+    """A session the stand-in `claude` had of its own in the workspace, as it logs one."""
+    workspace = workspace.resolve()
+    plain = "".join(one if one.isalnum() else "-" for one in str(workspace))
+    log = tmp_path / "claude-home" / "projects" / plain / f"{ident}.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    rows: list[dict[str, Any]] = [
+        {
+            "type": "user",
+            "cwd": str(workspace),
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "message": {"role": "user", "content": said},
+        },
+        {
+            "type": "assistant",
+            "cwd": str(workspace),
+            "timestamp": "2026-01-01T00:00:05+00:00",
+            "message": {"model": MODEL, "role": "assistant", "content": []},
+        },
+    ]
+    log.write_text("".join(json.dumps(one) + "\n" for one in rows))
+    return log
+
+
+async def test_a_harness_session_is_offered_on_resume_where_set_and_goes_on_as_a_chat(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folds_fast(monkeypatch)
+    ident = "0b0b0b0b-1111-4222-8333-444444444444"
+    log = _harness_session(tmp_path, workspace, ident, "the word is guava")
+    before = log.read_bytes()
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "first")
+        await shows(pilot, "heard first", "◉ done")
+
+        # Not listed until the setting says so: only the chats of Humanize's own are.
+        await typed(pilot, "/resume")
+        await on(pilot, Resumes)
+        (mine,) = chats(workspace)
+        assert rows(app) == [mine.name]
+        await pilot.press("escape")
+        await until(pilot, lambda: len(app.screen_stack) == 1, "the list to close")
+
+        Settings().harness_sessions = True
+        await typed(pilot, "/resume")
+        await shows(
+            pilot, "Resume a chat", "the word is guava", "claude session, read-only"
+        )
+        # After the chats, and read-only: its row has no menu.
+        listing = await on(pilot, Resumes)
+        assert rows(app) == [mine.name, f"harness:claude:{ident}"]
+        await onto(pilot, f"harness:claude:{ident}")
+        assert listing.menu() is None
+        await opens(pilot, f"harness:claude:{ident}")
+        await shows(pilot, "say something to continue")
+        await typed(pilot, "more")
+        await shows(pilot, "heard more", "◉ done")
+
+    made = [ran for at in chats(workspace) if (ran := read(at)) and ran.adopted]
+    assert [(one.adopted, one.title) for one in made] == [
+        (f"claude:{ident}", "the word is guava")
+    ]
+    assert log.read_bytes() == before
+    assert heard(workspace) == ["first", "more"]
 
 
 async def test_prefer_is_refused_an_argument_it_does_not_take(workspace: Path) -> None:

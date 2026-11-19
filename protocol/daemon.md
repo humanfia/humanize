@@ -1538,19 +1538,21 @@ the one `hmz exec` prints after `hmz exec: error: `, for everything it finds.
 
 **4.18.1.1** `settings.get` MUST take `workspace`, for a workspace that need not exist, and answer
 `workspace`, `flow`, `chat` (the chat agent remembered there, or `""`), `prefer` (`native` or
-`flow`, Section 3.4.13 of [FILES]), `ai_chan`, `details`, `reports` (`null` where never answered),
+`flow`, Section 3.4.13 of [FILES]), `ai_chan`, `details`, `harness_sessions`, `reports` (`null`
+where never answered),
 `flows` (the flows set up there), `backup` (`targets`, each `name`, `url` without credentials,
 `branch`, `policies`, `every`; and `defaults`), `listen` and `ice_servers`.
 
 **4.18.1.2** `settings.set` MUST take `workspace` and any of `chat` (an agent spec), `prefer`
-(`native` or `flow`), `ai_chan` (text), `details` (boolean),
+(`native` or `flow`), `ai_chan` (text), `details` (boolean), `harness_sessions` (boolean),
 `reports` (boolean), `backup` (`{targets, defaults}`, every target), `listen` (a list of listener
 specs) and `ice_servers` (a list of `{urls, username, credential}`), MUST be a write, and MUST
 answer as `settings.get` does.
 
 **4.18.1.3** `settings.set` MUST write `chat` as `chat.agent` of the workspace, `prefer` as
-`chat.prefer`, and `ai_chan`, `details`, `backup`, `listen` and `ice_servers` as Section 3 of
-[FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of [FILES];
+`chat.prefer`, and `ai_chan`, `details`, `harness_sessions`, `backup`, `listen` and `ice_servers`
+as Section 3 of [FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of
+[FILES];
 a change of `listen` MUST open and close listeners at once.
 
 **4.18.1.4** A target whose `url` equals the credential-free URL `settings.get` answered MUST keep
@@ -2312,6 +2314,7 @@ failed (Section 8.4.9 of [CORE]); and `resting` otherwise.
 **4.25.5.4** `chat.get` `{chat, trace}` MUST answer the chat row of the chat of that name, of
 whichever workspace, with `at` (its directory), `task` (its first message, whole), `prefer` (its
 override, `""` for none), `forked` (the name of the chat it was forked from, `""` for none),
+`adopted` (the harness session it was made from, `<harness>:<id>`, `""` for none),
 `agents` and `sessions` (as `runs.get` answers them, Section 4.16.3.1), `earlier` (how many of its
 sessions it opened before it was last carried on), `backup` and `backed` (as an epic row's); and,
 with `trace` `true`, `trace`, what `runs.trace` answers as `sessions` for an epic (Section 4.16.4),
@@ -2359,6 +2362,43 @@ answered and refused as `runs.backup` is.
 **4.25.7.6** `chat.delete` MUST remove the chat's directory (Section 8.10.4 of [CORE]) and MUST be
 answered `{}`; it MUST be refused 409 with `Chat <name> is going on; delete it once it rests.`
 while a host or any other process holds the chat.
+
+#### 4.25.8. `chat.harness.list`, `chat.harness.get` and `chat.harness.adopt`
+
+**4.25.8.1** `chat.harness.list` MUST take `workspace` (required), `offset` (default `0`) and
+`limit` (default `50`, at most `200`), and MUST answer `sessions` (harness session rows, last
+written first), `total`, `offset` and `limit`. It MUST answer whatever the setting
+`harness_sessions` holds: that setting governs what a frontend lists (Section 8.11.3 of [CORE]),
+not what the daemon answers.
+
+**4.25.8.2** The harness sessions of a workspace (Section 8.11.1 of [CORE]) MUST be the sessions
+that each of the harnesses `claude`, `codex`, `grok`, `pi`, `omp` and `qwen` installed on the
+daemon's machine keeps in its own home, that worked in the directory of that workspace, that no
+other session started or was forked into, and that no chat and no epic of the machine records as
+opened (`opened`, Section 6.5.4 of [FILES]) by that harness under that session id. A harness whose
+home is within `<home>`, or cannot be read, MUST list none and MUST NOT fail the call.
+
+**4.25.8.3** A harness session row MUST hold `id` (the id its harness gave the session), `harness`,
+`title` (the first line the user said in it, cut at 240 characters, `""` where the head of its log
+gives none), `workspace`, `model` (the model it last ran on, `""` where its log gives none),
+`began` and `updated` (when its log was last written).
+
+**4.25.8.4** To list harness sessions the daemon MUST read no more of a session's log than its
+first 128 KiB and its last 128 KiB.
+
+**4.25.8.5** `chat.harness.get` MUST take `workspace`, `harness` and `session` (each required) and
+`trace` (boolean), and MUST answer the harness session row of that session; with `trace` `true`,
+with `trace` as `chat.get` answers it (Section 4.25.5.4), read of that session and of the sessions
+it started. A session that is no harness session of the workspace MUST be refused 404, `There is no
+<harness> session <session> of <workspace>.`, by `chat.harness.get` and by `chat.harness.adopt`.
+
+**4.25.8.6** `chat.harness.adopt` MUST take `workspace`, `harness` and `session` (each required)
+and `agent` (an agent spec of that harness), MUST be a write, MUST make the chat of Section 8.11.4
+of [CORE], recorded as Section 6.12.12 of [FILES] states, and MUST be answered with `chat`, the new
+chat's name. It MUST be refused 409 with `A session of <harness> cannot be continued in a chat.`
+for a harness that is none of Section 4.25.8.2, and 409, saying why, for an `agent` of another
+harness, for a session that gives no model where `agent` is absent, and where the session's files
+cannot be copied.
 
 ## 5. Security Considerations
 
