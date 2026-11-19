@@ -1294,10 +1294,11 @@ starts on that host, and one about an epic the host no longer holds MUST NOT be 
 
 #### 4.16.1. `runs.list`
 
-**4.16.1.1** `runs.list` MUST take `workspace` (only that workspace's epics; every workspace's where
-absent), `status` (an ending of Section 3 of [CORE], `running` or `unfinished`), `flow`, `kind` (`chat`
-or `flow`: only the epics of that kind), `q` (text found in the task, flow or epic name), `offset`
-(default `0`) and `limit` (default `50`, at most `200`).
+**4.16.1.1** `runs.list` MUST take `workspace` (only that workspace's epics, reading the epics of a
+workspace since removed; every workspace's where absent), `status` (an ending of Section 3 of
+[CORE], `running` or `unfinished`), `flow`, `kind` (`chat` or `flow`: only the epics of that kind),
+`q` (text found in the task, flow or epic name), `offset` (default `0`) and `limit` (default `50`,
+at most `200`).
 
 **4.16.1.2** `runs.list` MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`,
 `counts` (`{ending: n}` over every epic of the `kind` asked for) and `flows` (every flow, sorted).
@@ -1401,10 +1402,10 @@ NOT carry credentials of a URL.
 
 #### 4.16.9. `runs.usage`
 
-**4.16.9.1** `runs.usage` MUST take `days` (1 to 365, default 30) and `workspace` (only its epics),
-and MUST answer `days_back`, `days` (per UTC day, oldest first), `flows` (costliest first), `ended`
-(`{ending: n}`) and `whole`, each but `ended` holding `runs`, `cost`, `output_tokens`, `seconds`,
-`money`, `tokens` and `worked`.
+**4.16.9.1** `runs.usage` MUST take `days` (1 to 365, default 30) and `workspace` (only its epics,
+reading the epics of a workspace since removed), and MUST answer `days_back`, `days` (per UTC day,
+oldest first), `flows` (costliest first), `ended` (`{ending: n}`) and `whole`, each but `ended`
+holding `runs`, `cost`, `output_tokens`, `seconds`, `money`, `tokens` and `worked`.
 
 ### 4.17. Flows, workspaces and paths
 

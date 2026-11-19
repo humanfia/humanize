@@ -754,8 +754,9 @@ def _within(
 
 
 def _workspace_of(call: Call) -> str:
+    # A workspace since removed is still filtered by: its epics are read, not its directory.
     said: str | None = call.params.get("workspace")
-    return str(workspaces.place(said)) if said is not None else ""
+    return str(workspaces.place(said, made=True)) if said is not None else ""
 
 
 def _list(call: Call) -> dict[str, Any]:
