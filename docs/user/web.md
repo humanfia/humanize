@@ -147,6 +147,10 @@ The graph's paper has no edge: drag anywhere on it, a node included, or slide tw
 trackpad to move it; pinch, or turn a mouse's wheel, to zoom about the pointer. **Recenter**, at the bottom left beside the zoom,
 brings the graph back to the middle of the view.
 
+The page follows the run as it goes. Once a minute it attaches again from the last record it
+read, so a connection that went quiet catches up without a reload; what was already read is not
+drawn twice.
+
 The panel beside it (the button at the top right shows and hides it) holds:
 
 - **Epic.** How long it has been going, what it has spent and how fast, a meter for each limit of

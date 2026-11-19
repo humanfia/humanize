@@ -22,7 +22,7 @@ import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill
 import { modelName, parted } from '../chips/agent.js'
 import { modelFact } from '../chips/model.js'
 import { PANES, chipNamed, paneOf, standing as standingSaid, stoppable, toggled, usageSaid } from '../desk.js'
-import { ask, chatAsk, follow } from '../held.js'
+import { ask, chatAsk, follow, refresh } from '../held.js'
 import { chatPermission } from '../chips/permission.js'
 import { composer as composed } from '../composer.js'
 import { archiving, retitling } from '../chat-actions.js'
@@ -39,6 +39,9 @@ import { panelsOf, usedLine } from './envs/tree.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
 const LINES = 3000
+
+/** How often a run going is attached to again, so a subscription that went quiet catches up. */
+const REFRESH = 60_000
 
 export function mount(root, { parts, query }) {
   if (parts[0] === 'epics' && parts[2] === 'exomyth') return exomyth(root, parts[1], query)
@@ -1151,6 +1154,12 @@ export function mount(root, { parts, query }) {
   const ticking = setInterval(() => {
     if (seen && seen.going && seen.going.live) draw()
   }, 1000)
+  // A subscription that went quiet without closing says nothing of it: attached again once a
+  // minute from the last record read, the graph catches up without a reload.
+  const attaching = setInterval(() => {
+    if (document.hidden || !seen || !seen.detail || !seen.going || !seen.going.live || isChat(seen.detail)) return
+    refresh({ workspace: seen.detail.workspace, slot: seen.detail.slot })
+  }, REFRESH)
   // Looked at again, the questions waiting are looked at.
   addEventListener('focus', draw)
   document.addEventListener('visibilitychange', draw)
@@ -1160,6 +1169,7 @@ export function mount(root, { parts, query }) {
       stop()
       leaveEnv()
       clearInterval(ticking)
+      clearInterval(attaching)
       removeEventListener('focus', draw)
       document.removeEventListener('visibilitychange', draw)
     },
