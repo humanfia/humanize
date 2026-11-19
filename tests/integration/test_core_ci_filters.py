@@ -119,7 +119,9 @@ def test_a_topic_runs_when_what_its_tests_import_changed(topic: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "package", sorted(p.name for p in (ROOT / "tests/unit").iterdir() if p.is_dir())
+    "package",
+    # The directories that hold tests: a run leaves a `__pycache__` beside them.
+    sorted({p.parent.name for p in (ROOT / "tests/unit").glob("*/test_*.py")}),
 )
 def test_a_package_runs_when_what_every_unit_test_starts_from_changed(
     package: str,
