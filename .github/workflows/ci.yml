@@ -115,6 +115,8 @@ jobs:
               - src/hmz/**
               - tests/integration/*_core*.py
               - tests/integration/doubles_daemon.py
+              # tests/integration/test_core_ci_caches.py holds it to what the jobs here restore.
+              - .github/workflows/cache.yml
             integration-anchor:
               - *shared
               - src/hmz/**
@@ -228,6 +230,9 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: crates/coganchor
+          # The cache the `coganchor` job reads: a cache is keyed by its job's name, and
+          # cache.yml saves none under this job's.
+          shared-key: coganchor
           # Restores what cache.yml saved on `main`, and writes nothing.
           save-if: false
 
