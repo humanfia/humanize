@@ -273,7 +273,7 @@ a right click on it, and the `⋯` menu of its bar.
 | --- | --- |
 | **Rename** | Turns the title into a field, where it stands: on the chat's bar -- pressing the title there does the same -- or in its row of the sidebar. <kbd>Enter</kbd>, or clicking away, saves it; <kbd>Esc</kbd> leaves it as it was. The bar and the row both follow |
 | **Fork** | Makes a new chat from a copy of the conversation so far and opens it; it rests until you say something in it. Refused while a turn is open, in the daemon's own words |
-| **Archive** | Takes the chat off the sidebar and out of Search, and changes nothing else of it. Still open, or opened again by its address, it reads as before, with **Unarchive** on its bar and in its menu. The archived chats of a directory are listed in [Settings](#settings) under **Workspace**, each with **Unarchive** and **Delete** |
+| **Archive** | Takes the chat off the sidebar and out of Search, and changes nothing else of it. Still open, or opened again by its address, it reads as before, with **Unarchive** on its bar (in a narrow window, in its menu alone) and in its menu. The archived chats of a directory are listed in [Settings](#settings) under **Workspace**, each with **Unarchive** and **Delete** |
 | **Delete** | Asks first, in a dialog: deleting permanently removes the chat's record and the sessions kept with it, cannot be undone, and leaves a worktree the chat worked in on disk. **Cancel**, <kbd>Esc</kbd> or **Delete**. A chat still going -- a host holds it, between turns included -- is refused, in the daemon's own words: delete it once it has folded away. Deleted from its own view, the page opens a new chat |
 
 The next chip under the box names what the chat's agent may touch -- **Read only**, **Edit
