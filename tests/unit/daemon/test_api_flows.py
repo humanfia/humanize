@@ -176,11 +176,19 @@ def _flows(*names: str) -> Any:
     def declared(_: str) -> object:
         return SimpleNamespace(agents=[role])
 
+    def entry(said: str) -> str:
+        if said != "smart":
+            raise ValueError(f"{said!r} is no nous written down")
+        return "claude/opus"
+
     return SimpleNamespace(
+        workspace="/w",
         flows=SimpleNamespace(
             all=lambda: [SimpleNamespace(name=one) for one in names],
             declared=declared,
-        )
+        ),
+        nous=SimpleNamespace(entry=entry),
+        backups=SimpleNamespace(targets=list),
     )
 
 
@@ -265,6 +273,26 @@ def test_a_set_up_that_cannot_run_is_refused(
     with pytest.raises(RpcError) as refused:
         flows.remembers(_flows("loop", "chat"), said)
     assert (refused.value.code, refused.value.message) == (Code.REFUSED, sentence)
+
+
+def test_a_set_up_takes_a_virtual_nous_as_an_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kept: dict[str, Any] = {}
+
+    def remember(flow: str, agents: dict[str, Any], *_: object, **__: object) -> None:
+        kept[flow] = {role: tuple(runs) for role, runs in agents.items()}
+
+    def opened(_: object) -> object:
+        return SimpleNamespace(settings=SimpleNamespace(remember=remember))
+
+    monkeypatch.setattr("hmz.runtime.Hmz", opened)
+    said = {"flow": "loop", "agents": {"coder": "smart"}, "budget": {"cost": 1.0}}
+
+    flows.remembers(_flows("loop"), said)()
+
+    # As `-a` spells it and `epic.start` takes it: the name alone, no harness in front.
+    assert kept == {"loop": {"coder": ("smart", "")}}
 
 
 def test_a_check_reaches_no_other_machine_and_takes_specs_as_text() -> None:

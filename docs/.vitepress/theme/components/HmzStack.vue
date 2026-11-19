@@ -18,7 +18,7 @@ interface Layer {
 const ALLOWED: Record<string, string[]> = {
   'hmz.coganchor': ['hmz.runtime.telemetry'],
   'hmz.runtime': [],
-  'hmz.runtime.kept': ['hmz.coganchor.spelling'],
+  'hmz.runtime.kept': ['hmz.coganchor.nous', 'hmz.coganchor.spelling'],
   'hmz.runtime.settings': ['hmz.runtime.kept', 'hmz.coganchor.machines.store', 'hmz.coganchor.settings'],
   'hmz.runtime.telemetry': ['hmz.runtime.settings'],
   'hmz.runtime.epic': ['hmz.coganchor', 'hmz.runtime.tracing'],
