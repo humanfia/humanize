@@ -498,7 +498,10 @@ its conversation as it folds a chat, and then goes. [`chat.say`, `chat.commands`
 
 Before it starts a conversation's host, the daemon listens on `<mdir>/ai-<hex>.sock` (`0600`),
 the conversation's **scoped link**, whose path the host gives the flow as
-`HUMANIZE_AICHAN_LINK`; it is removed when the host goes. A session over it is admitted as one
+`HUMANIZE_AICHAN_LINK`; it is removed when the host goes. Where that path is longer than a Unix
+socket path may be (103 bytes), the daemon binds it and the host connects to it through a
+symbolic link to `<mdir>` in a `0700` directory `/tmp/hmz-*`, removed at once; the socket is
+still at `<mdir>/ai-<hex>.sock`. A session over it is admitted as one
 over the socket, says `session.hello` with kind `ai-chan`, and is named `Ai-chan#<id>` by every
 host, whatever it says. A `session.hello` of another kind over a scoped link is refused 403,
 `This link is Ai-chan's.`; one of kind `ai-chan` over any other carrier, 403 `Only Ai-chan

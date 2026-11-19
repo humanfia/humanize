@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
+from hmz.coganchor import unix
 from hmz.daemon import where
 
 if TYPE_CHECKING:
@@ -528,7 +529,8 @@ class Links:
                 path.unlink(missing_ok=True)
                 listening = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 try:
-                    listening.bind(str(path))
+                    with unix.reached(path) as reaching:
+                        listening.bind(reaching)
                     path.chmod(0o600)
                     listening.listen(16)
                 except OSError:
