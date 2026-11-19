@@ -440,7 +440,7 @@ def attach(
     """Links a frontend to the runs held for a workspace, starting a host where none is.
 
     Args:
-      kind: What the frontend is, as the runs list their frontends: `tui`, `web`.
+      kind: What the frontend is, as the runs list their frontends: `tui`, `sdk`.
       name: What to call it there, or "" for the runs to name it.
       workspace: The project directory, or None for wherever Humanize is being run.
       slot: Which of its hosts: "" for its own, `chat:<hex>` for a chat's -- a new one is a
