@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pytest
 from pydantic import BaseModel, Field
 
+from hmz import daemon as daemons
+from hmz.runtime import Hmz
 from hmz.runtime.epic import JOURNAL, epics
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.asking import Asks
+from hmz.tui.flows import Flows
 from hmz.tui.pick import STOPS, Leaves
 from tests.integration.doubles_tui import (
     MODEL,
@@ -20,7 +24,9 @@ from tests.integration.doubles_tui import (
     SIZE,
     TALKS,
     Answers,
+    gives_a_budget,
     heard,
+    leaves,
     on,
     opened,
     own_flow,
@@ -538,3 +544,36 @@ async def test_what_an_outworlder_is_shown_is_on_its_own_transcript(
 
         await pilot.press("tab")
         await shows(pilot, "human was shown", "3 of 5 tests pass")
+
+
+async def test_flow_opens_on_the_roles_of_an_epic_another_frontend_started(
+    workspace: Path,
+) -> None:
+    own_flow(workspace, ASKS)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        # Started elsewhere: this interface is set up on no flow, and follows the epic.
+        link = daemons.attach("sdk", "other", workspace=workspace)
+        try:
+            await asyncio.to_thread(
+                link.start,
+                OWN,
+                "make it so",
+                agents={"coder": RUNS},
+                budget={"cost": 1.0},
+            )
+            await shows(pilot, "Ship heard make it so?")
+
+            await typed(pilot, "/flow")
+            await on(pilot, Flows)
+            drawn = await shows(pilot, OWN, "coder")
+            assert "failed to load" not in drawn
+
+            # Saved under that flow's name, for the next epic of it.
+            await gives_a_budget(pilot)
+            await leaves(pilot)
+            await shows(pilot, "changes will apply to the next epic")
+        finally:
+            link.close()
+    assert Hmz(workspace).settings.flow == OWN
