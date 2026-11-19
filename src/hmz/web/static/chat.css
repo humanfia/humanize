@@ -188,6 +188,11 @@
   .chat-title {
     padding: 0 6px;
   }
+
+  /* An archived chat is put back from its menu there: the button would leave the title no room. */
+  .chat-bar [data-hmz='chat-unarchive'] {
+    display: none;
+  }
 }
 
 /* The pane beside a chat is picked on the chat's bar, as a session's is: it is headed by its

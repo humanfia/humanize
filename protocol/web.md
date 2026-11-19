@@ -709,7 +709,8 @@ daemon's own sentence, and MUST leave the page where it was.
 
 **3.6.6.25** `Archive` MUST archive the chat (`chat.archive`) and `Unarchive` put it back
 (`chat.unarchive`). An archived chat MUST still open at its address and be read there, and its bar
-MUST then hold `Unarchive`, before the buttons of Section 3.6.6.19.
+MUST then hold `Unarchive`, before the buttons of Section 3.6.6.19; a page 860 pixels wide or
+narrower MAY leave it to the chat's menu.
 
 **3.6.6.26** `Delete` MUST open a dialog (Section 3.4.2.1) that names the chat by its title, says
 that deleting it permanently removes the chat's record and the sessions kept with it, that this
@@ -1225,9 +1226,10 @@ including a docker or swarm runtime's `Name prefix`, each labelled with the sett
 whether it is a default, and MUST let the user add, edit and remove one, as Section 11 of [CORE]
 specifies.
 
-**3.11.2.10** `Backup` MUST offer `Download`, which lists every epic a target holds -- by machine
-and then by workspace, those already present marked -- with the target picked where there is more
-than one, and downloads the epic picked as an import does, opening it.
+**3.11.2.10** `Backup` MUST offer `Download`, which lists every epic and every chat a target holds
+-- by machine and then by workspace, those already present marked, a chat said as `chat` -- with
+the target picked where there is more than one, and downloads the one picked as an import does,
+opening it: a chat among the chats (Section 3.6.6), an epic among the epics.
 
 **3.11.2.11** `Workspace` MUST show what a workspace was last set up with, for any workspace the
 daemon serves, and MUST let the user forget it; forgetting a workspace where no epic ran MUST remove

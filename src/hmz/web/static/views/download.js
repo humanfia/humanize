@@ -77,15 +77,18 @@ export function mount(root, { query }) {
     )
   }
 
+  // Where one of them is read here: a chat among the chats, an epic among the epics.
+  const at = (one, name) => `/${one.chat ? 'chats' : 'epics'}/${encodeURIComponent(name)}`
+
   function row(target, one) {
     const action = one.here
-      ? h('a', { class: 'btn small quiet', href: hash(`/epics/${encodeURIComponent(one.epic)}`) }, 'Open')
+      ? h('a', { class: 'btn small quiet', href: hash(at(one, one.epic)) }, 'Open')
       : h('button', { class: 'btn small', type: 'button', onclick: (event) => pull(target, one, event.currentTarget) }, 'Download')
     return h(
       'div',
       { class: 'result', title: one.task, 'data-hmz': 'stored-epic', 'data-epic': one.epic },
       h('span', { class: 'result-top' }, badge(one.how || 'unfinished'), h('span', { class: 'result-task' }, headline(one.task)), h('span', { class: 'result-when', title: when(one.began) }, ago(one.began)), action),
-      h('span', { class: 'result-meta' }, h('span', { class: 'mono', title: one.flow }, flowName(one.flow)), h('span', { class: 'mono' }, one.epic), one.here ? h('span', { class: 'node-tag' }, 'Here') : null),
+      h('span', { class: 'result-meta' }, one.chat ? h('span', { class: 'mono' }, 'chat') : h('span', { class: 'mono', title: one.flow }, flowName(one.flow)), h('span', { class: 'mono' }, one.epic), one.here ? h('span', { class: 'node-tag' }, 'Here') : null),
     )
   }
 
@@ -96,10 +99,10 @@ export function mount(root, { query }) {
     row.querySelector('.error')?.remove()
     try {
       const answer = await call('backups.pull', { target, key: one.key })
-      refresh('runs.list')
+      refresh(one.chat ? 'chat.list' : 'runs.list')
       refresh('workspaces.list')
       // Opened unless the dialog was left while it came.
-      if (!gone) go(`/epics/${encodeURIComponent(answer.name)}`)
+      if (!gone) go(at(one, answer.name))
     } catch (error) {
       // Said on the epic it was refused for.
       row.append(problem(error))

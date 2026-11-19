@@ -22,7 +22,7 @@ from playwright.sync_api import expect
 
 from tests.integration.doubles_core import AGENT, install
 from tests.integration.doubles_web import Browser, served
-from tests.system.web.doubles_browser import ENGINES, go, opened, stop
+from tests.system.web.doubles_browser import ENGINES, Wire, go, opened, stop
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -217,7 +217,8 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             # Archived, it leaves the sidebar; still open, its bar offers to put it back.
             _bar_menu(page).get_by_role("menuitem", name="Archive", exact=True).click()
             unarchive = page.locator("[data-hmz=bar] [data-hmz=chat-unarchive]")
-            expect(unarchive).to_be_visible()
+            # A narrow page leaves it to the menu, where the title needs the room.
+            expect(unarchive).to_be_visible(visible=width >= 860)
             expect(_rows(page)).to_have_count(1)
             expect(_rows(page)).to_have_attribute("href", f"#/chats/{name}")
             # Its menu says the same.
@@ -384,3 +385,56 @@ def test_a_new_chat_is_started_in_a_worktree_of_a_repository(
         expect(works.locator(".path")).to_have_attribute("data-path", chat["workdir"])
         expect(page.locator("[data-hmz=inspector] dt")).to_contain_text(["Works in"])
         stop(page)
+
+
+def test_a_chat_a_backup_target_holds_is_opened_and_downloaded_as_a_chat(
+    project: Path, engine: str
+) -> None:
+    import yaml
+
+    from hmz import home
+
+    target: dict[str, Any] = {
+        "name": "t",
+        "url": str(project / "nowhere.git"),
+        "policies": [],
+    }
+    (home() / "settings.yaml").write_text(
+        yaml.safe_dump({"backup": {"targets": [target], "defaults": []}})
+    )
+
+    def stored(name: str, *, here: bool) -> dict[str, Any]:
+        return {
+            "key": f"m/w/{name}",
+            "machine": "m",
+            "workspace": str(project),
+            "epic": name,
+            "flow": "",
+            "task": name,
+            "began": "2026-01-01T00:00:00Z",
+            "how": "stopped",
+            "chat": True,
+            "here": here,
+        }
+
+    wire = Wire(
+        faked={
+            "backups.epics": lambda _: {
+                "result": {
+                    "epics": [stored("kept", here=True), stored("away", here=False)]
+                }
+            },
+            "backups.pull": lambda _: {"result": {"name": "away"}},
+        }
+    )
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, "/download")
+        kept = page.locator("[data-hmz=stored-epic][data-epic=kept]")
+        # Said as a chat, and opened among the chats.
+        expect(kept).to_contain_text("chat")
+        expect(kept.get_by_role("link", name="Open")).to_have_attribute(
+            "href", "#/chats/kept"
+        )
+        away = page.locator("[data-hmz=stored-epic][data-epic=away]")
+        away.get_by_role("button", name="Download").click()
+        page.wait_for_url(re.compile(r".*#/chats/away$"))
