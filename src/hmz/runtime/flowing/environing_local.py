@@ -200,6 +200,9 @@ _READ = 1 << 16
 #: The longest a terminal's end is waited between two looks for it.
 _LOOKED_EVERY = 0.5
 
+#: How often what a killed terminal still writes is dropped, until it has ended.
+_DROPPED_EVERY = 0.01
+
 
 def _spawned(
     argv: Sequence[str], cwd: PurePosixPath, cols: int, rows: int
@@ -370,12 +373,25 @@ class _LocalPty(Pty):
                 if group > 0:
                     with contextlib.suppress(OSError):
                         os.killpg(group, signal.SIGKILL)
-        # Let go of before it is waited for: what it wrote and nobody read would otherwise
-        # hold up its exit, which on macOS waits for the terminal's output to drain.
-        self._close()
-        with contextlib.suppress(TimeoutError):
+        # The master is kept until the kill has ended it: letting go hangs the terminal
+        # up, and of a SIGKILL and a SIGHUP both pending macOS delivers the lower, so that
+        # it would end by the hangup. What it wrote is read and dropped meanwhile, which
+        # would otherwise hold up its exit: macOS waits for the terminal's output to drain.
+        ended = asyncio.ensure_future(self.wait())
+        try:
             async with asyncio.timeout(KILLED_WITHIN):
-                await self.wait()
+                while not ended.done():
+                    self._drop()
+                    await asyncio.wait({ended}, timeout=_DROPPED_EVERY)
+        except TimeoutError:
+            ended.cancel()
+        self._close()
+
+    def _drop(self) -> None:
+        """Reads what the terminal has written and nobody has read, and drops it."""
+        with contextlib.suppress(OSError):
+            while not self._closed and os.read(self._fd, _READ):
+                pass
 
     def _close(self) -> None:
         """Lets go of the master, waking whoever waits on it."""
