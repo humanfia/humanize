@@ -1206,7 +1206,10 @@ with `daemon_id` and `device`, the name the device was paired under; a `name` no
 MUST be refused 400, `A device's name begins with a letter or a digit, holds letters, digits, '.',
 '_' and '-', and is not local.`
 
-**4.14.2.3** `pair.claim` on a paired session MUST be refused 409, `This device is already paired.`
+**4.14.2.3** `pair.claim` on a paired session MUST add and rename no device: where the token is one
+the daemon holds and has not expired, the daemon MUST forget it and MUST answer `daemon_id` and, as
+`device`, the name the session is paired under; any other token MUST be refused as Section 4.5.9 of
+[WIRE] states.
 
 **4.14.2.4** `pair.create` MUST be a write, and `pair.claim` MUST NOT be one.
 

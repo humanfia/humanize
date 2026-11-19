@@ -624,6 +624,8 @@ in the daemon's own kind and mode, with every route it is reached by, in the ord
 tried, to add to, take from or reorder; a P2P daemon's secret is never shown again, and leaving
 it empty keeps it. Removing one forgets how to reach it, and nothing on the host: its epics,
 its `hmz` and its pairing of this machine stay there.
+A daemon removed can be added again from a new pairing code: this machine is not
+paired a second time, and keeps the name it was paired under.
 
 The daemons are kept by this browser, in its IndexedDB: each its name, the daemon id pinned,
 and its [routes](/reference/settings#settings-yaml). Another browser, Humanize Desktop, and `hmz`

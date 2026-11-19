@@ -196,7 +196,7 @@ starts. A method `protocol/openrpc.json` lists that nothing serves is refused -3
 | Method | Answer |
 | --- | --- |
 | `pair.create` `{routes?, seconds?}` | `code` (`hmz-pair:…`) and `expires`; routes default to the listeners'. 409 `There is no route to pair over: give one, or listen.` |
-| `pair.claim` `{token, name}` | `daemon_id`, `device`; pairs the session's device. 403 for a code not held, 409 on a paired session. |
+| `pair.claim` `{token, name}` | `daemon_id`, `device`; pairs the session's device. 403 for a code not held. On a paired session it spends the code and answers the name the session is already paired under, adding no device, so a daemon removed from a client's list can be added again from a new code. |
 | `devices.list` | `devices`: `[{name, fingerprint, added, seen, live}]`. |
 | `devices.revoke` `{name}` | `dropped`; removes the device, answers, then closes every session of it. 400 for `local`, 404 for no such device. |
 
