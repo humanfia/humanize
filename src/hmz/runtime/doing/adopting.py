@@ -4,28 +4,35 @@ A harness run by hand keeps its sessions in its own home, where Humanize wrote n
 down. Each is found here by where its CLI lays it out (:mod:`hmz.coganchor.backends`) and
 read only at its head and its tail, so that listing a workspace's costs a bounded read per
 session and never a transcript; one is read whole only to be shown, by the readers a trace is
-gathered with (:mod:`hmz.runtime.tracing`). Adopting one copies its files into a chat of
-Humanize's own (Section 8.11 of core.md): nothing here writes under a harness's home.
+gathered with (:mod:`hmz.runtime.tracing`). A harness that keeps its sessions as the rows of
+a database is listed by one query of that database, opened read-only. Adopting one copies
+its files into a chat of Humanize's own (Section 8.11 of core.md), for a harness that
+carries a session on from such a copy: nothing here writes under a harness's home.
 """
 
 from __future__ import annotations
 
+import contextlib
 import datetime
+import functools
+import importlib.util
 import json
 import os
 import re
+import sqlite3
 import urllib.parse
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from hmz import home
 from hmz.coganchor import backends
+from hmz.runtime.tracing.readers import agy, mcode, mimo, opencode
 from hmz.runtime.tracing.session import mapping
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterator
     from pathlib import Path
 
-__all__ = ["HARNESSES", "Found", "adopt", "files", "listed", "said"]
+__all__ = ["CARRIED", "HARNESSES", "Found", "adopt", "files", "listed", "said"]
 
 #: How much of a session's log is read at its head, and at its tail, to list it.
 _READ = 128 * 1024
@@ -38,9 +45,9 @@ _KEPT = 20_000
 
 _CWD = re.compile(r'"cwd"\s*:\s*("(?:[^"\\]|\\.)*")')
 _AT = re.compile(r'"timestamp"\s*:\s*"([^"]+)"')
-_MODEL = re.compile(r'"model(?:Id)?"\s*:\s*"([^"<][^"]*)"')
-#: A thread another one started or was cut from, as Codex says it on its first line.
-_CHILD = re.compile(r'"(?:parent_thread_id|forked_from_id)"\s*:\s*"')
+_MODEL = re.compile(r'"model(?:Id|Alias)?"\s*:\s*"([^"<][^"]*)"')
+#: A thread another one started or was cut from, as Codex and dsh say it on its first line.
+_CHILD = re.compile(r'"(?:parent_thread_id|forked_from_id|parentSession)"\s*:\s*"')
 _ROLLOUT = re.compile(r"rollout-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-(.+)")
 
 
@@ -92,10 +99,19 @@ def _within(path: Path) -> str:
     return path.parent.name
 
 
-#: Each harness whose own sessions are listed: the globs its logs are found by under its
-#: home, taking `{plain}` and `{quoted}` -- the workspace as that harness names a directory
-#: after it -- and what reads a session's id off its log's path. Exactly the harnesses that
-#: keep a session as files of its own, name them by its id, and can carry one on from a copy.
+def _wired(path: Path) -> str:
+    """The id of a Kimi Code session, which the directory its agents are in is named by."""
+    return path.parents[2].name
+
+
+def _encoded(path: Path) -> str:
+    """The id of a MiniMax Code session, which its directory names in URL-safe base64."""
+    return mcode.decoded(path.parent.name)
+
+
+#: Each harness that keeps a session as a log of its own: the globs its logs are found by
+#: under its home, taking `{plain}` and `{quoted}` -- the workspace as that harness names a
+#: directory after it -- and what reads a session's id off its log's path.
 _LAID: dict[str, tuple[tuple[str, ...], Callable[[Path], str]]] = {
     "claude": (("projects/{plain}/*.jsonl",), _stemmed),
     "codex": (
@@ -106,14 +122,27 @@ _LAID: dict[str, tuple[tuple[str, ...], Callable[[Path], str]]] = {
     "pi": (("sessions/*/*.jsonl",), _dated),
     "omp": (("sessions/*/*.jsonl",), _dated),
     "qwen": (("projects/{plain}/chats/*.jsonl",), _stemmed),
+    # A wire per agent of a session, of which the session's own is its `main` agent's.
+    "kimi": (("sessions/*/session_*/agents/main/wire.jsonl",), _wired),
+    "mcode": (("v2/sessions/*/*/*/*-session_*/messages.jsonl",), _encoded),
+    # A log per format generation, and only uncompressed, which is all its reader reads.
+    "dsh": (("sessions/*/*/session.v*.jsonl",), _within),
 }
 
-#: The harnesses whose own sessions are listed, and so can be read and adopted.
-HARNESSES = tuple(_LAID)
+#: The harnesses a session of whose own is carried on in a chat: exactly those that keep a
+#: session as files of its own, name them by its id, and carry one on from a copy of them.
+CARRIED = ("claude", "codex", "grok", "pi", "omp", "qwen")
 
-#: Each log as it was last read, by its path: its size and when it was written, and what
-#: was read of it. A log that has not changed is not opened again.
-_seen: dict[Path, tuple[tuple[int, int], Found | None]] = {}
+#: The harnesses whose own sessions are listed, and so can be read: those that keep a
+#: session as a log, and those that keep every session as rows of one database.
+HARNESSES = (*_LAID, "opencode", "mimo", "agy")
+
+#: What is installed of a harness that is a package of this Python and no program.
+_PACKAGES = {"dsh": "deepseek_harness"}
+
+#: Each file as it was last read, by its path: when it and its write-ahead log were written
+#: and their sizes, and what was read of it. A file that has not changed is not opened again.
+_seen: dict[Path, tuple[tuple[int, ...], Any]] = {}
 
 
 def listed(workspace: Path, owned: Collection[tuple[str, str]] = ()) -> list[Found]:
@@ -137,7 +166,7 @@ def listed(workspace: Path, owned: Collection[tuple[str, str]] = ()) -> list[Fou
                 for one in _of(harness, spelled)
                 if (harness, one.ident) not in owned
             ]
-        except (OSError, ValueError):
+        except (OSError, ValueError, sqlite3.Error):
             continue  # one harness that cannot be read is not every harness unread
     if len(_seen) > _KEPT:
         _seen.clear()
@@ -147,10 +176,22 @@ def listed(workspace: Path, owned: Collection[tuple[str, str]] = ()) -> list[Fou
 def _of(harness: str, spelled: Collection[str]) -> Iterator[Found]:
     """One harness's sessions that worked in a workspace, by either spelling of its path."""
     profile = backends.named(harness)
-    if profile is None or backends.program(profile.name) is None:
+    package = _PACKAGES.get(harness)
+    if profile is None or (
+        importlib.util.find_spec(package) is None
+        if package
+        else backends.program(profile.name) is None
+    ):
         return
     under = profile.directory()
     if under.is_relative_to(home()):
+        return
+    if harness in _STORED:
+        database, rows = _STORED[harness]
+        store = under / database
+        held = _cached(store, functools.partial(rows, harness, store)) or []
+        # Once each, where a session says both spellings of the workspace.
+        yield from {one.ident: one for one in held if one.cwd in spelled}.values()
         return
     globs, ident = _LAID[harness]
     logs = {
@@ -161,57 +202,183 @@ def _of(harness: str, spelled: Collection[str]) -> Iterator[Found]:
             glob.format(plain=_plain(at), quoted=urllib.parse.quote(at, safe=""))
         )
     }
-    for path in logs:
-        one = _read(harness, ident(path), path)
+    placed = _PLACED.get(harness)
+    # A session logged more than once is its last log: dsh keeps one per format generation.
+    for named, path in {ident(path): path for path in sorted(logs)}.items():
+        worked = placed(under, named, path) if placed else ""
+        if placed and worked not in spelled:
+            continue
+        one = _cached(path, functools.partial(_read, harness, named, path, worked))
         if one is not None and one.cwd in spelled:
             yield one
 
 
-def _read(harness: str, ident: str, path: Path) -> Found | None:
-    """One session, read off the head and the tail of its log, or None for what is none."""
+def _cached[T](path: Path, read: Callable[[], T]) -> T | None:
+    """What one file was last read as, read again only once it has been written again."""
+    stamp: tuple[int, ...] = ()
+    for at in (path, path.with_name(f"{path.name}-wal")):
+        with contextlib.suppress(OSError):
+            stat = at.stat()
+            stamp += (stat.st_mtime_ns, stat.st_size)
+    if not stamp:
+        return None
+    kept = _seen.get(path)
+    if kept is None or kept[0] != stamp:
+        kept = _seen[path] = (stamp, read())
+    return cast("T", kept[1])
+
+
+def _stated(state: Path) -> str:
+    """Where a Kimi Code session worked, as the state beside its agents says, or ""."""
+    try:
+        said = mapping(json.loads(state.read_bytes())).get("workDir")
+    except (OSError, ValueError):
+        return ""
+    return said if isinstance(said, str) else ""
+
+
+def _kimi(under: Path, ident: str, log: Path) -> str:
+    del under, ident
+    state = log.parents[2] / "state.json"
+    return _cached(state, functools.partial(_stated, state)) or ""
+
+
+def _mcode(under: Path, ident: str, log: Path) -> str:
+    del log
+    # In the database a session is resumed out of, which is read once for all of them.
+    places = _cached(under / mcode.DATABASE, functools.partial(mcode.workspaces, under))
+    return (places or {}).get(ident, "")
+
+
+#: Where a session worked, for a harness whose log does not say: asked of its home by the
+#: session's id and its log.
+_PLACED: dict[str, Callable[[Path, str, Path], str]] = {"kimi": _kimi, "mcode": _mcode}
+
+
+def _moment(seconds: float) -> str:
+    return datetime.datetime.fromtimestamp(seconds, datetime.UTC).isoformat()
+
+
+def _queried(store: Path, query: str) -> list[sqlite3.Row]:
+    """What one query answers of a database that is its harness's own: only ever read."""
+    connection = sqlite3.connect(f"{store.as_uri()}?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        return list(connection.execute(query))
+    finally:
+        connection.close()
+
+
+def _rows(harness: str, store: Path) -> list[Found]:
+    """Every session opencode or mimocode keeps in its database that no other one started."""
+    found: list[Found] = []
+    for row in _queried(store, "select * from session"):
+        # By name, each where it is there: the fork dropped columns the original keeps.
+        held = {name: row[name] for name in row.keys()}  # noqa: SIM118 -- a Row is no mapping
+        try:
+            began, updated = (
+                _moment(float(held[name]) / 1000)
+                for name in ("time_created", "time_updated")
+            )
+            model = mapping(json.loads(held.get("model") or "null")).get("modelID")
+        except (KeyError, TypeError, ValueError):
+            continue
+        if held.get("parent_id") or not isinstance(held.get("directory"), str):
+            continue
+        found.append(
+            Found(
+                harness=harness,
+                ident=str(held["id"]),
+                title=str(held.get("title") or "").strip().partition("\n")[0][:_TITLE],
+                began=began,
+                updated=updated,
+                cwd=held["directory"],
+                model=model if isinstance(model, str) else "",
+                log=store,
+            )
+        )
+    return found
+
+
+def _summarised(harness: str, store: Path) -> list[Found]:
+    """Every conversation Antigravity summarises that no other one started, per workspace."""
+    found: list[Found] = []
+    for row in _queried(
+        store,
+        "select * from conversation_summaries where parent_conversation_id = ''",
+    ):
+        log = store.parent / agy.CONVERSATIONS / f"{row['conversation_id']}.db"
+        # Titled by what it was first told, where the CLI gave it no title of its own.
+        told = str(row["title"] or ("preview" in row.keys() and row["preview"]) or "")  # noqa: SIM118 -- a Row is no mapping
+        try:
+            written = _moment(log.stat().st_mtime)
+            uris: object = json.loads(row["workspace_uris"])
+        except (OSError, TypeError, ValueError):
+            continue
+        found += [
+            Found(
+                harness=harness,
+                ident=str(row["conversation_id"]),
+                title=told.strip().partition("\n")[0][:_TITLE],
+                began=written,
+                updated=written,
+                cwd=urllib.parse.unquote(urllib.parse.urlsplit(str(uri)).path),
+                model="",
+                log=log,
+            )
+            for uri in cast("list[Any]", uris if isinstance(uris, list) else [])
+        ]
+    return found
+
+
+#: Each harness that keeps its sessions as rows: the database they are in, under its home,
+#: and what reads every one of them out of it.
+_STORED: dict[str, tuple[str, Callable[[str, Path], list[Found]]]] = {
+    "opencode": (opencode.DATABASE, _rows),
+    "mimo": (mimo.DATABASE, _rows),
+    "agy": (agy.SUMMARIES, _summarised),
+}
+
+
+def _read(harness: str, ident: str, path: Path, worked: str = "") -> Found | None:
+    """One session, read off the head and the tail of its log, or None for what is none.
+
+    Args:
+      harness: The CLI that had it.
+      ident: What that CLI calls it.
+      path: Its log.
+      worked: Where it worked, for a harness whose log does not say.
+    """
     try:
         stat = path.stat()
-    except OSError:
-        return None
-    stamp = (stat.st_mtime_ns, stat.st_size)
-    kept = _seen.get(path)
-    if kept is not None and kept[0] == stamp:
-        return kept[1]
-    one: Found | None = None
-    try:
         with path.open("rb") as log:
             head = log.read(_READ).decode("utf-8", errors="replace")
             log.seek(max(stat.st_size - _READ, 0))
             tail = log.read(_READ).decode("utf-8", errors="replace")
     except OSError:
-        head = tail = ""
+        return None
     cwd = _CWD.search(head)
     # Grok Build says where a session worked by the directory its log is in, and nowhere else.
     worked = (
-        urllib.parse.unquote(path.parent.parent.name)
-        if harness == "grok"
-        else str(json.loads(cwd[1]))
-        if cwd
-        else ""
+        worked
+        or (urllib.parse.unquote(path.parent.parent.name) if harness == "grok" else "")
+        or (str(json.loads(cwd[1])) if cwd else "")
     )
-    if ident and worked and not _CHILD.search(head.partition("\n")[0]):
-        written = datetime.datetime.fromtimestamp(
-            stat.st_mtime, datetime.UTC
-        ).isoformat()
-        began = _AT.search(head)
-        models = _MODEL.findall(tail) or _MODEL.findall(head)
-        one = Found(
-            harness=harness,
-            ident=ident,
-            title=_title(head),
-            began=began[1] if began else written,
-            updated=written,
-            cwd=worked,
-            model=models[-1] if models else "",
-            log=path,
-        )
-    _seen[path] = (stamp, one)
-    return one
+    if not ident or not worked or _CHILD.search(head.partition("\n")[0]):
+        return None
+    written = _moment(stat.st_mtime)
+    began = _AT.search(head)
+    models = _MODEL.findall(tail) or _MODEL.findall(head)
+    return Found(
+        harness=harness,
+        ident=ident,
+        title=_title(head),
+        began=began[1] if began else written,
+        updated=written,
+        cwd=worked,
+        model=models[-1] if models else "",
+        log=path,
+    )
 
 
 def _title(head: str) -> str:
@@ -237,10 +404,20 @@ def _told(record: dict[str, Any]) -> str:
     message = mapping(record.get("message"))
     payload = mapping(record.get("payload"))
     update = mapping(mapping(record.get("params")).get("update"))
+    data = mapping(record.get("data"))
     content: object = None
     if record.get("type") == "user" or message.get("role") == "user":
         # Claude Code and pi under `content`, Qwen Code under `parts`.
         content = message.get("content", message.get("parts"))
+        # MiniMax Code sends what was typed inside reminders of its own, and says where.
+        span = mapping(message.get("canonicalTextRange"))
+        if isinstance(content, str) and span:
+            content = content[span.get("startOffset") : span.get("endOffset")]
+    elif record.get("type") == "turn.prompt" and record.get("origin") == "user":
+        content = record.get("input")  # Kimi Code
+    elif record.get("type") == "user/message":  # dsh
+        if mapping(data.get("source")).get("kind") == "user":
+            content = data.get("content")
     elif payload.get("type") == "user_message":
         content = payload.get("message")
     elif mapping(payload.get("item")).get("type") == "UserMessage":
@@ -313,7 +490,7 @@ def adopt(one: Found, workspace: Path, agent: str = "") -> Path:
     from hmz.runtime.runner import drove
 
     profile = backends.named(one.harness)
-    if profile is None or not profile.forks or one.harness not in HARNESSES:
+    if profile is None or not profile.forks or one.harness not in CARRIED:
         raise ValueError(
             f"{one.harness} cannot carry a session of its own on in a chat"
         )

@@ -2372,19 +2372,32 @@ written first), `total`, `offset` and `limit`. It MUST answer whatever the setti
 not what the daemon answers.
 
 **4.25.8.2** The harness sessions of a workspace (Section 8.11.1 of [CORE]) MUST be the sessions
-that each of the harnesses `claude`, `codex`, `grok`, `pi`, `omp` and `qwen` installed on the
-daemon's machine keeps in its own home, that worked in the directory of that workspace, that no
-other session started or was forked into, and that no chat and no epic of the machine records as
-opened (`opened`, Section 6.5.4 of [FILES]) by that harness under that session id. A harness whose
-home is within `<home>`, or cannot be read, MUST list none and MUST NOT fail the call.
+that each of the harnesses `claude`, `codex`, `grok`, `pi`, `omp`, `qwen`, `kimi`, `mcode`, `dsh`,
+`opencode`, `mimo` and `agy` installed on the daemon's machine keeps in its own home, that worked
+in the directory of that workspace, that no other session started or was forked into, and that no
+chat and no epic of the machine records as opened (`opened`, Section 6.5.4 of [FILES]) by that
+harness under that session id. A harness whose home is within `<home>`, or cannot be read, MUST
+list none and MUST NOT fail the call.
+
+**4.25.8.2.1** Where a session worked MUST be read, for `kimi`, from `workDir` of the `state.json`
+of the session's directory; for `mcode`, from `workspaceDir` of the session's record in
+`v2/sqlite/runtime-state.sqlite`; for `opencode` and `mimo`, from `directory` of the session's row
+of the table `session` of `opencode.db` and `mimocode.db`; and for `agy`, from `workspace_uris` of
+the conversation's row of the table `conversation_summaries` of `conversation_summaries.db`. A
+`dsh` session whose log is compressed MUST NOT be listed.
 
 **4.25.8.3** A harness session row MUST hold `id` (the id its harness gave the session), `harness`,
 `title` (the first line the user said in it, cut at 240 characters, `""` where the head of its log
-gives none), `workspace`, `model` (the model it last ran on, `""` where its log gives none),
-`began` and `updated` (when its log was last written).
+gives none; for `opencode`, `mimo` and `agy`, the first line of the title the harness keeps for it,
+and for an `agy` conversation that has none, of its `preview`, cut alike), `workspace`, `model` (the
+model it last ran on, `""` where its log gives none, and for `agy`), `began`, `updated` (when its
+log was last written; for `opencode` and `mimo`, when its row says it was last updated) and
+`continuable` (boolean: `true` for a session of `claude`, `codex`, `grok`, `pi`, `omp` or `qwen`,
+`false` for any other).
 
 **4.25.8.4** To list harness sessions the daemon MUST read no more of a session's log than its
-first 128 KiB and its last 128 KiB.
+first 128 KiB and its last 128 KiB, and of a database that holds every session of a harness no more
+than the rows that say its sessions: no row of what was said in one.
 
 **4.25.8.5** `chat.harness.get` MUST take `workspace`, `harness` and `session` (each required) and
 `trace` (boolean), and MUST answer the harness session row of that session; with `trace` `true`,
@@ -2396,9 +2409,9 @@ it started. A session that is no harness session of the workspace MUST be refuse
 and `agent` (an agent spec of that harness), MUST be a write, MUST make the chat of Section 8.11.4
 of [CORE], recorded as Section 6.12.12 of [FILES] states, and MUST be answered with `chat`, the new
 chat's name. It MUST be refused 409 with `A session of <harness> cannot be continued in a chat.`
-for a harness that is none of Section 4.25.8.2, and 409, saying why, for an `agent` of another
-harness, for a session that gives no model where `agent` is absent, and where the session's files
-cannot be copied.
+for a harness whose sessions are not continuable (Section 4.25.8.3), and 409, saying why, for an
+`agent` of another harness, for a session that gives no model where `agent` is absent, and where
+the session's files cannot be copied.
 
 ## 5. Security Considerations
 

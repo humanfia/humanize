@@ -4,13 +4,16 @@ A chat is renamed where its title stands -- on its bar and in its row of the sid
 archived and put back, and deleted once a dialog has asked; what the daemon refuses is said in
 its own words. The archived chats of a workspace are listed in its settings. A new chat is
 started in a git worktree where its folder is in a repository. The chats are real ones, of the
-stand-in `claude`, on a real daemon.
+stand-in `claude`, on a real daemon. A session a harness had of its own is offered `Continue in
+chat` only where its harness carries a copy of one on.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import sqlite3
 import subprocess
 import time
 import urllib.parse
@@ -438,3 +441,91 @@ def test_a_chat_a_backup_target_holds_is_opened_and_downloaded_as_a_chat(
         away = page.locator("[data-hmz=stored-epic][data-epic=away]")
         away.get_by_role("button", name="Download").click()
         page.wait_for_url(re.compile(r".*#/chats/away$"))
+
+
+def test_a_harness_session_is_offered_a_chat_only_where_its_harness_carries_one_on(
+    project: Path, engine: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.runtime.settings import Settings
+
+    here = str(project.resolve())
+    # One the stand-in `claude` had of its own, as it logs one: carried on from a copy.
+    plain = "".join(one if one.isalnum() else "-" for one in here)
+    log = (
+        tmp_path
+        / "claude"
+        / "projects"
+        / plain
+        / "c0c0c0c0-1111-4222-8333-444444444444"
+    )
+    log.parent.mkdir(parents=True)
+    log.with_suffix(".jsonl").write_text(
+        json.dumps(
+            {
+                "type": "user",
+                "cwd": here,
+                "timestamp": "2026-01-01T00:00:00+00:00",
+                "message": {"role": "user", "content": "the word is guava"},
+            }
+        )
+        + "\n"
+    )
+    # And one of an `opencode` that is only a name on PATH, in the database it keeps every
+    # session in: listed and read, and carried on by nothing.
+    stub = tmp_path / "bin" / "opencode"
+    stub.write_text("#!/bin/sh\n")
+    stub.chmod(0o755)
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "share"))
+    store = tmp_path / "share" / "opencode" / "opencode.db"
+    store.parent.mkdir(parents=True)
+    with sqlite3.connect(store) as rows:
+        rows.execute(
+            "create table session (id, parent_id, directory, title, time_created, "
+            "time_updated)"
+        )
+        rows.execute(
+            "create table message (id, session_id, time_created, time_updated, data)"
+        )
+        rows.execute(
+            "create table part (id, message_id, session_id, time_created, data)"
+        )
+        rows.execute(
+            "insert into session values ('ses_1', null, ?, 'The word is plum', 1000, 2000)",
+            (here,),
+        )
+        rows.execute(
+            "insert into message values ('m1', 'ses_1', 1000, 1000, ?)",
+            (json.dumps({"role": "user"}),),
+        )
+        rows.execute(
+            "insert into part values ('p1', 'm1', 'ses_1', 1000, ?)",
+            (json.dumps({"type": "text", "text": "the word is plum"}),),
+        )
+    rows.close()
+    before = store.read_bytes()
+    Settings().harness_sessions = True
+    workspace = urllib.parse.quote(here, safe="")
+
+    with served() as site, opened(site, engine=engine, width=1280, height=800) as page:
+        listed = page.locator("[data-hmz=sidebar] [data-hmz=harness-session]")
+        expect(listed).to_have_count(2)
+        note = page.locator("[data-hmz=harness-note]")
+        adopt = page.locator("[data-hmz=harness-adopt]")
+
+        go(page, f"/harness/opencode/ses_1?workspace={workspace}")
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("the word is plum")
+        expect(note).to_have_text(
+            "Read-only. A session of opencode cannot be continued in a chat."
+        )
+        expect(adopt).to_have_count(0)
+        refused = page.evaluate(
+            """async (named) => (await import('/api.js')).call('chat.harness.adopt', named)
+                .then(() => '', (error) => error.message)""",
+            {"workspace": here, "harness": "opencode", "session": "ses_1"},
+        )
+        assert refused == "A session of opencode cannot be continued in a chat."
+
+        go(page, f"/harness/claude/{log.name}?workspace={workspace}")
+        expect(note).to_contain_text("Continuing copies it into a chat here")
+        expect(adopt).to_be_visible()
+    assert store.read_bytes() == before

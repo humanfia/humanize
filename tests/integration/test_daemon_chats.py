@@ -738,6 +738,7 @@ def test_a_harness_session_is_listed_read_and_continued_as_a_chat_from_a_copy(
         "model",
         "began",
         "updated",
+        "continuable",
     }
     assert (row["id"], row["harness"], row["title"], row["model"]) == (
         ident,
@@ -745,6 +746,7 @@ def test_a_harness_session_is_listed_read_and_continued_as_a_chat_from_a_copy(
         "the word is guava",
         MODEL,
     )
+    assert row["continuable"] is True
     assert row["workspace"] == str(project.resolve())
     read = user.call("chat.harness.get", {**named, "trace": True}, timeout=30)
     (session,) = read["trace"]

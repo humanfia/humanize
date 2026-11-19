@@ -463,8 +463,10 @@ archived or deleted, and MUST NOT be among what Search finds.
 
 **3.5.21.2** A harness session's address MUST be `#/harness/<harness>/<id>?workspace=<path>`. Its
 view MUST draw what was said in it, read with `chat.harness.get` and `trace`, MUST say that it is
-only read, MUST NOT offer anything to type in, and MUST offer `Continue in chat`, which MUST call
-`chat.harness.adopt` and open the chat it answers.
+only read, MUST NOT offer anything to type in, and, for a session whose row is `continuable`, MUST
+offer `Continue in chat`, which MUST call `chat.harness.adopt` and open the chat it answers. For any
+other session it MUST NOT offer `Continue in chat` and MUST say `A session of <harness> cannot be
+continued in a chat.`
 
 ### 3.6. An epic
 

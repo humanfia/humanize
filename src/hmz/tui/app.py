@@ -5076,13 +5076,19 @@ class Humanize(App[None]):
             chats,
             asks,
             mine,
-            # Read-only, so with no menu: one picked goes on as a chat made of a copy of it.
+            # Read-only, so with no menu: one picked goes on as a chat made of a copy of it,
+            # where its harness carries a copy on, and is otherwise refused saying so.
             [
                 (
                     f"{_HARNESS}{one.get('harness')}:{one.get('id')}",
                     _clipped(" ".join(str(one.get("title") or "").split()), 60)
                     or str(one.get("id") or ""),
-                    f"{one.get('harness')} session, read-only: a copy goes on as a chat",
+                    f"{one.get('harness')} session, read-only: "
+                    + (
+                        "a copy goes on as a chat"
+                        if one.get("continuable")
+                        else "cannot be continued in a chat"
+                    ),
                 )
                 for one in outside
             ],
@@ -5093,6 +5099,7 @@ class Humanize(App[None]):
             self.action_clear()
         if picked and picked.startswith(_HARNESS):
             harness, _, session = picked.removeprefix(_HARNESS).partition(":")
+            # The daemon's own refusal: said by it for one it does not carry on.
             try:
                 made = await asyncio.to_thread(
                     self._chat_asked,

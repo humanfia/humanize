@@ -3704,7 +3704,9 @@ forgotten as Section 14 states.
 that harness keeps in its own home, and that no chat and no epic of this machine opened.
 
 **8.11.2** hmz MUST only read a harness session: it MUST NOT write, move or remove any file under a
-harness's own home on account of one.
+harness's own home on account of one, and MUST open a database a harness keeps its sessions in
+read-only. What a read-only reader of such a database marks in the shared-memory file beside it
+while it reads (the `-shm` of a database in write-ahead mode) is no such write.
 
 **8.11.3** A frontend MUST list the harness sessions of a workspace only while the setting
 `harness_sessions` is `true` (Section 3.4.14 of [FILES]). It MUST list them after the chats of that
@@ -3727,6 +3729,10 @@ from a copy, and for a session that does not say the model it ran on where the r
 agent.
 
 **8.11.7** An Ai-chan conversation MUST NOT be listed as a harness session.
+
+**8.11.8** A harness session is continuable where its harness carries a session on from a copy of
+its files (`continuable`, Section 4.25.8.3 of [DAEMON]). A frontend MUST offer to continue only a
+continuable harness session, and MUST say of any other that it cannot be continued in a chat.
 
 ## 9. Side Questions
 

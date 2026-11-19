@@ -333,8 +333,8 @@ the sessions each installed CLI had in a directory are listed after that directo
 
 | Where | What you see | Continuing one |
 | --- | --- | --- |
-| `hmz web` | quiet rows after the folder's chats, each ending in its CLI's name; a row opens the session to **read** | **Continue in chat** under it |
-| `hmz`, `/resume` in a chat | rows after the chats, each `<cli> session, read-only` | pick it |
+| `hmz web` | quiet rows after the folder's chats, each ending in its CLI's name; a row opens the session to **read** | **Continue in chat** under it, where its CLI can be continued; otherwise a line saying it cannot |
+| `hmz`, `/resume` in a chat | rows after the chats, each `<cli> session, read-only` and whether a copy goes on as a chat or it cannot be continued | pick it; one that cannot be continued says so and nothing else happens |
 
 A harness session is only ever read. **Continuing** one copies its files into a new chat of
 that directory and opens that chat: the chat is titled by the session's first line, talks to
@@ -342,10 +342,23 @@ the same CLI at the model the session last ran on, and goes on from the copy wit
 thing you say. The CLI's own session stays exactly as it was -- you can still `claude
 --resume` it -- and it leaves the list while the chat made from it exists.
 
-Listed are the sessions of `claude`, `codex`, `grok`, `pi`, `omp` and `qwen` that worked in
-that very directory, where the CLI is installed. Sessions of the other CLIs are not listed,
-and neither is anything Humanize ran itself: those are chats and epics already. The methods
-behind it are [`chat.harness.*`](/reference/daemon#harness-sessions).
+Listed are the sessions that worked in that very directory, of each of these CLIs that is
+installed:
+
+| CLI | Listed and read | Continued in a chat |
+| --- | --- | --- |
+| `claude`, `codex`, `grok`, `pi`, `omp`, `qwen` | yes | yes |
+| `kimi`, `mcode`, `dsh`, `opencode`, `mimo`, `agy` | yes | no: read-only |
+| `cursor-agent` | no | no |
+
+The second row's CLIs either have no way of carrying a copy of a session on (`mcode`, `dsh`,
+`agy`), or keep a session where a copy of it alone cannot be made (`opencode` and `mimo` in
+one database shared by every session, `kimi` behind indexes shared by every session); their
+databases are opened read-only and never written. A `dsh` session is listed only where its
+log is not compressed. `cursor-agent` keeps a chat in a store nothing here reads. Anything
+Humanize ran itself is not listed: those are chats and epics already. The methods behind it
+are [`chat.harness.*`](/reference/daemon#harness-sessions), which say
+[per CLI](/reference/daemon#harness-sessions) where each is read from.
 
 ## Where a chat is kept {#where-a-chat-is-kept}
 

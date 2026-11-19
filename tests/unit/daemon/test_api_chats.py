@@ -738,7 +738,7 @@ def _found(harness: str, ident: str, **said: Any) -> Any:
 class _Adopting:
     """`hmz.runtime.doing.adopting`, as far as `chat.harness.*` asks it."""
 
-    HARNESSES = ("claude", "codex")
+    CARRIED = ("claude", "codex")
 
     def __init__(self) -> None:
         self.found: list[Any] = []
@@ -775,7 +775,7 @@ def test_the_harness_sessions_of_a_workspace_are_paged_as_rows(
     held: _Chats, harnessed: _Adopting
 ) -> None:
     del held
-    harnessed.found = [_found("codex", "x-1"), _found("claude", "c-1", title="")]
+    harnessed.found = [_found("codex", "x-1"), _found("opencode", "o-1", title="")]
 
     said = _call("chat.harness.list", workspace="/w")
 
@@ -789,15 +789,18 @@ def test_the_harness_sessions_of_a_workspace_are_paged_as_rows(
                 "model": "opus",
                 "began": "2026-01-01T00:00:00Z",
                 "updated": "2026-01-02T00:00:00+00:00",
+                "continuable": True,
             },
             {
-                "id": "c-1",
-                "harness": "claude",
+                "id": "o-1",
+                "harness": "opencode",
                 "title": "",
                 "workspace": WORKSPACE,
                 "model": "opus",
                 "began": "2026-01-01T00:00:00Z",
                 "updated": "2026-01-02T00:00:00+00:00",
+                # Listed and read, and not carried on: its row says so.
+                "continuable": False,
             },
         ],
         "total": 2,
@@ -805,7 +808,7 @@ def test_the_harness_sessions_of_a_workspace_are_paged_as_rows(
         "limit": 50,
     }
     paged = _call("chat.harness.list", workspace="/w", offset=1, limit=1)
-    assert ([one["id"] for one in paged["sessions"]], paged["total"]) == (["c-1"], 2)
+    assert ([one["id"] for one in paged["sessions"]], paged["total"]) == (["o-1"], 2)
     # Asked of the workspace as it was said, which is what a harness wrote down.
     assert harnessed.asked[0][0] == Path("/w")
     assert _refused("chat.harness.list", workspace="w") == (
@@ -854,7 +857,7 @@ def test_a_harness_session_is_adopted_as_a_chat_or_refused_saying_why(
     held: _Chats, harnessed: _Adopting
 ) -> None:
     del held
-    harnessed.found = [_found("claude", "c-1")]
+    harnessed.found = [_found("claude", "c-1"), _found("opencode", "c-1")]
     named = {"workspace": "/w", "harness": "claude", "session": "c-1"}
 
     assert _call("chat.harness.adopt", **named) == {"chat": "20260103-new"}
@@ -873,8 +876,10 @@ def test_a_harness_session_is_adopted_as_a_chat_or_refused_saying_why(
         409,
         "C-1 does not say the model it ran on: name an agent for the chat.",
     )
+    # One that is listed, of a harness that carries none on.
     assert _refused("chat.harness.adopt", **named | {"harness": "opencode"}) == (
         409,
         "A session of opencode cannot be continued in a chat.",
     )
+    assert len(harnessed.adopted) == 2
     assert _refused("chat.harness.adopt", **named | {"session": "c-0"})[0] == 404
