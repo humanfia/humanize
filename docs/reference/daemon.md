@@ -494,9 +494,9 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
 The TUI and the web page call `chat.list`, `chat.get`, `chat.stop` and `chat.backup`. The TUI
 calls `chat.rename`, `chat.fork`, `chat.archive`, `chat.backup` and `chat.delete` from the menu
 of a chat on [`/resume`](/reference/tui#resume) and `chat.unarchive` from its Workspace page,
-and [`hmz chat`](/reference/cli#chat-written-down) calls each but `chat.backup` by its option;
-nothing in the web page calls `chat.rename`, `chat.fork`, `chat.archive`, `chat.unarchive` or
-`chat.delete` yet.
+[`hmz chat`](/reference/cli#chat-written-down) calls each but `chat.backup` by its option, and
+the web page calls them from [a chat's menu](/user/web#managing-a-chat) and `chat.unarchive`
+from a directory's settings.
 
 A chat backed up is listed and downloaded with the epics of its target: `backups.epics` answers
 it among `epics` with `chat` `true`, its `epic` the chat's id and its `flow` `""`, and
