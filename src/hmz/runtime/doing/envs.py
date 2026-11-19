@@ -52,6 +52,10 @@ _REAL = (
     'do p=$(dirname -- "$p"); done && readlink -f -- "$p"'
 )
 
+#: Says where the workdir is, as a command run in it is told and with every link followed: what
+#: its machine alone knows of a workdir said under `~`.
+_WHERE = "pwd && pwd -P"
+
 #: How long an env's driver may take over anything but a command, in seconds.
 _PATIENCE = 120
 
@@ -114,8 +118,16 @@ async def _inside(driver: EnvDriver, env: str, path: str) -> str:
         machine for one elsewhere that runs commands.
     """
     workdir = str(driver.workdir)
-    whole = posixpath.normpath(posixpath.join(workdir, path))
     outside = EnvRefusal(400, f"{path} is outside the env {env}.")
+    if path.startswith("/") and workdir.startswith("~") and "exec" in _can(driver):
+        # An absolute path is in a workdir under the home or out of it as its machine says.
+        code, said, _ = await driver.exec(["sh", "-c", _WHERE], timeout=_PATIENCE)
+        whole = posixpath.normpath(path)
+        at = [one for one in said.splitlines() if code == 0 and _under(whole, one)]
+        if not at:
+            raise outside
+        path = posixpath.relpath(whole, at[0])
+    whole = posixpath.normpath(posixpath.join(workdir, path))
     if not _under(whole, workdir):
         raise outside
     relative = posixpath.relpath(whole, workdir)

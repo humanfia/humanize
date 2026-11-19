@@ -553,8 +553,9 @@ flow would, without attaching and without telling the epic. Each takes `workspac
 | `hosts.env.exec` (write) | `argv` (non-empty), `seconds` (1–3600, `120`) | `code` (`null` where killed at `seconds`), `stdout`, `stderr` (each the last 1 MiB) |
 | `hosts.env.grep` | `pattern` (POSIX ERE), `path` (`.`), `limit` (1–2000, `200`) | `matches` (`path`, `line`, `text` cut at 400), `more` |
 
-Refusals: 400 `<path> is outside the env <env>.` (by `..`, an absolute path or a symbolic
-link), 400 `hosts.env.exec runs a command: give argv.`; 404 `The epic has no env <env>.`, `There is
+Refusals: 400 `<path> is outside the env <env>.` (by `..`, an absolute path outside it or a
+symbolic link; an absolute path inside the workdir is taken, and where the workdir is under `~`
+the env's machine says where that is), 400 `hosts.env.exec runs a command: give argv.`; 404 `The epic has no env <env>.`, `There is
 no file <path> in <env>.`; 409 `no flow is running, so no env is open`, `The env <env> cannot <what>.`,
 `<what>` being `read files`, `write files`, `run commands` or `search files`.
 
