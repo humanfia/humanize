@@ -57,8 +57,8 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 `runtime`, `flows` and `coganchor` import each other, so a topic that runs one runs all three.
 The other topics' rows follow what their tests import, and `hmz`, which loads a package only
 when a command needs it. A test that comes to run a package or a double, or to read a document
-of `protocol/`, that its row leaves out takes it into the row in `ci.yml`'s `changes`: `tests/integration/test_core_ci_filters.py`
-fails until it does.
+of `protocol/`, that its row leaves out takes it into the row in `ci.yml`'s `changes`:
+`tests/integration/test_core_ci_filters.py` fails until it does.
 
 | Job | Checks | Run it yourself |
 | --- | --- | --- |
