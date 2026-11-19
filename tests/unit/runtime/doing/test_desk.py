@@ -766,6 +766,37 @@ def test_a_search_reads_what_grep_said(host: tuple[Host, Workspace], box: Box) -
     assert box.ran[-1][5:7] == ["E", "i"]
 
 
+@pytest.mark.parametrize(
+    ("err", "why"),
+    [
+        (
+            "rg: regex parse error:\n    (\n    ^\nerror: unclosed group\n",
+            "error: unclosed group",
+        ),
+        (
+            (
+                "rg: regex parse error:\n    (?=a)\n    ^^^\n"
+                "error: look-around is not supported\n\n"
+                "Consider enabling PCRE2 with the --pcre2 flag, which can handle\n"
+                "backreferences and look-around.\n"
+            ),
+            "error: look-around is not supported",
+        ),
+        ("", "the search failed"),
+    ],
+)
+def test_a_search_the_tool_cannot_read_is_refused_in_its_words(
+    host: tuple[Host, Workspace], box: Box, err: str, why: str
+) -> None:
+    box.answers = _answers("rg\n", 2, err)
+    alice, _ = _going(host)
+
+    assert alice.asks("env.search", env=ROOT, query="(", regex=True) == {
+        "ok": False,
+        "why": why,
+    }
+
+
 def test_a_search_reads_a_path_with_a_colon_from_grep(
     host: tuple[Host, Workspace], box: Box
 ) -> None:
