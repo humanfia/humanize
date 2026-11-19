@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import collections
 import contextlib
-import json
 import threading
 import time
 from typing import TYPE_CHECKING, Any, cast
@@ -266,7 +265,11 @@ def _noticed(
             chat
             and kind == "listening"
             and (not same or was.get("turn") == "done")
-            and now.get("usage") == (was.get("usage") if same else _unspent())
+            and (
+                now.get("usage") == was.get("usage")
+                if same
+                else _unspent(now.get("usage"))
+            )
         ):
             # Asked what to say next with no turn taken since it last was, which would have
             # shown as running or spent something: after a `!` command or a line refused,
@@ -291,11 +294,16 @@ def _noticed(
     return made
 
 
-def _unspent() -> Any:
-    """What a host that has taken no turn says it has spent."""
-    from hmz.flows import Usage
+def _unspent(usage: Any) -> bool:
+    """Whether what a host says it has spent is nothing, as of one that has taken no turn.
 
-    return json.loads(Usage().model_dump_json())
+    Args:
+      usage: What it says: each amount by name, how long as an ISO 8601 duration.
+    """
+    if not isinstance(usage, dict):
+        return False
+    spent = cast("dict[str, Any]", usage)
+    return bool(spent) and all(one in (0, "PT0S") for one in spent.values())
 
 
 def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]:
