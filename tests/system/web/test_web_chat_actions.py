@@ -283,6 +283,12 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             expect(dialog.locator("[data-hmz=delete-title]")).to_have_text(
                 "first thing"
             )
+            # Escape closes it alone: the settings it was opened over stand again.
+            page.keyboard.press("Escape")
+            expect(dialog).to_have_count(0)
+            expect(page.locator("[data-hmz=dialog-settings]")).to_be_visible()
+            expect(listed).to_have_count(1)
+            listed.locator("[data-hmz=archived-delete]").click()
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog).to_have_count(0)
             expect(page.locator("[data-hmz=dialog-settings]")).to_be_visible()

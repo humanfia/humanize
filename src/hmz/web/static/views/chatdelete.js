@@ -29,6 +29,12 @@ export function mount(root, { parts, query }) {
     h('div', { class: 'dialog-body delete-body' }, named, h('p', { class: 'delete-about' }, DELETING), said),
     h('div', { class: 'dialog-foot delete-foot' }, keep, doing),
   )
+  // Escape closes this dialog as `Cancel` does, before the page closes every dialog open by it.
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
+    leave()
+  })
   let gone = false
   call('chat.get', { chat: id }, on).then(
     (chat) => {
@@ -57,6 +63,8 @@ export function mount(root, { parts, query }) {
       return
     }
     chatsChanged()
+    // Closed meanwhile, there is no dialog left to close.
+    if (gone) return
     // Deleted from over its own view, there is no chat left to go back to: a new chat, in its place.
     if (under().split('?')[0].endsWith(`/chats/${encodeURIComponent(id)}`)) addEventListener('hashchange', () => location.replace(hash('/new/chat')), { once: true })
     leave()

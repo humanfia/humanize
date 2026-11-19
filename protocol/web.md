@@ -701,7 +701,8 @@ cannot be undone, and that a worktree the chat worked in is left on disk, and of
 `Delete`, the focus on `Cancel`. `Delete` there MUST delete the chat (`chat.delete`) and close the
 dialog; where the chat deleted is the one in view, the page MUST then open a new chat in its place.
 A refusal MUST be said in the dialog in the daemon's own sentence, and the dialog MUST stay open.
-Closing the dialog MUST go back to what it was opened over, another dialog included.
+`Cancel`, <kbd>Escape</kbd> and a deletion done MUST go back to what the dialog was opened over,
+another dialog included.
 
 **3.6.6.27** `Details` MUST say where a chat's assistant works (`workdir`), beside the chat's
 workspace, where the two differ (Section 8.3.13 of [CORE]).
