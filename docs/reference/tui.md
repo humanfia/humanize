@@ -122,8 +122,8 @@ on a new chat, its agent the chat agent remembered for this directory, else the 
 | Starting a flow | `$<flow> <task>` or `/flow <flow> <task>` puts the flow on the screen, on this directory's own host, and leaves the chat going on its own; `/chat` brings it back, as it stands or, folded away meanwhile, as it was left, carried on by the next line. A line said while no epic of a flow is going goes to the chat. |
 | Its harness's own input | A line starting `/`, `$`, `!` or `@` is first read as the harness reads it at its own prompt, against the catalogue the chat's host gives (`chat.commands`): its commands and skills are said to it, a `!` command runs for the chat and is drawn dim, as a shell draws it, with what it printed under it, and a command only the harness's own interface serves is refused, `<cmd> is served only by the harness's own interactive interface`. Humanize keeps `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`, `/settings`, `/chat` and `/prefer`. A `/` naming nothing is `no such command` where the catalogue has any `/` entry and the chat has taken a turn, and is said as text otherwise. |
 | `$` names both | A `$<name>` that is both a skill and a flow runs the skill unless the chat prefers flows: `/prefer` says which and where it comes from (the settings file, or this chat), `/prefer native\|flow` sets it for this chat. `/flow <name> <task>` always starts the flow. |
-| `/resume` | Lists the other chats of this directory, newest first; the one picked is carried on. |
-| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume epic`: one still going is read where it is, one folded away is carried on, in the same epic, by the next line you say. |
+| `/resume` | Lists the other chats of this directory, newest first; the one picked is carried on, as `continue` on `/epics` does. |
+| `/epics` | No `Exomyth` row for a chat's epic; `continue` in place of `resume epic`: one still going is read where it is, one folded away is drawn with what was said in it and carried on, in the same epic, by the next line you say. |
 | `!` lines | A `!` line and its output are drawn dim, in the style of a shell. |
 
 #### Native input {#native-input}
@@ -365,8 +365,8 @@ menu never offers a chat: a chat's agent is set on the [Workspace page](#workspa
 ### `/chat` {#chat-command}
 
 Puts back on the screen the [chat](#chat) of this interface, which went on on its own host while
-a flow was on the screen. One that has folded away meanwhile is drawn as folded, and carried on,
-in the same epic, when the next line is said.
+a flow was on the screen. One that has folded away meanwhile is drawn with what was said in it, and
+carried on, in the same epic, when the next line is said.
 
 ### `/prefer [native|flow]` {#prefer-command}
 
@@ -1283,7 +1283,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for a [chat](#chat). |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
-A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume epic`: the one a host still holds is read where it is, and one folded away is set up and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
+A [chat](#chat)'s epic offers `continue` (`carry the conversation on`) in place of `resume epic`: the one a host still holds is read where it is, and one folded away is set up, drawn with what was said in it, and carried on, in the same epic, by the next line said; one of another directory, or that cannot be, is refused `this chat cannot be continued here`.
 
 Rows in order: `resume epic` or `continue`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
 

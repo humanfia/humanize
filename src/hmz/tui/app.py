@@ -5017,9 +5017,10 @@ class Humanize(App[None]):
         """Goes back to one chat chosen on `/epics` or `/resume`, to carry the conversation on.
 
         To the host holding it where one still is, which is the conversation as it stands,
-        read from the top. Otherwise it has folded away -- or ended some other way -- and the
-        line typed next carries it on: in the same epic, on a host of its own, by an agent
-        that remembers what was said in it, which is what talking to it again is.
+        read from the top. Otherwise it has folded away -- or ended some other way -- and is
+        drawn with what was said in it, and the line typed next carries it on: in the same
+        epic, on a host of its own, by an agent that remembers what was said in it, which is
+        what talking to it again is.
 
         Args:
           epic: The chat, by the directory it is written in.
@@ -5051,7 +5052,51 @@ class Humanize(App[None]):
         self._moves(where.chat(), None)
         self._continuing = epic
         self._chat_slot, self._chat_epic = "", epic.name
+        self._draws_said(epic, ran)
+
+    @work
+    async def _draws_said(self, epic: Path, ran: Ran) -> None:
+        """Draws what was said in a chat that has folded away, above what carries it on.
+
+        Read back out of the log its last session kept, which holds the conversation whole:
+        carrying a chat on forks the session before it (Section 8.7.4 of [CORE]). Slow, so
+        read off the screen's thread, and drawn only while the chat is still the one to be
+        carried on -- not once a line has carried it on, or another has been gone to.
+
+        Args:
+          epic: The chat, by the directory it is written in.
+          ran: What its epic records.
+        """
+        said: list[dict[str, Any]] = []
+        with contextlib.suppress(OSError, ValueError):
+            said = await asyncio.to_thread(self.hmz.epics.transcripts, epic)
+        if self._continuing != epic:
+            return
+        by_key = {one["key"]: one["actions"] for one in said}
+        last = next(
+            (
+                by_key[key]
+                for one in reversed(ran.sessions)
+                if (key := f"{one.backend}:{one.ident}") in by_key
+            ),
+            (),
+        )
+        for action in last:
+            args = action["args"]
+            if action["category"] == "turn":
+                self._said_by_you(str(args.get("prompt") or action["name"]))
+            elif action["category"] == "message":
+                text = escape(str(args.get("text") or action["name"])).splitlines()
+                self.show(
+                    "\n".join(
+                        [
+                            f"[green]{_SAID}[/] {(text or [''])[0]}",
+                            *(f"  {line}" for line in text[1:]),
+                        ]
+                    )
+                )
         self.show(f"[dim]say something to continue {escape(ran.name)}[/dim]")
+        self._draw()
 
     def _forgets_prefer(self) -> None:
         """Drops the preference of the chat left, which is that chat's and no other's.

@@ -10,6 +10,7 @@ skill and a flow starts. The daemon's chats are stood in for (:class:`Chats`).
 
 from __future__ import annotations
 
+import sys
 import threading
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,7 @@ from tests.integration.doubles_tui import (
     RUNS,
     SIZE,
     Chats,
+    claude_logged,
     folds_fast,
     heard,
     leaves,
@@ -266,6 +268,9 @@ async def test_a_chat_folded_away_is_continued_from_epics_in_the_same_epic(
         await until(pilot, lambda: len(epics(workspace)) == 1, "the epic")
         (epic,) = epics(workspace)
         await until(pilot, lambda: bool((read(epic) or Ran(epic)).ended), "it to fold")
+        # Its session as Claude Code logs one, which the stand-in writes only the half of.
+        (session,) = (read(epic) or Ran(epic)).sessions
+        claude_logged(epic / "sessions" / "claude", workspace, session.ident, 0)
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
@@ -273,6 +278,13 @@ async def test_a_chat_folded_away_is_continued_from_epics_in_the_same_epic(
         await on(pilot, Does)
         await opens(pilot, "continue")
         await shows(pilot, "say something to continue")
+        # Drawn with what was said in it, above what carries it on (Section 8.7.4 of [CORE]).
+        drawn = screen(app)
+        assert (
+            drawn.index("❯ fix the bug")
+            < drawn.index("⏺ fixed" if sys.platform == "darwin" else "● fixed")
+            < drawn.index("say something to continue")
+        )
 
         await typed(pilot, "more")
         await shows(pilot, "heard more", "◉ done")
