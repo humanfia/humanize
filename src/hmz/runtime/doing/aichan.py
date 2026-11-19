@@ -367,7 +367,7 @@ class Setting(_Model):
     """Settings to write."""
 
     values: Mapping = pydantic.Field(
-        description='The settings.set params to write, e.g. {"ai_chan": "claude"}.'
+        description='The settings.set params to write, e.g. {"ai_chan": "claude/opus"}.'
     )
 
 

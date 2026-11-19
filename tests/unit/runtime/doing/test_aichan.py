@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 from typing import TYPE_CHECKING, Any
 from unittest import mock
@@ -14,6 +15,7 @@ import pytest
 import hmz
 from hmz.flows import Access, HarnessSandboxed
 from hmz.runtime.doing import aichan
+from hmz.runtime.flowing import parse_agents
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -302,6 +304,21 @@ def test_the_methods_listed_are_those_she_may_be_able_to_call(
 
     assert [one["method"] for one in said] == ["runs.list"]
     assert said[0]["params"] == {"limit": {"type": "integer"}}
+
+
+def test_the_setting_she_is_shown_to_write_is_one_a_conversation_can_start_on(
+    client: mock.Mock,
+) -> None:
+    tools, _ = aichan.offered(aichan.Link("/w", lambda: client))
+    takes = next(one for one in tools if one.name == "settings_set").takes
+    assert takes is not None
+    told = takes.model_json_schema()["properties"]["values"]["description"]
+    shown = re.search(r"\{.*\}", told)
+    assert shown is not None
+
+    (spec,) = parse_agents([f"ai_chan={json.loads(shown.group())['ai_chan']}"])
+
+    assert spec.model
 
 
 def test_a_long_answer_is_cut_and_says_so(client: mock.Mock) -> None:
