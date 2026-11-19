@@ -36,6 +36,12 @@ def test_answers_an_unclassified_failure_as_a_turn_always_was(fault: str) -> Non
     assert nous.answers(fault) == nous.Answer(fault, "failed")
 
 
+def test_a_fenced_turn_is_told_the_permission_field_that_lets_it_through() -> None:
+    fix = nous.answers("fenced").fix
+    assert "give the role network=True" in fix
+    assert "online" not in fix
+
+
 def test_policies_and_strategies_are_named_once() -> None:
     for names in (
         [one.name for one in nous.POLICIES],
