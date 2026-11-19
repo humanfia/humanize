@@ -969,8 +969,10 @@ class Desk:
             ],
         )
         if code:
-            # The tool's reason is its last line: rg first shows where in the query.
-            raise Refused(err.strip().rpartition("\n")[2])
+            # The tool's reason ends its first paragraph: rg first shows where in the query,
+            # and may advise after a blank line.
+            why = err.strip().partition("\n\n")[0].rpartition("\n")[2]
+            raise Refused(why or "the search failed")
         tool, _, rest = out.partition("\n")
         if tool.strip() == "rg":
             matches = _rg(rest, limit + 1)
