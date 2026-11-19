@@ -88,6 +88,15 @@ def test_a_local_target_is_served_by_a_child_of_this_process(
     assert found["exports"] == [{"virtual": str(workspace), "real": str(real)}]
 
 
+def test_a_local_target_asks_for_no_secret_this_process_was_not_given(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Exported for some `tcp://` target: the child would take it as its own `--token`.
+    monkeypatch.setenv("HUMANIZE_TOKEN", "stray")
+
+    assert anchor.check(AnchorConfig(workspace=str(workspace)))["entries"] == 2
+
+
 def test_a_target_over_ssh_is_bootstrapped_once_and_served(
     far: Fakes, workspace: Path, tmp_path: Path
 ) -> None:

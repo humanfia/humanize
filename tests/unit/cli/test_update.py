@@ -11,13 +11,14 @@ import subprocess
 import sys
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
+from unittest import mock
 
 import pytest
 
 import hmz.cli.output
 import hmz.cli.update
 import hmz.coganchor
-import hmz.daemon
+import hmz.daemon.where
 from hmz.cli import main
 from hmz.coganchor import releases
 
@@ -73,14 +74,25 @@ class _World:
         self.there = {"hmz", "pyyaml", "websockets"}
         self.after = "0.3.0"
         self.exits = 0
-        self.daemons: list[Any] = []
+        self.daemon: dict[str, Any] = {}
+        self.listening = True
         monkeypatch.setattr(sys, "prefix", str(prefix))
         monkeypatch.setattr(hmz.coganchor, "__version__", "0.2.0", raising=False)
         monkeypatch.setattr(releases, "fetch", lambda: "0.3.0")
-        monkeypatch.setattr(hmz.daemon, "daemons", lambda: self.daemons)
+        monkeypatch.setattr(hmz.daemon.where, "at", lambda: prefix / "daemon")
+        monkeypatch.setattr(hmz.daemon.where, "held", self._held)
+        monkeypatch.setattr(hmz.daemon.where, "connects", self._connects)
         monkeypatch.setattr(hmz.cli.update, "distribution", self._distribution)
         monkeypatch.setattr(subprocess, "run", self._run)
         monkeypatch.setattr(shutil, "which", _on_path)
+
+    def _held(self, _: object) -> dict[str, Any]:
+        return self.daemon
+
+    def _connects(self, *_: object) -> Any:
+        if not self.listening:
+            raise ConnectionRefusedError
+        return mock.Mock()
 
     def _distribution(self, name: str) -> Any:
         from importlib.metadata import PackageNotFoundError
@@ -260,9 +272,19 @@ def test_the_daemon_running_the_old_release_is_said(
     world: _World, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     (tmp_path / "uv-receipt.toml").touch()
-    world.daemons = [SimpleNamespace(pid=4242)]
+    world.daemon = {"pid": 4242}
     assert main(["update"]) == 0
     assert "(pid 4242) run hmz 0.2.0" in capsys.readouterr().out
+
+
+def test_a_daemon_that_left_its_note_behind_is_not_said_to_run(
+    world: _World, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "uv-receipt.toml").touch()
+    world.daemon = {"pid": 4242}
+    world.listening = False
+    assert main(["update"]) == 0
+    assert "Epics held" not in capsys.readouterr().out
 
 
 def test_help_takes_nothing_else(capsys: pytest.CaptureFixture[str]) -> None:

@@ -866,7 +866,8 @@ are left behind when it moves to another.
   process's own turns.
 
 Settings an older Humanize wrote under `fallbacks` are read as each place's `then`, and moved
-under `nous` the next time a nous is saved.
+under `nous` the next time a nous is saved. Where two of those places fell back to each other,
+the one listed first keeps its `then` and the other is left out.
 
 ::: details From Python
 The nous you save at the prompt are the ones `Hmz().nous` reads and writes:

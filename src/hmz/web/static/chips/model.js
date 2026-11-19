@@ -92,7 +92,7 @@ export function modelChip(name, kept, changed = () => {}) {
     button.dataset.value = picked.chosen.model
     button.dataset.agent = spec
     redrawn(listed, () => items(shut))
-  })
+  }, { changed })
   const { chosen } = picked
   const pick = (part) => {
     Object.assign(chosen, part)

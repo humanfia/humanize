@@ -58,6 +58,8 @@ let over = 0
 let leaving = false
 /** What held the focus as the dialog opened, which has it back once the dialog closes over the same view. */
 let focused = null
+/** What held the focus as the address was last routed: where the person was as they asked for the view. */
+let asked = null
 /** The address the view under a dialog took meanwhile, put in the address once the dialog closes. */
 let renaming = ''
 /** What the view drawn is kept by once it put its own query in the address: come back to, it stands. */
@@ -126,8 +128,19 @@ export function covered() {
 }
 
 /**
+ * Whether the person has gone to type in Ai-chan's drawer, beside the view drawn, since they asked
+ * for that view: what it reads meanwhile takes no focus out of the drawer. One asked for from the
+ * drawer itself, by its shortcut, is typed into as any other.
+ */
+export function beside() {
+  const at = document.activeElement
+  return at !== asked && Boolean(at?.closest('[data-hmz=aichan]'))
+}
+
+/**
  * What a view gives the focus by once what it reads is drawn, asked for as the reading begins:
- * the box typed into next takes the focus then, unless a dialog is over the view or the focus
+ * the box typed into next takes the focus then, unless a dialog is over the view, the person
+ * went to type in Ai-chan's drawer beside it, or the focus
  * went elsewhere while the view read -- a control pressed, Tab, a dialog closed that gave it
  * back -- which is not taken from where it was put.
  *
@@ -136,7 +149,7 @@ export function covered() {
 export function focusing() {
   const held = document.activeElement
   return (el) => {
-    if (!covered() && unmoved(held, document.activeElement, [document.body, page])) el.focus()
+    if (!covered() && !beside() && unmoved(held, document.activeElement, [document.body, page])) el.focus()
   }
 }
 
@@ -159,6 +172,7 @@ async function route(event) {
   window.dispatchEvent(new CustomEvent('hmz:route'))
   const mine = ++routed
   routedTo = location.hash
+  asked = document.activeElement
   leaving = false
   // A dialog's entry is kept with how far it is past the view: one come back to says so itself.
   if (covered()) {

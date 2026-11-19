@@ -6,6 +6,7 @@ import asyncio
 import errno
 import signal
 from pathlib import PurePosixPath
+from typing import Any
 
 import pytest
 
@@ -454,6 +455,63 @@ async def test_a_workdir_not_on_the_host_is_unavailable(
     driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath("/nowhere"))
 
     with pytest.raises(EnvUnavailable, match="/nowhere"):
+        await driver.probe()
+    assert not driver.available
+
+
+class _MacRemote(FakeRemote):
+    """A Mac's serving half: `/tmp` links into `/private`, which it folds away again."""
+
+    def call(self, op: object, *, path: str) -> dict[str, Any]:
+        if path.removeprefix("/private") == "/tmp":
+            return {"kind": "link", "size": 11, "mtime_ns": 0, "target": "private/tmp"}
+        return super().call(op, path=path)
+
+    def listdir(self, path: str) -> dict[str, Any]:
+        if path.removeprefix("/private") == "/tmp":
+            return {"entries": []}
+        return super().listdir(path)
+
+
+def _mac_path(path: str, *, fold_case: bool = False) -> str:
+    """A path as a Mac's two spellings of `/tmp` are held to one."""
+    return "/tmp" if path == "/private/tmp" else path
+
+
+@pytest.mark.parametrize("workdir", ["/tmp", "/private/tmp"])
+async def test_a_directory_a_mac_reaches_through_private_is_a_workdir_there(
+    monkeypatch: pytest.MonkeyPatch, workdir: str
+) -> None:
+    from hmz.coganchor import proto
+
+    monkeypatch.setattr(proto, "path_key", _mac_path)
+    reach(monkeypatch, _MacRemote())
+    driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath(workdir))
+
+    await driver.probe()
+
+    assert driver.available
+
+
+class _LoopRemote(FakeRemote):
+    """A serving half whose `/work/loop` is a link to itself, as its errno says on a Mac."""
+
+    def call(self, op: object, *, path: str) -> dict[str, Any]:
+        if path == "/work/loop":
+            return {"kind": "link", "size": 4, "mtime_ns": 0, "target": "loop"}
+        return super().call(op, path=path)
+
+    def listdir(self, path: str) -> dict[str, Any]:
+        if path == "/work/loop":
+            raise OSError(62, "Too many levels of symbolic links")
+        return super().listdir(path)
+
+
+async def test_a_link_to_itself_is_no_workdir(monkeypatch: pytest.MonkeyPatch) -> None:
+    reach(monkeypatch, _LoopRemote())
+    driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath("/work/loop"))
+
+    with pytest.raises(EnvUnavailable, match="/work/loop"):
         await driver.probe()
     assert not driver.available
 

@@ -3965,8 +3965,7 @@ class Humanize(App[None]):
             # its own preference, once the next line starts it (Section 8.8.4 of [CORE]).
             self._chat_slot = self._chat_epic = ""
             self._natives, self._natives_of, self._listed = [], "", False
-            self._prefer, self._prefer_from = Hmz().settings.chat_prefer, "settings"
-            self._prefer_own = None
+            self._forgets_prefer()
             self._chat_runs = self._chat_agent()
             if self._epic_as:
                 from hmz.daemon import where
@@ -5032,6 +5031,7 @@ class Humanize(App[None]):
         if slot is not None:
             # On this machine, whose chat it is, whatever is followed on another daemon.
             if (slot, None) != (self._slot, self._afar):
+                self._forgets_prefer()
                 self._moves(slot, None)
             self._chat_slot, self._chat_epic = slot, epic.name
             return
@@ -5044,10 +5044,22 @@ class Humanize(App[None]):
         if why := self.hmz.epics.foreign(epic):
             self.show(f"hmz: {ran.name} cannot be continued here: {why}", "red")
             return
+        self._forgets_prefer()
+        if ran.prefer in _PREFERS:
+            # Its own, as its epic records it, which carrying it on keeps.
+            self._prefer, self._prefer_from = ran.prefer, "chat"
         self._moves(where.chat(), None)
         self._continuing = epic
         self._chat_slot, self._chat_epic = "", epic.name
         self.show(f"[dim]say something to continue {escape(ran.name)}[/dim]")
+
+    def _forgets_prefer(self) -> None:
+        """Drops the preference of the chat left, which is that chat's and no other's.
+
+        The settings' again, until the chat gone to says its own (Section 8.9.10 of [CORE]).
+        """
+        self._prefer, self._prefer_from = Hmz().settings.chat_prefer, "settings"
+        self._prefer_own = None
 
     def action_chat(self, argv: Sequence[str] = ()) -> None:
         """Puts this interface's chat back on the screen, which went on while a flow was on it.
@@ -6017,6 +6029,8 @@ class Humanize(App[None]):
         """
         self._chat_slot = str(answer.get("slot") or self._slot)
         self._chat_epic = str(answer.get("epic") or self._chat_epic)
+        # Recorded in its epic now, where `chat.set` changes it: not said again on carrying on.
+        self._prefer_own = None
         self._asks_natives()
 
     def _asks_natives(self) -> None:

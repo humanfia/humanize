@@ -1914,6 +1914,48 @@ def test_ai_chan_drawer_opens_from_every_view_with_her_avatar_and_new_form(
         expect(drawer).to_be_hidden()
 
 
+@pytest.mark.usefixtures("talking")
+@pytest.mark.parametrize(
+    ("link", "held", "read"),
+    [
+        ("new", "flows.get", "[data-hmz=composer-text][placeholder^='What should']"),
+        ("new/chat", "settings.get", "[data-hmz=role][data-role=assistant]"),
+    ],
+)
+def test_a_new_view_read_under_ai_chans_drawer_takes_no_focus_out_of_it(
+    project: Path, engine: str, link: str, held: str, read: str
+) -> None:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, "/flows")
+        page.locator("[data-hmz=aichan-toggle]").first.click()
+        drawer = page.locator("[data-hmz=aichan]")
+        drawer.locator("[data-hmz=aichan-new]").click()
+        task = drawer.locator("[data-hmz=aichan-task] textarea")
+        expect(task).to_be_focused()
+        # The view is asked for from the sidebar, and what it reads is slow to come.
+        wire.holds(held)
+        page.locator(f"a[data-nav='{link}']:not(.brand)").click()
+        wire.waits(page)
+        # Meanwhile the person goes to tell Ai-chan something.
+        task.click()
+        page.keyboard.type("stop ")
+        wire.lets_through()
+        # Read, the view is drawn whole, and what is typed still goes to her.
+        expect(page.locator(f"[data-hmz=page] {read}")).to_be_visible()
+        expect(task).to_be_focused()
+        page.keyboard.type("the epic")
+        expect(task).to_have_value("stop the epic")
+        expect(page.locator("[data-hmz=page] [data-hmz=composer-text]")).to_have_value(
+            ""
+        )
+        # Asked for from her drawer itself, by its shortcut, a new chat is typed into.
+        go(page, "/flows")
+        task.click()
+        page.keyboard.press("ControlOrMeta+Shift+O")
+        expect(page.locator("[data-hmz=page] [data-hmz=composer-text]")).to_be_focused()
+
+
 def test_what_is_pressed_on_an_epic_says_it_is_busy_until_its_reply(
     project: Path, engine: str, talking: None
 ) -> None:

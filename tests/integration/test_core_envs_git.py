@@ -392,6 +392,37 @@ def test_rg_is_told_which_files_quick_open_lists(
     assert {"--hidden", "!.git", "--no-ignore", "!node_modules"} <= set(outside)
 
 
+def test_grep_finds_a_file_whose_path_has_a_colon(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("sh", "head", "git", "grep"):
+        found = shutil.which(name)
+        assert found is not None
+        (tools / name).symlink_to(found)
+    monkeypatch.setenv("PATH", str(tools))  # a machine with no rg
+    (tmp_path / "bare").mkdir()
+    for where in (repo, tmp_path / "bare"):
+        (where / "sub").mkdir()
+        (where / "sub" / "b:c.txt").write_text("x needle\n")
+        (where / "a:12:b.txt").write_text("one\ntwo\nthe needle\n")
+        made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+        (env,) = made.refresh(
+            1, Holding(loop, [Held("repo", "here", None, Browsing(where))]), going=True
+        )
+        found = made.asked(
+            "c1", "ada", "env.search", {"env": env["id"], "query": "needle"}
+        )
+        assert sorted(
+            (one["path"], one["line"], one["column"], one["text"])
+            for one in found["matches"]
+        ) == [("a:12:b.txt", 3, 5, "the needle"), ("sub/b:c.txt", 1, 3, "x needle")]
+
+
 #: A grep that knows no long option and skips no binary file for `-I`, as BusyBox's does.
 _SHORT = """#!/bin/sh
 known=

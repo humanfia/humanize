@@ -408,9 +408,10 @@ def swarm(
 
 
 #: `sbatch`, `squeue`, `scancel` and `srun`, for a cluster whose one node is this machine. A
-#: job is its `--wrap` run here in a session of its own, in the far home, writing where its
-#: `--output` says under the far root; it runs until it is cancelled or ends, and `squeue`
-#: says so. `srun --jobid=J ... ARGV` runs ARGV here, as `--export=HOME,USER` leaves it.
+#: job is its `--wrap`, or the script on `sbatch`'s stdin where there is none, run here in a
+#: session of its own, in the far home, writing where its `--output` says under the far root;
+#: it runs until it is cancelled or ends, and `squeue` says so. `srun --jobid=J ... ARGV` runs
+#: ARGV here, as `--export=HOME,USER` leaves it.
 _SLURM = """
 import signal, subprocess
 
@@ -442,7 +443,7 @@ if tool == "sbatch":
     output = rooted([flags.get("--output", os.devnull).replace("%j", job)])[0]
     with open(output, "ab") as out:
         made = subprocess.Popen(
-            ["/bin/sh", "-c", flags["--wrap"]],
+            ["/bin/sh", "-c", flags["--wrap"] if "--wrap" in flags else sys.stdin.read()],
             cwd=flags["--chdir"] if os.path.isdir(flags.get("--chdir", "")) else None,
             env={"HOME": os.environ["FAKE_HOME"], "USER": "me", "PATH": "/usr/bin:/bin"},
             stdin=subprocess.DEVNULL, stdout=out, stderr=out, start_new_session=True,

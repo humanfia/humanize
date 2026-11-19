@@ -27,18 +27,44 @@ const served = daemon({
       const sub = `s${served.calls.length}`
       const workspace = params.scratch ? '/tmp/hmz-x' : params.workspace
       const slot = params.slot === 'chat:' ? 'chat:ab' : params.slot || ''
-      setTimeout(() => peer.notify('epic.event', { sub, message: { type: 'welcome', epoch: 'e1', client: 'c', workspace, slot } }))
+      setTimeout(() => {
+        const send = (message) => peer.notify('epic.event', { sub, message })
+        send({ type: 'welcome', epoch: 'e1', client: 'c', workspace, slot })
+        // A chat folded away and carried on, in the same epic on another life of its host.
+        if (workspace === '/carried') {
+          const life = (epoch) => {
+            send({ type: 'welcome', epoch, client: 'c', workspace, slot })
+            send({ type: 'run', state: 'running', run: 1, kind: 'chat', epic: 'e7', slot, turn: 'running' })
+            send({ type: 'started', seq: 1, run: 1, task: 'hello' })
+            send({ type: 'live', seq: 1, elided: 0 })
+          }
+          life('e1')
+          setTimeout(() => {
+            carried = 1
+            life('e2')
+          }, 50)
+        }
+        // What a host holds of a run that ended before anybody looked: at `/failed` alone.
+        if (workspace !== '/failed') return
+        send({ type: 'run', state: 'idle', run: 1, kind: slot ? 'chat' : 'flow', epic: 'e9', slot, turn: 'done' })
+        send({ type: 'started', seq: 1, run: 1, task: 'hello' })
+        send({ type: 'ended', seq: 2, run: 1, how: 'failed', why: 'HarnessSandboxed: no fence here' })
+        send({ type: 'live', seq: 2, elided: 0 })
+      })
       return { sub, client: 'c', workspace, slot }
     },
     'epic.start': () => ({ run: 1, workspace: '/w', slot: '' }),
     'chat.start': (params) => ({ slot: params.slot === 'chat:' ? 'chat:cd' : params.slot, epic: 'e1' }),
     'chat.say': () => ({}),
+    'runs.get': ({ name }) => ({ name, kind: 'chat', workspace: '/failed', how: 'failed', why: 'HarnessSandboxed: no fence here', held: false, earlier: carried }),
   },
 })
+/** How many sessions the chat at `/carried` opened before it was last carried on. */
+let carried = 0
 const api = await import('../../../../src/hmz/web/static/api.js')
 api.providers.splice(0, api.providers.length, provider(served))
 const { ask, chatAsk } = await import('../../../../src/hmz/web/static/held.js')
-const { chatting } = await import('../../../../src/hmz/web/static/epic.js')
+const { chatting, watch } = await import('../../../../src/hmz/web/static/epic.js')
 
 after(async () => (await api.client('local')).close())
 
@@ -103,4 +129,44 @@ test('an epic is a chat by its kind, and an old one with no kind by its flow nam
   assert.equal(chatting({ flow: './flows/chat/' }), true)
   assert.equal(chatting({ flow: 'ralph' }), false)
   assert.equal(chatting(null), false)
+})
+
+test('a chat that ended before its host was looked at is still the epic its host names', async () => {
+  /** @type {{name: string, none: boolean, ended: string}[]} */
+  const told = []
+  const stop = watch('', { workspace: '/failed', slot: 'chat:gh' }, (seen) => told.push({ name: seen.detail ? seen.detail.name : '', none: seen.none, ended: seen.going && seen.going.ended ? seen.going.ended.why : '' }))
+  try {
+    // Named, with the records that say why it failed, and never said to be no chat at all.
+    await until(() => told.some((one) => one.name === 'e9'))
+    assert.equal(told.at(-1).ended, 'HarnessSandboxed: no fence here')
+    assert.deepEqual(told.filter((one) => one.none), [])
+  } finally {
+    stop()
+  }
+})
+
+test('an epic that ended on a workspace host is not the one going there', async () => {
+  /** @type {{name: string, none: boolean}[]} */
+  const told = []
+  const stop = watch('', { workspace: '/failed', slot: '' }, (seen) => told.push({ name: seen.detail ? seen.detail.name : '', none: seen.none }))
+  try {
+    await until(() => told.some((one) => one.none))
+    assert.deepEqual(told.filter((one) => one.name), [])
+  } finally {
+    stop()
+  }
+})
+
+test('a chat carried on while its host is followed is read again, with what it opened before', async () => {
+  /** @type {{epoch: string, earlier: number}[]} */
+  const told = []
+  const stop = watch('', { workspace: '/carried', slot: 'chat:ij' }, (seen) => told.push({ epoch: seen.held ? seen.held.epoch : '', earlier: seen.detail ? seen.detail.earlier : -1 }))
+  try {
+    // First as it began, with nothing before it.
+    await until(() => told.some((one) => one.epoch === 'e1' && one.earlier === 0))
+    // Carried on in the same epic: what it wrote down is read again, not kept as first read.
+    await until(() => told.some((one) => one.epoch === 'e2' && one.earlier === 1), 2000)
+  } finally {
+    stop()
+  }
 })

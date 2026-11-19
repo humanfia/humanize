@@ -158,9 +158,8 @@ def test_what_the_run_notices_is_said_aside(
     running.blind = "the agent cannot read this"
     runtime.run.return_value = running
     assert main(["exec", "x"]) == 0
-    assert capsys.readouterr().err == (
-        "hmz exec: the agent cannot read this\nhmz exec: moved to docker\n"
-    )
+    # What the check answered is the host's to say, as a notice: said here too, it is twice.
+    assert capsys.readouterr().err == "hmz exec: moved to docker\n"
 
 
 def test_a_line_that_cannot_be_read_exits_as_the_reading_does(

@@ -225,8 +225,8 @@ impl Server {
     }
 
     /// `HELLO {version, token}`, or inside TLS `HELLO {version, proof}`: checked, then
-    /// answered with what this machine is (and inside TLS this side's proof). It may be
-    /// repeated.
+    /// answered with what this machine is (and inside TLS this side's proof). One accepted
+    /// may be repeated; another token, proof or version ends the connection.
     fn hello(&mut self, frame: &Frame) {
         let invalid = RemoteError::new(libc::EACCES, "invalid token");
         let mut proof = None;
@@ -235,7 +235,7 @@ impl Server {
                 let said = frame.meta.get("proof").and_then(Value::as_str);
                 match said.and_then(|said| bound.cog_proved(said)) {
                     Some(cog) => proof = bound.anchor_proof(&cog).map(hex::encode),
-                    None => return self.fail(frame.id, &invalid),
+                    None => return self.refuse(frame.id, &invalid),
                 }
             }
             Some(_) => {}
@@ -243,7 +243,7 @@ impl Server {
                 if let Some(token) = &self.token
                     && frame.meta.get("token").and_then(Value::as_str) != Some(token.as_str())
                 {
-                    return self.fail(frame.id, &invalid);
+                    return self.refuse(frame.id, &invalid);
                 }
             }
         }
@@ -252,7 +252,7 @@ impl Server {
             // Both ends check, because either may be the older build. The connection goes
             // with it: an untokened session starts out authenticated, so merely failing the
             // handshake would leave every following request working.
-            self.fail(
+            return self.refuse(
                 frame.id,
                 &RemoteError::new(
                     libc::EPROTO,
@@ -262,9 +262,6 @@ impl Server {
                     ),
                 ),
             );
-            self.channel.close();
-            self.refused = true;
-            return;
         }
         self.authenticated = true;
         let able = fences();
@@ -292,6 +289,13 @@ impl Server {
 
     fn fail(&self, id: u64, error: &RemoteError) {
         let _ = self.channel.send(&Frame::error(id, error));
+    }
+
+    /// A handshake refused: answered with `error`, and the connection closed.
+    fn refuse(&mut self, id: u64, error: &RemoteError) {
+        self.fail(id, error);
+        self.channel.close();
+        self.refused = true;
     }
 }
 
@@ -416,6 +420,10 @@ mod tests {
         );
         assert_eq!(wrong.meta["errno"], libc::EACCES);
         assert_eq!(wrong.meta["strerror"], "invalid token");
+        // Another token ends the connection: the right one is not to be guessed on it.
+        assert!(client.recv().unwrap().is_none());
+        served.join().unwrap();
+        let (client, served) = pair(Some("s3cret"), dir.path());
         let hello = ask(
             &client,
             3,

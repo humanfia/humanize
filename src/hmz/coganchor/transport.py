@@ -1258,7 +1258,9 @@ def _spawn(command: list[str], token: str | None) -> Transport:
     """Start a child that serves over its own stdin and stdout.
 
     The token travels in the environment the child inherits, which works for
-    ``local``.  For ``ssh`` and ``docker`` the child is the client rather than
+    ``local``; with none, the child is kept from one this process happens to have
+    exported, which it would require and never be shown.  For ``ssh`` and
+    ``docker`` the child is the client rather than
     the target and neither forwards the environment, so those sessions are
     authenticated by ssh and by the docker socket themselves and the token goes
     unused.
@@ -1267,6 +1269,8 @@ def _spawn(command: list[str], token: str | None) -> Transport:
     env = dict(os.environ)
     if token:
         env["HUMANIZE_TOKEN"] = token
+    else:
+        env.pop("HUMANIZE_TOKEN", None)
     process = subprocess.Popen(
         command,
         stdin=subprocess.PIPE,

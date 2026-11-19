@@ -197,7 +197,7 @@ export function mount(root, { query }) {
     }
     summarise()
     // Typed into next -- but not from under a dialog opened over it, out of what is typed there,
-    // nor out of what took the focus while this was read.
+    // nor out of Ai-chan's drawer beside it, nor out of what took the focus while this was read.
     focus(box.text)
   }
 

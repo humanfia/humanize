@@ -186,6 +186,7 @@ class Listener:
         return self._admit(secured, secured.peer)
 
     def _ws(self, route: Route) -> None:
+        import socket
         from urllib.parse import urlsplit
 
         from websockets.sync.server import serve
@@ -205,10 +206,13 @@ class Listener:
                 return connection.respond(404, "Not Found\n")
             return None
 
+        host = parts.hostname or ""
         server = serve(
             carries,
-            parts.hostname or "",
+            host,
             parts.port or 0,
+            # The family is the address's, as `hmz.reach.TcpListener` takes it: IPv4 unless said.
+            family=socket.AF_INET6 if ":" in host else socket.AF_INET,
             process_request=answers,
             max_size=MESSAGE,
             compression=None,
@@ -216,7 +220,7 @@ class Listener:
         if not self._holds(server.shutdown):
             return
         port: int = server.socket.getsockname()[1]
-        self._says(f"ws://{_named(parts.hostname or '')}:{port}{parts.path}")
+        self._says(f"ws://{_named(host)}:{port}{parts.path}")
         server.serve_forever()
 
     def _easytier(self, name: str) -> None:

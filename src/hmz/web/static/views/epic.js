@@ -880,6 +880,8 @@ export function mount(root, { parts, query }) {
   let catalogueAt = -1
   /** The flows on offer in the workspace, where no host holds the chat to say its catalogue. */
   let flowsHere = null
+  /** The preference the workspace's settings give, which a chat no host holds has with none of its own. */
+  let preferHere = 'native'
   /** The preference a chat folded away is carried on with, picked before it is carried on. */
   let preferring = null
   /** The box a chat going is talked to in. */
@@ -889,7 +891,8 @@ export function mount(root, { parts, query }) {
 
   /**
    * Reads the catalogue again where the host changed or a turn ended since it was read; the
-   * workspace's flows are read once besides, for a chat no host holds or one not yet answered.
+   * workspace's flows and its preference are read once besides, for a chat no host holds or one
+   * not yet answered.
    */
   function followCatalogue(detail, run) {
     if (!flowsHere) {
@@ -897,6 +900,13 @@ export function mount(root, { parts, query }) {
       call('flows.list', { workspace: detail.workspace }).then(
         (found) => {
           flowsHere = found.flows.map((one) => ({ sigil: '$', name: one.name, about: one.about || '', how: '', source: 'flow' }))
+        },
+        () => {},
+      )
+      call('settings.get', { workspace: detail.workspace }).then(
+        (settings) => {
+          preferHere = settings.prefer
+          draw()
         },
         () => {},
       )
@@ -934,7 +944,7 @@ export function mount(root, { parts, query }) {
   function preference(detail) {
     if (preferring) return { prefer: preferring, from: 'chat' }
     if (catalogue && catalogue.slot === here.slot) return { prefer: catalogue.prefer, from: catalogue.prefer_from }
-    return detail.prefer ? { prefer: detail.prefer, from: 'chat' } : { prefer: 'native', from: 'settings' }
+    return detail.prefer ? { prefer: detail.prefer, from: 'chat' } : { prefer: preferHere, from: 'settings' }
   }
 
   /** Sets the chat's preference: on its host while it goes, else for when it is carried on. */

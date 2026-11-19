@@ -536,3 +536,18 @@ def test_what_a_turn_answered_is_not_said_again_where_the_chat_asks_for_its_next
     captured = capsys.readouterr()
     assert captured.out == "answered\n"
     assert "hmz chat: answered" not in captured.err
+
+
+def test_what_the_chat_says_ahead_of_a_turns_answer_is_said_and_the_answer_once(
+    workspace: mock.Mock, client: _Client, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del workspace
+    unkept = "This conversation could not be carried on (no conversation), so this is a new one."
+    client.said = [[*_TURN[:-1], *_listens(f"{unkept}\n\nanswered", 5)]]
+
+    assert main(["chat", "--resume", "E", "and then?"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "answered\n"
+    assert f"hmz chat: {unkept}\n" in captured.err
+    assert "hmz chat: answered" not in captured.err

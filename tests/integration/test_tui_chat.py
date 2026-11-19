@@ -413,6 +413,89 @@ async def test_a_name_both_a_skill_and_a_flow_goes_by_the_chats_preference(
     assert heard(workspace).count("$rlar go") == 1
 
 
+async def test_a_preference_set_for_one_chat_is_not_another_carried_on_after_it(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folds_fast(monkeypatch)
+    chats = Chats().install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "first")
+        await shows(pilot, "heard first", "◉ done")
+        await typed(pilot, "/clear")
+        await until(pilot, lambda: len(epics(workspace)) == 1, "the epic")
+        (first,) = epics(workspace)
+        await until(
+            pilot, lambda: bool((read(first) or Ran(first)).ended), "it to fold"
+        )
+
+        # Set before the second chat starts, so it is started with it.
+        await typed(pilot, "/prefer flow")
+        await shows(pilot, "runs the flow where it names both, in this chat")
+        await typed(pilot, "second")
+        await shows(pilot, "heard second", "◉ done")
+
+        await typed(pilot, "/resume")
+        await shows(pilot, "Resume a chat", "first")
+        await opens(pilot, first.name)
+        await shows(pilot, "say something to continue")
+        # The first chat's, which was never given one of its own.
+        await typed(pilot, "/prefer")
+        await shows(pilot, "native, from the settings file")
+        await typed(pilot, "more")
+        await shows(pilot, "heard more", "◉ done")
+
+    starts = [said for method, said in chats.asked if method == "chat.start"]
+    assert [one["prefer"] for one in starts] == [None, "flow", None]
+    assert starts[-1]["resume"] == str(first)
+    assert (read(first) or Ran(first)).prefer == ""
+
+
+async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folds_fast(monkeypatch)
+    chats = Chats().install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/prefer flow")
+        await shows(pilot, "runs the flow where it names both, in this chat")
+        await typed(pilot, "first")
+        await shows(pilot, "heard first", "◉ done")
+        await typed(pilot, "/clear")
+        await until(pilot, lambda: len(epics(workspace)) == 1, "the epic")
+        (first,) = epics(workspace)
+        await until(
+            pilot, lambda: bool((read(first) or Ran(first)).ended), "it to fold"
+        )
+        await typed(pilot, "/prefer")
+        await shows(pilot, "native, from the settings file")
+
+        await typed(pilot, "/resume")
+        await shows(pilot, "Resume a chat", "first")
+        await opens(pilot, first.name)
+        await shows(pilot, "say something to continue")
+        # Its own, as its epic records it, before a word carries it on and after.
+        await typed(pilot, "/prefer")
+        await shows(pilot, "flow, from this chat")
+        await typed(pilot, "more")
+        await shows(pilot, "heard more", "◉ done")
+        said = screen(app).count("flow, from this chat")
+        await typed(pilot, "/prefer")
+        await until(
+            pilot,
+            lambda: screen(app).count("flow, from this chat") == said + 1,
+            "its preference said again",
+        )
+
+    starts = [said for method, said in chats.asked if method == "chat.start"]
+    # Said once, to the chat it was set for: the epic keeps it from there on.
+    assert [one["prefer"] for one in starts] == ["flow", None]
+    assert (read(first) or Ran(first)).prefer == "flow"
+
+
 async def test_prefer_is_refused_an_argument_it_does_not_take(workspace: Path) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await opened(pilot)

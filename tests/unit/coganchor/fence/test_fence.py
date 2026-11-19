@@ -553,6 +553,16 @@ def test_writes_is_whether_a_standing_rule_writes_anywhere() -> None:
     assert drawn(("/", READ), ("~/x", WRITE)).writes
     # What a later rule takes away writes nothing.
     assert not drawn((".", WRITE), ("/", READ)).writes
+    # From another anchor too, where it lands here: the workdir is inside the home.
+    assert not drawn(("/", READ), (".", WRITE), ("~", READ)).writes
+    assert not drawn(("/", READ), (".", WRITE), (HOME, NONE)).writes
+    assert drawn(("/", READ), (".", WRITE), ("~/x", READ)).writes
+    assert Fence.of(
+        rules=[("/", READ), (".", WRITE), ("~", READ)],
+        online=True,
+        workdir="/srv/work",
+        home=HOME,
+    ).writes
     # Drawn path by path: written beyond the devices every program writes.
     assert not Fence(read=("/",), write=DEVICES).writes
     assert Fence(read=("/",), write=(*DEVICES, WORK)).writes

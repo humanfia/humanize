@@ -178,12 +178,10 @@ def _executes(argv: list[str]) -> int:
         running.watch(shown.heard)
         running.opened(shown.opened)
         running.printed(out.printed)
-        # An environment moved off the runtime its `-e` named, said as it is.
+        # What the host notes before the flow is called, said as it is on the stream that is
+        # not the answer: a cost limit no price can enforce, an environment moved off the
+        # runtime its `-e` named. Said here from the check as well, the first is said twice.
         running.noticed(lambda said: out.aside(f"hmz exec: {said}"))
-        # Said and then run, never asked: a command line has nobody to ask, so what it can
-        # do is say so plainly, on the stream that is not the answer.
-        if blind := running.unreadable():
-            out.aside(f"hmz exec: {blind}")
         try:
             with _ending(running, ended):
                 running.run()

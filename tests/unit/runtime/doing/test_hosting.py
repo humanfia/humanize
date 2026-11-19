@@ -238,6 +238,8 @@ class FakeChat:
     permission: str | None = "workspace-write"
     catalog: list[Native] = field(default_factory=list[Native])
     listed: bool = True
+    #: Whether it is between turns, where it says so before it asks what to say next.
+    between: bool = False
 
     def prefers(self, prefer: str) -> None:
         self.prefer = prefer
@@ -1560,14 +1562,58 @@ def test_an_answer_is_text_or_a_value_and_a_text_question_takes_text(
         "ok": False,
         "why": "an answer is text or a value, not both",
     }
-    assert alice.asks("answer", question=question, value=2) == {
+    others: tuple[Any, ...] = (2, {})
+    for other in others:
+        assert alice.asks("answer", question=question, value=other) == {
+            "ok": False,
+            "why": "the answer does not fit: text is expected",
+            "code": 400,
+            "data": {"errors": [{"path": [], "message": "text is expected"}]},
+        }
+    # A value that is text is read as text, and text that is empty says nothing.
+    assert alice.asks("answer", question=question, value="") == {
         "ok": False,
-        "why": f"{question} is answered in text",
+        "why": "an answer says something",
     }
     # A value is taken as it is, never as the number of an option.
     assert alice.asks("answer", question=question, value="green") == {"ok": True}
     assert asking.done.wait(PATIENCE)
     assert asking.answer == "green"
+    run.released.set()
+
+
+@pytest.mark.parametrize(
+    ("put", "text", "heard"),
+    [
+        (Question("which?", ("red", "blue")), "red", "red"),
+        (Shaped(), '{"verdict": "reject"}', {"verdict": "reject"}),
+    ],
+    ids=["text", "schema"],
+)
+def test_a_value_of_null_is_read_as_not_sent(
+    host: Host,
+    where: Workspace,
+    outworlders: Outworlders,
+    put: Any,
+    text: str,
+    heard: Any,
+) -> None:
+    alice = Told(host, "alice")
+    run = _started(alice, where)
+    assert outworlders.ask is not None
+    asking = Asking()(outworlders.ask, put)
+    question = alice.told("asked", run=1)["question"]
+
+    assert alice.asks("answer", question=question, value=None) == {
+        "ok": False,
+        "why": "an answer says something",
+    }
+    assert alice.asks("answer", question=question, text=text, value=None) == {
+        "ok": True
+    }
+    assert asking.done.wait(PATIENCE)
+    assert asking.answer is not None
+    assert asking.answer == heard or json.loads(asking.answer) == heard
     run.released.set()
 
 
@@ -1889,6 +1935,22 @@ def test_what_a_chats_assistant_asks_mid_turn_is_answered_by_the_next_line(
 
     alice.told("asked", run=1, mode="listen", text="you said go on")
     assert chat.answers == ["blue"]
+
+
+def test_a_chat_between_turns_is_not_in_one_though_it_waits_on_no_line(
+    chatting: tuple[Host, Told], where: Workspace
+) -> None:
+    host, alice = chatting
+    chat = _chatted(host, alice, where)
+    chat.asks.append(("which?", ()))
+    alice.asks("chat.say", text="!make")
+    alice.told("asked", run=1, text="which?")
+    assert host.status()["turn"] == "running"
+
+    # As a chat is while a `!` command of its person's runs: no turn is opened by one.
+    chat.chat.between = True
+
+    assert host.status()["turn"] == "done"
 
 
 def test_an_empty_line_ends_a_chat_stopped(

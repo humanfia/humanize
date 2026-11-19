@@ -161,6 +161,17 @@ def test_an_epic_is_listed_read_carried_away_in_chunks_and_read_back_in(
     assert "is already here" in again.message
 
 
+def test_a_chats_own_preference_is_read_with_its_epic(
+    project: Path, client: Peer
+) -> None:
+    (plain,) = client.call("runs.list", {"workspace": str(project)}, timeout=30)["runs"]
+    with Epic("", "start the flows", project, kind="chat", prefer="flow") as epic:
+        name = epic.path.name
+    # The override its epic records, which carrying it on keeps; "" of a chat with none.
+    assert client.call("runs.get", {"name": name}, timeout=30)["prefer"] == "flow"
+    assert client.call("runs.get", {"name": plain["name"]}, timeout=30)["prefer"] == ""
+
+
 def test_a_handle_is_refused_what_it_cannot_carry(client: Peer) -> None:
     unknown = _refused(
         client, "files.read", {"handle": "nope", "offset": 0, "length": 1}

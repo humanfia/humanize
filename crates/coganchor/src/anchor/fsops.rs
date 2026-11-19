@@ -58,6 +58,28 @@ fn os(error: io::Error, path: &Path) -> Fail {
     ))
 }
 
+/// Rename `src` to `dst` in one step, failing with `EEXIST` where `dst` is already there.
+fn rename_noreplace(src: &Path, dst: &Path) -> Result<(), Fail> {
+    let (from, to) = (c_path(src)?, c_path(dst)?);
+    #[cfg(target_os = "macos")]
+    let status = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    #[cfg(not(target_os = "macos"))]
+    let status = unsafe {
+        libc::syscall(
+            libc::SYS_renameat2,
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    if status != 0 {
+        return Err(last(src));
+    }
+    Ok(())
+}
+
 /// The last OS error, naming `path`.
 fn last(path: &Path) -> Fail {
     os(io::Error::last_os_error(), path)
@@ -174,9 +196,13 @@ fn short(op: Op, m: &Request, t: &ExportTable) -> Result<Meta, Fail> {
             Ok(Meta::new())
         }
         Op::Rename => {
-            // `replace: false` is a plain rename(2) as well, which overwrites all the same.
             let (src, dst) = (m.real("src", t)?, m.real("dst", t)?);
-            fs::rename(&src, &dst).map_err(|e| os(e, &src))?;
+            // Only a `replace` that is there and false asks for `RENAME_NOREPLACE`.
+            if m.0.contains_key("replace") && !m.flag("replace") {
+                rename_noreplace(&src, &dst)?;
+            } else {
+                fs::rename(&src, &dst).map_err(|e| os(e, &src))?;
+            }
             Ok(Meta::new())
         }
         Op::Symlink => {
@@ -634,6 +660,33 @@ mod tests {
         );
         let outside = run(Op::Stat, &req(serde_json::json!({"path": "/x"})), &t).unwrap_err();
         assert_eq!(outside.errno, libc::EACCES);
+    }
+
+    #[test]
+    fn a_rename_told_not_to_replace_leaves_a_destination_that_is_there() {
+        let dir = tempfile::tempdir().unwrap();
+        let t = table(dir.path());
+        let (src, dst) = (dir.path().join("src"), dir.path().join("dst"));
+        fs::write(&src, b"new").unwrap();
+        fs::write(&dst, b"precious").unwrap();
+        let rename = |replace: Option<bool>| {
+            let mut request = serde_json::json!({"src": "/w/src", "dst": "/w/dst"});
+            if let Some(replace) = replace {
+                request["replace"] = replace.into();
+            }
+            run(Op::Rename, &req(request), &t)
+        };
+        let refused = rename(Some(false)).unwrap_err();
+        assert_eq!(refused.errno, libc::EEXIST);
+        assert_eq!(fs::read(&src).unwrap(), b"new");
+        assert_eq!(fs::read(&dst).unwrap(), b"precious");
+        // Without the flag, as with it true, the destination is replaced.
+        rename(None).unwrap();
+        assert_eq!(fs::read(&dst).unwrap(), b"new");
+        fs::write(&src, b"newer").unwrap();
+        rename(Some(true)).unwrap();
+        assert_eq!(fs::read(&dst).unwrap(), b"newer");
+        assert!(!src.exists());
     }
 
     #[test]
