@@ -7,6 +7,7 @@
 // Local.
 
 import { daemon, hash, hello, started } from './api.js'
+import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
 import { mountSidebar } from './sidebar.js'
 import { dragged, kept, toggleSidebar } from './shell.js'
@@ -134,6 +135,22 @@ export function covered() {
 export function beside() {
   const at = document.activeElement
   return at !== asked && Boolean(at?.closest('[data-hmz=aichan]'))
+}
+
+/**
+ * What a view gives the focus by once what it reads is drawn, asked for as the reading begins:
+ * the box typed into next takes the focus then, unless a dialog is over the view, the person
+ * went to type in Ai-chan's drawer beside it, or the focus
+ * went elsewhere while the view read -- a control pressed, Tab, a dialog closed that gave it
+ * back -- which is not taken from where it was put.
+ *
+ * @returns {(el: HTMLElement) => void}
+ */
+export function focusing() {
+  const held = document.activeElement
+  return (el) => {
+    if (!covered() && !beside() && unmoved(held, document.activeElement, [document.body, page])) el.focus()
+  }
 }
 
 /**

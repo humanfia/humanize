@@ -7,7 +7,7 @@
 // (views/new.js), which the sidebar opens beside this one.
 
 import { call, daemon, given, hash, poll } from '../api.js'
-import { beside, covered, go, stays } from '../app.js'
+import { covered, focusing, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
@@ -118,6 +118,8 @@ export function mount(root, { query }) {
   /** Reads the CLIs here and the chat agent a workspace remembers, and sets the agent up from it. */
   async function load(agent) {
     const mine = (loading = scratch ? 'none' : workspace || 'here')
+    // Asked for now: what takes the focus while this is read keeps it.
+    const focus = focusing()
     fill(box.said)
     files.clear()
     picker?.node.classList.add('stale')
@@ -129,7 +131,7 @@ export function mount(root, { query }) {
       if (!covered()) stays({ workspace: scratch ? '' : workspace, scratch: scratch ? '1' : '' })
       const [, settings] = await Promise.all([readBackends(workspace), call('settings.get', { workspace }).catch(() => null)])
       if (mine !== loading) return
-      draw(agent || (settings && settings.chat) || (picker ? picker.value() : ''))
+      draw(agent || (settings && settings.chat) || (picker ? picker.value() : ''), focus)
     } catch (error) {
       if (mine !== loading) return
       fill(box.said, problem(error))
@@ -139,7 +141,7 @@ export function mount(root, { query }) {
   }
   load(query.get('agent') || '')
 
-  function draw(kept) {
+  function draw(kept, focus) {
     const was = picker
     was?.leave()
     picker = modelChip('assistant', kept)
@@ -147,8 +149,8 @@ export function mount(root, { query }) {
     if (was) was.node.replaceWith(picker.node)
     else box.tray.prepend(picker.node)
     // Typed into next -- but not from under a dialog opened over it, out of what is typed there,
-    // nor out of Ai-chan's drawer beside it, gone to meanwhile.
-    if (!covered() && !beside()) box.text.focus()
+    // nor out of Ai-chan's drawer beside it, nor out of what took the focus while this was read.
+    focus(box.text)
   }
 
   async function start(task) {

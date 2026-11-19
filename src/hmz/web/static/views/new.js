@@ -10,7 +10,7 @@
 // and 3.8.24 of protocol/web.md).
 
 import { call, given, hash } from '../api.js'
-import { beside, covered, go, stays } from '../app.js'
+import { covered, focusing, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
 import { NO_FOLDER } from '../desk.js'
@@ -117,6 +117,8 @@ export function mount(root, { query }) {
   /** Reads what a workspace offers -- its flows, and the one it last set up -- and opens one. */
   async function load(flow) {
     const mine = (loading = scratch ? 'none' : workspace || 'here')
+    // Asked for now: what takes the focus while this is read keeps it.
+    const focus = focusing()
     fill(box.said)
     reading(true)
     try {
@@ -155,7 +157,7 @@ export function mount(root, { query }) {
         optionsChip.setAttribute('aria-expanded', 'false')
         fill(summary)
         fill(lacking, empty('No flow here yet.', ' A new epic runs a flow. Install one from Flows, then start it here.', h('a', { class: 'btn primary', href: flowsAt(), 'data-hmz': 'no-flow-open' }, 'Open Flows')))
-      } else choose(wanted, ran)
+      } else choose(wanted, ran, focus)
     } catch (error) {
       if (mine !== loading) return
       reading(false)
@@ -164,7 +166,7 @@ export function mount(root, { query }) {
   }
   load(query.get('flow') || '')
 
-  async function choose(name, ran) {
+  async function choose(name, ran, focus = focusing()) {
     choosing = name
     const at = workspace
     run = ran
@@ -195,8 +197,8 @@ export function mount(root, { query }) {
     }
     summarise()
     // Typed into next -- but not from under a dialog opened over it, out of what is typed there,
-    // nor out of Ai-chan's drawer beside it, gone to meanwhile.
-    if (!covered() && !beside()) box.text.focus()
+    // nor out of Ai-chan's drawer beside it, nor out of what took the focus while this was read.
+    focus(box.text)
   }
 
   function summarise() {

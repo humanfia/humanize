@@ -20,6 +20,22 @@ export const ADDS = [
 export const NO_FOLDER = 'Pick a folder first'
 
 /**
+ * Whether the focus is still to be given: a form that reads what it offers before its box is
+ * typed into gives the box the focus once that is read, which may be long after it was asked
+ * for. It is, where the focus is on what held it as the reading began, or on nothing in
+ * particular -- gone with what held it, or left on the page as a whole. Moved since to something
+ * else, by a key or the pointer or a dialog closing, it is where its person put it, and stays.
+ *
+ * @param {object|null} held What held the focus as the reading began.
+ * @param {object|null} now What holds it now.
+ * @param {object[]} loose What holds it where nothing in particular does: the body, the view.
+ * @returns {boolean}
+ */
+export function unmoved(held, now, loose) {
+  return !now || now === held || loose.includes(now)
+}
+
+/**
  * What a box holds once a prefix was picked from its Add menu, and where its caret then is: `@`
  * goes in where the caret is, as a word of its own; `/`, `$` and `!` name a whole line, so they
  * go at its start, before whatever was typed -- and not twice.
