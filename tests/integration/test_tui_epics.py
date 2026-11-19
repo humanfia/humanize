@@ -114,8 +114,12 @@ async def test_a_run_ended_is_listed_with_its_task_and_what_it_came_to(
 
         # Who it was run by, what it spent and how long it took, as the web lists it.
         await shows(pilot, f"· {OWN}", "hello · ", " · $0.00 · 200 out · took ")
-        # Apart: an agent's name long enough wraps the row between the two.
-        await shows(pilot, "1 session")
+        # Apart: an agent's name long enough wraps the row between the two, or within this.
+        await until(
+            pilot,
+            lambda: "1 session" in " ".join(screen(app).replace("│", " ").split()),
+            "its sessions",
+        )
         assert listed(app) == [one.name for one in epics(workspace)]
 
 
