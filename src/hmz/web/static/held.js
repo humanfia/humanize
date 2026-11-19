@@ -11,17 +11,8 @@
 // `{workspace, slot}` for a chat's.
 
 import { attach, call, onDaemon } from './api.js'
+import { following as followingCore } from './held-core.js'
 import { Flow } from './views/envs/terminal_flow.js'
-
-/** The most records kept per workspace, and about how many bytes of them, as the daemon keeps. */
-const KEPT = 20000
-const WEIGHED = 32 * 1024 * 1024
-
-/** What a record weighs besides what it says, as the daemon weighs one. */
-const FRAME = 256
-
-/** The snapshots a host sends, each kept by its type (Section 4.9.3 of protocol/daemon.md). */
-const STANDING = new Set(['clients', 'claims', 'away', 'run', 'sessions', 'calls', 'waiting', 'pending', 'usage', 'board', 'envs'])
 
 /** Every host followed, by its workspace's path and its slot. */
 const followed = new Map()
@@ -111,6 +102,20 @@ export function hearing(where, fn) {
     fns.delete(fn)
     if (!fns.size && heard.get(key) === fns) heard.delete(key)
   }
+}
+
+/**
+ * Attaches a host's runs again from the last record read, ending the subscription it had: what a
+ * connection that went quiet without closing needs, and what the epic view asks of it once a
+ * minute. The records already read are not read again, as `since` says where to go on from.
+ *
+ * @param {string|{workspace: string, slot: string}} where The host.
+ */
+export function refresh(where) {
+  const { workspace, slot } = placed(where)
+  const one = followed.get(`${workspace}\n${slot}`)
+  if (!one || !one.listeners.size) return
+  return one.refresh()
 }
 
 /** Starts an epic as it is set up, writing that down as the workspace's set-up of its flow. */
@@ -210,17 +215,11 @@ export function shownTo(where, session) {
     .map((record) => record.context || [])
 }
 
+/** One following host, with the daemon's attach, the page's frame, its terminals and its faces. */
 function following(workspace, slot) {
-  const state = { workspace, slot, connected: false, gone: '', me: '', epoch: '', standing: {}, records: [], figures: null }
-  const listeners = new Set()
-  let weights = []
-  let weight = 0
-  let pending = 0
-  /** The attaching that is this one's now: what an earlier one says is said to nobody. */
-  let opening = null
   /** What counts the output of each terminal nobody on the page draws, by the terminal. */
   const undrawn = new Map()
-  const one = { state, listeners, opening: null, connect, close }
+  let one = null
 
   /** Acknowledges a terminal's output nobody took, as often as one drawn is acknowledged. */
   function unread(mine, message) {
@@ -231,7 +230,7 @@ function following(workspace, slot) {
       return
     }
     if (!undrawn.has(term)) {
-      const ack = (bytes) => mine.then((sub) => opening === mine && call('env.term.ack', { term, bytes, sub: sub.sub })).catch(() => {})
+      const ack = (bytes) => mine.then((sub) => one.opening === mine && call('env.term.ack', { term, bytes, sub: sub.sub })).catch(() => {})
       undrawn.set(term, new Flow({ ack }))
     }
     const bytes = atob(message.data || '').length
@@ -245,40 +244,21 @@ function following(workspace, slot) {
     undrawn.clear()
   }
 
-  function tell() {
-    if (pending) return
-    pending = requestAnimationFrame(() => {
-      pending = 0
-      for (const told of [...listeners]) told(state)
-    })
-  }
-
-  function hear(mine, message) {
-    if (opening !== mine) return
-    // Whoever hears it going wrong is not what the rest of the page follows the host by.
-    let taken = false
-    for (const fn of [...(heard.get(`${workspace}\n${slot}`) || [])]) {
-      try {
-        if (fn(message) === true) taken = true
-      } catch (error) {
-        console.error(error)
+  one = followingCore(workspace, slot, {
+    attach,
+    schedule: (draw) => requestAnimationFrame(draw),
+    onMessage: (message, mine) => {
+      // Whoever hears it going wrong is not what the rest of the page follows the host by.
+      let taken = false
+      for (const fn of [...(heard.get(`${workspace}\n${slot}`) || [])]) {
+        try {
+          if (fn(message) === true) taken = true
+        } catch (error) {
+          console.error(error)
+        }
       }
-    }
-    const type = message.type
-    if ((type === 'term' && !taken) || type === 'term_exit') unread(mine, message)
-    if (type === 'welcome') {
-      if (message.epoch !== state.epoch) {
-        // Another life of the host's: everything is told again, from the top.
-        Object.assign(state, { epoch: message.epoch, standing: {}, records: [], figures: null })
-        weights = []
-        weight = 0
-      }
-      Object.assign(state, { me: message.client, connected: true, gone: '' })
-    } else if (type === 'live') state.connected = true
-    else if (typeof message.seq === 'number') {
-      // Context beside a question, an image's above all, weighs what it is written as.
-      const weighs = String(message.text ?? '').length + (message.context ? JSON.stringify(message.context).length : 0) + FRAME
-      state.records.push(message)
+      const type = message.type
+      if ((type === 'term' && !taken) || type === 'term_exit') unread(mine, message)
       // Context shown to a person goes to the face their session has open, where it has one:
       // one mounted later is handed it as it is mounted (`shownTo`).
       if (type === 'shown' && message.session) {
@@ -286,67 +266,9 @@ function following(workspace, slot) {
           .then(({ showFace }) => showFace(message.session, message.context || [], { where: { workspace, slot }, run: message.run }))
           .catch(() => {})
       }
-      weights.push(weighs)
-      weight += weighs
-      let dropped = 0
-      while (state.records.length - dropped > KEPT || (weight > WEIGHED && state.records.length - dropped > 1)) weight -= weights[dropped++]
-      if (dropped) {
-        state.records.splice(0, dropped)
-        weights.splice(0, dropped)
-      }
-    } else if (STANDING.has(type)) state.standing = { ...state.standing, [type]: message }
-    else if (type === 'figures') state.figures = message
-    else return
-    tell()
-  }
-
-  /** The subscription ended on its own: let go, the host gone, or attaching it again refused. */
-  function ended(mine, why) {
-    if (opening !== mine) return
-    opening = one.opening = null
-    uncount()
-    state.connected = false
-    state.gone = why || 'The host let this page go.'
-    tell()
-    // A chat's host goes as it folds away, and is not reached again: it is carried on anew. The
-    // workspace's own is attached again, after a moment, while a view still follows it.
-    if (!slot) {
-      setTimeout(() => {
-        if (!one.opening && listeners.size) connect()
-      }, 500)
-    }
-  }
-
-  function connect() {
-    const mine = attach(
-      { workspace, slot, figures: true },
-      (message) => hear(mine, message),
-      (why) => ended(mine, why),
-    )
-    opening = one.opening = mine
-    mine.then(
-      (sub) => {
-        // Let go of before it was attached: nobody hears it.
-        if (opening !== mine) sub.close()
-      },
-      (error) => {
-        if (opening !== mine) return
-        opening = one.opening = null
-        state.connected = false
-        state.gone = error.message
-        tell()
-      },
-    )
-  }
-
-  function close() {
-    const was = opening
-    opening = one.opening = null
-    uncount()
-    state.connected = false
-    was?.then((sub) => sub.close(), () => {})
-  }
-
+    },
+    onEnd: uncount,
+  })
   return one
 }
 
