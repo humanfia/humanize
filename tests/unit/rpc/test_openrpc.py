@@ -170,3 +170,20 @@ def test_every_method_says_its_reach_and_whether_it_writes(
         assert isinstance(method["x-hmz-writes"], bool), method["name"]
         if "idem" in takes:
             assert method["x-hmz-writes"], method["name"]
+
+
+def test_a_slot_of_any_host_may_be_one_of_ai_chan(document: dict[str, Any]) -> None:
+    # A slot names a chat's host, an Ai-chan conversation's or an exec's (Section 4.2.6 of
+    # daemon.md): a parameter taking the first and the last takes the one between them too.
+    schemas = cast("dict[str, Any]", document["components"]["schemas"])
+    for method in cast("list[dict[str, Any]]", document["methods"]):
+        for param in method["params"]:
+            if param["name"] != "slot":
+                continue
+            schema = cast("dict[str, Any]", param["schema"])
+            if "$ref" in schema:
+                schema = schemas[schema["$ref"].rsplit("/", 1)[1]]
+            takes = cast("Validates", Draft7Validator(schema)).is_valid
+            if takes("chat:01") and takes("exec:01"):
+                assert takes("ai:01"), method["name"]
+                assert takes(""), method["name"]

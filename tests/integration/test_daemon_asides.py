@@ -116,6 +116,18 @@ def test_a_session_is_asked_of_as_agent_and_number(workspace: Path) -> None:
     assert "<agent>/<n>" in str(refused.value)
 
 
+def test_a_side_question_naming_no_session_is_not_as_the_document_states(
+    workspace: Path,
+) -> None:
+    # `to` is required (Section 4.15.3.1 of daemon.md), so its absence is the document's to
+    # refuse (Section 6.6.3 of wire.md), not the method's.
+    with Client.local() as client, pytest.raises(Refused) as refused:
+        _asked(client, workspace, aside="a1", question="anyone?")
+
+    assert refused.value.code == -32602
+    assert "btw.ask needs to." in str(refused.value)
+
+
 def test_an_earlier_epic_is_asked_on_the_workspace_host_and_outlives_a_new_epic(
     workspace: Path,
 ) -> None:
