@@ -112,8 +112,14 @@ def test_a_gateway_answers_in_claudes_protocol_from_the_accounts_endpoint(
 
 def _proxy(held: Gateway) -> psutil.Process:
     """The process a gateway is, found as this process's child listening where it is."""
-    port = f"--port {held.port}"
-    return next(one for one, argv in children() if port in argv)
+    return next(
+        one
+        for one, _ in children()
+        if any(
+            held.port == each.laddr.port and each.status == psutil.CONN_LISTEN
+            for each in one.net_connections(kind="tcp")
+        )
+    )
 
 
 def _unswapped(self: Provider) -> tuple[tuple[str, str], ...]:
