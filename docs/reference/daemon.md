@@ -650,8 +650,9 @@ flow would, without attaching and without telling the epic. Each takes `workspac
 | `hosts.env.exec` (write) | `argv` (non-empty), `seconds` (1–3600, `120`) | `code` (`null` where killed at `seconds`), `stdout`, `stderr` (each the last 1 MiB) |
 | `hosts.env.grep` | `pattern` (POSIX ERE), `path` (`.`), `limit` (1–2000, `200`) | `matches` (`path`, `line`, `text` cut at 400), `more` |
 
-Refusals: 400 `<path> is outside the env <env>.` (by `..`, an absolute path or a symbolic
-link), 400 `hosts.env.exec runs a command: give argv.`; 404 `The epic has no env <env>.`, `There is
+Refusals: 400 `<path> is outside the env <env>.` (by `..`, an absolute path outside it or a
+symbolic link; an absolute path inside the workdir is taken, and where the workdir is under `~`
+the env's machine says where that is), 400 `hosts.env.exec runs a command: give argv.`; 404 `The epic has no env <env>.`, `There is
 no file <path> in <env>.`; 409 `no flow is running, so no env is open`, `The env <env> cannot <what>.`,
 `<what>` being `read files`, `write files`, `run commands` or `search files`.
 
@@ -760,7 +761,7 @@ After `gone` the subscription has ended: a call naming it is refused 410.
 | Client ids | `c1`, `c2`, … per host; never reused. |
 | Claims | A claimed `Outworlder` role may be answered, spoken to (`outworlder:<role>`) and set away only by its holder. `take: true` takes it from another holder, which learns it only from the `claims` and `pending` snapshots. Claims are released when the holder detaches; its questions' `owner` becomes `null`. Claims are not persisted. Claims do not restrict `say` to agents. |
 | Questions | Recorded only while the run is current, the host open, and the role not away; otherwise the flow gets no answer at once. Shown to every frontend with `owner`. Answerable by the owner, or by anybody where `owner` is `null`; the first answer wins. They stay pending with nobody attached. |
-| Away | Held by the host, per role. `afk` with `role` sets that role. Without `role`: with no claims, sets every role and clears per-role values; with claims, roles held by other frontends keep their value. Outlives the frontend that set it. |
+| Away | Held by the host, per role. `afk` with `role` sets that role. Without `role`: with no claims, sets every role and clears per-role values; with claims, roles held by other frontends keep their value. Outlives the frontend that set it. A chat's person, an Ai-chan conversation's included, is no outworlder: away withdraws nothing a chat waits on, and the chat goes on. |
 | Runs | Any frontend may `start`, `stop`, `force` or `quit`. |
 | Late arrival | A frontend attaching mid-run with `replay: true` reads the run from its `started` record. |
 

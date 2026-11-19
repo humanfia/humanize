@@ -4177,7 +4177,8 @@ class Humanize(App[None]):
         one menu either way, so that a flow is set up in one place however it was reached for.
 
         Args:
-          named: A flow to open the menu already holding, or "" for the one in force.
+          named: A flow to open the menu already holding, or "" for the one running, or the
+            one in force where none is.
           running: Whether a flow is running, which is what takes the flows away.
           page: Which page to open on where no flow is named.
 
@@ -4194,10 +4195,14 @@ class Humanize(App[None]):
         # What is in hand is what is in hand for the flow the interface is set up on. A menu
         # opened straight into another flow is handed none, and reads what that one was last
         # set up with here -- which is what turning to it would have read.
-        holding = not named or named == self._flow_named
+        # And a menu opened under an epic is on the flow that epic runs (Section 7.9.3 of
+        # [TUI]), which another frontend may have started and is then not the one in hand.
+        going = self._run.flow if running and self._run is not None else ""
+        flow = named or going or self._flow_named
+        holding = flow == self._flow_named
         chosen = await self.push_screen_wait(
             Flows(
-                named or self._flow_named,
+                flow,
                 self._models if holding else {},
                 self._params if holding else None,
                 agents,
@@ -5050,9 +5055,10 @@ class Humanize(App[None]):
         """Goes back to one chat chosen on `/resume` or by `/chat`, to carry the conversation on.
 
         To the host holding it where one still is, which is the conversation as it stands,
-        read from the top. Otherwise it has folded away -- or ended some other way -- and the
-        line typed next carries it on: the same chat, on a host of its own, by an agent that
-        remembers what was said in it, which is what talking to it again is.
+        read from the top. Otherwise it has folded away -- or ended some other way -- and is
+        drawn with what was said in it, and the line typed next carries it on: the same chat,
+        on a host of its own, by an agent that remembers what was said in it, which is what
+        talking to it again is.
 
         Args:
           chat: The chat, by its id.
@@ -5072,7 +5078,7 @@ class Humanize(App[None]):
             return
         at = self.hmz.epics.chat(chat)
         ran = self.hmz.epics.read(at) if at is not None else None
-        if ran is None:
+        if at is None or ran is None:
             self.show(
                 f"hmz: chat {escape(chat)} cannot be read, so it cannot be continued",
                 "red",
@@ -5085,7 +5091,52 @@ class Humanize(App[None]):
         self._moves(where.chat(), None)
         self._continuing = chat
         self._chat_slot, self._chat_id = "", chat
+        self._draws_said(at, ran)
+
+    @work(group="said", exclusive=True)
+    async def _draws_said(self, at: Path, ran: Ran) -> None:
+        """Draws what was said in a chat that has folded away, above what carries it on.
+
+        Read back out of the log its last session kept, which holds the conversation whole:
+        carrying a chat on forks the session before it (Section 8.7.4 of [CORE]). Slow, so
+        read off the screen's thread, and drawn only while the chat is still the one to be
+        carried on -- not once a line has carried it on, or another has been gone to -- and
+        by the last reading asked for alone, so that one opened twice over is drawn once.
+
+        Args:
+          at: The chat, by the directory it is written in.
+          ran: What the chat records.
+        """
+        said: list[dict[str, Any]] = []
+        with contextlib.suppress(OSError, ValueError):
+            said = await asyncio.to_thread(self.hmz.epics.transcripts, at)
+        if self._continuing != at.name:
+            return
+        by_key = {one["key"]: one["actions"] for one in said}
+        last = next(
+            (
+                by_key[key]
+                for one in reversed(ran.sessions)
+                if (key := f"{one.backend}:{one.ident}") in by_key
+            ),
+            (),
+        )
+        for action in last:
+            args = action["args"]
+            if action["category"] == "turn":
+                self._said_by_you(str(args.get("prompt") or action["name"]))
+            elif action["category"] == "message":
+                text = escape(str(args.get("text") or action["name"])).splitlines()
+                self.show(
+                    "\n".join(
+                        [
+                            f"[green]{_SAID}[/] {(text or [''])[0]}",
+                            *(f"  {line}" for line in text[1:]),
+                        ]
+                    )
+                )
         self.show(f"[dim]say something to continue chat {escape(ran.name)}[/dim]")
+        self._draw()
 
     def _forgets_prefer(self) -> None:
         """Drops the preference of the chat left, which is that chat's and no other's.

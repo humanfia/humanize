@@ -423,6 +423,72 @@ def test_grep_finds_a_file_whose_path_has_a_colon(
         ) == [("a:12:b.txt", 3, 5, "the needle"), ("sub/b:c.txt", 1, 3, "x needle")]
 
 
+def _refuses_a_broken_query(where: Path, loop: asyncio.AbstractEventLoop) -> None:
+    (where / "note.txt").write_text("hello\nworld (1)\n")
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("repo", "here", None, Browsing(where))]), going=True
+    )
+
+    def searched(query: str, *, regex: bool) -> list[tuple[str, int]]:
+        found = made.asked(
+            "c1",
+            "ada",
+            "env.search",
+            {"env": env["id"], "query": query, "regex": regex, "glob": "*.txt"},
+        )
+        return [(one["path"], one["line"]) for one in found["matches"]]
+
+    for broken in ("(", "wor("):
+        with pytest.raises(desk.Refused) as refused:
+            searched(broken, regex=True)
+        assert str(refused.value)
+    assert searched("w.r", regex=True) == [("note.txt", 2)]
+    assert searched("(", regex=False) == [("note.txt", 2)]
+    assert searched("absent", regex=True) == []
+
+
+def test_a_grep_refuses_a_query_that_is_no_regular_expression(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("sh", "head", "git", "grep"):
+        found = shutil.which(name)
+        assert found is not None
+        (tools / name).symlink_to(found)
+    monkeypatch.setenv("PATH", str(tools))  # a machine with no rg
+    (tmp_path / "bare").mkdir()
+    for where in (repo, tmp_path / "bare"):
+        _refuses_a_broken_query(where, loop)
+
+
+@pytest.mark.skipif(_RG is None, reason="needs rg")
+def test_rg_refuses_a_query_or_a_glob_it_cannot_read(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _RG is not None
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "rg").symlink_to(_RG)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'tools'}:{os.environ['PATH']}")
+
+    _refuses_a_broken_query(repo, loop)
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("repo", "here", None, Browsing(repo))]), going=True
+    )
+    with pytest.raises(desk.Refused, match="glob"):
+        made.asked(
+            "c1", "ada", "env.search", {"env": env["id"], "query": "hello", "glob": "["}
+        )
+
+
 #: A grep that knows no long option and skips no binary file for `-I`, as BusyBox's does.
 _SHORT = """#!/bin/sh
 known=

@@ -11,6 +11,7 @@ are stood in for (:class:`Chats`).
 
 from __future__ import annotations
 
+import sys
 import threading
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,7 @@ from tests.integration.doubles_tui import (
     RUNS,
     SIZE,
     Chats,
+    claude_logged,
     folds_fast,
     heard,
     leaves,
@@ -278,12 +280,22 @@ async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
         await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
         (chat,) = chats(workspace)
         await until(pilot, lambda: bool((read(chat) or Ran(chat)).ended), "it to fold")
+        # Its session as Claude Code logs one, which the stand-in writes only the half of.
+        (session,) = (read(chat) or Ran(chat)).sessions
+        claude_logged(chat / "sessions" / "claude", workspace, session.ident, 0)
 
         # Listed by the daemon, by its title, and not among the epics.
         await typed(pilot, "/resume")
         await shows(pilot, "Resume a chat", "hello")
         await opens(pilot, chat.name)
         await shows(pilot, "say something to continue")
+        # Drawn with what was said in it, above what carries it on (Section 8.7.4 of [CORE]).
+        drawn = screen(app)
+        assert (
+            drawn.index("❯ fix the bug")
+            < drawn.index("⏺ fixed" if sys.platform == "darwin" else "● fixed")
+            < drawn.index("say something to continue")
+        )
 
         await typed(pilot, "more")
         await shows(pilot, "heard more", "◉ done")

@@ -62,7 +62,8 @@ jobs:
           # daemon and tui topics run the packages they import, and `hmz`, which loads the
           # rest lazily; core, anchor and web run `hmz` whole. runtime, flows and coganchor
           # import each other, so each is the three. A double counts for every topic whose
-          # tests import it, which tests/integration/test_core_ci_filters.py holds these to.
+          # tests import it, and a document of protocol/ for every suite whose tests read it,
+          # which tests/integration/test_core_ci_filters.py holds these to.
           filters: |
             shared: &shared
               - pyproject.toml
@@ -82,7 +83,8 @@ jobs:
               - tests/unit/conftest.py
             unit-cli: [*unit, src/hmz/cli/**, tests/unit/cli/**]
             unit-coganchor: [*unit, src/hmz/coganchor/**, tests/unit/coganchor/**]
-            unit-daemon: [*unit, src/hmz/daemon/**, tests/unit/daemon/**]
+            # The daemon's tests hold what it serves to the methods of protocol/openrpc.json.
+            unit-daemon: [*unit, src/hmz/daemon/**, tests/unit/daemon/**, protocol/openrpc.json]
             unit-flows: [*unit, src/hmz/flows/**, tests/unit/flows/**]
             unit-runtime: [*unit, src/hmz/runtime/**, tests/unit/runtime/**]
             unit-sdk: [*unit, src/hmz/sdk/**, tests/unit/sdk/**]
@@ -132,6 +134,8 @@ jobs:
               - *shared
               - src/hmz/**
               - tests/integration/*_web*.py
+              # The policy a page is served with is read out of it.
+              - protocol/web.md
               - tests/integration/doubles_core.py
               - tests/integration/doubles_daemon.py
               - tests/integration/doubles_ssh.py
@@ -149,11 +153,13 @@ jobs:
               - src/hmz/{cli,reach,relay,rpc,rtc,trust}/**
               - tests/integration/*_relay*.py
               - tests/unit/relay/doubles_relay.py
-            # The page's own modules, tested by node alone.
+            # The page's own modules, tested by node alone, its writes against the methods of
+            # protocol/openrpc.json.
             js:
               - .github/workflows/ci.yml
               - src/hmz/web/static/**
               - tests/unit/web/js/**
+              - protocol/openrpc.json
             # The page's third-party code, and what builds it.
             vendor:
               - src/hmz/web/vendor/**

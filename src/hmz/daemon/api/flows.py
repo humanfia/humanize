@@ -183,6 +183,12 @@ def remembers(hmz: Any, said: Mapping[str, Any]) -> Callable[[], None]:
     agents: dict[str, Any] = {}
     for role, spec in cast("dict[str, object]", given).items():
         runs = read_back(spec) if isinstance(spec, str) else None
+        if runs is not None and "/" not in runs.spec:
+            # A name is an agent only where a virtual nous is written under it.
+            try:
+                hmz.nous.entry(runs.spec)
+            except ValueError:
+                runs = None
         if runs is None:
             raise _refused(f"{role} is not given an agent as -a spells one: {spec}.")
         agents[str(role)] = runs

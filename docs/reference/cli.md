@@ -33,7 +33,7 @@ hmz internal <command> [<args>...]     processes Humanize spawns for itself
 | *(none)* | `opens` | Opens the [terminal interface](/reference/tui). |
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`chat`](#hmz-chat) | `_chat` | `say one message to an agent in this directory` |
-| [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
+| [`web`](#hmz-web) | `_web` | `open this machine's epics in a browser on it` |
 | [`daemon`](#hmz-daemon) | `_daemon` | `run, reach, pair and install this machine's daemon` |
 | [`relay`](#hmz-relay) | `_relay` | `relay daemons and the devices that reach them` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
@@ -667,6 +667,7 @@ hmz daemon uninstall
 | Condition | stderr | Exit |
 | --- | --- | --- |
 | `serve` interrupted or terminated | — | `0` |
+| `connect --stdio` interrupted | — | `130` |
 | `serve` with a daemon already running | `hmz: a daemon is already running (pid <pid>)` | `1` |
 | The daemon cannot be reached or started | `hmz: the daemon cannot be reached: <why>` | `1` |
 | The daemon speaks another protocol | `hmz: the runs on this machine are held by an older Humanize (pid <pid>); stop it with that version` | `1` |
@@ -1028,7 +1029,7 @@ Stdin is not read. See [Agents › Command lines](/reference/agents#command-line
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
 | `126` | `internal fence` | The fence could not be put up; the program never ran. |
 | `127` | `internal anchor --native` | The target has no such CLI. |
-| `130` | `hmz exec`, `hmz chat`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made; for `hmz chat`, leaving the chat to its host. |
+| `130` | `hmz exec`, `hmz chat`, `hmz daemon connect`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the epic has let go of what it made; for `hmz chat`, leaving the chat to its host. |
 | `129`, `143` | `hmz exec`, `hmz chat` | `SIGHUP`, `SIGTERM`, as `SIGINT` is. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
 | *flow's* | `internal cli` | What the flow answered the run with. |

@@ -390,6 +390,92 @@ test('tabs move, and follow a rename of them or the directory they are in', () =
   assert.equal(moved.active, '/e/b')
 })
 
+/** A tab of a strip as the page would hand it: an event target, its box, and the pointer it holds. */
+function fakeTab(path, left, strip) {
+  const tab = new EventTarget()
+  const classes = new Set()
+  Object.assign(tab, {
+    dataset: { path },
+    parentElement: strip,
+    held: null,
+    classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name), contains: (name) => classes.has(name) },
+    getBoundingClientRect: () => ({ left, right: left + 100 }),
+    setPointerCapture: (id) => (tab.held = id),
+    closest: () => null,
+  })
+  strip.children.push(tab)
+  return tab
+}
+
+/** Hands an element a pointer event, as the pointer over `target` at `clientX` would. */
+function point(el, type, clientX, { button = 0, target = el } = {}) {
+  const event = new Event(type)
+  Object.defineProperties(event, { target: { value: target }, clientX: { value: clientX }, button: { value: button }, pointerId: { value: 7 } })
+  el.dispatchEvent(event)
+}
+
+test('a tab is let go before the first tab whose middle is past the pointer, else at the end', () => {
+  const boxes = [
+    { path: '/a', left: 0, right: 100 },
+    { path: '/b', left: 100, right: 200 },
+  ]
+  assert.equal(L.dropBefore(boxes, 20), '/a')
+  assert.equal(L.dropBefore(boxes, 60), '/b')
+  assert.equal(L.dropBefore(boxes, 149), '/b')
+  assert.equal(L.dropBefore(boxes, 151), null)
+  assert.equal(L.dropBefore([], 0), null)
+})
+
+test('a tab is moved by the pointer alone, with no drag and drop event of the browser', () => {
+  const strip = { children: [] }
+  const [a, b] = ['/a', '/b', '/c'].map((path, at) => fakeTab(path, at * 100, strip))
+  let state = { tabs: [{ path: '/a' }, { path: '/b' }, { path: '/c' }], active: '/a' }
+  const drops = []
+  L.dragTab(a, (before) => {
+    drops.push(before)
+    state = L.moveTab(state, '/a', before)
+  })
+  // Onto the right half of the next tab: it goes past it.
+  point(a, 'pointerdown', 50)
+  assert.equal(a.held, 7)
+  point(a, 'pointermove', 170)
+  assert.equal(a.classList.contains('dragging'), true)
+  point(a, 'pointerup', 170)
+  assert.equal(a.classList.contains('dragging'), false)
+  assert.deepEqual(drops, ['/c'])
+  assert.deepEqual(state.tabs.map((one) => one.path), ['/b', '/a', '/c'])
+  // Past the last tab: it goes to the end. Nothing is heard of the pointer once it is let go.
+  point(a, 'pointerdown', 50)
+  point(a, 'pointermove', 400)
+  point(a, 'pointerup', 400)
+  point(a, 'pointermove', 10)
+  point(a, 'pointerup', 10)
+  assert.deepEqual(drops, ['/c', null])
+  // A press that hardly moves is a click, one cancelled moves nothing, and neither does another
+  // button or a press on the tab's close button.
+  point(a, 'pointerdown', 50)
+  point(a, 'pointermove', 52)
+  point(a, 'pointerup', 52)
+  point(a, 'pointerdown', 50)
+  point(a, 'pointermove', 270)
+  point(a, 'pointercancel', 270)
+  assert.equal(a.classList.contains('dragging'), false)
+  point(a, 'pointerdown', 50, { button: 1 })
+  point(a, 'pointermove', 270)
+  point(a, 'pointerup', 270)
+  point(a, 'pointerdown', 50, { target: { closest: (selector) => (selector === '.files-tab-close' ? {} : null) } })
+  point(a, 'pointermove', 270)
+  point(a, 'pointerup', 270)
+  assert.deepEqual(drops, ['/c', null])
+  assert.equal(b.held, null)
+})
+
+test('the panel asks nothing of the drag and drop a desktop web view keeps from the page', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const source = await readFile(new URL('../../../../src/hmz/web/static/views/envs/files.js', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /draggable|'dragstart'|'dragover'|'drop'/)
+})
+
 // The explorer
 
 const entry = (name, kind = 'file') => ({ name, kind, size: 0, mtime: 0 })

@@ -447,6 +447,25 @@ async def test_a_directory_is_listed_directories_first_then_by_name() -> None:
         await driver.stat("missing")
 
 
+async def test_a_move_into_a_directory_that_is_not_there_does_not_say_the_source_is_missing() -> (
+    None
+):
+    class Machine(MemoryMachine):
+        async def rename(self, path: PurePosixPath, to: PurePosixPath) -> None:
+            if to.parent not in self.dirs:  # as `rename(2)` does: ENOENT
+                raise EnvFileNotFound(f"could not move {path} to {to}: No such file")
+            await super().rename(path, to)
+
+    machine = Machine()
+    machine.files[PurePosixPath("/work/a.txt")] = b"a"
+
+    with pytest.raises(EnvError, match="could not move") as refused:
+        await _driver(machine).rename("a.txt", "newdir/a.txt")
+
+    assert not isinstance(refused.value, FileNotFoundError)
+    assert machine.files == {PurePosixPath("/work/a.txt"): b"a"}
+
+
 async def test_a_directory_is_made_with_those_above_it() -> None:
     machine = MemoryMachine()
 

@@ -157,7 +157,9 @@ _FIND = (
 #: outside a repository to heed no ignore file at all and to leave `node_modules` out; else
 #: with `git grep` inside a repository; else with `grep`, which where it knows no long option,
 #: as BusyBox's does not, is given the files `find` lists that hold no NUL byte. A file's name
-#: ends with a NUL where the grep can end it so, and else with the colon.
+#: ends with a NUL where the grep can end it so, and else with the colon. The tool is first
+#: asked of no file at all, and a query or a glob it cannot read ends the search there, its
+#: error said.
 #: Arguments: the query, `F` or `E`, `i` or `s`, the glob, and how many lines to print.
 _SEARCH = (
     "q=$1; how=$2; case_=$3; glob=$4; most=$5; set --; "
@@ -169,14 +171,17 @@ _SEARCH = (
     "set -- \"$@\" --hidden --no-ignore-dot --glob '!.git'; "
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || "
     "set -- \"$@\" --no-ignore --glob '!node_modules'; "
+    'rg "$@" -e "$q" -- /dev/null >/dev/null; [ "$?" -lt 2 ] || exit 2; '
     'rg "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; '
     "elif git rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo grep; "
+    'git grep "-$how" -e "$q" -- . \':!.\' >/dev/null; [ "$?" -lt 2 ] || exit 2; '
     'set -- -nIz --no-color --untracked --exclude-standard "-$how"; '
     '[ "$case_" = i ] && set -- "$@" -i; '
     'set -- "$@" -e "$q" --; [ -n "$glob" ] && set -- "$@" "$glob"; '
     "GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat git --no-optional-locks -c core.quotepath=off "
     'grep "$@" 2>/dev/null | head -n "$most"; '
     "else echo grep; "
+    'grep "-$how" -e "$q" /dev/null; [ "$?" -lt 2 ] || exit 2; '
     "if grep --null --include=x --exclude-dir=x -q x /dev/null 2>/dev/null; "
     '[ "$?" -lt 2 ]; then '
     'set -- -rnI --null --exclude-dir=.git --exclude-dir=node_modules "-$how"; '
@@ -948,7 +953,7 @@ class Desk:
         if not isinstance(glob, str):
             raise Refused("glob is a pattern")
         limit = min(_SEARCH_MOST, max(1, _int(said, "limit", 2000)))
-        _, out, _ = self._exec(
+        code, out, err = self._exec(
             env,
             [
                 "/bin/sh",
@@ -963,6 +968,11 @@ class Desk:
                 str(limit * 3 + 64),
             ],
         )
+        if code:
+            # The tool's reason ends its first paragraph: rg first shows where in the query,
+            # and may advise after a blank line.
+            why = err.strip().partition("\n\n")[0].rpartition("\n")[2]
+            raise Refused(why or "the search failed")
         tool, _, rest = out.partition("\n")
         if tool.strip() == "rg":
             matches = _rg(rest, limit + 1)

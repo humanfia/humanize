@@ -1,6 +1,7 @@
 """What an agent is, written down.
 
-An agent is a CLI, an account, and a model at an effort. What it may do, the capabilities it
+An agent is a CLI, an account, and a model at an effort, or the name of a virtual nous, which
+stands for whichever of those its graph comes to. What it may do, the capabilities it
 is granted and the skills it carries are not its own to hold: they are the flow's, declared
 where the flow declares the agent's role. Where its work lands is not its own either: that is
 the environment the flow opens its session in. So this is a shape and the two directions it
@@ -25,7 +26,7 @@ class Runs(NamedTuple):
     """What one agent of a flow was set up to run.
 
     Attributes:
-      spec: The agent itself, as `cli/model:effort`.
+      spec: The agent itself, as `cli/model:effort`, or the name of a virtual nous.
       provider: The account its turns run as, by the name a provider of its CLI was made
         under, or "" to run as this machine is already signed in.
     """
@@ -42,9 +43,11 @@ def written(runs: Runs) -> str:
 
     Returns:
       `cli@provider/model:effort`, or `cli/model:effort` for one that runs as this machine
-      is signed in.
+      is signed in; a virtual nous is its name alone.
     """
-    cli, _, rest = runs.spec.partition("/")
+    cli, slash, rest = runs.spec.partition("/")
+    if not slash:
+        return runs.spec
     account = f"@{runs.provider}" if runs.provider else ""
     return f"{cli}{account}/{rest}"
 
@@ -63,6 +66,11 @@ def read_back(said: object) -> Runs | None:
     """
     if not isinstance(said, str):
         return None
+    if "/" not in said:
+        from hmz.coganchor import nous
+
+        # A word with no `/` is a virtual nous by name (Section 7.4.13 of cli.md).
+        return Runs(said) if nous.virtual(said) else None
     head, slash, rest = said.partition("/")
     cli, _, provider = head.partition("@")
     model, effort = parted(rest)

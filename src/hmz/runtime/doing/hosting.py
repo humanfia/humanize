@@ -2382,8 +2382,19 @@ class Host:
             current is not None
             and current.number == number
             and not self._closed
-            and not self._away_of.get(role, self._away_all)
+            and not self._nobody(role)
         )
+
+    def _nobody(self, role: str) -> bool:
+        """Whether nobody is there to answer as a role. Under the lock.
+
+        A chat's person is nobody's outworlder, so away is never said of them: nobody is
+        there for a chat only once it has folded away.
+        """
+        current = self._current
+        if current is not None and current.run.kind == "chat":
+            return self._folded
+        return self._away_of.get(role, self._away_all)
 
     def _asks(self, number: int, question: Question) -> str | None:
         """Puts what a run asks whoever is outside it to every frontend, and waits.
@@ -2562,7 +2573,7 @@ class Host:
                 if not self._live(number, role):
                     self._withdraws(
                         asked,
-                        "away" if self._away_of.get(role, self._away_all) else "over",
+                        "away" if self._nobody(role) else "over",
                     )
                     return None
                 if (
@@ -2752,7 +2763,7 @@ class Host:
         before it looks would leave its question waiting for nobody.
         """
         self._snap("away", all=self._away_all, of=dict(self._away_of))
-        for asked in [one for one in self._questions if self.away_for(one.role)]:
+        for asked in [one for one in self._questions if self._nobody(one.role)]:
             self._withdraws(asked, "away")
         self._spoke.notify_all()
 
@@ -3088,6 +3099,7 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
         question answered by an agent that could write.
     """
     from hmz.coganchor.fence import READ, Fence
+    from hmz.runtime.flowing.harnessing import ASKING_FEATURE
 
     fence = source.config.fence
     reading = (
@@ -3110,6 +3122,18 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
     # Nothing is let out of Codex's read-only sandbox.
     if hasattr(source.config, "unsandboxed"):
         settings["unsandboxed"] = ()
+    # Codex's `approvals` would open the copy's thread at `untrusted` over the `never` its
+    # fence is told with, and its asking feature would let it ask a user nobody plays: both
+    # are there for hooks hung on the source, and none is hung on the copy.
+    if hasattr(source.config, "approvals"):
+        settings["approvals"] = ""
+    features = cast(
+        "tuple[tuple[str, Any], ...] | None", getattr(source.config, "features", None)
+    )
+    if features is not None:
+        settings["features"] = tuple(
+            one for one in features if one[0] != ASKING_FEATURE
+        )
     clone = source.clone(
         config=dataclasses.replace(source.config, **settings), name=name, skills=()
     )

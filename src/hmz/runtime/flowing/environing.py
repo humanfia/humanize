@@ -1366,9 +1366,14 @@ class MachineEnvDriver:
         try:
             await machine.stat(target)
         except EnvFileNotFound:
-            await machine.rename(source, target)
+            pass
         else:
             raise EnvError(f"could not move {source}: {target} is already there")
+        try:
+            await machine.rename(source, target)
+        except EnvFileNotFound as error:
+            # `path` was just looked at, so what is not there is the directory of `to`.
+            raise EnvError(str(error)) from error
 
     async def remove(self, path: str) -> None:
         """Removes a file, a link, or a directory and everything in it.

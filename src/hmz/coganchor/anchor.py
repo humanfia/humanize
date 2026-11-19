@@ -221,6 +221,12 @@ class AnchorConfig:
                 "a peer:// target is a meeting Humanize books for a harness it is placing; "
                 "naming both is naming the same introduction twice"
             )
+        if where.scheme != "local" and work.scheme == "tcp":
+            raise ValueError(
+                "a tcp:// target is a serving half somebody else left listening, which "
+                "Humanize can start nothing beside; a harness on another machine has no "
+                "way to be introduced to it"
+            )
         if self.net not in ("local", "remote"):
             raise ValueError(f"unsupported net {self.net!r}; expected local or remote")
         for pair in self.redirects:

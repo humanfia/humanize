@@ -29,8 +29,9 @@ in a browser does.
   and says Local cannot be reached until you [install it](/user/installation#cli). On Windows,
   Local is the daemon in WSL, and the app installs `hmz` there: see [On Windows](#windows).
 - **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
-  and P2P daemons -- are reached from the app itself: ssh with your ssh config, and every route
-  but ssh and Local inside mutual TLS, as the app's own device, paired as a browser is.
+  and P2P daemons -- are reached from the app itself: ssh with your ssh config, WSL's
+  [on Windows](#windows), and every route but ssh and Local inside mutual TLS, as the app's own
+  device, paired as a browser is.
 - **It uses your login shell's environment**, so `hmz` and the coding agent CLIs are found as a
   terminal finds them.
 - **Closing the window is not quitting.** On macOS the app stays in the Dock; on Windows, in
@@ -71,6 +72,13 @@ reaches Local by running `hmz daemon connect --stdio` through `wsl.exe`.
   as `<distro> (WSL)`, `Ubuntu (WSL)` say.
 - **Coding agent CLIs go in WSL.** The daemon finds what a login shell in WSL finds; a CLI
   installed on Windows is not seen.
+- **Your ssh hosts are WSL's.** The hosts **New daemon** offers are those of `~/.ssh/config` in
+  WSL, and the app reaches an [SSH daemon](/user/web#daemons) with WSL's `ssh`, run through
+  `wsl.exe`: its config, its keys and its `known_hosts`, as `ssh <host>` in a WSL terminal
+  uses them. An identity file is a path in WSL. What Windows' own `ssh` has in
+  `%UserProfile%\.ssh` is not read. That `ssh` asks for no passphrase and is not started by
+  your login shell, so an ssh agent your shell's startup files set is not seen: name its
+  socket with `IdentityAgent` in `~/.ssh/config`, or use a key without a passphrase.
 - **Keep your repositories in WSL**, under your Linux home -- `~/src/project`, not
   `/mnt/c/Users/you/project`. Files on a Windows drive are reached from WSL through a slow
   share, and locks and permissions there do not behave as Linux's do, which Humanize relies on.

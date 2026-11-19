@@ -425,8 +425,12 @@ def _background(doing: Coroutine[Any, Any, Any]) -> None:
     task.add_done_callback(over)
 
 
-#: How much of what a terminal wrote is kept unread before the oldest of it is let go of:
-#: the wire has no way to hold up a program on the host, so this is where it is bounded.
+#: How much of what a terminal wrote is kept unread before the host is asked to read no more
+#: of it, so that the rest waits in the terminal there; it is read again at half of this.
+_HELD = 1 << 20
+
+#: How much of it is kept unread before the oldest of it is let go of, where the host cannot
+#: be asked that -- an older one -- or the terminal is being killed.
 _UNREAD = 8 << 20
 
 #: The most one read of a terminal answers.
@@ -461,11 +465,16 @@ class _RemotePty(Pty):
         self._window: tuple[int, int] | None = None
         self._sent: tuple[int, int] | None = None
         self._killing: asyncio.Task[None] | None = None
+        self._holds = False
+        self._hold = False
+        self._told = False
+        self._telling = False
         self.handle: ExecHandle | None = None
 
     def start_now(self, client: RemoteClient, cols: int, rows: int) -> None:
         """Starts it, from a thread that may wait to send."""
         self._sent = (rows, cols)
+        self._holds = bool(client.info.get("hold"))
         self.handle = client.start_exec(
             list(self._argv),
             self._cwd,
@@ -485,9 +494,33 @@ class _RemotePty(Pty):
     def _got(self, data: bytes) -> None:
         self._unread.append(data)
         self._held += len(data)
-        while self._held > _UNREAD and len(self._unread) > 1:
-            self._held -= len(self._unread.popleft())
+        if self._holds and self._killing is None:
+            if self._held > _HELD:
+                self._tell(hold=True)
+        else:
+            while self._held > _UNREAD and len(self._unread) > 1:
+                self._held -= len(self._unread.popleft())
         self._arrived.set()
+
+    def _tell(self, *, hold: bool) -> None:
+        """Asks the host to stop reading the terminal, or to read it again."""
+        self._hold = hold
+        if self._told != hold and not self._telling:
+            self._telling = True
+            _background(self._flow())
+
+    async def _flow(self) -> None:
+        # One at a time and the latest asked for, as a window is sent.
+        try:
+            while (
+                (handle := self.handle) is not None
+                and not self._done.done()
+                and self._told != self._hold
+            ):
+                self._told = self._hold
+                await asyncio.to_thread(handle.hold, held=self._told)
+        finally:
+            self._telling = False
 
     def ended(self, payload: dict[str, Any] | None, why: OSError | None) -> None:
         """Hands how it ended to the loop. On the reader thread."""
@@ -529,6 +562,8 @@ class _RemotePty(Pty):
             pieces.append(piece)
             size += len(piece)
         self._held -= size
+        if self._held <= _HELD // 2:
+            self._tell(hold=False)
         return b"".join(pieces)
 
     async def write(self, data: bytes) -> None:
@@ -563,6 +598,8 @@ class _RemotePty(Pty):
 
     async def _kill(self) -> None:
         handle = self.handle
+        # What is left of its output is read to its end, or it never ends.
+        self._tell(hold=False)
         if handle is not None and not self._done.done():
             # The program's group; whatever runs in the terminal's foreground is hung up on
             # as the program, which leads the terminal's session, goes.

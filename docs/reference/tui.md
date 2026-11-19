@@ -123,7 +123,7 @@ interface opens on a new chat, its agent the chat agent remembered for this dire
 | Starting a flow | `$<flow> <task>` or `/flow <flow> <task>` puts the flow on the screen, on this directory's own host, and leaves the chat going on its own; `/chat` brings it back, as it stands or, folded away meanwhile, as it was left, carried on by the next line. A line said while no epic of a flow is going goes to the chat. |
 | Its harness's own input | A line starting `/`, `$`, `!` or `@` is first read as the harness reads it at its own prompt, against the catalogue the chat's host gives (`chat.commands`): its commands and skills are said to it, a `!` command runs for the chat and is drawn dim, as a shell draws it, with what it printed under it, and a command only the harness's own interface serves is refused, `<cmd> is served only by the harness's own interactive interface`. Humanize keeps `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`, `/settings`, `/chat` and `/prefer`. A `/` naming nothing is `no such command` where the catalogue has any `/` entry and the chat has taken a turn, and is said as text otherwise. |
 | `$` names both | A `$<name>` that is both a skill and a flow runs the skill unless the chat prefers flows: `/prefer` says which and where it comes from (the settings file, or this chat), `/prefer native\|flow` sets it for this chat. `/flow <name> <task>` always starts the flow. |
-| `/resume` | Lists the other chats of this directory that are not archived, newest first, by title, as the daemon's `chat.list` answers them; the one picked is read where it is while a host holds it, and otherwise carried on, the same chat (`chat.start` with `resume` its id), by the next line you say: `say something to continue chat <id>`. |
+| `/resume` | Lists the other chats of this directory that are not archived, newest first, by title, as the daemon's `chat.list` answers them; the one picked is read where it is while a host holds it, and otherwise drawn with what was said in it and carried on, the same chat (`chat.start` with `resume` its id), by the next line you say: `say something to continue chat <id>`. |
 | `/epics` | Lists no chat of this machine. An epic an earlier hmz recorded for a chat is listed as an epic named `chat`, read as any other, with no `Exomyth` row and no way to carry it on. |
 | `!` lines | A `!` line and its output are drawn dim, in the style of a shell. |
 
@@ -366,8 +366,8 @@ menu never offers a chat: a chat's agent is set on the [Workspace page](#workspa
 ### `/chat` {#chat-command}
 
 Puts back on the screen the [chat](#chat) of this interface, which went on on its own host while
-a flow was on the screen. One that has folded away meanwhile is drawn as folded, and carried on,
-the same chat, when the next line is said.
+a flow was on the screen. One that has folded away meanwhile is drawn with what was said in it, and
+carried on, the same chat, when the next line is said.
 
 ### `/prefer [native|flow]` {#prefer-command}
 
@@ -415,7 +415,7 @@ the next and the last page:
 | Page | Shown when `caps` has | Does |
 | --- | --- | --- |
 | Files | `files` | Lists a directory (`env.list`), folders first; enter opens a folder or a file, backspace goes up. `n` new file (made empty, `if_match: ""`, then opened), `N` new folder, `r` rename, `d` delete (asked first; recursive), `e` edits the file in `$VISUAL`, else `$EDITOR`, else `vi`, on a temporary copy, the terminal handed over, and writes it back against what was read where it changed. `ctrl+p` opens any file of `env.find`, narrowed by typing; `?` (or `ctrl+shift+f`) asks for text, lists `env.search`'s matches, and opens one at its line. |
-| Changes | `git` or `git_worktree` | `env.git.status` as **Merge Changes**, **Staged Changes**, **Changes** and **Untracked**, each with its count, under the branch, `↑ahead ↓behind upstream` and the root. Enter shows the file's diff (`env.git.diff`, the staged one from Staged Changes) coloured; `s` stage, `u` unstage, `x` discard (asked first), `c` commit (a message, and amend), `r` refresh; buttons stage or unstage all. It refreshes on its own after an `env_used` record and when a turn ends. |
+| Changes | `git` or `git_worktree` | `env.git.status` as **Merge Changes**, **Staged Changes**, **Changes** and **Untracked**, each with its count, under the branch, `↑ahead ↓behind upstream` and the root. Enter shows the file's diff (`env.git.diff`, the staged one from Staged Changes) coloured; `s` stage, `u` unstage (a staged rename whole, the path it was renamed from too), `x` discard (asked first), `c` commit (a message, and amend), `r` refresh; buttons stage or unstage all. It refreshes on its own after an `env_used` record and when a turn ends. |
 | Shell | `shell` | Hands this terminal over to a shell in the environment (`env.term.open` at this terminal's size, or one this interface left running, picked from `env.term.list`, its scrollback replayed). Keys go to it raw; a change of size is `env.term.resize`; output is acknowledged every 64 KiB. `~.` first on a line comes back and leaves it running; `~~` sends one `~`. Its ending comes back with `shell in <chain>: exited with status <n>`. A refusal of `env.term.open` or of what was typed -- `Terminals are off for paired devices; turn on envs.paired_terminals.` among them -- is said in red. |
 | Snapshots | `rewind` | `env.git.snapshots`; enter rewinds to one (`env.git.rewind`), asked first. A refusal (`<role> is working here; stop it first`) is said under the list. |
 

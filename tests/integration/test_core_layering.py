@@ -31,7 +31,7 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 ALLOWED: dict[str, set[str]] = {
     "hmz.coganchor": {"hmz.runtime.telemetry"},
     "hmz.runtime": set(),
-    "hmz.runtime.kept": {"hmz.coganchor.spelling"},
+    "hmz.runtime.kept": {"hmz.coganchor.nous", "hmz.coganchor.spelling"},
     "hmz.runtime.settings": {
         "hmz.runtime.kept",
         "hmz.coganchor.machines.store",

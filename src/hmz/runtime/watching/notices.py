@@ -265,13 +265,18 @@ def _noticed(
         if (
             chat
             and kind == "listening"
-            and same
-            and was.get("turn") == "done"
-            and was.get("usage") == now.get("usage")
+            and (not same or was.get("turn") == "done")
+            and (
+                now.get("usage") == was.get("usage")
+                if same
+                else _unspent(now.get("usage"))
+            )
         ):
             # Asked what to say next with no turn taken since it last was, which would have
             # shown as running or spent something: after a `!` command or a line refused,
-            # which is no turn done (Section 8.9.6 of core.md).
+            # which is no turn done (Section 8.9.6 of core.md). Or by another host than the
+            # one that was, which has spent nothing: it came up waiting, as one carrying a
+            # chat on does (Section 4.22.5.1 of daemon.md), and has taken no turn at all.
             continue
         made.append(
             {
@@ -289,6 +294,18 @@ def _noticed(
             }
         )
     return made
+
+
+def _unspent(usage: Any) -> bool:
+    """Whether what a host says it has spent is nothing, as of one that has taken no turn.
+
+    Args:
+      usage: What it says: each amount by name, how long as an ISO 8601 duration.
+    """
+    if not isinstance(usage, dict):
+        return False
+    spent = cast("dict[str, Any]", usage)
+    return bool(spent) and all(one in (0, "PT0S") for one in spent.values())
 
 
 def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]:

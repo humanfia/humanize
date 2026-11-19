@@ -112,7 +112,20 @@ def test_a_listener_spec_is_a_route_a_daemon_listens_on(text: str) -> None:
     assert str(spec(text)) == text
 
 
-@pytest.mark.parametrize("text", ["unix:", "stdio:local", "nothing", "tcp://h"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "unix:",
+        "stdio:local",
+        "nothing",
+        "tcp://h",
+        "ws://h",
+        "wss://h:1",
+        "ws://h:1/x",
+        "ws://h:0/x",
+        "ws://h:x",
+    ],
+)
 def test_anything_else_is_no_listener(text: str) -> None:
     with pytest.raises(ValueError, match=f"{text} is not a listener."):
         spec(text)

@@ -1130,9 +1130,9 @@ Each is handed the same question: the prompt, the context as JSON, the JSON Sche
 sent it, with each error's `path` and `message`, and the question stays up: `run` never sees a
 misfit.
 
-**While away**, `run` returns at once: `""` for text; the schema built from defaults where
-every field has one; otherwise `OutworlderAway`:
-`nobody is there to answer with a <Model>, and it has fields with no default`.
+**While away**, `run` returns at once: `""` for text; the schema built with no arguments
+where that builds one; otherwise `OutworlderAway`:
+`nobody is there to answer a <Model>, and it has no default`.
 
 A caller may pass its own outworlder, one from `Outworlder.new()`, or omit the role (the
 callee gets the run's). An outworlder may also be passed for a plain `Agent` role that
@@ -2484,6 +2484,9 @@ FakeOutworlder(reply: Reply = None, *, away: bool = False)
 
 Answers like a `FakeAgentDriver`, or is away: a reply is text, a pydantic model, or a mapping
 or JSON text, sent as the answer to the schema asked for; a function receives `output_schema=`.
+Under `fakes.run_fake` it answers as a program does, which has the schema and not its model:
+`output_schema` is the JSON Schema asked for (`Ask.schema`), `None` for text, and with nothing
+scripted a schema is answered with nothing, as an away person answers it, rather than `"ok"`.
 
 | Attribute | What it holds |
 | --- | --- |

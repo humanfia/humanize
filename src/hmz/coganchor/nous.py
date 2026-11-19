@@ -237,7 +237,7 @@ ANSWERS: tuple[Answer, ...] = (
         "was kept off a host by this run's fence",
         held=True,
         fix="the run's network fence keeps it off that host, which no sign-in answers; "
-        "give the role online of ALL to let it through",
+        "give the role network=True to let it through",
     ),
     Answer(
         "sandboxed",
@@ -1015,16 +1015,24 @@ class Walk:
         return found if found is not None else Nous(name)
 
     def _nous(
-        self, name: str, above: tuple[str, ...], deadline: float | None
+        self,
+        name: str,
+        above: tuple[str, ...],
+        deadline: float | None,
+        before: str = "",
     ) -> Generator[Run | Wait, str, str]:
-        """Walks one nous: its body under its envelope, then its `then`; answers its fault."""
+        """Walks one nous: its body under its envelope, then its `then`; answers its fault.
+
+        `before` is the fault of the failure before it, which is what a nous the deadline
+        leaves no time to begin fails with.
+        """
         if name in above or len(above) >= _DEEPEST:
             return "missing"
         own = self._rule(name)
         if "/" not in name and own.graph is None:
             return "missing"  # a virtual nous nobody wrote down, or one taken away
         inside = (*above, name)
-        fault = ""
+        fault = before
         if own.graph is None:
             if deadline is not None and self._clock() >= deadline:
                 return fault
@@ -1050,35 +1058,35 @@ class Walk:
                     )
                 ends = since + own.timeout if own.timeout else None
                 inner = ends if deadline is None else min(deadline, ends or deadline)
-                fault = yield from self._graph(own.graph, inside, inner)
+                fault = yield from self._graph(own.graph, inside, inner, fault)
         if own.then is not None:
-            fault = yield from self._graph(own.then, inside, deadline)
+            fault = yield from self._graph(own.then, inside, deadline, fault)
         return fault
 
     def _graph(
-        self, graph: Graph, above: tuple[str, ...], deadline: float | None
+        self, graph: Graph, above: tuple[str, ...], deadline: float | None, before: str
     ) -> Generator[Run | Wait, str, str]:
         """Walks one graph from its start; answers the fault it failed with."""
-        fault, at, been = "", graph.node(graph.start), 0
+        fault, at, been = before, graph.node(graph.start), 0
         while at is not None and been <= len(graph.nodes):
             been += 1
             if at.use:
-                fault = yield from self._nous(at.use, above, deadline)
+                fault = yield from self._nous(at.use, above, deadline, fault)
             else:
-                fault = yield from self._balance(at, above, deadline)
+                fault = yield from self._balance(at, above, deadline, fault)
             at = graph.node(at.after(fault))
         return fault
 
     def _balance(
-        self, node: Node, above: tuple[str, ...], deadline: float | None
+        self, node: Node, above: tuple[str, ...], deadline: float | None, before: str
     ) -> Generator[Run | Wait, str, str]:
         """Tries the members of a balance node, picked by its strategy, until one answers."""
         key = ">".join((*above, node.id))
         left: list[tuple[str, int]] = list(node.among)
-        fault = ""
+        fault = before
         for _ in range(node.spread or len(left)):
-            if not left:
-                break
+            if not left or (deadline is not None and self._clock() >= deadline):
+                break  # no member is begun past the deadline, so none is picked or cooled
             members = _members(left)
             # Cooling members only once no other is left: a rate limit a minute ago is the
             # likeliest rate limit now.
@@ -1092,7 +1100,7 @@ class Walk:
             left = [one for one in left if one[0] != pick]
             self._picks.append((key, pick))
             try:
-                fault = yield from self._nous(pick, above, deadline)
+                fault = yield from self._nous(pick, above, deadline, fault)
             finally:
                 self._picks.pop()
             if fault in ("throttled", "spent"):

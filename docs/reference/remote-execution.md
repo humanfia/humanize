@@ -194,13 +194,23 @@ over its stdin and stdout.
 The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`linux` or
 `darwin`), `python` (`coganchor <version>`: the field keeps the name it had when the serving half was
 Python, so the protocol stays at version 1), `pid`, `exports` (`[{virtual, real}]`), `fence` (`{fs: bool, net: bool}`, see
-[below](#a-fence-on-both-machines)) and `resize: true`. A token mismatch fails it with `EACCES`, `invalid token`, and closes the connection.
+[below](#a-fence-on-both-machines)), `resize: true` and `hold: true`. A token mismatch fails it with `EACCES`, `invalid token`, and closes the connection.
 
 `resize` says the serving half takes `Op.RESIZE {target, rows, cols}`: the window of the pty
 the command of exchange `target` runs under (an `EXEC` with `tty: true`) is set to that, and
 the command's foreground process group is sent `SIGWINCH`. It is answered whether or not that
 command still runs; `rows` or `cols` outside `0..65535` is `EINVAL`. A client asks only a
 serving half whose reply says `resize`; an older one answers the op `ENOSYS`.
+
+`hold` says the serving half takes `Op.HOLD {target, held}`: while `held` is `true` it reads no
+more of what the command of exchange `target` writes, so the command waits on its full terminal
+or pipe, and `false` starts the reading again; what was read before is still sent. It is
+answered whether or not that command still runs; a `held` that is not a boolean is `EINVAL`. A
+command still held when its connection goes is let go of and killed. A client asks only a
+serving half whose reply says `hold`. This is how a terminal in a remote env waits for the
+people viewing it: Humanize holds it once 1 MiB of its output is unread and lets go at half
+that, so nothing it prints is lost. Against an older serving half it keeps at most 8 MiB
+unread and drops the oldest beyond that.
 
 ### The link over a network {#the-link-over-a-network}
 
@@ -320,6 +330,7 @@ as a usage error and exits 2.
 | `target` or `harness` not a [target spelling](#targets) | the target parse message |
 | `native=True` with a harness on another machine | `a native session has no harness to put anywhere: the CLI on the target is the one that runs, so --harness and --native ask for opposite things` |
 | a `peer://` target with any `harness` but `local` | `a peer:// target is a meeting Humanize books for a harness it is placing; naming both is naming the same introduction twice` |
+| a `tcp://` target with a harness on another machine (`same` included) | `a tcp:// target is a serving half somebody else left listening, which Humanize can start nothing beside; a harness on another machine has no way to be introduced to it` |
 | `net` not `local` or `remote` | `unsupported net 'X'; expected local or remote` (the option: `argument --net: invalid choice: …`) |
 | a redirect that is not two absolute paths | `unsupported redirect 'a=b'; expected two absolute paths` |
 | an empty hush, or one containing `=` | `unsupported hush 'A=B'; expected a variable name` |
@@ -336,7 +347,7 @@ Refused only when a turn is started:
 | Condition | Error |
 | --- | --- |
 | no agent named | `ValueError: no agent given` (native), `ValueError: no agent command given` (supervised) |
-| a harness on a `tcp://` or `peer://` machine, or `same` with such a target | `ValueError: nothing is started on the far side of tcp://h:1` |
+| a harness on a `tcp://` or `peer://` machine | `ValueError: nothing is started on the far side of tcp://h:1` |
 | `chdir` outside the workspace | `ValueError: <chdir> is not inside <workspace>` |
 | the agent not on this machine's `PATH` (supervised) | `FileNotFoundError: <name>: not found on PATH` |
 

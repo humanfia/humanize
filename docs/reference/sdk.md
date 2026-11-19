@@ -739,7 +739,6 @@ declaration order.
 | `Provider` | `cli`, `name`, `way: str = "env"`, `env: Mapping[str, str]`, `args: tuple[str, ...]`, `made: str`; property `at: Path`; methods `held()`, `command(argv)`, `swaps()` |
 | `Way` | `name`, `about`, `argv: tuple[str, ...]` (sign-in command), `asks: tuple[Asked, ...]`, `sets: tuple[tuple[str, str], ...]`, `args: tuple[str, ...]`, `stdin: str` |
 | `Model` | `name`, `efforts: tuple[str, ...]` (hardest first), `swarms: bool = False` |
-| `Falls` | `spec`, `to: tuple[str, ...]` (`()` = nowhere), `tries: int = 0`, `policy: str = "exponential-jitter"`, `timeout: float = 0.0`; method `says()` |
 | `Policy` | `name`, `about` |
 
 ### Environment types {#environment-types}

@@ -609,6 +609,7 @@ status 2.
 | `… claude's harness cannot run where its harness setting (env) says: claude is not installed on ssh@build-box: …` | `env` (the default, and a host nobody saved) and no CLI on the host's `PATH`. Install it there, or save the host with its harness `local`. |
 | `… harness cannot run where its harness setting (env) says: a pre_tool_use hook cannot gate the tools of a CLI on another machine; …` | The flow gates the role's tools with a hook. Save the host with its harness `local`. |
 | `… harness cannot run where its harness setting (docker:gpubox) says: … a fence cannot hold a harness that runs on another machine` | A harness runtime for a role not granted everything. Set the harness to `local` or `env`. |
+| `… harness cannot run where its harness setting (docker:gpubox) says: … a tcp:// target is a serving half somebody else left listening, …` | A harness runtime for a Slurm runtime reached with `via: tcp`. Set the harness to `local` or `env`, or reach the job with `via: srun`. |
 | `build-box: 'somewhere' is not where a harness runs: env, local or <ssh\|docker\|swarm\|apple-container\|slurm>:<runtime name>` | Saving the host refused its harness. Spell it as one of those. |
 
 More, with what causes each, are in [Troubleshooting](/user/troubleshooting).

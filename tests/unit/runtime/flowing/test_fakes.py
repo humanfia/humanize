@@ -902,6 +902,27 @@ async def test_a_fake_outworlder_answers_a_mapping_as_the_schema_asked() -> None
     )
 
 
+async def test_a_fake_outworlder_asked_a_schema_with_no_model_answers_it_as_scripted() -> (
+    None
+):
+    schema = Answer.model_json_schema()
+    given: list[object] = []
+
+    def reply(prompt: str, *, output_schema: object = None) -> dict[str, str] | str:
+        given.append(output_schema)
+        return {"answer": prompt} if output_schema is not None else "text"
+
+    asked = Ask(prompt="which?", schema=schema)
+
+    assert await FakeOutworlder(reply).run(asked) == {"answer": "which?"}
+    assert given == [schema]
+    assert await FakeOutworlder(Answer(answer="a")).run(asked) == Answer(answer="a")
+    assert await FakeOutworlder('{"answer": "a"}').run(asked) == '{"answer": "a"}'
+    # Nothing scripted is no answer, not text the schema has no value for.
+    assert await FakeOutworlder().run(asked) == ""
+    assert await FakeOutworlder([]).run(asked) == ""
+
+
 def test_a_fake_outworlder_keeps_what_it_was_shown_and_its_faces() -> None:
     here = FakeOutworlder()
     face = object()
@@ -963,6 +984,22 @@ async def test_run_fake_fills_every_role_with_a_fake_of_what_it_asks_for() -> No
         PurePosixPath("/big"),
         "sure",
     ]
+
+
+class Reviewer:
+    """An outworlder driver of a flow author's own: the two members the protocol names."""
+
+    def away_for(self, role: str) -> bool:
+        return False
+
+    async def run(self, ask: Ask, role: str) -> str:
+        return f"{role} read {ask.prompt}"
+
+
+async def test_run_fake_asks_an_outworlder_driver_given_by_role() -> None:
+    said = await run_fake(wanting, agents={"human": Reviewer()})
+
+    assert said[-1] == "human read ok?"
 
 
 class Coding(AgentCollection):
