@@ -4570,6 +4570,7 @@ input[aria-invalid='true'] {
 }
 
 .ask-markdown {
+  white-space: normal;
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -4606,6 +4607,71 @@ input[aria-invalid='true'] {
   padding-left: 10px;
   border-left: 3px solid var(--line-strong);
   color: var(--ink-2);
+}
+
+.ask-markdown p {
+  margin: 0.45em 0;
+}
+
+.ask-markdown :is(ul, ol) {
+  margin: 0.45em 0;
+  padding-left: 1.4em;
+}
+
+.ask-markdown li {
+  margin: 0.15em 0;
+}
+
+.ask-markdown li > p {
+  margin: 0;
+}
+
+.ask-markdown table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0.6em 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.ask-markdown :is(th, td) {
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ask-markdown th {
+  background: var(--side);
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+}
+
+.ask-markdown :is(th, td)[align='right'] {
+  text-align: right;
+}
+
+.ask-markdown :is(th, td)[align='center'] {
+  text-align: center;
+}
+
+.ask-markdown hr {
+  margin: 0.8em 0;
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.ask-markdown code[title^='file:'] {
+  cursor: help;
+}
+
+.said .body.body-markdown {
+  white-space: normal;
 }
 
 .ask-code {
