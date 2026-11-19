@@ -76,7 +76,9 @@ reaches Local by running `hmz daemon connect --stdio` through `wsl.exe`.
   WSL, and the app reaches an [SSH daemon](/user/web#daemons) with WSL's `ssh`, run through
   `wsl.exe`: its config, its keys and its `known_hosts`, as `ssh <host>` in a WSL terminal
   uses them. An identity file is a path in WSL. What Windows' own `ssh` has in
-  `%UserProfile%\.ssh` is not read.
+  `%UserProfile%\.ssh` is not read. That `ssh` asks for no passphrase and is not started by
+  your login shell, so an ssh agent your shell's startup files set is not seen: name its
+  socket with `IdentityAgent` in `~/.ssh/config`, or use a key without a passphrase.
 - **Keep your repositories in WSL**, under your Linux home -- `~/src/project`, not
   `/mnt/c/Users/you/project`. Files on a Windows drive are reached from WSL through a slow
   share, and locks and permissions there do not behave as Linux's do, which Humanize relies on.
