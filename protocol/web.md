@@ -1242,7 +1242,10 @@ and its nodes: the community's shared nodes (Section 3.8.5.8 of [DAEMON]), each 
 whether it is up and its uptime, to be checked, and nodes the user types; where that list cannot be
 read, the form MUST say so with the reason and take typed nodes alone. It MUST write the EasyTier
 entry of that name to Local (`easytier.set`, Section 4.18.5 of [DAEMON]) and keep the daemon with
-the route `easytier:<name>`.
+the route `easytier:<name>`. For a new daemon it MUST also ask a pairing code, MUST refuse one that
+is not a pairing code before it writes the entry, and MUST claim it at once as `Code` does (Section
+3.13.4), over `easytier:<name>` and then the code's routes that are not `easytier:` routes, keeping
+the daemon with the code's id and those routes, and only where the claim succeeds.
 
 **3.13.7** A secret shorter than 16 bytes in UTF-8 MUST be refused with `A secret must be at least
 16 bytes.`, and a form in which no node is checked or typed with `An EasyTier daemon needs at least
