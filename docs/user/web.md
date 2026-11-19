@@ -150,13 +150,13 @@ brings the graph back to the middle of the view.
 The panel beside it (the button at the top right shows and hides it) holds:
 
 - **Epic.** How long it has been going, what it has spent and how fast, a meter for each limit of
-  its [budget](/features/allowances), the task, who handed to whom in words, **Spending** by
-  model and kind of token (`≥` marks a figure that is only a floor), **Environments** -- where
-  each session works and where its harness went, each a link into that environment's files, shell
-  and changes while the epic is held (see [Into its environments](/features/environments)) -- the
-  **Frontends** reading it, the flows going or the flows it called, and how it was set up and
-  where it is written down. A chat calls this **Details**; its panes are picked on its bar, not
-  by tabs (see [A session](#a-session)).
+  its [budget](/features/allowances), the task as Markdown, who handed to whom in words,
+  **Spending** by model and kind of token (`≥` marks a figure that is only a floor),
+  **Environments** -- where each session works and where its harness went, each a link into that
+  environment's files, shell and changes while the epic is held (see [Into its
+  environments](/features/environments)) -- the **Frontends** reading it, the flows going or the
+  flows it called, and how it was set up and where it is written down. A chat calls this
+  **Details**; its panes are picked on its bar, not by tabs (see [A session](#a-session)).
 - **Aside.** A side question, as [`/btw`](/user/btw) asks it, of one session's side copy -- any
   epic's session, an earlier one forked from where that epic kept it, so it answers with that
   session's own history. Keep as many asides as you like: each is a side conversation of its
@@ -199,6 +199,11 @@ And under the graph, while it goes:
 
 A session opens as its thread, drawn as the terminal draws it: an agent's words on a dot, your
 lines set apart on the right, a tool on a mark of its own, and `✻ Worked for …` closing a turn.
+
+What was written as Markdown is drawn as Markdown: headings, lists, tables, fenced code, links
+and line breaks. **Copy** on a line, and **Copy thread**, give what was written rather than what
+was drawn. A tool's output and a thought stay monospace text. HTML a message carries is drawn as
+the text it is, and a `file:` path as code with the path it names.
 
 A [chat](/user/chat) is only its conversation, as a chat app's is, wherever it is opened: your
 first message, then

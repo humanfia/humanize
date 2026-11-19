@@ -3,7 +3,7 @@
 // how long it worked -- read off the records of a run going, or off the trace of one that is
 // written down.
 
-import { blocks } from './asking/blocks.js'
+import { blocks, markdownInto } from './asking/blocks.js'
 import { fieldsOf, kindOf, resolved, summaryOf } from './asking/logic.js'
 import { h, lasting } from './dom.js'
 import { refusedSaid, shellOf, shellParts } from './natives.js'
@@ -31,18 +31,28 @@ const GLYPHS = {
   refused: '✕',
 }
 
+/** The kinds whose words are prose, which Markdown is: a tool's output and a thought are not. */
+const PROSE = new Set(['text', 'result', 'notice', 'asks', 'you', 'btw', 'refused'])
+
+/** What each line said, before it was drawn: what Copy and Copy thread give. */
+const raws = new WeakMap()
+
 /** One line of a transcript. */
 export function line(kind, body, { who = '', folded = false } = {}) {
   const text = String(body ?? '')
+  const prose = PROSE.has(kind)
+  const drawn = prose ? markdownInto(h('div', {}), text, { html: 'text' }) : text
   const shown =
     folded || text.length > SHORT
-      ? h('details', { class: 'said-more' }, h('summary', {}, text.slice(0, 140).replace(/\s+/g, ' ') + (text.length > 140 ? '…' : '')), h('div', {}, text))
-      : text
+      ? h('details', { class: 'said-more' }, h('summary', {}, text.slice(0, 140).replace(/\s+/g, ' ') + (text.length > 140 ? '…' : '')), h('div', {}, drawn))
+      : drawn
+  const told = h('div', { class: ['body', prose && 'body-markdown'] }, who ? h('div', { class: 'who' }, who) : null, shown)
+  raws.set(told, text)
   const said = h(
     'div',
     { class: ['said', kind], 'data-hmz': 'said' },
     h('span', { class: 'g', 'aria-hidden': 'true' }, GLYPHS[kind] || '·'),
-    h('div', { class: 'body' }, who ? h('div', { class: 'who' }, who) : null, shown),
+    told,
   )
   // A line copied whole, or the whole thread: what selecting it would take a drag to get.
   return menuOn(said, () => [
@@ -74,8 +84,13 @@ export function shellLine(ran) {
 /** A thread as text: each line, whose it is where it says, one after another. */
 function threadOf(one) {
   const thread = one.closest('.thread')
-  if (!thread) return one.innerText
-  return [...thread.querySelectorAll(':scope > .said')].map((line) => line.querySelector('.body').innerText.trim()).join('\n\n')
+  if (!thread) return raws.get(one.querySelector('.body')) ?? one.innerText
+  return [...thread.querySelectorAll(':scope > .said')]
+    .map((line) => {
+      const body = line.querySelector('.body')
+      return (body && raws.get(body)) || body?.innerText.trim() || ''
+    })
+    .join('\n\n')
 }
 
 /**
@@ -233,9 +248,13 @@ export function saidTraced(...sessions) {
     const args = action.args || {}
     const who = many ? action.whose : ''
     switch (action.category) {
-      case 'turn':
-        lines.push(h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), h('div', { class: 'body' }, many ? h('div', { class: 'who' }, action.whose) : null, args.prompt ? String(args.prompt) : action.name)))
+      case 'turn': {
+        const prompt = args.prompt ? String(args.prompt) : action.name
+        const body = h('div', { class: 'body body-markdown' }, many ? h('div', { class: 'who' }, action.whose) : null, markdownInto(h('div', {}), prompt, { html: 'text' }))
+        raws.set(body, prompt)
+        lines.push(h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), body))
         break
+      }
       case 'message':
         lines.push(line('text', args.text ?? action.name, { who }))
         break

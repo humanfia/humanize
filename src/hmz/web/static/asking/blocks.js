@@ -28,15 +28,22 @@ function vegaBundle() {
   return vega
 }
 
-/** Markdown drawn into `el`: read as written where the bundle is, else as its own text. */
-export function markdownInto(el, text) {
+/**
+ * Markdown drawn into `el`: read as written where the bundle is, else as its own text.
+ *
+ * @param {HTMLElement} el What it is drawn into.
+ * @param {unknown} text What was written.
+ * @param {{html?: 'markup'|'text'}} [options] Passed to the bundle's `render`: `text` keeps
+ *   the HTML a message carries as its text, rather than as markup.
+ */
+export function markdownInto(el, text, options) {
   el.classList.add('ask-markdown')
   fill(el, h('div', { class: 'ask-plain' }, text))
   markdownBundle().then((bundle) => {
     if (!bundle || typeof bundle.render !== 'function') return
     try {
       // The bundle hands back HTML it has sanitised: nothing in it runs.
-      el.innerHTML = bundle.render(String(text))
+      el.innerHTML = bundle.render(String(text), options)
       for (const link of el.querySelectorAll('a[href]')) {
         link.target = '_blank'
         link.rel = 'noopener noreferrer'

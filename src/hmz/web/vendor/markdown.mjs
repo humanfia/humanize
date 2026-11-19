@@ -1,11 +1,35 @@
 // How the page shows Markdown it did not write -- an agent's, a flow's: marked turns it into
-// HTML, GitHub's flavour with its tables, and DOMPurify keeps of that only what cannot run,
-// restyle the page or reach beyond it. Bundled by build.mjs into ../static/vendor/markdown.js.
+// HTML, GitHub's flavour with its tables and its line breaks, and DOMPurify keeps of that only
+// what cannot run, restyle the page or reach beyond it. Bundled by build.mjs into
+// ../static/vendor/markdown.js.
 
 import DOMPurify from 'dompurify';
 import { Marked } from 'marked';
 
-const marked = new Marked({ gfm: true, breaks: false, async: false });
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (one) => ESCAPES[one]);
+
+const OPTIONS = { gfm: true, breaks: true, async: false };
+const marked = new Marked(OPTIONS);
+// The same, with the HTML a message carries drawn as the text it is.
+const text = new Marked(OPTIONS);
+
+// A path on the machine the run happens on is not a link the browser can follow, and the
+// sanitizer would keep its words but drop its address: drawn as the path it is instead, before
+// there is an address to drop. Every caller of the renderer gets it.
+const link = ({ href }) => {
+  if (typeof href !== 'string' || !/^file:/i.test(href)) return false;
+  const path = escapeHtml(href);
+  return `<code title="${path}">${path}</code>`;
+};
+
+marked.use({ renderer: { link } });
+text.use({
+  renderer: {
+    link,
+    html: ({ text: raw }) => escapeHtml(raw),
+  },
+});
 
 // A private copy, so that its hooks are this module's alone.
 const purify = DOMPurify(globalThis.window);
@@ -42,9 +66,16 @@ const SANITIZE = {
   FORBID_ATTR: ['style', 'class', 'id', 'srcset', 'poster', 'background'],
 };
 
-/** `md` as HTML that is safe to set as an element's `innerHTML`. */
-export function render(md) {
+/**
+ * `md` as HTML that is safe to set as an element's `innerHTML`.
+ *
+ * @param {unknown} md What was written.
+ * @param {{html?: 'markup'|'text'}} [options] `text` draws the HTML a message carries as its
+ *   text, rather than as tags the sanitizer would keep or drop; the default keeps it markup.
+ */
+export function render(md, { html = 'markup' } = {}) {
   // Without a document DOMPurify would hand the HTML back as it came: refuse instead.
   if (!purify.isSupported) throw new Error('markdown.js renders only where there is a document');
-  return purify.sanitize(marked.parse(String(md ?? '')), SANITIZE);
+  const parser = html === 'text' ? text : marked;
+  return purify.sanitize(parser.parse(String(md ?? '')), SANITIZE);
 }
