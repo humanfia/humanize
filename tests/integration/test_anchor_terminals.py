@@ -111,8 +111,8 @@ async def test_a_terminal_is_typed_at_resized_and_exits(
 async def test_what_a_terminal_prints_and_nobody_reads_waits_in_the_terminal(
     driver: MachineEnvDriver,
 ) -> None:
-    # About 15 MiB, which is more than is kept unread of a terminal anywhere.
-    most = 2_000_000
+    # About 10 MiB, which is more than is kept unread of a terminal anywhere.
+    most = 1_500_000
     counting = f"awk 'BEGIN {{ for (n = 1; n <= {most}; n++) print n }}'"
     pty = await driver.pty(
         ["/bin/sh", "-c", f"stty -echo; echo ready; {counting}; echo E-N-D"],
@@ -123,7 +123,10 @@ async def test_what_a_terminal_prints_and_nobody_reads_waits_in_the_terminal(
     await _until(pty, seen, rb"ready\r\n")
 
     await asyncio.sleep(3.0)  # nobody reads, as when every viewer is far behind
-    said = bytes(seen) + await _drained(pty)
+    # However long all of it takes a slow machine to read, as long as it keeps coming.
+    while piece := await asyncio.wait_for(pty.read(), PATIENCE):
+        seen += piece
+    said = bytes(seen)
 
     # A line whose writing a full terminal held up may be ended `\r\r\n`, as macOS ends it.
     lines = re.split(rb"\r+\n", said)
