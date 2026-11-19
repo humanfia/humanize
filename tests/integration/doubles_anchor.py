@@ -86,7 +86,8 @@ os.execve("/bin/sh", ["/bin/sh", "-c", " ".join(rest)], env)
 #: under its name, which is its id too: `docker service create`, `ls` (by `label=` filters),
 #: `inspect`, `ps` and `rm`, and `docker inspect --type task`. A service's task is preparing
 #: for `$FAKE_SWARM_STARTING` seconds after it was created, then running in a container whose
-#: `exec` runs here -- or failed, where the service's name holds `$FAKE_SWARM_FAILING`. A
+#: `exec` runs here -- or failed, where the service's name holds `$FAKE_SWARM_FAILING`. While
+#: a test holds the swarm's tasks (`Fakes.hold`), every one of them goes on preparing. A
 #: stalled `service create` (`Fakes.stall`) creates the service, and then never answers.
 _SWARM = """
 import time
@@ -107,7 +108,10 @@ def swarmed(state, sub, args):
             print("[]")
             return 1
         failing = os.environ.get("FAKE_SWARM_FAILING", "")
-        if time.time() - made["made"] < float(os.environ.get("FAKE_SWARM_STARTING") or 0):
+        if (
+            os.path.exists(os.path.join(state, "holding"))
+            or time.time() - made["made"] < float(os.environ.get("FAKE_SWARM_STARTING") or 0)
+        ):
             status = {"State": "preparing"}
         elif failing and failing in service:
             status = {"State": "failed", "Err": "task: non-zero exit (1)"}
@@ -318,6 +322,16 @@ class Fakes:
         """The services the swarm has now, by name."""
         assert self.swarm is not None
         return sorted(one.stem for one in self.swarm.glob("*.json"))
+
+    def hold(self) -> None:
+        """Keeps every task of the swarm preparing, however long, until :meth:`release`."""
+        assert self.swarm is not None
+        (self.swarm / "holding").touch()
+
+    def release(self) -> None:
+        """Lets the tasks :meth:`hold` kept preparing run."""
+        assert self.swarm is not None
+        (self.swarm / "holding").unlink(missing_ok=True)
 
     def stall(
         self,
