@@ -38,6 +38,7 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 | --- | --- |
 | everything | `pyproject.toml`, `uv.lock`, a file directly in `src/hmz/`, `tests/conftest.py`, `tests/integration/conftest.py`, the stand-in loops in `tests/integration/flows/` or `ci.yml` |
 | `tests/unit/<package>` | `src/hmz/<package>/` or `tests/unit/<package>/`: unit tests mock every other package |
+| every `tests/unit/<package>` | `tests/unit/conftest.py`: its fixtures are under every unit test |
 | the `agents` topic | `runtime`, `flows`, `coganchor` or `cli` |
 | the `daemon` topic | those, `daemon`, `reach`, `relay`, `rpc`, `sdk`, `trust` or `web` |
 | the `tui` topic | those of `agents`, `daemon`, `reach`, `rpc`, `trust` or `tui` |
