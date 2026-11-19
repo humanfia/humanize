@@ -2484,6 +2484,9 @@ FakeOutworlder(reply: Reply = None, *, away: bool = False)
 
 Answers like a `FakeAgentDriver`, or is away: a reply is text, a pydantic model, or a mapping
 or JSON text, sent as the answer to the schema asked for; a function receives `output_schema=`.
+Under `fakes.run_fake` it answers as a program does, which has the schema and not its model:
+`output_schema` is the JSON Schema asked for (`Ask.schema`), `None` for text, and with nothing
+scripted a schema is answered with nothing, as an away person answers it, rather than `"ok"`.
 
 | Attribute | What it holds |
 | --- | --- |
