@@ -1,12 +1,14 @@
-// One epic: the run going, as it happens, or one written down. `#/runs/<name>` draws it as a
-// graph of its agents and who handed to whom; `/agents/<agent>` is the graph with that agent
-// picked out; `/sessions/<key>` is one session's thread, as a chat is read; `/exomyth` is its
-// timeline, drawn by views/exomyth. `#/live` is whichever run is going on a host: a workspace's
-// own, or a chat's by its `slot`. A chat is only its conversation, as a chat app draws one:
-// never a graph, its agents or a way to stop it -- and one folded away is carried on by saying
-// something in it, on a host of its own, with what was said before it still above. Every line
-// of a chat goes by `chat.say`; its box completes its harness's native input, the names hmz
-// keeps and the flows, and serves those hmz keeps and the flows itself. Under
+// One epic, or one chat: the run going, as it happens, or one written down. `#/epics/<name>`
+// draws an epic as a graph of its agents and who handed to whom; `/agents/<agent>` is the graph
+// with that agent picked out; `/sessions/<key>` is one session's thread, as a chat is read;
+// `/exomyth` is its timeline, drawn by views/exomyth. `#/chats/<id>` is a chat, which is no
+// epic, read by `chat.get`. `#/live` is whichever run is going on a host: a workspace's own, or
+// a chat's by its `slot`. A chat is only its conversation, as a chat app draws one: never a
+// graph or its agents -- its box's button stops the turn open, never the chat -- and one folded
+// away is carried on by saying something in it, on a host of its own, with what was said before
+// it still above. Every line of a chat goes by `chat.say`; its box completes its harness's
+// native input, the names hmz keeps and the flows, and serves those hmz keeps and the flows
+// itself. Under
 // the view, while the run goes, are the questions it waits on a person for and the box that
 // says a line to it; beside it, a panel of what it is and was -- its figures, its budget, how it
 // was set up, the flows it called -- with its board, its people and the side questions asked
@@ -19,11 +21,12 @@ import { go, renamed } from '../app.js'
 import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
 import { modelName, parted } from '../chips/agent.js'
 import { modelFact } from '../chips/model.js'
-import { PANES, chipNamed, paneOf, standing as standingSaid, toggled, usageSaid } from '../desk.js'
+import { PANES, chipNamed, paneOf, standing as standingSaid, stoppable, toggled, usageSaid } from '../desk.js'
 import { ask, chatAsk, follow } from '../held.js'
 import { chatPermission } from '../chips/permission.js'
 import { composer as composed } from '../composer.js'
-import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
+import { pathOf } from '../chats.js'
+import { chatting as isChat, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, choice, dragged, keep, kept, menu, section as heading, sidePanel, submenu, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
@@ -134,9 +137,9 @@ export function mount(root, { parts, query }) {
     if (!name) {
       // The run going is named now: the address says which, and it is followed by name.
       name = detail.name
-      renamed(`/epics/${encodeURIComponent(name)}`)
+      renamed(pathOf(detail))
       stop()
-      stop = watch(name, { workspace: detail.workspace, slot: wanted.slot }, told)
+      stop = watch(name, { workspace: detail.workspace, slot: wanted.slot }, told, { chat: isChat(detail) })
       return
     }
     const run = going && going.started ? going : null
@@ -147,11 +150,9 @@ export function mount(root, { parts, query }) {
     }
     // A chat is its one conversation, and is opened on it wherever it is opened, as a chat app
     // opens on one: the one going, or the last it opened, which a chat carried on goes on from.
+    // Its address is the chat's alone: a chat has no session to name in it.
     const conversation = chat && (run ? run.records.find((one) => one.type === 'opened' && !one.person) : sessionsOf(detail).at(-1))
-    if (conversation && mode.session !== conversation.key) {
-      renamed(`/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(conversation.key)}`)
-      mode = modeOf(['epics', name, 'sessions', conversation.key])
-    }
+    if (conversation && mode.session !== conversation.key) mode = { session: conversation.key, focus: '', log: '' }
     const model = run ? live(held, run, detail) : written(detail, traced)
     const agentOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
     persons = new Set(model.agents.filter((one) => one.person).map((one) => one.name))
@@ -187,7 +188,6 @@ export function mount(root, { parts, query }) {
     if (chat) return drawChatHead(detail, going)
     region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits], () => {
       const actions = []
-      // A chat is never stopped from its page: it is a conversation, as a chat app's.
       if (!chat && going && run.state === 'running') actions.push(stopWaits ? h('button', { class: 'btn danger', type: 'button', disabled: true }, 'Stopping…') : confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => stopping(detail.name) }))
       else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
       if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
@@ -267,10 +267,9 @@ export function mount(root, { parts, query }) {
       menu(view, viewMenu, { align: 'end', label: 'View options' })
       panes = paneButtons(pressPane)
       // The bar ends with `View options`, as a session's does: Ai-chan is offered in it.
-      const top = bar({ title: headline(detail.task), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)], aichan: false })
+      const top = bar({ title: headline(detail.title), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)], aichan: false })
       top.classList.add('chat-bar')
-      // The title is a button, as a session's is: it opens what the chat is. hmz keeps no name
-      // for a chat but its first message, so there is nothing for it to rename.
+      // The title is a button, as a session's is: it opens what the chat is.
       const named = top.querySelector('.bar-title')
       const title = h('button', { class: 'chat-title', type: 'button', 'data-hmz': 'chat-title', onclick: () => showPane('epic') })
       named.querySelector('h1').replaceChildren(title)
@@ -279,10 +278,10 @@ export function mount(root, { parts, query }) {
       menuOn(named, () => epicMenu({ ...chatNow.detail, held: chatNow.going }))
       drawn['head-chat'] = undefined
     })
-    region('head-chat', [detail.task], () => {
+    region('head-chat', [detail.title], () => {
       const title = head.querySelector('.chat-title')
-      title.title = detail.task
-      title.textContent = headline(detail.task)
+      title.title = detail.title
+      title.textContent = headline(detail.title)
     })
     sayPanes()
   }
@@ -331,7 +330,7 @@ export function mount(root, { parts, query }) {
     button.disabled = true
     button.setAttribute('aria-busy', 'true')
     try {
-      await upload(name, { noticed: false })
+      await upload(seen.detail, { noticed: false })
     } finally {
       button.disabled = false
       button.removeAttribute('aria-busy')
@@ -371,7 +370,8 @@ export function mount(root, { parts, query }) {
     traceError = null
     draw()
     try {
-      traced = (await call('runs.trace', { name })).sessions
+      // What a chat said is read with the chat itself; an epic's, off its logs.
+      traced = isChat(seen.detail) ? (await call('chat.get', { chat: name, trace: true })).trace : (await call('runs.trace', { name })).sessions
     } catch (error) {
       traceError = error
     }
@@ -577,6 +577,8 @@ export function mount(root, { parts, query }) {
     // Every line of a chat going is said to it, an answer to what it asks included.
     if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), permits, true)
     talk?.model.again()
+    // While a turn is open, the button of the box stops it: the chat stays, between turns.
+    talk?.stops(going && stoppable(standing.run && standing.run.turn) ? () => chatAsk(here, 'stop') : null)
     const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
     region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
@@ -856,16 +858,16 @@ export function mount(root, { parts, query }) {
 
   /**
    * The box a chat folded away is carried on in: what is said in it starts the chat again on a
-   * host of its own, going on in this epic with the agent it had and the preference set for it,
-   * and the page follows that host.
+   * host of its own, going on in the same chat, named by its id, with the agent it had and the
+   * preference set for it, and the page follows that host.
    */
   function carrying(detail) {
     const box = chatBox(detail, async (text) => {
-      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.at, prefer: preferring, permission: box.permission.picked() })
+      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.name, prefer: preferring, permission: box.permission.picked() })
       carry = null
       carryingOn = true
       stop()
-      stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told)
+      stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told, { chat: true })
       // No host holds it: the permission picked is kept for the chat to be carried on with.
     }, () => null)
     return box.node
@@ -971,7 +973,7 @@ export function mount(root, { parts, query }) {
   function chatMenu(close) {
     const { detail, going } = chatNow
     const env = going ? chatEnv() : null
-    const base = hash(`/epics/${encodeURIComponent(detail.name)}`)
+    const base = hash(pathOf(detail))
     const made = []
     for (const one of epicMenu({ ...detail, held: going })) {
       if (!one || one.head || one.href === base) continue
@@ -1021,12 +1023,14 @@ export function mount(root, { parts, query }) {
     const typed = typing(text, caret)
     if (!typed) return null
     const groups = completions(entries(), typed, preference(detail).prefer)
-    if (typed.sigil === '@' && detail.workspace) {
+    // Where the chat works: its folder, or the worktree made for it there.
+    const root = detail.workdir || detail.workspace
+    if (typed.sigil === '@' && root) {
       const { dir, base } = pathParts(typed.word)
       // Names starting with `.` are listed only once a `.` is typed, as a shell completes them.
       const hidden = base.startsWith('.')
       const key = `${hidden}\n${dir}`
-      if (!pathsListed.has(key)) pathsListed.set(key, call('paths.list', { at: `${detail.workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
+      if (!pathsListed.has(key)) pathsListed.set(key, call('paths.list', { at: `${root.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
       const items = pathItems(dir, base, await pathsListed.get(key))
       if (items.length) groups.unshift({ source: 'path', label: 'Files', items })
     }
@@ -1038,7 +1042,7 @@ export function mount(root, { parts, query }) {
    * starts the flows a line names, and says every other line as `say` does.
    */
   function chatBox(first, say, sets, going = false) {
-    // The epic as it was read last, which the box outlives a reading of.
+    // The chat as it was read last, which the box outlives a reading of.
     const now = () => (seen && seen.detail) || first
     const model = modelFact({
       of: () => now().agents?.[0]?.runs || '',
@@ -1131,7 +1135,7 @@ export function mount(root, { parts, query }) {
   }
 
   let stop = () => {}
-  stop = watch(name, wanted, told)
+  stop = watch(name, wanted, told, { chat: parts[0] === 'chats' })
   // The clocks a run going is drawn with move on their own between records.
   const ticking = setInterval(() => {
     if (seen && seen.going && seen.going.live) draw()
@@ -1150,7 +1154,8 @@ export function mount(root, { parts, query }) {
     },
     /** Moves to another part of the same run without drawing it all again. */
     moved({ parts: next }) {
-      if (next[0] !== 'epics' || !name || next[1] !== name || next[2] === 'exomyth') return false
+      const at = seen && seen.detail && isChat(seen.detail) ? 'chats' : 'epics'
+      if (next[0] !== at || !name || next[1] !== name || next[2] === 'exomyth') return false
       mode = modeOf(next)
       for (const one of ['head', 'panel-run', 'dock-composer']) drawn[one] = undefined
       draw()
@@ -1182,11 +1187,6 @@ function exomyth(root, name, query) {
     },
     moved: () => false,
   }
-}
-
-/** Whether an epic is a chat: by its kind, or, for one written before chats had one, by its flow. */
-function isChat(epic) {
-  return Boolean(epic) && (epic.kind === 'chat' || chatting(epic))
 }
 
 /** The address of the Environments view of a host's envs, `#/envs/live?workspace=…&slot=…&env=…&tab=…`. */
@@ -1336,7 +1336,7 @@ function budgetTile(usage) {
   return h('div', { class: 'tile' }, h('div', { class: 'kicker' }, 'budget'), limits.length ? limits : h('div', { class: 'sub' }, 'No measurable limit'))
 }
 
-/** What each fact of an epic is called: as hmz names it, and, for a chat, in plain words. */
+/** What each fact of an epic or a chat is called: as hmz names it, and, for a chat, in plain words. */
 const FACTS = {
   name: ['epic', 'Chat ID'],
   at: ['written to', 'Saved at'],

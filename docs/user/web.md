@@ -109,7 +109,7 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 **Right-click** anything for what can be done to it: a folder in the sidebar (new chat here, new epic here, its
 flows, search it, copy its path, settings), an epic (open, pin, mark as unread, its Exomyth, resume, a new
 epic like it, copy its link, task or name, export, upload, stop), a chat (open, pin, mark as unread, a new chat
-like it, copy its link, first message or ID, export, upload), an agent or a session, a node on the graph, a flow or flowverse card, a search
+like it, copy its link, first message or ID, upload), an agent or a session, a node on the graph, a flow or flowverse card, a search
 result, a line of a thread (copy it, or the whole thread). Only text to read or write -- a thread,
 a task, a path, an error -- is selected as on a web page, and keeps the browser's own menu; the
 page's buttons, tabs, labels and headings are not. What a menu sends off -- stopping or uploading an
@@ -196,17 +196,18 @@ first message, then
 each reply and each line you typed under it, on the right. The box under it is how you answer --
 between turns it is your next turn, and while the agent asks something mid-turn it answers
 that, the answers it offers buttons at the end of the conversation. It has no graph, no agents
-or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and no
-**Stop**: it is `running` while its agent answers and `stopped` once the turn ends -- asking,
-blinking, until you have looked at it, even once it has folded away. Every chat is
-its own, beside every other chat and flow of its directory: a new chat, or a new epic, leaves
-the last one going, as a chat app's new chat does. A chat nobody has looked at for a minute
-between turns folds away; say something in it and it carries on, in the same epic, with what
+or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and nothing
+that ends it: it is `running` while its agent answers and `stopped` once the turn ends -- asking,
+blinking, until you have looked at it, even once it has folded away. A chat is no epic: it is
+kept as a record of its own, listed beside the epics, and its address is `#/chats/<id>`. Every
+chat is its own, beside every other chat and flow of its directory: a new chat, or a new epic,
+leaves the last one going, as a chat app's new chat does. A chat nobody has looked at for a
+minute between turns folds away; say something in it and it carries on, the same chat, with what
 was said before still above and an agent that remembers it. A turn that could not be taken
 says so in the conversation, with why, and the chat waits for your next line. Where the
 conversation itself cannot be carried on, the chat says why and answers what you said in a
-new one. A chat that kept nothing to carry on from -- one an earlier Humanize wrote down --
-says it cannot be continued here, and offers no box.
+new one. A chat an earlier Humanize wrote down as an epic is listed among the epics, its flow
+said as `chat`: it is read as any epic written down, and nothing is said in it.
 
 The box under a chat holds only **+**, what you type and the button that sends; what else
 there is to pick is a row of quiet chips under it, at its right. The first says the model that
@@ -238,9 +239,10 @@ options** holds **Side questions**, **Board** while the chat keeps one, and **Ai
 opens [her drawer](#ai-chan). The pane open is headed by its name and has no tabs of its own:
 the bar picks it. No pane is open until you open one. How the chat stands is said in a quiet line over its box, only while there is
 something to say: who **is responding** while a turn is open, that it is waiting for you, or
-that it failed. There is no **Stop**: what you send while a turn is open is delivered to that
-turn. The menu holds what a right click on the chat offers -- a new chat like it, copying
-its link, **Export** once it has ended, **Upload** -- with **Environment** while a host
+that it failed. While a turn is open the button that sends is **Stop**: it stops that turn, and
+the chat stays, waiting for your next line; what you type and send with <kbd>Enter</kbd>
+meanwhile is still delivered to that turn. The menu holds what a right click on the chat offers
+-- a new chat like it, copying its link, **Upload** -- with **Environment** while a host
 holds it, and **Skill or flow**: whether a `$` name that is both a skill and a flow uses the
 skill or starts the flow, with a mark on the one in force and whether that comes from the
 settings or from this chat. Picking the other sets this chat's own
@@ -275,8 +277,8 @@ spent, and how long it took, with how much of that was spent working.
 - **Read its turns** reads who handed to whom, and each session's turns, out of the logs it
   kept, as [tracing](/user/tracing) does. It takes a moment on a long epic. Opening a session
   reads its thread the same way.
-- **Export** (the arrow at the top; in a chat's **More** menu) downloads the epic as one
-  archive, struck of credentials. See [Exporting a run](/user/export).
+- **Export** (the arrow at the top) downloads the epic as one archive, struck of credentials;
+  a chat is not exported. See [Exporting a run](/user/export).
 - **Upload** (the up arrow at the top, or in the epic's menu; in a chat's **More** menu) backs it up now to the targets it
   was started with, else the defaults, and says which at once; hover it for how its last
   backup to each target went. See [Backing epics up](/user/backups).
@@ -544,19 +546,19 @@ A pair holds both its themes, each with its `colors` and `images`, in place of a
 `images` by plane (`page`, `sidebar`, `panel`, `dialog`). Importing keeps what a theme can hold
 and drops the rest: an unknown token, a value that is not a colour, a picture that is not an image.
 
-## Example: start an epic in the browser, answer it in the terminal
+## Example: start a chat in the browser, answer it in the terminal
 
-Start `hmz web` in a project, and open **New epic**:
+Start `hmz web` in a project, which opens on **New chat**:
 
-1. Choose **Chat**. Pick a model from the chip under the box, such as **Haiku 4.5**, type a first
-   message and press <kbd>Enter</kbd>. The page goes to the conversation, `assistant/1`.
+1. Pick a model from the chip under the box, such as **Haiku 4.5**, type a first
+   message and press <kbd>Enter</kbd>. The page goes to the chat, `#/chats/<id>`.
 2. When the agent has answered, the chat waits for your next line, typed in the box under it.
 3. In a terminal in the same directory, run `hmz`, which opens on a new chat of its own. Type
-   `/epics`, press <kbd>enter</kbd> on the chat you started, and choose `continue`: it is still
+   `/resume` and press <kbd>enter</kbd> on the chat you started: it is still
    going, so it is read where it is, waiting for you to say what next.
 4. Answer it in the terminal. In the browser, your answer is a line of yours in the
    conversation, and the agent's reply follows it.
-5. Type `/clear` in the terminal. A chat is never stopped: `/clear` starts another, and the
+5. Type `/clear` in the terminal. A chat is never ended: `/clear` starts another, and the
    first goes on in the browser until nobody reads it, when it folds away.
 
 ### Check it worked
@@ -723,23 +725,23 @@ not only the one showing:
 | **asked** | A flow put a question to a person: the outworlder. See [Questions](/user/questions). |
 | **listening** | A flow waits for what to say next. A chat that finished a turn is **done**, never this. |
 
-Each says which daemon, which directory and which epic it came from, and what was asked or how
-it ended.
+Each says which daemon, which directory and which epic or chat it came from, and what was asked
+or how it ended.
 
 - **The bell**, at the top of the sidebar, counts the ones you have not read. Click it for the
   **menu**: the latest notifications of every daemon, newest first, each labelled with its
-  daemon. Click one to open its epic, switching to its daemon; mark them all read, or clear
+  daemon. Click one to open its epic or its chat, switching to its daemon; mark them all read, or clear
   them. This browser keeps the newest 200.
 - **Toasts.** A new notification also shows as a card in the corner of the page for a few
   seconds.
 - **System notifications.** While the page is hidden or not focused, a notification is also
   one of your system's: the browser's, or, in [Humanize Desktop](/user/desktop#notifications), a
   macOS one. Clicking it brings the page back on what it is about.
-- **Sidebar marks.** An epic with a notification unread has a square beside it in the
-  sidebar, and so does its workspace while folded. Opening the epic reads them, as does
+- **Sidebar marks.** An epic or a chat with a notification unread has a square beside it in the
+  sidebar, and so does its workspace while folded. Opening it reads them, as does
   **Mark as read** in its menu.
 
-None is shown of the epic you are looking at -- a question or a chat turn there included: it is
+None is shown of the epic or chat you are looking at -- a question or a chat turn there included: it is
 read as it comes.
 
 The page asks each daemon for its notices itself, while it is reached: Local always, a remote

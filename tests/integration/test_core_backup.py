@@ -331,14 +331,19 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
     assert epics.all() == [back]
     # As it ran, its sessions kept in the epic since the stand-in's home is the other
     # machine's, and none of that machine's targets or backups.
-    assert epics.read(back) == before._replace(
+    after = epics.read(back)
+    assert after is not None
+    assert after == before._replace(
         at=back,
         sessions=tuple(
             one._replace(where=f"sessions/{one.backend}") for one in before.sessions
         ),
         backup=(),
         backed={},
+        # Last written as it was read in here.
+        updated=after.updated,
     )
+    assert after.updated >= before.updated
     for was, now in zip(before.sessions, epics.sessions(back), strict=True):
         assert set(logs(back, now)) == set(logs(first, was))
     assert epics.foreign(back) == ""

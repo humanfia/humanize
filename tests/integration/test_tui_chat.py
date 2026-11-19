@@ -1,11 +1,12 @@
-"""A chat, read as Claude Code reads one: one conversation, running or done, never stopped.
+"""A chat, read as Claude Code reads one: one conversation, running or done, never ended.
 
-And as many of them as there are: each is an epic of its own, on a host of its own, which goes
-on while another is had and folds away once nobody has looked at it for a while -- and is
-carried on, in the same epic, from `/epics`. A flow started from it goes on the workspace's
-own host, and `/chat` comes back to it. What its harness takes at its own prompt -- a command,
-a skill, a shell command -- it takes too, and `/prefer` says which a `$` name that is both a
-skill and a flow starts. The daemon's chats are stood in for (:class:`Chats`).
+And as many of them as there are: each is a chat of its own and no epic, on a host of its own,
+which goes on while another is had and folds away once nobody has looked at it for a while --
+and is carried on, the same chat, from `/resume`. `/stop` interrupts its open turn. A flow
+started from it goes on the workspace's own host, and `/chat` comes back to it. What its
+harness takes at its own prompt -- a command, a skill, a shell command -- it takes too, and
+`/prefer` says which a `$` name that is both a skill and a flow starts. The daemon's chats
+are stood in for (:class:`Chats`).
 """
 
 from __future__ import annotations
@@ -18,11 +19,10 @@ import pytest
 
 from hmz import daemon as daemons
 from hmz.daemon.reach import Conversations
-from hmz.runtime.epic import Ran, epics, read
+from hmz.runtime.epic import Ran, chats, epics, read
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
 from hmz.tui.monitoring import Monitoring
-from hmz.tui.pick import Does, Epics
 from tests.integration.doubles_tui import (
     OWN,
     PRINTED,
@@ -37,6 +37,7 @@ from tests.integration.doubles_tui import (
     opened,
     opens,
     own_flow,
+    rows,
     screen,
     set_up_own_flow,
     shows,
@@ -168,7 +169,10 @@ async def test_ctrl_c_never_stops_a_chat_and_twice_leaves(workspace: Path) -> No
         await until(pilot, lambda: not app.is_running, "the interface to close")
 
 
-async def test_a_chat_offers_no_stop_monitor_or_views(workspace: Path) -> None:
+async def test_a_chat_offers_no_monitor_or_views_and_stop_interrupts_its_turn(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked = Chats().install(monkeypatch).asked
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
@@ -183,14 +187,19 @@ async def test_a_chat_offers_no_stop_monitor_or_views(workspace: Path) -> None:
         assert "reading" not in screen(app)
 
         await pilot.press(*"/st")
-        await pilot.pause()
-        assert "/stop" not in screen(app)
+        await shows(pilot, "/stop", "Stop the turn, and go on with the chat")
         await pilot.press("ctrl+c")
         await typed(pilot, "/stop")
 
-        await shows(pilot, "a chat is not stopped: /clear starts another")
+        # The turn alone: the chat is between turns, on its host, and goes on.
+        await shows(pilot, "That turn was stopped.", "◉ done")
+        assert "stopping the flow" not in screen(app)
+        await typed(pilot, "/stop")
+        await shows(pilot, "no turn is open, so there is nothing to stop")
         await typed(pilot, "go on")
-        await shows(pilot, "heard wait for it then go on")
+        await shows(pilot, "go on", "◉ done")
+    assert [method for method, _ in asked].count("chat.stop") == 1
+    assert len(chats(workspace)) == 1
 
 
 async def test_clear_starts_another_chat_and_the_first_goes_on_to_go_back_to(
@@ -211,14 +220,12 @@ async def test_clear_starts_another_chat_and_the_first_goes_on_to_go_back_to(
         await shows(pilot, "heard again")
         assert len(started(workspace)) == 2  # a conversation of its own
 
-        # Both going, each an epic of its own.
-        await typed(pilot, "/epics")
-        await on(pilot, Epics)
-        await shows(pilot, "wait for it · ", "again · ")
-        first, _ = epics(workspace)
+        # Both going, each a chat of its own and neither an epic.
+        first, _ = chats(workspace)
+        assert epics(workspace) == []
+        await typed(pilot, "/resume")
+        await shows(pilot, "Resume a chat", "wait for it")
         await opens(pilot, first.name)
-        await on(pilot, Does)
-        await opens(pilot, "continue")
 
         # Back in the first, as it stands, and talking to it.
         await shows(pilot, "still on it")
@@ -227,7 +234,7 @@ async def test_clear_starts_another_chat_and_the_first_goes_on_to_go_back_to(
     assert heard(workspace) == ["wait for it", "again", "now"]
 
 
-async def test_the_epic_of_an_ai_chan_conversation_is_not_among_the_epics(
+async def test_an_ai_chan_conversation_is_not_among_the_chats_to_resume(
     workspace: Path,
 ) -> None:
     app = Humanize()
@@ -239,7 +246,7 @@ async def test_the_epic_of_an_ai_chan_conversation_is_not_among_the_epics(
         await shows(pilot, f"◉ {RUNS}")
         await typed(pilot, "again")
         await shows(pilot, "heard again")
-        first, _ = epics(workspace)
+        first, _ = chats(workspace)
         # The first is hers, kept; and stays hers once her conversation is forgotten.
         kept = Conversations()
         made = kept.made({"slot": "ai:1"})
@@ -248,35 +255,39 @@ async def test_the_epic_of_an_ai_chan_conversation_is_not_among_the_epics(
         for forgotten in (False, True):
             if forgotten:
                 assert kept.forgot(made["id"]) is not None
-            await typed(pilot, "/epics")
-            await on(pilot, Epics)
-            await shows(pilot, "again · ")
-            assert "wait for it · " not in screen(app)
-            await leaves(pilot)
+            said = screen(app).count("no other chat has been had here")
+            await typed(pilot, "/resume")
+            await until(
+                pilot,
+                lambda said=said: (
+                    screen(app).count("no other chat has been had here") == said + 1
+                ),
+                "none to resume",
+            )
 
 
-async def test_a_chat_folded_away_is_continued_from_epics_in_the_same_epic(
+async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     folds_fast(monkeypatch)
+    asked = Chats().install(monkeypatch).asked
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "hello")
         await shows(pilot, "heard hello", "◉ done")
         await typed(pilot, "/clear")
-        await until(pilot, lambda: len(epics(workspace)) == 1, "the epic")
-        (epic,) = epics(workspace)
-        await until(pilot, lambda: bool((read(epic) or Ran(epic)).ended), "it to fold")
+        await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
+        (chat,) = chats(workspace)
+        await until(pilot, lambda: bool((read(chat) or Ran(chat)).ended), "it to fold")
         # Its session as Claude Code logs one, which the stand-in writes only the half of.
-        (session,) = (read(epic) or Ran(epic)).sessions
-        claude_logged(epic / "sessions" / "claude", workspace, session.ident, 0)
+        (session,) = (read(chat) or Ran(chat)).sessions
+        claude_logged(chat / "sessions" / "claude", workspace, session.ident, 0)
 
-        await typed(pilot, "/epics")
-        await on(pilot, Epics)
-        await opens(pilot, epic.name)
-        await on(pilot, Does)
-        await opens(pilot, "continue")
+        # Listed by the daemon, by its title, and not among the epics.
+        await typed(pilot, "/resume")
+        await shows(pilot, "Resume a chat", "hello")
+        await opens(pilot, chat.name)
         await shows(pilot, "say something to continue")
         # Drawn with what was said in it, above what carries it on (Section 8.7.4 of [CORE]).
         drawn = screen(app)
@@ -290,8 +301,14 @@ async def test_a_chat_folded_away_is_continued_from_epics_in_the_same_epic(
         await shows(pilot, "heard more", "◉ done")
         assert "could not be carried on" not in screen(app)
 
-    # One conversation, so one epic, and the agent's session carried on.
-    assert epics(workspace) == [epic]
+    # One conversation, so one chat and no epic, carried on by its id, and the agent's
+    # session carried on.
+    assert chats(workspace) == [chat]
+    assert epics(workspace) == []
+    listed = [said for method, said in asked if method == "chat.list"]
+    assert listed == [{"offset": 0, "limit": 200}]
+    starts = [said for method, said in asked if method == "chat.start"]
+    assert [one["resume"] for one in starts] == [None, chat.name]
     began, carried = started(workspace)
     session = began[began.index("--session-id") + 1]
     assert carried[carried.index("--resume") + 1] == session
@@ -429,15 +446,15 @@ async def test_a_preference_set_for_one_chat_is_not_another_carried_on_after_it(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     folds_fast(monkeypatch)
-    chats = Chats().install(monkeypatch)
+    asked = Chats().install(monkeypatch).asked
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
         await typed(pilot, "first")
         await shows(pilot, "heard first", "◉ done")
         await typed(pilot, "/clear")
-        await until(pilot, lambda: len(epics(workspace)) == 1, "the epic")
-        (first,) = epics(workspace)
+        await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
+        (first,) = chats(workspace)
         await until(
             pilot, lambda: bool((read(first) or Ran(first)).ended), "it to fold"
         )
@@ -458,9 +475,9 @@ async def test_a_preference_set_for_one_chat_is_not_another_carried_on_after_it(
         await typed(pilot, "more")
         await shows(pilot, "heard more", "◉ done")
 
-    starts = [said for method, said in chats.asked if method == "chat.start"]
+    starts = [said for method, said in asked if method == "chat.start"]
     assert [one["prefer"] for one in starts] == [None, "flow", None]
-    assert starts[-1]["resume"] == str(first)
+    assert starts[-1]["resume"] == first.name
     assert (read(first) or Ran(first)).prefer == ""
 
 
@@ -468,7 +485,7 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     folds_fast(monkeypatch)
-    chats = Chats().install(monkeypatch)
+    asked = Chats().install(monkeypatch).asked
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
@@ -477,8 +494,8 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
         await typed(pilot, "first")
         await shows(pilot, "heard first", "◉ done")
         await typed(pilot, "/clear")
-        await until(pilot, lambda: len(epics(workspace)) == 1, "the epic")
-        (first,) = epics(workspace)
+        await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
+        (first,) = chats(workspace)
         await until(
             pilot, lambda: bool((read(first) or Ran(first)).ended), "it to fold"
         )
@@ -489,7 +506,7 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
         await shows(pilot, "Resume a chat", "first")
         await opens(pilot, first.name)
         await shows(pilot, "say something to continue")
-        # Its own, as its epic records it, before a word carries it on and after.
+        # Its own, as the chat records it, before a word carries it on and after.
         await typed(pilot, "/prefer")
         await shows(pilot, "flow, from this chat")
         await typed(pilot, "more")
@@ -502,8 +519,8 @@ async def test_a_chat_carried_on_keeps_the_preference_set_for_it(
             "its preference said again",
         )
 
-    starts = [said for method, said in chats.asked if method == "chat.start"]
-    # Said once, to the chat it was set for: the epic keeps it from there on.
+    starts = [said for method, said in asked if method == "chat.start"]
+    # Said once, to the chat it was set for: the chat keeps it from there on.
     assert [one["prefer"] for one in starts] == ["flow", None]
     assert (read(first) or Ran(first)).prefer == "flow"
 
@@ -599,14 +616,16 @@ async def test_resume_in_a_chat_carries_on_an_earlier_one(workspace: Path) -> No
 
         await typed(pilot, "/resume")
         await shows(pilot, "Resume a chat", "first")
-        first, _ = epics(workspace)
+        first, second = chats(workspace)
+        # The earlier one alone: the one on the screen is the one already had.
+        assert rows(app) == [first.name]
         await opens(pilot, first.name)
 
         await shows(pilot, "heard first")
         await typed(pilot, "more")
         await shows(pilot, "heard more")
-    # Carried on in its own epic: no third.
-    assert len(epics(workspace)) == 2
+    # Carried on as the chat it is: no third.
+    assert chats(workspace) == [first, second]
 
 
 async def test_a_chat_gone_back_to_is_drawn_with_every_line_said_in_it(
@@ -622,7 +641,7 @@ async def test_a_chat_gone_back_to_is_drawn_with_every_line_said_in_it(
 
         await typed(pilot, "/resume")
         await shows(pilot, "Resume a chat", "one")
-        first, _ = epics(workspace)
+        first, _ = chats(workspace)
         await opens(pilot, first.name)
 
         drawn = await shows(pilot, "heard one", "heard two")

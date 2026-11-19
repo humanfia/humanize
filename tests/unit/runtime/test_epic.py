@@ -15,6 +15,7 @@ from hmz.coganchor import backends, machines
 from hmz.coganchor.machines import store
 from hmz.runtime import epic
 from hmz.runtime.epic import (
+    CHATTED,
     JOURNAL,
     LOCAL,
     RESUME,
@@ -251,8 +252,15 @@ def test_a_chat_is_written_down_with_no_flow_and_read_back_as_one(
     ) as one:
         pass
 
+    # Under `chats/` of Humanize's home, in a record of its own, and no epic of the workspace.
+    under = epic.under(workspace)
+    assert one.path.parent == under.parent.parent / "chats" / under.name
+    assert one.journal == one.path / CHATTED
+    assert epic.journal(one.path) == one.journal
+    assert (epic.chats(workspace), epic.chats()) == ([one.path], [one.path])
+    assert (epic.epics(workspace), epic.every()) == ([], [])
     began, _ = _lines(one.journal)
-    assert began["kind"] == "chat"
+    assert "kind" not in began
     assert (began["task"], began["workspace"]) == ("hi", str(workspace.resolve()))
     assert began["agents"] == [ASSISTANT._asdict()]
     assert began["prefer"] == "flow"
@@ -272,6 +280,8 @@ def test_a_chat_is_written_down_with_no_flow_and_read_back_as_one(
     assert ran is not None
     assert (ran.kind, ran.chat, ran.flow, ran.prefer) == ("chat", True, "", "flow")
     assert ran.agents == (ASSISTANT,)
+    assert (ran.title, ran.archived, ran.workdir, ran.forked) == ("hi", False, "", "")
+    assert ran.updated == _lines(one.journal)[-1]["at"]
 
 
 def test_a_chat_goes_by_the_last_line_to_set_its_agent_and_its_preference(
@@ -313,7 +323,7 @@ def test_a_flow_named_chat_is_an_ordinary_flow(workspace: Path) -> None:
     assert (ran.kind, ran.chat, ran.flow) == ("flow", False, "chat")
 
 
-def test_a_chat_reopened_goes_on_in_the_epic_it_picks_up(workspace: Path) -> None:
+def test_a_chat_reopened_goes_on_in_the_record_it_picks_up(workspace: Path) -> None:
     with Epic("", "hi", workspace, kind="chat", agents=[ASSISTANT]) as first:
         first.write("usage", cost=1.0, output_tokens=7, seconds=2.0)
         first.stopped()
@@ -339,7 +349,221 @@ def test_a_chat_reopened_goes_on_in_the_epic_it_picks_up(workspace: Path) -> Non
     assert again.spent == {"cost": 1.5, "output_tokens": 10, "seconds": 3.0}
     events = [one["event"] for one in _lines(first.journal)]
     assert (events.count("began"), events.count("reopened")) == (1, 1)
-    assert epic.every() == [first.path]
+    assert (epic.chats(), epic.every()) == ([first.path], [])
+
+
+def test_a_chat_is_titled_by_its_first_line_until_it_is_set_and_says_where_it_works(
+    workspace: Path,
+) -> None:
+    with Epic(
+        "",
+        "\n fix the parser \nand then the tests",
+        workspace,
+        kind="chat",
+        agents=[ASSISTANT],
+        workdir="/somewhere/else",
+    ) as one:
+        one.stopped()
+
+    began = _lines(one.journal)[0]
+    assert began["workdir"] == "/somewhere/else"
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert (ran.title, ran.archived) == ("fix the parser", False)
+    assert ran.workdir == "/somewhere/else"
+
+    epic.note(one.path, "set", title="Parser")
+    epic.note(one.path, "set", archived=True)
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert (ran.title, ran.archived, ran.how) == ("Parser", True, "stopped")
+    assert ran.updated == _lines(one.journal)[-1]["at"]
+
+    # Carried on, it is the chat it was named, and archived until it is said not to be.
+    with Epic(
+        "", "more", workspace, kind="chat", picked_up=one.path, reopened=True
+    ) as again:
+        again.stopped()
+    epic.note(one.path, "set", archived=False)
+    ran = epic.read(one.path)
+    assert ran is not None
+    assert (ran.title, ran.archived) == ("Parser", False)
+    assert ran.task == "\n fix the parser \nand then the tests"
+
+
+def _old_chat(workspace: Path, **began: Any) -> Path:
+    """A chat as an earlier Humanize wrote it: an epic, of a workspace's epics."""
+    at = epic.under(workspace) / "20260101T000000.000Z-0ldc4a"
+    (at / SESSIONS / "claude").mkdir(parents=True)
+    _journal(
+        at / JOURNAL,
+        {
+            "event": "began",
+            "at": "2026-01-01T00:00:00.000Z",
+            "task": "hi",
+            "workspace": str(workspace.resolve()),
+            "agents": [ASSISTANT._asdict()],
+            **began,
+        },
+        {
+            "event": "opened",
+            "at": "2026-01-01T00:00:01.000Z",
+            "agent": "NeiKos496",
+            "backend": "claude",
+            "session": "old",
+            "where": "sessions/claude",
+        },
+        {"event": "ended", "at": "2026-01-01T00:00:02.000Z", "how": "stopped"},
+    )
+    return at
+
+
+@pytest.mark.parametrize(
+    "began", [{"kind": "chat"}, {"flow": "chat", "resumable": True}]
+)
+def test_a_chat_an_earlier_humanize_wrote_is_an_epic_still_and_no_chat(
+    workspace: Path, began: dict[str, Any]
+) -> None:
+    at = _old_chat(workspace, **began)
+
+    ran = epic.read(at)
+    assert ran is not None
+    assert (ran.kind, ran.chat) == ("chat", True)
+    assert epic.journal(at) == at / JOURNAL
+    assert (epic.epics(workspace), epic.every()) == ([at], [at])
+    assert (epic.chats(workspace), epic.chats()) == ([], [])
+    with pytest.raises(ValueError, match="is not a chat"):
+        epic.forked(at)
+
+    # Opened again -- which only Ai-chan's is -- it goes on in the record it has.
+    with Epic("", "more", workspace, kind="chat", picked_up=at, reopened=True) as on:
+        assert on.journal == at / JOURNAL
+    assert not (at / CHATTED).exists()
+    assert epic.chats() == []
+
+
+def test_chats_are_listed_oldest_first_of_one_workspace_or_of_every_one(
+    workspace: Path, tmp_path: Path
+) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    assert epic.chats() == []
+    assert epic.chats(workspace) == []
+    with Epic("", "one", workspace, kind="chat") as first:
+        pass
+    with Epic("", "two", other, kind="chat") as second:
+        pass
+    with Epic("", "three", workspace, kind="chat") as third:
+        pass
+    with Epic("f", "a run", workspace):
+        pass
+    # A directory that holds no record is no chat.
+    (first.path.parent / "20200101T000000.000Z-000000").mkdir()
+
+    assert epic.chats(workspace) == [first.path, third.path]
+    assert epic.chats(str(other)) == [second.path]
+    assert epic.chats() == [first.path, second.path, third.path]
+
+
+def _conversed(one: Epic, ident: str = "s1") -> Path:
+    """Writes a conversation kept in a chat, as its harness's session files."""
+    kept = one.path / SESSIONS / "claude"
+    kept.mkdir(parents=True, exist_ok=True)
+    (kept / f"{ident}.jsonl").write_text(f"what was said in {ident}\n")
+    one.write(
+        "opened",
+        agent="NeiKos496",
+        backend="claude",
+        session=ident,
+        where="sessions/claude",
+    )
+    return kept
+
+
+def test_a_chat_forked_is_a_new_chat_going_on_from_a_copy_of_its_conversation(
+    workspace: Path,
+) -> None:
+    with Epic(
+        "",
+        "hi\nthere",
+        workspace,
+        kind="chat",
+        agents=[ASSISTANT],
+        prefer="flow",
+        permission="read-only",
+        workdir="/a/worktree",
+        backup=["mine"],
+    ) as one:
+        kept = _conversed(one)
+        one.write("usage", cost=1.0, output_tokens=7, seconds=2.0)
+        one.stopped()
+    epic.note(one.path, "set", title="Greeting")
+    before = one.journal.read_text()
+
+    at = epic.forked(one.path)
+
+    # Beside it, a chat of the same workspace; the one forked is as it was.
+    assert at.parent == one.path.parent
+    assert at != one.path
+    assert epic.chats(workspace) == [one.path, at]
+    assert one.journal.read_text() == before
+    copy = at / SESSIONS / "claude" / "s1.jsonl"
+    assert copy.read_text() == "what was said in s1\n"
+    copy.write_text("and what the fork said\n")
+    assert (kept / "s1.jsonl").read_text() == "what was said in s1\n"
+
+    ran, was = epic.read(at), epic.read(one.path)
+    assert ran is not None
+    assert was is not None
+    assert (ran.forked, was.forked) == (one.path.name, "")
+    assert (ran.kind, ran.task, ran.title, ran.how) == (
+        "chat",
+        "hi\nthere",
+        "Greeting",
+        "stopped",
+    )
+    assert (ran.workspace, ran.agents) == (was.workspace, was.agents)
+    assert (ran.prefer, ran.permission, ran.workdir, ran.backup) == (
+        "flow",
+        "read-only",
+        "/a/worktree",
+        ("mine",),
+    )
+    # It goes on from the copy: its sessions are its own, and it has spent nothing.
+    assert [session.ident for session in ran.sessions] == ["s1"]
+    assert epic.where(at, ran.sessions[-1]) == at / SESSIONS / "claude"
+    assert not ran.spent
+    assert not epic.going(at)
+
+
+def test_a_chat_with_no_conversation_kept_in_it_is_not_forked(
+    workspace: Path, tmp_path: Path
+) -> None:
+    with Epic("", "hi", workspace, kind="chat", agents=[ASSISTANT]) as none:
+        none.stopped()
+    with Epic("", "hi", workspace, kind="chat", agents=[ASSISTANT]) as away:
+        # Kept where its harness keeps it, which is none of the chat's.
+        away.write(
+            "opened",
+            agent="NeiKos496",
+            backend="claude",
+            session="s1",
+            where=str(tmp_path / "elsewhere"),
+        )
+        away.stopped()
+    with Epic("f", "t", workspace) as flow:
+        pass
+
+    for chat in (none.path, away.path):
+        with pytest.raises(
+            ValueError, match="its conversation is not kept in the chat"
+        ):
+            epic.forked(chat)
+    with pytest.raises(ValueError, match="is not a chat"):
+        epic.forked(flow.path)
+    with pytest.raises(ValueError, match="is not a chat"):
+        epic.forked(workspace / "nothing")
+    assert epic.chats(workspace) == [none.path, away.path]
 
 
 def test_a_run_picked_up_from_nothing_to_copy_still_opens(workspace: Path) -> None:
@@ -1041,5 +1265,8 @@ def test_a_btw_event_an_earlier_release_wrote_says_nothing(workspace: Path) -> N
 
     epic.note(one.path, "btw", agent="claude@work/opus:high")
 
-    assert epic.read(one.path) == before
+    # Nothing of it but when its record was last written.
+    after = epic.read(one.path)
+    assert after is not None
+    assert after == before._replace(updated=after.updated)
     assert not hasattr(before, "btw")

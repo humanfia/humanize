@@ -1,12 +1,12 @@
 // The notifications, of every daemon at once rather than the one shown: a bell with how many are
 // unread, a menu of them newest first, a card for each as it comes, and -- while the page is not
 // looked at -- one the system shows, by Humanize Desktop or by the browser. Each opens what it is
-// about: the epic going, for a question or a chat's next turn, or the epic that ended. None is
-// told of the epic the page is on while it is looked at: that one is read as it comes.
+// about: the chat, by its id; the epic going, for a question; or the epic that ended. None is
+// told of the chat or epic the page is on while it is looked at: that one is read as it comes.
 
 import { call, client, daemon, onState } from './api.js'
 import { ago, fill, h, headline, icon, iconButton } from './dom.js'
-import { gathered, kindOf as wantedAs } from './notified.js'
+import { addressOf, gathered, kindOf as wantedAs, of } from './notified.js'
 import { inApp, menu, section } from './shell.js'
 import { stored } from './stored.js'
 
@@ -99,11 +99,12 @@ async function follow(name) {
   }
 }
 
-/** Whether a notification is of the epic the page is on, while it is looked at. */
+/** Whether a notification is of the chat or epic the page is on, while it is looked at. */
 function here(item) {
   if (document.hidden || !document.hasFocus() || (item.daemon || 'local') !== daemon()) return false
   const { parts, query } = where()
   if (parts[0] === 'live') return Boolean(item.workspace) && query.get('workspace') === item.workspace && (query.get('slot') || '') === (item.slot || '')
+  if (parts[0] === 'chats') return Boolean(item.chat) && parts[1] === item.chat
   return parts[0] === 'epics' && Boolean(item.epic) && parts[1] === item.epic
 }
 
@@ -113,15 +114,15 @@ function seen() {
   if (keys.length) markRead(keys)
 }
 
-/** The epics, and the workspaces they are of, that a notification unread is of on a daemon. */
+/** The chats and epics, by name, and the workspaces they are of, that a notification unread is of on a daemon. */
 export function unreadOn(name) {
   const mine = items.filter((one) => !one.read && (one.daemon || 'local') === name)
-  return { epics: new Set(mine.map((one) => one.epic)), workspaces: new Set(mine.map((one) => one.workspace)) }
+  return { epics: new Set(mine.map(of)), workspaces: new Set(mine.map((one) => one.workspace)) }
 }
 
-/** Reads every notification of one epic of a daemon, as its row's menu asks. */
+/** Reads every notification of one chat or epic of a daemon, as its row's menu asks. */
 export function readOf(name, epic) {
-  const keys = items.filter((one) => !one.read && (one.daemon || 'local') === name && one.epic === epic).map((one) => one.key)
+  const keys = items.filter((one) => !one.read && (one.daemon || 'local') === name && of(one) === epic).map((one) => one.key)
   if (keys.length) markRead(keys)
 }
 
@@ -172,14 +173,7 @@ function mark(item) {
 
 const kindOf = (item) => (KINDS[wantedAs(item)] || [item.kind])[0]
 const daemonOf = (item) => (!item.daemon || item.daemon === 'local' ? 'Local' : item.daemon)
-const about = (item) => [item.flow, item.text || (item.task ? headline(item.task) : item.epic)].filter(Boolean).join(' · ')
-
-/** Where a notification opens: the epic going for what waits on a person, else the epic itself. */
-export function addressOf(item) {
-  const at = !item.daemon || item.daemon === 'local' ? '#/' : `#/@${encodeURIComponent(item.daemon)}/`
-  if ((item.kind === 'asked' || item.kind === 'listening' || !item.epic) && item.workspace) return `${at}live?${new URLSearchParams({ workspace: item.workspace, ...(item.slot ? { slot: item.slot } : {}) })}`
-  return item.epic ? `${at}epics/${encodeURIComponent(item.epic)}` : `${at}live`
-}
+const about = (item) => [item.flow, item.text || (item.task ? headline(item.task) : of(item))].filter(Boolean).join(' · ')
 
 function opens(item) {
   if (items.some((one) => one.key === item.key && !one.read)) markRead([item.key])

@@ -452,11 +452,12 @@ async def ask_session(link: Link, said: Asking) -> str:
     workspace = link.where(said.workspace)
     epic = ""
     if said.slot:
-        # Any host but the workspace's own is named to `btw.ask` by the epic it holds.
+        # Any host but the workspace's own is named to `btw.ask` by the epic it holds, or
+        # the chat.
         held = await link.call(
             "hosts.status", {"workspace": workspace, "slot": said.slot}
         )
-        epic = str(held.get("epic") or "")
+        epic = str(held.get("epic") or held.get("chat") or "")
         if not epic:
             raise LookupError(
                 f"The host {said.slot} holds no epic to ask a session of."

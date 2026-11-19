@@ -4,7 +4,8 @@
 // daemon works out -- the same the terminal interface draws (`epic.attach` with `figures`,
 // Section 4.7 of protocol/daemon.md). A host is followed only while a view of it is open. What a
 // view asks of a host's runs goes through `ask`, as a call to the epic on its subscription; what
-// it asks of a chat -- starting one, saying its next line, its catalogue -- through `chatAsk`.
+// it asks of a chat -- starting one, saying its next line, its catalogue, stopping its turn --
+// through `chatAsk`.
 //
 // A host is named by `where`: a workspace's path alone for the workspace's own, or
 // `{workspace, slot}` for a chat's.
@@ -126,11 +127,11 @@ async function starts(workspace, slot, { scratch = false, ...said }) {
 }
 
 /**
- * Asks a chat one thing: `start`, `say`, `commands`, `set` -- the call `chat.<what>` (Section
- * 4.25 of protocol/daemon.md), which names the chat by its workspace and slot rather than by a
- * subscription. A chat started at a workspace alone is a new chat's, on a host of its own beside
- * every other epic there, which the answer names; one started with `scratch` is started in a
- * directory made for it alone.
+ * Asks a chat going one thing: `start`, `say`, `commands`, `set`, `stop` -- the call
+ * `chat.<what>` (Section 4.25 of protocol/daemon.md), which names the chat by its workspace and
+ * slot rather than by a subscription. A chat started at a workspace alone is a new chat's, on a
+ * host of its own beside every epic there, which the answer names; one started with `scratch`
+ * is started in a directory made for it alone; one carried on is started with `resume`, its id.
  *
  * @param {string|{workspace: string, slot: string}} where The chat, or the workspace a new one starts in.
  * @param {string} what The method of `chat.*`.
@@ -142,7 +143,7 @@ export async function chatAsk(where, what, params = {}) {
   return call(`chat.${what}`, { ...params, workspace, slot })
 }
 
-/** Starts a chat, or carries one on, answering `{workspace, slot, epic}`. */
+/** Starts a chat, or carries one on, answering `{workspace, slot, chat}`. */
 async function chatStarts(workspace, slot, { scratch = false, ...said }) {
   // No workspace: a directory made for the chat alone, as `scratch` makes one for an epic, with
   // a chat's host of its own there, which the chat then starts on.

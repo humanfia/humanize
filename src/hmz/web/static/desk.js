@@ -1,7 +1,7 @@
 // What the page says around the box a chat is typed into, apart from how it is drawn: what the
 // box's Add menu offers and what picking one types, which chats a new chat's page lists as
 // waiting on their person, what a chat's Usage chip says, how a chat stands in a line over its
-// box, and which pane each button of a chat's bar is of. Nothing here touches the page, so it
+// box, when its box's button stops its turn, and which pane each button of a chat's bar is of. Nothing here touches the page, so it
 // is read the same by the views and by their tests (Sections 3.6.6.15 to 3.6.6.21 and 3.8.21
 // to 3.8.24 of protocol/web.md).
 
@@ -84,7 +84,7 @@ export function stepKey(run, waits = []) {
  * The chats a new chat's page lists as waiting on their person, newest first as they were
  * listed: every chat marked `asking` that was not dismissed since it last asked.
  *
- * @param {object[]} runs The rows `runs.list` answered.
+ * @param {object[]} runs The chats listed, as rows (`chatRow`).
  * @param {(run: object) => boolean} chat Whether a row is a chat.
  * @param {(run: object) => string} mark How a row is marked.
  * @param {Iterable<string>} dismissed The keys (`stepKey`) dismissed in this browser.
@@ -151,6 +151,17 @@ export function standing(state, model = '') {
   if (state === 'running') return `${model || 'The assistant'} is responding`
   if (state === 'asking') return 'Waiting for you'
   return ['failed', 'refused', 'crashed'].includes(state) ? 'The chat failed' : ''
+}
+
+/**
+ * Whether the button of a chat's box stops rather than sends: while its host says a turn is
+ * open, answering or asking mid-turn, and never between turns (Section 3.6.6.21 of
+ * protocol/web.md).
+ *
+ * @param {string} [turn] The turn its host says: `running` or `done`.
+ */
+export function stoppable(turn = '') {
+  return turn === 'running'
 }
 
 /**

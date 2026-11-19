@@ -188,13 +188,15 @@ def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> No
                 "prefer": None,
                 "permission": None,
                 "remember": False,
+                "worktree": False,
             },
         ),
         (
             "chat",
             ["", "more"],
             {
-                "resume": Path("/e/1"),
+                # A chat to carry on is named by its name.
+                "resume": "20260101T000000.000Z-abcdef",
                 "prefer": "flow",
                 "permission": "read-only",
                 "remember": True,
@@ -203,13 +205,30 @@ def test_start_says_where_the_epic_is_backed_up(backup: Any, said: object) -> No
                 "do": "chat.start",
                 "agent": "",
                 "task": "more",
-                "resume": str(Path("/e/1")),
+                "resume": "20260101T000000.000Z-abcdef",
                 "prefer": "flow",
                 "permission": "read-only",
                 "remember": True,
+                "worktree": False,
+            },
+        ),
+        (
+            "chat",
+            ["claude/opus", "hi"],
+            {"worktree": True},
+            {
+                "do": "chat.start",
+                "agent": "claude/opus",
+                "task": "hi",
+                "resume": None,
+                "prefer": None,
+                "permission": None,
+                "remember": False,
+                "worktree": True,
             },
         ),
         ("chat_say", ["/compact"], {}, {"do": "chat.say", "text": "/compact"}),
+        ("chat_stop", [], {}, {"do": "chat.stop"}),
         ("chat_commands", [], {}, {"do": "chat.commands"}),
         ("chat_set", ["flow"], {}, {"do": "chat.set", "prefer": "flow"}),
         (
@@ -436,16 +455,19 @@ def test_reached_says_to_a_chat_by_the_workspace_and_slot_attached_to(
     daemon_: _Daemon, tmp_path: Path
 ) -> None:
     daemon_.answers["epic.attach"] = {"sub": "s1", "client": "c3", "slot": "chat:9"}
-    daemon_.answers["chat.start"] = {"slot": "chat:9", "epic": "e1"}
+    daemon_.answers["chat.start"] = {"slot": "chat:9", "chat": "c1"}
     daemon_.answers["chat.commands"] = {"entries": []}
+    daemon_.answers["chat.stop"] = {}
     link = reached(tmp_path, "/w", slot="chat:9")
 
     assert link.chat("claude/opus", "hi") == {
         "ok": True,
         "slot": "chat:9",
-        "epic": "e1",
+        "chat": "c1",
     }
     assert link.chat_commands() == {"ok": True, "entries": []}
+    # Stopping its turn is a write to that chat, as saying something to it is.
+    assert link.chat_stop() == {"ok": True}
     said = dict(daemon_.calls)
     assert (said["chat.start"]["workspace"], said["chat.start"]["slot"]) == (
         "/w",
@@ -454,6 +476,11 @@ def test_reached_says_to_a_chat_by_the_workspace_and_slot_attached_to(
     assert said["chat.start"]["idem"]
     assert "sub" not in said["chat.start"]
     assert "idem" not in said["chat.commands"]
+    assert (said["chat.stop"]["workspace"], said["chat.stop"]["slot"]) == (
+        "/w",
+        "chat:9",
+    )
+    assert said["chat.stop"]["idem"]
 
 
 def test_reached_calls_an_environment_by_its_own_method_with_the_epic_s_sub(

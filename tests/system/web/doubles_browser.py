@@ -163,25 +163,43 @@ def _drawn(page: Page) -> None:
 
 
 def stop(page: Page) -> None:
-    """Stops the epic in front, as a script would -- a chat offers no Stop -- until it has ended.
+    """Stops the epic in front, as a script would, until it has ended -- or rests the chat.
 
-    An ended chat is stopped, as an epic stopped is.
+    A chat is never ended: its turn is stopped by the button of its box, and the chat stays.
+    What rests it is its host going (`hosts.stop`), which this waits for, as a chat left
+    alone folds away.
     """
     from playwright.sync_api import expect
 
-    page.evaluate(
+    chat = page.evaluate(
         """async () => {
           const api = await import('/api.js')
-          const name = decodeURIComponent(location.hash.match(/epics\\/([^/?]+)/)[1])
+          const [, kind, said] = location.hash.match(/(chats|epics)\\/([^/?]+)/)
+          const name = decodeURIComponent(said)
+          if (kind === 'chats') {
+            const resting = (one) => !one.slot && one.state !== 'going'
+            let chat = await api.call('chat.get', { chat: name })
+            const host = { workspace: chat.workspace, slot: chat.slot }
+            if (chat.slot) await api.call('hosts.stop', host).catch(() => {})
+            while (!resting(chat)) {
+              await new Promise((done) => setTimeout(done, 100))
+              chat = await api.call('chat.get', { chat: name })
+            }
+            return true
+          }
           const epic = await api.call('runs.get', { name })
           const where = { workspace: epic.workspace, slot: epic.slot, replay: false }
           const held = await api.attach(where, () => {})
           // One already ended, or stopping, has nothing to stop: as it is, it is stopped.
           await api.call('epic.stop', { sub: held.sub }).catch(() => {})
           await held.close()
+          return false
         }"""
     )
-    expect(page.locator("[data-hmz=bar] .badge")).to_have_text(re.compile("stopped"))
+    if not chat:
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
 
 
 def again(page: Page) -> None:
@@ -444,11 +462,13 @@ def chatted(page: Session, workspace: Path, task: str, *, stopped: bool = True) 
       page: A session with the daemon.
       workspace: Where the chat starts.
       task: Its first message.
-      stopped: Whether it is stopped once it has answered, and waited for until it ended.
+      stopped: Whether its host is stopped once it has answered, and waited for until
+        the chat rests.
 
     Returns:
-      The chat's epic, by its name.
+      The chat's id.
     """
+    import time
     import uuid
 
     from tests.integration.doubles_core import AGENT
@@ -473,11 +493,19 @@ def chatted(page: Session, workspace: Path, task: str, *, stopped: bool = True) 
         )
 
     page.until(record("asked"), "the chat's agent answering")
-    if stopped:
-        page.call("epic.stop", sub=sub, idem=uuid.uuid4().hex)
-        page.until(record("ended"), "the chat ending")
     page.call("epic.detach", sub=sub)
-    return str(started["epic"])
+    chat = str(started["chat"])
+    if stopped:
+        # A chat is never ended: its host goes, and the chat rests.
+        page.call(
+            "hosts.stop",
+            workspace=str(workspace),
+            slot=started["slot"],
+            idem=uuid.uuid4().hex,
+        )
+        while page.call("chat.get", chat=chat)["slot"]:
+            time.sleep(0.1)
+    return chat
 
 
 def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:

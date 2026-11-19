@@ -497,6 +497,29 @@ async def shows(pilot: Pilot[None], *texts: str) -> str:
     return screen(app)
 
 
+async def wrapped(pilot: Pilot[None], *texts: str) -> None:
+    """Waits until the screen shows every one of `texts`, however a row wraps them.
+
+    A row of a list that names an agent is as long as that name, which is random, so words
+    said together may be drawn a line apart, the list's edge between them.
+
+    Args:
+      pilot: What drives the interface.
+      texts: What has to be on the screen, read with every run of white space as one space.
+    """
+    app = _app(pilot)
+
+    def flat() -> str:
+        return " ".join(screen(app).replace("│", " ").split())
+
+    try:
+        await until(pilot, lambda: all(one in flat() for one in texts), "it")
+    except AssertionError:
+        raise AssertionError(
+            f"gave up waiting for {texts!r} on a screen showing:\n{screen(app)}"
+        ) from None
+
+
 async def opened(pilot: Pilot[None]) -> None:
     """Waits until the interface has asked the stand-in what it runs, and is set up on it."""
     await shows(pilot, RUNS)

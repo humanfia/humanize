@@ -28,8 +28,9 @@ def _run(number: int) -> dict[str, Any]:
         "flow": "" if chat else "ralph",
         "how": "done",
         "held": False,
-        "began": "2026-10-12T09:00:00Z",
-        "ended": "2026-10-12T09:30:00Z",
+        # Each a minute older than the one before it, as the daemon lists them newest first.
+        "began": f"2026-10-12T09:{60 - number:02d}:00Z",
+        "ended": f"2026-10-12T10:{60 - number:02d}:00Z",
         "agents": [{"name": "coder", "role": "coder", "runs": "claude/sonnet"}],
         "spent": {"money": "$0.12", "tokens": 1234},
         "sessions": 2,
@@ -40,12 +41,42 @@ def _run(number: int) -> dict[str, Any]:
 _RUNS = [_run(number) for number in range(1, 61)]
 
 
+def _chat(row: dict[str, Any], running: bool = False) -> dict[str, Any]:
+    """A chat's row as `chat.list` answers it."""
+    held = row["held"]
+    return {
+        "id": row["name"],
+        "title": row["task"],
+        "workspace": row["workspace"],
+        "workdir": row["workspace"],
+        "agent": row["agents"][0]["runs"],
+        "model": "sonnet",
+        "began": row["began"],
+        "updated": row["ended"],
+        "state": "failed"
+        if row["how"] == "failed"
+        else "turn"
+        if running
+        else "going"
+        if held
+        else "resting",
+        "slot": f"chat:{row['name']}" if held else "",
+        "asking": [],
+        "permission": "workspace-write",
+        "archived": False,
+        "spent": row["spent"],
+    }
+
+
 def _listed(params: Any) -> dict[str, Any] | None:
-    """A page of Search's, as the daemon finds it; the sidebar's list is left to Local."""
+    """A page of Search's epics, as the daemon finds it; the sidebar's list is left to Local.
+
+    Search asks for a page of fifty, or, on everything, of each list as far as the page shown.
+    """
     params = params or {}
-    if params.get("limit") != 50:
+    if params.get("limit") not in (50, 100):
         return None
-    kind = [one for one in _RUNS if params.get("kind", one["kind"]) == one["kind"]]
+    kind = [one for one in _RUNS if one["kind"] == "flow"]
     found = [
         one
         for one in kind
@@ -56,14 +87,40 @@ def _listed(params: Any) -> dict[str, Any] | None:
     offset = params.get("offset", 0)
     return {
         "result": {
-            "runs": found[offset : offset + 50],
+            "runs": found[offset : offset + params["limit"]],
             "total": len(found),
             "offset": offset,
-            "limit": 50,
+            "limit": params["limit"],
             "counts": {"done": len(kind)},
             "flows": ["chat", "ralph"],
         }
     }
+
+
+def _chats(params: Any) -> dict[str, Any] | None:
+    """A page of Search's chats, as the daemon finds it by `chat.list`."""
+    params = params or {}
+    if params.get("limit") not in (50, 100):
+        return None
+    found = [
+        _chat(one)
+        for one in _RUNS
+        if one["kind"] == "chat" and params.get("q", "").lower() in one["task"].lower()
+    ]
+    offset = params.get("offset", 0)
+    return {
+        "result": {
+            "chats": found[offset : offset + params["limit"]],
+            "total": len(found),
+            "offset": offset,
+            "limit": params["limit"],
+        }
+    }
+
+
+def _faked() -> dict[str, Any]:
+    """The chats and the epics of the daemon, each by its own list."""
+    return {"runs.list": _listed, "chat.list": _chats}
 
 
 def _box(page: Page, selector: str) -> tuple[int, int, int, int]:
@@ -84,7 +141,7 @@ def _search(page: Page) -> None:
 
 
 def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with (
         served() as site,
         opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
@@ -174,7 +231,7 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
 
 
 def test_search_is_moved_through_and_opened_by_the_keys(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         _search(page)
         field = page.get_by_role("combobox", name="Search")
@@ -204,7 +261,7 @@ def test_search_is_moved_through_and_opened_by_the_keys(engine: str) -> None:
             "id"
         )
         # What else there is to say of the one moved to is said over the foot.
-        expect(page.locator("[data-hmz=search-detail]")).to_contain_text("2 sessions")
+        expect(page.locator("[data-hmz=search-detail]")).to_contain_text("$0.12")
         # Up from the first goes round to the last: what can be done, under what was found.
         page.keyboard.press("ArrowUp")
         page.keyboard.press("ArrowUp")
@@ -229,7 +286,8 @@ def test_search_is_moved_through_and_opened_by_the_keys(engine: str) -> None:
         assert {one.get_attribute("data-kind") for one in found.all()} == {"flow"}
         page.keyboard.press("ArrowRight")
         expect(chosen).to_have_text("Epics")
-        assert wire.params("runs.list")[-1]["kind"] == "flow"
+        # The epics are asked of `runs.list`, which is asked for no kind.
+        assert "kind" not in wire.params("runs.list")[-1]
 
         # A slash opens the filters, and closes them, while the field is empty.
         filters = page.locator("[data-hmz=search-filters]")
@@ -257,7 +315,7 @@ def test_search_is_moved_through_and_opened_by_the_keys(engine: str) -> None:
 
 
 def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         _search(page)
         chosen = page.locator("[data-hmz=search-tabs] [aria-selected=true]")
@@ -303,9 +361,16 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         # the tabs, with the chats as a flow, is the chats.
         page.keyboard.press("Escape")
         expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
+        page.evaluate("location.hash = '/search?kind=flow&status=done'")
+        expect(chosen).to_have_text("Epics")
+        expect(filters).to_be_visible()
+        expect(found).to_have_count(20)
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
+        # A chat is not found by how it went: the filter by it is not offered on the chats.
         page.evaluate("location.hash = '/search?flow=chat&status=done'")
         expect(chosen).to_have_text("Chats")
-        expect(filters).to_be_visible()
+        expect(filters).to_be_hidden()
         expect(found).to_have_count(40)
 
         # What can be done stands under what was found, whatever was.
@@ -314,7 +379,7 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
 
 
 def test_search_fills_a_narrow_window_and_scrolls_inside_it(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with (
         served() as site,
         opened(site, engine=engine, width=390, height=800, routed=wire.routes) as page,
@@ -333,9 +398,9 @@ def test_search_fills_a_narrow_window_and_scrolls_inside_it(engine: str) -> None
         )
         # What else there is to say of each stands under it, whole: nothing here moves to one.
         more = page.locator("[data-hmz=found] [data-hmz=epic] .result-more")
-        expect(more.nth(7)).to_contain_text("2 sessions")
-        expect(more.nth(7)).to_contain_text("took 30m")
-        assert more.nth(7).evaluate(
+        expect(more.nth(8)).to_contain_text("2 sessions")
+        expect(more.nth(8)).to_contain_text("took 1h00m")
+        assert more.nth(8).evaluate(
             "(one) => one.scrollWidth <= one.clientWidth"
             " && one.getBoundingClientRect().right <= innerWidth"
         )
@@ -348,7 +413,7 @@ def test_search_fills_a_narrow_window_and_scrolls_inside_it(engine: str) -> None
 def test_the_keys_go_on_after_the_pointer_presses_a_tab_a_filter_or_a_page(
     engine: str,
 ) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         _search(page)
         field = page.get_by_role("combobox", name="Search")
@@ -360,21 +425,25 @@ def test_the_keys_go_on_after_the_pointer_presses_a_tab_a_filter_or_a_page(
         expect(field).to_be_focused()
         page.keyboard.press("ArrowDown")
         expect(active).to_have_attribute("data-key", "e2")
-        # The counts by how it went are the tab's own.
+        # The counts by how it went are the epics' own: a chat is not found by it.
+        page.get_by_role("tab", name="Epics").click()
+        expect(found).to_have_count(20)
+        page.keyboard.press("ArrowDown")
+        expect(active).to_have_attribute("data-key", "e6")
         page.locator("[data-hmz=search-filtering]").click()
         done = page.locator("[data-hmz=search-filters] [data-how=done]")
-        expect(done.locator(".count")).to_have_text("40")
+        expect(done.locator(".count")).to_have_text("20")
         done.click()
         expect(done).to_have_attribute("aria-pressed", "true")
         expect(field).to_be_focused()
         page.keyboard.press("ArrowDown")
-        expect(active).to_have_attribute("data-key", "e4")
+        expect(active).to_have_attribute("data-key", "e9")
         # Tabbed to and pressed by a key, a filter keeps the focus itself: it is not made again.
         done.focus()
         page.keyboard.press("Enter")
         expect(done).to_be_focused()
         page.keyboard.press("ArrowDown")
-        expect(active).to_have_attribute("data-key", "e5")
+        expect(active).to_have_attribute("data-key", "e12")
         # A page turned leaves it in the field too, and Enter opens the one moved to.
         field.focus()
         page.get_by_role("tab", name="All").click()
@@ -384,23 +453,23 @@ def test_the_keys_go_on_after_the_pointer_presses_a_tab_a_filter_or_a_page(
         expect(field).to_be_focused()
         page.keyboard.press("ArrowDown")
         expect(active).to_have_attribute("data-key", "e52")
-        wire.faked["runs.get"] = lambda _: None
+        wire.faked["chat.get"] = lambda _: None
         page.keyboard.press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/e52$"))
+        page.wait_for_url(re.compile(r".*#/chats/e52$"))
 
 
 def test_enter_opens_what_was_typed_not_what_was_listed_before_it(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         _search(page)
-        wire.faked["runs.get"] = lambda _: None
+        wire.faked["chat.get"] = lambda _: None
         page.keyboard.type("thing 59")
         page.keyboard.press("Enter")
-        page.wait_for_url(re.compile(r".*#/epics/e59$"))
+        page.wait_for_url(re.compile(r".*#/chats/e59$"))
 
 
 def test_the_menu_of_the_one_moved_to_is_opened_by_a_key(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         _search(page)
         field = page.get_by_role("combobox", name="Search")
@@ -426,12 +495,12 @@ def test_the_menu_of_the_one_moved_to_is_opened_by_a_key(engine: str) -> None:
 
 def test_an_address_and_an_empty_tab_say_what_is_so(engine: str) -> None:
     def none(params: Any) -> dict[str, Any] | None:
-        answer = _listed(params)
-        if answer is not None and params["kind"] == "chat":
-            answer["result"].update(runs=[], total=0, counts={})
+        answer = _chats(params)
+        if answer is not None:
+            answer["result"].update(chats=[], total=0)
         return answer
 
-    wire = Wire(faked={"runs.list": none})
+    wire = Wire(faked={"runs.list": _listed, "chat.list": none})
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         # The chats named with a flow drop it: no filter is set, and the row of them is shut.
         page.evaluate("location.hash = '/search?kind=chat&flow=ralph'")
@@ -454,25 +523,60 @@ _STANDING = [
     {**_run(2), "task": "Ask asks", "how": "running", "held": True, "asking": ["1:1"]},
     {**_run(4), "task": "Ask failed", "how": "failed"},
     {**_run(5), "task": "Ask rests", "how": "stopped"},
-    {**_run(3), "task": "Fix it", "how": "done"},
+    {**_run(6), "task": "Fix it", "how": "done"},
 ]
 
 
-def _standing(params: Any) -> dict[str, Any]:
-    return {
-        "result": {
-            "runs": _STANDING,
-            "total": len(_STANDING),
-            "offset": 0,
-            "limit": params.get("limit", 60),
-            "counts": {"running": 2, "failed": 1, "stopped": 1, "done": 1},
-            "flows": ["ralph"],
+def _standing() -> dict[str, Any]:
+    """The lists of what stands: the chats, the epic, and what each chat's host says it waits on."""
+    chats = [one for one in _STANDING if one["kind"] == "chat"]
+    epics = [one for one in _STANDING if one["kind"] == "flow"]
+    running = [
+        {
+            "state": "running",
+            "run": 1,
+            "kind": "chat",
+            "flow": "",
+            "epic": "",
+            "chat": one["name"],
+            "task": one["task"],
+            "workspace": one["workspace"],
+            "slot": f"chat:{one['name']}",
+            "turn": "running" if one.get("turn") == "running" else "done",
+            "asking": one.get("asking", []),
         }
+        for one in chats
+        if one["held"]
+    ]
+    said: dict[str, dict[str, Any]] = {
+        "chat.list": {
+            "chats": [_chat(one, one.get("turn") == "running") for one in chats],
+            "total": len(chats),
+            "offset": 0,
+            "limit": 60,
+        },
+        "runs.list": {
+            "runs": epics,
+            "total": len(epics),
+            "offset": 0,
+            "limit": 60,
+            "counts": {"done": 1},
+            "flows": ["ralph"],
+        },
+        "hosts.running": {"running": running},
     }
+
+    def says(result: dict[str, Any]) -> Any:
+        def answers(_: Any) -> dict[str, Any]:
+            return {"result": result}
+
+        return answers
+
+    return {method: says(result) for method, result in said.items()}
 
 
 def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _standing})
+    wire = Wire(faked=_standing())
     with (
         served() as site,
         opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
@@ -512,7 +616,7 @@ def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
 
 
 def test_search_keeps_the_keys_and_leaves_the_page_as_it_was(engine: str) -> None:
-    wire = Wire(faked={"runs.list": _listed})
+    wire = Wire(faked=_faked())
     with (
         served() as site,
         opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,

@@ -1,6 +1,8 @@
 // What Search asks for and where its keys go, with no page under it: which tab a search is on,
-// what the daemon is asked for it, which result the arrows move to, and what its foot says of
-// the keys.
+// what the daemon is asked for it, what it answered as one list, which result the arrows move
+// to, and what its foot says of the keys.
+
+import { chatRow, epicRow } from './chats.js'
 
 /** The kinds Search lists, as its tabs name them, in their order: a chat is never an epic. */
 export const TABS = [
@@ -46,21 +48,22 @@ export function keyed({ key, altKey, ctrlKey, metaKey, shiftKey }, where, empty 
   return key === '/' ? 'filters' : ''
 }
 
-/** How many rows a page of the list holds. */
+/** How many rows a page of the list holds, and the most a daemon answers at once. */
 export const PAGE = 50
+const MOST = 200
 
 /**
  * What an address asks Search for: its tab, and the filters under it. An address of before the
  * tabs named chats as the flow `chat`, which is the tab `Chats` now. A flow named with no tab is
  * on `All`, where only that flow's epics are of it; one named with `Chats` is dropped, as the
- * tab pressed drops it.
+ * tab pressed drops it, and so is how it went, which no chat is filtered by.
  */
 export function chosenOf(query) {
   const said = (name) => query.get(name) || ''
   const kind = said('flow') === 'chat' ? 'chat' : TABS.some(([kind]) => kind === said('kind')) ? said('kind') : ''
   return {
     kind,
-    status: said('status'),
+    status: kind === 'chat' ? '' : said('status'),
     flow: kind === 'chat' ? '' : said('flow'),
     workspace: said('workspace'),
     q: said('q'),
@@ -68,17 +71,39 @@ export function chosenOf(query) {
   }
 }
 
-/** What `runs.list` is asked for one page of what is chosen: a chat is of no flow. */
+/**
+ * What the daemon is asked for one page of what is chosen, each a method and its parameters: the
+ * chats of `chat.list`, the epics of `runs.list`, and on `All` both -- from the first of each as
+ * far as the page shown, which `found` then cuts out of the two as one list. A chat is of no
+ * flow and is not filtered by how it went: with either chosen on `All`, only epics are asked for.
+ */
 export function asked(chosen) {
-  return {
-    kind: chosen.kind,
-    status: chosen.status,
-    flow: chosen.kind === 'chat' ? '' : chosen.flow,
-    workspace: chosen.workspace,
-    q: chosen.q,
-    offset: chosen.offset,
-    limit: PAGE,
-  }
+  const { status, flow, workspace, q, offset } = chosen
+  const chats = (page) => ['chat.list', { workspace, q, ...page }]
+  const epics = (page) => ['runs.list', { status, flow, workspace, q, ...page }]
+  const page = { offset, limit: PAGE }
+  if (chosen.kind === 'chat') return [chats(page)]
+  if (chosen.kind === 'flow' || status || flow) return [epics(page)]
+  const both = { offset: 0, limit: Math.min(MOST, offset + PAGE) }
+  return [chats(both), epics(both)]
+}
+
+/**
+ * What was found, as one list: what each of `asked` answered, the chats and the epics each a row
+ * (chats.js), newest first, the page chosen cut out of them where both were asked for.
+ *
+ * @param {{offset: number}} chosen What is chosen.
+ * @param {object[]} answers What `chat.list` and `runs.list` answered, whichever were asked.
+ * @param {object[]} [running] What each host runs, which says what a chat going waits on.
+ * @returns {{runs: object[], total: number, offset: number, counts: Record<string, number>, flows: string[]}}
+ */
+export function found(chosen, answers, running = []) {
+  const rows = answers.flatMap((one) => (one.chats ? one.chats.map((chat) => chatRow(chat, running)) : one.runs.map(epicRow)))
+  const epics = answers.find((one) => one.runs)
+  const whole = { total: answers.reduce((sum, one) => sum + one.total, 0), offset: chosen.offset, counts: epics ? epics.counts : {}, flows: epics ? epics.flows : [] }
+  if (answers.length < 2) return { ...whole, runs: rows }
+  const began = (run) => Date.parse(run.began) || 0
+  return { ...whole, runs: rows.sort((a, b) => began(b) - began(a)).slice(chosen.offset, chosen.offset + PAGE) }
 }
 
 /** The tab a step left (-1) or right (1) of one, which stops at either end. */
@@ -87,9 +112,9 @@ export function turned(kind, step) {
   return TABS[Math.min(TABS.length - 1, Math.max(0, at + step))][0]
 }
 
-/** What is chosen once a tab is pressed: `Chats` drops the flow, which no chat has. */
+/** What is chosen once a tab is pressed: `Chats` drops the flow and how it went, which no chat is found by. */
 export function onTab(chosen, kind) {
-  return { ...chosen, kind, flow: kind === 'chat' ? '' : chosen.flow, offset: 0 }
+  return { ...chosen, kind, flow: kind === 'chat' ? '' : chosen.flow, status: kind === 'chat' ? '' : chosen.status, offset: 0 }
 }
 
 /** What is chosen once a flow is: a flow's are epics, so `Chats` gives way to `Epics`. */

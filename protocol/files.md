@@ -64,6 +64,7 @@ It is normative. It is cited by the tag [FILES].
   - [6.9. Other files](#69-other-files)
   - [6.10. The `.hmzepic` archive](#610-the-hmzepic-archive)
   - [6.11. Import](#611-import)
+  - [6.12. Chat records](#612-chat-records)
 - [7. This Machine](#7-this-machine)
   - [7.1. Scope](#71-scope)
   - [7.2. Terminology](#72-terminology)
@@ -860,6 +861,7 @@ and rules shared by Section 4 to Section 9.
 Out of scope:
 
 - The epic directories under `<home>/epics/`: Section 6.
+- The chat directories under `<home>/chats/`: Section 6.12.
 - The keys and values of `settings.yaml`: Section 3.
 - The content of the account directories under `<home>/providers/`: Section 8.4.
 - Directories outside the **home** on **this machine**: Section 7.
@@ -1093,6 +1095,10 @@ is `<ws>`; its content is specified in Section 6.
 **4.11.2** `hmz` MUST NOT remove `<home>/epics/` or any directory in it, except the staging
 directories specified in Section 6.11.4.
 
+**4.11.3** `<home>/chats/<ws>/` holds the chat directories of the **workspace** whose workspace key
+is `<ws>`; its content is specified in Section 6.12. `hmz` MUST NOT remove `<home>/chats/` or any
+directory in it, except as Section 6.12.10 states.
+
 ### 4.12. The former server record
 
 **4.12.1** `hmz` MUST NOT write `<home>/server.json`, which an earlier release's `hmz server` wrote;
@@ -1152,8 +1158,8 @@ the workspace of the host of every conversation of the scope `daemon`.
 
 **4.16.2** `conversations.yaml` in it MUST be a YAML list of mappings, one per conversation not
 forgotten, in the order made, each with exactly the keys `id` (integer), `title`, `scope`,
-`workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the epic name of the
-conversation's own epic, `""` before it has one) and `created` (a UTC timestamp), the others as
+`workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the name of the
+conversation's own chat, Section 6.12.11, `""` before it has one) and `created` (a UTC timestamp), the others as
 `aichan.list` answers them (Section 4.22.3 of [DAEMON]), with mode `0600`, written by atomic
 replacement by the daemon alone.
 
@@ -1161,16 +1167,15 @@ replacement by the daemon alone.
 the conversation whose `id` is `<id>`, with mode `0700`, made when the conversation is made.
 
 **4.16.4** Forgetting a conversation MUST remove its entry and its scratch directory, MUST first
-add the epic name of its epic, where it has one, to `forgotten.yaml` (Section 4.16.6), and MUST NOT
-remove the records of its epic.
+add its `record`, where it has one, to `forgotten.yaml` (Section 4.16.6), and MUST NOT remove what
+that names.
 
 **4.16.5** The **user** MAY delete `<home>/ai/` while no daemon of this home runs, which forgets
-every conversation, and after which the epic of each is an epic as any other.
+every conversation, and after which the chat of each is a chat as any other.
 
-**4.16.6** `forgotten.yaml` in it MUST be a YAML list of the epic names of the epics of the
-conversations forgotten, in the order forgotten, with mode `0600`, written by atomic replacement by
-the daemon alone; a reader MUST take each as the epic of an Ai-chan conversation (Section 14.7.4 of
-[CORE]).
+**4.16.6** `forgotten.yaml` in it MUST be a YAML list of the `record` of each of the conversations
+forgotten, in the order forgotten, with mode `0600`, written by atomic replacement by the daemon
+alone; a reader MUST take each as naming an Ai-chan conversation (Section 14.7.4 of [CORE]).
 
 ## 5. Workspaces
 
@@ -1294,7 +1299,8 @@ the administrative directory of that **repository**; `hmz` MUST NOT remove that 
 Section 6 specifies the directory **hmz** writes for each **epic**: its path and name, every
 file in it, the format of each record and the events it holds, the resume journal, the profiles, the
 lock file, the session and trace directories, and the `.hmzepic` archive into which an **epic** is
-exported and from which it is imported.
+exported and from which it is imported. Section 6.12 specifies the directory **hmz** writes for
+each **chat**, which is no **epic**.
 
 Out of scope:
 
@@ -1315,7 +1321,7 @@ its epic directory.
 **6.2.3** **Record**: a JSON Lines file in an epic directory whose lines are events.
 
 **6.2.4** **Epic record**: the record `<epic>/epic.jsonl`, which describes the **epic**: the
-**flow** it executes, or, for a **chat**, its assistant and conversation.
+**flow** it executes.
 
 **6.2.5** **Call record**: a record `<epic>/epic.<flow>_<id>.jsonl`, which describes one call of a
 **flow** by another **flow** within the **epic**.
@@ -1386,8 +1392,8 @@ form of the canonical reference of the called **flow**, or `flow` where that for
 **6.5.1** The first event of an epic record MUST be `began`, written when the **epic** begins, with
 the keys:
 
-- `kind`: string, `chat` for a **chat** (Section 8 of [CORE]) and `flow` otherwise;
-- `flow`: string, the **flow** as the **user** named it; absent for a **chat**;
+- `kind`: string, `flow`;
+- `flow`: string, the **flow** as the **user** named it;
 - `task`: string, the task given to the **flow**;
 - `workspace`: string, the absolute path of the **workspace**, symbolic links resolved;
 - `resumable`: boolean, whether the **flow** declares that it can be resumed;
@@ -1409,19 +1415,15 @@ the keys:
   profiled;
 - `backup`: array of the names of the backup targets of the **epic**; present only where it is not
   empty;
-- `prefer`: string, `native` or `flow`, the preference of a **chat** where it is overridden for
-  that **chat** (Section 8.9.10 of [CORE]); present only where it is;
-- `permission`: string, `read-only` or `danger-full-access`, the permission of a **chat** (Section
-  8.3.9 of [CORE]); present only where it is not `workspace-write`;
 - `spelling`: the integer `2`, stating that `envs` and `used` follow the role env spec spelling of
   Section 6.2.9.
 
 **6.5.2** A reader MUST read the `envs` and `used` of a `began` event without `spelling` as an
 earlier spelling, and MUST convert each to the spelling of Section 6.2.9.
 
-**6.5.3** `hmz` MUST write the event `reopened` into the epic record of an **epic** of a **chat**
-when the **user** carries that **chat** on, with the key `task` (string, the task given on carrying
-on), and MUST NOT write another `began` for it.
+**6.5.3** A reader MUST read the event `reopened`, with the key `task` (string), in an epic record
+of kind `chat` (Section 6.5.19) as that **epic** having been opened again to go on in; `hmz` MUST
+write it into an epic record only as Section 6.12.11 states.
 
 **6.5.4** `hmz` MUST write the event `opened` into the record of the **flow** that opened a
 **session** when the **harness** of that **session** first states the identifier of the **session**,
@@ -1492,20 +1494,20 @@ last `imported` event.
 
 **6.5.18** `hmz` MAY write `backed` and `imported` events after the last `ended` of an epic record.
 
-**6.5.19** The `began` of a **chat** MUST give `kind` `chat`, one entry of `agents`, whose `agent`
-is `assistant`, and its `workspace` and `task`, and MUST NOT give `flow`, `ref`, `picked_up`,
-`envs`, `used`, `params`, `budget`, `profile_flow` or `profile_environment`.
+**6.5.19** `hmz` MUST NOT begin an epic record whose `began` gives `kind` `chat`. An earlier `hmz`
+began one for each **chat**, when a **chat** was an **epic**: its `began` gives `kind` `chat`, one
+entry of `agents`, whose `agent` is `assistant`, its `workspace` and `task`, MAY give `prefer` and
+`permission` as Section 6.12.5 specifies them, and gives no `flow`, `ref`, `picked_up`, `envs`,
+`used`, `params`, `budget`, `profile_flow` or `profile_environment`. A reader MUST read it as an
+**epic** of kind `chat` and of no **flow**, and MUST NOT read it as a **chat** (Section 8.7.10 of
+[CORE]).
 
 **6.5.20** A reader MUST read a `began` that gives no `kind` as of kind `flow`, except one whose
-`flow` is `chat`, which it MUST read as a **chat**.
+`flow` is `chat`, which it MUST read as of kind `chat`.
 
-**6.5.21** `hmz` MUST write the event `set` into the epic record of a **chat** each time its
-preference is overridden, its agent is changed (Section 8.9.5 of [CORE]) or its permission is set
-(Section 8.3.10 of [CORE]), with the key `prefer` (string), the key `agents` (as `began` gives it),
-the key `permission` (string, `read-only`, `workspace-write` or `danger-full-access`), or any of
-them together; a reader MUST take a **chat**'s override, agent and permission from the last event
-that gives each, `began` included, and MUST read a **chat** whose record gives no permission as of
-permission `workspace-write`.
+**6.5.21** A reader MUST read the event `set` in an epic record of kind `chat` as Section 6.12.6
+specifies it for a chat record; `hmz` MUST write it into an epic record only as Section 6.12.11
+states.
 
 **6.5.22** An epic record MUST contain no events other than those of Section 6.5.
 
@@ -1700,6 +1702,77 @@ directory however the import ends.
 is `sessions/<backend>`, in every record of the imported **epic**.
 
 **6.11.7** `hmz` MUST append `imported` to the epic record before the rename of Section 6.11.4.
+
+### 6.12. Chat records
+
+**6.12.1** **Chat directory** (`<chat>`): the directory **hmz** writes for one **chat** (Section 8
+of [CORE]). Its path MUST be `<home>/chats/<ws>/<stamp>-<hex6>/`, `<ws>`, `<stamp>` and `<hex6>` as
+Section 6.3.1 states them for an epic directory, the **chat** in place of the **epic**, and Section
+6.3.2 MUST hold for chat directories and epic directories together. The name of the **chat**
+(Section 8.2.12 of [CORE]) MUST be the last path component of its chat directory.
+
+**6.12.2** `hmz` MUST create the chat directory, and every missing parent, when the **chat** begins,
+and MUST treat as a chat directory only a directory under `<home>/chats/<ws>/` that holds
+`chat.jsonl`. A chat directory is no epic directory: no rule of Section 6.1 to Section 6.11 holds
+for it but those this section names.
+
+**6.12.3** A chat directory MUST contain no entries other than `chat.jsonl`, the **chat record**;
+`.held`, as Section 6.9 specifies the lock file of an epic directory, held while the **chat** is
+going; `sessions/`, as Section 6.9.5 and Section 6.9.6 specify it for an epic directory; and
+`host.log`, as Section 6.9 specifies it.
+
+**6.12.4** The chat record MUST be a JSON Lines file of events (Section 6.2.6), appended and never
+rewritten, and MUST contain no events other than those of Section 6.12.5 to Section 6.12.8.
+
+**6.12.5** The first event of a chat record MUST be `began`, with the keys:
+
+- `task`: string, the first message of the **chat**;
+- `workspace`: string, the absolute path of the **workspace**, symbolic links resolved;
+- `agents`: array of one object, as Section 6.5.1 gives one, whose `agent` is `assistant`;
+- `backup`: as Section 6.5.1 gives it; present only where it is not empty;
+- `prefer`: string, `native` or `flow`, the preference of the **chat** where it is overridden for
+  it (Section 8.9.10 of [CORE]); present only where it is;
+- `permission`: string, `read-only` or `danger-full-access`, the permission of the **chat**
+  (Section 8.3.9 of [CORE]); present only where it is not `workspace-write`;
+- `workdir`: string, the absolute path of the worktree its assistant works in (Section 8.3.13 of
+  [CORE]); present only where it works in one;
+- `title`: string, the title of the **chat** as it began; present only for a fork;
+- `forked`: string, the name of the **chat** this one is a fork of (Section 8.10.2 of [CORE]);
+  present only for a fork.
+
+**6.12.6** `hmz` MUST write the event `set` into the chat record each time the preference of the
+**chat** is overridden, its agent is changed (Section 8.9.5 of [CORE]), its permission is set
+(Section 8.3.10 of [CORE]), its title is changed or it is archived or put back (Section 8.10 of
+[CORE]), with the key `prefer` (string), `agents` (as `began` gives it), `permission` (string,
+`read-only`, `workspace-write` or `danger-full-access`), `title` (string), `archived` (boolean), or
+any of them together. A reader MUST take each of these from the last event that gives it, `began`
+included, MUST read a **chat** whose record gives no permission as of permission `workspace-write`,
+one that gives no title as titled by the first line of its `task`, and one that gives no `archived`
+as not archived.
+
+**6.12.7** `hmz` MUST write `opened` into the chat record as Section 6.5.4 specifies it for an epic
+record, `reopened` with the key `task` (string, the message that carried it on) each time the
+**chat** is carried on, and MUST NOT write another `began` for it.
+
+**6.12.8** `hmz` MUST write `usage` and `ended` into the chat record as Section 6.5 specifies them
+for an epic record, each time the **chat** ends, `how` being `stopped` or `failed`, and `backed` as
+Section 6.5 specifies it; a reader MUST read a **chat** as ended only where an `ended` follows its
+last `reopened`, and as having spent the sum of its `usage` events.
+
+**6.12.9** A fork (Section 8.10.2 of [CORE]) MUST be a new chat directory holding a copy of
+`sessions/` of the **chat** forked, and a chat record of a `began` that gives what the **chat**
+forked stands as, with `title` and `forked`; every `opened` event of the **chat** forked whose
+`where` is within its chat directory, unchanged; and an `ended` whose `how` is `stopped`.
+
+**6.12.10** `hmz` MUST NOT remove a chat directory or any file in it, except that `chat.delete`
+(Section 4.25.7.6 of [DAEMON]) MUST remove the chat directory whole; it MUST NOT remove the
+worktree a `workdir` names. The **user** MAY delete a chat directory of a **chat** that is not
+going.
+
+**6.12.11** An Ai-chan conversation (Section 14 of [CORE]) MUST be recorded as a **chat** is, in a
+chat directory under the workspace key of its host's **workspace**. One an earlier `hmz` recorded
+as an epic of kind `chat` MUST go on being recorded in that epic directory, `reopened` and `set`
+written into its epic record as Section 6.12.6 and Section 6.12.7 specify them for a chat record.
 
 ## 7. This Machine
 

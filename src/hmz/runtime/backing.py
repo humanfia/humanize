@@ -30,7 +30,7 @@ import threading
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from hmz import machine
-from hmz.runtime.epic import BACKED, JOURNAL, note
+from hmz.runtime.epic import BACKED, JOURNAL, journal, note
 from hmz.runtime.exporting import MANIFEST, placed, plain, unpacked
 from hmz.runtime.settings import Settings
 
@@ -378,7 +378,7 @@ def _commits(target: Target, epic: Path, why: str) -> None:
             _fetches(at, target.branch)
             shutil.rmtree(at / into, ignore_errors=True)
             unpacked(epic, at / into)
-            _unbacked(at / into / JOURNAL)
+            _unbacked(journal(at / into))
             _git(at, "add", "-A", "--", into)
             # Nothing but when the manifest was made is nothing to commit.
             made = f":(exclude){into}/{MANIFEST}"

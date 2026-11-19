@@ -5,7 +5,8 @@ which flow, on what, with which agents, how it ended and what it spent, the tree
 called and the sessions it opened -- and, read back out of the logs those sessions kept, what
 each of them said and did -- of every workspace, since the daemon holds every workspace's
 epics. An epic is also carried away whole as an archive (`runs.bundle`, read through
-`files.read`) and read back in from one (`runs.import`).
+`files.read`) and read back in from one (`runs.import`). A chat is no epic, and is read by
+`chat.*` (:mod:`hmz.daemon.api.chats`); one an earlier hmz recorded as an epic is read here.
 
 The epics read and laid out are kept in one :class:`Runs` until they change on disk, which is
 also what remembers the timeline a span's id is an id in.
@@ -37,7 +38,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BUNDLE",
+    "CHATS",
     "METHODS",
+    "PAGE",
     "RUNS",
     "Runs",
     "backup",
@@ -55,6 +58,7 @@ __all__ = [
     "row",
     "running",
     "usage",
+    "within",
 ]
 
 #: What an epic's archive is sent as.
@@ -63,11 +67,8 @@ BUNDLE = "application/vnd.hmz.epic+gzip"
 #: A Windows path: a drive's, or a share's such as `\\wsl$\...`.
 _WINDOWS = re.compile(r"[A-Za-z]:[\\/]|\\\\")
 
-#: Where a chat is in its turn between its turns, as its host says it.
-DONE = "done"
-
 #: The most rows one page of the list holds.
-_PAGE = 200
+PAGE = 200
 
 #: The fewest and the most days `runs.usage` sums.
 _DAYS = (1, 365)
@@ -92,10 +93,20 @@ class Runs:
     Args:
       hmz: Humanize for a workspace, by its path -- there still or not -- or "" for the one
         an epic that says no workspace, or an archive read back in, is read by.
+      every: What lists them, oldest first, or None for every epic's directory: the chats',
+        for the chats `chat.*` reads.
+      what: What one of them is called where there is none of a name: `epic` or `chat`.
     """
 
-    def __init__(self, hmz: Callable[[str], Any]) -> None:
+    def __init__(
+        self,
+        hmz: Callable[[str], Any],
+        every: Callable[[], list[Path]] | None = None,
+        what: str = "epic",
+    ) -> None:
         self._hmz = hmz
+        self._every = every
+        self._what = what
         self._lock = threading.Lock()
         self._read: dict[Path, tuple[tuple[int, int], Ran | None]] = {}
         self._traced: dict[Path, tuple[tuple[int, int], list[dict[str, Any]]]] = {}
@@ -108,12 +119,10 @@ class Runs:
         Args:
           workspace: Only the runs of this workspace, by its path, or "" for every one's.
         """
-        from hmz.runtime.epic import every
-
         wanted = resolved(workspace) if workspace else ""
         held = [
             one
-            for at in reversed(every())
+            for at in reversed(self._listed())
             if (one := self.read(at))
             and (not wanted or resolved(one.workspace) == wanted)
         ]
@@ -123,6 +132,11 @@ class Runs:
                 for gone in set(self._read) - {one.at for one in held}:
                     del self._read[gone]
         return held
+
+    def _listed(self) -> list[Path]:
+        from hmz.runtime.epic import every
+
+        return (self._every or every)()
 
     def read(self, epic: Path) -> Ran | None:
         """One run, read again only where its record has changed since it was last read."""
@@ -144,14 +158,11 @@ class Runs:
         Raises:
           RpcError: 404 if no workspace has a run of that name.
         """
-        from hmz.runtime.epic import every
-
-        if "/" in name or name.startswith(".") or not name:
-            raise RpcError(Code.NOT_FOUND, f"There is no epic {name}.")
-        for epic in every():
-            if epic.name == name and (ran := self.read(epic)) is not None:
-                return ran
-        raise RpcError(Code.NOT_FOUND, f"There is no epic {name}.")
+        if "/" not in name and not name.startswith(".") and name:
+            for epic in self._listed():
+                if epic.name == name and (ran := self.read(epic)) is not None:
+                    return ran
+        raise RpcError(Code.NOT_FOUND, f"There is no {self._what} {name}.")
 
     def going(self, ran: Ran) -> bool:
         """Whether a run with no end written down is still going, in whatever process holds it.
@@ -313,11 +324,13 @@ def held_by(
       running: What each host says runs, with its `workspace` and its `slot`.
 
     Returns:
-      Each run going, by its epic: where it is in its turn where it is a chat, or "", the
-      slot of the host going with it, and the questions it waits on, as `asking`.
+      Each run going, by its epic: the slot of the host going with it, and the questions it
+      waits on, as `asking`. A host going with a chat goes with no epic.
     """
     held: dict[Path, dict[str, Any]] = {}
     for standing in running:
+        if standing.get("kind") == "chat":
+            continue
         workspace, epic = standing["workspace"], standing.get("epic")
         started = float(standing.get("at") or 0.0)
         for ran in runs:
@@ -325,17 +338,13 @@ def held_by(
                 continue
             if epic and ran.name != epic:
                 continue
-            if not epic and (
-                ran.flow != standing.get("flow")
-                or (standing.get("kind") or kind(ran)) != kind(ran)
-            ):
+            if not epic and ran.flow != standing.get("flow"):
                 continue
             if not epic and standing.get("task") and ran.task != standing.get("task"):
                 continue
             if not epic and started and abs(_epoch(ran.began) - started) > _SAME:
                 continue
             held[ran.at] = {
-                "turn": str(standing.get("turn") or ""),
                 "slot": str(standing.get("slot") or ""),
                 "asking": list(standing.get("asking") or ()),
             }
@@ -346,9 +355,9 @@ def held_by(
 def running() -> list[dict[str, Any]]:
     """What each host of this machine runs, as `held_by` reads it; one running nothing is left out.
 
-    Each its state, the run's number, its kind, flow, task and epic, of a chat its turn, and
-    its `workspace`, its `slot` and the questions it waits on, each `<run>:<question>`, as
-    `asking`: as each host says it of itself.
+    Each its state, the run's number, its kind, flow, task and epic, of a chat its name and
+    its turn, and its `workspace`, its `slot` and the questions it waits on, each
+    `<run>:<question>`, as `asking`: as each host says it of itself.
     """
     said: list[dict[str, Any]] = []
     for status in workspaces.statuses().values():
@@ -363,6 +372,7 @@ def running() -> list[dict[str, Any]]:
                 "kind": status.get("epic_kind") or "",
                 "flow": status.get("flow") or "",
                 "epic": status.get("epic") or "",
+                "chat": status.get("chat") or "",
                 "task": status.get("task") or "",
                 "workspace": status["workspace"],
                 "slot": status["slot"],
@@ -381,7 +391,6 @@ def row(
     *,
     held: bool,
     going: bool = False,
-    turn: str = "",
     slot: str = "",
     asking: Sequence[str] = (),
 ) -> dict[str, Any]:
@@ -391,21 +400,17 @@ def row(
       ran: The run.
       held: Whether it is the run a host is going with, which a client follows live.
       going: Whether it is going at all, held by a host or by any other process.
-      turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
       slot: Of a run a host is going with, which of its workspace's hosts that is: "" for
-        the workspace's own, `chat:<hex>` for a chat's.
+        the workspace's own.
       asking: Of a run a host is going with, the questions it waits on, each
         `<run>:<question>`.
     """
-    from hmz.runtime.epic import RUNNING, ending
+    from hmz.runtime.epic import ending
 
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
     how = ending(ran, going=held or going)
+    # An epic an earlier hmz recorded for a chat, which was of no flow (Section 4.16.2.1).
     chat = kind(ran) == "chat"
-    if chat and how != "failed":
-        # A chat is going while its agent answers, and stopped between turns or once over,
-        # short of failing (Section 8.5 of core.md).
-        how = RUNNING if how == RUNNING and turn != DONE else "stopped"
     return {
         "name": ran.name,
         "workspace": resolved(ran.workspace),
@@ -431,7 +436,7 @@ def row(
 
 
 def kind(ran: Ran) -> str:
-    """What one epic is, `flow` or `chat`, as its record says it (Section 8.3.5 of core.md)."""
+    """What one epic is, `flow` or `chat`, as its record says it (Section 6.5.20 of files.md)."""
     from hmz.runtime.doing.epics import kind
 
     return kind(ran)
@@ -461,7 +466,6 @@ def detail(
     picks_up: bool,
     foreign: str = "",
     going: bool = False,
-    turn: str = "",
     slot: str = "",
     asking: Sequence[str] = (),
 ) -> dict[str, Any]:
@@ -473,11 +477,10 @@ def detail(
       going: Whether it is going at all, held by a host or by any other process.
       picks_up: Whether it can be picked up.
       foreign: Why one imported cannot be picked up here, or "".
-      turn: Of a chat a host is going with, where it is in its turn, or "" where unknown.
       slot: Of a run a host is going with, which of its workspace's hosts that is.
       asking: Of a run a host is going with, the questions it waits on.
     """
-    return row(ran, held=held, going=going, turn=turn, slot=slot, asking=asking) | {
+    return row(ran, held=held, going=going, slot=slot, asking=asking) | {
         "at": str(ran.at),
         "task": ran.task,
         "ref": ran.ref,
@@ -512,12 +515,6 @@ def detail(
         "params": ran.params,
         "budget": ran.budget,
         "picked_up": ran.picked_up,
-        # The sessions it opened before it was last carried on, which are its earlier ones.
-        "earlier": sum(1 for one in ran.sessions if one.at < ran.reopened),
-        # What a chat's assistant may touch, as its epic records it; "" where it does not.
-        "permission": ran.permission,
-        # A chat's own preference, as its epic records it; "" where it has none.
-        "prefer": ran.prefer,
         "profile_flow": ran.profile_flow,
         "profile_environment": ran.profile_environment,
         "picks_up": picks_up,
@@ -547,7 +544,6 @@ def listed(
     workspace: str = "",
     status: str = "",
     flow: str = "",
-    what: str = "",
     q: str = "",
     offset: int = 0,
     limit: int = 50,
@@ -562,7 +558,6 @@ def listed(
       workspace: Only this workspace's runs, by its path, or "" for every one's.
       status: Only those that ended so, or "" for every one.
       flow: Only those of this flow, or "" for every one.
-      what: Only those of this kind, `chat` or `flow`, or "" for every one.
       q: Only those whose task, flow or epic name holds this, or "" for every one.
       offset: How many of those found to pass over.
       limit: How many to answer at most.
@@ -580,7 +575,7 @@ def listed(
     hers = {*hers, *(one["epic"] for one in going if one["slot"].startswith("ai:"))}
     every = [ran for ran in every if ran.name not in hers]
     held = held_by(every, going)
-    rows = (
+    went = [
         (
             ran,
             row(
@@ -588,9 +583,7 @@ def listed(
             ),
         )
         for ran in every
-    )
-    # The kind asked for is what is counted, as it is what is listed.
-    went = [(ran, said) for ran, said in rows if not what or said["kind"] == what]
+    ]
     counts: dict[str, int] = {}
     for _, said in went:
         counts[said["how"]] = counts.get(said["how"], 0) + 1
@@ -605,7 +598,7 @@ def listed(
         "offset": offset,
         "limit": limit,
         "counts": counts,
-        # What `flow` finds them by: a chat, of no flow, as `chat` (:func:`found`).
+        # What `flow` finds them by: one recorded for a chat, of no flow, as `chat`.
         "flows": sorted({"chat" if kind(ran) == "chat" else ran.flow for ran in every}),
     }
 
@@ -662,7 +655,8 @@ def usage(runs: Runs, days: int, workspace: str = "") -> dict[str, Any]:
     """
     from hmz.runtime.epic import spending
 
-    said = spending(runs.all(workspace), days)
+    # And what the chats spent, each as of the flow `chat` (Section 4.16.9).
+    said = spending([*runs.all(workspace), *CHATS.all(workspace)], days)
     return {
         "days_back": days,
         "days": [_said(one) for one in said["days"]],
@@ -711,10 +705,10 @@ def _said(one: dict[str, Any]) -> dict[str, Any]:
 
 def _stamp(epic: Path) -> tuple[int, int]:
     """What says a run's record has changed: its size and when it was last written."""
-    from hmz.runtime.epic import JOURNAL
+    from hmz.runtime.epic import journal
 
     with contextlib.suppress(OSError):
-        said = (epic / JOURNAL).stat()
+        said = journal(epic).stat()
         return said.st_mtime_ns, said.st_size
     return 0, 0
 
@@ -738,11 +732,21 @@ def _hmz(workspace: str) -> Any:
 RUNS = Runs(_hmz)
 
 
+def _chats() -> list[Path]:
+    from hmz.runtime.epic import chats
+
+    return chats()
+
+
+#: The chats of every workspace, read as the runs are: what `chat.*` reads (Section 4.25).
+CHATS = Runs(_hmz, _chats, "chat")
+
+
 def _invalid(message: str) -> RpcError:
     return RpcError(Code.INVALID_PARAMS, message)
 
 
-def _within(
+def within(
     call: Call, name: str, default: int, least: int, most: int | None = None
 ) -> int:
     """An integer parameter, its default where absent, refused outside its range."""
@@ -761,15 +765,14 @@ def _workspace_of(call: Call) -> str:
 
 def _list(call: Call) -> dict[str, Any]:
     params = call.params
-    offset = _within(call, "offset", 0, 0)
-    limit = _within(call, "limit", 50, 1, _PAGE)
+    offset = within(call, "offset", 0, 0)
+    limit = within(call, "limit", 50, 1, PAGE)
     return listed(
         RUNS,
         running(),
         workspace=_workspace_of(call),
         status=params.get("status", ""),
         flow=params.get("flow", ""),
-        what=params.get("kind", ""),
         q=params.get("q", ""),
         offset=offset,
         limit=limit,
@@ -850,7 +853,7 @@ def _named(held: Path, name: str) -> Path:
 
 
 def _usage(call: Call) -> dict[str, Any]:
-    return usage(RUNS, _within(call, "days", 30, *_DAYS), _workspace_of(call))
+    return usage(RUNS, within(call, "days", 30, *_DAYS), _workspace_of(call))
 
 
 #: The methods of `runs.*`.

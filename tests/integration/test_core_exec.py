@@ -206,28 +206,31 @@ def test_chat_answers_one_turn_on_stdout_and_works_in_the_project(
     assert start["argv"][start["argv"].index("--model") + 1] == MODEL
     assert start["argv"][start["argv"].index("--effort") + 1] == "high"
     assert (project / "landed.txt").read_text() == "hello there\n"
+    # Written down as a chat, and as no epic of the project.
     epics = Hmz(project).epics
-    (epic,) = epics.all()
-    ran_as = epics.read(epic)
+    (chat,) = epics.chats()
+    assert epics.all() == []
+    ran_as = epics.read(chat)
     assert ran_as is not None
-    assert ran_as.task == "hello there"
+    assert (ran_as.task, ran_as.chat) == ("hello there", True)
     (session,) = ran_as.sessions
     assert session.backend == "claude"
     assert session.ident == start["session"]
 
 
-def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
+def test_a_chat_carried_on_by_its_name_goes_on_in_its_own_record_and_conversation(
     tmp_path: Path, project: Path
 ) -> None:
     first = _chat("-a", AGENT, "hello")
     assert first.returncode == 0, first.stderr
-    (epic,) = Hmz(project).epics.all()
+    (chat,) = Hmz(project).epics.chats()
 
-    then = _chat("--resume", epic.name, "and then?")
+    then = _chat("--resume", chat.name, "and then?")
 
     assert then.returncode == 0, then.stderr
     assert then.stdout.strip() == "did: and then?"
-    assert Hmz(project).epics.all() == [epic]
+    assert Hmz(project).epics.chats() == [chat]
+    assert Hmz(project).epics.all() == []
     # The same conversation, carried on from where the first left it.
     first_start, then_start = started(tmp_path)
     assert (
@@ -241,15 +244,15 @@ def test_a_chat_whose_conversation_is_gone_says_so_and_answers_in_a_new_one(
 ) -> None:
     first = _chat("-a", AGENT, "hello")
     assert first.returncode == 0, first.stderr
-    (epic,) = Hmz(project).epics.all()
-    shutil.rmtree(epic / "sessions")
+    (chat,) = Hmz(project).epics.chats()
+    shutil.rmtree(chat / "sessions")
 
-    then = _chat("--resume", epic.name, "and then?")
+    then = _chat("--resume", chat.name, "and then?")
 
     assert then.returncode == 0, then.stderr
     assert then.stdout.strip() == "did: and then?"
     assert "hmz chat: This conversation could not be carried on" in then.stderr
-    assert Hmz(project).epics.all() == [epic]
+    assert Hmz(project).epics.chats() == [chat]
     assert "--resume" not in started(tmp_path)[-1]["argv"]
 
 

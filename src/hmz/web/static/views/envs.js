@@ -14,6 +14,7 @@
 
 import { hash } from '../api.js'
 import { stays } from '../app.js'
+import { pathOf } from '../chats.js'
 import { empty, fill, h, headline, pathText, problem } from '../dom.js'
 import { watch } from '../epic.js'
 import { hearing, hosted } from '../held.js'
@@ -68,7 +69,7 @@ export function confirmed(text, { yes = 'OK', no = 'Cancel' } = {}) {
 
 /** Why there are no environments to show, as what is followed says it; '' where there may be. */
 function why(seen, name) {
-  if (!name && seen.none) return 'No epic is going here.'
+  if (!name && seen.none) return 'Nothing is going here.'
   if (name && seen.error && !seen.detail) return seen.error.message
   if (name && seen.detail && !seen.detail.held && !seen.going) return 'This epic is not running: its environments are open only while it runs.'
   return ''
@@ -85,8 +86,8 @@ export function mount(root, { query }) {
     const key = JSON.stringify([detail && detail.name, detail && detail.task])
     if (key === titled) return
     titled = key
-    const back = detail ? hash(`/epics/${encodeURIComponent(detail.name)}`) : hash(`/live?${new URLSearchParams(Object.entries(wanted).filter(([, value]) => value))}`)
-    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : 'The epic going')]
+    const back = detail ? hash(pathOf(detail)) : hash(`/live?${new URLSearchParams(Object.entries(wanted).filter(([, value]) => value))}`)
+    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : wanted.slot.startsWith('chat:') ? 'The chat going' : 'The epic going')]
     fill(head, bar({ title: 'Environments', sub }))
   }
   titling(null)

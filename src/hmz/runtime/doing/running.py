@@ -354,7 +354,7 @@ class Chatting:
     handed through here. A chat has no flow, no ref, no params and no budget.
     """
 
-    #: What it is an epic of (Section 3.2.13 of core.md).
+    #: What it is, where a run is of a flow (Section 4.6.4 of daemon.md).
     kind: Literal["chat"] = "chat"
     #: The flow and its ref, which a chat has neither of.
     flow = ""
@@ -409,18 +409,19 @@ class Chatting:
 
     @property
     def epic(self) -> Path | None:
-        """The epic it is written into, once it has opened it: not the one it is to carry on.
+        """The directory it is written into, once it has opened it, held as a run's epic is.
 
-        A chat carried on may yet be refused -- one going on already, an agent it cannot open
-        (Section 8.7.7 of core.md) -- so the epic it names is no epic of its own before then.
+        Not the one it is to carry on: a chat carried on may yet be refused -- one going on
+        already, an agent it cannot open (Section 8.7.7 of core.md) -- so the chat it names
+        is not its own before then.
         """
         if self._end is not None:
-            return self._end.epic
-        return self._chat.epic
+            return self._end.at
+        return self._chat.at
 
     @property
     def names_epic(self) -> bool:
-        """Whether its epic is known once it has one, which a chat's always is."""
+        """Whether its directory is known once it has one, which a chat's always is."""
         return True
 
     def unreadable(self) -> str:
@@ -443,8 +444,9 @@ class Chatting:
     def noticed(self, callback: Callable[[str], None]) -> None:
         """Takes what a run tells of an environment moved, which a chat never has.
 
-        A chat works in its workspace on this machine and nowhere else (Section 8.3.1 of
-        core.md), so there is nothing of Humanize's own to say about where it went.
+        A chat works in its workspace on this machine, or a worktree of it, and nowhere
+        else (Section 8.3.2 of core.md), so there is nothing of Humanize's own to say about
+        where it went.
         """
         del callback
 

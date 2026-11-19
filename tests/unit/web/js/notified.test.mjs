@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { gathered, KEPT, kindOf } from '../../../../src/hmz/web/static/notified.js'
+import { addressOf, gathered, KEPT, kindOf, of } from '../../../../src/hmz/web/static/notified.js'
 import { stored } from '../../../../src/hmz/web/static/stored.js'
 import { fakeIndexedDB } from './helpers.mjs'
 
@@ -59,4 +59,21 @@ test('a daemon never heard of is taken up from where its first subscription stoo
   await kept.from('box', 7)
   await kept.from('box', 9)
   assert.equal(await kept.after('box'), 7)
+})
+
+test('a notice of a chat names it as chat, with no epic, and opens the chat at its own address', () => {
+  const turn = notice(1, { slot: 'chat:ab', epic: '', chat: 'c1' })
+  assert.equal(of(turn), 'c1')
+  assert.equal(addressOf(turn), '#/chats/c1')
+  // Whatever it is told of: a question, a turn done, or that it failed.
+  for (const kind of ['asked', 'listening', 'done', 'failed']) assert.equal(addressOf({ ...turn, kind }), '#/chats/c1')
+  assert.equal(addressOf({ ...turn, daemon: 'box' }), '#/@box/chats/c1')
+  assert.doesNotMatch(addressOf(turn), /epic/)
+})
+
+test('a notice of an epic opens the epic, or, for what waits on a person, the epic going', () => {
+  const ended = notice(2, { chat: '' })
+  assert.equal(of(ended), 'e2')
+  assert.equal(addressOf(ended), '#/epics/e2')
+  assert.equal(addressOf({ ...ended, kind: 'asked' }), '#/live?workspace=%2Fw')
 })

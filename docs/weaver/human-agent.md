@@ -47,7 +47,7 @@ Three things set it apart from a coding agent:
 ## Example: a conversation
 
 `talk` is one person and one agent taking turns, written as a flow. It is not a
-[chat](/user/chat), which the interface opens on: a chat is an epic of its own kind, with no
+[chat](/user/chat), which the interface opens on: a chat is a session of its own, no epic, with no
 flow and no outworlder, and takes the agent's own `/` commands and skills. A flow like `talk`
 is for when the conversation needs a budget, params, or code between its turns; each line you
 type in it answers the outworlder's question.

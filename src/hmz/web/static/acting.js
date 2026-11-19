@@ -181,7 +181,9 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
   const strip = h('div', { class: 'aside-strip', 'data-hmz': 'btw-asides' })
   const body = h('div', { class: 'aside-body' })
   const fresh = h('button', { class: 'chip-btn', type: 'button', 'data-hmz': 'btw-new' }, icon('plus'), unasked)
-  const query = { workspace, ...(epic ? { epic } : {}) }
+  // A chat is named by its id as `chat`, an epic by its name as `epic`.
+  const about = epic ? { [chat ? 'chat' : 'epic']: epic } : {}
+  const query = { workspace, ...about }
 
   /** One aside: `to` is null until its first question fixes the conversation it asks. */
   function aside(id, to = null) {
@@ -211,7 +213,7 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
         tabs()
         watch()
         try {
-          one.said = [...one.said, await call('btw.ask', { question: question.trim(), aside: id, to: one.to, workspace, ...(epic ? { epic } : {}) })]
+          one.said = [...one.said, await call('btw.ask', { question: question.trim(), aside: id, to: one.to, workspace, ...about })]
         } finally {
           Object.assign(one, { question: '', posting: false })
           changed += 1

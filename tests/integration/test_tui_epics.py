@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import tarfile
@@ -14,7 +15,7 @@ from textual import events
 from textual.widgets import OptionList
 
 from hmz.runtime.doing.epics import Epics as Kept
-from hmz.runtime.epic import Epic, Ran, epics, read
+from hmz.runtime.epic import Epic, chats, epics
 from hmz.tui import Humanize
 from hmz.tui.epic import Graph, SessionRead
 from hmz.tui.exomyth import Exomyth
@@ -22,7 +23,6 @@ from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import Does, Epics, Exporting, ImportingEpic
 from tests.integration.doubles_tui import (
     OWN,
-    RUNS,
     SIZE,
     claude_logged,
     folds_fast,
@@ -39,10 +39,14 @@ from tests.integration.doubles_tui import (
     trail,
     typed,
     until,
+    wrapped,
 )
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot
+
+#: A flow some epics here are recorded as being of, which nothing has to find.
+OTHER = "@local/other"
 
 #: Every epic here is held by a daemon of the test's own, in this process.
 pytestmark = pytest.mark.usefixtures("daemon")
@@ -58,19 +62,22 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> 
     return workspace
 
 
-async def chatted(pilot: Pilot[None]) -> None:
-    """Runs chat for one turn, and leaves it with `/clear` to fold away, which ends it."""
-    await opened(pilot)
-    await typed(pilot, "hello")
-    await shows(pilot, "heard hello")
-    await typed(pilot, "/clear")
-    await shows(pilot, f"◉ {RUNS}")
-    workspace = Path.cwd()
-    await until(
-        pilot,
-        lambda: any((read(one) or Ran(one)).how for one in epics(workspace)),
-        "the chat to fold away",
-    )
+async def ran(pilot: Pilot[None]) -> None:
+    """Runs the workspace's own flow on `hello`, to its end."""
+    await set_up_own_flow(pilot)
+    await typed(pilot, f"${OWN} hello")
+    await shows(pilot, "the flow is done")
+
+
+def kept_as_an_epic(workspace: Path, task: str) -> Path:
+    """An epic an earlier hmz kept a chat as: of kind `chat`, and of no flow."""
+    with Epic(OWN, task, workspace) as epic:
+        pass
+    journal = epic.path / "epic.jsonl"
+    began, *rest = journal.read_text(encoding="utf-8").splitlines()
+    said = json.loads(began) | {"kind": "chat", "flow": "", "resumable": False}
+    journal.write_text("\n".join([json.dumps(said), *rest, ""]), encoding="utf-8")
+    return epic.path
 
 
 def listed(app: Humanize) -> list[str]:
@@ -101,15 +108,15 @@ async def test_a_run_ended_is_listed_with_its_task_and_what_it_came_to(
 ) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
-        await chatted(pilot)
+        await ran(pilot)
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
 
         # Who it was run by, what it spent and how long it took, as the web lists it.
-        await shows(pilot, "· chat", "hello · ", " · $0.00 · 200 out · took ")
-        # Apart: an agent's name long enough wraps the row between the two.
-        await shows(pilot, "1 session")
+        await shows(pilot, f"· {OWN}", "hello · ", " · $0.00 · 200 out · took ")
+        # Apart: an agent's name long enough wraps the row between the two, or within this.
+        await wrapped(pilot, "1 session")
         assert listed(app) == [one.name for one in epics(workspace)]
 
 
@@ -117,7 +124,7 @@ async def test_a_run_another_process_holds_is_listed_as_still_going(
     workspace: Path,
 ) -> None:
     # Held as `hmz exec` holds the run it goes with, which no host here speaks for.
-    with Epic("", "elsewhere", workspace, kind="chat"):
+    with Epic(OWN, "elsewhere", workspace):
         async with Humanize().run_test(size=SIZE) as pilot:
             await opened(pilot)
             await typed(pilot, "/epics")
@@ -130,12 +137,12 @@ async def test_a_run_exported_from_epics_is_an_archive_where_it_was_asked_for(
     workspace: Path,
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
-        await chatted(pilot)
+        await ran(pilot)
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "1 session")
+        await wrapped(pilot, "1 session")
         await pilot.press("enter")
-        await shows(pilot, "continue", "export epic")
+        await shows(pilot, "resume epic", "export epic")
 
         await opens(pilot, "export")
         await on(pilot, Exporting)
@@ -177,7 +184,7 @@ async def test_epics_turn_to_this_machine_and_remember_it(workspace: Path) -> No
     # Under home, so that it is said short enough not to be wrapped: `~/elsewhere`.
     elsewhere = Path.home() / "elsewhere"
     elsewhere.mkdir(parents=True)
-    with Epic("", "here", workspace, kind="chat") as here:
+    with Epic(OWN, "here", workspace) as here:
         pass
     with Epic(OWN, "there", elsewhere, resumable=True) as there:
         pass
@@ -247,42 +254,48 @@ async def test_an_epic_opened_from_epics_is_its_graph_its_sessions_and_what_each
         # The button under it, as the graph of the run going has it across its top.
         await pilot.press("tab", "enter")
         await on(pilot, Exomyth)
-        await shows(pilot, "1 session")
+        await wrapped(pilot, "1 session")
         await pilot.press("escape")
         await on(pilot, Graph)
 
 
-async def test_a_chat_has_no_exomyth_to_open(workspace: Path) -> None:
-    async with Humanize().run_test(size=SIZE) as pilot:
-        await chatted(pilot)
-        await typed(pilot, "/epics")
-        await on(pilot, Epics)
-        await shows(pilot, "1 session")
-        await pilot.press("enter")
-        await shows(pilot, "graph", "export epic")
-        assert "Exomyth" not in screen(_app_of(pilot))
-        await opens(pilot, "graph")
-        await on(pilot, Graph)
-        await shows(pilot, "1 session")
-        assert "Exomyth" not in screen(_app_of(pilot))
-
-
-async def test_a_chat_written_down_here_is_continued_rather_than_resumed(
-    workspace: Path,
-) -> None:
-    with Epic("", "hello", workspace, kind="chat") as chat:
-        pass
+async def test_a_chat_is_not_among_the_epics(workspace: Path) -> None:
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
+        await typed(pilot, "hello")
+        await shows(pilot, "heard hello", "◉ done")
+        assert len(chats(workspace)) == 1
+
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await until(pilot, lambda: listed(app) == [chat.path.name], "the chat")
+        await shows(pilot, "no flow has been run in this directory yet")
+        assert listed(app) == []
+
+
+async def test_what_an_earlier_hmz_kept_of_a_chat_is_an_epic_read_and_never_carried_on(
+    workspace: Path,
+) -> None:
+    old = kept_as_an_epic(workspace, "hello")
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        # No chat to carry on, though it reads as one had here.
+        await typed(pilot, "/resume")
+        await shows(pilot, "no other chat has been had here")
+
+        await typed(pilot, "/epics")
+        await on(pilot, Epics)
+        await until(pilot, lambda: listed(app) == [old.name], "the epic")
         await shows(pilot, " · chat")
 
         await pilot.press("enter")
-        await shows(pilot, "continue", "carry the conversation on", "graph")
+        await shows(pilot, "graph", "export epic", "cannot be carried on")
+        assert "continue" not in screen(app)
         assert "resume epic" not in screen(app)
+        assert "Exomyth" not in screen(app)
+        await opens(pilot, "graph")
+        await on(pilot, Graph)
         assert "Exomyth" not in screen(app)
 
 
@@ -303,12 +316,6 @@ async def test_the_epic_going_opens_in_exomyth_from_the_monitor(
         await shows(pilot, trail("hmz", "monitor"), OWN)
         await pilot.press("escape")
         await on(pilot, Monitoring)
-
-
-def _app_of(pilot: Pilot[None]) -> Humanize:
-    app = pilot.app
-    assert isinstance(app, Humanize)
-    return app
 
 
 def _exported(epic: Path, name: str) -> None:
@@ -338,9 +345,9 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
 ) -> None:
     elsewhere = Path.home() / "elsewhere"
     elsewhere.mkdir(parents=True)
-    with Epic("", "here", workspace, kind="chat") as here:
+    with Epic(OWN, "here", workspace) as here:
         pass
-    with Epic("", "there", elsewhere, kind="chat") as there:
+    with Epic(OWN, "there", elsewhere) as there:
         pass
     _exported(here.path, "a.hmzepic")
     _exported(there.path, "b.hmzepic")
@@ -358,7 +365,7 @@ async def test_an_epic_imported_from_epics_is_listed_with_the_cursor_on_it(
         assert _cursor(app) == here.path.name
 
         await pilot.press("enter")
-        await shows(pilot, "continue", "export epic")
+        await shows(pilot, "graph", "export epic")
         await pilot.press("escape")
         await on(pilot, Epics)
 
@@ -382,7 +389,7 @@ async def test_an_export_lands_in_downloads_and_a_file_dropped_on_import_is_read
 ) -> None:
     downloads = Path.home() / "Downloads"
     downloads.mkdir(parents=True)
-    with Epic("", "here", workspace, kind="chat") as here:
+    with Epic(OWN, "here", workspace) as here:
         pass
     archive = downloads / f"{here.path.name}.hmzepic"
     app = Humanize()
@@ -424,13 +431,13 @@ async def test_epics_are_found_by_status_flow_workspace_and_task_a_page_at_a_tim
 ) -> None:
     elsewhere = Path.home() / "elsewhere"
     elsewhere.mkdir(parents=True)
-    chats: list[str] = []
+    many: list[str] = []
     for at in range(50):
-        with Epic("", f"chat {at}", workspace, kind="chat") as chat:
-            chats.append(chat.path.name)
-    with Epic(OWN, "own", workspace) as stopped:
+        with Epic(OWN, f"task {at}", workspace) as one:
+            many.append(one.path.name)
+    with Epic(OTHER, "own", workspace) as stopped:
         stopped.stopped()
-    with Epic(OWN, "there", elsewhere) as there:
+    with Epic(OTHER, "there", elsewhere) as there:
         pass
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
@@ -440,11 +447,11 @@ async def test_epics_are_found_by_status_flow_workspace_and_task_a_page_at_a_tim
         # A page of fifty, newest first, under the rows it is found by.
         await shows(pilot, "status", "all ▾", "1\N{EN DASH}50 of 51", "Older")
         assert rows(app)[:2] == ["status", "flow"]
-        assert listed(app) == [stopped.path.name, *chats[:0:-1]]
+        assert listed(app) == [stopped.path.name, *many[:0:-1]]
 
         await pilot.click("#act-older")
         await shows(pilot, "51\N{EN DASH}51 of 51")
-        assert listed(app) == [chats[0]]
+        assert listed(app) == [many[0]]
         await pilot.click("#act-newer")
         await shows(pilot, "1\N{EN DASH}50 of 51")
 
@@ -454,11 +461,11 @@ async def test_epics_are_found_by_status_flow_workspace_and_task_a_page_at_a_tim
         await picks(pilot, "status", "failed")
         await shows(pilot, "no epic is like that")
         await picks(pilot, "status", "")
-        await picks(pilot, "flow", "chat")
-        await until(pilot, lambda: len(listed(app)) == 50, "the chats")
+        await picks(pilot, "flow", OWN)
+        await until(pilot, lambda: len(listed(app)) == 50, "those of one flow")
 
-        await pilot.press("slash", *"chat 7")
-        await until(pilot, lambda: len(listed(app)) == 5, "the chats of a 7")
+        await pilot.press("slash", *"task 7")
+        await until(pilot, lambda: len(listed(app)) == 5, "the tasks of a 7")
         await pilot.press("escape")
         await until(pilot, lambda: len(listed(app)) == 50, "the search put away")
 

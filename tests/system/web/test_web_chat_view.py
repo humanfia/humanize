@@ -4,8 +4,10 @@ The chat's host is faked on the wire, so the view is drawn with no agent run: it
 title with one menu right after it and, at the far right, a button for each pane beside the
 conversation; what a `$` name that is both a skill and a flow does is picked in that menu; its
 box holds only Add, what is typed and the button that sends, with its chips in a row under it;
-its panel and its box say what they are in plain words. A flow's epic, beside it, keeps the bar,
-the tabs and the words it had. Each in Chromium and in WebKit.
+its panel and its box say what they are in plain words. A chat is no epic: it is read by
+`chat.get` and listed by `chat.list`, at `#/chats/<id>`, and the button of its box stops the
+turn open. A flow's epic, beside it, keeps the bar, the tabs and the words it had, and so does
+an epic an earlier hmz recorded for a chat, which is only read. Each in Chromium and in WebKit.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ _SUB = "s-chat"
 _SLOT = "chat:fake"
 _CHAT = "20261117T000000.000Z-c4a7e0"
 _EPIC = "20261117T000000.000Z-f10e00"
+_OLD = "20250101T000000.000Z-01dc4a"
 _STARTED = {
     "flow": "chat",
     "ref": "chat:chat",
@@ -52,45 +55,56 @@ _STARTED = {
     "began": 100.0,
     "at": 1794879452.0,
 }
-_DETAIL: dict[str, Any] = {
-    "name": _CHAT,
+#: The chat as `chat.list` rows it: going on its host, between turns.
+_ROW: dict[str, Any] = {
+    "id": _CHAT,
+    "title": "hello there",
     "workspace": _FAKE,
-    "slot": _SLOT,
-    "kind": "chat",
-    "flow": "chat",
-    "task": "hello there",
+    "workdir": _FAKE,
+    "agent": "claude/claude-haiku-4-5",
+    "model": "claude-haiku-4-5",
     "began": "2026-11-17T00:00:00.000Z",
-    "ended": None,
-    "how": "running",
-    "agents": [{"name": "Ada", "role": "assistant", "runs": "claude/claude-haiku-4-5"}],
-    "sessions": [],
-    "resumable": True,
-    "spent": None,
-    "held": True,
+    "updated": "2026-11-17T00:00:00.000Z",
+    "state": "going",
+    "slot": _SLOT,
     "asking": [],
+    "permission": "workspace-write",
+    "archived": False,
+    "spent": None,
+}
+#: The chat as `chat.get` answers it.
+_DETAIL: dict[str, Any] = {
+    **_ROW,
+    "at": "/nowhere/chat",
+    "task": "hello there",
+    "prefer": "",
+    "forked": "",
+    "agents": [
+        {
+            "name": "Ada",
+            "role": "assistant",
+            "runs": "claude/claude-haiku-4-5",
+            "backend": "claude",
+            "model": "claude-haiku-4-5",
+            "effort": "",
+            "provider": "",
+        }
+    ],
+    "sessions": [],
+    "earlier": 0,
     "backup": [],
     "backed": {},
-    "at": "/nowhere/epic",
-    "ref": "chat:chat",
-    "envs": [],
-    "used": [],
-    "params": {},
-    "budget": None,
-    "picked_up": "",
-    "earlier": 0,
-    "picks_up": False,
-    "foreign": "",
-    "calls": [],
 }
 #: A flow's epic, written down: what a chat's view must leave as it was.
 _FLOWED: dict[str, Any] = {
-    **_DETAIL,
     "name": _EPIC,
+    "workspace": _FAKE,
     "slot": "",
     "kind": "flow",
     "flow": "swe",
     "ref": "swe",
     "task": "build it",
+    "began": "2026-11-17T00:00:00.000Z",
     "ended": "2026-11-17T00:01:00.000Z",
     "how": "done",
     "held": False,
@@ -98,6 +112,8 @@ _FLOWED: dict[str, Any] = {
         {"name": "Ada", "role": "coder", "runs": "claude/claude-haiku-4-5"},
         {"name": "Bob", "role": "reviewer", "runs": "claude/claude-haiku-4-5"},
     ],
+    "sessions": [],
+    "resumable": True,
     "spent": {
         "cost": 0,
         "output_tokens": 0,
@@ -106,6 +122,33 @@ _FLOWED: dict[str, Any] = {
         "tokens": "0",
         "worked": "0s",
     },
+    "asking": [],
+    "backup": [],
+    "backed": {},
+    "at": "/nowhere/epic",
+    "envs": [],
+    "used": [],
+    "params": {},
+    "budget": None,
+    "picked_up": "",
+    "picks_up": False,
+    "foreign": "",
+    "calls": [],
+}
+#: An epic an earlier hmz recorded for a chat: of the kind `chat` and of no flow, as
+#: `runs.get` answers it, and one that would be picked up were it a flow's.
+_OLDEN: dict[str, Any] = {
+    **_FLOWED,
+    "name": _OLD,
+    "kind": "chat",
+    "flow": "",
+    "ref": "chat:chat",
+    "task": "an old chat",
+    "how": "stopped",
+    "agents": [
+        {"name": "assistant", "role": "assistant", "runs": "claude/claude-haiku-4-5"}
+    ],
+    "picks_up": True,
 }
 #: What the chat's host offers: `ralph` both a skill of its CLI and a flow.
 _ENTRIES = [
@@ -162,14 +205,29 @@ def _wired() -> tuple[_ChatWire, dict[str, str]]:
                 "result": {"sub": _SUB, "workspace": _FAKE, "slot": _SLOT}
             },
             "epic.detach": lambda _: {"result": {}},
+            "chat.get": lambda _: {"result": _DETAIL},
             "runs.get": lambda params: {
-                "result": _FLOWED if params["name"] == _EPIC else _DETAIL
+                "result": _OLDEN if params["name"] == _OLD else _FLOWED
             },
             "chat.commands": lambda _: {"result": {"entries": _ENTRIES, **held}},
             "chat.set": sets,
         }
     )
     return wire, held
+
+
+def _run(turn: str) -> dict[str, Any]:
+    """What the chat's host says of its run: a chat's, named as `chat`, and no epic."""
+    return {
+        "type": "run",
+        "state": "running",
+        "run": 1,
+        "epic": "",
+        "chat": _CHAT,
+        "slot": _SLOT,
+        "turn": turn,
+        **_STARTED,
+    }
 
 
 def _chats(page: Page, wire: _ChatWire) -> None:
@@ -185,15 +243,7 @@ def _chats(page: Page, wire: _ChatWire) -> None:
             "workspace": _FAKE,
             "slot": _SLOT,
         },
-        {
-            "type": "run",
-            "state": "running",
-            "run": 1,
-            "epic": _CHAT,
-            "slot": _SLOT,
-            "turn": "",
-            **_STARTED,
-        },
+        _run(""),
         {"type": "sessions", "run": 1, "open": ["Ada/1"], "working": []},
         {"type": "pending", "pending": []},
         {"type": "started", "seq": 1, "run": 1, **_STARTED},
@@ -483,31 +533,104 @@ _TALL = "all => all.map((one) => Math.round(one.getBoundingClientRect().height))
 
 
 def _listed(*rows: dict[str, Any]) -> dict[str, Any]:
-    """What `runs.list` answers: these rows, as the sidebar and Search read them."""
+    """What `chat.list` answers: these rows, as the sidebar and Search read them."""
     return {
-        "result": {
-            "runs": list(rows),
-            "total": len(rows),
-            "offset": 0,
-            "limit": 60,
-            "counts": {},
-            "flows": [],
-        }
+        "result": {"chats": list(rows), "total": len(rows), "offset": 0, "limit": 60}
     }
+
+
+def test_the_button_of_a_chats_box_stops_the_turn_open(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    refusing: list[bool] = []
+
+    def stops(_: dict[str, Any]) -> dict[str, Any]:
+        if refusing:
+            why = "no turn is open, so there is nothing to stop"
+            return {"error": {"code": 409, "message": why}}
+        return {"result": {}}
+
+    wire.faked["chat.stop"] = stops
+    wire.faked["chat.say"] = lambda _: {"result": {}}
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        _chats(page, wire)
+        # The address names the chat, by its id, and never as an epic.
+        expect(page).to_have_url(re.compile(rf"#/chats/{re.escape(_CHAT)}$"))
+        button = page.locator("[data-hmz=say] .send")
+        say = page.locator("[data-hmz=say] textarea")
+        # Between turns the button sends.
+        wire.event(_SUB, _run("done"))
+        expect(button).to_have_attribute("aria-label", "Send")
+
+        # A turn open: the button stops it, by `chat.stop` of the chat's workspace and
+        # slot, and the chat stays -- its box with it.
+        wire.event(_SUB, _run("running"))
+        expect(button).to_have_attribute("aria-label", "Stop")
+        expect(button).to_have_attribute("data-hmz", "stop")
+        button.click()
+        while not wire.params("chat.stop"):
+            page.wait_for_timeout(50)
+        stopped = wire.params("chat.stop")[0]
+        assert (stopped["workspace"], stopped["slot"]) == (_FAKE, _SLOT)
+        assert not wire.params("epic.stop")
+        expect(say).to_be_visible()
+
+        # What is typed is still said into the turn by Enter, and stops nothing.
+        say.fill("one more thing")
+        say.press("Enter")
+        while not wire.params("chat.say"):
+            page.wait_for_timeout(50)
+        assert wire.params("chat.say")[0]["text"] == "one more thing"
+        assert len(wire.params("chat.stop")) == 1
+
+        # Refused, the box says the daemon's own sentence.
+        refusing.append(True)
+        button.click()
+        expect(page.locator("[data-hmz=say] .composer-said")).to_have_text(
+            "no turn is open, so there is nothing to stop"
+        )
+
+        # The turn done, it sends again.
+        wire.event(_SUB, _run("done"))
+        expect(button).to_have_attribute("aria-label", "Send")
+        expect(button).to_have_attribute("data-hmz", "send")
+
+
+def test_an_epic_recorded_for_a_chat_is_read_as_an_epic_and_never_said_to(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, f"/epics/{_OLD}")
+        bar = page.locator("[data-hmz=bar]")
+        # An epic's bar, its flow said as `chat`; nothing of a chat's view.
+        expect(bar.locator("h1")).to_have_text("an old chat")
+        expect(bar.locator(".bar-sub")).to_contain_text("chat")
+        expect(bar.locator("[data-hmz=chat-menu]")).to_have_count(0)
+        expect(page.locator("[data-hmz=inspector]").get_by_role("tab")).to_have_text(
+            ["Epic", "Aside"]
+        )
+        expect(page).to_have_url(re.compile(rf"#/epics/{re.escape(_OLD)}$"))
+        # Only read: no box to say anything in, and nothing that resumes it.
+        expect(page.locator("[data-hmz=dock] textarea")).to_have_count(0)
+        expect(page.locator("[data-hmz=dock]")).not_to_contain_text("Resume")
+        expect(bar.get_by_role("link", name="Resume")).to_have_count(0)
+        assert not wire.params("chat.get")
 
 
 def test_search_closed_over_a_chat_just_started_leaves_it_as_it_was(
     project: Path, engine: str
 ) -> None:
     wire, _ = _wired()
-    wire.faked["runs.list"] = lambda _: _listed({**_DETAIL, "turn": ""})
+    wire.faked["chat.list"] = lambda _: _listed(_ROW)
     with (
         served() as site,
         opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
     ):
         # Opened as a chat just started is: by its host, the address then naming the chat.
         _chats(page, wire)
-        address = re.compile(rf"#/epics/{re.escape(_CHAT)}/sessions/Ada%2F1$")
+        address = re.compile(rf"#/chats/{re.escape(_CHAT)}$")
         expect(page).to_have_url(address)
         current = page.locator("[data-hmz=sidebar] [data-hmz=epic][aria-current=page]")
         expect(current).to_have_count(1)

@@ -57,7 +57,7 @@ _WRITES = frozenset(
 )
 
 #: The calls to a chat that are writes, which carry an `idem` of their own.
-_CHAT_WRITES = frozenset({"chat.start", "chat.say", "chat.set"})
+_CHAT_WRITES = frozenset({"chat.start", "chat.say", "chat.set", "chat.stop"})
 
 #: The calls to an environment of the epic that are writes, which carry an `idem` too. An
 #: `env.*` call is named as it is, rather than as one more `epic.<do>`: it is a method of its
@@ -314,6 +314,7 @@ class Link:
         prefer: str | None = None,
         permission: str | None = None,
         remember: bool = False,
+        worktree: bool = False,
     ) -> dict[str, Any]:
         """Starts a chat on the chat host this frontend is attached to, or carries one on.
 
@@ -321,14 +322,16 @@ class Link:
           agent: The assistant, as `-a` spells an agent after `<role>=`; "" for a chat
             carried on, to go on with its own.
           task: Its first message.
-          resume: The epic directory of a chat to carry on, or None for a new one.
+          resume: The name of a chat of this workspace to carry on, or None for a new one.
           prefer: `native` or `flow`, this chat's own preference, or None for the setting.
           permission: `read-only`, `workspace-write` or `danger-full-access`, what its
             assistant may touch, or None for `workspace-write`, or what a chat carried on had.
           remember: Whether to remember `agent` as the workspace's chat agent.
+          worktree: Whether a new chat's assistant works in a new git worktree of the
+            workspace.
 
         Returns:
-          The answer, with the chat's `slot` and its `epic`.
+          The answer, with the chat's `slot` and, as `chat`, its name.
         """
         return self.asked(
             {
@@ -339,12 +342,17 @@ class Link:
                 "prefer": prefer,
                 "permission": permission,
                 "remember": remember,
+                "worktree": worktree,
             }
         )
 
     def chat_say(self, text: str) -> dict[str, Any]:
         """Says one line to the chat: its next message, an answer, or "" to end it."""
         return self.asked({"do": "chat.say", "text": text})
+
+    def chat_stop(self) -> dict[str, Any]:
+        """Stops the chat's open turn, leaving the chat between turns."""
+        return self.asked({"do": "chat.stop"})
 
     def chat_commands(self) -> dict[str, Any]:
         """What a line of the chat can start with, and what its `$` names prefer."""

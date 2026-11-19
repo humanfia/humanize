@@ -39,6 +39,7 @@ from tests.integration.doubles_tui import (
     stand_in,
     typed,
     until,
+    wrapped,
 )
 
 if TYPE_CHECKING:
@@ -195,18 +196,17 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
 ) -> None:
     lab = _bare(tmp_path, "lab")
     _targets({"name": "lab", "url": str(lab)}, defaults=("lab",))
+    own_flow(workspace)
     async with Humanize().run_test(size=SIZE) as pilot:
-        await opened(pilot)
-        await typed(pilot, "hello")
-        await shows(pilot, "heard hello")
-        await typed(pilot, "/clear")
-        await shows(pilot, f"◉ {RUNS}")
+        await set_up_own_flow(pilot)
+        await typed(pilot, f"${OWN} hello")
+        await shows(pilot, "the flow is done")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
         assert _log(lab) == []  # no policy, so only by hand
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "1 session")
+        await wrapped(pilot, "1 session")
         await pilot.press("enter")
         await on(pilot, Does)
         await opens(pilot, "upload")
