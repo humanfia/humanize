@@ -1,9 +1,9 @@
 """Every chat on this machine as it wrote itself down: `chat.*` by name (Section 4.25 of daemon.md).
 
 A chat is no epic (Section 8 of core.md): it is listed, read, renamed, forked, archived,
-backed up and deleted here, by its name, off its own record. What is said to a chat going on a host --
-`chat.start`, `chat.say`, `chat.commands`, `chat.set` and `chat.stop` -- is the daemon's own
-to carry to that host (:mod:`hmz.daemon.methods`).
+backed up and deleted here, by its name, off its own record. What is said to a chat going on
+a host -- `chat.start`, `chat.say`, `chat.commands`, `chat.set` and `chat.stop` -- is the
+daemon's own to carry to that host (:mod:`hmz.daemon.methods`).
 
 Nothing of Ai-chan's is a chat here (Section 4.25.5.6): her conversations are kept as chats
 are, are listed by `aichan.list` alone, and are only read here, by `chat.get`.
@@ -240,7 +240,7 @@ def _rename(call: Call) -> dict[str, Any]:
     return _row(ran)
 
 
-def _archives(archived: bool) -> Handler:  # noqa: FBT001 -- which of the two methods it is
+def _archives(*, archived: bool) -> Handler:
     def sets(call: Call) -> dict[str, Any]:
         from hmz.runtime.epic import note
 
@@ -290,8 +290,8 @@ METHODS: Mapping[str, Handler] = {
     "chat.get": _get,
     "chat.rename": _rename,
     "chat.fork": _fork,
-    "chat.archive": _archives(True),
-    "chat.unarchive": _archives(False),
+    "chat.archive": _archives(archived=True),
+    "chat.unarchive": _archives(archived=False),
     "chat.backup": _backup,
     "chat.delete": _delete,
 }
