@@ -109,7 +109,7 @@ your checkout:
 hmz chat --worktree -a claude/claude-opus-5:high "Try the other parser."
 ```
 
-From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
+In `hmz web` it is the **Worktree** box under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
 a new worktree of the repository holding the directory, detached at its `HEAD` and on no
 branch, under [`envs/`](/reference/files#environments) in Humanize's home, and the agent works
 there in place of the directory. The chat is still a chat of the directory it was started in:
@@ -296,6 +296,9 @@ talking in it, a chat can be:
 | backed up now | `chat.backup` | uploads it to its [backup targets](/user/backups), as an epic is backed up: **Upload** in a chat's menu in `hmz web` |
 | deleted | `chat.delete` | removes its record and the sessions kept with it, for good: Humanize cannot bring it back. Refused while the chat is going -- a host holds it, between turns included -- so delete it once it has folded away. No epic and no [worktree](#worktree) is removed |
 
+In `hmz web` each is in the chat's menu, and the archived chats of a directory are listed in
+its settings: see [Managing a chat](/user/web#managing-a-chat).
+
 In `hmz`, type `/resume` in a chat and press <kbd>m</kbd> on a chat of the list -- the one on
 the screen is there too, ticked -- for its menu:
 
@@ -319,7 +322,7 @@ From the shell, [`hmz chat`](#from-the-shell) does the same by id: `--list` (wit
 for the archived ones), `--rename`, `--fork`, `--archive`, `--unarchive` and `--delete`.
 There is no `/rename`, `/fork` or `/archive` in a chat: a `/` line that is not one of
 [Humanize's own](#what-a-line-means) belongs to the agent's CLI, which may have a command of
-that name. `hmz web` has no button for renaming, forking, archiving or deleting yet.
+that name.
 
 ## Sessions a harness had of its own {#harness-sessions}
 

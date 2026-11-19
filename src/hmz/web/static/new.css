@@ -367,3 +367,28 @@
     max-width: 14ch;
   }
 }
+
+/* A box ticked under the box of a new chat, drawn as the chips beside it are. */
+.composer-under .desk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 6px;
+  font: 500 12.5px var(--sans);
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.composer-under .desk-check input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.composer-under .desk-check.disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
