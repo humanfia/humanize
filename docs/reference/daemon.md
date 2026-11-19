@@ -513,25 +513,42 @@ moved or removed.
 | --- | --- | --- | --- |
 | `chat.harness.list` | `workspace`, `offset` (`0`), `limit` (`50`, at most `200`) | `sessions` (harness session rows, last written first), `total`, `offset`, `limit` | — |
 | `chat.harness.get` | `workspace`, `harness`, `session`, `trace` (`false`) | the harness session row; with `trace`, also `trace`, as `chat.get` answers it, of that session and the sub-agents it started | 404 |
-| `chat.harness.adopt` | `workspace`, `harness`, `session`, `agent` (an agent of that harness; without it, the harness at the model the session last ran on) | `chat`, the new chat's name | 409 `A session of <harness> cannot be continued in a chat.`; 409 saying why, for an `agent` of another harness, a session that says no model where no `agent` is given, or files that cannot be copied; 404 |
+| `chat.harness.adopt` | `workspace`, `harness`, `session`, `agent` (an agent of that harness; without it, the harness at the model the session last ran on) | `chat`, the new chat's name | 409 `A session of <harness> cannot be continued in a chat.`, for one whose row is not `continuable`; 409 saying why, for an `agent` of another harness, a session that says no model where no `agent` is given, or files that cannot be copied; 404 |
 
 404 is `There is no <harness> session <session> of <workspace>.`
 
 A harness session row holds `id` (the id its harness gave it), `harness`, `title` (the first
 line said in it, cut at 240 characters; `""` where the head of its log gives none),
-`workspace`, `model` (the model it last ran on, `""` where its log gives none), `began` and
-`updated` (when its log was last written).
+`workspace`, `model` (the model it last ran on, `""` where its log gives none), `began`,
+`updated` (when its log was last written) and `continuable` (whether `chat.harness.adopt`
+takes it). For `opencode`, `mimo` and `agy` the title is the first line of the one the CLI
+keeps for the session -- for an `agy` conversation with none, of its preview -- and for
+`opencode` and `mimo` `updated` is when its row says it was last updated. An `agy` row says no
+model.
 
-- **Which are listed.** Those of `claude`, `codex`, `grok`, `pi`, `omp` and `qwen`, each only
-  where it is installed on the daemon's machine, that worked in the workspace's directory.
-  Left out: a sub-agent's or a fork's thread; every session a chat or an epic of this machine
-  opened, by harness and session id -- which is every one Humanize ran, and every one already
-  adopted; and a harness whose home is inside Humanize's own. A harness whose home cannot be
-  read lists nothing and fails nothing. The other harnesses keep their sessions in a database
-  shared by every session, or cannot carry one on from a copy, and are not listed.
+- **Which are listed.** Those of the twelve CLIs below, each only where it is installed on
+  the daemon's machine, that worked in the workspace's directory. Left out: a sub-agent's or a
+  fork's thread; every session a chat or an epic of this machine opened, by harness and
+  session id -- which is every one Humanize ran, and every one already adopted; and a harness
+  whose home is inside Humanize's own. A harness whose home cannot be read lists nothing and
+  fails nothing.
 - **What listing costs.** At most the first and the last 128 KiB of each session's log; a log
-  that has not changed since it was last read is not opened again. `chat.harness.get` with
-  `trace` reads one session whole.
+  that has not changed since it was last read is not opened again. A database that holds every
+  session of a CLI is opened read-only (`mode=ro`) and asked one query, of the rows that say
+  its sessions and never of what was said in one, and not again until it, or its write-ahead
+  log, has been written. Neither the database nor its log is written; as any reader of a
+  SQLite database in write-ahead mode does, the query marks its read in the database's `-shm`
+  lock index while it runs. `chat.harness.get` with `trace` reads one session whole.
+
+| CLI | Listed and read from | Where it worked is read from | Continuable |
+| --- | --- | --- | --- |
+| `claude`, `codex`, `grok`, `pi`, `omp`, `qwen` | a log per session | the log, or the directory it is in | yes |
+| `kimi` | `sessions/*/session_*/agents/main/wire.jsonl` | `workDir` of the session's `state.json` | no: a session is found through indexes every session shares (`session_index.jsonl`, `workspaces.json`), which a copy of one session's files does not hold |
+| `mcode` | `v2/sessions/…/*-session_<id>/messages.jsonl` | the session's record in `v2/sqlite/runtime-state.sqlite`, read-only | no: `mcode` has no fork to carry a copy on with |
+| `dsh` | `sessions/*/<id>/session.v<N>.jsonl`, the newest generation; a compressed log (`.jsonl.zstd`, the SDK's own default) is not read, so not listed | the log's first line | no: `dsh` has no fork |
+| `opencode`, `mimo` | the table `session` of `opencode.db` / `mimocode.db`, read-only | `directory` of the row | no: a session is rows of the one database every session shares, with no file of its own to copy |
+| `agy` | the table `conversation_summaries` of `conversation_summaries.db`, read-only, and `conversations/<id>.db` | `workspace_uris` of the row | no: `agy` has no fork |
+| `cursor-agent` | not listed: a chat is kept in Cursor's agent store, content-addressed blobs that nothing here reads ([no trace is read from it](/reference/tracing) either) | — | — |
 - **`chat.harness.list` answers whatever [`harness_sessions`](/reference/settings#harness-sessions)
   says.** That setting is whether the web page and the TUI *show* them.
 - **`chat.harness.adopt`** makes a new chat of that workspace from a copy of the session: the

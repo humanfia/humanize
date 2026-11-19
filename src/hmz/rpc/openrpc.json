@@ -11028,7 +11028,8 @@
           "workspace",
           "model",
           "began",
-          "updated"
+          "updated",
+          "continuable"
         ],
         "properties": {
           "id": {
@@ -11051,6 +11052,9 @@
           },
           "updated": {
             "type": "string"
+          },
+          "continuable": {
+            "type": "boolean"
           },
           "trace": {}
         }

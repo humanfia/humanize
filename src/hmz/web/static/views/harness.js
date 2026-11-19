@@ -1,7 +1,8 @@
 // A session a harness had of its own, which Humanize did not run (Section 3.5.21 of
 // protocol/web.md): what was said in it, read by `chat.harness.get` and only read, with one way
 // on -- `Continue in chat`, which copies it into a chat of this workspace by `chat.harness.adopt`
-// and opens that chat. Nothing is said to the session itself, and nothing of it is changed.
+// and opens that chat -- offered only for a session its row says is `continuable`, and otherwise
+// said not to be. Nothing is said to the session itself, and nothing of it is changed.
 
 import { call, hash, refresh } from '../api.js'
 import { acting, fill, h, headline, problem, when } from '../dom.js'
@@ -39,7 +40,8 @@ export function mount(root, { parts, query }) {
       fill(head, bar({ title: headline(one.title || one.id), sub }))
       const read = one.trace.filter((each) => each.actions.length)
       fill(box, read.length ? saidTraced(...read.map((each) => ({ ...each, label: each.key }))) : h('p', { class: 'dim' }, 'Its logs held nothing said.'))
-      fill(dock, h('p', { class: 'dock-note harness-note', 'data-hmz': 'harness-note' }, h('span', {}, `Read-only. Continuing copies it into a chat here; the ${one.harness} session stays as it is.`), adopt))
+      const note = one.continuable ? `Read-only. Continuing copies it into a chat here; the ${one.harness} session stays as it is.` : `Read-only. A session of ${one.harness} cannot be continued in a chat.`
+      fill(dock, h('p', { class: 'dock-note harness-note', 'data-hmz': 'harness-note' }, h('span', {}, note), one.continuable ? adopt : null))
     },
     (error) => !gone && fill(box, problem(error)),
   )

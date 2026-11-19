@@ -53,7 +53,7 @@ CONVERSATIONS = "conversations"
 
 #: What says which workspace a conversation was opened in, and what says the rest.
 _OPENED = "cache/last_conversations.json"
-_SUMMARIES = "conversation_summaries.db"
+SUMMARIES = "conversation_summaries.db"
 
 #: Field 9 of a step's metadata, by the names the corpus says they hold.
 _COUNTS = {
@@ -174,7 +174,7 @@ def _opened(home: pathlib.Path) -> dict[str, str]:
 
 def _summaries(home: pathlib.Path) -> dict[str, dict[str, Any]]:
     """What the summaries database says about each conversation, or nothing at all."""
-    path = home / _SUMMARIES
+    path = home / SUMMARIES
     if not path.is_file():
         return {}
     try:

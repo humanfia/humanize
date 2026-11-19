@@ -106,6 +106,8 @@ With **Harness sessions** on in [Settings › General](#settings), a folder also
 chats and epics, the [sessions each CLI had of its own](/user/chat#harness-sessions) there: quieter
 rows that end in the CLI's name. One opens to be read, with **Continue in chat** under it, which
 copies it into a chat of that folder and opens the chat; the CLI's own session is never changed.
+A session of a CLI [that carries none on](/user/chat#harness-sessions) is read all the same, and
+says under it that it cannot be continued in a chat.
 They count among the rows a folder shows before **Show N more**, are listed only while the list is
 grouped by folder, and are not among what **Search** finds.
 

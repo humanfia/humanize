@@ -12,6 +12,7 @@ are stood in for (:class:`Chats`).
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 import threading
 from typing import TYPE_CHECKING, Any
@@ -593,6 +594,55 @@ async def test_a_harness_session_is_offered_on_resume_where_set_and_goes_on_as_a
     ]
     assert log.read_bytes() == before
     assert heard(workspace) == ["first", "more"]
+
+
+def _opencode_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workspace: Path
+) -> Path:
+    """A session of an `opencode` that is only a name on PATH, in the database it keeps."""
+    stub = tmp_path / "bin" / "opencode"
+    stub.write_text("#!/bin/sh\n")
+    stub.chmod(0o755)
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "share"))
+    store = tmp_path / "share" / "opencode" / "opencode.db"
+    store.parent.mkdir(parents=True)
+    with sqlite3.connect(store) as held:
+        held.execute(
+            "create table session (id, parent_id, directory, title, time_created, "
+            "time_updated)"
+        )
+        held.execute(
+            "insert into session values ('ses_1', null, ?, 'The word is plum', 1, 2)",
+            (str(workspace.resolve()),),
+        )
+    held.close()
+    return store
+
+
+async def test_a_harness_session_that_cannot_be_continued_says_so_and_is_refused(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _opencode_session(tmp_path, monkeypatch, workspace)
+    before = store.read_bytes()
+    Settings().harness_sessions = True
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+
+        await typed(pilot, "/resume")
+        await shows(
+            pilot,
+            "The word is plum",
+            "opencode session, read-only: cannot be continued in a chat",
+        )
+        await on(pilot, Resumes)
+        assert rows(app) == ["harness:opencode:ses_1"]
+        await opens(pilot, "harness:opencode:ses_1")
+
+        await shows(pilot, "A session of opencode cannot be continued in a chat.")
+
+    assert chats(workspace) == []
+    assert store.read_bytes() == before
 
 
 async def test_prefer_is_refused_an_argument_it_does_not_take(workspace: Path) -> None:

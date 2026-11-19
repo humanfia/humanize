@@ -315,6 +315,8 @@ def _harnessed(call: Call) -> tuple[Path, list[Found]]:
 
 def _harness_row(one: Found, workspace: Path) -> dict[str, Any]:
     """One harness session as a harness session row (Section 4.25.8.3 of daemon.md)."""
+    from hmz.runtime.doing import adopting
+
     return {
         "id": one.ident,
         "harness": one.harness,
@@ -323,6 +325,7 @@ def _harness_row(one: Found, workspace: Path) -> dict[str, Any]:
         "model": one.model,
         "began": one.began,
         "updated": one.updated,
+        "continuable": one.harness in adopting.CARRIED,
     }
 
 
@@ -370,7 +373,7 @@ def _harness_adopt(call: Call) -> dict[str, Any]:
     from hmz.runtime.doing import adopting
 
     harness = str(call.params["harness"])
-    if harness not in adopting.HARNESSES:
+    if harness not in adopting.CARRIED:
         raise RpcError(
             Code.CONFLICT, f"A session of {harness} cannot be continued in a chat."
         )

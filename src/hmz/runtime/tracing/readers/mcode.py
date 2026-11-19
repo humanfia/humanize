@@ -47,7 +47,7 @@ _LOGS = "v2/sessions/*/*/*/*-session_*/messages.jsonl"
 _NAMED = "-session_"
 
 #: The database a session's record is kept in, under its home.
-_DATABASE = "v2/sqlite/runtime-state.sqlite"
+DATABASE = "v2/sqlite/runtime-state.sqlite"
 
 
 def collect(
@@ -69,10 +69,10 @@ def collect(
         One session per log, each standing alone: what a subagent of its did is
         in the log of the session that started it.
     """
-    places = _workspaces(home)
+    places = workspaces(home)
     collected: list[Session] = []
     for path in sorted(home.glob(_LOGS)):
-        ident = _ident(path.parent.name)
+        ident = decoded(path.parent.name)
         if not ident or not wanted(sessions, f"mcode:{ident}"):
             continue
         said = places.get(ident)
@@ -95,7 +95,7 @@ def collect(
     return collected
 
 
-def _ident(directory: str) -> str:
+def decoded(directory: str) -> str:
     """The session a directory is named for, or "" for one that is named for none."""
     _, found, encoded = directory.partition(_NAMED)
     if not found or not encoded:
@@ -106,14 +106,14 @@ def _ident(directory: str) -> str:
         return ""
 
 
-def _workspaces(home: pathlib.Path) -> dict[str, str]:
+def workspaces(home: pathlib.Path) -> dict[str, str]:
     """Which workspace each session was opened in, as the database it is resumed out of says.
 
     Read only, and nothing at all where there is no database or it cannot be read: a trace is
     not worth failing over a database being written to.
     """
     held: dict[str, str] = {}
-    database = home / _DATABASE
+    database = home / DATABASE
     if not database.is_file():
         return held
     with contextlib.suppress(sqlite3.Error):

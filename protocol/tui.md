@@ -432,8 +432,10 @@ with `resume` the chat's id), the interface saying so.
 then, the pick list MUST hold, after the chats, the harness sessions of this directory (Section
 8.11 of [CORE]) as this machine's daemon lists them (`chat.harness.list`, Section 4.25.8 of
 [DAEMON]), each by its title, or by its id where it has none, with a line that names its harness
-and says it is read-only. Picking one MUST continue it as a chat (`chat.harness.adopt`) and MUST
-then go to that chat as Section 7.12.5.2 states for a chat no host holds; a refusal MUST be said.
+and says it is read-only and, where its row is not `continuable`, that it cannot be continued in a
+chat. Picking one MUST continue it as a chat (`chat.harness.adopt`) and MUST then go to that chat
+as Section 7.12.5.2 states for a chat no host holds; a refusal MUST be said, and MUST be all that
+picking a session that is not `continuable` does.
 
 **7.12.5.5** `m` on a chat of the pick list MUST open its menu (Section 15.2.7) with these rows,
 each done by this machine's daemon (Section 4.25.7 of [DAEMON]): `rename`, which asks for a title
