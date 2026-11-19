@@ -12,6 +12,7 @@ import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuButton, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
+import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, epicRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { bell, readOf, unreadOn } from './notifications.js'
@@ -341,7 +342,8 @@ export function mountSidebar(root, context, where) {
       }
       // An epic, else a chat by that id; one that cannot be read is no row.
       call('runs.get', { name })
-        .then(epicRow, () => call('chat.get', { chat: name }).then((one) => chatRow(one, running)))
+        // An archived chat is listed nowhere but among its workspace's archived chats.
+        .then(epicRow, () => call('chat.get', { chat: name }).then((one) => (one.archived ? null : chatRow(one, running))))
         .then(told, () => told(null))
     }
     return rows
@@ -349,7 +351,7 @@ export function mountSidebar(root, context, where) {
 
   function draw() {
     // A menu open in the list, or from a row of it, stands until it is closed: the list is drawn again then.
-    if (list.querySelector('.popover, [aria-haspopup][aria-expanded=true]')) {
+    if (list.querySelector('.popover, [aria-haspopup][aria-expanded=true], .title-edit')) {
       stale = true
       return
     }
@@ -618,7 +620,8 @@ export function mountSidebar(root, context, where) {
           ),
           more,
         )
-    menuOn(row, () => epicMenu(run), 'row-menu')
+    // A chat is renamed in its row, where its title stands.
+    menuOn(row, () => epicMenu(run, { rename: () => retitling(row.querySelector('a'), run) }), 'row-menu')
     menuButton(more, row)
     return h('li', { class: 'side-item', 'data-epic': run.name }, row, shown ? [tree(run, here, parts), reading(run)] : null)
   }
@@ -760,8 +763,11 @@ function marked() {
   return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': 'Unread', title: 'Unread' })
 }
 
-/** What can be done to one chat or epic, from wherever it is listed. */
-export function epicMenu(run) {
+/**
+ * What can be done to one chat or epic, from wherever it is listed; `rename` renames a chat
+ * where the menu is opened, and is offered only where given.
+ */
+export function epicMenu(run, { rename = null } = {}) {
   const base = hash(pathOf(run))
   // Going, whether a host holds it or another process does -- `hmz exec`, say.
   const going = run.held || run.how === 'running'
@@ -776,6 +782,8 @@ export function epicMenu(run) {
   const said = wording(chat)
   const pinned = marksHere(PINNED).has(run.name)
   const unseen = unreadHere(run.name)
+  // What a chat alone offers: renamed, forked, archived and deleted (chat-actions.js).
+  const acts = chat ? chatActions(run, { rename }) : {}
   return [
     { head: run.task.split('\n')[0] },
     { label: 'Open', glyph: 'open', href: base },
@@ -790,6 +798,7 @@ export function epicMenu(run) {
         mark(UNREAD, run.name, !unseen)
       },
     },
+    acts.rename,
     '-',
     chat ? null : { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
     resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
@@ -798,6 +807,7 @@ export function epicMenu(run) {
       : run.flow === 'chat'
         ? null
         : { label: said.like, glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
+    acts.fork,
     '-',
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
     { label: said.task, glyph: 'copy', act: () => copy(run.task, said.tasked) },
@@ -806,6 +816,9 @@ export function epicMenu(run) {
     { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run) },
     run.held && !chat ? '-' : null,
     run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => working('Stopping', ask({ workspace: run.workspace, slot: run.slot }, 'stop')).then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
+    chat ? '-' : null,
+    acts.archive,
+    acts.delete,
   ]
 }
 

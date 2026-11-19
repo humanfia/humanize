@@ -116,8 +116,8 @@ draws at a given moment.
 **3.2.5** The **daemon bar** is the area at the foot of the sidebar that names the daemon shown.
 
 **3.2.6** A **view** is what the page draws beside the sidebar: a new epic, an epic, a session, a
-log, an Exomyth, the flows, or the Environments view of an epic (Section 3.17). A **dialog** is what the page draws over a view: search, download, or
-settings.
+log, an Exomyth, the flows, or the Environments view of an epic (Section 3.17). A **dialog** is what the page draws over a view: search, download,
+settings, or the deleting of a chat.
 
 **3.2.7** An **address** is the part of the page's URL that names one view or dialog, of one daemon.
 
@@ -368,6 +368,11 @@ for a chat). The menu of a chat MUST offer a new chat like it in place of a new 
 task its first message and its name its ID, MUST upload it with `chat.backup`, and MUST NOT say
 `epic`, `flow` or `task`.
 
+**3.5.12.1** The menu of a chat MUST also offer, in the order of Section 3.5.12: `Rename` after
+`Mark as unread` or `Mark as read`, where the chat's title is drawn where the menu was opened
+(Section 3.6.6.23); `Fork` after a new chat like it (Section 3.6.6.24); and last, `Archive` -- or
+`Unarchive`, for an archived chat -- and then `Delete` (Sections 3.6.6.25 and 3.6.6.26).
+
 **3.5.13** Each group MUST show a bounded number of its epics at first, and with them the epic the
 page is on, and MUST end with `Show N more`, `N` the number of its epics read and not shown, while
 there is one; pressed, it MUST show them, and every epic listed in that group from then on. The
@@ -441,6 +446,9 @@ by `Last updated` (3.5.17.2), a chat that rests MUST stand by its `updated`.
 [DAEMON]) MUST be listed, found and drawn as any other epic, at `#/epics/<name>`, with its flow
 said as `chat`. The page MUST NOT draw it as a chat, and MUST NOT offer to resume it, to start a
 new epic like it, or to say anything in it.
+
+**3.5.20.4** The sidebar MUST leave out every archived chat (Section 8.10.3 of [CORE]), a pinned
+one included.
 
 **3.5.21** While the setting `harness_sessions` is `true` (Section 3.4.14 of [FILES]), and only
 then, the sidebar, grouped by folder, MUST list in each workspace's group, after its chats and
@@ -591,8 +599,8 @@ skill and a flow does -- `Use the skill` or `Start the flow` -- with a mark on t
 showing whether it comes from the settings file or the chat (`chat.set`, Section 4 of [DAEMON]).
 The page MUST NOT draw that choice on the bar itself.
 
-**3.6.6.10** The bar of a chat MUST hold, at its left, the chat's title as a button that opens
-the chat's `Details`, and right after it one menu, `More options`; and at its far right the buttons
+**3.6.6.10** The bar of a chat MUST hold, at its left, the chat's title as a button that renames
+the chat (Section 3.6.6.23), and right after it one menu, `More options`; and at its far right the buttons
 of Section 3.6.6.19, with which the bar MUST end (Section 3.16.1). The menu MUST offer what the
 chat's right-click menu offers (Section 3.4.4.1), the chat's `Environment` (Section 3.6.6.4) where
 its host has one, and the choice of Section 3.6.6.9. The bar MUST NOT say how the chat stands
@@ -687,6 +695,33 @@ last carried on with `chat.get` and `trace`; it MUST NOT read a chat with `runs.
 `#/chats/<id>` and MUST name none of its sessions; the address of a chat's host,
 `#/live?workspace=…&slot=…`, MUST become `#/chats/<id>` once the host names the chat. A side
 question about a chat (Section 3.6.3.4) MUST name it to `btw.list` and `btw.ask` as `chat`.
+
+**3.6.6.23** Renaming a chat MUST put, in place of its title -- on the chat's bar, or in its row of
+the sidebar where `Rename` was chosen from that row's menu -- a field holding the title.
+<kbd>Enter</kbd> in the field, and leaving it, MUST record what it holds as the chat's title
+(`chat.rename`, Section 4.25.7 of [DAEMON]), unless that is the title it had or white space alone;
+<kbd>Escape</kbd> MUST leave the title as it was. The chat's bar and its row MUST then say the new
+title. The sidebar MUST NOT draw over the field while it is open.
+
+**3.6.6.24** `Fork` MUST fork the chat (`chat.fork`) and MUST then open the new chat. A refusal of
+`chat.fork`, of `chat.rename`, of `chat.archive` or of `chat.unarchive` MUST be said in the
+daemon's own sentence, and MUST leave the page where it was.
+
+**3.6.6.25** `Archive` MUST archive the chat (`chat.archive`) and `Unarchive` put it back
+(`chat.unarchive`). An archived chat MUST still open at its address and be read there, and its bar
+MUST then hold `Unarchive`, before the buttons of Section 3.6.6.19.
+
+**3.6.6.26** `Delete` MUST open a dialog (Section 3.4.2.1) that names the chat by its title, says
+that deleting it permanently removes the chat's record and the sessions kept with it, that this
+cannot be undone, and that a worktree the chat worked in is left on disk, and offers `Cancel` and
+`Delete`, the focus on `Cancel`. `Delete` there MUST delete the chat (`chat.delete`) and close the
+dialog; where the chat deleted is the one in view, the page MUST then open a new chat in its place.
+A refusal MUST be said in the dialog in the daemon's own sentence, and the dialog MUST stay open.
+`Cancel`, <kbd>Escape</kbd> and a deletion done MUST go back to what the dialog was opened over,
+another dialog included.
+
+**3.6.6.27** `Details` MUST say where a chat's assistant works (`workdir`), beside the chat's
+workspace, where the two differ (Section 8.3.13 of [CORE]).
 
 #### 3.6.7. An epic written down
 
@@ -1014,13 +1049,20 @@ pixels high holding the heading `New chat` at its left; the box of Section 3.6.6
 foot of the page, in the column a conversation is read in; and between them nothing but the list
 of Section 3.8.23. It MUST NOT draw a greeting, a mark, or a box in the middle of the page.
 
-**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, `Environment`
-and then the workspace control of Section 3.8.2.1, and at its right the chips of Section 3.8.19 and
+**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, `Environment`,
+then the workspace control of Section 3.8.2.1 and then `Worktree` (Section 3.8.22.1), and at its
+right the chips of Section 3.8.19 and
 Section 3.8.20 and then `Usage`, drawn as the chip of Section 3.6.6.17 is, which MUST open what the
 workspace picked has used (Section 3.11). `Environment` MUST name the daemon the page shows and MUST open a menu of Local and
 every remote daemon this browser keeps, with the one shown marked, and `New environment`, which
 opens the daemons' settings (Section 3.13); picking another daemon MUST switch the page to it
 (Section 3.4.2.4), on the same form.
+
+**3.8.22.1** `Worktree` MUST be a checkbox, clear until the user ticks it; ticked, the chat MUST be
+started with `worktree` `true` (Section 4.25.1.8 of [DAEMON]). It MUST be disabled, clear, and say
+why, under `No folder` and where `paths.list` finds `.git` neither in the workspace picked nor in
+any directory over it; where that cannot be told it MUST stay enabled, and a refusal of the start
+MUST be said as any other is (Section 3.4.4.9).
 
 **3.8.23** The form of a new chat MUST list, in the middle of the page, in a list named `Next
 steps` under no heading, each chat marked `asking` (Section 3.5.10) among the 200 newest chats of
@@ -1129,6 +1171,8 @@ what it finds, once listed, and MUST NOT open a line of what was listed before.
 as a combobox names the option of its list, and that list MUST hold nothing but what can be moved
 to and the groups it stands in.
 
+**3.10.14** `Search` MUST NOT list an archived chat.
+
 ### 3.11. Settings
 
 #### 3.11.1. Structure
@@ -1188,6 +1232,12 @@ than one, and downloads the epic picked as an import does, opening it.
 **3.11.2.11** `Workspace` MUST show what a workspace was last set up with, for any workspace the
 daemon serves, and MUST let the user forget it; forgetting a workspace where no epic ran MUST remove
 it from the sidebar.
+
+**3.11.2.11.1** `Workspace` MUST list, under `Archived chats`, the archived chats of the workspace
+picked (`chat.list` with `archived`), newest first, each by its title and when it was last
+written, with `Unarchive`, which MUST put it back among the others (`chat.unarchive`) and take it
+off this list, and `Delete`, which MUST open the dialog of Section 3.6.6.26. It MUST say so where
+there is none.
 
 **3.11.2.12** `Usage` MUST show what the epics spent by day and by flow, of every workspace or of
 one, looking back 7, 30, 90 or 365 days.

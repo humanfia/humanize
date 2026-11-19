@@ -88,3 +88,60 @@ export function pathOf(run) {
   if (run.kind === 'harness') return `/harness/${encodeURIComponent(run.harness)}/${encodeURIComponent(run.id)}?workspace=${encodeURIComponent(run.workspace)}`
   return `/${run.kind === 'chat' ? 'chats' : 'epics'}/${encodeURIComponent(run.name)}`
 }
+
+/** The most characters a chat's title holds (Section 4.25.7.2 of protocol/daemon.md). */
+export const TITLE_MOST = 240
+
+/**
+ * A title as typed, as `chat.rename` records one: its runs of white space single spaces, none
+ * at either end, cut at the most a title holds -- '' for one of white space alone, which is no
+ * title.
+ */
+export function titled(typed) {
+  return String(typed || '').replace(/\s+/g, ' ').trim().slice(0, TITLE_MOST)
+}
+
+/** Where a chat's assistant works, where that is not its workspace -- its worktree -- else ''. */
+export function worksIn(chat) {
+  return chat.workdir && chat.workdir !== chat.workspace ? chat.workdir : ''
+}
+
+/** What deleting a chat does, as it is said before it is done (Section 8.10.4 of protocol/core.md). */
+export const DELETING = 'This permanently removes the chat’s record and the sessions kept with it, and cannot be undone. A worktree it worked in is left on disk.'
+
+/** Why a new chat cannot be started in a worktree, by what is known of its folder. */
+export const NO_WORKTREE = { none: 'A worktree needs a folder', plain: 'This folder is not a git repository' }
+
+/**
+ * Whether a folder is in a git repository, as far as the daemon's listing of directories tells:
+ * `true` where it or a directory over it holds `.git` -- a directory, or the file a worktree
+ * keeps in its place, which is refused as no directory -- `false` where each is refused as not
+ * there, and `null` where that cannot be told: a folder not read, or a `.git` refused otherwise.
+ *
+ * @param {(at: string) => Promise<{whole: string}>} list Lists a directory, as `paths.list` does.
+ * @param {string} folder The folder.
+ */
+export async function inRepository(list, folder) {
+  let whole = ''
+  try {
+    whole = (await list(folder)).whole
+  } catch {
+    return null
+  }
+  if (!whole.startsWith('/')) return null
+  // The folder and every directory over it, the root last.
+  const over = []
+  for (let at = whole.replace(/\/+$/, ''); ; at = at.slice(0, at.lastIndexOf('/'))) {
+    over.push(at)
+    if (!at) break
+  }
+  const held = await Promise.all(
+    over.map((at) =>
+      list(`${at}/.git`).then(
+        () => true,
+        (error) => (/not a directory/i.test(error.message) ? true : /no such file/i.test(error.message) ? false : null),
+      ),
+    ),
+  )
+  return held.includes(true) ? true : held.includes(null) ? null : false
+}

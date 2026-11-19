@@ -25,7 +25,8 @@ import { PANES, chipNamed, paneOf, standing as standingSaid, stoppable, toggled,
 import { ask, chatAsk, follow } from '../held.js'
 import { chatPermission } from '../chips/permission.js'
 import { composer as composed } from '../composer.js'
-import { pathOf } from '../chats.js'
+import { archiving, retitling } from '../chat-actions.js'
+import { pathOf, worksIn } from '../chats.js'
 import { chatting as isChat, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, choice, dragged, keep, kept, menu, section as heading, sidePanel, submenu, tabbed } from '../shell.js'
@@ -269,21 +270,31 @@ export function mount(root, { parts, query }) {
       // The bar ends with `View options`, as a session's does: Ai-chan is offered in it.
       const top = bar({ title: headline(detail.title), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)], aichan: false })
       top.classList.add('chat-bar')
-      // The title is a button, as a session's is: it opens what the chat is.
+      // The title is a button, as a session's is: pressed, it is edited where it stands.
       const named = top.querySelector('.bar-title')
-      const title = h('button', { class: 'chat-title', type: 'button', 'data-hmz': 'chat-title', onclick: () => showPane('epic') })
+      const title = h('button', { class: 'chat-title', type: 'button', 'data-hmz': 'chat-title', onclick: retitle })
       named.querySelector('h1').replaceChildren(title)
       named.querySelector('.bar-sub').replaceWith(h('div', { class: 'menu-holder' }, more))
       fill(head, top)
-      menuOn(named, () => epicMenu({ ...chatNow.detail, held: chatNow.going }))
+      menuOn(named, () => epicMenu({ ...chatNow.detail, held: chatNow.going }, { rename: retitle }))
       drawn['head-chat'] = undefined
     })
-    region('head-chat', [detail.title], () => {
+    region('head-chat', [detail.title, Boolean(detail.archived)], () => {
       const title = head.querySelector('.chat-title')
-      title.title = detail.title
+      // Said whole where pointed at, and as what pressing it does to whoever cannot see it.
+      title.dataset.tip = detail.title
+      title.setAttribute('aria-label', `${detail.title}, rename`)
       title.textContent = headline(detail.title)
+      // An archived chat is still read, and is put back among the others from its bar.
+      head.querySelector('[data-hmz=chat-unarchive]')?.remove()
+      if (detail.archived) head.querySelector('.bar-actions').prepend(h('button', { class: 'btn small', type: 'button', 'data-hmz': 'chat-unarchive', onclick: () => archiving(chatNow.detail, false).catch((error) => toast(error.message, 6000)) }, 'Unarchive'))
     })
     sayPanes()
+  }
+
+  /** Renames the chat in front where its title stands on its bar. */
+  function retitle() {
+    retitling(head.querySelector('.chat-title'), chatNow.detail)
   }
 
   /**
@@ -975,7 +986,7 @@ export function mount(root, { parts, query }) {
     const env = going ? chatEnv() : null
     const base = hash(pathOf(detail))
     const made = []
-    for (const one of epicMenu({ ...detail, held: going })) {
+    for (const one of epicMenu({ ...detail, held: going }, { rename: retitle })) {
       if (!one || one.head || one.href === base) continue
       if (one === '-') {
         if (made.length && made.at(-1).tagName !== 'HR') made.push(h('hr'))
@@ -1341,6 +1352,7 @@ const FACTS = {
   name: ['epic', 'Chat ID'],
   at: ['written to', 'Saved at'],
   workspace: ['workdir', 'Folder'],
+  workdir: ['', 'Works in'],
   began: ['', 'Started'],
   agents: ['agents', 'Model'],
   used: ['envs', 'Environment'],
@@ -1362,6 +1374,8 @@ function facts(detail, chat = false) {
     h('dd', {}, pathed(detail.at)),
     h('dt', {}, said('workspace')),
     h('dd', {}, pathed(detail.workspace)),
+    // A chat started in a worktree works there, in place of its folder.
+    chat && worksIn(detail) ? [h('dt', {}, said('workdir')), h('dd', { 'data-hmz': 'chat-workdir' }, pathed(worksIn(detail)))] : null,
     // When a chat began is said here: its bar says its title alone.
     chat && detail.began ? [h('dt', {}, said('began')), h('dd', { title: when(detail.began) }, ago(detail.began))] : null,
     h('dt', {}, said('agents')),

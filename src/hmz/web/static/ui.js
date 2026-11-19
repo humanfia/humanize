@@ -38,7 +38,7 @@ export function menuButton(button, of) {
     if (opener === button) return close()
     const box = button.getBoundingClientRect()
     const { items, kind } = menus.get(of)
-    open(items, box.left, box.bottom + 4, kind)
+    open(items, box.left, box.bottom + 4, kind, box.top - 4)
     if (!opened) return
     opener = button
     button.setAttribute('aria-expanded', 'true')
@@ -75,13 +75,13 @@ export function menuOf(el, back = null) {
 
 let toasting = null
 
-/** Says one short thing at the foot of the page, for a moment. */
-export function toast(said) {
+/** Says one short thing at the foot of the page, for a moment -- or for as long as is asked. */
+export function toast(said, ms = 1600) {
   toasting?.remove()
   toasting = h('div', { class: 'toast', role: 'status' }, said)
   document.body.append(toasting)
   const mine = toasting
-  setTimeout(() => mine.remove(), 1600)
+  setTimeout(() => mine.remove(), ms)
 }
 
 let opened = null
@@ -108,7 +108,7 @@ function readable(target) {
   return Boolean(target.closest('input, textarea, select, [contenteditable], .selectable, .thread, .prose, pre, code, dd, .said, .error, .note, .bar-sub .mono'))
 }
 
-function open(items, x, y, kind = '') {
+function open(items, x, y, kind = '', over = y) {
   close()
   const made = items().filter((one) => one !== null && one !== false && one !== undefined)
   if (!made.length) return
@@ -135,9 +135,17 @@ function open(items, x, y, kind = '') {
   // Kept on the screen, as a desktop app's menu is: flipped back from an edge it would cross,
   // and no taller than the window, where it scrolls.
   menu.style.setProperty('--room', `${innerHeight - 8}px`)
-  const { width, height } = menu.getBoundingClientRect()
+  let { width, height } = menu.getBoundingClientRect()
   menu.style.left = `${Math.max(4, Math.min(x, innerWidth - width - 4))}px`
-  menu.style.top = `${Math.max(4, Math.min(y + height > innerHeight - 4 ? y - height : y, innerHeight - height - 4))}px`
+  // Opened by a button, it stands under it or over it, whichever has the room -- or the more
+  // room, and then no taller than that -- and never on it: pressed again, the button shuts it.
+  const under = innerHeight - 4 - y
+  const down = over === y || height <= under || under >= over - 4
+  if (over !== y) {
+    menu.style.setProperty('--room', `${down ? under : over - 4}px`)
+    height = menu.getBoundingClientRect().height
+  }
+  menu.style.top = `${Math.max(4, Math.min(!down || y + height > innerHeight - 4 ? over - height : y, innerHeight - height - 4))}px`
   opened = menu
   menu.querySelector('button, a')?.focus()
 }

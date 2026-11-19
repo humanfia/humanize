@@ -7,7 +7,7 @@
 // (views/new.js), which the sidebar opens beside this one.
 
 import { call, daemon, given, hash, poll } from '../api.js'
-import { chatRow, pathOf } from '../chats.js'
+import { NO_WORKTREE, chatRow, inRepository, pathOf } from '../chats.js'
 import { covered, focusing, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { modelChip } from '../chips/model.js'
@@ -33,6 +33,19 @@ export function mount(root, { query }) {
     load('')
   }, { none: true, plain: true })
   const permission = permissionChip({ up: true })
+  // Whether the chat works in a new git worktree of its folder, as a chat app's session may:
+  // not on offer with no folder, nor in one known to be no git repository.
+  const inWorktree = h('input', { type: 'checkbox', 'data-hmz': 'new-worktree' })
+  const worktree = h('label', { class: 'desk-check' }, inWorktree, h('span', {}, 'Worktree'))
+  /** Says whether a worktree is on offer, and why not where it is not. */
+  const offered = (why) => {
+    inWorktree.disabled = Boolean(why)
+    if (why) inWorktree.checked = false
+    worktree.classList.toggle('disabled', Boolean(why))
+    if (why) worktree.dataset.tip = why
+    else delete worktree.dataset.tip
+  }
+  offered(scratch ? NO_WORKTREE.none : '')
   // Before a chat there is no catalogue to complete from: `@` names a file of the folder.
   // A chat of no folder works in a directory made as it starts, which holds nothing to name yet.
   const files = folderFiles(() => (scratch ? '' : workspace))
@@ -47,7 +60,7 @@ export function mount(root, { query }) {
     submit: (task) => start(task),
     complete: files.complete,
     // So Add offers the files alone: what `/`, `$` and `!` start is the chat's host's to say.
-    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new/chat').node, place.node], right: [permission.node, usage] },
+    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new/chat').node, place.node, worktree], right: [permission.node, usage] },
   })
   box.node.dataset.hmz = 'start'
   const steps = h('section', { class: 'next-steps', 'aria-label': 'Next steps', 'data-hmz': 'next-steps', hidden: true })
@@ -135,6 +148,12 @@ export function mount(root, { query }) {
       if (!workspace) workspace = await firstWorkspace()
       if (mine !== loading) return
       used()
+      offered(scratch ? NO_WORKTREE.none : '')
+      // Told apart from what the agent is read by: a folder no repository is found over offers none.
+      if (!scratch)
+        inRepository((at) => call('paths.list', { at }), workspace).then((found) => {
+          if (mine === loading && found === false) offered(NO_WORKTREE.plain)
+        })
       // The address of a dialog opened over it is the dialog's own.
       if (!covered()) stays({ workspace: scratch ? '' : workspace, scratch: scratch ? '1' : '' })
       const [, settings] = await Promise.all([readBackends(workspace), call('settings.get', { workspace }).catch(() => null)])
@@ -168,7 +187,7 @@ export function mount(root, { query }) {
       throw new Error('Pick a model for the chat.')
     }
     // A new chat's own host, beside every epic here; the agent is remembered for the next.
-    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), remember: !scratch, scratch })
+    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), worktree: inWorktree.checked && !inWorktree.disabled, remember: !scratch, scratch })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 

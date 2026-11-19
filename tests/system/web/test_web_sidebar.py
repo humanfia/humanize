@@ -536,11 +536,15 @@ def test_a_row_is_pinned_and_marked_unread_from_its_menu(engine: str) -> None:
                 "Open",
                 "Pin",
                 "Mark as unread",
+                "Rename",
                 "New chat like it",
+                "Fork",
                 "Copy link",
                 "Copy first message",
                 "Copy ID",
                 "Upload",
+                "Archive",
+                "Delete",
             ]
         )
         menu.get_by_role("menuitem", name="Pin").click()
