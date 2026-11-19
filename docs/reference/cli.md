@@ -33,7 +33,7 @@ hmz internal <command> [<args>...]     processes Humanize spawns for itself
 | *(none)* | `opens` | Opens the [terminal interface](/reference/tui). |
 | [`exec`](#hmz-exec) | `_exec` | `run an agent flow in this directory` |
 | [`chat`](#hmz-chat) | `_chat` | `say one message to an agent in this directory` |
-| [`web`](#hmz-web) | `_web` | `open this directory's runs in a browser on this machine` |
+| [`web`](#hmz-web) | `_web` | `open this machine's epics in a browser on it` |
 | [`daemon`](#hmz-daemon) | `_daemon` | `run, reach, pair and install this machine's daemon` |
 | [`relay`](#hmz-relay) | `_relay` | `relay daemons and the devices that reach them` |
 | [`update`](#hmz-update) | `_update` | `update hmz to its newest release` |
