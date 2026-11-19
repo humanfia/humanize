@@ -8,7 +8,7 @@ run as an account it has no way in for of its own: an OpenAI key, somebody's Ope
 router, a model on Bedrock, Vertex or Azure.
 
 One gateway is one `litellm` proxy, run by this Python as a process of its own, on a port of
-loopback nothing else holds and under a master key nothing else knows -- which is what the CLI
+loopback it took for itself and under a master key nothing else knows -- which is what the CLI
 is handed instead of the account. The account goes to the proxy alone, in a file only this user
 can read, in a directory taken away with the gateway: never on a command line, and never in the
 CLI's environment. It is started where the CLI runs, by the agent driving that CLI
@@ -29,7 +29,6 @@ import os
 import secrets
 import shutil
 import signal
-import socket
 import subprocess
 import sys
 import tempfile
@@ -108,8 +107,13 @@ _STOP = 5.0
 _TAIL = 20
 
 #: What a gateway's readiness is asked at: what it serves, which it answers under its master
-#: key alone -- so a gateway that answers is this one, and not another on a port it let go of.
+#: key alone.
 _READY_AT = "/v1/models"
+
+#: The port a proxy is told to listen on: whichever the system hands it as it binds. One chosen
+#: for it beforehand is anybody's by the time it has imported litellm, and whoever took it is
+#: who the CLI would be pointed at.
+_ANY = "0"
 
 #: The backends pointed at the gateway with `/v1` after it, and what that is: theirs take a
 #: base URL with the API's version in it and add only the operation, as OpenAI's SDKs do --
@@ -332,11 +336,15 @@ def argued(profile: backends.Profile, env: Mapping[str, str]) -> tuple[str, ...]
     return tuple(held)
 
 
-def _free() -> int:
-    """A TCP port on loopback that nothing is listening on as this is asked."""
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return int(probe.getsockname()[1])
+def _listens(pid: int) -> int:
+    """The TCP port a process is listening on, or 0 for one that is on none, or is gone."""
+    import psutil
+
+    with contextlib.suppress(psutil.Error):
+        for held in psutil.Process(pid).net_connections(kind="tcp"):
+            if held.status == psutil.CONN_LISTEN:
+                return int(held.laddr.port)
+    return 0
 
 
 class Gateway:
@@ -363,8 +371,8 @@ class Gateway:
         """
         self.account = provider
         self.key = f"sk-{secrets.token_urlsafe(32)}"
-        self.port = _free()
-        self.url = f"http://127.0.0.1:{self.port}"
+        self.port = 0
+        self.url = ""
         argv = [sys.executable, "-m", "litellm.proxy.proxy_cli"]
         if not gatewayable():
             raise subprocess.CalledProcessError(
@@ -386,7 +394,7 @@ class Gateway:
         descriptor = os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as written:
             json.dump(said, written)
-        argv += ["--config", config, "--host", "127.0.0.1", "--port", str(self.port)]
+        argv += ["--config", config, "--host", "127.0.0.1", "--port", _ANY]
         self._argv = argv
         env = dict(os.environ)
         # Its catalogue of models and prices as it shipped rather than fetched as it starts,
@@ -435,6 +443,8 @@ class Gateway:
     def _waits(self, seconds: float) -> None:
         """Waits for the proxy to answer, under its own key -- which only this one takes.
 
+        Asked where the proxy itself is listening, which is read off its process: the port is
+        the system's to choose as the proxy binds, so nothing else can be the one that answers.
         Asked directly rather than through whatever proxy this process's environment names: the
         gateway is on loopback, and a proxy elsewhere has never heard of it.
 
@@ -442,27 +452,35 @@ class Gateway:
           subprocess.CalledProcessError: If it stops first, or does not answer in time.
         """
         until = time.monotonic() + seconds
-        asked = urllib.request.Request(  # noqa: S310 -- loopback, at the port chosen here
-            f"{self.url}{_READY_AT}", headers={"Authorization": f"Bearer {self.key}"}
-        )
         while True:
             status = self._proc.poll()
             if status is not None:
                 raise subprocess.CalledProcessError(
                     status or 1, self._argv, "", self._why("stopped before it was up")
                 )
-            # Loopback, at the port this process chose: http, whatever the audit rule fears.
-            with (
-                contextlib.suppress(OSError, urllib.error.URLError),
-                _DIRECT.open(asked, timeout=1) as answer,
-            ):
-                if answer.status == 200:  # noqa: PLR2004 -- OK
-                    return
+            if not self.port and (port := _listens(self._proc.pid)):
+                self.port = port
+                self.url = f"http://127.0.0.1:{port}"
+            if self.port and self._answers():
+                return
             if time.monotonic() > until:
                 raise subprocess.CalledProcessError(
                     1, self._argv, "", self._why(f"was not up after {seconds:g}s")
                 )
             time.sleep(0.2)
+
+    def _answers(self) -> bool:
+        """Whether the proxy answers what it serves, under its own key."""
+        # Loopback, at the port the proxy holds: http, whatever the audit rule fears.
+        asked = urllib.request.Request(  # noqa: S310
+            f"{self.url}{_READY_AT}", headers={"Authorization": f"Bearer {self.key}"}
+        )
+        with (
+            contextlib.suppress(OSError, urllib.error.URLError),
+            _DIRECT.open(asked, timeout=1) as answer,
+        ):
+            return bool(answer.status == 200)  # noqa: PLR2004 -- OK
+        return False
 
     def _why(self, what: str) -> str:
         """What the proxy last said, with every secret it holds struck out."""

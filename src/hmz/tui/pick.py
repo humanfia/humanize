@@ -930,6 +930,15 @@ class Sheet[T](ModalScreen[T | None]):
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
 
+    def _up(self) -> bool:
+        """Whether this sheet is one of the interface's still, with what it draws on.
+
+        A sheet closed is off the interface's stack at once, loses its widgets after that,
+        and is detached only once they are gone: what waited on something off the event loop
+        asks this before it draws, since being attached says nothing of the widgets.
+        """
+        return self.is_attached and self in self._interface().screen_stack
+
     def _opened_from(self) -> Screen[Any] | None:
         """The menu this one was opened from, or None for one opened from the prompt."""
         stack = self._interface().screen_stack
@@ -12274,7 +12283,7 @@ class Epics(Sheet[Doing]):
         self._fill()
         ran = await asyncio.to_thread(self._read, every=every)
         # Gone while it read: closed, or an epic opened from it, it has nothing to show.
-        if every == self._every and self.is_attached:
+        if every == self._every and self._up():
             self._ran = ran
             self._reading = False
             self._was, self._from = was, start
@@ -13146,7 +13155,7 @@ class RemoteEpics(Sheet[Doing]):
             self._ran = []
         self._reading = False
         # Gone while it read -- an epic started from it closes it -- it has nothing to show.
-        if not self.is_attached:
+        if not self._up():
             return
         self._fill()
         self._settles_focus()
@@ -13258,7 +13267,13 @@ class RemoteEpics(Sheet[Doing]):
         return next((one for one in self._ran if one.get("name") == self._was), None)
 
     def _fill(self) -> None:
-        """Puts the epics up, the first a search found or the one the cursor was on."""
+        """Puts the epics up, the first a search found or the one the cursor was on.
+
+        Nothing where the sheet was closed while that daemon was asked something: what it
+        answered has nothing left to be put up on.
+        """
+        if not self._up():
+            return
         self.query_one("#about", Label).update(
             f"Every epic {escape(self._daemon)} holds and every chat going there, newest "
             "first: workspace, task, status, and session count."

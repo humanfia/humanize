@@ -119,6 +119,9 @@
           "$ref": "#/components/errors/TooLarge"
         },
         {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
           "$ref": "#/components/errors/ProtocolMismatch"
         }
       ],
@@ -597,7 +600,7 @@
           "name": "slot",
           "schema": {
             "type": "string",
-            "pattern": "^((chat|exec):[0-9a-f]{0,32})?$"
+            "pattern": "^((chat|exec):[0-9a-f]{0,32}|ai:[0-9a-f]{1,32})?$"
           }
         }
       ],
@@ -865,7 +868,7 @@
           "name": "slot",
           "schema": {
             "type": "string",
-            "pattern": "^((chat|exec):[0-9a-f]{0,32})?$"
+            "pattern": "^((chat|exec):[0-9a-f]{0,32}|ai:[0-9a-f]{1,32})?$"
           }
         },
         {
@@ -4170,6 +4173,7 @@
         },
         {
           "name": "to",
+          "required": true,
           "schema": {
             "type": "string"
           }
@@ -7005,6 +7009,9 @@
         },
         {
           "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
         }
       ],
       "x-hmz-reach": {
@@ -7071,6 +7078,9 @@
         },
         {
           "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
         }
       ],
       "x-hmz-reach": {
@@ -7318,6 +7328,9 @@
           "$ref": "#/components/errors/NotPaired"
         },
         {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
           "$ref": "#/components/errors/NotFound"
         }
       ],
@@ -7376,6 +7389,9 @@
         },
         {
           "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
         },
         {
           "$ref": "#/components/errors/NotFound"

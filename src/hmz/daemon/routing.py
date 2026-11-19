@@ -46,6 +46,9 @@ _TICK = 0.5
 #: How long a daemon nobody has reached waits for somebody to.
 _GRACE = 60.0
 
+#: How long `pair.create` waits for the listeners still being opened to have their routes.
+_OPENING = 5.0
+
 #: How long a daemon whose last host and session have gone waits before it goes as well.
 _LINGER = 2.0
 
@@ -137,8 +140,17 @@ class Router:
         return self.identity.fingerprint
 
     def routes(self) -> list[str]:
-        """The routes of every listener open, as a pairing code carries them."""
-        return [one.route for one in self.listeners if one.route]
+        """The routes of every listener open, as a pairing code carries them.
+
+        A listener opens on a thread of its own, so one the daemon began to open a moment
+        ago, as it started, is waited for, for a while: answered at once, a code would be
+        refused for want of a route that is on its way.
+        """
+        listeners = self.listeners
+        until = time.monotonic() + _OPENING
+        for one in listeners:
+            one.settled(max(0.0, until - time.monotonic()))
+        return [one.route for one in listeners if one.route]
 
     def capabilities(self) -> list[str]:
         """What this daemon offers of what a session may ask about: `webrtc`, where it is."""

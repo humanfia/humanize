@@ -194,8 +194,11 @@ def _prefaced(
 #: Putting `coganchor` on a target, in its `/bin/sh`, which is all a machine with nothing of
 #: Humanize on it is sure to have. A build already there under its name is touched and left:
 #: it is named by its digest, and rewriting it would be rewriting a program a live session may
-#: be running. One that is not is read off the input into `<path>.<pid>` -- two sessions
-#: shipping to one machine at once being the ordinary case -- checked to be as long as what
+#: be running. Touched with `-c`, which sets its time by its name: a plain `touch` opens it
+#: for writing to do that, and for as long as it is open Linux refuses to run it (`Text file
+#: busy`) -- to a session which found it there a moment earlier. One that is not is read off
+#: the input into `<path>.<pid>` -- two sessions shipping to one machine at once being the
+#: ordinary case -- checked to be as long as what
 #: was sent, so that a link cut half-way leaves nothing under the name, made `0700` and moved
 #: into place. Then every other build and half-written copy nobody has touched in `{days}`
 #: whole days and more goes, and so does any `humanize-*.pyz` archive an earlier Humanize,
@@ -203,7 +206,7 @@ def _prefaced(
 #: side's directory, the build's name there and its length in bytes.
 _SHIPPING = (
     'c="{cache}"; mkdir -p "$c" || exit 1; p="$c/{name}"; '
-    'if [ -f "$p" ]; then touch "$p"; else '
+    'if [ -f "$p" ]; then touch -c "$p"; else '
     't="$p.$$"; '
     'if cat > "$t" && n=$(wc -c < "$t") && [ $n -eq {size} ] && chmod 700 "$t" '
     '&& mv -f "$t" "$p"; then :; else rm -f "$t"; '

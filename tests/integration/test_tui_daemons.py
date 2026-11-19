@@ -470,6 +470,48 @@ async def test_what_is_asked_of_another_daemon_is_said_while_it_is_under_way(
         following.set()
 
 
+async def test_another_daemons_epics_left_while_they_are_read_have_nothing_to_show(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None
+) -> None:
+    del asking
+    stand_in(tmp_path, monkeypatch)
+
+    class Slow(_Gated):
+        """Another daemon, holding the list as well until it is let go."""
+
+        def call(self, method: str, *args: Any, **kwargs: Any) -> object:
+            self.gate("asked").set()
+            self.gate("left").wait(PATIENCE)
+            return super().call(method, *args, **kwargs)
+
+    held = Slow()
+    monkeypatch.setattr(pick, "remotes", lambda: held)
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+
+    def emptied(sheet: RemoteEpics) -> None:
+        """Lets the list go once the sheet is taken apart, and not yet taken off."""
+        if sheet.query("#about"):
+            asyncio.get_running_loop().call_soon(emptied, sheet)
+        else:
+            held.gate("left").set()
+
+    try:
+        async with Humanize().run_test(size=SIZE) as pilot:
+            await opened(pilot)
+            await typed(pilot, "/epics @box")
+            sheet = await on(pilot, RemoteEpics)
+            await until(pilot, held.gate("asked").is_set, "the list to be asked for")
+            # A sheet closed loses what it draws on before it is off the interface: the
+            # list read by then has nothing to be put up on, and nothing comes of it.
+            emptied(sheet)
+            await pilot.press("escape")
+            await until(pilot, held.gate("left").is_set, "the sheet to be taken apart")
+            await until(pilot, lambda: not sheet.workers, "the read to end")
+            await until(pilot, lambda: len(pilot.app.screen_stack) == 1, "the prompt")
+    finally:
+        held.close()
+
+
 @pytest.fixture
 def ssh_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None) -> None:
     """The stand-in `claude` here, and an ssh config in the test's own home naming two hosts."""

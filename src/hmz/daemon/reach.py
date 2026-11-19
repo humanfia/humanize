@@ -205,6 +205,11 @@ class Held:
                 scope = "daemon"
             if params.get("slot") in ("chat:", "exec:"):
                 writes = True
+        if method == "epic.aside" and any(
+            params.get(one) for one in ("runs", "recall", "kept", "cwd")
+        ):
+            # An agent and a directory the call chooses, which the host confines by no reach.
+            scope = "never"
         if method == "flows.check":
             from hmz.runtime.flowing.loading import parse
             from hmz.runtime.flowing.verses import pathed

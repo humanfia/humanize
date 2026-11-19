@@ -220,7 +220,8 @@ the socket; the setting's are opened and closed as it changes.
 | `easytier:<name>` | The EasyTier entry of that name joined, its virtual address `10.144.144.1` reaching port 41817 of the loopback. |
 
 A listener's route -- `0.0.0.0` named by this machine's host name, port `0` by the port taken --
-is what `pair.create` puts in a code. A `relay:` and a `webrtc:` listener of one relay share
+is what `pair.create` puts in a code; one still being opened, as the daemon has just started, is
+waited for up to 5 s. A `relay:` and a `webrtc:` listener of one relay share
 one registration there, which takes both kinds of join. One that cannot be opened is written to
 `daemon.log` and tried again after 1 s, doubling to 60 s.
 
@@ -619,7 +620,9 @@ A session over a scoped link carries its conversation's **reach**: `scope`, `wor
 | `never` | pairing, devices, credentials, the network's secrets, `aichan.*` | nobody |
 
 A call with no `workspace` where the method names one is held as `daemon`, and so is
-`epic.attach` with `scratch`. `flows.check` of a flow named by a path (`./x`, `/x`, `~/x`) or a
+`epic.attach` with `scratch`. `epic.aside` with `runs`, `recall`, `kept` or `cwd` is held as
+`never`: it opens a session of an agent and in a directory the call chooses, which no reach
+confines, so Ai-chan asks a side question only of a session of the last epic (`key`). `flows.check` of a flow named by a path (`./x`, `/x`, `~/x`) or a
 repository (`git+...`) is held as a write, since checking a flow loads it in the daemon's own
 process: a `read-only` Ai-chan checks a flow only by the name it is on offer under. A call is refused 403, with no
 effect, by the first that holds:
