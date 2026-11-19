@@ -873,6 +873,32 @@ async def test_what_is_not_a_block_or_a_face_is_refused() -> None:
         await view.spawn("<p>")
 
 
+async def test_a_context_past_its_limit_is_refused_whoever_is_there() -> None:
+    big = [Markdown("x" * (16 << 20))]
+    there = OutworlderView(
+        Source(FakeOutworlder("yes"), made=False, node=None), None, "r"
+    )
+    away = OutworlderView(
+        Source(FakeOutworlder(away=True), made=False, node=None), None, "r"
+    )
+    nobody = OutworlderView(Source(None, made=False, node=None), None, "r")
+    made = OutworlderView.new()
+    hooked = OutworlderView.new()
+
+    async def answer(params: Any) -> OutworlderRunHookResult:
+        del params
+        return OutworlderRunHookResult(output="yes")
+
+    hooked.on_outworlder_run(answer)
+
+    for view in (there, away, nobody, made, hooked):
+        session = await view.spawn()
+        with pytest.raises(ValueError, match="past 16 MiB"):
+            await view.run("x", session=session, context=big)
+        with pytest.raises(ValueError, match="past 16 MiB"):
+            await view.show(big, session=session)
+
+
 async def test_an_outworlder_is_shown_context_only_where_somebody_looks() -> None:
     person = FakeOutworlder()
     view = OutworlderView(Source(person, made=False, node=None), None, "r", "lead")
