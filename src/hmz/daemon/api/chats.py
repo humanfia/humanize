@@ -1,12 +1,12 @@
 """Every chat on this machine as it wrote itself down: `chat.*` by name (Section 4.25 of daemon.md).
 
-A chat is no epic (Section 8 of core.md): it is listed, read, renamed, forked, archived and
-deleted here, by its name, off its own record. What is said to a chat going on a host --
+A chat is no epic (Section 8 of core.md): it is listed, read, renamed, forked, archived,
+backed up and deleted here, by its name, off its own record. What is said to a chat going on a host --
 `chat.start`, `chat.say`, `chat.commands`, `chat.set` and `chat.stop` -- is the daemon's own
 to carry to that host (:mod:`hmz.daemon.methods`).
 
 Nothing of Ai-chan's is a chat here (Section 4.25.5.6): her conversations are kept as chats
-are and are listed by `aichan.list` alone.
+are, are listed by `aichan.list` alone, and are only read here, by `chat.get`.
 """
 
 from __future__ import annotations
@@ -215,7 +215,14 @@ def _list(call: Call) -> dict[str, Any]:
 
 
 def _get(call: Call) -> dict[str, Any]:
-    ran = _named(call)
+    name = str(call.params["chat"])
+    try:
+        ran = CHATS.named(name)
+    except RpcError:
+        if name not in _hers():
+            raise
+        # Her conversation an earlier hmz began, which is kept as an epic.
+        ran = runs.RUNS.named(name)
     said = detail(ran, hosted().get(ran.name), going=CHATS.going(ran))
     if call.params.get("trace") is True:
         said["trace"] = CHATS.traced(ran)
@@ -259,6 +266,11 @@ def _fork(call: Call) -> dict[str, Any]:
         raise RpcError(Code.CONFLICT, runs.reason(str(why))) from why
 
 
+def _backup(call: Call) -> dict[str, Any]:
+    to: list[Any] | None = call.params.get("to")
+    return runs.backup(CHATS, _named(call).name, to)
+
+
 def _delete(call: Call) -> dict[str, Any]:
     from hmz.runtime.epic import going
 
@@ -280,5 +292,6 @@ METHODS: Mapping[str, Handler] = {
     "chat.fork": _fork,
     "chat.archive": _archives(True),
     "chat.unarchive": _archives(False),
+    "chat.backup": _backup,
     "chat.delete": _delete,
 }

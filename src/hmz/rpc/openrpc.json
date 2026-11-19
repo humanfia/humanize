@@ -9939,6 +9939,80 @@
       "x-hmz-writes": true
     },
     {
+      "name": "chat.backup",
+      "summary": "Back a chat up to its targets, or to those named.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "chat",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "to",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "backup",
+        "schema": {
+          "type": "object",
+          "required": [
+            "queued"
+          ],
+          "properties": {
+            "queued": {}
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
+    },
+    {
       "name": "chat.delete",
       "summary": "Remove a chat and the sessions it kept, for good.",
       "paramStructure": "by-name",
