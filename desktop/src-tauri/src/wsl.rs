@@ -1,12 +1,13 @@
-//! On Windows hmz lives in WSL: everything of hmz's, uv's or the login shell's is started
-//! through `wsl.exe`, in the default distribution, from its user's home.
+//! On Windows hmz lives in WSL: everything of hmz's, uv's or the login shell's, and the `ssh`
+//! of a `stdio:ssh` route, is started through `wsl.exe`, in the default distribution, from its
+//! user's home.
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::os::windows::process::CommandExt;
 use std::process::Command;
 
-/// No console window for `wsl.exe`, nor for `ssh.exe`.
+/// No console window for `wsl.exe`.
 pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// `program`, a path or a name in WSL, run there; with `env`, in that environment alone.
