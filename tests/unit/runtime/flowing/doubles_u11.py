@@ -388,6 +388,7 @@ class FakeExec:
       tty: Whether it runs on a pty, and the window it was started with.
       stdin: Everything sent to it.
       sizes: Every window it was given since, as (rows, cols).
+      holds: Every time it was held or let go of since, True where held.
     """
 
     def __init__(
@@ -404,6 +405,7 @@ class FakeExec:
         self.signals: list[int] = []
         self.stdin: list[bytes] = []
         self.sizes: list[tuple[int, int]] = []
+        self.holds: list[bool] = []
 
     def close_stdin(self) -> None:
         return
@@ -413,6 +415,9 @@ class FakeExec:
 
     def resize(self, rows: int, cols: int) -> None:
         self.sizes.append((rows, cols))
+
+    def hold(self, *, held: bool) -> None:
+        self.holds.append(held)
 
     def signal(self, number: int) -> None:
         self.signals.append(number)
@@ -437,6 +442,7 @@ class FakeRemote:
       renamed: Every move it was asked for.
       connects: How many times it was connected to.
       closes: How many times a client of it was closed.
+      info: What it said of itself at the handshake.
     """
 
     probe: str = PROBE_SAID
@@ -453,6 +459,7 @@ class FakeRemote:
     renamed: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
     connects: int = 0
     closes: int = 0
+    info: dict[str, Any] = field(default_factory=dict[str, Any])
 
     # --- what `RemoteClient` does
 

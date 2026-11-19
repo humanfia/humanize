@@ -424,6 +424,48 @@ async def test_what_a_terminal_wrote_and_nobody_read_is_bounded(
     assert len(read) <= (8 << 20) + len(chunk)
 
 
+async def test_a_terminal_nobody_reads_is_held_on_the_host_and_loses_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote(info={"hold": True})
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(None, cols=80, rows=24)
+    (running,) = remote.execs
+    assert running.wrote is not None
+    chunk = bytes(1 << 20)
+
+    running.wrote(1, chunk)
+    read = await pty.read()
+    assert running.holds == [], "a terminal that is read is not held"
+    for _ in range(19):  # more than is kept of one that cannot be held
+        running.wrote(1, chunk)
+    running.wrote(1, b"last")
+    await until(lambda: running.holds == [True])
+
+    while not read.endswith(b"last"):
+        read += await pty.read()
+
+    assert len(read) == 20 * len(chunk) + len(b"last")
+    await until(lambda: running.holds == [True, False])
+
+
+async def test_a_held_terminal_is_let_go_of_to_be_killed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote(info={"hold": True})
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(None, cols=80, rows=24)
+    (running,) = remote.execs
+    assert running.wrote is not None
+    running.wrote(1, bytes(2 << 20))
+    await until(lambda: running.holds == [True])
+
+    await pty.kill()
+
+    await until(lambda: running.holds == [True, False])
+    assert running.signals == [signal.SIGKILL]
+
+
 async def test_closing_kills_a_terminal_there(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

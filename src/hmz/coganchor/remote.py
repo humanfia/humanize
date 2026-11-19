@@ -335,6 +335,20 @@ class ExecHandle:
         except OSError:
             log.debug("could not resize the terminal of a remote command")
 
+    def hold(self, *, held: bool) -> None:
+        """Stops the target reading what the command writes, or starts it again.
+
+        A command nobody reads from fills its terminal or its pipe and waits there. A no-op
+        on a target whose handshake did not say it can (an older one, which would refuse
+        the request).
+        """
+        if not self._client.info.get("hold"):
+            return
+        try:
+            self._client.call(Op.HOLD, target=self.msg_id, held=held)
+        except OSError:
+            log.debug("could not hold the output of a remote command")
+
 
 class TunnelHandle:
     """Handle on a TCP connection opened from the target."""
