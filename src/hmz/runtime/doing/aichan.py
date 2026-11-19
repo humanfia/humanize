@@ -71,13 +71,16 @@ def linked() -> socket.socket:
     """
     import socket
 
+    from hmz.coganchor import unix
+
     at = os.environ.get(LINK, "")
     if not at:
         raise OSError(f"{LINK} is unset: no scoped link to speak over")
     one = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         one.settimeout(_PATIENCE)
-        one.connect(at)
+        with unix.reached(at) as reaching:
+            one.connect(reaching)
     except OSError:
         one.close()
         raise
