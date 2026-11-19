@@ -1189,7 +1189,8 @@ class MachineEnvDriver:
 
         Raises:
           ValueError: For an empty argv or a negative timeout.
-          EnvCommandTimeout: If it ran past `timeout`. It and its children were killed.
+          EnvCommandTimeout: If it ran past `timeout`. It and its children were killed, and
+            what it had written is the exception's `stdout` and `stderr`.
           EnvUnavailable: If the workdir is not there.
           EnvError: The leaf for why it could not be run, or that the driver was closed.
           asyncio.CancelledError: If the awaiting task was cancelled. It was killed.
@@ -1236,10 +1237,16 @@ class MachineEnvDriver:
         except BaseException as error:
             await held.running.kill()
             if isinstance(error, TimeoutError) and deadline.expired():
-                raise EnvCommandTimeout(
+                late = EnvCommandTimeout(
                     f"{_shown(argv)} ran past its timeout of {timeout:g}s in "
                     f"{self._workdir}, and was killed"
-                ) from None
+                )
+                # Killed, its wait ends at once: with what it wrote, where it was seen to end.
+                with contextlib.suppress(EnvError):
+                    _, out, err = await held.running.finished()
+                    late.stdout = out.decode("utf-8", "replace")
+                    late.stderr = err.decode("utf-8", "replace")
+                raise late from None
             if isinstance(error, EnvError) and held.closing:
                 raise EnvError(
                     f"{_shown(argv)} was killed: its environment was closed"
@@ -1287,6 +1294,18 @@ class MachineEnvDriver:
         await machine.write(await machine.absolute(self._at(path)), bytes(data))
 
     # --- what a person looking around it asks, which flows never do
+
+    async def absolute(self, path: str) -> str:
+        """A path as an absolute one, with its `.` and `..` taken out.
+
+        Args:
+          path: The path, relative to the workdir, absolute, or `~/...`.
+
+        Raises:
+          EnvError: If the machine could not be asked where its home is.
+        """
+        machine = self._open()
+        return str(_normal(await machine.absolute(self._at(path))))
 
     async def list(self, path: str) -> builtins.list[EnvEntry]:
         """What a directory holds, directories first and then by name, links not followed.
@@ -1347,9 +1366,14 @@ class MachineEnvDriver:
         try:
             await machine.stat(target)
         except EnvFileNotFound:
-            await machine.rename(source, target)
+            pass
         else:
             raise EnvError(f"could not move {source}: {target} is already there")
+        try:
+            await machine.rename(source, target)
+        except EnvFileNotFound as error:
+            # `path` was just looked at, so what is not there is the directory of `to`.
+            raise EnvError(str(error)) from error
 
     async def remove(self, path: str) -> None:
         """Removes a file, a link, or a directory and everything in it.

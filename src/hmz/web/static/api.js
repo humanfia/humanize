@@ -178,12 +178,13 @@ export function kindOf(entry) {
 
 /**
  * Adds a daemon from a pairing code, claiming it at once (Section 3.13.4 of protocol/web.md), as
- * the machine the page is served from is called.
+ * the machine the page is served from is called; a P2P daemon over `first`, its `easytier:` route
+ * (Section 3.13.6).
  */
-export async function pair(name, code) {
+export async function pair(name, code, first) {
   const device = (await hello('local').catch(() => null))?.machine || 'browser'
   try {
-    return await claim(daemons, { name, code, device }, providers, CLIENT)
+    return await claim(daemons, { name, code, device, first }, providers, CLIENT)
   } catch (error) {
     throw refused(error, name)
   }

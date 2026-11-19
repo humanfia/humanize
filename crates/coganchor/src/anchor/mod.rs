@@ -40,6 +40,9 @@ pub trait Sink: Send {
     /// A `RESIZE` naming this exchange: the window of its terminal is now `rows` by `cols`.
     /// Only a command run under a pty takes one.
     fn resize(&mut self, _rows: u16, _cols: u16) {}
+    /// A `HOLD` naming this exchange: its output is read no further while `held`, so that
+    /// what it writes waits in it. Only commands take one.
+    fn hold(&mut self, _held: bool) {}
     /// Whether the exchange has closed (its `RSP` or `ERR` sent), so it can be forgotten.
     fn is_done(&self) -> bool {
         false

@@ -480,19 +480,6 @@ async def test_a_swarm_runtime_naming_a_prefix_creates_its_services_under_it(
     assert re.fullmatch(r"team-a-work-[0-9a-f]{8}", _name_of(created))
 
 
-#: How long each task of a swarm below takes to come up once its service is created.
-STARTING = 4.0
-
-
-def _created(manager: Fakes) -> list[float]:
-    """When each service the swarm has now was created, in order."""
-    assert manager.swarm is not None
-    return sorted(
-        json.loads((manager.swarm / f"{one}.json").read_text())["made"]
-        for one in manager.services()
-    )
-
-
 def _mirrored() -> list[Path]:
     """The private directories a swarm machine holds its mirror in, left in `$TMPDIR`."""
     return [
@@ -511,19 +498,26 @@ async def _closed(*drivers: EnvDriver) -> None:
 async def test_two_swarm_environments_of_one_run_come_up_together(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, work: Path
 ) -> None:
-    manager = swarm(tmp_path, monkeypatch, starting=STARTING)
+    # No task runs until both services are there: brought up one after the other, the
+    # second is never created, however fast or slow this machine is.
+    manager = swarm(tmp_path, monkeypatch)
+    manager.hold()
     first, second = (_opened(f"{role}=swarm{work}") for role in ("one", "two"))
-    began = time.monotonic()
+    probing = asyncio.gather(probe(first), probe(second))
     try:
-        await asyncio.gather(probe(first), probe(second))
-        took = time.monotonic() - began
-        made = _created(manager)
+        async with asyncio.timeout(PATIENCE):
+            while len(manager.services()) < 2:
+                if (await asyncio.wait({probing}, timeout=0.05))[0]:
+                    break  # given up on, which awaiting it below says why
+        together = len(manager.services())
+        manager.release()
+        await probing
     finally:
+        manager.release()
+        await asyncio.gather(probing, return_exceptions=True)
         await _closed(first, second)
 
-    assert len(made) == 2
-    assert made[1] - made[0] < STARTING  # the second, before the first one's task ran
-    assert took < 2 * STARTING
+    assert together == 2
     assert manager.services() == []
 
 

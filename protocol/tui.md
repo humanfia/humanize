@@ -182,7 +182,9 @@ buttons.
 **2.24** **Idle**: the state in which no epic is going or stopping on the host this interface
 follows.
 
-**2.25** **Chat**: an epic of kind `chat` (Section 8 of [CORE]).
+**2.25** **Chat**: a chat (Section 8 of [CORE]), which is not an epic; its **id** is the name the
+daemon lists it by (`chat.list`, Section 4.25 of [DAEMON]). The interface MUST NOT call a chat an
+epic.
 
 **2.26** **In the background**: said of work the interface does while it goes on drawing and
 taking input, neither of which waits for that work.
@@ -414,6 +416,40 @@ and MUST look again for itself when typed.
 **7.12.5** In a chat, `/resume` MUST open a pick list of the earlier chats of this directory, newest
 first, and MUST carry on the one picked (Section 8.9.8 of [CORE]).
 
+**7.12.5.1** The pick list MUST be the chats of this directory that are not archived, as this
+machine's daemon lists them (`chat.list` with `workspace`, Section 4.25 of [DAEMON]), each by its
+title, the chat of this frontend among them as the choice in force (Section 15.1.6); picking that
+one MUST leave it on the screen.
+
+**7.12.5.2** A chat picked that a host holds (the `slot` of its row) MUST be put on the screen as it
+stands, by attaching to that host; any other MUST be carried on by the next line said (`chat.start`
+with `resume` the chat's id), the interface saying so.
+
+**7.12.5.3** `/resume` MUST NOT list or carry on an epic an earlier Humanize recorded for a chat
+(Section 17.2.3).
+
+**7.12.5.4** While the setting `harness_sessions` is `true` (Section 3.4.14 of [FILES]), and only
+then, the pick list MUST hold, after the chats, the harness sessions of this directory (Section
+8.11 of [CORE]) as this machine's daemon lists them (`chat.harness.list`, Section 4.25.8 of
+[DAEMON]), each by its title, or by its id where it has none, with a line that names its harness
+and says it is read-only. Picking one MUST continue it as a chat (`chat.harness.adopt`) and MUST
+then go to that chat as Section 7.12.5.2 states for a chat no host holds; a refusal MUST be said.
+
+**7.12.5.5** `m` on a chat of the pick list MUST open its menu (Section 15.2.7) with these rows,
+each done by this machine's daemon (Section 4.25.7 of [DAEMON]): `rename`, which asks for a title
+on a form that opens on the chat's own (`chat.rename`); `fork` (`chat.fork`), which closes the list
+and goes on with the new chat as Section 7.12.5.2 states for a chat no host holds; `archive`
+(`chat.archive`); `upload`, offered where a backup target exists, which queues a backup of the chat
+to the targets it was started with, else the defaults, without waiting for it (`chat.backup`);
+`delete`, which asks in a box saying that the deletion is permanent, whose first answer keeps the
+chat, and deletes on the other (`chat.delete`); and `copy id`. The row of a harness session
+(Section 7.12.5.4) MUST have no menu.
+
+**7.12.5.6** A chat archived or deleted MUST leave the pick list at once, and the list's message
+line MUST say what became of each thing done from a menu, what the daemon refused included. Where
+the chat of this frontend was archived or deleted, closing the list MUST start a new chat as
+`/clear` does (Section 7.14.2).
+
 ### 7.13. `/settings [page]`
 
 **7.13.1** `/settings` MUST open the settings menu (Section 19) on its landing screen.
@@ -474,8 +510,8 @@ back; `/claim` alone MUST toggle.
 **7.17.1** `/stop` MUST stop the epic going for every frontend: the open turn is interrupted and the
 flow unwinds.
 
-**7.17.2** `/stop` MUST be refused where no epic is going, where the epic going is a chat, and where
-the epic is already stopping.
+**7.17.2** Outside a chat, `/stop` MUST be refused where no epic is going and where the epic is
+already stopping; in a chat, Section 11.5 states it.
 
 **7.17.3** The interface MUST say that the flow is stopping, naming the frontend that stopped it
 where another did.
@@ -533,8 +569,8 @@ chat (Section 11), naming it `Ai-chan#<n>` on the status line with its scope, an
 tool Ai-chan calls as a tool line of a turn is shown (Section 14.7.3 of [CORE]).
 
 **7.19.7** While the log screen follows an Ai-chan conversation, a line said MUST be its next turn,
-`/stop` MUST stop Ai-chan's open turn (Section 14.8.3 of [CORE]) and MUST NOT be refused as Section
-11.5 refuses it, and `/btw` MUST be refused as Section 7.10.3 states.
+`/stop` MUST stop Ai-chan's open turn (Section 14.8.3 of [CORE]), refused in her own words where
+she is not answering, and `/btw` MUST be refused as Section 7.10.3 states.
 
 **7.19.8** `/clear` while the log screen follows an Ai-chan conversation MUST leave that
 conversation to its host and follow this directory's own host again.
@@ -763,15 +799,21 @@ view, no round, no outworlder line, and no `reading` or `unread` mark on the age
 **11.4** In a chat, the status line MUST say `running` while a turn is open and `done` while the
 chat is between turns.
 
-**11.5** In a chat, `/stop` MUST be refused, saying that a chat is not stopped and that `/clear`
-starts another.
+**11.5** In a chat, `/stop` MUST interrupt the open turn (`chat.stop`, Section 4.25 of [DAEMON]),
+leaving the chat between turns on its host, and MUST be refused where no turn is open, saying `no
+turn is open, so there is nothing to stop`. The interface MUST NOT offer a way to end a chat or to
+force its turn to stop.
 
 **11.6** In a chat, `ctrl+c` MUST NOT stop anything (Section 14.3).
 
 **11.7** A flow MUST be startable and `/resume` MUST work while a chat goes on its own host.
 
-**11.8** `/epics` MUST offer `continue` on a chat's epic in place of resuming it (Section 8.7 of
-[CORE]).
+**11.8** `/epics` MUST NOT list a chat of this machine, which is no epic; a chat MUST be gone back
+to with `/resume` in a chat (Section 7.12.5) and with `/chat` (Section 7.21), by its id.
+
+**11.8.1** The interface MUST read which chat a host holds from `chat` of that host's status, of its
+`run` snapshot and of the answer of `chat.start`, where `epic` is empty for a chat (Section 4.6 and
+Section 4.25 of [DAEMON]).
 
 **11.9** Starting a flow from the chat MUST put the flow on the screen and leave the chat going on
 its own host; `/chat` MUST bring it back (Section 7.19).
@@ -1105,7 +1147,7 @@ with how many epics have it; **Search…** by flow, task, epic name and director
 epics where more are found.
 
 **17.1.4** `/epics` MUST mark with `●` each epic a notice was given of (Section 19.4) until it is
-opened there.
+opened there; a notice of a chat marks nothing.
 
 **17.1.5** `i` or **Import…** MUST open a form taking the path of a `.hmzepic`, starting from the
 downloads directory, taking a file dropped onto the terminal as its path, and MUST import it in the
@@ -1119,14 +1161,16 @@ the Daemons page with how it stands, turning the list to the one picked.
 ### 17.2. One epic
 
 **17.2.1** `enter`, `→` or a click on an epic MUST open its menu with these rows, each where
-offered: `resume epic` or, for a chat, `continue`; `graph`; `export epic`; `Exomyth`; `upload`;
-`copy name`, `copy task`, `copy path`.
+offered: `resume epic`; `graph`; `export epic`; `Exomyth`; `upload`; `copy name`, `copy task`, `copy
+path`.
 
 **17.2.2** `resume epic` MUST pick the epic up as `/resume` does, and MUST be refused for an epic of
 another directory, saying where it ran; while an epic is going; and for an epic whose flow is not
 resumable or that cannot be resumed here, saying why.
 
-**17.2.3** `continue` MUST carry the chat on as Section 8.7 of [CORE] states.
+**17.2.3** An epic an earlier Humanize recorded for a chat (kind `chat`) MUST be listed as an epic,
+named `chat` where another names its flow, MUST be read as any other, and MUST NOT be offered
+`resume epic` or any way to carry it on, saying that it cannot be carried on.
 
 **17.2.4** `graph` MUST open the epic's graph, read in the background: one box per agent with its
 turns and the handovers between neighbours, its sessions under it, and the tree of flows it called.
@@ -1141,7 +1185,8 @@ downloads directory, and MUST say where it landed, how big it is and what it hol
 **17.2.7** `upload` MUST be offered where a backup target exists, and MUST queue a backup to the
 targets the epic was started with, else the defaults, without waiting for it.
 
-**17.2.8** `Exomyth` MUST open the epic in Exomyth (Section 21), and MUST NOT be offered for a chat.
+**17.2.8** `Exomyth` MUST open the epic in Exomyth (Section 21), and MUST NOT be offered for an
+epic of kind `chat`.
 
 **17.2.9** `copy name`, `copy task` and `copy path` MUST copy that to the clipboard and say so.
 
@@ -1153,6 +1198,10 @@ be reached.
 
 **17.3.2** `enter`, `m` or a click on such an epic MUST offer `follow` for one a host there holds,
 `export` for one not going, `upload`, `copy name`, `copy task` and `copy workspace`.
+
+**17.3.2.1** The list of a daemon of another machine MUST also hold each chat a host there holds
+(`chat.list`, the rows with a `slot`), named `chat` and never an epic, with its title and how it
+stands; such a row MUST offer `follow` and `copy id` and nothing else.
 
 **17.3.3** `n` or **New epic…** MUST start an epic there from a directory, a flow, a task and its
 agents, set up otherwise as that directory last ran the flow, and MUST follow it.
@@ -1171,7 +1220,8 @@ profiling switches and task, saying which epic it resumes.
 an epic that cannot be read, a flow that will not load, a flow that is not resumable, or an epic
 with no saved state.
 
-**18.3** Outside a chat, `/resume` MUST NOT pick up a chat (Section 7.12.5).
+**18.3** Outside a chat, `/resume` MUST NOT pick up a chat (Section 7.12.5), nor an epic an earlier
+Humanize recorded for one (Section 17.2.3).
 
 ## 19. `/settings`
 
@@ -1203,8 +1253,9 @@ Ai-chan conversation made.
 thinking and harness output; **Ai-chan**, the nous a new Ai-chan conversation defaults to (Section
 14.3.2 of [CORE]): `none`, the current one, another nous, or an agent set up on the agent sheet
 titled `Set up Ai-chan`; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
-whose own is not overridden (Section 8.9.10 of [CORE]); **Error reports**, on or off; and **What is
-sent**, which says what error reports include and exclude.
+whose own is not overridden (Section 8.9.10 of [CORE]); **Harness sessions**, whether `/resume` in a
+chat lists them (Section 7.12.5.4); **Error reports**, on or off; and **What is sent**, which says
+what error reports include and exclude.
 
 **19.2.2** Once answered, **Error reports** MUST NOT return to unanswered.
 
@@ -1222,12 +1273,13 @@ Questions and Waiting, and **System**, whether the terminal's bell rings and a s
 notification is shown too, kept in the settings file (Section 3.4.5 of [FILES]); the page keeps
 its own (Section 3.15 of [WEB]).
 
-**19.4.2** For every epic of Local and of every remote daemon that is `up`, the interface MUST show
-each notice of a kind turned on (Section 10 of [CORE]) as a card that goes after a while, and, with
-**System** on, MUST ring the bell and show a system notification.
+**19.4.2** For every epic and every chat of Local and of every remote daemon that is `up`, the
+interface MUST show each notice of a kind turned on (Section 10 of [CORE]) as a card that goes after
+a while, and, with **System** on, MUST ring the bell and show a system notification.
 
 **19.4.3** The interface MUST NOT give a notice of an epic of this directory while its log or the
-monitor is on the screen.
+monitor is on the screen, nor of the chat on the screen, which a notice names by `chat` where
+`epic` is empty.
 
 **19.4.4** The interface MUST be told notices by each daemon (`notices.subscribe`, Section 4.19 of
 [DAEMON]), resuming after the last notice heard of it.
@@ -1324,11 +1376,20 @@ hidden, its branch, when it is used, and whether it is a default.
 by machine and then by directory, newest first, the ones already here marked, and `enter` MUST
 download one as an import does, saying where it landed and, where it cannot be resumed here, why.
 
+**19.10.4** **Download…** MUST list the chats a saved target holds among its epics, each named
+`chat` where an epic names its flow, and `enter` on one MUST download it into this machine's chats
+(Section 8.3.14 of [CORE]), saying that it is carried on with `/resume` in a chat.
+
 ### 19.11. Workspace
 
 **19.11.1** The Workspace page MUST name this directory, show the flow last set up in it, offer
 **Chat agent**, the chat agent it remembers (Section 8.3.8 of [CORE]), set on the agent sheet, and
 offer **Forget**, which on save clears what this directory remembers from the next launch.
+
+**19.11.2** The Workspace page MUST offer **Archived chats**, which opens a pick list of the
+archived chats of this directory, newest first, each by its title (`chat.list` with `workspace` and
+`archived`, Section 4.25 of [DAEMON]). `enter` on one MUST put it back among the others at once
+(`chat.unarchive`), not held for the save, MUST say so, and the chat MUST leave the list.
 
 ### 19.12. Usage
 

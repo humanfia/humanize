@@ -7,3 +7,324 @@
   font-size: 11.5px;
   color: var(--ink-3);
 }
+
+/* A chat's bar runs over the whole of its view, the pane beside the conversation included, as
+   a chat app's toolbar does: a pane's button stays where it was pressed, so pressing there
+   again shuts the pane. The conversation and its box stand under it at the left, the pane at
+   the right. */
+@media (min-width: 861px) {
+  .view-epic.chat-view {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .chat-view > .work {
+    display: contents;
+  }
+
+  .chat-view > .work > .bar-holder {
+    grid-area: 1 / 1 / 2 / -1;
+  }
+
+  .chat-view > .work > .epic-main {
+    grid-area: 2 / 1;
+  }
+
+  .chat-view > .work > .dock {
+    grid-area: 3 / 1;
+  }
+
+  .chat-view > .inspector {
+    grid-area: 2 / 2 / 4 / 3;
+  }
+
+  /* In Humanize Desktop's window on Windows the bar, not the pane, is under the window's own
+     buttons then. */
+  :root[data-shell='windows']:not([data-fullscreen]) .view.chat-view:has(> .inspector:not([hidden])) .bar {
+    padding-right: calc(8px + var(--captions));
+  }
+
+  :root[data-shell='windows']:not([data-fullscreen]) .chat-view .panel-close {
+    right: 6px;
+  }
+
+  :root[data-shell='windows']:not([data-fullscreen]) .chat-view .panel-body .tabs {
+    padding-right: 46px;
+  }
+}
+
+/* The panel beside an epic or a chat is not drawn until the page knows which it is: a chat's is
+   shut where an epic's is open. */
+.inspector.unsettled {
+  display: none;
+}
+
+/* A chat's bar, as a chat app's session keeps its toolbar: the height it is there, the title a
+   button with its menu right after it, and the panes' buttons at the far right, 4px apart and
+   8px from the edge. */
+.bar.chat-bar {
+  min-height: 45px;
+  padding: 0 8px;
+  gap: 8px;
+}
+
+.chat-bar .bar-title {
+  min-width: 64px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chat-bar .bar-title h1 {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.chat-title {
+  min-width: 0;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-title:hover {
+  background: var(--hover);
+}
+
+.chat-bar .bar-title .menu-holder {
+  flex: none;
+  display: flex;
+}
+
+.chat-bar .bar-actions {
+  gap: 4px;
+}
+
+.chat-bar .bar-actions .menu-holder {
+  display: flex;
+}
+
+/* Every button of the bar the size a chat app's are. */
+.chat-bar .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.chat-bar .icon-btn .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.chat-bar .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+}
+
+/* How the chat stands, said quietly over its box, at the column's left. */
+.chat-status {
+  width: min(100%, var(--column));
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.chat-status.chat-failed,
+.chat-status.chat-refused,
+.chat-status.chat-crashed {
+  color: var(--fail);
+}
+
+.chat-status.chat-running .dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* What the chat has used: a ring 24px square, as a chat app keeps one there, and beside it what
+   the chat has spent once there is something to say. */
+.composer-under .chip-btn.usage-chip {
+  min-width: 24px;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.composer-under .chip-btn.usage-chip .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.usage-chip .chip-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-chip .chip-value:empty {
+  display: none;
+}
+
+/* A chat's environment beside it leaves the conversation the room to be read. */
+@media (min-width: 861px) {
+  .inspector.chat-pane.envs-wide {
+    width: min(50vw, 980px);
+  }
+}
+
+@media (max-width: 860px) {
+  /* On a phone the bar keeps the title and what opens a pane; the title gives way first. */
+  .chat-bar .bar-actions {
+    gap: 0;
+  }
+
+  .chat-title {
+    padding: 0 6px;
+  }
+
+  /* An archived chat is put back from its menu there: the button would leave the title no room. */
+  .chat-bar [data-hmz='chat-unarchive'] {
+    display: none;
+  }
+}
+
+/* The pane beside a chat is picked on the chat's bar, as a session's is: it is headed by its
+   name, in the row an epic's panel keeps its tabs in, and its environment by no tabs of its own. */
+.pane-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 46px 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font: 600 13px/20px var(--sans);
+}
+
+.pane-title:empty {
+  display: none;
+}
+
+.chat-pane .envs-tabs {
+  display: none;
+}
+
+/* A chat's title being renamed: a field where the title stood, on its bar and in its row of the
+   sidebar, as wide as there is room for. */
+.title-edit {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  letter-spacing: inherit;
+  outline: none;
+}
+
+.chat-bar .bar-title h1:has(> .title-edit) {
+  flex: 1 1 auto;
+}
+
+.chat-bar .title-edit {
+  width: min(48ch, 100%);
+  flex: 0 1 auto;
+}
+
+.side-run > .title-edit {
+  height: 28px;
+  margin: 2px 32px 2px 2px;
+  font-size: 13px;
+}
+
+/* Deleting a chat: which one, what goes with it, and the two answers at the dialog's foot. */
+.dialog.dialog-delete {
+  width: min(100%, 440px);
+}
+
+.delete-body {
+  padding: 14px 16px;
+}
+
+.delete-body p {
+  margin: 0 0 10px;
+}
+
+.delete-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delete-about {
+  color: var(--ink-2);
+}
+
+.delete-foot {
+  justify-content: flex-end;
+}
+
+/* The archived chats of a workspace, in its settings: one row each. */
+.archived-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.archived-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.archived-row:first-child {
+  border-top: 0;
+}
+
+.archived-title {
+  flex: 1 1 12ch;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archived-when {
+  font-size: 12.5px;
+}
+
+.delete-head {
+  padding: 12px 16px;
+}
+
+/* A harness session, only read: what was said in it, and under it the one way on. */
+.harness-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.harness-tag {
+  font-family: var(--mono);
+}
+
+.harness-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+}

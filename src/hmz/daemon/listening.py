@@ -55,6 +55,9 @@ def spec(text: str) -> Route:
     route names (Section 3.3.4 of wire.md), and the route of the listener is the port taken.
     So a `tcp` or `ws` spec of port `0` is read as a route of another port, and then given `0`.
 
+    A `ws` spec is `ws://<address>:<port>` alone: a daemon serves no `wss`, takes a port only
+    as it is told one, and answers at no path.
+
     Raises:
       ValueError: `<spec> is not a listener.`
     """
@@ -69,11 +72,23 @@ def spec(text: str) -> Route:
         route = Route.parse(read)
     except ValueError:
         route = None
-    if route is None or route.kind not in _KINDS:
+    if (
+        route is None
+        or route.kind not in _KINDS
+        or (route.kind == "ws" and not _plain(route.url))
+    ):
         raise ValueError(f"{text} is not a listener.")
     if anywhere:
         route = dataclasses.replace(route, port=0, url=text if route.url else "")
     return route
+
+
+def _plain(url: str) -> bool:
+    """Whether a WebSocket URL is `ws://<address>:<port>` and no more: the one a daemon serves."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    return url == f"ws://{parts.netloc}" and parts.port is not None
 
 
 class Listener:
@@ -97,14 +112,30 @@ class Listener:
         self._identity = identity
         self._opened = opened
         self._closed = threading.Event()
+        self._settled = threading.Event()
         self._held: list[Callable[[], object]] = []
         self._lock = threading.Lock()
         threading.Thread(target=self._keeps, daemon=True, name="hmz-listen").start()
+
+    def settled(self, timeout: float | None = None) -> bool:
+        """Waits until it has a route, could not be opened once, or is closed.
+
+        It opens on a thread of its own, so whoever reads `route` the moment it was made
+        would find none where one is a moment away.
+
+        Args:
+          timeout: How many seconds to wait at most, forever where None.
+
+        Returns:
+          Whether it has.
+        """
+        return self._settled.wait(timeout)
 
     def close(self) -> None:
         """Stops listening, and stops whatever it started."""
         with self._lock:
             self._closed.set()
+            self._settled.set()
             held, self._held = self._held, []
         for one in held:
             with contextlib.suppress(Exception):
@@ -137,6 +168,8 @@ class Listener:
                         one()
             else:
                 return
+            finally:
+                self._settled.set()
             self._closed.wait(backoff.next())
 
     def _opens(self, route: Route) -> None:
@@ -151,6 +184,7 @@ class Listener:
 
     def _says(self, route: str) -> None:
         self.route = route
+        self._settled.set()
         self._opened(route)
 
     def _tcp(self, host: str, port: int, route: Route) -> None:
@@ -186,6 +220,7 @@ class Listener:
         return self._admit(secured, secured.peer)
 
     def _ws(self, route: Route) -> None:
+        import socket
         from urllib.parse import urlsplit
 
         from websockets.sync.server import serve
@@ -205,10 +240,13 @@ class Listener:
                 return connection.respond(404, "Not Found\n")
             return None
 
+        host = parts.hostname or ""
         server = serve(
             carries,
-            parts.hostname or "",
+            host,
             parts.port or 0,
+            # The family is the address's, as `hmz.reach.TcpListener` takes it: IPv4 unless said.
+            family=socket.AF_INET6 if ":" in host else socket.AF_INET,
             process_request=answers,
             max_size=MESSAGE,
             compression=None,
@@ -216,7 +254,7 @@ class Listener:
         if not self._holds(server.shutdown):
             return
         port: int = server.socket.getsockname()[1]
-        self._says(f"ws://{_named(parts.hostname or '')}:{port}{parts.path}")
+        self._says(f"ws://{_named(host)}:{port}{parts.path}")
         server.serve_forever()
 
     def _easytier(self, name: str) -> None:

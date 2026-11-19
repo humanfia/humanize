@@ -124,13 +124,29 @@ where two machines' epics share a name, name it as `<machine>/<workspace>/<epic>
 
 In [`hmz web`](/user/web), **Download** on **Settings → Backup** lists what a
 target holds by machine and then by directory, the ones already here marked **Here**; pick the
-target where there is more than one. **Download** on an epic brings it here and opens it.
+target where there is more than one. **Download** on an epic brings it here and opens it;
+a [chat](/user/chat) a target holds is listed among them as `chat`, and comes back as a chat.
 In `hmz`, **download…** on [`/settings backup`](/user/settings#backup) does the same with the
 keys: <kbd>enter</kbd> on an epic brings it here, and `/epics` lists it.
 
 From Python, `Hmz().backups.listed("lab")` lists them and
 `Hmz().backups.pulled("lab", key)` downloads one; `listed` fetches first, so call it off any
 thread a screen is drawn on.
+
+## Chats {#chats}
+
+A [chat](/user/chat) is backed up as an epic is, to the same targets and under the same
+`<machine>/<workspace>/<id>` layout, and comes back the same way:
+
+| To | Do |
+| --- | --- |
+| back a chat up now | `hmz backup <chat id>` in its directory; in `hmz`, `/resume` in a chat, <kbd>m</kbd> on the chat, **upload**; in `hmz web`, **Upload** in the chat's menu |
+| see the chats a target holds | `hmz backup --list`: after `<target>: <n> epics` and its epics, `<target>: <n> chats` and one line per chat, its first message where an epic has its task |
+| download one | `hmz backup --pull <chat id>`; in `hmz`, **download…** on `/settings backup`, where a chat is named `chat` |
+
+A chat downloaded lands among this machine's chats, `~/.hmz/chats/<workspace>/<id>/`, never
+among its epics: `/resume` in a chat of that directory lists it, and it is carried on like any
+other. One you already have is refused, as an epic is. `hmz chat --list` says a chat's id.
 
 ## Check that it worked
 

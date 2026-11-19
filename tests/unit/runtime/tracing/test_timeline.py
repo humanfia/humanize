@@ -261,6 +261,20 @@ def test_overlap_that_does_not_nest_spills_into_another_track() -> None:
     assert process["parent"] == -1
 
 
+def test_a_chat_which_is_of_no_flow_is_named_a_chat() -> None:
+    chat = ran()._replace(flow="", kind="chat")
+
+    document = build([], ran=chat).document
+
+    (process,) = document["processes"]
+    assert document["strings"][process["name"]] == "chat"
+    (span,) = columns(document, process["tracks"][0])
+    assert span["name"] == "chat"
+    # A flow's is named by its flow, as ever.
+    document = build([], ran=ran()).document
+    assert document["strings"][document["processes"][0]["name"]] == "ralph"
+
+
 def test_a_running_epic_runs_until_the_last_thing_in_it() -> None:
     one = Session(
         "claude:r",

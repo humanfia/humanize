@@ -20,6 +20,7 @@ mod update;
 #[cfg(windows)]
 mod wsl;
 
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -32,6 +33,8 @@ use std::time::Duration;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
+use tauri::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue, ORIGIN};
+use tauri::http::{Request, Response};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
 use tauri::window::Color;
 use tauri::{
@@ -332,12 +335,30 @@ fn epic(paths: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
         .last()
 }
 
-/// The page's import address (Section 3.6.8 of [WEB]), naming an epic's archive by its path.
+/// The page's import address (Section 3.6.8 of [WEB]), naming an epic's archive by its path, on
+/// the daemon the address the page is at names: Local where it names none.
 fn importing(page: &Url, path: &Path) -> Option<Url> {
     let path: String = url::form_urlencoded::byte_serialize(path.to_str()?.as_bytes()).collect();
+    let at = page.fragment().unwrap_or_default();
+    let at = at.strip_prefix('/').unwrap_or(at);
+    let daemon = match at.starts_with('@') {
+        true => format!("/{}", at.split(['/', '?']).next().unwrap_or_default()),
+        false => String::new(),
+    };
     let mut url = page.clone();
-    url.set_fragment(Some(&format!("/epics/import?path={path}")));
+    url.set_fragment(Some(&format!("{daemon}/epics/import?path={path}")));
     Some(url)
+}
+
+/// The page at the address the window is on, where the window is on the app's own.
+fn at(app: &AppHandle, mut page: Url) -> Url {
+    let at = app
+        .get_webview_window(MAIN)
+        .and_then(|window| window.url().ok());
+    if let Some(at) = at.filter(|at| allowed(at, Some(&page))) {
+        page.set_fragment(at.fragment());
+    }
+    page
 }
 
 /// Imports an epic's archive in the page, or once the window is on it, and brings the window
@@ -351,7 +372,7 @@ fn open(app: &AppHandle, path: PathBuf) {
         }
     }
     let page = lock(&shell.page).clone();
-    match page.and_then(|page| importing(&page, &path)) {
+    match page.and_then(|page| importing(&at(app, page), &path)) {
         Some(url) => show(app, url),
         None => *lock(&shell.opening) = Some(path),
     }
@@ -432,6 +453,20 @@ fn paper(theme: Theme) -> Color {
     }
 }
 
+/// Lets a face import the page's files under `vendor/` (Section 4.5.9 of [WEB]): its frame is
+/// sandboxed, so it asks with `Origin: null`, which the origin the web view stamps on every
+/// answer would refuse.
+fn share(request: &Request<Vec<u8>>, response: &mut Response<Cow<'static, [u8]>>) {
+    let null = request.headers().get(ORIGIN).is_some_and(|by| by == "null");
+    if null && request.uri().path().starts_with("/vendor/") {
+        let headers = response.headers_mut();
+        headers.insert(
+            ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("null"),
+        );
+    }
+}
+
 /// The one window, on the splash, drawn in the page's paper before anything is.
 fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let guarded = app.clone();
@@ -454,6 +489,7 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             browse(url.as_str());
             NewWindowResponse::Deny
         })
+        .on_web_resource_request(|request, response| share(&request, response))
         .on_document_title_changed(|window, title| {
             let _ = window.set_title(&title);
         })
@@ -639,6 +675,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn shares_the_vendor_files_with_a_face_alone() {
+        // What the web view answers every file with: the window's own origin.
+        let own = OWN.trim_end_matches('/');
+        let allow = |path: &str, origin: Option<&str>| {
+            let mut request = Request::builder().uri(format!("{OWN}{path}"));
+            if let Some(origin) = origin {
+                request = request.header(ORIGIN, origin);
+            }
+            let mut response = Response::builder()
+                .header(ACCESS_CONTROL_ALLOW_ORIGIN, own)
+                .body(Cow::Borrowed(&[][..]))
+                .unwrap();
+            share(&request.body(Vec::new()).unwrap(), &mut response);
+            let allow = &response.headers()[ACCESS_CONTROL_ALLOW_ORIGIN];
+            allow.to_str().unwrap().to_owned()
+        };
+        assert_eq!(allow("vendor/markdown.js", Some("null")), "null");
+        assert_eq!(allow("vendor/vega.js?v=1", Some("null")), "null");
+        assert_eq!(allow("vendor/markdown.js", Some(own)), own);
+        assert_eq!(allow("vendor/markdown.js", None), own);
+        assert_eq!(allow("app.js", Some("null")), own);
+        assert_eq!(allow("faces/vendor/x.js", Some("null")), own);
+    }
+
+    #[test]
     fn allows_the_page_it_carries_alone() {
         let own = Url::parse(OWN).ok();
         let at = |url: &str| allowed(&Url::parse(url).unwrap(), own.as_ref());
@@ -735,6 +796,28 @@ mod tests {
             url.fragment(),
             Some("/epics/import?path=C%3A%5CUsers%5Cme%5Ca+b.hmzepic")
         );
+    }
+
+    #[test]
+    fn imports_into_the_daemon_shown() {
+        let path = Path::new("/a.hmzepic");
+        let on = |at: &str| {
+            let page = Url::parse(&format!("http://tauri.localhost/{at}")).unwrap();
+            importing(&page, path).unwrap().fragment().map(String::from)
+        };
+        let local = Some("/epics/import?path=%2Fa.hmzepic".to_string());
+        let gpu = Some("/@gpu/epics/import?path=%2Fa.hmzepic".to_string());
+        assert_eq!(on("#/@gpu/live?workspace=%2Fhome%2Fme"), gpu);
+        assert_eq!(on("#/@gpu/epics/import?path=%2Fb.hmzepic"), gpu);
+        assert_eq!(on("#/@gpu"), gpu);
+        assert_eq!(on("#@gpu?x"), gpu);
+        assert_eq!(
+            on("#/@my%20box/epics/a/exomyth"),
+            Some("/@my%20box/epics/import?path=%2Fa.hmzepic".to_string())
+        );
+        assert_eq!(on(""), local);
+        assert_eq!(on("#/live"), local);
+        assert_eq!(on("#/epics/@gpu/exomyth"), local);
     }
 
     #[test]

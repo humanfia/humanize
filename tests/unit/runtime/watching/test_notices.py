@@ -96,6 +96,8 @@ def test_an_epic_ending_is_a_notice_of_how(
     (made,) = notices.look()
 
     assert made["kind"] == kind
+    # An epic's notice names no chat.
+    assert made["chat"] == ""
     assert (made["workspace"], made["epic"], made["flow"], made["task"]) == (
         "/w",
         "e1",
@@ -130,6 +132,7 @@ def test_a_question_is_asked_and_a_flow_waiting_is_listening(
     made = notices.look()
 
     assert [one["kind"] for one in made] == ["asked", "listening"]
+    assert made[0]["chat"] == ""
     assert (made[0]["role"], made[0]["text"], made[0]["epic"]) == (
         "outworlder",
         "which?",
@@ -138,9 +141,15 @@ def test_a_question_is_asked_and_a_flow_waiting_is_listening(
 
 
 def _chat(statuses: Statuses, turn: str, **said: Any) -> None:
-    """The chat standing at a turn, as a host says one: an epic of kind chat, of no flow."""
+    """The chat standing at a turn, as its host says one: a chat by name, of no epic or flow."""
     statuses.stands(**said)
-    statuses.now["/w"] |= {"epic_kind": "chat", "flow": "", "turn": turn}
+    statuses.now["/w"] |= {
+        "epic_kind": "chat",
+        "flow": "",
+        "epic": "",
+        "chat": "c1",
+        "turn": turn,
+    }
 
 
 def test_each_chat_turn_done_is_a_done_notice(
@@ -158,9 +167,79 @@ def test_each_chat_turn_done_is_a_done_notice(
     _chat(statuses, "done", pending=[_asked("q3", "listen")])
     (second,) = notices.look()
 
-    # A chat has no flow, and is told of as a chat.
+    # A chat has no flow, and is told of as a chat: which one by its name, and no epic.
     assert (first["kind"], first["flow"], first["text"]) == ("done", "chat", "which?")
-    assert second["kind"] == "done"
+    assert (first["chat"], first["epic"]) == ("c1", "")
+    assert (second["kind"], second["chat"], second["epic"]) == ("done", "c1", "")
+
+
+def test_a_chat_asking_again_with_no_turn_taken_is_no_notice(
+    statuses: Statuses, notices: Notices
+) -> None:
+    _chat(statuses, "running")
+    notices.look()
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    assert [one["kind"] for one in notices.look()] == ["done"]
+
+    # A `!` command, run between two turns: it waits on no line while that runs, then asks
+    # for the next one, and its turn stood done throughout.
+    _chat(statuses, "done")
+    assert notices.look() == []
+    _chat(statuses, "done", pending=[_asked("q2", "listen")])
+    assert notices.look() == []
+    _chat(statuses, "done", pending=[_asked("q3", "listen")])
+    assert notices.look() == []
+
+    _chat(statuses, "running")
+    notices.look()
+    _chat(statuses, "done", pending=[_asked("q4", "listen")])
+    assert [one["kind"] for one in notices.look()] == ["done"]
+
+
+def test_a_chat_turn_taken_wholly_between_two_looks_is_a_done_notice(
+    statuses: Statuses, notices: Notices
+) -> None:
+    spent = {"cost": 0.0, "output_tokens": 0, "duration": "PT0S"}
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"]["usage"] = spent
+    notices.look()
+
+    # Never seen running, but it spent what only a turn does.
+    _chat(statuses, "done", pending=[_asked("q2", "listen")])
+    statuses.now["/w"]["usage"] = spent | {"output_tokens": 7, "duration": "PT1S"}
+    assert [one["kind"] for one in notices.look()] == ["done"]
+
+    # And a `!` command after it spends nothing.
+    _chat(statuses, "done", pending=[_asked("q3", "listen")])
+    statuses.now["/w"]["usage"] = spent | {"output_tokens": 7, "duration": "PT1S"}
+    assert notices.look() == []
+
+
+def test_a_chat_carried_on_by_another_host_waiting_is_no_notice(
+    statuses: Statuses, notices: Notices
+) -> None:
+    unspent = {"cost": 0.0, "output_tokens": 0, "duration": "PT0S"}
+    spent = unspent | {"output_tokens": 7, "duration": "PT1S"}
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"] |= {"pid": 1, "started": 1.0, "usage": spent}
+    notices.look()
+    # Its host folds and goes, and attaching starts another, which carries the chat on
+    # waiting between turns: it numbers its questions afresh, and has taken no turn.
+    del statuses.now["/w"]
+    assert notices.look() == []
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"] |= {"pid": 2, "started": 2.0, "usage": unspent}
+    assert notices.look() == []
+
+    # The turn it then takes is told, seen running or not.
+    _chat(statuses, "done", pending=[_asked("q2", "listen")])
+    statuses.now["/w"] |= {"pid": 2, "started": 2.0, "usage": spent}
+    assert [one["kind"] for one in notices.look()] == ["done"]
+
+    # And so is the first turn of a host that took it before anybody looked.
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"] |= {"pid": 3, "started": 3.0, "usage": spent}
+    assert [one["kind"] for one in notices.look()] == ["done"]
 
 
 def test_a_flow_named_chat_is_a_flow_that_listens_and_stops(
@@ -194,10 +273,12 @@ def test_a_chat_ending_is_news_only_where_it_failed_or_ended_a_turn(
 ) -> None:
     _chat(statuses, turn)
     notices.look()
-    ended = _ended(how, at=time.time() + 1) | {"flow": ""}
+    ended = _ended(how, at=time.time() + 1) | {"flow": "", "epic": "", "chat": "c1"}
     _chat(statuses, "done", ended=ended)
 
-    assert [one["kind"] for one in notices.look()] == kinds
+    made = notices.look()
+    assert [one["kind"] for one in made] == kinds
+    assert [(one["chat"], one["epic"]) for one in made] == [("c1", "")] * len(kinds)
 
 
 def test_a_workspace_first_seen_later_is_news(

@@ -147,6 +147,28 @@ def test_a_family_of_methods_is_served_beside_the_daemons_own(workspace: Path) -
     assert "tcp://127.0.0.1:0" in str(client.call("settings.get"))
 
 
+def test_a_code_claimed_pairs_every_session_its_device_holds_open(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listens("tcp://127.0.0.1:0")
+    daemon.start()
+    paired = code()
+    (route,) = paired.routes
+    me = device(tmp_path / "afar", monkeypatch)
+    held = secured(route, me, paired.id)
+    with pytest.raises(RpcError) as unpaired:
+        held.call("hosts.list")
+    assert unpaired.value.code == Code.NOT_PAIRED
+
+    # Paired is the device's fingerprint among the paired devices (Section 4.2.7 of
+    # wire.md), so the claim of one session pairs the other one too.
+    secured(route, me, paired.id).call("pair.claim", token=paired.token, name="afar")
+    assert held.call("hosts.list") == {"held": []}
+    (listed,) = local().call("devices.list")["devices"]
+    assert listed["live"] == 2
+    assert local().call("devices.revoke", name="afar") == {"dropped": 2}
+
+
 def test_a_device_pairs_over_tcp_and_attaches_and_is_dropped_once_revoked(
     workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -196,6 +218,23 @@ def test_a_device_pairs_over_tcp_and_attaches_and_is_dropped_once_revoked(
         again.call("hosts.list")
     assert revoked.value.code == Code.NOT_PAIRED
     near.call("hosts.stop", workspace=str(workspace))
+
+
+def test_a_device_reaches_a_websocket_listener_on_an_ipv6_address(
+    workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Section 3.9.2 of daemon.md: `ws://<address>:<port>`, an IPv6 address as much as any.
+    listens("ws://[::1]:0")
+    daemon.start()
+    near = local()
+    assert until(lambda: _routes(near))
+    paired = code()
+    (route,) = paired.routes
+    assert route.startswith("ws://[::1]:")
+    assert int(route.rsplit(":", 1)[1]) > 0
+    afar = secured(route, device(tmp_path / "afar", monkeypatch), paired.id)
+    afar.call("pair.claim", token=paired.token, name="afar")
+    assert afar.call("hosts.list") == {"held": []}
 
 
 def test_listeners_open_and_close_as_the_setting_changes(workspace: Path) -> None:

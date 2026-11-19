@@ -713,6 +713,10 @@ class SessionBase(ABC):
         #: here: what the turn lands in, where it lands, is that conversation's
         #: (:meth:`_landed`). Cleared as each round starts here (:meth:`_falling_back`).
         self._took: SessionBase | None = None
+        #: The stand-in's conversation the last turn to land here was answered in, or None
+        #: while it was this one's own: what this conversation is from then on, so what it
+        #: goes by (:attr:`id`) and what a fork or a copy of it carries (:meth:`fork`).
+        self._answered_at: SessionBase | None = None
         #: Where this conversation works, as it was given, or None for wherever the flow is.
         self._cwd = os.fspath(cwd) if cwd is not None else None
         self._id: str | None = None
@@ -983,6 +987,9 @@ class SessionBase(ABC):
         Raises:
           RuntimeError: If no turn has landed yet, so the backend has not named the session.
         """
+        if self._answered_at is not None:
+            # Answered at a stand-in, in a conversation of its backend's: that one's id.
+            return self._answered_at.id
         if self._id is None:
             raise RuntimeError("session has not run a turn yet")
         return self._id
@@ -1002,6 +1009,8 @@ class SessionBase(ABC):
         Returns:
           The backend's id, or None before the backend has said one.
         """
+        if self._answered_at is not None:
+            return self._answered_at.named
         return self._id or self._named_as
 
     def spent(self) -> Usage:
@@ -1364,7 +1373,9 @@ class SessionBase(ABC):
         """
         if self._took is not None:
             self._took._landed()
-        elif self._id is None and (named := self.named) is not None:
+            if self._took._id is not None:
+                self._answered_at = self._took
+        elif self._id is None and (named := self._named_as) is not None:
             self._adopt(named)
 
     @property
@@ -1650,7 +1661,7 @@ class SessionBase(ABC):
         # Before anything else, for a session that is a fork and has not opened yet: this
         # turn is the fork, and where it cuts is settled by where the conversation it came
         # from is now rather than by where it was.
-        if self._id is None:
+        if self._id is None and self._answered_at is None:
             self._at_the_boundary()
         self._turns += 1  # what a fork of this conversation checks it against
         # Anything said while nobody was working goes into this turn. A flow's own prompt is
@@ -1817,6 +1828,7 @@ class SessionBase(ABC):
         self._took = None
         walk = nous.walk(self._agent.nous, memo=self._picked)
         last: subprocess.CalledProcessError | None = None
+        skipped = self._agent.nous
         failed_at: SessionBase = self
         answer = nous.answers("")
         step = walk.next()
@@ -1835,6 +1847,7 @@ class SessionBase(ABC):
             ):
                 # A nous that names no agent that could take this turn: a harness nobody
                 # installed, a setting it cannot be told. Failed as it would have failed.
+                skipped = step.nous
                 step = walk.next(answer.fault or "missing")
                 continue
             if last is not None:
@@ -1875,14 +1888,24 @@ class SessionBase(ABC):
                 nous.finished(names, time.monotonic() - started, tokens, fault)
             if fault is None:
                 walk.landed()
+                # Where it was answered is the conversation this one is from here on.
+                self._answered_at = self._took
                 return
             if self._agent._stopped:
                 # Stopped while this turn was waiting to try again. A run ended by hand is
                 # ended, not carried on somewhere else.
                 raise Stopped(f"{self._agent.id} was stopped")
             step = walk.next(answer.fault)
-        if last is None:  # nothing ran at all, which is nothing this can raise about
-            raise RuntimeError("no try was taken")
+        if last is None:
+            # Nothing ran at all: no nous the walk reached names an agent that could take
+            # this turn, which is a failure of the `missing` kind with none before it.
+            raise Failed(
+                1,
+                [self._agent.backend],
+                "",
+                f"{skipped} names no agent that can take this turn",
+                fault="missing",
+            )
         raise last
 
     def _tries(
@@ -2842,6 +2865,8 @@ class SessionBase(ABC):
         """
         from hmz.coganchor.backends import named
 
+        if self._answered_at is not None:
+            return self._answered_at.forks
         profile = named(self._agent.backend)
         return profile is not None and profile.forks
 
@@ -2934,13 +2959,38 @@ class SessionBase(ABC):
             # The history is kept where this conversation's agent keeps its sessions, and a
             # CLI can only carry on a conversation it can read: the child is kept there too.
             agent.keeps = self._agent.keeps
+        answered = self._answered_at
         if elsewhere and cwd is not None:
             where = os.fspath(cwd)
-            self._carry(where)
-        made = agent.new(where)
-        made._forked_from = seed
-        if self._recalled_from is not None:
-            made._recalled = self
+            if answered is None:
+                self._carry(where)
+        if answered is None:
+            made = agent.new(where)
+            made._forked_from = seed
+            if self._recalled_from is not None:
+                made._recalled = self
+        else:
+            # Answered at a stand-in: the conversation is that backend's, so its fork is what
+            # carries it, held by the child as this one holds what it was cut from. The
+            # child's turns walk its agent's nous as this one's do, starting where this one
+            # is, and are taken in that fork where they come to the same nous.
+            stood_in = (
+                answered._agent
+                if agent is self._agent
+                else agent.stand_in(answered._agent.spec)
+            )
+            if stood_in is None:
+                raise NotImplementedError(
+                    f"{agent.backend} has nothing to carry on a conversation "
+                    f"answered at {answered._agent.spec}"
+                )
+            carried = answered.fork(into=stood_in, cwd=cwd)
+            if stood_in is agent:
+                made = carried
+            else:
+                made = agent.new(where)
+                made._moved[stood_in.spec] = carried
+                made._picked = dict(self._picked)
         # Where this conversation had got to when the fork was asked for, and a weak hold on
         # the conversation itself: the child checks both as it opens, so that a fork taken
         # here and used after two more turns is refused rather than cut from where those
@@ -3045,6 +3095,10 @@ class SessionBase(ABC):
                 f"{self._agent.backend} has no way of carrying a conversation "
                 "into a second one"
             )
+        if self._answered_at is not None:
+            # Answered at a stand-in: the conversation is that backend's, and so are its files.
+            self._answered_at.keep(into)
+            return
         seed = self.id  # raises while nothing has landed, which is nothing to keep
         source = self._agent.kept()
         files = [] if source is None else _naming(source, seed)
@@ -4445,6 +4499,9 @@ class AgentBase(ABC):
         #: agent rather than per process, so that what a turn leaves there -- a build's
         #: cache, a file it means to read back -- is there for the next turn of the session.
         self._scratch: str | None = None
+        #: What takes that directory and the one its virtual homes are built in away: called
+        #: as the agent is stopped, and by the collector for one merely let go of.
+        self._sweeping: list[weakref.finalize[..., Any]] = []
         #: The LiteLLM gateway this agent's turns reach their model through, for an account
         #: litellm holds, once the first of them has started it; and what guards starting it.
         self._gateway: Gateway | None = None
@@ -4886,7 +4943,7 @@ class AgentBase(ABC):
             with self._starting:
                 if self._scratch is None:
                     self._scratch = tempfile.mkdtemp(prefix="hmz-fence-")
-                    weakref.finalize(self, _swept, self._scratch)
+                    self._sweeping.append(weakref.finalize(self, _swept, self._scratch))
                 tmp = self._scratch
         # And the flow's command lines, once there are any: the scripts on the PATH and the
         # socket they reach this process on, which are this agent's own.
@@ -5674,7 +5731,7 @@ class AgentBase(ABC):
         with self._holding:
             if self._homes is None:
                 made = os.path.realpath(tempfile.mkdtemp(prefix="hmz-home-"))
-                weakref.finalize(self, _swept, made)
+                self._sweeping.append(weakref.finalize(self, _swept, made))
                 self._homes = Path(made)
             return self._homes
 
@@ -6268,6 +6325,13 @@ class AgentBase(ABC):
             through, self._gateway = self._gateway, None
         if through is not None:
             through.stop()
+        # And the directories made for its processes, which have none left to serve: an agent
+        # stopped is an agent ended, and one held to the end of a process that leaves without
+        # unwinding is one no collector ever gets to.
+        for sweep in list(self._sweeping):
+            sweep()
+        self._toolbox.close()
+        self._shelf.close()
 
     def watch(
         self, listener: Callable[[AgentBase, SessionBase | None, Event], None]

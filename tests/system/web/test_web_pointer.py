@@ -95,7 +95,7 @@ def test_the_page_keeps_the_browsers_menu_to_what_is_there_to_read_or_write(
         go(page, "/new?flow=chat")
         expect(page.locator("[data-hmz=composer-text]")).to_be_visible()
         assert _prevented(page, "[data-hmz=sidebar] .brand")
-        assert _prevented(page, ".greeting")
+        assert _prevented(page, "[data-hmz=bar] h1")
         assert not _prevented(page, "[data-hmz=composer-text]")
         user_select = page.evaluate(
             "(() => { const said = getComputedStyle(document.querySelector('.side-nav a'));"
@@ -164,6 +164,10 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
 
 def test_a_nous_and_ai_chans_are_picked_not_spelled(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
+        # What a backend runs is asked as a new chat offers it, and offered here once it said.
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         go(page, "/settings/nous")
         page.locator("[data-hmz=nous-spec]").select_option("claude/claude-opus-4-1")
         page.locator("[data-hmz=nous-then] [data-hmz=graph-add-use]").click()

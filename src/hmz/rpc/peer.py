@@ -16,6 +16,9 @@ gives up on by answering -32800, or carries on regardless (Section 6.4.7).
 The session ends when either end closes its pipe, when a frame arrives of a length no frame
 has (Section 6.3.2), or when :meth:`Peer.close` is called; each call still waiting for an
 answer then fails with :class:`Closed`, and each call being carried out is marked cancelled.
+Where it was the pipe failing that ended it, that failure is the `__cause__` of the
+:class:`Closed`, of a call waiting and of one made later alike: what a carrier that ended badly
+said, such as the last line of its process.
 """
 
 from __future__ import annotations
@@ -168,6 +171,8 @@ class Peer:
         self._pending: dict[int, Future[Any]] = {}
         self._serving: dict[str | int, Call] = {}
         self._closed = threading.Event()
+        #: What the pipe raised as it was read, where that is what ended the session.
+        self._why: OSError | None = None
         self._reader = threading.Thread(target=self._read, name=name, daemon=True)
         self._reader.start()
 
@@ -221,7 +226,7 @@ class Peer:
         future: Future[Any] = Future()
         with self._lock:
             if self.closed:
-                raise Closed("the session has closed")
+                raise Closed("the session has closed") from self._why
             self._pending[ident] = future
         self._write(frame)
         return Pending(self, ident, future)
@@ -298,7 +303,9 @@ class Peer:
         with contextlib.suppress(OSError):
             self._pipe.close()
         for waiting in pending:
-            waiting.set_exception(Closed("the session closed"))
+            closed = Closed("the session closed")
+            closed.__cause__ = self._why
+            waiting.set_exception(closed)
         for call in serving:
             call.cancelled.set()
         if self._on_close is not None:
@@ -311,13 +318,14 @@ class Peer:
     def _write(self, frame: bytes) -> None:
         """Writes one frame, closing the session where the pipe will not take it."""
         if self.closed:
-            raise Closed("the session has closed")
+            raise Closed("the session has closed") from self._why
         try:
             with self._writing:
                 self._pipe.sendall(frame)
         except OSError as e:
             self.close()
-            raise Closed("the session closed") from e
+            # What the read was told first is why, where the pipe took no more for it.
+            raise Closed("the session closed") from (self._why or e)
 
     def _answer(self, call: Call, answer: dict[str, Any]) -> None:
         """Sends a call's one answer, and nothing for a notification or a call answered."""
@@ -364,8 +372,8 @@ class Peer:
         except FrameError as e:
             for payload in e.whole:
                 self._take(payload)
-        except OSError:
-            pass
+        except OSError as why:
+            self._why = why
         finally:
             self.close()
 

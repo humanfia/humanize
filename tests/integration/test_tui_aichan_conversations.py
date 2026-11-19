@@ -17,14 +17,17 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import Acts, AiChanNew, AiChans, AiForgets
 from tests.integration.doubles_tui import (
+    OWN,
     RUNS,
     SIZE,
     heard,
     on,
     onto,
     opened,
+    own_flow,
     picks,
     screen,
+    set_up_own_flow,
     shows,
     stand_in,
     typed,
@@ -108,6 +111,9 @@ def workspace(
     return here
 
 
+#: What the interface marks a line the person said with.
+_YOURS = "\N{HEAVY RIGHT-POINTING ANGLE QUOTATION MARK ORNAMENT}"
+
 #: What a conversation is kept with that the interface chose.
 _KEPT = ("id", "title", "scope", "workspace", "epic", "nous", "preset", "network")
 
@@ -167,17 +173,66 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
     assert heard(workspace) == ["hello there", "go on"]
 
 
-async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_daemon(
-    workspace: Path, daemon: Private
+async def test_every_line_said_to_her_is_drawn_before_what_she_answers_it(
+    workspace: Path,
 ) -> None:
+    del workspace
     app = Humanize()
     async with app.run_test(size=SIZE) as pilot:
         await opened(pilot)
+        await _new(pilot)
+        await _done(pilot)
+        await typed(pilot, "hello there")
+        await shows(pilot, "heard hello there")
+
+        # Her next turn, which answers what her flow waits on.
+        await typed(pilot, "go on")
+        drawn = await shows(pilot, f"{_YOURS} go on", "heard go on")
+        assert drawn.index(f"{_YOURS} go on") < drawn.index("heard go on")
+
+        # And a word put into the turn she is taking.
+        await typed(pilot, "wait here")
+        await shows(pilot, "still on it")
+        await typed(pilot, "more words")
+        drawn = await shows(
+            pilot, f"{_YOURS} more words", "heard wait here then more words"
+        )
+        # Each of them once: the first line is drawn as it is typed, the rest as her host
+        # says them.
+        for line in ("hello there", "go on", "wait here", "more words"):
+            assert drawn.count(f"{_YOURS} {line}") == 1
+
+        # And as it is told from its start, to an interface that reads it again.
+        await typed(pilot, "/clear")
+        await until(pilot, lambda: "Ai-chan#1" not in screen(app), "her to be left")
+        await typed(pilot, "/ai")
+        await on(pilot, AiChans)
+        await onto(pilot, "1")
+        await pilot.press("enter")
+        drawn = await shows(pilot, "heard go on", "Ai-chan#1 \N{MIDDLE DOT} workspace")
+        assert drawn.index(f"{_YOURS} go on") < drawn.index("heard go on")
+
+
+async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_daemon(
+    workspace: Path, daemon: Private
+) -> None:
+    own_flow(workspace)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        # A chat is no epic, and a conversation made over one is the workspace's.
+        await opened(pilot)
         await typed(pilot, "hello")
         await shows(pilot, "heard hello")
+        form = await _new(pilot)
+        assert form.shown(form.asked()[0]) == "workspace"
+        await pilot.press("escape")
+
+        await set_up_own_flow(pilot)
+        await typed(pilot, f"${OWN} make it so")
+        await shows(pilot, "the flow is done")
 
         form = await _new(pilot)
-        # The chat just had is the epic last on the host followed.
+        # The flow just run is the epic last on the host followed.
         assert form.shown(form.asked()[0]) == "epic"
         await shows(pilot, "the epic ")
         await picks(pilot, "scope", "daemon")

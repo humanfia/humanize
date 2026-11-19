@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from hmz.runtime.epic import Called, Ran, Session
     from hmz.runtime.tracing.timeline import Timeline
 
-__all__ = ["Epics", "kind"]
+__all__ = ["Epics", "kind", "transcribed"]
 
 
 def kind(ran: Ran) -> Literal["flow", "chat"]:
@@ -104,30 +104,23 @@ class Epics:
 
         return resumed(flow, self._workspace)
 
+    def chats(self) -> list[Path]:
+        """Every chat of this workspace, oldest first: none of them a run of it."""
+        from hmz.runtime.epic import chats
+
+        return chats(self._workspace or Path.cwd())
+
     def chat(self, said: str) -> Path | None:
-        """The epic of a chat of this workspace, named by its directory, or None for none.
+        """The directory of a chat of this workspace, by its name, or None for none.
 
         Args:
-          said: The epic's directory, whole or by its name under this workspace's.
+          said: The chat's name.
 
         Returns:
-          It, where it is an epic, of a chat, run in this workspace; else None.
+          It, where it is a chat had in this workspace; else None. An epic an earlier hmz
+          recorded for a chat is none.
         """
-        from hmz.runtime.epic import JOURNAL, read
-
-        if not said:
-            return None
-        named = Path(said).expanduser()
-        epic = named if named.is_absolute() else self.under() / said
-        if not (epic / JOURNAL).is_file():
-            return None
-        ran = read(epic)
-        if ran is None or kind(ran) != "chat":
-            return None
-        here = (self._workspace or Path.cwd()).resolve()
-        if Path(ran.workspace).expanduser().resolve() != here:
-            return None
-        return epic
+        return next((one for one in self.chats() if one.name == said), None)
 
     def picks_up(self, epic: Path) -> bool:
         """Whether a run can be picked up from one epic: it kept a journal, and wrote in it."""
@@ -230,7 +223,7 @@ class Epics:
 
         with tempfile.TemporaryDirectory(dir=machine()) as scratch:
             _, document = self.traced(epic, output=Path(scratch) / "trace.json")
-        return _sessions_of(document)
+        return transcribed(document)
 
     def timeline(self, epic: Path) -> Timeline:
         """Lays one run out as an Exomyth timeline: its sessions, flows, Python and programs.
@@ -388,7 +381,7 @@ class Epics:
         )
 
 
-def _sessions_of(document: dict[str, Any]) -> list[dict[str, Any]]:
+def transcribed(document: dict[str, Any]) -> list[dict[str, Any]]:
     """What each session of a trace said and did, in the order it did it.
 
     Args:

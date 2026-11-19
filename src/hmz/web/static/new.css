@@ -1,61 +1,394 @@
-/* A new chat and a new epic: what stands under the box the first message is typed into, and a new
-   chat's greeting. Every colour is a token of style.css. */
+/* The desk a chat is typed at, as a chat app's session keeps it: a box docked at the foot of the
+   page holding only the Add button, what is typed and the button that sends, and under it a row
+   of quiet chips -- where it runs at the left, how it runs at the right. A new chat and a new
+   epic stand in the same frame: a plain heading in the bar, the page's middle, the desk. Every
+   colour is a token of style.css; the sizes are a chat app's (protocol/web.md, 3.6.6.15). */
 
-/* Under the box, at its left, as a chat app keeps the folder a session works in: clear of the
-   box's shadow, and no wider than the box. */
+/* ------------------------------------------------------------------ the box and its row */
+
+/* The form is the desk: the box is drawn inside it, and the chips stand under the box. */
+.composer.composer-desk {
+  padding: 0;
+  gap: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.composer-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px;
+  background: var(--raised);
+  border: 2px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--ink);
+  transition: box-shadow 0.12s;
+}
+
+.composer-desk:focus-within .composer-box {
+  box-shadow: 5px 5px 0 var(--green);
+}
+
+.composer-desk .composer-box textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 0;
+  line-height: 22px;
+}
+
+/* The Add button and the button that sends: the size a chat app's are. */
+.composer-box .menu-holder {
+  flex: none;
+  display: flex;
+}
+
+.composer-box .composer-add,
+.composer-box .send {
+  width: 28px;
+  height: 28px;
+}
+
+.composer-box .send .icon,
+.composer-box .composer-add .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.composer-desk .composer-said {
+  margin-bottom: 4px;
+}
+
+.composer-desk .composer-complete {
+  margin: 0 0 6px;
+}
+
+/* Under the box: clear of its shadow, the two ends pushed apart, and set in from its edges as
+   a chat app's are -- the first chip starts where the box's Add button does, a hair further. */
 .composer-under {
-  width: min(100%, var(--column));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-height: 24px;
+  margin-top: 6px;
+  padding-inline: 12px;
+  min-width: 0;
+}
+
+.under-left,
+.under-right {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 12px;
+  gap: 3px;
   min-width: 0;
 }
 
-.composer-under .menu-holder {
+.under-right {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.composer-under .menu-holder,
+.composer-under .model-pick {
+  display: inline-flex;
   min-width: 0;
   max-width: 100%;
+  margin: 0;
 }
 
-/* The folder, as a chip: its icon, its name and a chevron, quieter than the box over it. */
+.composer-under [hidden] {
+  display: none;
+}
+
+/* A chip under the box: its name and a chevron, quieter than the box over it, 24px high. */
+.composer-under .chip-btn,
 .composer-under .flow-picker {
   align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  height: 24px;
   max-width: 100%;
-  min-height: var(--control-h-sm);
-  padding: 3px 8px;
-  border-width: 1px;
-  font-size: 13px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  background: none;
+  font: 500 12.5px var(--sans);
   color: var(--ink-2);
 }
 
+.composer-under .chip-btn .chip-value,
 .composer-under .flow-picker b {
-  font-weight: 600;
+  font: 500 12.5px var(--sans);
   letter-spacing: 0;
-  max-width: min(40ch, 60vw);
+  max-width: min(24ch, 40vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.composer-under .chip-btn .icon,
 .composer-under .flow-picker .icon {
   flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--ink-3);
+}
+
+.composer-under .chip-btn:hover,
+.composer-under .flow-picker:hover {
+  background: var(--hover);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.composer-under .chip-btn[aria-expanded='true'],
+.composer-under .flow-picker[aria-expanded='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--on-ink);
+}
+
+.composer-under .chip-btn[aria-expanded='true'] .icon,
+.composer-under .flow-picker[aria-expanded='true'] .icon {
+  color: inherit;
+}
+
+.composer-under .composer-summary .chip {
+  line-height: 22px;
+}
+
+/* ------------------------------------------------------------------ the menus of the desk */
+
+/* A menu opened from the box or from a chip under it, as a chat app draws one: rows of 28px
+   where a choice is one line, 46px where it says something under its name, and no wider than
+   what it holds wants. */
+.composer-desk .popover[role='menu'] {
+  min-width: 200px;
+  padding: 4px;
+}
+
+.composer-desk .popover[role='menu'][aria-label='Add'] {
+  min-width: 218px;
+}
+
+.composer-desk .popover[role='menu'][aria-label='Model'] {
+  min-width: 202px;
+}
+
+/* As wide as a chat app's, whatever the note under the three has to say. */
+.composer-desk .popover[role='menu'][aria-label='Permissions'] {
+  width: 308px;
+  max-width: calc(100vw - 16px);
+}
+
+.composer-desk .popover.sub[role='menu'] {
+  min-width: 160px;
+}
+
+.composer-desk .popover[role='menu'] .choice {
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.composer-desk .popover[role='menu'] .choice-label {
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-desk .popover[role='menu'] .choice-about {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.composer-desk .popover[role='menu'] hr {
+  margin: 4px 0;
+}
+
+/* ------------------------------------------------------------------ a new chat, a new epic */
+
+/* The bar of a form: the height a chat app's is, its heading plain and set in as a chat's
+   title is, the flow picked beside it, and its buttons the size a chat's bar keeps. */
+.view-desk > .bar {
+  min-height: 44px;
+  /* Its buttons 8px from the top, as a chat's bar keeps them, over the line under it. */
+  padding: 1px 8px 0;
+}
+
+.view-desk > .bar .bar-title h1 {
+  padding-left: 12px;
+}
+
+.view-desk > .bar .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.view-desk > .bar .bar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-desk > .bar .bar-title h1 {
+  flex: none;
+  font-weight: 600;
+}
+
+.view-desk > .bar .flow-picker {
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 14px;
+}
+
+/* The middle of the page: empty, but for what waits on the person -- or, for an epic, what its
+   flow is for and how it is set up. */
+.desk-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  padding: 24px 20px;
+}
+
+.desk-column {
+  width: min(100%, var(--column));
+  margin: 0 auto;
+  align-self: start;
+}
+
+.desk-column .greeting-about {
+  margin: 0;
+}
+
+.desk-column .options {
+  margin-bottom: 8px;
+}
+
+/* The desk, docked at the foot: the room a chat app leaves under its chips. */
+.dock.desk-dock,
+.view-epic .dock:has(.composer-desk) {
+  padding-bottom: 8px;
+}
+
+.desk-dock .composer,
+.dock .composer-desk {
+  width: min(100%, var(--column));
+}
+
+/* The chats that wait on their person, in the middle of a new chat's page: the list alone,
+   its rows set in 4px, the button that dismisses one inside its row, at the right. */
+.next-steps {
+  width: min(100%, 320px);
+  margin: auto;
+}
+
+.next-steps ul {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+
+.next-step {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding-right: 4px;
+}
+
+.next-step:hover,
+.next-step:focus-within {
+  background: var(--hover);
+}
+
+.next-step a {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13.5px;
+}
+
+.next-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.next-state {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.next-step .icon-btn {
+  width: 28px;
+  height: 28px;
+  color: var(--ink-3);
+}
+
+.next-step .icon-btn .icon {
   width: 14px;
   height: 14px;
 }
 
-.composer-under .flow-picker:hover,
-.composer-under .flow-picker[aria-expanded='true'] {
-  color: var(--ink);
+@media (max-width: 860px) {
+  .desk-body {
+    padding: 16px 14px;
+  }
+
+  .dock.desk-dock,
+  .view-epic .dock:has(.composer-desk) {
+    padding-bottom: 8px;
+  }
+
+  .composer-under {
+    padding-inline: 4px;
+  }
+
+  .composer-under .chip-btn .chip-value,
+  .composer-under .flow-picker b {
+    max-width: 14ch;
+  }
 }
 
-/* A new chat opens as a chat app's new session does: its mark and its greeting in the middle, over
-   the box. */
-[data-hmz='new-chat'] .home-mark {
-  margin-inline: auto;
+/* A box ticked under the box of a new chat, drawn as the chips beside it are. */
+.composer-under .desk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 6px;
+  font: 500 12.5px var(--sans);
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
 }
 
-[data-hmz='new-chat'] .greeting {
-  text-align: center;
+.composer-under .desk-check input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--ink);
 }
 
-[data-hmz='new-chat'] .greeting::after {
-  margin-inline: auto;
+.composer-under .desk-check.disabled {
+  color: var(--ink-3);
+  cursor: default;
 }

@@ -358,17 +358,45 @@ def test_an_epic_is_of_a_flow_but_one_an_earlier_hmz_wrote_of_the_flow_chat(
     assert kind(named) == "flow"
 
 
-def test_a_chat_to_carry_on_is_a_chat_of_this_workspace(
+def _chat(workspace: Path, task: str = "hi") -> Path:
+    with Epic("", task, workspace, kind="chat") as one:
+        one.stopped()
+    return one.path
+
+
+def test_the_chats_of_a_workspace_are_none_of_its_runs(
     workspace: Path, tmp_path: Path
 ) -> None:
-    chat, flow = _old_chat(workspace), _run(workspace)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    epics = Epics(workspace)
+    assert epics.chats() == []
+
+    first, flow, second = _chat(workspace), _run(workspace), _chat(workspace)
+    theirs = _chat(elsewhere)
+
+    assert epics.chats() == [first, second]
+    assert epics.all() == [flow]
+    assert Epics(elsewhere).chats() == [theirs]
+    ran = epics.read(first)
+    assert ran is not None
+    assert (ran.chat, ran.flow, ran.how) == (True, "", "stopped")
+
+
+def test_a_chat_to_carry_on_is_a_chat_of_this_workspace_by_its_name(
+    workspace: Path, tmp_path: Path
+) -> None:
+    chat, old, flow = _chat(workspace), _old_chat(workspace), _run(workspace)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     epics = Epics(workspace)
 
-    assert epics.chat(str(chat)) == chat
     assert epics.chat(chat.name) == chat
-    assert epics.chat(str(flow)) is None
+    # By its name alone, which is what it is called everywhere.
+    assert epics.chat(str(chat)) is None
     assert epics.chat("") is None
     assert epics.chat("20200101-none") is None
-    assert Epics(elsewhere).chat(str(chat)) is None
+    # Neither a run, nor the epic an earlier hmz recorded for a chat, is one to carry on.
+    assert epics.chat(flow.name) is None
+    assert epics.chat(old.name) is None
+    assert Epics(elsewhere).chat(chat.name) is None

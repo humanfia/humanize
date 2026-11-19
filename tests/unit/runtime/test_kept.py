@@ -13,6 +13,9 @@ from hmz.runtime.kept import Runs, read_back, written
         (Runs("claude/opus:high"), "claude/opus:high"),
         (Runs("claude/opus:high", "work"), "claude@work/opus:high"),
         (Runs("codex/gpt-5/mini:low", "me"), "codex@me/gpt-5/mini:low"),
+        # A virtual nous is written by its name alone, which has no `/`.
+        (Runs("smart"), "smart"),
+        (Runs("my.nous-2_b"), "my.nous-2_b"),
     ],
 )
 def test_an_agent_is_written_as_the_word_dash_a_takes(runs: Runs, word: str) -> None:
@@ -50,6 +53,12 @@ def test_reading_back_fills_in_no_effort_as_auto(said: str, runs: Runs) -> None:
         "/opus:high",
         "claude/",
         "claude/ :x",
+        # Neither a harness's name nor what no virtual nous may be called is a nous.
+        "codex",
+        "2fast",
+        "smart@work",
+        "smart:high",
+        " smart",
     ],
 )
 def test_what_is_not_an_agent_reads_back_as_none(said: object) -> None:

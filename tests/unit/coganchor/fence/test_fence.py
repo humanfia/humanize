@@ -244,6 +244,25 @@ def test_a_rule_at_a_temporary_loses_to_it_and_one_beneath_it_wins(
     assert beneath.allows("/var/tmp/z", write=True)
 
 
+def test_a_rule_beneath_a_temporary_as_its_links_lead_is_carved_out_of_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # As a Mac's `/tmp` is `/private/tmp`, which is how a path found beneath it is spelled.
+    real = Path(os.path.realpath(tmp_path)) / "private"
+    real.mkdir()
+    (tmp_path / "tmp").symlink_to(real)
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+
+    fence = drawn(
+        ("/", NONE), (f"{real}/kept", READ), (f"{real}/shut", NONE), (".", WRITE)
+    )
+
+    assert fence.allows(f"{real}/a", write=True)
+    assert fence.level(f"{real}/kept/a") == READ
+    assert fence.level(f"{real}/shut/a") == NONE
+    assert (fence.keep, fence.deny) == ((f"{real}/kept",), (f"{real}/shut",))
+
+
 def test_a_rule_beneath_what_a_written_home_brings_wins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -534,6 +553,16 @@ def test_writes_is_whether_a_standing_rule_writes_anywhere() -> None:
     assert drawn(("/", READ), ("~/x", WRITE)).writes
     # What a later rule takes away writes nothing.
     assert not drawn((".", WRITE), ("/", READ)).writes
+    # From another anchor too, where it lands here: the workdir is inside the home.
+    assert not drawn(("/", READ), (".", WRITE), ("~", READ)).writes
+    assert not drawn(("/", READ), (".", WRITE), (HOME, NONE)).writes
+    assert drawn(("/", READ), (".", WRITE), ("~/x", READ)).writes
+    assert Fence.of(
+        rules=[("/", READ), (".", WRITE), ("~", READ)],
+        online=True,
+        workdir="/srv/work",
+        home=HOME,
+    ).writes
     # Drawn path by path: written beyond the devices every program writes.
     assert not Fence(read=("/",), write=DEVICES).writes
     assert Fence(read=("/",), write=(*DEVICES, WORK)).writes

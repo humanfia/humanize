@@ -1704,6 +1704,7 @@ class OutworlderView:
 
     async def show(self, context: Sequence[Any], *, session: Session) -> None:
         blocks = _checked(context)
+        jsoned = _jsoned(blocks)  # measured whoever is or is not looking
         handle = self._person(session)
         node = self._asking()
         if node is not None:
@@ -1716,7 +1717,7 @@ class OutworlderView:
             return
         show = getattr(driver, "show", None)
         if show is not None and blocks:
-            show(_jsoned(blocks), handle.name, self._asker)
+            show(jsoned, handle.name, self._asker)
 
     def _asking(self) -> Call | None:
         """The call whose turn this is, or None outside any.
@@ -1767,6 +1768,7 @@ class OutworlderView:
         if env is not None and type(env) is not EnvView:
             raise TypeError(f"{env!r} is not an environment this run handed out")
         blocks = _checked(context)
+        jsoned = _jsoned(blocks)  # measured whoever is or is not there to answer
         source = self._source
         handle = self._person(session)
         node = self._asking()
@@ -1806,7 +1808,7 @@ class OutworlderView:
             prompt=prompt,
             schema=None if output_schema is None else output_schema.model_json_schema(),
             model=output_schema,
-            context=_jsoned(blocks),
+            context=jsoned,
             face=handle.hash,
             session=handle.name,
         )

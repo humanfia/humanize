@@ -437,9 +437,12 @@ class _Handler(BaseHTTPRequestHandler):
           cache: Its Cache-Control.
         """
         tag = f'W/"{hashlib.sha256(body).hexdigest()[:16]}"'
+        null = shared and self.headers.get("Origin") == "null"
         if status == HTTPStatus.OK and self.headers.get("If-None-Match") == tag:
             self.send_response(HTTPStatus.NOT_MODIFIED)
             self.send_header("ETag", tag)
+            if null:
+                self.send_header("Access-Control-Allow-Origin", "null")
             self._ends(0, framed=framed)
             return
         self.send_response(status)
@@ -448,7 +451,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("ETag", tag)
         if policy is not None:
             self.send_header("Content-Security-Policy", policy)
-        if shared and self.headers.get("Origin") == "null":
+        if null:
             self.send_header("Access-Control-Allow-Origin", "null")
         self._ends(len(body), framed=framed)
         self.wfile.write(body)

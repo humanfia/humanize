@@ -12,6 +12,7 @@ import {
   secretOf,
   kindOf,
   labelOf,
+  paramLabel,
   multiline,
   opened,
   patchFiles,
@@ -22,7 +23,9 @@ import {
   requiredLeft,
   resolved,
   sendLabel,
+  sentAs,
   summaryOf,
+  untouched,
   draftable,
   widgetOf,
   withdrawnWhy,
@@ -90,6 +93,41 @@ test('a field is named in a sentence, its title kept only where it says more tha
   assert.equal(labelOf('reviewerEmail'), 'Reviewer email')
 })
 
+test("a flow's param is named by the title the flow gave it, else by its key as -p takes it", () => {
+  const fields = fieldsOf({
+    type: 'object',
+    properties: { first_chaser_cost: { type: 'number', default: 1 }, passes: { type: 'integer', title: 'Review passes', default: 1 }, dryRun: { type: 'boolean', default: false } },
+  })
+  assert.deepEqual(
+    fields.map((one) => paramLabel(one.name, one.node)),
+    ['first_chaser_cost', 'Review passes', 'dryRun'],
+  )
+})
+
+test('a field is named by its own title, never by the title of the type it refers to', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      severity: { $ref: '#/$defs/Level' },
+      confidence: { $ref: '#/$defs/Level' },
+      actor_limits: { $ref: '#/$defs/Limits' },
+      reviewer_limits: { anyOf: [{ $ref: '#/$defs/Limits' }, { type: 'null' }], default: null },
+      shade: { $ref: '#/$defs/Level', title: 'Which shade' },
+    },
+    required: ['severity', 'confidence', 'actor_limits', 'shade'],
+    $defs: {
+      Level: { title: 'Level', type: 'string', enum: ['low', 'high'] },
+      Limits: { title: 'Limits', type: 'object', properties: { turns: { title: 'Turns', type: 'integer' } } },
+    },
+  }
+  const fields = fieldsOf(schema)
+  assert.deepEqual(
+    fields.map((one) => labelOf(one.name, one.node)),
+    ['Severity', 'Confidence', 'Actor limits', 'Which shade', 'Reviewer limits'],
+  )
+  assert.deepEqual(fields.map((one) => kindOf(one.node)), ['choice', 'choice', 'object', 'choice', 'object'])
+})
+
 test('a yes or no is worded from what it is about', () => {
   assert.deepEqual(yesNo('tests', { description: 'Write tests.' }), { yes: 'Yes, write tests', no: 'No' })
   assert.deepEqual(yesNo('dry_run', { title: 'Dry Run' }), { yes: 'Yes, dry run', no: 'No' })
@@ -124,6 +162,56 @@ test('what is left to say counts each required field still blank, nested ones to
   assert.equal(requiredLeft(REVIEW, { verdict: 'approve', notes: 'ok', scope: { files: 3 } }), 0)
   assert.equal(sendLabel(2), '2 required left')
   assert.equal(sendLabel(0), 'Send answer')
+})
+
+test('a required field that may be null, left blank, is answered as null', () => {
+  // As pydantic writes `maybe: int | None`, `reason: str | None`, `flag: bool | None`, none with a default.
+  const schema = {
+    type: 'object',
+    properties: {
+      maybe: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+      reason: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      flag: { anyOf: [{ type: 'boolean' }, { type: 'null' }] },
+      tags: { anyOf: [{ type: 'array', items: { type: 'string' } }, { type: 'null' }] },
+      count: { type: 'integer' },
+      note: { type: 'string' },
+      nick: { anyOf: [{ type: 'string' }, { type: 'null' }], default: null },
+      tone: { type: 'string', default: 'plain' },
+    },
+    required: ['maybe', 'reason', 'flag', 'tags', 'count', 'note'],
+  }
+  // What each control reads while nothing is said in it: a number or a choice nothing, text ''.
+  const read = { maybe: undefined, reason: '', flag: undefined, tags: [], count: undefined, note: '', nick: '', tone: '' }
+  const said = {}
+  for (const field of fieldsOf(schema)) {
+    const one = sentAs(field, read[field.name])
+    if (one !== undefined) said[field.name] = one
+  }
+  assert.deepEqual(said, { maybe: null, reason: null, flag: null, tags: [], note: '', tone: '' })
+  assert.deepEqual(problems(schema, said).map((one) => one.path[0]), ['count', 'note'])
+  // The three answered as null are not left to say: the empty list, the number and the text are.
+  assert.equal(requiredLeft(schema, said), 3)
+  // What is said is sent as it was said.
+  const [maybe, reason, flag] = fieldsOf(schema)
+  assert.equal(sentAs(maybe, 0), 0)
+  assert.equal(sentAs(reason, 'why'), 'why')
+  assert.equal(sentAs(flag, false), false)
+})
+
+test('an optional object is untouched while each field is blank, off, or still its suggestion', () => {
+  const inner = { type: 'object', properties: { label: { type: 'string' }, depth: { type: 'integer', default: 1 }, deep: { type: 'boolean', default: true } }, required: ['label'] }
+  const fields = fieldsOf(inner)
+  // What a form reads of it before anybody types: the suggestions it filled in, the rest blank.
+  assert.equal(untouched(fields, { label: '', depth: 1, deep: true }), true)
+  assert.equal(untouched(fields, { depth: 1, deep: false }), true)
+  assert.equal(untouched(fields, { label: '', depth: 2, deep: true }), false)
+  assert.equal(untouched(fields, { label: 'L', depth: 1, deep: true }), false)
+  // A number nobody suggested is somebody's answer.
+  assert.equal(untouched(fieldsOf({ type: 'object', properties: { depth: { type: 'integer' } } }), { depth: 1 }), false)
+  // An object it must hold, itself as first shown, does not make it touched.
+  const outer = { type: 'object', properties: { mid: { $ref: '#/$defs/Inner' } }, required: ['mid'], $defs: { Inner: inner } }
+  assert.equal(untouched(fieldsOf(outer, outer), { mid: { label: '', depth: 1, deep: true } }, outer), true)
+  assert.equal(untouched(fieldsOf(outer, outer), { mid: { label: 'L', depth: 1, deep: true } }, outer), false)
 })
 
 test('an answer is said back in one line, choices plain and text quoted', () => {

@@ -103,7 +103,10 @@ class _Hosted:
         self.detached.append(client)
 
     def status(self) -> dict[str, Any]:
-        return {"epic": self.epic}
+        # A chat's host names its chat, and no epic.
+        if self.slot.startswith("chat:"):
+            return {"epic": "", "chat": self.epic}
+        return {"epic": self.epic, "chat": ""}
 
     def forget(self, sub: Subscription) -> None:
         del sub
@@ -198,17 +201,19 @@ def test_an_epic_starting_once_live_closes_the_asides_about_the_epic_going(
     assert _Btw.made[0].closed == [False]
 
 
-def test_a_chat_is_asked_on_its_own_slot(tmp_path: Path) -> None:
-    own, chat = _host(tmp_path, "", "e1"), _host(tmp_path, "chat:ab", "e2")
+def test_a_chat_is_asked_on_its_own_slot_by_its_name(tmp_path: Path) -> None:
+    own, chat = _host(tmp_path, "", "e1"), _host(tmp_path, "chat:ab", "c2")
     asides, hosts = _asides(tmp_path, own, chat)
 
-    said = _ask(asides, tmp_path, aside="a", to="coder/1", epic="e2", question="q")
+    said = _ask(asides, tmp_path, aside="a", to="coder/1", chat="c2", question="q")
 
     assert said["answer"] == "coder/1 says: q"
     assert hosts.opened_slots == ["chat:ab"]
     assert own.subs == []
-    assert _listed(asides, tmp_path, "e2")[0]["to"] == "coder/1"
+    about = asides.listed(_call("btw.list", workspace=str(tmp_path), chat="c2"))
+    assert about["asides"][0]["to"] == "coder/1"
     assert _listed(asides, tmp_path) == []
+    assert _listed(asides, tmp_path, "e1") == []
 
 
 @pytest.mark.parametrize("to", ["", "coder", "coder/0", "a b/1", "coder/x"])

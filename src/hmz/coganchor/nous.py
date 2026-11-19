@@ -237,7 +237,7 @@ ANSWERS: tuple[Answer, ...] = (
         "was kept off a host by this run's fence",
         held=True,
         fix="the run's network fence keeps it off that host, which no sign-in answers; "
-        "give the role online of ALL to let it through",
+        "give the role network=True to let it through",
     ),
     Answer(
         "sandboxed",
@@ -448,10 +448,15 @@ def spec(backend: str, model: str, provider: str = "", effort: str = "") -> str:
       effort: How hard it thinks, or "" for the harness's default.
 
     Returns:
-      `<backend>[@<provider>]/<model>[:<effort>]`.
+      `<backend>[@<provider>]/<model>[:<effort>]`: no effort is left off, but written `:auto`
+      after a model whose own name ends in `:` and a word, which would be read as its effort.
     """
+    from hmz.coganchor.spelling import parted
+
     account = f"@{provider}" if provider else ""
-    rung = f":{effort}" if effort and effort != backends.AUTO else ""
+    if not effort or effort == backends.AUTO:
+        effort = backends.AUTO if parted(model)[1] else ""
+    rung = f":{effort}" if effort else ""
     return f"{backend}{account}/{model}{rung}"
 
 
@@ -487,7 +492,7 @@ def _bare(name: str) -> str:
     from hmz.coganchor.spelling import parted
 
     model, effort = parted(rest)
-    return f"{backend}/{model}" if effort else ""
+    return spec(backend, model) if effort else ""
 
 
 def every() -> list[Nous]:
@@ -845,9 +850,12 @@ _LATELY = 60.0
 
 
 def started(names: Iterable[str]) -> None:
-    """Counts a turn begun at each of these nous: the concrete one and every pick above it."""
+    """Counts a turn begun at each of these nous: the concrete one and every pick above it.
+
+    A nous named twice, as a concrete one a balance node picked is, is counted once.
+    """
     with _SEEN.lock:
-        for name in names:
+        for name in dict.fromkeys(names):
             _SEEN.busy[name] = _SEEN.busy.get(name, 0) + 1
 
 
@@ -857,14 +865,15 @@ def finished(
     """Counts a turn ended at each of these nous: how long it took, what it spent, and how.
 
     Args:
-      names: As :func:`started` was given them.
+      names: As :func:`started` was given them, the concrete one last.
       seconds: How long the turn took.
       tokens: How many tokens it spent.
       fault: The fault it failed with, "" for an unclassified failure, or None for none.
     """
     now = time.monotonic()
+    names = tuple(names)
     with _SEEN.lock:
-        for name in names:
+        for name in dict.fromkeys(names):
             _SEEN.busy[name] = max(_SEEN.busy.get(name, 0) - 1, 0)
             if fault is None:
                 was = _SEEN.latency.get(name)
@@ -873,8 +882,10 @@ def finished(
                 )
             if tokens:
                 _SEEN.tokens.setdefault(name, deque()).append((now, tokens))
-            if fault in ("throttled", "spent"):
-                _SEEN.cooling[name] = now + _LATELY
+        if names and fault in ("throttled", "spent"):
+            # Only the concrete one failed so: a pick above it may yet answer elsewhere, and
+            # its balance node cools it once it has not.
+            _SEEN.cooling[names[-1]] = now + _LATELY
 
 
 def _members(among: Sequence[tuple[str, int]]) -> list[Member]:
@@ -1004,16 +1015,24 @@ class Walk:
         return found if found is not None else Nous(name)
 
     def _nous(
-        self, name: str, above: tuple[str, ...], deadline: float | None
+        self,
+        name: str,
+        above: tuple[str, ...],
+        deadline: float | None,
+        before: str = "",
     ) -> Generator[Run | Wait, str, str]:
-        """Walks one nous: its body under its envelope, then its `then`; answers its fault."""
+        """Walks one nous: its body under its envelope, then its `then`; answers its fault.
+
+        `before` is the fault of the failure before it, which is what a nous the deadline
+        leaves no time to begin fails with.
+        """
         if name in above or len(above) >= _DEEPEST:
             return "missing"
         own = self._rule(name)
         if "/" not in name and own.graph is None:
             return "missing"  # a virtual nous nobody wrote down, or one taken away
         inside = (*above, name)
-        fault = ""
+        fault = before
         if own.graph is None:
             if deadline is not None and self._clock() >= deadline:
                 return fault
@@ -1039,35 +1058,35 @@ class Walk:
                     )
                 ends = since + own.timeout if own.timeout else None
                 inner = ends if deadline is None else min(deadline, ends or deadline)
-                fault = yield from self._graph(own.graph, inside, inner)
+                fault = yield from self._graph(own.graph, inside, inner, fault)
         if own.then is not None:
-            fault = yield from self._graph(own.then, inside, deadline)
+            fault = yield from self._graph(own.then, inside, deadline, fault)
         return fault
 
     def _graph(
-        self, graph: Graph, above: tuple[str, ...], deadline: float | None
+        self, graph: Graph, above: tuple[str, ...], deadline: float | None, before: str
     ) -> Generator[Run | Wait, str, str]:
         """Walks one graph from its start; answers the fault it failed with."""
-        fault, at, been = "", graph.node(graph.start), 0
+        fault, at, been = before, graph.node(graph.start), 0
         while at is not None and been <= len(graph.nodes):
             been += 1
             if at.use:
-                fault = yield from self._nous(at.use, above, deadline)
+                fault = yield from self._nous(at.use, above, deadline, fault)
             else:
-                fault = yield from self._balance(at, above, deadline)
+                fault = yield from self._balance(at, above, deadline, fault)
             at = graph.node(at.after(fault))
         return fault
 
     def _balance(
-        self, node: Node, above: tuple[str, ...], deadline: float | None
+        self, node: Node, above: tuple[str, ...], deadline: float | None, before: str
     ) -> Generator[Run | Wait, str, str]:
         """Tries the members of a balance node, picked by its strategy, until one answers."""
         key = ">".join((*above, node.id))
         left: list[tuple[str, int]] = list(node.among)
-        fault = ""
+        fault = before
         for _ in range(node.spread or len(left)):
-            if not left:
-                break
+            if not left or (deadline is not None and self._clock() >= deadline):
+                break  # no member is begun past the deadline, so none is picked or cooled
             members = _members(left)
             # Cooling members only once no other is left: a rate limit a minute ago is the
             # likeliest rate limit now.
@@ -1081,9 +1100,12 @@ class Walk:
             left = [one for one in left if one[0] != pick]
             self._picks.append((key, pick))
             try:
-                fault = yield from self._nous(pick, above, deadline)
+                fault = yield from self._nous(pick, above, deadline, fault)
             finally:
                 self._picks.pop()
+            if fault in ("throttled", "spent"):
+                with _SEEN.lock:
+                    _SEEN.cooling[pick] = time.monotonic() + _LATELY
         return fault
 
 
@@ -1173,26 +1195,34 @@ def _acyclic(
 
 def _loops(held: Mapping[str, Nous]) -> None:
     """Refuses nous that name one another round, and virtual ones nobody wrote down."""
-
-    def own(name: str) -> Nous | None:
-        return held.get(name) or held.get(_bare(name))
-
     for one in held.values():
         for name in _named(one):
             if "/" not in name and name not in held:
                 raise ValueError(
                     f"{one.name} names {name}, which is no nous written down"
                 )
-
-    def visit(name: str, path: tuple[str, ...]) -> None:
-        if name in path:
-            raise ValueError(f"{' -> '.join((*path, name))} comes round")
-        found = own(name)
-        for onward in sorted(_named(found)) if found is not None else ():
-            visit(onward, (*path, name))
-
     for one in held.values():
-        visit(one.name, ())
+        _round(held, one.name)
+
+
+def _round(held: Mapping[str, Nous], name: str, path: tuple[str, ...] = ()) -> None:
+    """Refuses a nous that comes round to itself through those held."""
+    if name in path:
+        raise ValueError(f"{' -> '.join((*path, name))} comes round")
+    found = held.get(name) or held.get(_bare(name))
+    for onward in sorted(_named(found)) if found is not None else ():
+        _round(held, onward, (*path, name))
+
+
+def _holds(found: dict[str, Nous], one: Nous | None) -> None:
+    """Holds one entry read, unless its name is taken or it names those held round."""
+    if one is None or one.name in found:
+        return
+    try:
+        _round({**found, one.name: one}, one.name)
+    except ValueError:
+        return
+    found[one.name] = one
 
 
 def _read(held: Mapping[str, Any]) -> list[Nous]:
@@ -1202,9 +1232,7 @@ def _read(held: Mapping[str, Any]) -> list[Nous]:
     for name, row in cast(
         "dict[object, object]", said if isinstance(said, dict) else {}
     ).items():
-        one = _readone(str(name), row)
-        if one is not None and one.name not in found:
-            found[one.name] = one
+        _holds(found, _readone(str(name), row))
     was = held.get(_WAS)
     for row in cast("list[object]", was if isinstance(was, list) else []):
         if not isinstance(row, dict):
@@ -1217,9 +1245,7 @@ def _read(held: Mapping[str, Any]) -> list[Nous]:
             "timeout": row.get("timeout"),
             "then": cast("list[object]", to) if isinstance(to, list) else [],
         }
-        one = _readone(str(row.get("spec") or ""), old)
-        if one is not None and one.name not in found:
-            found[one.name] = one
+        _holds(found, _readone(str(row.get("spec") or ""), old))
     return list(found.values())
 
 
@@ -1281,8 +1307,9 @@ def graph_of(said: object) -> Graph | None:
     for id_, row in cast("dict[object, object]", nodes).items():
         if not isinstance(row, dict):
             raise TypeError("a node is a mapping")
-        row = cast("dict[str, Any]", row)
-        on: object = row.get("on") or {}
+        row = cast("dict[object, Any]", row)
+        # YAML 1.1, which the settings file is read as, takes a plain `on` for true.
+        on: object = row.get("on") or row.get(True) or {}
         edges = (
             [
                 (str(fault), str(to))

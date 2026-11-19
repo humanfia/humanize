@@ -120,6 +120,8 @@ class Notices:
                     "ended": status.get("ended"),
                     "pending": list(status.get("pending") or []),
                     "turn": status.get("turn"),
+                    # What a chat had spent: a turn taken wholly between two looks spends.
+                    "usage": status.get("usage"),
                 }
             self._stood = stood
             for one in made:
@@ -240,6 +242,7 @@ def _noticed(
                     "workspace": workspace,
                     "slot": now.get("slot") or "",
                     "epic": ended.get("epic") or "",
+                    "chat": ended.get("chat") or "",
                     # A chat has no flow, and is told of as what it is.
                     "flow": "chat"
                     if chat
@@ -259,6 +262,22 @@ def _noticed(
         kind = _ASKED.get(one.get("mode", ""))
         if kind is None or one.get("question") in asked:
             continue
+        if (
+            chat
+            and kind == "listening"
+            and (not same or was.get("turn") == "done")
+            and (
+                now.get("usage") == was.get("usage")
+                if same
+                else _unspent(now.get("usage"))
+            )
+        ):
+            # Asked what to say next with no turn taken since it last was, which would have
+            # shown as running or spent something: after a `!` command or a line refused,
+            # which is no turn done (Section 8.9.6 of core.md). Or by another host than the
+            # one that was, which has spent nothing: it came up waiting, as one carrying a
+            # chat on does (Section 4.22.5.1 of daemon.md), and has taken no turn at all.
+            continue
         made.append(
             {
                 # A chat asking what to say next is its turn done.
@@ -266,6 +285,7 @@ def _noticed(
                 "workspace": workspace,
                 "slot": now.get("slot") or "",
                 "epic": now.get("epic") or "",
+                "chat": now.get("chat") or "",
                 "flow": "chat" if chat else now.get("flow") or "",
                 "task": now.get("task") or "",
                 "role": one.get("role") or "",
@@ -274,6 +294,18 @@ def _noticed(
             }
         )
     return made
+
+
+def _unspent(usage: Any) -> bool:
+    """Whether what a host says it has spent is nothing, as of one that has taken no turn.
+
+    Args:
+      usage: What it says: each amount by name, how long as an ISO 8601 duration.
+    """
+    if not isinstance(usage, dict):
+        return False
+    spent = cast("dict[str, Any]", usage)
+    return bool(spent) and all(one in (0, "PT0S") for one in spent.values())
 
 
 def preferences(held: dict[str, Any] | None = None) -> dict[str, Any]:

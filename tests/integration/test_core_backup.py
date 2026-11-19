@@ -175,6 +175,22 @@ def test_no_backup_is_made_where_none_is_asked_for(bare: Path, project: Path) ->
     assert said.backup == ()
 
 
+def test_an_exec_waits_on_no_target_its_epic_is_backed_up_to_by_hand_only(
+    bare: Path, project: Path
+) -> None:
+    _targets({"name": "t", "url": str(bare)}, defaults=("t",))
+    began = time.monotonic()
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "hi")
+    assert ran.returncode == 0, ran.stderr
+    assert time.monotonic() - began < 30
+    assert "backing the epic up" not in ran.stderr
+    assert "took longer" not in ran.stderr
+    said = read(_epic(project))
+    assert said is not None
+    assert said.backup == ("t",)
+    assert not _log(bare)
+
+
 def test_a_running_epic_is_backed_up_every_so_often(
     bare: Path, project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -315,14 +331,19 @@ def test_an_epic_backed_up_on_one_machine_is_downloaded_on_another(
     assert epics.all() == [back]
     # As it ran, its sessions kept in the epic since the stand-in's home is the other
     # machine's, and none of that machine's targets or backups.
-    assert epics.read(back) == before._replace(
+    after = epics.read(back)
+    assert after is not None
+    assert after == before._replace(
         at=back,
         sessions=tuple(
             one._replace(where=f"sessions/{one.backend}") for one in before.sessions
         ),
         backup=(),
         backed={},
+        # Last written as it was read in here.
+        updated=after.updated,
     )
+    assert after.updated >= before.updated
     for was, now in zip(before.sessions, epics.sessions(back), strict=True):
         assert set(logs(back, now)) == set(logs(first, was))
     assert epics.foreign(back) == ""

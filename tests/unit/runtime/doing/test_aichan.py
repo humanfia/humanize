@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 from typing import TYPE_CHECKING, Any
 from unittest import mock
@@ -14,6 +15,7 @@ import pytest
 import hmz
 from hmz.flows import Access, HarnessSandboxed
 from hmz.runtime.doing import aichan
+from hmz.runtime.flowing import parse_agents
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -217,22 +219,58 @@ def test_a_call_to_an_epic_attaches_for_it_and_lets_go(client: mock.Mock) -> Non
     ]
 
 
-def test_a_side_question_opens_an_aside_on_the_session_and_asks_it(
+def test_a_side_question_is_asked_as_btw_asks_one_and_its_aside_left(
     client: mock.Mock,
 ) -> None:
-    client.call.side_effect = [{"sub": "s1"}, {"side": "s1"}, {"answer": "fine"}, {}]
+    client.call.side_effect = [{"answer": "fine"}, {}]
 
     said = use(client, "ask_session", key="worker/1", question="how?")
 
+    # Never the bare question to a side conversation of her own: `btw.ask` is what tells the
+    # side copy what it is, and the epic where it is no fork.
     assert said == "fine"
-    assert client.call.call_args_list[1].args == (
-        "epic.aside",
-        {"sub": "s1", "key": "worker/1", "fork": True},
-    )
-    assert client.call.call_args_list[2].args == (
-        "epic.aside",
-        {"sub": "s1", "side": "s1", "prompt": "how?"},
-    )
+    assert [one.args for one in client.call.call_args_list] == [
+        (
+            "btw.ask",
+            {
+                "workspace": "/w",
+                "epic": "",
+                "aside": "ai-chan::worker/1",
+                "to": "worker/1",
+                "question": "how?",
+            },
+        ),
+        ("btw.leave", {"workspace": "/w", "aside": "ai-chan::worker/1"}),
+    ]
+
+
+def test_a_side_question_on_another_slot_names_the_epic_its_host_holds(
+    client: mock.Mock,
+) -> None:
+    client.call.side_effect = [{"epic": "Papaya1"}, {"answer": "fine"}, Refused("no")]
+
+    # A leave her reach refuses is not the question failing.
+    assert use(client, "ask_session", slot="chat:ab", key="a/1", question="?") == "fine"
+    assert [one.args for one in client.call.call_args_list[:2]] == [
+        ("hosts.status", {"workspace": "/w", "slot": "chat:ab"}),
+        (
+            "btw.ask",
+            {
+                "workspace": "/w",
+                "epic": "Papaya1",
+                "aside": "ai-chan:Papaya1:a/1",
+                "to": "a/1",
+                "question": "?",
+            },
+        ),
+    ]
+
+
+def test_a_side_question_of_a_host_holding_no_epic_fails(client: mock.Mock) -> None:
+    client.call.return_value = {"state": "idle"}
+
+    with pytest.raises(LookupError, match="chat:ab holds no epic"):
+        use(client, "ask_session", slot="chat:ab", key="a/1", question="?")
 
 
 def test_an_env_is_reached_by_its_host_in_her_workspace(client: mock.Mock) -> None:
@@ -266,6 +304,21 @@ def test_the_methods_listed_are_those_she_may_be_able_to_call(
 
     assert [one["method"] for one in said] == ["runs.list"]
     assert said[0]["params"] == {"limit": {"type": "integer"}}
+
+
+def test_the_setting_she_is_shown_to_write_is_one_a_conversation_can_start_on(
+    client: mock.Mock,
+) -> None:
+    tools, _ = aichan.offered(aichan.Link("/w", lambda: client))
+    takes = next(one for one in tools if one.name == "settings_set").takes
+    assert takes is not None
+    told = takes.model_json_schema()["properties"]["values"]["description"]
+    shown = re.search(r"\{.*\}", told)
+    assert shown is not None
+
+    (spec,) = parse_agents([f"ai_chan={json.loads(shown.group())['ai_chan']}"])
+
+    assert spec.model
 
 
 def test_a_long_answer_is_cut_and_says_so(client: mock.Mock) -> None:

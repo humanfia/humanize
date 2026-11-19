@@ -12,11 +12,13 @@ an epic. A line that is wrong is refused with exit status 2 before anything is s
 from __future__ import annotations
 
 import json
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -31,9 +33,6 @@ from tests.integration.doubles_core import (
     started,
     write_flow,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 #: Every epic here is held by a daemon of the test's own, in this process.
 pytestmark = pytest.mark.usefixtures("daemon", "loops")
@@ -207,34 +206,65 @@ def test_chat_answers_one_turn_on_stdout_and_works_in_the_project(
     assert start["argv"][start["argv"].index("--model") + 1] == MODEL
     assert start["argv"][start["argv"].index("--effort") + 1] == "high"
     assert (project / "landed.txt").read_text() == "hello there\n"
+    # Written down as a chat, and as no epic of the project.
     epics = Hmz(project).epics
-    (epic,) = epics.all()
-    ran_as = epics.read(epic)
+    (chat,) = epics.chats()
+    assert epics.all() == []
+    ran_as = epics.read(chat)
     assert ran_as is not None
-    assert ran_as.task == "hello there"
+    assert (ran_as.task, ran_as.chat) == ("hello there", True)
     (session,) = ran_as.sessions
     assert session.backend == "claude"
     assert session.ident == start["session"]
 
 
-def test_a_chat_carried_on_goes_on_in_its_own_epic_and_conversation(
+def test_a_chat_carried_on_by_its_name_goes_on_in_its_own_record_and_conversation(
     tmp_path: Path, project: Path
 ) -> None:
     first = _chat("-a", AGENT, "hello")
     assert first.returncode == 0, first.stderr
-    (epic,) = Hmz(project).epics.all()
+    (chat,) = Hmz(project).epics.chats()
 
-    then = _chat("--resume", epic.name, "and then?")
+    then = _chat("--resume", chat.name, "and then?")
 
     assert then.returncode == 0, then.stderr
     assert then.stdout.strip() == "did: and then?"
-    assert Hmz(project).epics.all() == [epic]
+    assert Hmz(project).epics.chats() == [chat]
+    assert Hmz(project).epics.all() == []
     # The same conversation, carried on from where the first left it.
     first_start, then_start = started(tmp_path)
     assert (
         then_start["argv"][then_start["argv"].index("--resume") + 1]
         == (first_start["session"])
     )
+
+
+def test_a_chat_whose_conversation_is_gone_says_so_and_answers_in_a_new_one(
+    tmp_path: Path, project: Path
+) -> None:
+    first = _chat("-a", AGENT, "hello")
+    assert first.returncode == 0, first.stderr
+    (chat,) = Hmz(project).epics.chats()
+    shutil.rmtree(chat / "sessions")
+
+    then = _chat("--resume", chat.name, "and then?")
+
+    assert then.returncode == 0, then.stderr
+    assert then.stdout.strip() == "did: and then?"
+    assert "hmz chat: This conversation could not be carried on" in then.stderr
+    assert Hmz(project).epics.chats() == [chat]
+    assert "--resume" not in started(tmp_path)[-1]["argv"]
+
+
+def test_chat_shows_what_a_command_it_ran_printed_and_takes_no_turn(
+    tmp_path: Path,
+) -> None:
+    ran = _chat("-a", AGENT, "--", "!echo hi-from-bang")
+
+    assert ran.returncode == 0, ran.stderr
+    assert ran.stdout == "hi-from-bang\n"
+    assert "echo hi-from-bang" in ran.stderr
+    assert started(tmp_path) == []
 
 
 def test_a_failed_first_turn_fails_the_chat_with_what_the_cli_said() -> None:
@@ -272,6 +302,26 @@ def test_goal_says_the_task_as_a_goal() -> None:
 
     assert ran.returncode == 0, ran.stderr
     assert ran.stdout.strip() == "goal met: win"
+
+
+def test_a_cost_limit_no_price_can_enforce_is_said_once() -> None:
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
+
+    assert ran.returncode == 0, ran.stderr
+    said = [
+        line for line in ran.stderr.splitlines() if "cannot stop what it spends" in line
+    ]
+    assert len(said) == 1, ran.stderr
+    assert said[0].startswith("hmz exec: nobody lists a price for ")
+    assert said[0].endswith(", so cost=1 cannot stop what it spends")
+
+
+def test_a_run_that_ended_leaves_no_agents_temporary_directory_behind() -> None:
+    ran = hmz_exec("-f", "goal", "-a", f"worker={AGENT}", "-p", "budget.cost=1", "win")
+
+    assert ran.returncode == 0, ran.stderr
+    left = [one.name for one in Path(tempfile.gettempdir()).glob("hmz-*")]
+    assert left == []
 
 
 def test_a_failed_first_turn_fails_the_run_with_what_the_cli_said() -> None:

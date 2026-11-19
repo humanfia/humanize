@@ -36,6 +36,8 @@ class Driver:
     asked: list[tuple[list[str], float]] = field(default_factory=list[Any])
     #: Where each path is with every link followed, as its machine says it.
     links: dict[str, str] = field(default_factory=dict[str, str])
+    #: Where the workdir is on its machine, as `pwd` says it there and with every link followed.
+    where: tuple[str, str] | None = None
 
     async def read(self, path: str) -> bytes:
         if path not in self.files:
@@ -50,6 +52,8 @@ class Driver:
             relative = argv[-1]
             real = self.links.get(relative, f"{self.workdir}/{relative}")
             return 0, f"{self.workdir}\n{real}\n", ""
+        if self.where and len(argv) > 2 and argv[2].startswith("pwd"):
+            return 0, "".join(f"{one}\n" for one in self.where), ""
         self.asked.append((argv, timeout))
         if isinstance(self.ran, BaseException):
             raise self.ran
@@ -171,6 +175,31 @@ def test_a_path_under_a_tilde_is_one_in_the_workdir_not_in_the_home(
     assert _does("read", driver, path=path)["text"] == "x"
 
 
+@pytest.mark.parametrize("path", ["/home/u/w/a/b.txt", "/real/u/w/a/../a/b.txt"])
+def test_an_absolute_path_in_a_workdir_under_the_home_is_one_in_it(path: str) -> None:
+    # The workdir is said as `~/w`; where that is, only its machine knows.
+    driver = Driver(
+        workdir="~/w", where=("/home/u/w", "/real/u/w"), files={"a/b.txt": b"in"}
+    )
+
+    assert _does("read", driver, path=path)["text"] == "in"
+    assert _does("write", driver, path=path, text="new") == {"size": 3}
+    assert driver.files == {"a/b.txt": b"new"}
+    driver.ran = (0, "", "1\n")
+    _does("grep", driver, pattern="x", path="/home/u/w/a")
+    assert driver.asked[-1][0][-2] == "a"
+
+
+@pytest.mark.parametrize("path", ["/home/u/wx", "/home/u", "/home/u/w/../x", "/etc"])
+def test_an_absolute_path_out_of_a_workdir_under_the_home_is_refused(path: str) -> None:
+    driver = Driver(workdir="~/w", where=("/home/u/w", "/real/u/w"))
+
+    assert _refused("read", driver, path=path) == (
+        400,
+        f"{path} is outside the env box.",
+    )
+
+
 def test_a_command_says_its_status_and_the_last_of_what_it_wrote() -> None:
     driver = Driver(ran=(3, "x" * (2 << 20), "oops\n"))
 
@@ -271,8 +300,12 @@ class Holds:
     loop: asyncio.AbstractEventLoop
     held: tuple[Held, ...]
 
-    def held_envs(self) -> tuple[Held, ...]:
-        return self.held
+    def env_roles(self) -> dict[str, Any]:
+        roles: dict[str, Any] = {}
+        for one in self.held:
+            if one.parent is None:
+                roles.setdefault(one.role, one.driver)
+        return roles
 
 
 @pytest.fixture

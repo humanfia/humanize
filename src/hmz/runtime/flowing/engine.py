@@ -124,6 +124,7 @@ __all__ = [
     "Run",
     "current",
     "define_flow",
+    "fits",
     "held_by",
     "load_flow",
     "meets",
@@ -1408,6 +1409,7 @@ class Run:
         "pinned",
         "reapers",
         "recorder",
+        "roles",
         "skills",
         "specs",
         "tasks",
@@ -1457,6 +1459,9 @@ class Run:
         #: Every environment the run holds, by its driver's `id`, in the order it was first
         #: held: what the host's env panels list. Read from other threads under `lock`.
         self.held: dict[int, HeldEnv] = {}
+        #: The driver of every env role of the flow the run was started with, by role, two
+        #: roles of one driver each on its own: what `hosts.env.*` names. Read under `lock`.
+        self.roles: dict[str, EnvDriver] = {}
         #: The recorder as the run was given it, which :func:`held_by` finds the run by.
         self.given: object = recorder
         self.specs: dict[tuple[AgentDriver, Grant], str] = {}
@@ -1532,6 +1537,8 @@ class Run:
                 self.held[id(driver)] = HeldEnv(
                     role.name, held.chain, None, driver, role.grant.capabilities
                 )
+            if node.depth == 1:
+                self.roles.setdefault(role.name, driver)
         return view
 
     def holds(self, env: HeldEnv) -> None:
@@ -1561,6 +1568,19 @@ class Run:
         """Every environment the run holds, oldest first. From any thread."""
         with self.lock:
             return tuple(self.held.values())
+
+    def env_roles(self) -> dict[str, EnvDriver]:
+        """The driver of each env the run holds at its root, by name. From any thread.
+
+        Every env role of the flow the run was started with, then whatever else it holds at
+        its root: its workspace, until a `LocalEnv` role takes it.
+        """
+        with self.lock:
+            roles = dict(self.roles)
+            for one in self.held.values():
+                if one.parent is None:
+                    roles.setdefault(one.role, one.driver)
+        return roles
 
     def spec_of(self, view: AgentView | OutworlderView) -> str:
         """What a journal knows an agent by."""
@@ -1947,19 +1967,7 @@ async def run_flow(
     if not isinstance(budget, Budget):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise TypeError(f"budget={budget!r} is not a Budget")
     roles, eroles = impl.declared()
-    _given(impl, roles, agents, "agent")
-    _given(impl, eroles, envs, "environment")
-    for role in roles:
-        driver = agents.get(role.name)
-        if driver is not None:
-            _serves(impl, role, driver)
-    for role in eroles:
-        driver = envs.get(role.name)
-        if driver is not None:
-            _serves_env(impl, role, driver)
-            if role.resources:
-                meets(role, driver, impl)
-    said = impl.params_of(params)
+    said = fits(impl, agents=agents, envs=envs, params=params)
     loop = asyncio.get_running_loop()
     run = Run(
         person=Source(outworlder, made=False, node=None),
@@ -1990,6 +1998,7 @@ async def run_flow(
             )
     for name, view in env_views.items():
         run.holds(HeldEnv(name, view.chain, None, view.driver, view.grant.capabilities))
+        run.roles[name] = view.driver
     if local is not None:
         run.workspace()
     _RUNS.add(run)
@@ -2055,6 +2064,44 @@ async def _closed(run: Run) -> None:
     closing.result()
     if stopped:
         raise asyncio.CancelledError
+
+
+def fits(
+    flow: FlowImpl,
+    *,
+    agents: Mapping[str, AgentDriver],
+    envs: Mapping[str, EnvDriver],
+    params: FlowParams | Mapping[str, Any],
+) -> FlowParams:
+    """Checks what a flow is about to be run on, as :func:`run_flow` does before it starts.
+
+    Args:
+      flow: The flow.
+      agents: A driver per agent role, less the `Outworlder` roles the runtime fills.
+      envs: A driver per environment role, less the `LocalEnv` roles the runtime fills.
+      params: The params, or a mapping of them to validate.
+
+    Returns:
+      The params, validated.
+
+    Raises:
+      RequirementError: If the drivers do not meet the declaration.
+      ParamsError: If the params do not validate.
+    """
+    roles, eroles = flow.declared()
+    _given(flow, roles, agents, "agent")
+    _given(flow, eroles, envs, "environment")
+    for role in roles:
+        driver = agents.get(role.name)
+        if driver is not None:
+            _serves(flow, role, driver)
+    for role in eroles:
+        driver = envs.get(role.name)
+        if driver is not None:
+            _serves_env(flow, role, driver)
+            if role.resources:
+                meets(role, driver, flow)
+    return flow.params_of(params)
 
 
 def _given(

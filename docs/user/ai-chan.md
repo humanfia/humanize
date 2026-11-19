@@ -40,7 +40,9 @@ avatar at the right of any view's bar instead: a drawer opens beside it, with **
 ## How it works
 
 Every conversation with Ai-chan is fixed, when you make it, to three things. None of them
-changes while the conversation lasts; to change one, make another conversation.
+changes while the conversation lasts; to change one, make another conversation. A `/model` or
+`/effort` said to her is refused, and leaves the [chat agent](/user/chat) her workspace remembers
+as it was.
 
 | | What it is | Choices | Default |
 | --- | --- | --- | --- |
@@ -135,15 +137,16 @@ What to look at, by number:
   this directory's own. `/btw` is refused while you follow her: she is not a session of an
   epic.
 - **On the page**, the drawer stays open from view to view until you close it, and lists each
-  conversation as **Answering**, **Waiting** or **Folded away**. Its form also takes a
-  **Title**, made from the task where you leave it empty. On a phone the drawer covers the view;
-  <kbd>esc</kbd> or its close button puts it away.
+  conversation as **Answering**, **Waiting** or **Folded away**. A conversation you open whose
+  first turn failed says **Failed**, with what her harness said, and takes no more lines: start
+  a new one. Its form also takes a **Title**, made from the task where you leave it empty. On a
+  phone the drawer covers the view; <kbd>esc</kbd> or its close button puts it away.
 - **Stopping** interrupts her turn and leaves the conversation between turns. It does not end
   it.
 - **Forgetting** removes the conversation from the list and deletes her scratch directory. It
   asks first (`Forget Ai-chan#<n>?` at the prompt), and cannot be undone.
-- **Her conversations are not your epics.** None is listed in `/epics`, in the page's sidebar
-  or among a directory's epics, while it lasts or after you forget it; what it wrote down is
+- **Her conversations are not your epics or chats.** None is listed in `/epics`, in the page's sidebar
+  or among a directory's epics or chats, while it lasts or after you forget it; what it wrote down is
   kept on disk either way.
 
 ## Many conversations

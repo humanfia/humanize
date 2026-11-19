@@ -220,7 +220,9 @@ _STARTING: Final = frozenset(
 HOOK_TIMEOUT: float = 900.0
 
 
-def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver:
+def open_agent(
+    spec: AgentSpec, harbors: Harbors | None = None, name: str = ""
+) -> HarnessDriver:
     """Makes the driver for one `-a`.
 
     Starts nothing and looks for nothing: the CLI is reached when the first session opens,
@@ -231,6 +233,8 @@ def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver
       spec: The agent.
       harbors: The run's harness runtimes, which say where the harness of a session working
         on a runtime goes, or None to put it where its CLI is wherever the work is.
+      name: What the agent is called, for one that goes on being an agent an epic has
+        written down already, or "" for a codename of its own.
 
     Returns:
       A driver of `spec.harness` whose capabilities are exactly that harness's in
@@ -264,7 +268,7 @@ def open_agent(spec: AgentSpec, harbors: Harbors | None = None) -> HarnessDriver
         kind(config)
     except ValueError as refused:
         raise HarnessUnrecoverable(f"{spec}: {refused}") from refused
-    return HarnessDriver(spec, kind, config, profile, harbors=harbors)
+    return HarnessDriver(spec, kind, config, profile, harbors=harbors, name=name)
 
 
 class HarnessDriver:
@@ -295,6 +299,7 @@ class HarnessDriver:
         profile: Profile | None,
         *,
         harbors: Harbors | None = None,
+        name: str = "",
     ) -> None:
         """Initializes a driver that has opened nothing.
 
@@ -304,6 +309,7 @@ class HarnessDriver:
           config: What every session's agent is configured with before its own settings.
           profile: What coganchor knows of the CLI, or None for one it knows nothing of.
           harbors: The run's harness runtimes, or None for `env` everywhere.
+          name: What the agent is called, or "" for a codename of its own.
         """
         from hmz.coganchor.agents.codenames import codename
 
@@ -312,7 +318,7 @@ class HarnessDriver:
         self._config = config
         #: Every session's agent is built under it: a session's own agent is this one
         #: agent's conversation, and two of them are not two agents.
-        self._name = codename()
+        self._name = name or codename()
         self._profile = profile
         self._harbors = harbors
         self._capabilities = HARNESS_CAPABILITIES[spec.harness]
@@ -330,7 +336,7 @@ class HarnessDriver:
 
     @property
     def name(self) -> str:
-        """What the agent is called: a codename nothing else in the process answers to."""
+        """What the agent is called: the name it was given, else a codename of its own."""
         return self._name
 
     @property
@@ -779,12 +785,14 @@ class HarnessDriver:
             return machine  # a runtime that is this machine, which is `local`
         # No mirror of this machine's named for it: a harness elsewhere keeps its own, under
         # that machine's cache, between turns.
-        put = dataclasses.replace(
-            machine,
-            anchor=dataclasses.replace(
+        try:
+            anchor = dataclasses.replace(
                 machine.anchor, harness=there.anchor.target, shadow=None
-            ),
-        )
+            )
+        except ValueError as refused:
+            # Work that no harness on another machine can be introduced to.
+            raise HarnessUnrecoverable(f"{self._spec}: {refused}") from refused
+        put = dataclasses.replace(machine, anchor=anchor)
         # Built and let go: a fence is drawn around this machine's paths, and a role held to
         # one cannot have its harness on a machine of its own.
         self._made_as(dataclasses.replace(config, machine=put))

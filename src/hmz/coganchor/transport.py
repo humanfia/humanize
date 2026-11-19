@@ -194,8 +194,11 @@ def _prefaced(
 #: Putting `coganchor` on a target, in its `/bin/sh`, which is all a machine with nothing of
 #: Humanize on it is sure to have. A build already there under its name is touched and left:
 #: it is named by its digest, and rewriting it would be rewriting a program a live session may
-#: be running. One that is not is read off the input into `<path>.<pid>` -- two sessions
-#: shipping to one machine at once being the ordinary case -- checked to be as long as what
+#: be running. Touched with `-c`, which sets its time by its name: a plain `touch` opens it
+#: for writing to do that, and for as long as it is open Linux refuses to run it (`Text file
+#: busy`) -- to a session which found it there a moment earlier. One that is not is read off
+#: the input into `<path>.<pid>` -- two sessions shipping to one machine at once being the
+#: ordinary case -- checked to be as long as what
 #: was sent, so that a link cut half-way leaves nothing under the name, made `0700` and moved
 #: into place. Then every other build and half-written copy nobody has touched in `{days}`
 #: whole days and more goes, and so does any `humanize-*.pyz` archive an earlier Humanize,
@@ -203,7 +206,7 @@ def _prefaced(
 #: side's directory, the build's name there and its length in bytes.
 _SHIPPING = (
     'c="{cache}"; mkdir -p "$c" || exit 1; p="$c/{name}"; '
-    'if [ -f "$p" ]; then touch "$p"; else '
+    'if [ -f "$p" ]; then touch -c "$p"; else '
     't="$p.$$"; '
     'if cat > "$t" && n=$(wc -c < "$t") && [ $n -eq {size} ] && chmod 700 "$t" '
     '&& mv -f "$t" "$p"; then :; else rm -f "$t"; '
@@ -1237,7 +1240,10 @@ def connect(target: Target, exports: list[str], token: str | None = None) -> Tra
       ValueError: If the target cannot be read.
     """
     if target.scheme == "tcp":
-        sock = socket.create_connection((target.host, target.port), timeout=30.0)
+        # An IPv6 literal is spelled in brackets and dialled without them, as the cog does.
+        sock = socket.create_connection(
+            (target.host.strip("[]"), target.port), timeout=30.0
+        )
         # Nagle off, the way a punched socket has it off: this protocol is a small request
         # and a small reply, over and over, and a delay waiting for a second frame that is
         # not coming is a delay per syscall the agent makes.
@@ -1258,7 +1264,9 @@ def _spawn(command: list[str], token: str | None) -> Transport:
     """Start a child that serves over its own stdin and stdout.
 
     The token travels in the environment the child inherits, which works for
-    ``local``.  For ``ssh`` and ``docker`` the child is the client rather than
+    ``local``; with none, the child is kept from one this process happens to have
+    exported, which it would require and never be shown.  For ``ssh`` and
+    ``docker`` the child is the client rather than
     the target and neither forwards the environment, so those sessions are
     authenticated by ssh and by the docker socket themselves and the token goes
     unused.
@@ -1267,6 +1275,8 @@ def _spawn(command: list[str], token: str | None) -> Transport:
     env = dict(os.environ)
     if token:
         env["HUMANIZE_TOKEN"] = token
+    else:
+        env.pop("HUMANIZE_TOKEN", None)
     process = subprocess.Popen(
         command,
         stdin=subprocess.PIPE,

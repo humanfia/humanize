@@ -101,6 +101,8 @@ def test_a_job_reached_over_tcp_serves_every_connection_that_has_its_secret(
     try:
         assert anchor.target.startswith("tcp://localhost:")
         assert anchor.token
+        (submitted,) = cluster.calls("sbatch")
+        assert anchor.token not in " ".join(submitted)  # which anybody here could read
         for one in range(
             3
         ):  # one listener, many connections, and no `srun` held for any
@@ -125,6 +127,32 @@ def test_a_job_reached_over_tcp_serves_every_connection_that_has_its_secret(
                 RemoteClient(link.channel).start("forged")
         finally:
             link.close()
+    finally:
+        machine.stop()
+
+    assert _gone()
+
+
+def test_a_job_reached_over_tcp_holds_what_is_derived_from_a_workdir(
+    cluster: Fakes, workspace: Path
+) -> None:
+    machine = _config(workspace, via=TCP).create()
+    derived = cluster.home / ".hmz" / "envs" / "project-0123456789ab" / "scratch" / "s"
+
+    anchor = machine.start()
+    try:
+        link = transport.connect(
+            transport.Target.parse(anchor.target), ["/"], anchor.token
+        )
+        try:
+            client = RemoteClient(link.channel)
+            client.start(anchor.token)
+            client.mkdir(str(derived), parents=True)
+            with pytest.raises(OSError, match="outside every export"):
+                client.mkdir(str(cluster.home / ".hmz" / "other"))
+        finally:
+            link.close()
+        assert derived.is_dir()
     finally:
         machine.stop()
 

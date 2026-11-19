@@ -13,7 +13,7 @@ import pytest
 
 from hmz import machine
 from hmz.runtime import backing
-from hmz.runtime.epic import Epic, read
+from hmz.runtime.epic import Epic, chats, read
 from hmz.runtime.exporting import REDACTED, unpacked
 from hmz.runtime.settings import Target
 
@@ -170,6 +170,7 @@ def test_a_target_lists_the_epics_it_holds_after_a_fetch(git: Git, ran: Path) ->
     assert [one.key for one in held] == [key]
     one = held[0]
     assert (one.machine, one.epic, one.flow) == ("other", ran.name, "ralph")
+    assert one.chat is False
     said = read(ran)
     assert said is not None
     assert (one.workspace, one.began, one.ended, one.how) == (
@@ -231,3 +232,47 @@ def test_a_target_settings_has_none_of_lists_nothing(git: Git) -> None:
     with pytest.raises(ValueError, match="no backup target is named gone"):
         backing.listed("gone")
     assert git.asked == []
+
+
+@pytest.fixture
+def chat(tmp_path: Path) -> Path:
+    workspace = tmp_path / "project"
+    workspace.mkdir(exist_ok=True)
+    with Epic("", "what is here?", workspace, kind="chat") as one:
+        pass
+    return one.path
+
+
+def test_a_chat_a_target_holds_is_listed_as_one_and_pulled_among_the_chats(
+    git: Git, ran: Path, chat: Path
+) -> None:
+    del git
+    keys = [_held(ran), _held(chat)]
+
+    held = backing.listed("lab")
+
+    assert [(one.key, one.chat) for one in held] == [(keys[0], False), (keys[1], True)]
+    assert (held[1].epic, held[1].flow, held[1].task) == (
+        chat.name,
+        "",
+        "what is here?",
+    )
+
+    with pytest.raises(ValueError, match="already here"):
+        backing.pulled("lab", keys[1])
+    shutil.rmtree(chat)
+
+    at = backing.pulled("lab", keys[1])
+
+    # Among the chats of the workspace it was had in, never among its epics.
+    assert at == chat
+    assert chats() == [chat]
+    said = read(at)
+    assert said is not None
+    assert (said.kind, said.task) == ("chat", "what is here?")
+    came = [
+        json.loads(line)
+        for line in (at / "chat.jsonl").read_text().splitlines()
+        if '"imported"' in line
+    ]
+    assert came[-1]["from"] == f"{keys[1]} on lab (ssh://{REDACTED}@host/epics)"

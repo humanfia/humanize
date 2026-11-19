@@ -90,6 +90,8 @@ normative. It is cited by the tag [CORE].
   - [8.7. Folding away and carrying on](#87-folding-away-and-carrying-on)
   - [8.8. Drawing a chat](#88-drawing-a-chat)
   - [8.9. Native input](#89-native-input)
+  - [8.10. Renaming, forking, archiving and deleting](#810-renaming-forking-archiving-and-deleting)
+  - [8.11. Harness sessions](#811-harness-sessions)
 - [9. Side Questions](#9-side-questions)
   - [9.1. Scope](#91-scope)
   - [9.2. Terminology](#92-terminology)
@@ -340,7 +342,7 @@ Out of scope:
 - Where an agent's harness and an environment are placed, and fallback between runtimes (Section 6,
   Section 7).
 - Which agents and accounts exist and how a turn is taken (Section 4, Section 5).
-- Chats, epics of their own kind, and their conversation semantics (Section 8).
+- Chats, which are no epics, and their conversation semantics (Section 8).
 - Live figures, traces, profiles and notices of an epic (Section 10).
 - Backups, export and import of an epic (Section 11).
 
@@ -381,16 +383,17 @@ host's.
 
 **3.2.12** **Price list**: the list of per-token model prices kept on this machine (Section 10.3.3).
 
-**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow, or `chat`, a chat (Section 8).
-Where this section speaks of an epic's flow, roles, parameters, budget, stopping or picking up, it
-speaks of epics of kind `flow` alone; a chat is started, limited and ended as Section 8 states.
+**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow, or `chat`, an epic an earlier hmz
+recorded for a chat, when a chat was an epic (Section 8.7.10). Where this section speaks of an
+epic's flow, roles, parameters, budget, stopping or picking up, it speaks of epics of kind `flow`
+alone; a chat is no epic, and is started, limited and ended as Section 8 states.
 
 ### 3.3. Lifecycle
 
 #### 3.3.1. Starting
 
-**3.3.1.1** hmz MUST start an epic only when a user or a program asks for one through `hmz exec` or
-`hmz chat` ([CLI]), a frontend ([TUI], Section 3 of [WEB]) or the SDK (Section 4 of [PYTHON]).
+**3.3.1.1** hmz MUST start an epic only when a user or a program asks for one through `hmz exec`
+([CLI]), a frontend ([TUI], Section 3 of [WEB]) or the SDK (Section 4 of [PYTHON]).
 
 **3.3.1.2** hmz MUST refuse to start an epic whose flow cannot be found or loaded (Section 3.3.2).
 
@@ -579,8 +582,8 @@ other than a stop or a budget exhaustion.
 **3.3.6.6** An epic MUST read back as `unfinished` while it has recorded no end and no process on
 this machine holds it.
 
-**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except a chat carried on
-(Section 8.7.9).
+**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except the epic an earlier hmz
+recorded for an Ai-chan conversation, where that conversation is carried on (Section 14.8.5).
 
 **3.3.6.8** Where a frontend reports how the last epic of a host slot ended, it MUST distinguish an
 epic refused before its flow was called, an epic ended by its budget, an error the flow raised and
@@ -3351,11 +3354,12 @@ a turn open.
 
 ### 8.1. Scope
 
-This section defines the chat: a kind of **epic** of its own, apart from the epics of **flows**, in
-which the **user** talks to one **agent**, one turn at a time, in one conversation, in one
-**workspace**. It states how a chat starts, takes turns, reports its status, runs beside other
-epics, folds away, is carried on and ends, what every **frontend** draws and refuses for it, and how
-it takes the input its harness takes natively.
+This section defines the chat: a session of its own, apart from every **epic**, in which the
+**user** talks to one **agent**, one turn at a time, in one conversation, in one **workspace**. It
+states how a chat starts, takes turns, reports its status, runs beside epics and other chats, folds
+away, is carried on and ends, how it is renamed, forked, archived and deleted, what every
+**frontend** draws and refuses for it, how it takes the input its harness takes natively, and how a
+session a harness had of its own is continued as a chat.
 
 Out of scope:
 
@@ -3365,11 +3369,12 @@ Out of scope:
 - The web interface's layout outside a chat: Section 3 of [WEB].
 - Side questions asked about a chat: Section 9.
 - Notices of chat turns: Section 10.
-- What an epic records: Section 3, Section 6 of [FILES].
+- What a chat records: Section 6.12 of [FILES].
 
 ### 8.2. Terminology
 
-**8.2.1** **Chat**: an epic of kind `chat` (Section 3.2.13).
+**8.2.1** **Chat**: one conversation of the user with one agent, recorded in a chat record of its
+own (Section 6.12 of [FILES]). A chat is no epic.
 
 **8.2.2** **Assistant**: the one agent of a chat.
 
@@ -3382,9 +3387,9 @@ is delivered to the moment the answer is complete.
 the user's next message.
 
 **8.2.6** **Folding away**: the end of the **host** that holds a chat, while the chat is between
-turns, leaving its epic recorded so that it can be carried on.
+turns, leaving the chat recorded so that it can be carried on.
 
-**8.2.7** **Carrying on**: resuming a chat in its own epic with its own conversation.
+**8.2.7** **Carrying on**: resuming a chat in its own record with its own conversation.
 
 **8.2.8** **Sigil**: one of `/`, `$`, `!` and `@` at the start of a line said in a chat.
 
@@ -3396,6 +3401,11 @@ conversation (Section 8.9.2).
 
 **8.2.11** **Preference**: what a chat takes a `$` name to be where the name is both a native skill
 and a flow: `native` or `flow`.
+
+**8.2.12** **Name** of a chat: the last path component of its chat directory (Section 6.12.1 of
+[FILES]), by which every interface names the chat.
+
+**8.2.13** **Resting**: the state of a chat that no host holds and that did not end failed.
 
 ### 8.3. The chat
 
@@ -3409,16 +3419,17 @@ its spending.
 
 **8.3.4** A chat MUST have no flow and no outworlder role.
 
-**8.3.5** hmz MUST record a chat with kind `chat` and every other epic with kind `flow`, and MUST
-read an epic record that gives no kind as kind `flow`, except one whose flow is `chat`, which MUST
-be read as a chat (Section 6 of [FILES]).
+**8.3.5** hmz MUST record a chat in a chat record (Section 6.12 of [FILES]) and MUST NOT record it
+as an epic; hmz MUST record every epic with kind `flow`, and MUST read an epic record that gives
+kind `chat`, or that gives no kind and whose flow is `chat`, as an epic of kind `chat` (Section
+8.7.10, Section 6.5 of [FILES]).
 
 **8.3.6** The name `chat` MUST NOT be reserved: a flow named `chat` MUST be an ordinary flow, and an
 epic of it MUST be of kind `flow`.
 
 **8.3.7** hmz MUST refuse to start a chat that is given an agent specification that cannot be read
 or that names a runtime which is not saved, MUST state the reason, MUST make the refusal before any
-session opens, and MUST NOT create an epic directory for the refused request.
+session opens, and MUST NOT create a chat directory for the refused request.
 
 **8.3.8** A workspace MUST remember the agent of the last chat started or changed in it through a
 frontend, apart from the remembered setup of every flow, as Section 3.4.1.6 states for a remembered
@@ -3429,22 +3440,36 @@ agent; a frontend MUST offer that agent when it starts a chat in that workspace.
 with `network` true and no granular rule, told to its harness and confined as Section 4.6 states for
 any grant, and Section 4.6.2.2 MUST hold for it: no permission is held by a mode that puts an action
 to approval. The permission MUST be `workspace-write` unless a chat is started with another
-(`chat.start` in Section 4 of [DAEMON]), and MUST be recorded in the chat's epic where it is not
+(`chat.start` in Section 4 of [DAEMON]), and MUST be recorded in the chat's record where it is not
 `workspace-write`.
 
 **8.3.10** The permission of a chat MAY be set while the chat goes on (`chat.set` in Section 4 of
-[DAEMON]). A permission set MUST be recorded in the chat's epic, MUST leave a turn that is open as
+[DAEMON]). A permission set MUST be recorded in the chat's record, MUST leave a turn that is open as
 it is, and MUST hold from the chat's next turn: ahead of that turn the chat MUST close its
 conversation and carry it on in one opened under the new permission, as Section 8.7.5 and Section
 8.7.6 state for a chat carried on. Where no conversation can be opened under the new permission, the
 chat MUST say so in the conversation with the reason, MUST record the permission it had again, and
 MUST go on under that one.
 
-**8.3.11** A chat carried on (Section 8.7) MUST keep the permission its epic records unless it is
+**8.3.11** A chat carried on (Section 8.7) MUST keep the permission its record gives unless it is
 carried on with another.
 
 **8.3.12** Section 8.3.9 to Section 8.3.11 MUST NOT apply to an Ai-chan conversation, whose
 permission is that of Section 14.5 and never changes.
+
+**8.3.13** A chat MAY be started in a worktree (`worktree` of `chat.start` in Section 4 of
+[DAEMON]): hmz MUST then add a `git` worktree of the repository holding the workspace, detached at
+its `HEAD`, where Section 9.4.8 of [FILES] places one, and the chat's assistant MUST work there in
+place of the workspace. hmz MUST NOT create a branch for it and MUST NOT remove it, when the chat is
+deleted included. The chat MUST still be a chat of its workspace; its record MUST say where it
+works, and carrying it on MUST return there. Where no worktree can be added, the start MUST be
+refused as Section 8.3.7 states, and a chat carried on MUST NOT be given a worktree.
+
+**8.3.14** A chat MUST be backed up as an epic is (Section 11), its chat directory in place of the
+epic directory. What Section 11 states of listing and downloading the epics a target holds MUST hold
+for the chats it holds too: a chat listed MUST state that it is a chat, its flow being empty, and a
+chat downloaded MUST be placed among this machine's chats (Section 6.12.13 of [FILES]) and never
+among its epics.
 
 ### 8.4. Turns
 
@@ -3469,7 +3494,7 @@ options it offers, and the user's next message MUST answer it; no outworlder tak
 **8.4.8** Where nobody is at a prompt to say the next message ([CLI]), the chat MUST take its first
 turn and then end, the next message being empty.
 
-**8.4.9** Where the first turn of a chat that is not carried on fails, the epic MUST end failed with
+**8.4.9** Where the first turn of a chat that is not carried on fails, the chat MUST end failed with
 what the harness said.
 
 **8.4.10** Where a later turn fails, the chat MUST say in the conversation that the turn could not
@@ -3477,23 +3502,27 @@ be taken and why, and MUST go on between turns.
 
 ### 8.5. Status
 
-**8.5.1** A chat MUST be reported as `running` while a turn is open.
+**8.5.1** A chat MUST be reported as in a turn while a turn is open, and as asking while its
+assistant waits, mid-turn, on an answer of the user (Section 8.4.6).
 
-**8.5.2** A chat MUST be reported as `stopped` while it is between turns; the status line of the
-terminal interface says where its turn is instead (Section 11.4 of [TUI]).
+**8.5.2** A chat MUST be reported as going while a host holds it between turns; the status line of
+the terminal interface says where its turn is instead (Section 11.4 of [TUI]).
 
-**8.5.3** A chat that has ended MUST be reported as `stopped`, or as `failed` where Section 8.4.9
-applies; a chat MUST NOT be reported as `done`. A frontend MAY mark a chat as asking, in place of
-`running` or `stopped`, while it waits on a question a person has not yet seen, as Section 3.5.8 of
-[WEB] does.
+**8.5.3** A chat that has ended MUST be reported as resting, or as failed where Section 8.4.9
+applies; a chat MUST NOT be reported as `done`. A frontend MAY mark a chat, in place of any of
+these, while it waits on a reply a person has not yet seen, and MAY say going and resting in the
+words it says an epic's state in, as Section 3.5 of [WEB] does.
 
-**8.5.4** A frontend MUST NOT offer a way to stop a chat or to force it to stop.
+**8.5.4** A frontend MUST offer a way to stop the open turn of a chat (`chat.stop` in Section 4 of
+[DAEMON]). Stopping MUST interrupt that turn, MUST say in the conversation that the turn was
+stopped, MUST leave the chat between turns, and MUST NOT end the chat.
 
-**8.5.5** A frontend MUST refuse a request to stop a chat, saying that a chat is not stopped.
+**8.5.5** A request to stop a chat while no turn is open MUST be refused, saying that no turn is
+open; a frontend MUST NOT offer a way to force a chat to stop.
 
 ### 8.6. Many chats
 
-**8.6.1** Each chat MUST be an epic of its own on a host of its own.
+**8.6.1** Each chat MUST be a record of its own on a host of its own.
 
 **8.6.2** Any number of chats MUST be able to run in one workspace at once, beside the workspace's
 own flow.
@@ -3503,8 +3532,8 @@ own flow.
 **8.6.4** Starting or resuming a flow in a workspace MUST NOT end, stop or wait on any chat of that
 workspace.
 
-**8.6.5** A frontend MUST list every chat among the epics of its workspace, with its status as
-Section 8.5 states it.
+**8.6.5** A frontend MUST list every chat of its workspace that is not archived, by its title, with
+its status as Section 8.5 states it, and MUST NOT call a chat an epic.
 
 **8.6.6** Each chat MUST execute in a chat host slot of its own (`chat:` followed by hexadecimal
 digits, Section 4.2.6 of [DAEMON]), concurrently with the epic of the workspace's own host slot.
@@ -3516,28 +3545,32 @@ period Section 3 of [DAEMON] states.
 
 **8.7.2** A chat MUST NOT fold away while a turn is open.
 
-**8.7.3** A chat that a host holds MUST, when opened from a list of epics, be followed where it is,
+**8.7.3** A chat that a host holds MUST, when opened from a list of chats, be followed where it is,
 its conversation drawn from its first message.
 
-**8.7.4** A chat that has folded away MUST, when opened from a list of epics, be drawn with what was
+**8.7.4** A chat that has folded away MUST, when opened from a list of chats, be drawn with what was
 said in it, and the next message the user says in it MUST carry it on.
 
-**8.7.5** Carrying on a chat MUST continue the same epic, MUST continue the same conversation, and
-MUST take the message that carried it on as the next turn.
+**8.7.5** Carrying on a chat MUST continue the same chat record, MUST continue the same
+conversation, and MUST take the message that carried it on as the next turn.
 
 **8.7.6** Where the conversation of a chat cannot be carried on, the chat MUST say so in the
-conversation with the reason, MUST start a new conversation in the same epic, and MUST answer the
+conversation with the reason, MUST start a new conversation in the same chat, and MUST answer the
 message that carried it on in that new conversation.
 
 **8.7.7** A chat of another workspace, or one that cannot be carried on here, MUST be refused,
 saying that the chat cannot be continued here.
 
 **8.7.8** A chat MUST NOT be carried on by resuming the workspace's last epic; it MUST be carried on
-only from a list of epics, by `/resume` in a chat (Section 8.9.8) or by saying something in it.
+only from a list of chats, by `/resume` in a chat (Section 8.9.8), by its name (`hmz chat --resume`
+in [CLI]) or by saying something in it.
 
-**8.7.9** A chat that is carried on MUST record that it was opened again, MUST read back as
-`running` until it ends again, and MUST read back as having spent the sum of what each opening
-spent.
+**8.7.9** A chat that is carried on MUST record that it was opened again, MUST read back as going
+until it ends again, and MUST read back as having spent the sum of what each opening spent.
+
+**8.7.10** An epic an earlier hmz recorded for a chat (Section 3.2.13) MUST NOT be made a chat: it
+MUST stay where it is, MUST be listed and read as an epic of no flow, as any other epic that has
+ended is, and MUST NOT be carried on; a request to carry it on MUST be refused as naming no chat.
 
 ### 8.8. Drawing a chat
 
@@ -3547,13 +3580,13 @@ assistant's answers, in order.
 **8.8.2** A frontend MUST NOT draw for a chat a monitor, a graph or list of agents, a tree of agents
 or sessions, a transcript of several sessions, a list of outworlders or a timeline in Exomyth.
 
-**8.8.3** A frontend MUST NOT offer for a chat a way to stop it, to force it, or to round its views.
+**8.8.3** A frontend MUST NOT offer for a chat a way to force it or to round its views.
 
 **8.8.4** The terminal interface MUST end the chat on the screen by `/clear`, which starts a new
 chat and leaves the previous one going on its own host ([TUI]).
 
-**8.8.5** The web interface MUST end the chat on the screen by starting a new epic, which leaves the
-previous chat going on its own host (Section 3 of [WEB]).
+**8.8.5** The web interface MUST end the chat on the screen by starting a new chat or a new epic,
+which leaves the previous chat going on its own host (Section 3 of [WEB]).
 
 **8.8.6** Leaving a frontend while a chat is on the screen MUST NOT ask the user anything, and MUST
 leave a chat that a host holds to that host.
@@ -3603,7 +3636,7 @@ other line being passed as text; `litellm` and every ACP harness MUST have no ca
 being text.
 
 **8.9.5** `/model` and `/effort` MUST change the model or the effort of the conversation, and the
-agent so changed MUST be the chat's agent from then on, recorded in its epic and remembered as
+agent so changed MUST be the chat's agent from then on, recorded in the chat and remembered as
 Section 8.3.8 states.
 
 **8.9.6** A `!<command>` that hmz emulates MUST run in the chat's workspace under the same
@@ -3626,7 +3659,7 @@ exist the chat's preference MUST decide.
 **8.9.10** The preference MUST be `native` unless the user sets it to `flow` in the settings file
 (`chat.prefer`, Section 3 of [FILES]), and MAY be overridden for one chat (`/prefer` in [TUI], a
 toggle in Section 3 of [WEB], `chat.set` in Section 4 of [DAEMON]); the override MUST be recorded in
-that chat's epic and MUST survive carrying on.
+that chat's record and MUST survive carrying on.
 
 **8.9.11** `/flow <name> [task]` MUST always name a flow.
 
@@ -3637,6 +3670,63 @@ MUST be served as the catalogue says.
 to the harness as text where the catalogue holds no entry with sigil `/` or the conversation has
 not yet taken a turn, by when every harness has listed its catalogue, and MUST otherwise be
 refused, naming it; a line that starts with `!` or `@` and names no entry MUST be passed as text.
+
+### 8.10. Renaming, forking, archiving and deleting
+
+**8.10.1** A chat MUST have a title: the first line of its first message, until the user changes it
+(`chat.rename` in Section 4 of [DAEMON]). A title changed MUST be recorded in the chat's record and
+MUST survive carrying on.
+
+**8.10.2** Forking a chat (`chat.fork`) MUST make a new chat of the same workspace that goes on from
+a copy of the conversation the chat has kept so far: the new chat MUST hold a copy of the sessions
+kept in the chat's directory, MUST stand as the chat stands -- its first message, title, agent,
+preference, permission and where it works -- MUST say which chat it was forked from, and MUST rest
+until it is carried on, which MUST continue the copy. Forking MUST NOT change the chat forked, and
+MUST be refused, saying why, while a turn of the chat is open and where the chat's conversation is
+not kept in its directory, its harness having kept it elsewhere or the chat having opened none.
+
+**8.10.3** Archiving a chat (`chat.archive`) MUST record it as archived and MUST change nothing else
+of it; a frontend MUST leave an archived chat out of its lists of chats. The archived chats of a
+workspace MUST be listable apart (`chat.list` with `archived`), and an archived chat MUST be put
+back among the others by `chat.unarchive`.
+
+**8.10.4** Deleting a chat (`chat.delete`) MUST remove its chat directory, the sessions kept in it
+included, and nothing else: no epic directory, and no worktree the chat worked in. It MUST be
+refused while the chat is going -- a host or any other process holding it -- and what is deleted
+MUST NOT be recoverable through hmz.
+
+**8.10.5** Section 8.10.2 to Section 8.10.4 MUST NOT apply to an Ai-chan conversation, which is
+forgotten as Section 14 states.
+
+### 8.11. Harness sessions
+
+**8.11.1** A harness session is a session a harness had in a workspace that hmz did not run: one
+that harness keeps in its own home, and that no chat and no epic of this machine opened.
+
+**8.11.2** hmz MUST only read a harness session: it MUST NOT write, move or remove any file under a
+harness's own home on account of one.
+
+**8.11.3** A frontend MUST list the harness sessions of a workspace only while the setting
+`harness_sessions` is `true` (Section 3.4.14 of [FILES]). It MUST list them after the chats of that
+workspace, each marked with its harness, MUST draw one with what was said in it, and MUST NOT take
+a message in one.
+
+**8.11.4** Continuing a harness session (`chat.harness.adopt` in Section 4 of [DAEMON]) MUST make a
+new chat of that workspace that goes on from a copy of the session: the new chat MUST hold a copy of
+the session's files, MUST be titled by the first line the user said in the session, or by the
+session's id where its row gives no title, MUST have as its agent the session's harness at the
+model the session last ran on, or the agent of that harness the request names, MUST say which
+session it was made from, and MUST rest until it is carried on, which MUST continue the copy
+(Section 8.7). Continuing MUST NOT change the harness session.
+
+**8.11.5** A session a chat was made from MUST NOT be listed as a harness session while that chat
+exists.
+
+**8.11.6** Continuing MUST be refused, saying why, for a harness whose sessions cannot be carried on
+from a copy, and for a session that does not say the model it ran on where the request names no
+agent.
+
+**8.11.7** An Ai-chan conversation MUST NOT be listed as a harness session.
 
 ## 9. Side Questions
 
@@ -4971,7 +5061,7 @@ that name, as Section 3.6.3 of [DAEMON] states.
 **14.7.3** Every frontend MUST draw an Ai-chan conversation as Section 8.8.1 and Section 8.8.2 draw
 a chat, and MUST show in it each tool Ai-chan calls, with the method and how it was answered.
 
-**14.7.4** A frontend MUST NOT list an Ai-chan conversation, nor the epic of one forgotten, among
+**14.7.4** A frontend MUST NOT list an Ai-chan conversation, nor one forgotten, among the chats or
 the epics of a workspace (Section 8.6.5 notwithstanding), and MUST list a conversation not forgotten
 among the Ai-chan conversations (Section 4.22.3 of [DAEMON]).
 
@@ -4989,8 +5079,10 @@ turn, MUST leave the conversation between turns, and MUST NOT end it.
 folds away.
 
 **14.8.5** An Ai-chan conversation that has folded away MUST be carried on by attaching to its slot
-(Section 4.22.5 of [DAEMON]): carrying on MUST continue the same epic and the same conversation, as
-Section 8.7.5 states, or a new conversation in the same epic, as Section 8.7.6 states.
+(Section 4.22.5 of [DAEMON]): carrying on MUST continue the same record and the same conversation,
+as Section 8.7.5 states, or a new conversation in the same record, as Section 8.7.6 states; a
+conversation an earlier hmz recorded as an epic MUST be carried on in that epic (Section 6.12.11 of
+[FILES]).
 
 **14.8.6** An Ai-chan conversation MUST be kept, folded away or not, until it is forgotten
 (Section 4.22.4 of [DAEMON]).

@@ -5,6 +5,7 @@
 // runs, and changes what the chat's own `/model` and `/effort` change (Section 3.6.6.13).
 
 import { hash } from '../api.js'
+import { chipNamed } from '../desk.js'
 import { fill, h, icon } from '../dom.js'
 import { agentChoice, anyCli, offeredTo, readFor } from '../pickers.js'
 import { choice, menu, section, submenu } from '../shell.js'
@@ -21,6 +22,14 @@ function chip(hmz) {
 function marked(value, made) {
   const el = choice(made)
   el.dataset.value = value
+  return el
+}
+
+/** A model as one line of a menu: as a person reads it, its own name said where it is pointed at. */
+function line(model, made) {
+  const label = modelName(model)
+  const el = marked(model, { label, ...made })
+  if (label !== model) el.dataset.tip = model
   return el
 }
 
@@ -77,11 +86,13 @@ export function modelChip(name, kept, changed = () => {}) {
     offered = now
     const spec = picked.value()
     said.textContent = agentLabel(spec) || (now.asking ? 'Asking…' : 'Pick a model')
+    // Said with what it picks, as every chip under a box is: its label alone would hide the model.
+    button.setAttribute('aria-label', chipNamed('Model', agentLabel(spec)))
     button.title = spec
     button.dataset.value = picked.chosen.model
     button.dataset.agent = spec
     redrawn(listed, () => items(shut))
-  })
+  }, { changed })
   const { chosen } = picked
   const pick = (part) => {
     Object.assign(chosen, part)
@@ -103,39 +114,50 @@ export function modelChip(name, kept, changed = () => {}) {
     const refresh = choice({ label: 'Refresh models', glyph: 'resume', act: picked.refresh, close })
     refresh.disabled = !chosen.cli || offered.asking
     refresh.dataset.hmz = 'pick-refresh'
+    // As a chat app's menu of models: a model a row, then the effort, then everything else of
+    // the agent behind one row, `More`.
+    const unlisted = offered.unlisted && !none ? marked(chosen.model, { label: chosen.model, chosen: true, close }) : null
+    if (unlisted) unlisted.dataset.tip = 'Not listed'
     return [
-      section('Model'),
-      offered.models.map((one) => marked(one.value, { ...named(one.value), chosen: one.value === chosen.model, act: () => pick({ model: one.value, effort: '' }), close })),
-      offered.unlisted && !none ? marked(chosen.model, { label: chosen.model, about: 'Not listed', chosen: true, close }) : null,
+      offered.models.map((one) => line(one.value, { chosen: one.value === chosen.model, act: () => pick({ model: one.value, effort: '' }), close })),
+      unlisted,
       offered.asking ? h('p', { class: 'hint', role: 'status' }, `Asking ${chosen.cli} for models…`) : offered.failed ? h('p', { class: 'hint' }, `No models: ${offered.failed}`) : null,
-      typed,
       offered.efforts.length
-        ? submenu({
-            label: 'Effort',
-            about: effortName(chosen.effort),
-            hmz: 'pick-effort',
-            items: () => ['', ...offered.efforts].map((one) => marked(one, { label: effortName(one), chosen: one === chosen.effort, act: () => pick({ effort: one }), close })),
-          })
+        ? [
+            h('hr'),
+            submenu({
+              label: 'Effort',
+              about: effortName(chosen.effort),
+              hmz: 'pick-effort',
+              items: () => ['', ...offered.efforts].map((one) => marked(one, { label: effortName(one), chosen: one === chosen.effort, act: () => pick({ effort: one }), close })),
+            }),
+          ]
         : null,
       h('hr'),
-      section('More'),
       submenu({
-        label: 'CLI',
-        about: chosen.cli || 'None installed',
-        hmz: 'pick-cli',
-        items: () => offered.clis.map((one) => marked(one.value, { label: one.label, chosen: one.value === chosen.cli, act: () => one.value !== chosen.cli && pick({ cli: one.value, account: '', model: '', effort: '' }), close })),
-      }),
-      submenu({
-        label: 'Account',
-        about: account ? account.label : 'Local',
-        hmz: 'pick-account',
+        label: 'More',
+        hmz: 'pick-more',
         items: () => [
-          offered.accounts.map((one) => marked(one.value, { label: one.label, chosen: one.value === chosen.account, act: () => one.value !== chosen.account && pick({ account: one.value, model: '', effort: '' }), close })),
-          h('hr'),
-          choice({ label: 'Add account…', glyph: 'plus', href: hash('/settings/accounts'), close }),
+          typed,
+          submenu({
+            label: 'CLI',
+            about: chosen.cli || 'None installed',
+            hmz: 'pick-cli',
+            items: () => offered.clis.map((one) => marked(one.value, { label: one.label, chosen: one.value === chosen.cli, act: () => one.value !== chosen.cli && pick({ cli: one.value, account: '', model: '', effort: '' }), close })),
+          }),
+          submenu({
+            label: 'Account',
+            about: account ? account.label : 'Local',
+            hmz: 'pick-account',
+            items: () => [
+              offered.accounts.map((one) => marked(one.value, { label: one.label, chosen: one.value === chosen.account, act: () => one.value !== chosen.account && pick({ account: one.value, model: '', effort: '' }), close })),
+              h('hr'),
+              choice({ label: 'Add account…', glyph: 'plus', href: hash('/settings/accounts'), close }),
+            ],
+          }),
+          refresh,
         ],
       }),
-      refresh,
     ]
   }
 

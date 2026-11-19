@@ -119,7 +119,10 @@ fn real(path: &str) -> Option<String> {
         .map(|one| one.to_string_lossy().into_owned())
 }
 
-/// Every name on the way to a path, the path included, that is a symbolic link.
+/// Every name on the way to a path, the path included, that is a symbolic link, each where it
+/// is: beneath the directory the names before it lead to, links followed. `/bin/sh` is at
+/// `/usr/bin/sh` where `/bin` is a link to `usr/bin`, and a `/usr` mounted from this machine
+/// holds it already.
 fn links(path: &str) -> Vec<String> {
     let mut at = String::new();
     let mut found = Vec::new();
@@ -127,6 +130,10 @@ fn links(path: &str) -> Vec<String> {
         at = format!("{at}/{part}");
         if Path::new(&at).is_symlink() {
             found.push(at.clone());
+            match real(&at) {
+                Some(led) => at = if led == "/" { String::new() } else { led },
+                None => break,
+            }
         }
     }
     found
@@ -544,6 +551,29 @@ mod tests {
             &format!("{root}/real")
         ])));
         assert!(!held.iter().any(|one| one[0] == "--symlink"));
+    }
+
+    #[test]
+    fn a_link_reached_through_a_linked_directory_that_is_mounted_is_not_made_again() {
+        // `/bin/sh` on a machine whose `/bin` is a link to `usr/bin`: with `/usr` mounted,
+        // the link `sh` is in it already, and making it again is refused as existing.
+        let (_dir, root) = tmp();
+        std::fs::create_dir(format!("{root}/real")).unwrap();
+        std::fs::write(format!("{root}/real/target"), "").unwrap();
+        std::os::unix::fs::symlink("target", format!("{root}/real/inner")).unwrap();
+        std::os::unix::fs::symlink("real", format!("{root}/link")).unwrap();
+        let fence = Fence {
+            read: vec![format!("{root}/real"), format!("{root}/link/inner")],
+            ..Fence::default()
+        };
+
+        let held = mounts(&command(&fence, &[], 6, &["x".into()], Path::new("bwrap")));
+
+        let made: Vec<_> = held.iter().filter(|one| one[0] == "--symlink").collect();
+        assert_eq!(
+            made,
+            [&strings(&["--symlink", "real", &format!("{root}/link")])]
+        );
     }
 
     #[test]

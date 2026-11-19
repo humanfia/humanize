@@ -155,12 +155,17 @@ def test_an_exported_epic_imports_on_another_machine_and_picks_up_where_it_can(
     assert before is not None
     # The stand-in keeps its sessions in its own home, which is the other machine's: here
     # they are kept in the epic, as a session a turn kept would be.
-    assert epics.read(back) == before._replace(
+    after = epics.read(back)
+    assert after is not None
+    assert after == before._replace(
         at=back,
         sessions=tuple(
             one._replace(where=f"sessions/{one.backend}") for one in before.sessions
         ),
+        # Last written as it was read in here.
+        updated=after.updated,
     )
+    assert after.updated >= before.updated
     for was, now in zip(before.sessions, epics.sessions(back), strict=True):
         assert set(logs(back, now)) == set(logs(first, was))
         assert logs(back, now)

@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page, WebSocketRoute
 
     from hmz.web.site import Site
+    from tests.integration.doubles_web import Session
 
 #: The engines a page is drawn by: Chromium's, and WebKit's, which the macOS app's window is.
 ENGINES = ("chromium", "webkit")
@@ -63,6 +64,7 @@ def opened(
     width: int = 1280,
     height: int = 860,
     dark: bool = False,
+    touch: bool = False,
     user_agent: str | None = None,
     init: str | None = None,
     routed: Callable[[Page], object] | None = None,
@@ -75,6 +77,7 @@ def opened(
       width: How wide the window is: under 860, a phone's layout.
       height: How tall it is.
       dark: Whether the system the browser runs on asks for dark colours.
+      touch: Whether the device is touched, with nothing to point at the page with.
       user_agent: What the browser says it is, where not its own: as the macOS app's window.
       init: A script run in the page before any of its own.
       routed: Told the page before it is opened, to answer some of its requests itself.
@@ -97,6 +100,8 @@ def opened(
                 viewport={"width": width, "height": height},
                 color_scheme="dark" if dark else "light",
                 user_agent=user_agent,
+                has_touch=touch,
+                is_mobile=touch,
             )
             context.set_default_timeout(PATIENCE * 1000)
             if init:
@@ -158,25 +163,43 @@ def _drawn(page: Page) -> None:
 
 
 def stop(page: Page) -> None:
-    """Stops the epic in front, as a script would -- a chat offers no Stop -- until it has ended.
+    """Stops the epic in front, as a script would, until it has ended -- or rests the chat.
 
-    An ended chat is stopped, as an epic stopped is.
+    A chat is never ended: its turn is stopped by the button of its box, and the chat stays.
+    What rests it is its host going (`hosts.stop`), which this waits for, as a chat left
+    alone folds away.
     """
     from playwright.sync_api import expect
 
-    page.evaluate(
+    chat = page.evaluate(
         """async () => {
           const api = await import('/api.js')
-          const name = decodeURIComponent(location.hash.match(/epics\\/([^/?]+)/)[1])
+          const [, kind, said] = location.hash.match(/(chats|epics)\\/([^/?]+)/)
+          const name = decodeURIComponent(said)
+          if (kind === 'chats') {
+            const resting = (one) => !one.slot && one.state !== 'going'
+            let chat = await api.call('chat.get', { chat: name })
+            const host = { workspace: chat.workspace, slot: chat.slot }
+            if (chat.slot) await api.call('hosts.stop', host).catch(() => {})
+            while (!resting(chat)) {
+              await new Promise((done) => setTimeout(done, 100))
+              chat = await api.call('chat.get', { chat: name })
+            }
+            return true
+          }
           const epic = await api.call('runs.get', { name })
           const where = { workspace: epic.workspace, slot: epic.slot, replay: false }
           const held = await api.attach(where, () => {})
           // One already ended, or stopping, has nothing to stop: as it is, it is stopped.
           await api.call('epic.stop', { sub: held.sub }).catch(() => {})
           await held.close()
+          return false
         }"""
     )
-    expect(page.locator("[data-hmz=bar] .badge")).to_have_text(re.compile("stopped"))
+    if not chat:
+        expect(page.locator("[data-hmz=bar] .badge")).to_have_text(
+            re.compile("stopped")
+        )
 
 
 def again(page: Page) -> None:
@@ -427,6 +450,62 @@ def paired(page: Page, name: str, code: str) -> None:
         [name, code],
     )
     again(page)
+
+
+def chatted(page: Session, workspace: Path, task: str, *, stopped: bool = True) -> str:
+    """Starts a chat in a workspace as a page starts one, until its agent has answered.
+
+    A chat is of no flow: it starts on a host of its own (`chat.start`, Section 4.25 of
+    protocol/daemon.md), which is then followed as the page follows it.
+
+    Args:
+      page: A session with the daemon.
+      workspace: Where the chat starts.
+      task: Its first message.
+      stopped: Whether its host is stopped once it has answered, and waited for until
+        the chat rests.
+
+    Returns:
+      The chat's id.
+    """
+    import time
+    import uuid
+
+    from tests.integration.doubles_core import AGENT
+
+    started = page.call(
+        "chat.start",
+        workspace=str(workspace),
+        slot="chat:",
+        agent=AGENT,
+        task=task,
+        idem=uuid.uuid4().hex,
+    )
+    sub = page.call("epic.attach", workspace=str(workspace), slot=started["slot"])[
+        "sub"
+    ]
+
+    def record(kind: str) -> Callable[[str, dict[str, Any]], bool]:
+        return lambda method, said: (
+            method == "epic.event"
+            and said["sub"] == sub
+            and said["message"].get("type") == kind
+        )
+
+    page.until(record("asked"), "the chat's agent answering")
+    page.call("epic.detach", sub=sub)
+    chat = str(started["chat"])
+    if stopped:
+        # A chat is never ended: its host goes, and the chat rests.
+        page.call(
+            "hosts.stop",
+            workspace=str(workspace),
+            slot=started["slot"],
+            idem=uuid.uuid4().hex,
+        )
+        while page.call("chat.get", chat=chat)["slot"]:
+            time.sleep(0.1)
+    return chat
 
 
 def backed_up_elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:

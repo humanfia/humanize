@@ -21,6 +21,10 @@ client ever sees:
 - `detach_all`: lets every frontend go, answering how many.
 - `close`, a notification: closes the host.
 
+And one notification of the host's own, the last thing it says: `went`, how it stands as it
+goes -- as `status` would have answered -- since nobody can ask it once it has gone, and an epic
+that ended a moment before is still to be told of.
+
 Nothing here waits on a frontend: the host keeps each one's messages and lets go of one too far
 behind, and the daemon reads the link as fast as it is written.
 """
@@ -284,4 +288,8 @@ def serves(
                 host.close()
     finally:
         host.close()
+        # How it stood as it goes, which nobody can ask of it after: the epic that just ended
+        # here is still to be made a notice of (Section 4.19.1.1 of daemon.md).
+        with contextlib.suppress(Exception):
+            peer.notify("went", {**said, **host.status()})
         peer.close()

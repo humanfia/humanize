@@ -336,7 +336,7 @@ class Chat:
     raises: BaseException | None = None
     going: threading.Event = field(default_factory=threading.Event)
     holds: bool = False
-    epic: Path | None = None
+    at: Path | None = None
     usage: Usage = field(default_factory=Usage)
     agents: tuple[Agent, ...] = ()
     told: dict[str, Any] = field(default_factory=dict[str, Any])
@@ -367,19 +367,25 @@ def test_a_chat_is_held_as_a_run_is_with_no_flow_and_no_budget() -> None:
     assert (held.kind, held.flow, held.ref, held.budget) == ("chat", "", "", None)
     assert (held.task, held.agent) == ("hello", "claude/opus:high")
     assert (held.usage, held.agents, held.unreadable()) == (Usage(), (), "")
-    # Its epic is named once it has one, which is not before it has begun.
+    # Where it is written is named once it is, which is not before it has begun.
     assert (held.epic, held.names_epic) == (None, True)
 
 
-def test_a_chat_carried_on_is_written_into_the_epic_it_carries_on() -> None:
-    held = Chatting(cast("Any", Chat(_spec(resume=Path("/epics/e1")))))
+def test_a_chat_carried_on_is_written_nowhere_before_it_has_opened_the_one_it_carries_on() -> (
+    None
+):
+    chat = Chat(_spec(resume=Path("/chats/e1")))
+    held = Chatting(cast("Any", chat))
 
-    assert (held.epic, held.names_epic) == (Path("/epics/e1"), True)
+    # It may yet be refused, so what it is to carry on is not its own until it opens it.
+    assert (held.epic, held.names_epic) == (None, True)
+    chat.at = Path("/chats/e1")
+    assert held.epic == Path("/chats/e1")
 
 
 def test_what_a_chat_tells_of_itself_is_handed_through() -> None:
     chat = Chat(
-        _spec(), epic=Path("/epics/e2"), usage=Usage(cost=0.25), agents=(Agent(),)
+        _spec(), at=Path("/chats/e2"), usage=Usage(cost=0.25), agents=(Agent(),)
     )
     held = Chatting(cast("Any", chat))
 
@@ -395,16 +401,16 @@ def test_what_a_chat_tells_of_itself_is_handed_through() -> None:
     held.noticed(noticed)
 
     assert chat.told == {"watch": print, "opened": opened}
-    assert (held.epic, held.names_epic) == (Path("/epics/e2"), True)
+    assert (held.epic, held.names_epic) == (Path("/chats/e2"), True)
     assert (held.usage, held.agents) == (Usage(cost=0.25), chat.agents)
 
 
 def test_a_chat_had_here_says_how_it_ended_and_where() -> None:
-    chat = Chat(_spec(), ended=ChatEnd(Path("/epics/e3"), "stopped"))
+    chat = Chat(_spec(), ended=ChatEnd(Path("/chats/e3"), "stopped"))
     held = Chatting(cast("Any", chat))
 
-    assert held.run() == ChatEnd(Path("/epics/e3"), "stopped")
-    assert held.epic == Path("/epics/e3")
+    assert held.run() == ChatEnd(Path("/chats/e3"), "stopped")
+    assert held.epic == Path("/chats/e3")
 
 
 def test_a_chat_whose_first_turn_failed_raises_it() -> None:
@@ -436,7 +442,7 @@ def test_a_chat_going_is_ended_from_another_thread_and_its_agents_stopped() -> N
 
 
 def test_a_chat_ended_before_it_began_has_nothing() -> None:
-    chat = Chat(_spec(), ended=ChatEnd(Path("/epics/e4"), "stopped"))
+    chat = Chat(_spec(), ended=ChatEnd(Path("/chats/e4"), "stopped"))
     held = Chatting(cast("Any", chat))
 
     held.stop()

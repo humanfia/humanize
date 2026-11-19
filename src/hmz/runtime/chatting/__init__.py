@@ -1,11 +1,11 @@
 """Chats: one person talking to one coding agent, in one conversation, with no flow around it.
 
-A chat is its own kind of epic (Section 8 of [CORE]), beside the epics flows run. It has one
-assistant agent, one conversation, one workspace on this machine, and nothing else: no params,
-no budget, no outworlder. What the person says is the next turn; what the assistant answers is
-shown to them; a question it stops to ask mid-turn is put to them and their next line answers
-it. The first turn is the one allowed to fail out loud, and ends the chat failed; a later one
-that fails is said in the conversation and the chat goes on.
+A chat is a session of its own (Section 8 of [CORE]), beside the epics flows run and none of
+them. It has one assistant agent, one conversation, one workspace on this machine, and nothing
+else: no params, no budget, no outworlder. What the person says is the next turn; what the
+assistant answers is shown to them; a question it stops to ask mid-turn is put to them and
+their next line answers it. The first turn is the one allowed to fail out loud, and ends the
+chat failed; a later one that fails is said in the conversation and the chat goes on.
 
 A chat takes the input its harness takes natively (Section 8.9 of [CORE]): what a line typed in
 a chat means is :func:`resolve`'s answer, from the harness's catalog
@@ -15,16 +15,17 @@ both a native skill and a flow.
 
 What a chat runs on is what a flow's run runs on, and nothing of the flow: the assistant is
 opened as :class:`hmz.runtime.runner.Runner` opens an agent, in the workspace a run would call
-its own, and the chat is written down in an epic of kind `chat` and backed up as a run's is --
-with no engine, no budget and no journal between them. The assistant is given every capability
-its harness has and the web besides, since a person talking to a coding agent expects what they
-would get at its own prompt.
+its own -- or in a git worktree of it, where the chat was started in one -- and the chat is
+written down in a record of its own, as a run's epic is (:mod:`hmz.runtime.epic`), and backed
+up as a run's is -- with no engine, no budget and no journal between them. The assistant is
+given every capability its harness has and the web besides, since a person talking to a coding
+agent expects what they would get at its own prompt.
 
 A chat is kept as it stands without anything being kept for it: the conversation's own files
-are in the epic already, where every session a run opens keeps them, and the epic says which
-one was opened last. So a chat carried on is the same epic opened again, and the same
-conversation carried on from those files -- or, where that cannot be, a new one in the same
-epic, which says why.
+are in the chat's directory already, where every session a run opens keeps them in its epic,
+and the chat's record says which one was opened last. So a chat carried on is the same record
+opened again, and the same conversation carried on from those files -- or, where that cannot
+be, a new one in the same chat, which says why.
 """
 
 from __future__ import annotations
@@ -33,13 +34,14 @@ import asyncio
 import contextlib
 import datetime
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
+    from hmz.coganchor.agents import Event
     from hmz.coganchor.agents.base import AgentBase, SessionBase
     from hmz.coganchor.agents.native import NativeCommand
     from hmz.flows import AskUserHookResult, FakeCli, FakeTool, Permission, Usage
@@ -187,11 +189,13 @@ class ChatSpec:
       workspace: The workspace it is had in, on this machine.
       agent: The assistant, as `-a` spells an agent (`claude/MODEL:high`).
       task: The first message; "" for a chat carried on that waits for the person's.
-      resume: The epic directory of a chat to carry on, or None for a new one.
+      resume: The directory of a chat to carry on, or None for a new one.
       prefer: This chat's own preference, or None to go by the person's setting.
       role: What the assistant is beyond its agent, or None for a plain chat's.
       permission: The preset of what the assistant may touch (Section 8.3.9 of [CORE]), or
         None for the one a chat carried on had, and `workspace-write` for a new one.
+      worktree: Whether a new chat's assistant works in a new git worktree of the workspace
+        (Section 8.3.13 of [CORE]); a chat carried on works where it worked.
     """
 
     workspace: Path
@@ -201,6 +205,7 @@ class ChatSpec:
     prefer: Prefer | None = None
     role: Role | None = None
     permission: str | None = None
+    worktree: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,12 +213,12 @@ class ChatEnd:
     """How a chat ended.
 
     Attributes:
-      epic: Its epic directory.
+      at: Its directory.
       state: `stopped`, or `failed` where its first turn failed.
       why: What the harness said, for a chat that failed.
     """
 
-    epic: Path
+    at: Path
     state: Literal["stopped", "failed"]
     why: str = ""
 
@@ -234,11 +239,16 @@ class Person(Protocol):
         ...
 
 
-#: The role the assistant is written down as, in the epic and to whatever is told of its sessions.
+#: The role the assistant is written down as, in the chat and to whatever is told of its sessions.
 ASSISTANT = "assistant"
 
 #: What a turn stopped by the person is answered with, the conversation going on.
 STOPPED = "That turn was stopped."
+#: What a `/model` or `/effort` said to a chat playing a role is answered.
+_KEPT_NOUS = (
+    "Ai-chan's nous does not change while the conversation lasts; "
+    "to change it, make another conversation."
+)
 
 #: How long a `!` command may run before it is killed: long enough for a build or a test run, not
 #: so long that a command waiting on input it will never get holds the chat for good.
@@ -258,11 +268,11 @@ class Chat:
       person is asked for their next line with nothing to show. A `refused` line is said back
       in the conversation. A `reserved` or `flow` one is a frontend's to serve and never
       reaches a chat; one that does is said to the assistant as words.
-    - The conversation is kept in the epic as it stands when the chat ends, and a chat
-      carried on (`spec.resume`) goes on in the same epic and the same conversation, or says
-      why it cannot and goes on in a new one.
-    - The epic record says `kind: chat`, `prefer` where this chat has its own, and
-      `permission` where it is not `workspace-write`.
+    - The conversation is kept in the chat's directory as it stands when the chat ends, and
+      a chat carried on (`spec.resume`) goes on in the same record and the same conversation,
+      or says why it cannot and goes on in a new one.
+    - The chat's record says `prefer` where this chat has its own, `permission` where it is
+      not `workspace-write`, and `workdir` where its assistant works in a worktree.
     - The assistant is held to the chat's permission, a preset with the web besides. One set
       while the chat goes on (:meth:`permits`) is taken up ahead of the next turn: the
       conversation is closed and carried on in one opened under it, as a chat carried on is.
@@ -283,11 +293,11 @@ class Chat:
         self._prefer: Prefer | None = spec.prefer
         #: The preset the assistant is held to, or None until one is said or carried on.
         self._permission = None if spec.permission is None else preset(spec.permission)
-        #: Held while the preference is set and the epic opened: the host may set one from
+        #: Held while the preference is set and the record opened: the host may set one from
         #: any thread while the chat runs on its own.
         self._lock = threading.Lock()
         self._epic: Epic | None = None
-        #: Whether the chat has ended, after which nothing more is written into its epic.
+        #: Whether the chat has ended, after which nothing more is written into its record.
         self._ended = False
         self._talk: _Talk | None = None
         self._listeners: list[Listener] = []
@@ -300,15 +310,15 @@ class Chat:
         return self._prefer
 
     @property
-    def epic(self) -> Path | None:
-        """The chat's epic directory once :meth:`run` has opened it, and None before."""
+    def at(self) -> Path | None:
+        """The chat's directory once :meth:`run` has opened it, and None before."""
         epic = self._epic
         return None if epic is None else epic.path
 
     def prefers(self, prefer: Prefer) -> None:
-        """Sets this chat's own preference, recorded in its epic.
+        """Sets this chat's own preference, recorded in the chat.
 
-        Written as a `set` of the epic once the chat is under way, and in its `began` where it
+        Written as a `set` of its record once the chat is under way, and in its `began` where it
         is set before then, so that a chat carried on goes on preferring what it did.
 
         Args:
@@ -332,7 +342,7 @@ class Chat:
         return None if self.spec.role is not None else self._permission or PERMISSION
 
     def permits(self, permission: str) -> None:
-        """Sets what the assistant may touch from its next turn on, recorded in its epic.
+        """Sets what the assistant may touch from its next turn on, recorded in the chat.
 
         Args:
           permission: A preset: `read-only`, `workspace-write` or `danger-full-access`.
@@ -371,6 +381,16 @@ class Chat:
         """
         talk = self._talk
         return talk is not None and talk.taken
+
+    @property
+    def between(self) -> bool:
+        """Whether it is between turns: no turn of its assistant is being taken.
+
+        So it is while the person is waited on and while a `!` command of theirs runs, which
+        opens no turn (Section 8.9.6 of [CORE]); not from a message given it to its answer.
+        """
+        talk = self._talk
+        return not self.spec.task if talk is None else talk.between
 
     def natives(self) -> list[NativeCommand]:
         """The assistant's native catalog, as its conversation stands; empty before it opens."""
@@ -445,7 +465,7 @@ class Chat:
         Args:
           opened: What is told of each conversation of the assistant as it is opened, as
             :meth:`hmz.runtime.runner.Runner.arun` tells it, or None.
-          started: What is handed the epic directory once the chat is written down in it.
+          started: What is handed the chat's directory once the chat is written down in it.
 
         Returns:
           How it ended.
@@ -453,10 +473,11 @@ class Chat:
         Raises:
           Refused: Before anything is written down, for an agent that cannot be read, names
             an account nobody saved, cannot be configured, or cannot be put where the
-            workspace is; and for a chat to carry on that is not one, is going on already, or
-            cannot be continued here (Section 8.7.7 of [CORE]).
+            workspace is, or in a worktree where none can be added; and for a chat to carry
+            on that is not one, is going on already, or cannot be continued here (Section
+            8.7.7 of [CORE]).
           HarnessError: Where the first turn of a chat that is not carried on fails, with what
-            the harness said; the epic is ended failed first.
+            the harness said; the chat is ended failed first.
         """
         from hmz.flows import FlowException
         from hmz.runtime.backing import Keeping, chosen
@@ -474,25 +495,36 @@ class Chat:
             raise Refused(str(why)) from why
         held = harbors()
         driver: AgentDriver | None = None
-        local: EnvDriver | None = None
+        root: EnvDriver | None = None
+        #: Where the assistant works, where that is a worktree rather than the workspace.
+        workdir = "" if before is None else before.workdir
         try:
-            driver = agent_drivers({ASSISTANT: said}, held)[ASSISTANT]
+            # A chat carried on is the one assistant still, so its sessions go on being
+            # written down under the name its record gave it.
+            named = before.agents[-1].name if before and before.agents else ""
+            driver = agent_drivers({ASSISTANT: said}, held, named)[ASSISTANT]
             for listener in self._listeners:
                 watch = getattr(driver, "watch", None)
                 if callable(watch):
                     watch(listener)
-            local = local_env(spec.role.workdir if spec.role else workspace)
+            local = root = local_env(
+                spec.role.workdir if spec.role else Path(workdir or workspace)
+            )
             _priced()
             with self._lock:
                 if self._permission is None:
-                    # What a chat carried on had, where its epic records a preset still.
+                    # What a chat carried on had, where its record gives a preset still.
                     self._permission = (
                         PERMISSION if before is None else _recorded(before)
                     )
             await _placeable(driver, local, self.granted())
+            if spec.worktree and before is None:
+                # Last, once nothing else refuses the chat: a worktree made is never removed.
+                local = await root.derive_worktree(ref=None, dir=None)
+                workdir = str(local.placement().workdir)
         except BaseException as why:
             # Refused before the chat began: what it was given goes either way.
-            await asyncio.shield(closed((driver, local), held))
+            await asyncio.shield(closed((driver, root), held))
             if isinstance(why, FlowException):
                 raise Refused(str(why)) from why
             raise
@@ -513,9 +545,10 @@ class Chat:
                     permission=None
                     if self.permission in (None, PERMISSION)
                     else self.permission,
+                    workdir=workdir,
                 )
         except BaseException:
-            await asyncio.shield(closed((driver, local), held))
+            await asyncio.shield(closed((driver, root), held))
             raise
         keeping: Keeping | None = None
         try:
@@ -545,7 +578,14 @@ class Chat:
                         callback(role, agent, session, where)
 
                 self._talk = talk = _Talk(
-                    self, driver, local, epic, keeping, spending, telling
+                    self,
+                    driver,
+                    local,
+                    epic,
+                    keeping,
+                    spending,
+                    telling,
+                    tuple(self._listeners),
                 )
                 try:
                     await talk.had(before)
@@ -558,7 +598,7 @@ class Chat:
             with self._lock:
                 self._ended = True
             try:
-                await asyncio.shield(closed((driver, local), held))
+                await asyncio.shield(closed((driver, root), held))
             finally:
                 if keeping is not None:
                     keeping.ended()
@@ -587,6 +627,10 @@ class HeldWorkspace:
         """The chat's workspace, alone. From any thread."""
         return self._held
 
+    def env_roles(self) -> dict[str, EnvDriver]:
+        """The chat's workspace, by the name `hosts.env.*` know it by. From any thread."""
+        return {one.role: one.driver for one in self._held}
+
 
 class _Talk:
     """One opening of a chat: its turns, its `!` commands and its conversations."""
@@ -600,8 +644,9 @@ class _Talk:
         keeping: Keeping,
         spending: _Spending,
         opened: Opened | None,
+        watching: Sequence[Listener] = (),
     ) -> None:
-        """Holds what the conversation is had with."""
+        """Holds what the conversation is had with, and who watches it."""
         self._chat = chat
         self._driver = driver
         self._local = local
@@ -610,6 +655,7 @@ class _Talk:
         self._keeping = keeping
         self._spending = spending
         self._opened = opened
+        self._watching = watching
         self._hooks = self._hung()
         #: The preset the conversation open now is held to: the chat's, as it was opened.
         self._preset: str | None = None
@@ -621,7 +667,15 @@ class _Talk:
         self.taken = False
         #: Whether a turn is going, and whether the person stopped the one that was.
         self.turning = False
+        #: Whether it is between turns: until its first where it was opened with nothing said,
+        #: and after each, through every `!` command and line refused, until the next.
+        self.between = not chat.spec.task
         self._interrupted = False
+        #: Whether the turn going was shown as failed by its own harness.
+        self._failed = False
+        watch = getattr(driver, "watch", None)
+        if callable(watch):
+            watch(self._heard)
         #: The assistant as last written down: its CLI, model and effort.
         begun = _drove(_assistant(chat.spec.agent), driver.name)
         self._as = (begun.backend, begun.model, begun.effort)
@@ -630,8 +684,8 @@ class _Talk:
         """Has every turn of the conversation, from the first message to the empty one.
 
         Args:
-          before: The chat this carries on, as its epic read before it was opened again, or
-            None for a new one.
+          before: The chat this carries on, as its record read before it was opened again,
+            or None for a new one.
 
         Raises:
           HarnessError: Where the first turn of a chat that is not carried on fails, or a
@@ -674,8 +728,8 @@ class _Talk:
                     listed=chat.listed,
                 )
                 entry = read.entry
-                if read.kind == "refused":
-                    message = await person.next(_said(unkept, read.why))
+                if (why := _refused(read, line, role)) is not None:
+                    message = await person.next(_said(unkept, why))
                     unkept = ""
                     continue
                 if (
@@ -698,9 +752,11 @@ class _Talk:
                 telling = not briefed and role is not None and not native
                 if telling and role is not None:
                     prompt = f"{role.briefing}\n\n{prompt}"
+                # Called of the driver, and answered by it: the harness may be asked nothing.
+                set_ = native and line.split(maxsplit=1)[0] in ("/model", "/effort")
                 try:
                     answered = await self._turn(handle, prompt, native=native)
-                    if native and line.split(maxsplit=1)[0] in ("/model", "/effort"):
+                    if set_:
                         self._changed(handle)
                 except HarnessError as failed:
                     if self._interrupted:
@@ -720,9 +776,12 @@ class _Talk:
                         briefed = role is None
                         carrying = False
                         continue
+                    self._fails(handle, str(failed))
                     answered = f"That turn could not be taken: {failed}"
                 else:
-                    self.taken = True
+                    # Not by a `/model` or `/effort`, which a harness lists nothing for: what
+                    # it has not listed yet is still passed as text (`core.md` 8.9.13).
+                    self.taken = self.taken or not set_
                     briefed = briefed or telling
                     if ahead:
                         ran.clear()
@@ -732,13 +791,38 @@ class _Talk:
         finally:
             await asyncio.shield(self._close(handle))
 
+    def _heard(
+        self, agent: AgentBase, session: SessionBase | None, event: Event
+    ) -> None:
+        """Notes a failure the harness showed itself, from the thread its CLI is read on."""
+        del agent, session
+        if event.kind == "failed":
+            self._failed = True
+
+    def _fails(self, handle: SessionHandle, why: str) -> None:
+        """Shows a later turn's failure to whoever watches the chat, once.
+
+        Said in the conversation too (Section 8.4.10 of [CORE]), which goes on; but a
+        frontend that follows one turn, as `hmz chat` does (Section 15.3.3 of [CLI]), tells
+        a turn that failed from one that answered by this. Most harnesses raise without
+        showing it; one that showed it is not shown again.
+        """
+        from hmz.coganchor.agents import Event
+
+        agent = getattr(handle, "agent", None)
+        if self._failed or agent is None:
+            return
+        session = getattr(handle, "coganchor", None)
+        for listener in self._watching:
+            listener(agent, session, Event(kind="failed", text=why))
+
     def _changed(self, handle: SessionHandle) -> None:
         """Writes the assistant down again where a `/model` or `/effort` changed it.
 
-        As the chat's agent from then on: recorded in its epic as a `set` (Section 6.5.21 of
+        As the chat's agent from then on: recorded in the chat as a `set` (Section 6.12.6 of
         [FILES]) and remembered for the workspace's next chat (Section 8.9.5 of [CORE]).
         """
-        from hmz.coganchor.backends import written
+        from hmz.coganchor.backends import AUTO, written
         from hmz.runtime.epic import Drove
         from hmz.runtime.kept import Runs
         from hmz.runtime.settings import Settings
@@ -746,14 +830,20 @@ class _Talk:
         agent = getattr(handle, "agent", None)
         if agent is None:
             return
-        cli, model, effort = self._as[0], str(agent.config.model), str(agent.effort)
+        # What the conversation runs at, which is the agent's only where the CLI's command
+        # moved the agent: Codex's moves the conversation alone.
+        conversation = getattr(handle, "coganchor", None)
+        model = str(getattr(conversation, "model", None) or agent.config.model)
+        # Spelt as `began` gives it: an agent holds no rung as "", which is written `auto`.
+        effort = written(str(getattr(conversation, "effort", agent.effort)))
+        cli = self._as[0]
         if (cli, model, effort) == self._as:
             return
         self._as = (cli, model, effort)
         provider = self._driver.provider
         now = Drove(ASSISTANT, cli, model, effort, provider, self._driver.name)
         self._epic.write("set", agents=[now._asdict()])
-        spec = f"{cli}/{model}" + (f":{written(effort)}" if effort else "")
+        spec = f"{cli}/{model}" + (f":{effort}" if effort != AUTO else "")
         with contextlib.suppress(Exception):
             Settings(self._chat.spec.workspace).chat_agent = Runs(spec, provider)
 
@@ -827,7 +917,7 @@ class _Talk:
         agent = getattr(handle, "agent", None)
         if agent is not None:
             # Written down by the agent itself as its CLI names the conversation, into the
-            # epic, and kept there: which is what carrying the chat on finds it by.
+            # chat's record, and kept there: which is what carrying the chat on finds it by.
             agent.epic = self._epic
             conversation = getattr(handle, "coganchor", None)
             if self._opened is not None and conversation is not None:
@@ -892,7 +982,7 @@ class _Talk:
         return await self._open(None)
 
     async def _close(self, handle: SessionHandle) -> None:
-        """Closes a conversation, which is a session closed for the epic's backups."""
+        """Closes a conversation, which is a session closed for the chat's backups."""
         with contextlib.suppress(Exception):
             await handle.close()
         self._keeping.closed()
@@ -902,12 +992,16 @@ class _Talk:
         from hmz.runtime.flowing.spi import TurnRequest
 
         self.turning = True
+        self.between = False
+        # One that landed as the last turn ended stopped nothing, and stops nothing now.
+        self._failed = self._interrupted = False
         try:
             answered = await handle.turn(
                 TurnRequest(prompt, native=native), self._spending
             )
         finally:
             self.turning = False
+            self.between = True
             self._noting(handle)
         return str(answered)
 
@@ -1001,21 +1095,21 @@ def _assistant(agent: str) -> AgentSpec:
 
 
 def _drove(said: AgentSpec, name: str) -> Drove:
-    """The assistant as its epic writes it down."""
+    """The assistant as the chat's record writes it down."""
     from hmz.runtime.runner import drove
 
-    return drove(ASSISTANT, str(said).partition("=")[2], name)
+    # At its concrete nous, which is what the record states of one named by a virtual one.
+    return drove(ASSISTANT, str(replace(said, nous="")).partition("=")[2], name)
 
 
 def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | None]:
-    """The chat to carry on, checked, and what its epic said before it is opened again.
+    """The chat to carry on, checked, and what its record said before it is opened again.
 
     Raises:
       Refused: For one that is not a chat or is going on already, and for one that cannot be
-        continued here: another workspace's, or one imported from a machine whose workspace
-        this one has not got.
+        continued here: another workspace's.
     """
-    from hmz.runtime.epic import foreign, going, read
+    from hmz.runtime.epic import going, read
     from hmz.runtime.runner import Refused
 
     if resume is None:
@@ -1023,8 +1117,6 @@ def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | N
     ran = read(resume)
     if ran is None or not ran.chat:
         raise Refused(f"{resume.name} is not a chat, so there is no chat to carry on")
-    if why := foreign(resume):
-        raise Refused(f"{resume.name}: the chat cannot be continued here: {why}")
     if Path(ran.workspace).resolve() != workspace:
         raise Refused(
             f"{resume.name}: the chat cannot be continued here: it is of {ran.workspace}"
@@ -1041,10 +1133,10 @@ def _set_again(
     prefer: Prefer | None,
     permission: str | None,
 ) -> None:
-    """Writes what a chat carried on is now, where it is not what its epic said it was.
+    """Writes what a chat carried on is now, where it is not what its record said it was.
 
     Its agent, where it was given another, and its own preference and its permission, where
-    this opening overrides the one it had (Section 6.5.21 of [FILES]).
+    this opening overrides the one it had (Section 6.12.6 of [FILES]).
     """
     agents = (
         {"agents": [now._asdict()]}
@@ -1066,8 +1158,8 @@ def _set_again(
 def _conversation(before: Ran) -> tuple[Kept | None, str]:
     """The conversation a chat carried on goes on with, or why there is none.
 
-    The last the epic says was opened, from where it is kept: in the epic, for every one a
-    turn could keep there.
+    The last the chat's record says was opened, from where it is kept: in the chat's
+    directory, for every one a turn could keep there.
 
     Returns:
       What to carry on and "", or None and what the person is told of why.
@@ -1089,6 +1181,20 @@ def _conversation(before: Ran) -> tuple[Kept | None, str]:
 def _restarted(why: str) -> str:
     """What the person is told of a conversation that could not be carried on."""
     return f"This conversation could not be carried on ({why}), so this is a new one."
+
+
+def _refused(read: Resolved, line: str, role: Role | None) -> str | None:
+    """Why a line is refused rather than served, or None for one that is served."""
+    if read.kind == "refused":
+        return read.why
+    if (
+        role is not None
+        and read.kind == "native"
+        and line.split(maxsplit=1)[0] in ("/model", "/effort")
+    ):
+        # Her nous is hers while the conversation lasts (Section 14.3.1 of [CORE]).
+        return _KEPT_NOUS
+    return None
 
 
 def _said(unkept: str, answered: str) -> str:
@@ -1141,7 +1247,7 @@ def preset(said: object) -> str:
 
 
 def _recorded(before: Ran) -> str:
-    """The permission a chat carried on had: what its epic records, else a chat's own."""
+    """The permission a chat carried on had: what its record gives, else a chat's own."""
     try:
         return preset(before.permission)
     except ValueError:

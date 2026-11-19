@@ -34,22 +34,41 @@ export function keep(name, value) {
 /** Opens or folds the sidebar: a drawer over the page on a narrow screen, a column beside it otherwise. */
 export function toggleSidebar(open) {
   const root = app()
+  const side = root.querySelector('.sidebar')
+  const within = side.contains(document.activeElement)
+  // Nothing in particular holds the focus: the page, or the view as a whole, which is where a
+  // browser that gives a button pressed no focus leaves it. Never what is being typed into,
+  // which a key that folds the sidebar leaves alone.
+  const loose = document.activeElement === document.body || document.activeElement === root.querySelector('.main')
   if (narrow.matches) {
     const now = open ?? !root.classList.contains('side-open')
-    root.classList.toggle('side-open', now)
-    document.querySelector('.scrim').hidden = !now
+    drawer(now)
+    // The drawer is over the page, which no key reaches while it is: the focus goes into it as
+    // it opens, and back to what opens it as it closes.
+    if (now) side.querySelector('.side-fold')?.focus()
+    else if (within || loose) root.querySelector('.bar-side')?.focus()
     return
   }
   const now = open ?? root.classList.contains('side-folded')
+  const pressed = loose || document.activeElement?.classList.contains('bar-side')
   root.classList.toggle('side-folded', !now)
   keep('hmz-sidebar', now ? null : 'folded')
+  // The button pressed is gone with what it did: the one that undoes it has the focus.
+  if (now && pressed) side.querySelector('.side-fold')?.focus()
+  else if (!now && (within || loose)) root.querySelector('.bar-side')?.focus()
+}
+
+/** Opens or closes the drawer the sidebar is on a narrow screen: the page under it is out of reach while it is open. */
+function drawer(open) {
+  const root = app()
+  root.classList.toggle('side-open', open)
+  document.querySelector('.scrim').hidden = !open
+  root.querySelector('.main').inert = open
 }
 
 /** Closes the drawer the sidebar is on a narrow screen, once somewhere in it was picked. */
 export function settleSidebar() {
-  if (!narrow.matches) return
-  app().classList.remove('side-open')
-  document.querySelector('.scrim').hidden = true
+  if (narrow.matches) drawer(false)
 }
 
 /**
@@ -76,8 +95,11 @@ function reach(el) {
   else el.removeAttribute('data-tauri-drag-region')
 }
 
-/** The bar over a view: what it is, and what can be done to it. */
-export function bar({ title = '', sub = null, actions = [], lead = null } = {}) {
+/**
+ * The bar over a view: what it is, and what can be done to it. Ai-chan's button ends it, save
+ * where the view offers her among its own -- a chat's, whose bar ends as a chat app's does.
+ */
+export function bar({ title = '', sub = null, actions = [], lead = null, aichan = true } = {}) {
   return dragged(
     h(
       'header',
@@ -85,7 +107,7 @@ export function bar({ title = '', sub = null, actions = [], lead = null } = {}) 
       iconButton('sidebar', 'Show sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
       lead,
       h('div', { class: 'bar-title' }, title ? h('h1', {}, title) : null, sub ? h('div', { class: 'bar-sub' }, sub) : null),
-      h('div', { class: 'bar-actions' }, actions, aiChanButton()),
+      h('div', { class: 'bar-actions' }, actions, aichan ? aiChanButton() : null),
     ),
   )
 }
@@ -164,6 +186,14 @@ export function menu(anchor, items, { align = 'start', up = false, span = false,
     anchor.setAttribute('aria-expanded', 'false')
     document.removeEventListener('pointerdown', outside, true)
     document.removeEventListener('keydown', escape, true)
+    removeEventListener('hmz:route', away)
+  }
+  // The page gone elsewhere -- a dialog opened over it by a key, say -- it is not left open over
+  // that; what opened it has the focus it held, before the page looks at what holds it.
+  const away = () => {
+    const held = open && open.contains(document.activeElement)
+    close()
+    if (held) anchor.focus()
   }
   const outside = (event) => {
     if (open && !open.contains(event.target) && !anchor.contains(event.target)) close()
@@ -184,7 +214,9 @@ export function menu(anchor, items, { align = 'start', up = false, span = false,
     anchor.setAttribute('aria-expanded', 'true')
     document.addEventListener('pointerdown', outside, true)
     document.addEventListener('keydown', escape, true)
-    open.querySelector('button, a')?.focus()
+    addEventListener('hmz:route', away)
+    // On the one chosen, where one is, as a desktop app's menu opens on it.
+    ;(open.querySelector('.choice.chosen') || open.querySelector('button, a'))?.focus()
   })
   return close
 }
@@ -256,6 +288,8 @@ export function submenu({ label, about = '', glyph = null, items, hmz = null }) 
       opener.focus()
     } else return
     event.preventDefault()
+    // One opened from a choice of another shuts alone: the one it is in stays open.
+    event.stopPropagation()
   })
   return holder
 }
@@ -285,10 +319,23 @@ export function sidePanel(label, { key = 'hmz-panel', open: first = true, hmz = 
     if (!narrow.matches) keep(key, open === first ? null : open ? 'open' : 'shut')
     told(open)
   }
-  set(!narrow.matches && kept(key, first ? 'open' : 'shut') === 'open')
+  const read = () => set(!narrow.matches && kept(key, first ? 'open' : 'shut') === 'open')
+  read()
   toggle.addEventListener('click', () => set(node.hidden))
   shut.addEventListener('click', () => set(false))
-  return { node, body, toggle, set, open: () => set(true) }
+  return {
+    node,
+    body,
+    toggle,
+    set,
+    open: () => set(true),
+    /** Keeps it from here on by another key, open or shut as that one was last left: a chat's panel, shut where never opened. */
+    keptAs(other, opens) {
+      key = other
+      first = opens
+      read()
+    },
+  }
 }
 
 /**
@@ -326,6 +373,5 @@ export function tabbed(tabs, picked, told) {
 
 narrow.addEventListener('change', () => {
   for (const el of document.querySelectorAll('[data-dragged]')) reach(el)
-  app().classList.remove('side-open')
-  document.querySelector('.scrim').hidden = true
+  drawer(false)
 })

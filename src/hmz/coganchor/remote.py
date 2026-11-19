@@ -65,6 +65,7 @@ class RemoteClient:
         self._pending: dict[int, _Pending] = {}
         self._lock = threading.Lock()
         self._closed = False
+        self._ended = False
         self._reader = threading.Thread(
             target=self._read_loop, name="remote-reader", daemon=True
         )
@@ -231,7 +232,7 @@ class RemoteClient:
         pending = _Pending(on_chunk, on_done)
         msg_id = next(self._ids)
         with self._lock:
-            if self._closed:
+            if self._closed or self._ended:
                 raise ConnectionResetError(
                     errno.EPIPE, "the connection to the target is closed"
                 )
@@ -291,6 +292,8 @@ class RemoteClient:
 
     def _fail_pending(self, error: OSError) -> None:
         with self._lock:
+            # Nothing is registered after this: it would wait for a reply nobody reads.
+            self._ended = True
             pending = list(self._pending.items())
             self._pending.clear()
         for _, item in pending:
@@ -331,6 +334,20 @@ class ExecHandle:
             self._client.call(Op.RESIZE, target=self.msg_id, rows=rows, cols=cols)
         except OSError:
             log.debug("could not resize the terminal of a remote command")
+
+    def hold(self, *, held: bool) -> None:
+        """Stops the target reading what the command writes, or starts it again.
+
+        A command nobody reads from fills its terminal or its pipe and waits there. A no-op
+        on a target whose handshake did not say it can (an older one, which would refuse
+        the request).
+        """
+        if not self._client.info.get("hold"):
+            return
+        try:
+            self._client.call(Op.HOLD, target=self.msg_id, held=held)
+        except OSError:
+            log.debug("could not hold the output of a remote command")
 
 
 class TunnelHandle:

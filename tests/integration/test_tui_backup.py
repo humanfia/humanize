@@ -15,7 +15,7 @@ import yaml
 
 from hmz import home
 from hmz.runtime import Hmz
-from hmz.runtime.epic import Epic, epics, read
+from hmz.runtime.epic import Epic, chats, epics, read
 from hmz.tui import Humanize
 from hmz.tui.flows import Flows
 from hmz.tui.pick import Backing, Does, Epics, Targets
@@ -39,6 +39,7 @@ from tests.integration.doubles_tui import (
     stand_in,
     typed,
     until,
+    wrapped,
 )
 
 if TYPE_CHECKING:
@@ -195,18 +196,17 @@ async def test_an_epic_uploaded_from_epics_lands_in_its_target(
 ) -> None:
     lab = _bare(tmp_path, "lab")
     _targets({"name": "lab", "url": str(lab)}, defaults=("lab",))
+    own_flow(workspace)
     async with Humanize().run_test(size=SIZE) as pilot:
-        await opened(pilot)
-        await typed(pilot, "hello")
-        await shows(pilot, "heard hello")
-        await typed(pilot, "/clear")
-        await shows(pilot, f"◉ {RUNS}")
+        await set_up_own_flow(pilot)
+        await typed(pilot, f"${OWN} hello")
+        await shows(pilot, "the flow is done")
         await until(pilot, lambda: _ended(workspace), "the epic to end")
         assert _log(lab) == []  # no policy, so only by hand
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)
-        await shows(pilot, "1 session")
+        await wrapped(pilot, "1 session")
         await pilot.press("enter")
         await on(pilot, Does)
         await opens(pilot, "upload")
@@ -252,3 +252,32 @@ async def test_an_epic_downloaded_from_the_backup_page_lands_here_again(
         await leaves(pilot)
         await shows(pilot, f"downloaded {epic.path.name} into")
     assert epics(workspace) == [epic.path]
+
+
+async def test_a_chat_downloaded_from_the_backup_page_lands_among_the_chats(
+    workspace: Path, tmp_path: Path
+) -> None:
+    _targets({"name": "lab", "url": str(_bare(tmp_path, "lab"))})
+    with Epic("", "what is here?", workspace, kind="chat") as chat:
+        pass
+    Hmz().backups.push(chat.path, ["lab"])
+    assert Hmz().backups.wait(60)
+    shutil.rmtree(chat.path)
+    (held,) = Hmz().backups.listed("lab")
+
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "/settings backup")
+        await on(pilot, Adjusts)
+        await pilot.click("#act-download")
+        await on(pilot, Stored)
+        # Named a chat, having no flow, and gone back to as a chat is.
+        await wrapped(pilot, "· chat", "what is here? · done")
+
+        await opens(pilot, held.key)
+        await until(pilot, chat.path.is_dir, "the chat to land")
+        await wrapped(pilot, "carry it on with /resume in a chat")
+        await wrapped(pilot, "what is here? · done · here")
+        await leaves(pilot)
+    assert chats(workspace) == [chat.path]
+    assert epics(workspace) == []

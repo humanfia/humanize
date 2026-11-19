@@ -166,6 +166,7 @@ impl Server {
             Op::Read => return fsops::read(frame.id, &frame.meta, &self.exports, &*self.channel),
             Op::Signal => return self.signal(frame),
             Op::Resize => return self.resize(frame),
+            Op::Hold => return self.hold(frame),
             Op::Write => fsops::write(frame.id, &frame.meta, &frame.body, &self.exports, outbox())?,
             Op::Exec => sessions::exec(frame.id, &frame.meta, self.exports.clone(), outbox())?,
             Op::Connect => tunnel::connect(frame.id, &frame.meta, outbox())?,
@@ -224,9 +225,32 @@ impl Server {
         Ok(())
     }
 
+    /// `HOLD {target, held}`: the output of the command of exchange `target` is read no
+    /// further while `held`, if the command still runs; answered either way.
+    fn hold(&self, frame: &Frame) -> Result<(), RemoteError> {
+        let target = number(frame, "hold", "target")?;
+        let held = frame
+            .meta
+            .get("held")
+            .and_then(Value::as_bool)
+            .ok_or_else(|| {
+                RemoteError::new(
+                    libc::EINVAL,
+                    "malformed hold request: held must be a boolean",
+                )
+            })?;
+        if let Some(sink) = locked(&self.sinks).get_mut(&(target as u64)) {
+            sink.hold(held);
+        }
+        let _ = self
+            .channel
+            .send(&Frame::reply(frame.id, Meta::new(), Vec::new()));
+        Ok(())
+    }
+
     /// `HELLO {version, token}`, or inside TLS `HELLO {version, proof}`: checked, then
-    /// answered with what this machine is (and inside TLS this side's proof). It may be
-    /// repeated.
+    /// answered with what this machine is (and inside TLS this side's proof). One accepted
+    /// may be repeated; another token, proof or version ends the connection.
     fn hello(&mut self, frame: &Frame) {
         let invalid = RemoteError::new(libc::EACCES, "invalid token");
         let mut proof = None;
@@ -235,7 +259,7 @@ impl Server {
                 let said = frame.meta.get("proof").and_then(Value::as_str);
                 match said.and_then(|said| bound.cog_proved(said)) {
                     Some(cog) => proof = bound.anchor_proof(&cog).map(hex::encode),
-                    None => return self.fail(frame.id, &invalid),
+                    None => return self.refuse(frame.id, &invalid),
                 }
             }
             Some(_) => {}
@@ -243,7 +267,7 @@ impl Server {
                 if let Some(token) = &self.token
                     && frame.meta.get("token").and_then(Value::as_str) != Some(token.as_str())
                 {
-                    return self.fail(frame.id, &invalid);
+                    return self.refuse(frame.id, &invalid);
                 }
             }
         }
@@ -252,7 +276,7 @@ impl Server {
             // Both ends check, because either may be the older build. The connection goes
             // with it: an untokened session starts out authenticated, so merely failing the
             // handshake would leave every following request working.
-            self.fail(
+            return self.refuse(
                 frame.id,
                 &RemoteError::new(
                     libc::EPROTO,
@@ -262,9 +286,6 @@ impl Server {
                     ),
                 ),
             );
-            self.channel.close();
-            self.refused = true;
-            return;
         }
         self.authenticated = true;
         let able = fences();
@@ -281,6 +302,7 @@ impl Server {
             // What this anchor serves beyond what the version promises, so that a client
             // asks only one that does.
             "resize" => true,
+            "hold" => true,
         };
         if self.channel.bound().is_some() {
             reply.insert("proof".into(), proof.map_or(Value::Null, Value::from));
@@ -292,6 +314,13 @@ impl Server {
 
     fn fail(&self, id: u64, error: &RemoteError) {
         let _ = self.channel.send(&Frame::error(id, error));
+    }
+
+    /// A handshake refused: answered with `error`, and the connection closed.
+    fn refuse(&mut self, id: u64, error: &RemoteError) {
+        self.fail(id, error);
+        self.channel.close();
+        self.refused = true;
     }
 }
 
@@ -416,6 +445,10 @@ mod tests {
         );
         assert_eq!(wrong.meta["errno"], libc::EACCES);
         assert_eq!(wrong.meta["strerror"], "invalid token");
+        // Another token ends the connection: the right one is not to be guessed on it.
+        assert!(client.recv().unwrap().is_none());
+        served.join().unwrap();
+        let (client, served) = pair(Some("s3cret"), dir.path());
         let hello = ask(
             &client,
             3,
@@ -428,6 +461,7 @@ mod tests {
         assert_eq!(hello.meta["exports"][0]["virtual"], "/w");
         assert!(hello.meta["fence"]["fs"].is_boolean());
         assert_eq!(hello.meta["resize"], true);
+        assert_eq!(hello.meta["hold"], true);
         let again = ask(
             &client,
             4,
@@ -486,6 +520,14 @@ mod tests {
         assert_eq!(
             malformed.meta["strerror"],
             "malformed resize request: rows must fit 16 bits"
+        );
+        let held = ask(&client, 2, Op::Hold, meta! {"target" => 77, "held" => true});
+        assert_eq!(held.kind, Kind::Rsp);
+        let malformed = ask(&client, 2, Op::Hold, meta! {"target" => 77, "held" => 1});
+        assert_eq!(malformed.meta["errno"], libc::EINVAL);
+        assert_eq!(
+            malformed.meta["strerror"],
+            "malformed hold request: held must be a boolean"
         );
         client
             .send(&Frame::request(

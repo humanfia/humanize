@@ -226,15 +226,20 @@ def test_a_job_reached_over_tcp_runs_coganchor_and_is_dialled_with_its_secret(
     anchor = machine.start()
 
     (made,) = runs.called("sbatch")
-    script = after(made, "--wrap")[0]
+    script = runs.given[runs.calls.index(made)] or ""
+    assert script.startswith("#!/bin/sh\n")
     named = f"coganchor-{binary.digest(built)}"
     assert f'"Linux x86_64"|"Linux amd64") p="{REMOTE_CACHE}/{named}";;' in script
-    assert script.endswith('exec "$p" anchor --listen 0.0.0.0:0 --export /w')
+    assert script.endswith(
+        'exec "$p" anchor --listen 0.0.0.0:0 --export /w'
+        ' --export "${HUMANIZE_HOME:-$HOME/.hmz}/envs"\n'
+    )
     assert machine.token
     assert f"HUMANIZE_TOKEN={machine.token}" in script
     assert "/opt/py" not in script
     assert after(made, "--output") == ["/tmp/humanize-slurm-%j.out"]
-    assert machine.token not in " ".join(made).replace(script, "")
+    assert "--wrap" not in made
+    assert machine.token not in " ".join(made)
     (shipping,) = [one for one in runs.called("srun") if named in one[-1]]
     assert shipping[:2] == ["srun", "--jobid=42"]
     (cat, _) = runs.called("/bin/cat")

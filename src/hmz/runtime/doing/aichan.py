@@ -71,13 +71,16 @@ def linked() -> socket.socket:
     """
     import socket
 
+    from hmz.coganchor import unix
+
     at = os.environ.get(LINK, "")
     if not at:
         raise OSError(f"{LINK} is unset: no scoped link to speak over")
     one = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         one.settimeout(_PATIENCE)
-        one.connect(at)
+        with unix.reached(at) as reaching:
+            one.connect(reaching)
     except OSError:
         one.close()
         raise
@@ -259,9 +262,6 @@ class Asking(_Model):
         description="The session, <agent>/<n>, as epic_view says it."
     )
     question: str = pydantic.Field(description="What to ask it.")
-    fork: bool = pydantic.Field(
-        default=True, description="Ask a fork of it, which remembers what it was told."
-    )
 
 
 class Saying(_Model):
@@ -370,7 +370,7 @@ class Setting(_Model):
     """Settings to write."""
 
     values: Mapping = pydantic.Field(
-        description='The settings.set params to write, e.g. {"ai_chan": "claude"}.'
+        description='The settings.set params to write, e.g. {"ai_chan": "claude/opus"}.'
     )
 
 
@@ -444,14 +444,38 @@ async def usage(link: Link, said: Spending) -> str:
 
 
 async def ask_session(link: Link, said: Asking) -> str:
-    """A side question of one session: a side conversation opened on it, and asked."""
-    async with link.attached(said.workspace, said.slot) as sub:
-        opened = await link.call(
-            "epic.aside", {"sub": sub, "key": said.key, "fork": said.fork}
+    """A side question of one session, asked as `btw.ask` asks one, and its aside left.
+
+    The daemon's `btw.*` is what tells the side copy what it is, and the epic where it is no
+    fork (Section 9 of core.md): the bare question is never put to a side conversation here.
+    """
+    workspace = link.where(said.workspace)
+    epic = ""
+    if said.slot:
+        # Any host but the workspace's own is named to `btw.ask` by the epic it holds, or
+        # the chat.
+        held = await link.call(
+            "hosts.status", {"workspace": workspace, "slot": said.slot}
         )
-        answered = await link.call(
-            "epic.aside", {"sub": sub, "side": opened["side"], "prompt": said.question}
-        )
+        epic = str(held.get("epic") or held.get("chat") or "")
+        if not epic:
+            raise LookupError(
+                f"The host {said.slot} holds no epic to ask a session of."
+            )
+    aside = f"ai-chan:{epic}:{said.key}"
+    answered = await link.call(
+        "btw.ask",
+        {
+            "workspace": workspace,
+            "epic": epic,
+            "aside": aside,
+            "to": said.key,
+            "question": said.question,
+        },
+    )
+    # Left once answered, where her reach lets her leave it; one still answering is not hers.
+    with contextlib.suppress(Exception):
+        await link.call("btw.leave", {"workspace": workspace, "aside": aside})
     return _said(answered.get("answer", ""))
 
 
@@ -725,7 +749,7 @@ def permission(params: Reach) -> Permission:
     """What her harness may touch: her scope, at her preset, and her scratch directory.
 
     `/` denied; the scope's root read-only or writable; the workdir -- her scratch directory
-    -- writable, which is what has her harness run at the `bypass` rung; and, beneath every
+    -- writable, which is what leaves her harness every tool, nothing asked; and, beneath every
     one of them, the machine directory denied, the daemon's socket and every scoped link in it
     (Section 14.5 of core.md).
     """

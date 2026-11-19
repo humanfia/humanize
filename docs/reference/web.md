@@ -192,6 +192,7 @@ no other `/dial` of the same route still needs them.
 | `1008` | `<route> is not dialed here.` | A `unix:` or `stdio:local` route, which `/rpc` covers, or a `webrtc:` one, which the browser opens itself. |
 | `1008` | `<route> needs the id of the daemon it reaches.` | An untrusted route without `id`. |
 | `1011` | What went wrong, as `failed` said it | The carrier did not open. |
+| `1000` | The last line the route's `ssh` or `wsl.exe` said on standard error, cut to 120 bytes | That process ended failing, such as `hmz daemon connect` there reaching no daemon. |
 | `1000` | `The daemon closed.` | The far end closed. |
 | `1000` | | The page closed, or sent a text message. |
 
@@ -202,7 +203,7 @@ daemon over `/dial`, or over the browser's own WebRTC for a `webrtc:` route -- s
 `session.hello` as `kind` `web` (`desktop` in [Humanize Desktop](/user/desktop)). Everything it
 shows and does is the [daemon's methods](/reference/daemon), the same any client calls:
 `hosts.running` and `epic.attach` for the epics going, [`chat.*`](/reference/daemon#chats) to
-start, talk to and complete a chat, `runs.*` for those written down,
+list, read, start, talk to, stop and complete a chat, `runs.*` for the epics written down,
 `flows.*`, `settings.*`, `accounts.*`, `notices.subscribe` and the rest. Section 4.20 of
 [`protocol/daemon.md`](https://github.com/humanfia/humanize/blob/main/protocol/daemon.md#420-methods-and-the-interfaces-they-replace)
 maps every route of the HTTP interface `hmz web` served before to the method that serves it now.
@@ -212,9 +213,11 @@ Each view is an address after `#`, so it can be kept and opened again:
 | Address | View |
 | --- | --- |
 | `#/new[?workspace=&flow=&resume=<name>]` | A new epic, **Chat** or **Flow**: in the workspace picked (where `hmz web` started by default), a [chat](/user/chat) with the agent that workspace remembers, the flow picked, or the epic named picked up. The page opens here. |
-| `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own, or a chat's; its address becomes `#/epics/<name>` once it is written down -- a chat's, its conversation's, `#/epics/<name>/sessions/<agent>%2F1`, once that opens. |
+| `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own -- or the chat going on a chat's; its address becomes `#/epics/<name>` once it is written down -- a chat's, `#/chats/<id>`. |
+| `#/chats/<id>` | One chat, by its id: its conversation, read with `chat.get`; live where a host holds it. |
+| `#/harness/<harness>/<id>?workspace=<path>` | One [harness session](/reference/daemon#harness-sessions) of that workspace, read with `chat.harness.get` and only read; **Continue in chat** calls `chat.harness.adopt` and opens the chat it answers. |
 | `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path -- in Humanize Desktop as it is opened, read from the app and sent in chunks to the daemon shown, as one picked is; in a browser, from the daemon's machine as `runs.import` `{path}` does, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
-| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. A chat, and any other address of one but its Exomyth's, stands in for its conversation's, `#/epics/<name>/sessions/<agent>%2F1`. |
+| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. An epic an earlier Humanize recorded for a chat is one of these, its flow said as `chat`, and only read. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs/<role>` | One agent's log, across its sessions; or one person's, what they are asked and answer. `#/epics/<name>/logs`, with neither, opens `#/epics/<name>`. |
@@ -223,7 +226,8 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
-| `#/settings/<page>[?daemon=&days=]` | A dialog: `themes`, `daemons` or `notifications`, the page's own; or `general`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace` or `usage`, of the daemon `daemon` names (the one shown without it); `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
+| `#/settings/<page>[?daemon=&days=]` | A dialog: `themes`, `daemons` or `notifications`, the page's own; or `general`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`, of the daemon `daemon` names (the one shown without it); `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
+| `#/delete/<id>[?daemon=]` | A dialog asking before a chat is deleted: `Cancel` or `Delete`. Of the daemon `daemon` names (the one shown without it). |
 
 Every address above is of one daemon. `#/@<name>/<view>` -- `#/@local/new`, `#/@gpu/epics/<name>`
 -- is that view of the daemon named; an address naming none is Local's. The page shows only the
@@ -249,7 +253,7 @@ origin -- which is why `hmz web` keeps its port:
 | IndexedDB `hmz-daemons` | The remote daemons, each its name, the daemon id it pins (`""` until it is first reached over a trusted route) and its routes in order; the STUN and TURN servers WebRTC uses; and the browser's own certificate, which a daemon paired with it knows it by. |
 | IndexedDB `hmz-notifications` | The notifications: the notices every reached daemon's `notices.subscribe` told, the newest **200**, each with its daemon and whether it is read; where each daemon's notices are taken up again; and which kinds are told, and whether the system shows them. |
 | IndexedDB `hmz` | The pictures of the [themes](/user/web#themes) made here. |
-| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-theme` (and under Auto `hmz-theme-light` and `hmz-theme-dark`), the themes made here as `hmz-themes`, a sidebar folded away as `hmz-sidebar`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which workspaces folded away as `hmz-shut`, whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
+| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-theme` (and under Auto `hmz-theme-light` and `hmz-theme-dark`), the themes made here as `hmz-themes`, a sidebar folded away as `hmz-sidebar` and how wide it was dragged as `hmz-side-wide`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which of its groups folded away as `hmz-shut`, how its list is grouped, sorted and filtered as `hmz-list`, which epics are pinned as `hmz-pinned` and which marked unread as `hmz-unread`, whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
 
 Another browser, or another port, starts with none of it: add the daemons there again.
 

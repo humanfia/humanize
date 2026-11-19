@@ -25,7 +25,7 @@ body:
       label: How to make it happen
       description: The command you ran or what you did in `hmz`, step by step.
       placeholder: |
-        1. hmz exec -f chat -a assistant=claude/claude-opus-5:high "…"
+        1. hmz chat -a claude/claude-opus-5:high "…"
         2. …
     validations:
       required: true

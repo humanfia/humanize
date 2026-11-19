@@ -1,5 +1,7 @@
 """`hmz backup` -- one epic backed up to git repositories now, by hand, and back down again.
 
+A chat of this directory is backed up, listed and downloaded as an epic is, by its id.
+
     hmz backup 20261012T091500.123Z-1a2b3c --to lab
     hmz backup --list --to lab
     hmz backup --pull 20261012T091500.123Z-1a2b3c --to lab
@@ -49,7 +51,9 @@ def backup(argv: list[str]) -> int:
         "download one.",
     )
     parser.add_argument(
-        "epic", nargs="?", help="the epic, by its name in this directory or its path"
+        "epic",
+        nargs="?",
+        help="the epic, or the chat, by its name in this directory or its path",
     )
     parser.add_argument(
         "--to",
@@ -65,7 +69,8 @@ def backup(argv: list[str]) -> int:
     doing.add_argument(
         "--pull",
         metavar="EPIC",
-        help="download an epic a target holds, by name or <machine>/<workspace>/<epic>",
+        help="download an epic or a chat a target holds, by name or "
+        "<machine>/<workspace>/<epic>",
     )
     args = parser.parse_args(argv)
 
@@ -79,6 +84,8 @@ def backup(argv: list[str]) -> int:
     if not args.epic:
         parser.error("the following arguments are required: epic")
     named = next((one for one in hmz.epics.all() if one.name == args.epic), None)
+    # A chat of this directory by its id, where no epic has the name.
+    named = named or hmz.epics.chat(args.epic)
     ran = hmz.epics.read(named or Path(args.epic).expanduser())
     if ran is None:
         parser.error(f"no epic {args.epic} here")
@@ -135,14 +142,19 @@ def _held(parser: argparse.ArgumentParser, hmz: Hmz, args: argparse.Namespace) -
             print(f"{name}: failed: {why}", file=sys.stderr)
             continue
         if args.list:
-            print(f"{name}: {len(held)} epic{'' if len(held) == 1 else 's'}")
-            for one in held:
-                task = " ".join(one.task.split())
-                task = task if len(task) <= _TASK else f"{task[: _TASK - 1]}…"
-                print(
-                    f"  {one.machine}  {one.workspace}  {one.epic}  "
-                    f"{one.how or 'unfinished'}  {task}"
-                )
+            # The epics, and then the chats where it holds any, each said the same way.
+            for what, some in (("epic", False), ("chat", True)):
+                those = [one for one in held if one.chat is some]
+                if some and not those:
+                    continue
+                print(f"{name}: {len(those)} {what}{'' if len(those) == 1 else 's'}")
+                for one in those:
+                    task = " ".join(one.task.split())
+                    task = task if len(task) <= _TASK else f"{task[: _TASK - 1]}…"
+                    print(
+                        f"  {one.machine}  {one.workspace}  {one.epic}  "
+                        f"{one.how or 'unfinished'}  {task}"
+                    )
             continue
         found = [one for one in held if args.pull in {one.key, one.epic}]
         if len(found) > 1:

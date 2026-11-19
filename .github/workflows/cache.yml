@@ -1,7 +1,8 @@
 # The caches ci.yml restores, saved on `main`, the one branch whose caches every pull request
-# and the merge queue can read: Python's environment on Linux and macOS, pre-commit's hooks, and
-# the desktop app's Rust and pnpm on macOS and Windows. A push to `main` saves those its change made stale; once a week
-# all of them, since a runner's new image or a week unread loses them with no change at all.
+# and the merge queue can read: Python's environment on Linux and macOS, pre-commit's hooks,
+# `coganchor`'s Rust on Linux and macOS, and the desktop app's Rust and pnpm on macOS and
+# Windows. A push to `main` saves those its change made stale; once a week all of them, since a
+# runner's new image or a week unread loses them with no change at all.
 # ci.yml itself never runs on `main`: the merge queue tested each commit before it landed.
 
 name: cache
@@ -13,6 +14,8 @@ on:
       - pyproject.toml
       - uv.lock
       - .pre-commit-config.yaml
+      - crates/coganchor/Cargo.toml
+      - crates/coganchor/Cargo.lock
       - desktop/package.json
       - desktop/pnpm-lock.yaml
       - desktop/src-tauri/Cargo.toml
@@ -96,7 +99,8 @@ jobs:
         if: runner.os == 'Linux'
         run: uv run --frozen --all-extras pre-commit install-hooks
 
-  # ci.yml's `coganchor` reads these, named and laid out as that job is.
+  # ci.yml's `coganchor` reads these, named and laid out as that job is, and its `tests` by
+  # the same name: the build is that job's, so the crates it needs are in the cache too.
   coganchor:
     name: coganchor (${{ matrix.os }})
     needs: changes
@@ -124,6 +128,9 @@ jobs:
 
       - name: cargo test --no-run
         run: cargo test --locked --no-run
+
+      - name: cargo build
+        run: cargo build --locked
 
   # ci.yml's `desktop` reads these. Named as that job is, since the Rust cache's key carries the
   # job's name; it builds what that job builds, so every crate it needs is in the cache.

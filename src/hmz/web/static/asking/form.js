@@ -7,7 +7,7 @@
 // beside the field it is of. The same form asks a flow's params on a new epic.
 
 import { h } from '../dom.js'
-import { blank, choicesOf, FEW, fieldsOf, kindOf, labelOf, multiline, pathKey, problems, requiredLeft, resolved, widgetOf, yesNo } from './logic.js'
+import { blank, choicesOf, FEW, fieldsOf, kindOf, labelOf, multiline, paramLabel, pathKey, problems, requiredLeft, resolved, sentAs, untouched, widgetOf, yesNo } from './logic.js'
 import { markdownInto } from './blocks.js'
 
 /** How many fields a form shows before those with a suggestion fold away. */
@@ -23,12 +23,13 @@ let made = 0
  * @param {any} [options.value] What it is filled with first: a draft, or what was kept.
  * @param {string} [options.prefix] What its fields' ids start with.
  * @param {boolean} [options.fold] Whether fields with a suggestion fold under "More options".
+ * @param {boolean} [options.keyed] Whether a field without a title is named by its key as it is written.
  * @param {(value: any) => void} [options.changed] Told the value whenever a field changes.
  * @param {boolean} [options.disabled] Drawn to be read, not filled.
  */
-export function schemaForm(schema, { value, prefix = 'ask', fold = true, changed = () => {}, disabled = false } = {}) {
+export function schemaForm(schema, { value, prefix = 'ask', fold = true, changed = () => {}, disabled = false, keyed = false } = {}) {
   const root = schema || {}
-  const ctx = { root, prefix: `${prefix}-${++made}`, boxes: new Map(), choices: [], changed: () => changed(read()), disabled, ids: 0 }
+  const ctx = { root, prefix: `${prefix}-${++made}`, boxes: new Map(), choices: [], changed: () => changed(read()), disabled, keyed, ids: 0 }
   const top = resolved(root, root).node
   let control
   let fields = []
@@ -134,12 +135,12 @@ export function schemaForm(schema, { value, prefix = 'ask', fold = true, changed
  */
 export function paramsForm(schema, kept = {}) {
   const given = schema && Object.keys(schema.properties || {}).length ? schema : { type: 'object', properties: {} }
-  const form = schemaForm(given, { value: kept, prefix: 'param', fold: false })
+  const form = schemaForm(given, { value: kept, prefix: 'param', fold: false, keyed: true })
   return {
     fields: form.fields,
     read() {
       const bad = form.check().find((one) => /not valid JSON|needs a number|whole number/.test(one.message))
-      if (bad) throw new Error(`${labelOf(bad.path[0] ?? 'value')}: ${bad.message}`)
+      if (bad) throw new Error(`${paramLabel(bad.path[0] ?? 'value', given.properties[bad.path[0]])}: ${bad.message}`)
       const said = form.read() || {}
       return Object.fromEntries(Object.entries(said).filter(([, one]) => one !== null && one !== '' && one !== undefined))
     },
@@ -155,7 +156,9 @@ function idOf(ctx) {
 /** One field: its label, whether it is optional or suggested, its control, its hint and its problem. */
 function fieldControl(path, field, value, ctx) {
   const id = idOf(ctx)
-  const label = labelOf(field.name, field.node)
+  const label = ctx.keyed ? paramLabel(field.name, field.node) : labelOf(field.name, field.node)
+  // A param named by its title still tells its key, which is what `-p` takes.
+  const key = ctx.keyed && label !== field.name ? field.name : undefined
   const hintId = `${id}-hint`
   const problemId = `${id}-problem`
   const kind = kindOf(field.node)
@@ -167,8 +170,8 @@ function fieldControl(path, field, value, ctx) {
   const suggested = field.suggested && !blank(field.value) ? h('span', { class: 'ask-tag ask-suggested', 'data-hmz': 'suggested', title: 'Filled in with what the flow suggests' }, 'suggested') : null
   const optional = !field.required && !field.suggested ? h('span', { class: 'ask-tag' }, 'optional') : null
   const labelled = inner.group
-    ? h('span', { class: 'ask-label', id: `${id}-label` }, label)
-    : h('label', { class: 'ask-label', for: id, id: `${id}-label` }, label)
+    ? h('span', { class: 'ask-label', id: `${id}-label`, title: key }, label)
+    : h('label', { class: 'ask-label', for: id, id: `${id}-label`, title: key }, label)
   const problem = h('p', { class: 'problem', id: problemId, hidden: true, 'aria-live': 'polite' })
   const box = h(
     'div',
@@ -218,15 +221,10 @@ function changedIn(el) {
   el.dispatchEvent(new CustomEvent('hmz-change', { bubbles: true }))
 }
 
-/**
- * The control a field is filled in with, by its type. An optional field left blank, whose
- * suggestion is blank too, is left out of the answer rather than sent empty.
- */
+/** The control a field is filled in with, by its type, read as it is answered. */
 function controlFor(path, field, value, ctx, said) {
   const control = controlOf(path, field, value, ctx, said)
-  if (field.required || !blank(field.value)) return control
-  const read = control.read
-  return { ...control, read: () => (blank(read()) ? undefined : read()) }
+  return { ...control, read: () => sentAs(field, control.read()) }
 }
 
 function controlOf(path, field, value, ctx, said) {
@@ -471,10 +469,10 @@ function objectControl(path, node, value, ctx, { fold = false, flat = false, sai
   return {
     el: group,
     group: true,
-    // An object nobody must give, left blank, is left out.
+    // An object nobody must give, left as it was first shown, is left out.
     read: () => {
       const out = read()
-      return !required && Object.values(out).every((one) => blank(one) || one === false) && !Object.keys(value).length ? undefined : out
+      return !required && untouched(fields, out, ctx.root) && !Object.keys(value).length ? undefined : out
     },
     focus: () => group.querySelector('input, textarea, select, button')?.focus(),
   }

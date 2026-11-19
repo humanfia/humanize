@@ -30,7 +30,7 @@ import threading
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from hmz import machine
-from hmz.runtime.epic import BACKED, JOURNAL, note
+from hmz.runtime.epic import BACKED, CHATTED, journal, note
 from hmz.runtime.exporting import MANIFEST, placed, plain, unpacked
 from hmz.runtime.settings import Settings
 
@@ -167,6 +167,7 @@ class Stored(NamedTuple):
       ended: When it ended, or "" for one that had not when it was backed up.
       how: How it ended -- `done`, `failed`, `stopped` -- or "" for one that had not.
       head: The commit its workspace was on, or "" where it said none.
+      chat: Whether it is a chat, which is downloaded into this machine's chats.
     """
 
     key: str
@@ -179,10 +180,11 @@ class Stored(NamedTuple):
     ended: str
     how: str
     head: str
+    chat: bool = False
 
 
 def listed(name: str) -> list[Stored]:
-    """Every epic one target holds, read off its branch as it is now.
+    """Every epic and every chat one target holds, read off its branch as it is now.
 
     Fetched first, as a backup fetches, and read file by file out of this machine's clone of
     it: nothing but the fetch goes over the network.
@@ -191,7 +193,7 @@ def listed(name: str) -> list[Stored]:
       name: The target, by name.
 
     Returns:
-      One per epic, in the order their names sort, which is when each began.
+      One per epic or chat, in the order their names sort, which is when each began.
 
     Raises:
       ValueError: For a name no target in settings has.
@@ -207,7 +209,7 @@ def listed(name: str) -> list[Stored]:
             if (
                 key.startswith(".")
                 or not _inside(at, epic)
-                or not (epic / JOURNAL).is_file()
+                or not journal(epic).is_file()
             ):
                 continue
             try:
@@ -233,6 +235,7 @@ def listed(name: str) -> list[Stored]:
                     ended=ended,
                     how=str(run.get("how") or "") if ended else "",
                     head=str(workspace.get("head") or ""),
+                    chat=journal(epic).name == CHATTED,
                 )
             )
     return sorted(found, key=lambda one: (one.epic, one.key))
@@ -240,6 +243,8 @@ def listed(name: str) -> list[Stored]:
 
 def pulled(name: str, key: str) -> Path:
     """Downloads one epic a target holds into this machine's epics, as an import would.
+
+    A chat it holds goes into this machine's chats, the same way.
 
     Args:
       name: The target, by name.
@@ -263,7 +268,7 @@ def pulled(name: str, key: str) -> Path:
     with _cloned(target) as at:
         _fetches(at, target.branch)
         epic = at.joinpath(*parts)
-        if not _inside(at, epic) or not (epic / JOURNAL).is_file():
+        if not _inside(at, epic) or not journal(epic).is_file():
             raise ValueError(f"{name} holds no epic at {key}")
         # Where it came from, with nothing signed into it: the line is read by whoever
         # reads the epic.
@@ -378,7 +383,7 @@ def _commits(target: Target, epic: Path, why: str) -> None:
             _fetches(at, target.branch)
             shutil.rmtree(at / into, ignore_errors=True)
             unpacked(epic, at / into)
-            _unbacked(at / into / JOURNAL)
+            _unbacked(journal(at / into))
             _git(at, "add", "-A", "--", into)
             # Nothing but when the manifest was made is nothing to commit.
             made = f":(exclude){into}/{MANIFEST}"

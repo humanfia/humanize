@@ -67,6 +67,7 @@ __all__ = [
     "Desk",
     "Held",
     "Holds",
+    "Homed",
     "Pty",
     "Refused",
     "Terminable",
@@ -114,6 +115,9 @@ _PATIENCE = 120.0
 #: How much of the files read is kept, by bytes, for reading the same one again in chunks.
 _CACHED = 128 << 20
 
+#: How many links are followed from a path to the file it is read as, as many as Linux follows.
+_HOPS = 40
+
 #: Says a chunk of a file too large to hold: its SHA-256 first where asked for, then `.`,
 #: then the chunk in base64. Arguments: the path, the offset, the length, and `1` for the hash.
 _RANGE = (
@@ -148,8 +152,14 @@ _FIND = (
     "-print0; fi | head -c $1"
 )
 
-#: Searches the files under the workdir: `rg --json` where there is `rg`; else `git grep`
-#: inside a repository, which leaves out what git ignores as `rg` does; else `grep`.
+#: Searches the files `_FIND` lists: with `rg --json` where there is `rg`, which is told to
+#: search hidden files too and to heed no `.ignore` file, which git knows nothing of, and
+#: outside a repository to heed no ignore file at all and to leave `node_modules` out; else
+#: with `git grep` inside a repository; else with `grep`, which where it knows no long option,
+#: as BusyBox's does not, is given the files `find` lists that hold no NUL byte. A file's name
+#: ends with a NUL where the grep can end it so, and else with the colon. The tool is first
+#: asked of no file at all, and a query or a glob it cannot read ends the search there, its
+#: error said.
 #: Arguments: the query, `F` or `E`, `i` or `s`, the glob, and how many lines to print.
 _SEARCH = (
     "q=$1; how=$2; case_=$3; glob=$4; most=$5; set --; "
@@ -158,19 +168,40 @@ _SEARCH = (
     '[ "$how" = F ] && set -- "$@" --fixed-strings; '
     '[ "$case_" = i ] && set -- "$@" --ignore-case || set -- "$@" --case-sensitive; '
     '[ -n "$glob" ] && set -- "$@" --glob "$glob"; '
+    "set -- \"$@\" --hidden --no-ignore-dot --glob '!.git'; "
+    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || "
+    "set -- \"$@\" --no-ignore --glob '!node_modules'; "
+    'rg "$@" -e "$q" -- /dev/null >/dev/null; [ "$?" -lt 2 ] || exit 2; '
     'rg "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; '
     "elif git rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo grep; "
-    'set -- -nI --no-color --untracked --exclude-standard "-$how"; '
+    'git grep "-$how" -e "$q" -- . \':!.\' >/dev/null; [ "$?" -lt 2 ] || exit 2; '
+    'set -- -nIz --no-color --untracked --exclude-standard "-$how"; '
     '[ "$case_" = i ] && set -- "$@" -i; '
     'set -- "$@" -e "$q" --; [ -n "$glob" ] && set -- "$@" "$glob"; '
     "GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat git --no-optional-locks -c core.quotepath=off "
     'grep "$@" 2>/dev/null | head -n "$most"; '
     "else echo grep; "
-    'set -- -rnI --exclude-dir=.git --exclude-dir=node_modules "-$how"; '
+    'grep "-$how" -e "$q" /dev/null; [ "$?" -lt 2 ] || exit 2; '
+    "if grep --null --include=x --exclude-dir=x -q x /dev/null 2>/dev/null; "
+    '[ "$?" -lt 2 ]; then '
+    'set -- -rnI --null --exclude-dir=.git --exclude-dir=node_modules "-$how"; '
     '[ "$case_" = i ] && set -- "$@" -i; '
     '[ -n "$glob" ] && set -- "$@" "--include=$glob"; '
-    'grep "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; fi'
+    'grep "$@" -e "$q" -- . 2>/dev/null | head -n "$most"; '
+    'else [ "$case_" = i ] && how=${how}i; '
+    "how=$how q=$q find . \\( -name .git -o -name node_modules \\) -prune -o "
+    '-type f -name "${glob:-*}" -exec sh -c \''
+    'for f do tr -d "\\000" <"$f" | cmp -s - "$f" && set -- "$@" "$f"; shift; done; '
+    '[ "$#" -eq 0 ] || grep "-Hn$how" -e "$q" -- "$@"\' sh {} + '
+    '2>/dev/null | head -n "$most"; fi; fi'
 )
+
+
+#: A line a grep found, after the NUL that ends the file's name: its number, then the text.
+_NUMBERED = re.compile(r"(?P<line>\d+)[\0:](?P<text>.*)")
+
+#: A line found by a grep that ends a file's name with a colon: the name, the line, the text.
+_FOUND = re.compile(r"(?P<path>.*?):(?P<line>\d+):(?P<text>.*)")
 
 
 class Refused(Exception):  # noqa: N818 -- named for what happened, as the runner's is
@@ -217,6 +248,15 @@ class Browsable(Protocol):
 
     async def remove(self, path: str) -> None:
         """Removes a file, or a directory and everything in it."""
+        ...
+
+
+@runtime_checkable
+class Homed(Protocol):
+    """A driver whose paths may be under a home, `~/...`, that only its machine knows."""
+
+    async def absolute(self, path: str) -> str:
+        """A path as an absolute one, a leading `~` resolved to the home there."""
         ...
 
 
@@ -483,23 +523,44 @@ class Desk:
                 # Not holding anything yet, or past holding it and not yet over: as it was.
                 return [one for one in before.values() if one.run == run]
         fresh: dict[str, _Env] = {}
-        chains = {one.chain: f"{run}:{one.chain}" for one in held}
+        # An environment is one driver: two may share a chain, as two worktrees of one ref do.
+        known = {
+            id(was.driver): was
+            for was in before.values()
+            if was.open and was.run == run
+        }
+        keys = {known[id(one.driver)].id for one in held if id(one.driver) in known}
+        chains: dict[str, str] = {}
+        roots = {one.chain: one for one in held}
         for one in held:
-            key = f"{run}:{one.chain}"
-            was = before.get(key)
-            if key in fresh or loop is None:
+            if loop is None:
                 continue
-            if was is not None and was.open and was.driver is one.driver:
+            # Its label is its role and what derived it; where its root is, is its id's.
+            root = one
+            while root.parent in roots:
+                root = roots[root.parent]
+            label = one.role + one.chain[len(root.chain) :]
+            was = known.get(id(one.driver))
+            if was is not None:
                 # The workspace is named by the role that takes it once one does.
                 was.role = one.role
+                was.chain = label
                 was.declared = caps_of(frozenset(one.declared))
-                fresh[key] = was
+                fresh[was.id] = was
+                chains.setdefault(one.chain, was.id)
                 continue
+            key = f"{run}:{one.chain}"
+            for n in itertools.count(2):
+                if key not in keys:
+                    break
+                key = f"{run}:{one.chain}~{n}"
+            keys.add(key)
+            chains.setdefault(one.chain, key)
             fresh[key] = _Env(
                 id=key,
                 run=run,
                 role=one.role,
-                chain=one.chain,
+                chain=label,
                 parent=None if one.parent is None else chains.get(one.parent),
                 driver=one.driver,
                 loop=loop,
@@ -634,7 +695,7 @@ class Desk:
             (_entry(one) for one in entries),
             key=lambda one: (one["kind"] != "dir", one["name"]),
         )
-        return {"path": _absolute(env.driver.workdir, path), "entries": listed}
+        return {"path": self._whereabouts(env, path), "entries": listed}
 
     def _stat(self, client: str, by: str, said: dict[str, Any]) -> dict[str, Any]:
         del client, by
@@ -642,7 +703,16 @@ class Desk:
         driver = self._browsable(env)
         path = _path(said)
         found = self._missing(path, lambda: self._on(env, driver.stat(path)))
-        return {"path": _absolute(env.driver.workdir, path), **_entry(found)}
+        return {"path": self._whereabouts(env, path), **_entry(found)}
+
+    def _whereabouts(self, env: _Env, path: str) -> str:
+        """A path as an absolute one, a home it is under asked of the env machine."""
+        at = _absolute(env.driver.workdir, path)
+        driver = env.driver
+        # `~/..` is above the home, and written plainly no longer starts with `~`.
+        if not at.startswith("/") and isinstance(driver, Homed):
+            return str(self._on(env, driver.absolute(path)))
+        return at
 
     @staticmethod
     def _missing[T](path: str, doing: Callable[[], T]) -> T:
@@ -651,11 +721,22 @@ class Desk:
         except FileNotFoundError:
             raise Refused(f"No such file: {path}") from None
 
+    def _file(self, env: _Env, driver: Browsable, path: str) -> Entry:
+        """The entry of the file a path is read and written as: where a link leads."""
+        at = path
+        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        for _ in range(_HOPS):
+            if found.kind != "link" or found.target is None:
+                break
+            at = posixpath.join(posixpath.dirname(at), found.target)
+            found = self._missing(path, lambda at=at: self._on(env, driver.stat(at)))
+        return found
+
     def _whole(
         self, env: _Env, driver: Browsable, path: str
     ) -> tuple[bytes, str, Entry]:
         """A file's bytes and etag, read once for every chunk of it while it stays as it is."""
-        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        found = self._file(env, driver, path)
         if found.kind == "dir":
             raise Refused(f"{path} is a directory")
         key = (
@@ -699,7 +780,7 @@ class Desk:
         path = _path(said)
         offset = max(0, _int(said, "offset", 0))
         length = min(READ_MAX, max(0, _int(said, "length", READ_MAX)))
-        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        found = self._file(env, driver, path)
         if found.size > _CACHED:
             return self._ranged(env, path, found, offset, length)
         data, etag, found = self._whole(env, driver, path)
@@ -766,7 +847,7 @@ class Desk:
         expected = said.get("if_match")
         if expected is not None:
             try:
-                found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+                found = self._file(env, driver, path)
                 if found.size > _CACHED:
                     etag = self._ranged(env, path, found, 0, 0)["etag"]
                 else:
@@ -778,7 +859,7 @@ class Desk:
             if etag != expected:
                 raise Refused(f"{path} changed since you read it.")
         self._on(env, env.driver.write(path, data))
-        found = self._missing(path, lambda: self._on(env, driver.stat(path)))
+        found = self._file(env, driver, path)
         etag = hashlib.sha256(data).hexdigest()
         key = (
             env.id,
@@ -872,7 +953,7 @@ class Desk:
         if not isinstance(glob, str):
             raise Refused("glob is a pattern")
         limit = min(_SEARCH_MOST, max(1, _int(said, "limit", 2000)))
-        _, out, _ = self._exec(
+        code, out, err = self._exec(
             env,
             [
                 "/bin/sh",
@@ -887,6 +968,11 @@ class Desk:
                 str(limit * 3 + 64),
             ],
         )
+        if code:
+            # The tool's reason ends its first paragraph: rg first shows where in the query,
+            # and may advise after a blank line.
+            why = err.strip().partition("\n\n")[0].rpartition("\n")[2]
+            raise Refused(why or "the search failed")
         tool, _, rest = out.partition("\n")
         if tool.strip() == "rg":
             matches = _rg(rest, limit + 1)
@@ -1008,6 +1094,7 @@ class Desk:
         term = self._term(said)
         with self._lock:
             self._terms.pop(term.id, None)
+        self._soon(term, term.room.set)
         if term.alive:
             with contextlib.suppress(Refused):
                 self._on(term.env, term.pty.kill(), 15.0)
@@ -1067,7 +1154,8 @@ class Desk:
             while True:
                 while True:
                     with self._lock:
-                        roomy = term.roomy
+                        # One closed is read out to its end, whoever has room.
+                        roomy = term.roomy or self._terms.get(term.id) is not term
                     if roomy:
                         break
                     # Woken by whoever makes room (:meth:`_rooms`), from any thread.
@@ -1169,6 +1257,7 @@ class Desk:
             term.alive = False
             if term.status is None:
                 term.status = _HUNG_UP
+        self._soon(term, term.room.set)
         if alive:
             self._killed(term)
         self._told_exit(term)
@@ -1408,7 +1497,7 @@ def _bytes(said: Any) -> bytes:
 def _grep(
     text: str, query: str, *, regex: bool, exact: bool, limit: int
 ) -> list[dict[str, Any]]:
-    """The matches `grep -rn` printed: `./path:line:text`."""
+    """The matches a grep printed: `./path:line:text`, or with a NUL after the path."""
     pattern: re.Pattern[str] | None = None
     with contextlib.suppress(re.error):
         pattern = re.compile(
@@ -1418,10 +1507,14 @@ def _grep(
     for line in text.splitlines():
         if len(found) >= limit:
             break
-        path, sep, rest = line.partition(":")
-        number, sep2, said = rest.partition(":")
-        if not sep or not sep2 or not number.isdigit():
+        path, named, rest = line.partition("\0")
+        # `git grep -z` ends the line's number with a NUL too, `grep --null` with a colon.
+        told = _NUMBERED.fullmatch(rest) if named else _FOUND.fullmatch(line)
+        if told is None:
             continue
+        if not named:
+            path = told["path"]
+        number, said = told["line"], told["text"]
         hit = pattern.search(said) if pattern is not None else None
         found.append(
             {

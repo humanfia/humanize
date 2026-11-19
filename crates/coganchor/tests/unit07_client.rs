@@ -406,10 +406,11 @@ fn over_tls_a_wrong_or_missing_token_is_refused() {
             (error.errno, error.strerror.as_str()),
             (libc::EACCES, "invalid token")
         );
-        let refused = client.call(Op::Stat, meta! {"path" => "/w"}).unwrap_err();
-        assert_eq!(refused.strerror, "not authenticated");
-        client.close();
+        // And the connection is closed, so no other proof can be tried on it.
+        let closed = client.call(Op::Stat, meta! {"path" => "/w"}).unwrap_err();
+        assert_ne!(closed.strerror, "not authenticated");
         serving.join().unwrap();
+        client.close();
     }
 }
 

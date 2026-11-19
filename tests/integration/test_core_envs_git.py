@@ -10,17 +10,18 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import os
 import shutil
 import subprocess
 import threading
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from hmz.flows import FilesEnvMixin, GitEnvMixin, ShellEnvMixin
-from hmz.runtime.doing import desk, gitdesk
+from hmz.runtime.doing import desk, envs, gitdesk
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -324,6 +325,249 @@ def test_quick_open_search_and_git_through_the_desk(
     }
 
 
+def _searched_and_listed(
+    where: Path, loop: asyncio.AbstractEventLoop
+) -> tuple[set[str], set[str]]:
+    for name in (".env", ".github/ci.yml", "plain", "node_modules/dep.js"):
+        (where / name).parent.mkdir(exist_ok=True)
+        (where / name).write_text("needle\n")
+    (where / ".ignore").write_text("plain\n")
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("repo", "here", None, Browsing(where))]), going=True
+    )
+    found = made.asked("c1", "ada", "env.find", {"env": env["id"]})
+    searched = made.asked(
+        "c1", "ada", "env.search", {"env": env["id"], "query": "needle"}
+    )
+    return {one["path"] for one in searched["matches"]}, set(found["paths"])
+
+
+_RG = shutil.which("rg")
+
+
+@pytest.mark.skipif(_RG is None, reason="needs rg")
+def test_rg_searches_the_files_quick_open_lists(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _RG is not None
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "rg").symlink_to(_RG)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'tools'}:{os.environ['PATH']}")
+
+    searched, listed = _searched_and_listed(repo, loop)
+    assert {".env", ".github/ci.yml", "plain", "node_modules/dep.js"} <= searched
+    assert searched <= listed
+
+    (tmp_path / "bare").mkdir()
+    searched, listed = _searched_and_listed(tmp_path / "bare", loop)
+    assert searched == {".env", ".github/ci.yml", "plain"} == listed - {".ignore"}
+
+
+def test_rg_is_told_which_files_quick_open_lists(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "tools").mkdir()
+    told = tmp_path / "tools" / "told"
+    (tmp_path / "tools" / "rg").write_text(
+        f'#!/bin/sh\nprintf "%s\\n" "$@" > "{told}"\n'
+    )
+    (tmp_path / "tools" / "rg").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'tools'}:{os.environ['PATH']}")
+
+    _searched_and_listed(repo, loop)
+    inside = told.read_text().splitlines()
+    assert {"--hidden", "--no-ignore-dot", "!.git"} <= set(inside)
+    assert not {"--no-ignore", "!node_modules"} & set(inside)
+
+    (tmp_path / "bare").mkdir()
+    _searched_and_listed(tmp_path / "bare", loop)
+    outside = told.read_text().splitlines()
+    assert {"--hidden", "!.git", "--no-ignore", "!node_modules"} <= set(outside)
+
+
+def test_grep_finds_a_file_whose_path_has_a_colon(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("sh", "head", "git", "grep"):
+        found = shutil.which(name)
+        assert found is not None
+        (tools / name).symlink_to(found)
+    monkeypatch.setenv("PATH", str(tools))  # a machine with no rg
+    (tmp_path / "bare").mkdir()
+    for where in (repo, tmp_path / "bare"):
+        (where / "sub").mkdir()
+        (where / "sub" / "b:c.txt").write_text("x needle\n")
+        (where / "a:12:b.txt").write_text("one\ntwo\nthe needle\n")
+        made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+        (env,) = made.refresh(
+            1, Holding(loop, [Held("repo", "here", None, Browsing(where))]), going=True
+        )
+        found = made.asked(
+            "c1", "ada", "env.search", {"env": env["id"], "query": "needle"}
+        )
+        assert sorted(
+            (one["path"], one["line"], one["column"], one["text"])
+            for one in found["matches"]
+        ) == [("a:12:b.txt", 3, 5, "the needle"), ("sub/b:c.txt", 1, 3, "x needle")]
+
+
+def _refuses_a_broken_query(where: Path, loop: asyncio.AbstractEventLoop) -> None:
+    (where / "note.txt").write_text("hello\nworld (1)\n")
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("repo", "here", None, Browsing(where))]), going=True
+    )
+
+    def searched(query: str, *, regex: bool) -> list[tuple[str, int]]:
+        found = made.asked(
+            "c1",
+            "ada",
+            "env.search",
+            {"env": env["id"], "query": query, "regex": regex, "glob": "*.txt"},
+        )
+        return [(one["path"], one["line"]) for one in found["matches"]]
+
+    for broken in ("(", "wor("):
+        with pytest.raises(desk.Refused) as refused:
+            searched(broken, regex=True)
+        assert str(refused.value)
+    assert searched("w.r", regex=True) == [("note.txt", 2)]
+    assert searched("(", regex=False) == [("note.txt", 2)]
+    assert searched("absent", regex=True) == []
+
+
+def test_a_grep_refuses_a_query_that_is_no_regular_expression(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("sh", "head", "git", "grep"):
+        found = shutil.which(name)
+        assert found is not None
+        (tools / name).symlink_to(found)
+    monkeypatch.setenv("PATH", str(tools))  # a machine with no rg
+    (tmp_path / "bare").mkdir()
+    for where in (repo, tmp_path / "bare"):
+        _refuses_a_broken_query(where, loop)
+
+
+@pytest.mark.skipif(_RG is None, reason="needs rg")
+def test_rg_refuses_a_query_or_a_glob_it_cannot_read(
+    repo: Path,
+    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert _RG is not None
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "rg").symlink_to(_RG)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'tools'}:{os.environ['PATH']}")
+
+    _refuses_a_broken_query(repo, loop)
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("repo", "here", None, Browsing(repo))]), going=True
+    )
+    with pytest.raises(desk.Refused, match="glob"):
+        made.asked(
+            "c1", "ada", "env.search", {"env": env["id"], "query": "hello", "glob": "["}
+        )
+
+
+#: A grep that knows no long option and skips no binary file for `-I`, as BusyBox's does.
+_SHORT = """#!/bin/sh
+known=
+for one do
+  if [ -z "$known" ]; then
+    case $one in
+      -e|--) known=1 ;;
+      --*) echo "grep: unrecognized option: ${one#--}" >&2; exit 2 ;;
+      -*) one=$(printf %s "$one" | tr I a) ;;
+    esac
+  fi
+  set -- "$@" "$one"; shift
+done
+exec {grep} "$@"
+"""
+
+
+@pytest.fixture
+def short(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A machine with a grep of short options only and neither rg nor git; a workdir on it."""
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    for name in ("sh", "head", "find", "tr", "cmp"):
+        found = shutil.which(name)
+        assert found is not None
+        (tools / name).symlink_to(found)
+    (tools / "grep").write_text(_SHORT.replace("{grep}", str(shutil.which("grep"))))
+    (tools / "grep").chmod(0o755)
+    monkeypatch.setenv("PATH", str(tools))
+    where = tmp_path / "bare"
+    where.mkdir()
+    return where
+
+
+def test_a_grep_of_short_options_only_searches_for_the_panel(
+    short: Path, loop: asyncio.AbstractEventLoop
+) -> None:
+    for name in (".env", "plain", "node_modules/dep.js", ".git/config"):
+        (short / name).parent.mkdir(exist_ok=True)
+        (short / name).write_text("needle\n")
+    (short / "sub").mkdir()
+    (short / "sub" / "deep.txt").write_text("a Needle here\n")
+    (short / "picture").write_bytes(b"\0needle\n")
+    made = desk.Desk(post=_nothing, record=_nothing, guard=_nothing)
+    (env,) = made.refresh(
+        1, Holding(loop, [Held("bare", "here", None, Browsing(short))]), going=True
+    )
+
+    def searched(**said: Any) -> set[str]:
+        found = made.asked("c1", "ada", "env.search", {"env": env["id"], **said})
+        return {one["path"] for one in found["matches"]}
+
+    assert searched(query="needle") == {".env", "plain", "sub/deep.txt"}
+    assert searched(query="needle", glob="*.txt") == {"sub/deep.txt"}
+    assert searched(query="ne+dle", regex=True, case=True) == {".env", "plain"}
+
+
+def test_a_grep_of_short_options_only_searches_for_a_host(short: Path) -> None:
+    (short / "notes").mkdir()
+    (short / "notes" / "a.txt").write_text("hello\nworld: 1:2\n")
+    (short / "notes" / "b:c").write_text("world\n")
+    box = {"box": cast("Any", Local(short))}
+
+    def grep(**said: Any) -> dict[str, Any]:
+        return asyncio.run(envs.carried("hosts.env.grep", box, {"env": "box", **said}))
+
+    found = grep(pattern="w.r+ld")
+    assert sorted(found["matches"], key=lambda one: one["path"]) == [
+        {"path": "notes/a.txt", "line": 2, "text": "world: 1:2"},
+        {"path": "notes/b:c", "line": 1, "text": "world"},
+    ]
+    assert grep(pattern="hel+o", path="notes/a.txt")["matches"] == [
+        {"path": "notes/a.txt", "line": 1, "text": "hello"}
+    ]
+    with pytest.raises(envs.EnvRefusal) as refused:
+        grep(pattern="(")
+    assert refused.value.code == 400
+
+
 def test_quick_open_outside_a_repository_prunes_what_nobody_opens(
     tmp_path: Path, loop: asyncio.AbstractEventLoop
 ) -> None:
@@ -384,3 +628,43 @@ async def test_discarding_a_directory_restores_and_removes_alike(
 
     assert (repo / "dir" / "kept").read_text() == "kept\n"
     assert not (repo / "dir" / "new").exists()
+
+
+async def test_a_path_is_a_file_name_and_not_a_pattern(tmp_path: Path) -> None:
+    repo = tmp_path
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "a@example.com")
+    _git(repo, "config", "user.name", "Ada")
+    _git(repo, "config", "commit.gpgsign", "false")
+    run = Local(repo).exec
+    top = await gitdesk.root(run)
+    names = ("[id].tsx", "i.tsx", "d.tsx")
+    for name in names:
+        (repo / name).write_text("first\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "first")
+    for name in names:
+        (repo / name).write_text("second\n")
+    (repo / "*").write_text("fresh\n")
+    (repo / "fresh").write_text("fresh\n")
+
+    async def changes() -> dict[str, str]:
+        files = (await gitdesk.status(run, top))["files"]
+        return {one["path"]: one["index"] + one["worktree"] for one in files}
+
+    await gitdesk.stage(run, top, ["[id].tsx"])
+    assert await changes() == {
+        "[id].tsx": "M.",
+        "i.tsx": ".M",
+        "d.tsx": ".M",
+        "*": "??",
+        "fresh": "??",
+    }
+
+    await gitdesk.stage(run, top, ["i.tsx"])
+    await gitdesk.unstage(run, top, ["[id].tsx"])
+    assert (await changes())["i.tsx"] == "M."
+
+    await gitdesk.discard(run, top, ["[id].tsx", "*"])
+    assert await changes() == {"i.tsx": "M.", "d.tsx": ".M", "fresh": "??"}
+    assert (repo / "d.tsx").read_text() == "second\n"

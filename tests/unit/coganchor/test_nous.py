@@ -36,6 +36,12 @@ def test_answers_an_unclassified_failure_as_a_turn_always_was(fault: str) -> Non
     assert nous.answers(fault) == nous.Answer(fault, "failed")
 
 
+def test_a_fenced_turn_is_told_the_permission_field_that_lets_it_through() -> None:
+    fix = nous.answers("fenced").fix
+    assert "give the role network=True" in fix
+    assert "online" not in fix
+
+
 def test_policies_and_strategies_are_named_once() -> None:
     for names in (
         [one.name for one in nous.POLICIES],
@@ -54,6 +60,15 @@ def test_policies_and_strategies_are_named_once() -> None:
         (("claude", "claude-opus-5", "work", "high"), "claude@work/claude-opus-5:high"),
         (("claude", "claude-opus-5", "", "auto"), "claude/claude-opus-5"),
         (("kimi", "moonshot/kimi-k3"), "kimi/moonshot/kimi-k3"),
+        (("opencode", "ollama/qwen3:latest"), "opencode/ollama/qwen3:latest:auto"),
+        (
+            ("opencode", "ollama/qwen3:latest", "", "auto"),
+            "opencode/ollama/qwen3:latest:auto",
+        ),
+        (
+            ("opencode", "ollama/qwen3:latest", "", "high"),
+            "opencode/ollama/qwen3:latest:high",
+        ),
     ],
 )
 def test_spec(args: tuple[str, ...], said: str) -> None:
@@ -68,6 +83,8 @@ def test_spec(args: tuple[str, ...], said: str) -> None:
         ("claude/claude-opus-5:auto", "claude/claude-opus-5"),
         ("grok-build/grok-5", "grok/grok-5"),
         ("opencode/ollama/qwen3:8b", "opencode/ollama/qwen3:8b"),
+        ("opencode/ollama/qwen3:latest:auto", "opencode/ollama/qwen3:latest:auto"),
+        ("opencode/ollama/qwen3:latest:", "opencode/ollama/qwen3:latest:auto"),
         ("smart", "smart"),
         ("claude", ""),
         ("claude/", ""),
@@ -93,6 +110,12 @@ def test_a_concrete_nous_with_an_effort_has_what_is_written_without_it() -> None
     nous.retrying("claude/m:high", 5, "constant", 0)
     assert nous.rule("claude/m:high").tries == 5
     assert nous.rule("claude/m:low").tries == 2
+
+
+def test_a_model_ending_in_a_word_keeps_its_name_where_its_effort_is_dropped() -> None:
+    nous.retrying("opencode/ollama/qwen3:latest:auto", 2, "constant", 0)
+    assert nous.rule("opencode/ollama/qwen3:latest:high").tries == 2
+    assert nous.rule("opencode/ollama/qwen3:latest").tries == 0
 
 
 def test_then_writes_a_chain_down_as_a_list() -> None:
@@ -307,6 +330,42 @@ def test_the_old_fallbacks_are_read_as_then_and_dropped_at_the_next_write() -> N
     assert list(held["nous"]) == ["claude/a", "grok/c"]
 
 
+def test_old_fallbacks_that_name_one_another_round_do_not_refuse_the_next_write() -> (
+    None
+):
+    _hand_written(
+        {
+            "fallbacks": [
+                {"spec": "claude/a", "to": ["codex/b"], "tries": 2, "policy": "linear"},
+                {"spec": "codex/b", "to": ["claude/a"], "tries": 1, "policy": "linear"},
+            ]
+        }
+    )
+    assert nous.every() == [
+        Nous("claude/a", 2, "linear", 0.0, then=nous.chain(["codex/b"]))
+    ]
+    nous.retrying("grok/c", 1, "constant", 0)
+    held = settings.read()
+    assert "fallbacks" not in held
+    assert list(held["nous"]) == ["claude/a", "grok/c"]
+    with pytest.raises(ValueError, match="comes round"):
+        nous.then("codex/b", ["claude/a"])
+
+
+def test_an_entry_that_names_those_before_it_round_is_ignored_when_read() -> None:
+    _hand_written(
+        {
+            "nous": {
+                "claude/a": {"tries": 1, "then": "codex/b"},
+                "codex/b": {"then": "claude/a:high"},
+            }
+        }
+    )
+    assert [one.name for one in nous.every()] == ["claude/a"]
+    nous.retrying("grok/c", 1, "constant", 0)
+    assert list(settings.read()["nous"]) == ["claude/a", "grok/c"]
+
+
 def test_every_reads_what_somebody_wrote_by_hand_forgivingly() -> None:
     _hand_written(
         {
@@ -322,6 +381,33 @@ def test_every_reads_what_somebody_wrote_by_hand_forgivingly() -> None:
         }
     )
     assert nous.every() == [Nous("claude/a", 3, nous.DEFAULT, 0.0)]
+
+
+def test_edges_written_by_hand_under_a_plain_on_are_read_and_kept() -> None:
+    at = settings.where()
+    at.parent.mkdir(parents=True)
+    at.write_text(
+        "nous:\n"
+        "  smart:\n"
+        "    graph:\n"
+        "      start: first\n"
+        "      nodes:\n"
+        "        first: {use: claude/a, on: {spent: other, '*': cheap}}\n"
+        "        other: {use: codex/b, next: cheap}\n"
+        "        cheap: {use: grok/c}\n",
+        encoding="utf-8",
+    )
+    graph = Graph(
+        "first",
+        (
+            Node("first", use="claude/a", on=(("spent", "other"), (ANY, "cheap"))),
+            Node("other", use="codex/b", on=((ANY, "cheap"),)),
+            Node("cheap", use="grok/c"),
+        ),
+    )
+    assert [(one.name, one.graph) for one in nous.every()] == [("smart", graph)]
+    nous.retrying("grok/c", 1, "constant", 0)
+    assert list(settings.read()["nous"]) == ["smart", "grok/c"]
 
 
 def test_an_unreadable_file_is_nothing_and_refuses_a_write() -> None:
@@ -460,6 +546,53 @@ def test_a_virtual_nous_is_walked_again_as_its_envelope_says() -> None:
     assert _walked("v", {"kimi/x": "dropped"}) == ["kimi/x", "wait 1", "kimi/x"]
 
 
+def test_a_nous_skipped_past_a_timeout_fails_with_the_fault_before_it() -> None:
+    inner = Graph(
+        "a",
+        (
+            Node("a", use="claude/a", on=(("throttled", "b"),)),
+            Node("b", use="claude/b", on=(("throttled", "c"),)),
+            Node("c", use="claude/c"),
+        ),
+    )
+    nous.put(Nous("v", tries=3, policy="constant", timeout=15, graph=inner))
+    _skipped_past_fifteen_seconds()
+    late = "claude/never-begun"
+    pool = Node("c", balance="round-robin", among=((late, 1), ("claude/d", 1)))
+    nous.put(
+        Nous(
+            "v",
+            tries=3,
+            policy="constant",
+            timeout=15,
+            graph=Graph("a", (*inner.nodes[:2], pool)),
+        )
+    )
+    _skipped_past_fifteen_seconds()
+    # A member that was never begun was not rate-limited: it is still the first one picked.
+    among = ((late, 1), ("claude/e", 1))
+    nous.put(Nous("next", graph=Graph("n", (Node("n", balance="cost", among=among),))))
+    assert _walked("next", {}) == [late]
+
+
+def _skipped_past_fifteen_seconds() -> None:
+    outer = Graph(
+        "x", (Node("x", use="v", on=(("throttled", "y"),)), Node("y", use="codex/o"))
+    )
+    nous.put(Nous("p", graph=outer))
+    clock = _Clock()
+    walk = nous.Walk("p", clock=clock)
+    steps: list[str] = []
+    step = walk.next()
+    while isinstance(step, Run):
+        steps.append(step.nous)
+        clock.now += 10  # ten seconds a turn, so the third is past v's fifteen
+        step = walk.next("throttled")
+    # claude/c is never begun, and v fails `throttled` as its last turn did: p's edge is taken.
+    assert step is None
+    assert steps == ["claude/a", "claude/b", "codex/o"]
+
+
 def test_a_throttled_virtual_nous_waits_at_least_the_throttled_wait() -> None:
     nous.put(Nous("v", tries=1, policy="none", graph=nous.chain(["kimi/x"])))
     assert _walked("v", {"kimi/x": "throttled"}) == ["kimi/x", "wait 30", "kimi/x"]
@@ -513,12 +646,65 @@ def test_strategies_pick_by_what_they_say(
         nous.finished([y], 0.0)
 
 
+def test_a_turn_at_a_member_that_is_a_backend_is_counted_once() -> None:
+    plain, inner = "kimi/counted-once", "opencode/counted-inside"
+    nous.put(Nous("wrapped", graph=nous.chain([inner])))
+    among = ((plain, 1), ("wrapped", 1))
+    nous.put(
+        Nous("pool", graph=Graph("p", (Node("p", balance="least-busy", among=among),)))
+    )
+    taken: list[tuple[str, ...]] = []
+    try:
+        for _ in range(3):
+            walk = nous.walk("pool")
+            step = walk.next()
+            assert isinstance(step, Run)
+            taken.append((*walk.picks(), step.nous))
+            nous.started(taken[-1])
+        # One turn at each member is a tie, which the member written first wins.
+        assert [names[0] for names in taken] == [plain, "wrapped", plain]
+    finally:
+        for names in taken:
+            nous.finished(names, 0.0, 100)
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="usage", among=among),))))
+    nous.finished(("wrapped", inner), 0.0, 150)
+    # 200 tokens over two turns at the backend, 250 over two at the other.
+    assert _walked("pool", {})[0] == plain
+
+
 def test_a_member_that_was_rate_limited_is_picked_last() -> None:
     hot, cold = "kimi/rate-limited", "opencode/cool"
     nous.finished([hot], 1.0, fault="throttled")
     among = ((hot, 1), (cold, 1))
     nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
     assert _walked("pool", {cold: "dropped"}) == [cold, hot]
+
+
+def test_a_member_that_answered_past_a_rate_limit_inside_it_keeps_its_session() -> None:
+    first, second, other = "kimi/inner-hot", "kimi/inner-cool", "opencode/outside"
+    nous.put(Nous("chain", graph=nous.chain([first, second])))
+    among = (("chain", 1), (other, 1))
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
+    memo: dict[str, str] = {}
+    walk = nous.walk("pool", memo=memo)
+    assert walk.next() == Run(first, None)
+    nous.finished((*walk.picks(), first), 1.0, fault="throttled")
+    assert walk.next("throttled") == Run(second, None)
+    nous.finished((*walk.picks(), second), 1.0)
+    walk.landed()
+    assert memo == {"pool>p": "chain"}
+    assert _walked("pool", {first: "dropped"}, memo=memo) == [first, second]
+
+
+def test_a_member_that_was_rate_limited_through_and_through_is_picked_last() -> None:
+    first, second, other = "kimi/all-hot-a", "kimi/all-hot-b", "opencode/spare"
+    nous.put(Nous("spent-chain", graph=nous.chain([first, second])))
+    among = (("spent-chain", 1), (other, 1))
+    nous.put(Nous("pool", graph=Graph("p", (Node("p", balance="cost", among=among),))))
+    memo = {"pool>p": "spent-chain"}
+    faults = {first: "throttled", second: "spent", other: "dropped"}
+    assert _walked("pool", faults, memo=memo) == [first, second, other]
+    assert _walked("pool", {}, memo=memo) == [other]
 
 
 def test_a_strategy_of_ones_own_cannot_take_a_built_in_name() -> None:

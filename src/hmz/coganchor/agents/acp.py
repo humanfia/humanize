@@ -1112,7 +1112,7 @@ class AcpSession(SessionBase):
                 at = link.send(
                     "session/prompt",
                     {
-                        "sessionId": self.id,
+                        "sessionId": self._id,
                         "prompt": [{"type": "text", "text": prompt}],
                     },
                 )

@@ -91,6 +91,11 @@ export function labelOf(name, node = {}) {
   return title.toLowerCase() === plain ? sentence : title
 }
 
+/** A flow's param as its row names it: the title the flow gave it, else its key, as `-p` takes it. */
+export function paramLabel(name, node = {}) {
+  return String(node.title || '').trim() || String(name)
+}
+
 /** Whether a string field is likely to want more than one line. */
 export function multiline(name, node, value = '') {
   if (widgetOf(node) === 'markdown' || widgetOf(node) === 'code') return true
@@ -109,7 +114,9 @@ export function multiline(name, node, value = '') {
 export function fieldsOf(node, root = node) {
   const required = new Set(node.required || [])
   const all = Object.entries(node.properties || {}).map(([name, raw]) => {
-    const { node: field, nullable } = resolved(raw, root)
+    // A field is named by the title written on it, never by the one its type is defined under.
+    const { node: { title, ...typed }, nullable } = resolved(raw, root)
+    const field = 'title' in raw ? { ...typed, title: raw.title } : typed
     const suggested = 'default' in raw || 'default' in field
     const value = 'default' in raw ? raw.default : field.default
     return { name, raw, node: field, nullable, required: required.has(name), suggested, value, folded: !required.has(name) && suggested }
@@ -132,6 +139,25 @@ export function yesNo(name, node = {}) {
 /** Whether a value is nothing said yet. */
 export function blank(value) {
   return value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
+}
+
+/**
+ * What a field's control reads, as it is answered. A required field that may be null, left
+ * blank, is null, as nothing else says so; an optional one left blank, whose suggestion is blank
+ * too, is left out rather than sent empty.
+ */
+export function sentAs(field, read) {
+  if (field.required) return field.nullable && (read === undefined || read === '') ? null : read
+  return blank(field.value) && blank(read) ? undefined : read
+}
+
+/** Whether an object's fields are read as a form first shows them: each blank, off, or still its suggestion, nested objects field by field. */
+export function untouched(fields, value, root) {
+  return fields.every((field) => {
+    const one = value[field.name]
+    if (blank(one) || one === false || (field.suggested && same(one, field.value))) return true
+    return kindOf(field.node) === 'object' && typeof one === 'object' && !Array.isArray(one) && untouched(fieldsOf(field.node, root), one, root)
+  })
 }
 
 /** A path, as the key a form finds its field by. */

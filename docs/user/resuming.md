@@ -62,8 +62,8 @@ Three things are worth knowing before you rely on it:
   run of its own, with its own sessions, its own trace and its own row in
   [`/epics`](/user/tracing#what-a-run-writes-down). A week of stops and starts reads as one run
   per stretch. A [chat](/user/chat) is the one exception: it is one conversation, so saying
-  something in one that has ended carries it on in its own epic, its agent remembering what
-  was said.
+  something in one that has folded away carries it on as the same chat, its agent remembering
+  what was said.
 - **The agents' conversations carry over only where the flow kept them.** What carries over
   is what the flow chose to keep, and the files the agents already changed in your project. A
   flow that kept a session in its record, as `stateful_ralph` does, has that conversation
@@ -275,12 +275,13 @@ up; see [Humanize in CI](/user/ci). More in [Troubleshooting](/user/troubleshoot
 
 ## A chat is carried on {#a-chat-is-carried-on}
 
-A [chat](/user/chat) is never picked up into a new run: it is one conversation, and it goes on
-in its own epic. Carry one on by saying something in it -- `continue` on its row in `/epics`,
-`/resume` in a chat, which lists this directory's earlier chats newest first, the chat's page
-in [`hmz web`](/user/web), or `hmz chat --resume <epic> "<message>"`. Its agent remembers what
-was said, its own [preference](/user/chat#a-name-that-is-both) is kept, and the epic reads as
-`running` again until the chat ends again, having spent what each stretch spent.
+A [chat](/user/chat) is never picked up into a new run: it is one conversation and no epic,
+and it goes on as the same chat. Carry one on by saying something in it -- `/resume` in a chat,
+which lists this directory's earlier chats newest first, the chat's page in
+[`hmz web`](/user/web), or `hmz chat --resume <chat id> "<message>"`. Its agent remembers what
+was said, its own [preference](/user/chat#a-name-that-is-both) is kept, and it works where it
+worked, having spent what each stretch spent. `/epics` lists no chat; an epic an earlier hmz
+recorded for a chat is read there and cannot be carried on.
 
 ## Make a flow resumable
 

@@ -2,13 +2,15 @@
 // always there, and every remote daemon kept beside it -- each with its kind and how far reaching
 // it has got. A new one is of a kind: Code, a pairing code claimed at once; SSH › SSH Config, a
 // Host of the ssh config picked; SSH › Custom, written a part at a time as a runtime's SSH host
-// is, or filled from the ssh config; or P2P › EasyTier, a secret and the shared nodes its network
-// meets on. One is reached again, changed, or taken away, asked first. Each daemon that is up
+// is, or filled from the ssh config; or P2P › EasyTier, a secret, the shared nodes its network
+// meets on and a pairing code claimed over it. One is reached again, changed, or taken away, asked first. Each daemon that is up
 // makes a pairing code for another device, and lists the devices paired with it.
 
 import { call, daemons, forget, hello, kindOf as kindNamed, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
 import { acting, ago, confirming, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { pathPicker } from '../../paths.js'
+import { easytier } from '../../rpc/easytier.js'
+import { parsePairing } from '../../rpc/index.js'
 import { copy } from '../../ui.js'
 
 /** How far reaching each state has got, by a glyph, so nothing is said by colour alone. */
@@ -31,6 +33,9 @@ const OPENED = { ssh: 'stdio:ssh://host', p2p: 'easytier:name' }
 
 /** The fewest bytes, in UTF-8, a P2P daemon's secret may be. */
 const SECRET = 16
+
+/** The EasyTier entries a P2P daemon's route is opened with: Local's, and the desktop application's. */
+const networks = easytier((method, params) => call(method, params, { on: 'local' }))
 
 /** A shared EasyTier node, as one is typed: a protocol, a host and a port. */
 const NODE = /^(tcp|udp|ws|wss|quic|wg):\/\/\S+:(\d{1,5})$/
@@ -252,11 +257,11 @@ export function draw(holder) {
         const box = boxes().find((one) => one.value === url)
         if (box) box.checked = true
       }
-      // The nodes the entry of its name meets on, as Local keeps it.
+      // The nodes the entry of its name meets on, as what opens its route keeps it.
       if (keeps) {
-        call('easytier.list', {}, { on: 'local' }).then(
-          (answer) => {
-            const entry = (answer.networks || []).find((one) => one.name === fields.name)
+        networks.list().then(
+          (kept) => {
+            const entry = kept.find((one) => one.name === fields.name)
             for (const url of entry ? entry.nodes : []) {
               if (!boxes().some((box) => box.value === url)) node(own, url)
               tick(url)
@@ -294,9 +299,12 @@ export function draw(holder) {
         typed.value = ''
       }
       typed.addEventListener('keydown', (event) => event.key === 'Enter' && (event.preventDefault(), add()))
+      // A new one is claimed by its pairing code: an untrusted route is held to the id it gives.
+      const code = editing ? null : h('input', { type: 'password', id: 'daemon-code', autocomplete: 'off', spellcheck: 'false', placeholder: 'hmz-pair:…' })
       fill(
         body,
         part('Secret', 'daemon-secret', secret),
+        code ? part('Pairing code', 'daemon-code', code, true) : null,
         part(
           'Nodes',
           'daemon-node',
@@ -309,7 +317,9 @@ export function draw(holder) {
         if (value ? new TextEncoder().encode(value).length < SECRET : !keeps) throw new Error('A secret must be at least 16 bytes.')
         const nodes = [...new Set(boxes().filter((box) => box.checked).map((box) => box.value))]
         if (!nodes.length) throw new Error('An EasyTier daemon needs at least one node.')
-        return { easytier: { ...(value ? { secret: value } : {}), nodes } }
+        // Refused before the entry is written, where it is no pairing code.
+        if (code) parsePairing(code.value)
+        return { easytier: { ...(value ? { secret: value } : {}), nodes }, ...(code ? { code: code.value.trim() } : {}) }
       }
     }
 
@@ -317,24 +327,25 @@ export function draw(holder) {
     async function save() {
       const said = made()
       const called = name.value.trim()
+      if (said.easytier) {
+        // A secret written is never read back: one renamed is written anew under its name.
+        if (editing && editing.name !== called && !said.easytier.secret) throw new Error('Say the secret again to rename a P2P daemon.')
+        // The entry of that name is what its route opens with: Local's through `hmz web`
+        // (Section 4.8.7 of protocol/web.md), the app's in the desktop application (Section
+        // 3.12.6 of protocol/desktop.md); the page is never handed the secret again.
+        await networks.set({ name: called, ...said.easytier })
+        said.route = `easytier:${called}`
+      }
       if (said.code !== undefined) {
-        await pair(called, said.code)
+        await pair(called, said.code, said.route)
       } else {
-        if (said.easytier) {
-          // A secret written is never read back: one renamed is written anew under its name.
-          if (editing && editing.name !== called && !said.easytier.secret) throw new Error('Say the secret again to rename a P2P daemon.')
-          // The entry of that name on Local is what its route opens with (Section 4.8.7 of
-          // protocol/web.md); the page is never handed the secret again.
-          await call('easytier.set', { name: called, ...said.easytier }, { on: 'local' })
-          said.route = `easytier:${called}`
-        }
         const routes = said.route ? [said.route, ...more.read().filter((one) => one !== said.route)] : said.routes
         if (!routes.length) throw new Error('A daemon needs at least one route.')
         if (editing) {
           await daemons.update(editing.name, { name: called, routes })
           // Reached afresh, by its new name or routes.
           forget(editing.name)
-          if (said.easytier && editing.name !== called) await call('easytier.remove', { name: editing.name }, { on: 'local' }).catch(() => {})
+          if (said.easytier && editing.name !== called) await networks.remove(editing.name).catch(() => {})
         } else {
           await daemons.add({ name: called, id: '', routes })
         }

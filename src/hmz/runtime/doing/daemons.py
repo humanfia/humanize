@@ -24,6 +24,7 @@ import queue
 import re
 import subprocess
 import threading
+import time
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 from hmz.runtime.runner import Refused
@@ -701,6 +702,7 @@ class _Session:
         *,
         client: str = "",
         kind: Kind = "sdk",
+        until: float | None = None,
     ) -> None:
         """Opens the session over a carrier secured, and holds it to the id pinned.
 
@@ -712,10 +714,13 @@ class _Session:
           client: What this client is called in `session.hello`; this machine's host name
             where it is `""`.
           kind: What this client is.
+          until: When, on the monotonic clock, the 30 seconds its carrier was started with
+            end (Section 3.4.9 of wire.md); 30 seconds from now where it is `None`.
 
         Raises:
-          _Failed: If the daemon refused hello, did not answer it within 30 seconds, or
-            answered as another daemon than the one pinned.
+          _Failed: If the daemon refused hello, did not answer it by then, or
+            answered as another daemon than the one pinned, or the carrier ended first:
+            with what the carrier said as it ended, where it said anything.
         """
         from hmz.reach import OPENING
         from hmz.rpc import Closed, Peer, RpcError, hello
@@ -726,12 +731,16 @@ class _Session:
         self.peer = Peer(pipe, self._serves, name=f"hmz-remote-{name}")
         self.peer.closing(self._ended)
         try:
-            self.said = hello(self.peer, client or host(), kind, timeout=OPENING)
+            left = OPENING if until is None else max(until - time.monotonic(), 0)
+            self.said = hello(self.peer, client or host(), kind, timeout=left)
         except RpcError as why:
             self.peer.close()
             raise _Failed(why.message) from why
         except Closed as why:
-            raise _Failed(f"{route} closed before it said hello.") from why
+            # What the carrier said as it ended, which an error of the system's is not.
+            said = why.__cause__
+            told = str(said) if isinstance(said, OSError) and not said.errno else ""
+            raise _Failed(told or f"{route} closed before it said hello.") from why
         except TimeoutError as why:
             self.peer.close()
             raise _Failed(f"{route} did not open within {OPENING:g} seconds.") from why
@@ -936,7 +945,7 @@ def _secured(
     name: str,
     networks: Mapping[str, EasyTier],
     opened: Callable[[Pipe], None],
-) -> Pipe:
+) -> tuple[Pipe, float]:
     """The carrier a route names, inside mutual TLS pinned to the daemon where it is untrusted.
 
     Args:
@@ -946,21 +955,39 @@ def _secured(
       networks: This machine's EasyTier entries.
       opened: Told each carrier as it opens, for closing it however reaching it ends.
 
+    Returns:
+      It, and when, on the monotonic clock, the 30 seconds it was started with end: what
+      `session.hello` over it has left (Section 3.4.9 of wire.md).
+
     Raises:
       ValueError, OSError: If it cannot be opened or secured, saying why.
+      TimeoutError: `<route> did not open within 30 seconds.`
     """
     from hmz.reach import OPENING, dial
     from hmz.trust import identity, tls
 
+    until = time.monotonic() + OPENING
     pipe = dial(route, daemon=pinned, easytier=networks)
     opened(pipe)
     if route.trusted:
-        return pipe
+        return pipe, until
     # Its 30 seconds include the handshake (Section 3.4.9 of wire.md).
-    timer = threading.Timer(OPENING, pipe.close)
+    late = threading.Event()
+
+    def gives_up() -> None:
+        late.set()
+        pipe.close()
+
+    timer = threading.Timer(max(until - time.monotonic(), 0), gives_up)
     timer.start()
     try:
-        return tls.dial(pipe, identity.device(), pinned, name)
+        return tls.dial(pipe, identity.device(), pinned, name), until
+    except Exception as why:
+        if late.is_set():
+            # Closed from this side: the far one refused nothing.
+            msg = f"{route} did not open within {OPENING:g} seconds."
+            raise TimeoutError(msg) from why
+        raise
     finally:
         timer.cancel()
 
@@ -1070,7 +1097,7 @@ class _Remote:
             raise _Failed(f"No daemon is called {self.name}.")
         pinned: str = self.entry["id"]
         networks = _networks()
-        routed: dict[int, Route] = {}
+        routed: dict[int, tuple[Route, float]] = {}
         notes: dict[Route, str] = {}
 
         def opening(route: Route) -> Pipe:
@@ -1082,12 +1109,13 @@ class _Remote:
                 notes[route] = self._installed(route)
             elif route.kind == "easytier":
                 self._downloads()
-            pipe = _secured(route, pinned, self.name, networks, self._opened)
-            routed[id(pipe)] = route
+            pipe, until = _secured(route, pinned, self.name, networks, self._opened)
+            routed[id(pipe)] = route, until
             return pipe
 
         def handshake(pipe: Pipe) -> _Session:
-            return _Session(pipe, routed[id(pipe)], pinned, self.name)
+            route, until = routed[id(pipe)]
+            return _Session(pipe, route, pinned, self.name, until=until)
 
         self._racing.set()
         try:
@@ -1259,7 +1287,7 @@ class Dialing(_Remote):
                 note = self._installed(self._route)
             elif self._route.kind == "easytier":
                 self._downloads()
-            pipe = _secured(
+            pipe, _ = _secured(
                 self._route, self._pinned, self.name, _networks(), self._opened
             )
         except BaseException:
@@ -1407,15 +1435,16 @@ class Remotes:
             if self._closed:
                 raise Unreached("Reaching daemons is stopping.")
         networks = _networks()
-        routed: dict[int, Route] = {}
+        routed: dict[int, tuple[Route, float]] = {}
 
         def opening(route: Route) -> Pipe:
-            pipe = _secured(route, given.id, name, networks, lambda _: None)
-            routed[id(pipe)] = route
+            pipe, until = _secured(route, given.id, name, networks, lambda _: None)
+            routed[id(pipe)] = route, until
             return pipe
 
         def handshake(pipe: Pipe) -> _Session:
-            session = _Session(pipe, routed[id(pipe)], given.id, name)
+            route, until = routed[id(pipe)]
+            session = _Session(pipe, route, given.id, name, until=until)
             try:
                 session.peer.call(
                     "pair.claim",

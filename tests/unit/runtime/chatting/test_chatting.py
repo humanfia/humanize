@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 import hmz.coganchor.fence
-from hmz.coganchor import prices, providers
+from hmz.coganchor import nous, prices, providers
 from hmz.coganchor.agents.native import NativeCommand
 from hmz.flows import (
     Access,
@@ -102,6 +102,8 @@ class Session:
     agent: Agent | None = None
     requests: list[TurnRequest] = field(default_factory=list[TurnRequest])
     closed: bool = False
+    #: The conversation as the harness holds it, where a test gives it one.
+    coganchor: Any = None
 
     @property
     def id(self) -> str | None:
@@ -184,9 +186,21 @@ class Env:
     ran: list[object] = field(default_factory=list[object])
     prints: tuple[int, str, str] = (0, "hello\n", "")
     closes: int = 0
+    #: Where a worktree of it is made, or why none can be; and each one asked for.
+    worktree: Path | Exception | None = None
+    derived: list[tuple[object, object]] = field(
+        default_factory=list[tuple[object, object]]
+    )
 
     def placement(self) -> Placement:
         return Placement(EnvBackendKind.LOCAL, "", PurePosixPath(str(self.workdir)))
+
+    async def derive_worktree(self, *, ref: object, dir: object) -> Env:  # noqa: A002
+        self.derived.append((ref, dir))
+        if isinstance(self.worktree, Exception):
+            raise self.worktree
+        assert self.worktree is not None
+        return Env(self.worktree)
 
     async def exec(
         self,
@@ -209,6 +223,8 @@ class Wired:
     flows: set[str] = field(default_factory=set[str])
     specs: list[AgentSpec] = field(default_factory=list["AgentSpec"])
     accounts: set[str] = field(default_factory=set[str])
+    #: Where each local environment was asked for.
+    placed: list[Path] = field(default_factory=list[Path])
 
 
 @pytest.fixture
@@ -217,11 +233,12 @@ def wired(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Wired:
     workspace.mkdir()
     made = Wired(Driver(), Env(workspace.resolve()), workspace)
 
-    def open_agent(spec: AgentSpec, harbors: object) -> Driver:
+    def open_agent(spec: AgentSpec, harbors: object, name: str = "") -> Driver:
         made.specs.append(spec)
         return made.driver
 
     def local_env(at: Path) -> Env:
+        made.placed.append(at)
         return made.env
 
     def find(name: str) -> str:
@@ -256,7 +273,7 @@ def _had(wired: Wired, person: Person, **said: Any) -> ChatEnd:
 
 
 def _events(at: Path) -> list[dict[str, Any]]:
-    return [json.loads(one) for one in (at / epic.JOURNAL).read_text().splitlines()]
+    return [json.loads(one) for one in epic.journal(at).read_text().splitlines()]
 
 
 def _ran(at: Path) -> epic.Ran:
@@ -294,7 +311,7 @@ def test_each_answer_is_shown_and_the_next_message_is_the_next_turn(
     assert "carry_on" not in opened
     assert session.closed
     assert (wired.driver.closes, wired.env.closes) == (1, 1)
-    assert ended == ChatEnd(ended.epic, "stopped")
+    assert ended == ChatEnd(ended.at, "stopped")
     assert [str(one) for one in wired.specs] == ["assistant=claude/haiku:low"]
 
 
@@ -303,14 +320,21 @@ def test_a_chat_is_written_down_as_one_spending_without_a_budget(
 ) -> None:
     ended = _had(wired, Person(["again"]))
 
-    events = _events(ended.epic)
+    # In a record of its own, under the chats of the workspace and none of its epics.
+    assert epic.journal(ended.at) == ended.at / epic.CHATTED
+    assert (epic.chats(wired.workspace), epic.epics(wired.workspace)) == (
+        [ended.at],
+        [],
+    )
+    events = _events(ended.at)
     began = events[0]
-    assert began["kind"] == "chat"
+    assert "kind" not in began
+    assert "workdir" not in began
     assert began["task"] == "hi"
     assert [one["agent"] for one in began["agents"]] == ["assistant"]
     for absent in ("flow", "params", "budget", "envs", "ref", "prefer"):
         assert absent not in began
-    ran = _ran(ended.epic)
+    ran = _ran(ended.at)
     assert (ran.chat, ran.how) == (True, "stopped")
     assert ran.spent == {"cost": 1.0, "output_tokens": 4, "seconds": 2.0}
     assert [one.ident for one in ran.sessions] == ["s1"]
@@ -324,7 +348,7 @@ def test_an_empty_first_message_ends_the_chat_with_no_turn(wired: Wired) -> None
 
     assert wired.driver.requests == []
     assert person.shown == []
-    assert _ran(ended.epic).how == "stopped"
+    assert _ran(ended.at).how == "stopped"
 
 
 def test_a_first_turn_that_fails_ends_the_chat_failed_with_what_the_harness_said(
@@ -339,7 +363,7 @@ def test_a_first_turn_that_fails_ends_the_chat_failed_with_what_the_harness_said
     with pytest.raises(HarnessRefused, match="may not run haiku"):
         _had(wired, person)
 
-    (at,) = epic.epics(wired.workspace)
+    (at,) = epic.chats(wired.workspace)
     assert _ran(at).how == "failed"
     assert person.shown == []
     assert wired.driver.closes == 1
@@ -361,7 +385,7 @@ def test_a_later_turn_that_fails_is_said_and_the_chat_goes_on(wired: Wired) -> N
         "That turn could not be taken: rate limited",
         "did: again",
     ]
-    assert _ran(ended.epic).how == "stopped"
+    assert _ran(ended.at).how == "stopped"
 
 
 def test_a_chat_the_host_lets_go_of_ends_stopped(wired: Wired) -> None:
@@ -372,7 +396,7 @@ def test_a_chat_the_host_lets_go_of_ends_stopped(wired: Wired) -> None:
     with pytest.raises(asyncio.CancelledError):
         _had(wired, Gone())
 
-    (at,) = epic.epics(wired.workspace)
+    (at,) = epic.chats(wired.workspace)
     assert _ran(at).how == "stopped"
 
 
@@ -459,6 +483,44 @@ def test_a_bang_line_is_run_in_the_workspace_and_carried_into_the_next_turn(
     assert len(wired.driver.requests) == 2
 
 
+def test_a_chat_is_between_turns_but_while_its_assistant_answers(
+    wired: Wired, tmp_path: Path
+) -> None:
+    wired.driver.catalog = [BANG]
+    seen: list[tuple[str, bool]] = []
+
+    class Watching(Person):
+        async def next(self, answered: str) -> str:
+            seen.append(("next", chat.between))
+            return await super().next(answered)
+
+        def shell(self, command: str, out: str, err: str, status: int) -> None:
+            seen.append(("shell", chat.between))
+
+    async def reply(session: Session, request: TurnRequest) -> str:
+        seen.append(("turn", chat.between))
+        return "did"
+
+    wired.driver.reply = reply
+    chat = _chat(wired, Watching(["!echo hello", "what did it print?"]))
+    # Given its first message, it is in its first turn from the start.
+    assert chat.between is False
+
+    asyncio.run(chat.run())
+
+    # A `!` command opens no turn: the chat stays between two through it.
+    assert seen == [
+        ("turn", False),
+        ("next", True),
+        ("shell", True),
+        ("next", True),
+        ("turn", False),
+        ("next", True),
+    ]
+    # With nothing said yet, it waits on its person: no turn is going.
+    assert _chat(wired, Person(), task="", role=_role(tmp_path)).between is True
+
+
 def test_what_a_bang_line_ran_waits_out_a_command_for_the_turn_after_it(
     wired: Wired,
 ) -> None:
@@ -539,10 +601,10 @@ def test_a_dollar_name_that_is_both_goes_by_the_chats_preference(
         ("$review again", False),
     ]
     assert chat.prefer == "flow"
-    assert chat.epic is not None
-    sets = [one for one in _events(chat.epic) if one["event"] == "set"]
+    assert chat.at is not None
+    sets = [one for one in _events(chat.at) if one["event"] == "set"]
     assert [one["prefer"] for one in sets] == ["flow"]
-    assert _ran(chat.epic).prefer == "flow"
+    assert _ran(chat.at).prefer == "flow"
 
 
 def test_the_persons_setting_decides_where_the_chat_has_no_preference(
@@ -567,7 +629,7 @@ def test_a_preference_set_before_the_chat_runs_is_where_it_began(
         chat.prefers("both")  # pyright: ignore[reportArgumentType]
     ended = asyncio.run(chat.run())
 
-    assert _events(ended.epic)[0]["prefer"] == "flow"
+    assert _events(ended.at)[0]["prefer"] == "flow"
 
 
 def test_the_catalog_is_the_open_conversations(wired: Wired) -> None:
@@ -620,7 +682,7 @@ def test_an_agent_that_cannot_be_read_is_refused_before_any_epic(
     with pytest.raises(Refused, match="no claude account called 'work'"):
         _had(wired, Person(), agent="claude@work/haiku:low")
 
-    assert epic.epics(wired.workspace) == []
+    assert epic.chats(wired.workspace) == []
     assert wired.driver.opened == []
 
 
@@ -647,11 +709,9 @@ def test_a_chat_started_with_a_permission_holds_its_assistant_to_it(
     assert (granted.preset, granted.network) == (preset, True)
     assert (granted.access("."), granted.access("/etc")) == (workspace, elsewhere)
     assert chat.permission == preset
-    assert _ran(ended.epic).permission == (
-        "" if preset == "workspace-write" else preset
-    )
+    assert _ran(ended.at).permission == ("" if preset == "workspace-write" else preset)
     # Written down only where it is not what a chat is held to anyway.
-    (began,) = [one for one in _events(ended.epic) if one["event"] == "began"]
+    (began,) = [one for one in _events(ended.at) if one["event"] == "began"]
     assert began.get("permission") == (None if preset == "workspace-write" else preset)
 
 
@@ -687,16 +747,16 @@ def test_a_permission_set_mid_chat_carries_the_conversation_on_under_it(
     assert [one.prompt for one in second.requests] == ["more", "and more"]
     assert first.closed
     assert second.carried == Kept(
-        HarnessKind.CLAUDE, "s1", ended.epic / epic.SESSIONS / "claude"
+        HarnessKind.CLAUDE, "s1", ended.at / epic.SESSIONS / "claude"
     )
     assert [one["permission"].preset for one in wired.driver.opened] == [
         "workspace-write",
         "read-only",
     ]
     assert person.shown == ["did: hi", "did: more", "did: and more"]
-    sets_ = [one for one in _events(ended.epic) if one["event"] == "set"]
+    sets_ = [one for one in _events(ended.at) if one["event"] == "set"]
     assert [one["permission"] for one in sets_] == ["read-only"]
-    assert _ran(ended.epic).permission == "read-only"
+    assert _ran(ended.at).permission == "read-only"
 
 
 def test_a_permission_set_to_what_it_is_changes_nothing(wired: Wired) -> None:
@@ -706,7 +766,7 @@ def test_a_permission_set_to_what_it_is_changes_nothing(wired: Wired) -> None:
     ended = asyncio.run(chat.run())
 
     assert len(wired.driver.sessions) == 1
-    assert not [one for one in _events(ended.epic) if one["event"] == "set"]
+    assert not [one for one in _events(ended.at) if one["event"] == "set"]
 
 
 def test_a_conversation_that_cannot_go_on_under_a_new_permission_is_a_new_one(
@@ -758,7 +818,7 @@ def test_a_permission_that_cannot_be_held_leaves_the_chat_with_the_one_it_had(
     ended = asyncio.run(chat.run())
 
     assert chat.permission == "workspace-write"
-    assert _ran(ended.epic).permission == "workspace-write"
+    assert _ran(ended.at).permission == "workspace-write"
     assert wired.driver.sessions[-1].carried is not None
     assert person.shown[-1] == (
         "The permission stays workspace-write: no fence here\n\ndid: more"
@@ -779,7 +839,7 @@ def test_a_permission_set_before_a_turn_was_taken_loses_no_conversation(
 
     wired.driver.reply = fails
     person = Person(["more"])
-    chat = _chat(wired, person, task="go", resume=first.epic)
+    chat = _chat(wired, person, task="go", resume=first.at)
 
     asyncio.run(chat.run())
 
@@ -796,15 +856,15 @@ def test_a_chat_carried_on_keeps_its_permission_unless_given_another(
 ) -> None:
     first = _had(wired, Person(), permission="read-only")
 
-    _had(wired, Person(), task="go", resume=first.epic)
+    _had(wired, Person(), task="go", resume=first.at)
 
     assert wired.driver.opened[-1]["permission"].preset == "read-only"
-    assert not [one for one in _events(first.epic) if one["event"] == "set"]
+    assert not [one for one in _events(first.at) if one["event"] == "set"]
 
-    _had(wired, Person(), task="go", resume=first.epic, permission="workspace-write")
+    _had(wired, Person(), task="go", resume=first.at, permission="workspace-write")
 
     assert wired.driver.opened[-1]["permission"].preset == "workspace-write"
-    assert _ran(first.epic).permission == "workspace-write"
+    assert _ran(first.at).permission == "workspace-write"
 
 
 def test_a_chat_with_a_role_keeps_its_roles_permission(
@@ -826,32 +886,99 @@ def test_a_chat_carried_on_goes_on_in_its_epic_and_its_conversation(
     first = _had(wired, Person(["more"]), prefer="flow")
     person = Person()
 
-    again = _had(wired, person, task="and now?", resume=first.epic)
+    again = _had(wired, person, task="and now?", resume=first.at)
 
-    assert again.epic == first.epic
-    assert epic.epics(wired.workspace) == [first.epic]
+    assert again.at == first.at
+    assert epic.chats(wired.workspace) == [first.at]
     _, carried = wired.driver.sessions
     assert carried.carried == Kept(
-        HarnessKind.CLAUDE, "s1", first.epic / epic.SESSIONS / "claude"
+        HarnessKind.CLAUDE, "s1", first.at / epic.SESSIONS / "claude"
     )
     assert carried.requests[0].prompt == "and now?"
     assert person.shown == ["did: and now?"]
-    events = _events(first.epic)
+    events = _events(first.at)
     assert [one["event"] for one in events].count("reopened") == 1
     assert [one["event"] for one in events].count("began") == 1
-    ran = _ran(first.epic)
+    ran = _ran(first.at)
     assert (ran.how, ran.prefer) == ("stopped", "flow")
     assert ran.spent == {"cost": 1.5, "output_tokens": 6, "seconds": 3.0}
+
+
+def test_a_chat_started_in_a_worktree_works_there_and_says_where(
+    wired: Wired, tmp_path: Path
+) -> None:
+    worktree = tmp_path / "envs" / "worktrees" / "one"
+    wired.env.worktree = worktree
+
+    ended = _had(wired, Person(["again"]), worktree=True)
+
+    # A new worktree at the workspace's `HEAD`, wherever Humanize puts one.
+    assert wired.env.derived == [(None, None)]
+    assert wired.placed == [wired.workspace.resolve()]
+    (opened,) = wired.driver.opened
+    assert opened["placement"].workdir == PurePosixPath(str(worktree))
+    assert _events(ended.at)[0]["workdir"] == str(worktree)
+    ran = _ran(ended.at)
+    assert (ran.workdir, ran.workspace) == (
+        str(worktree),
+        str(wired.workspace.resolve()),
+    )
+    # The workspace's environment is closed as the chat ends; the worktree is left as it is.
+    assert (wired.driver.closes, wired.env.closes) == (1, 1)
+
+    # Carried on, it works where it worked, and no other worktree is made for it.
+    _had(wired, Person(), task="go", resume=ended.at)
+
+    assert wired.env.derived == [(None, None)]
+    assert wired.placed == [wired.workspace.resolve(), worktree]
+    assert _ran(ended.at).workdir == str(worktree)
+    # Not even where one is asked for, which the daemon refuses before it gets this far.
+    _had(wired, Person(), task="go", resume=ended.at, worktree=True)
+    assert wired.env.derived == [(None, None)]
+
+
+def test_a_worktree_that_cannot_be_made_refuses_the_chat_before_it_is_written(
+    wired: Wired,
+) -> None:
+    from hmz.flows import WorktreeError
+
+    wired.env.worktree = WorktreeError(f"{wired.workspace} is not a git repository")
+
+    with pytest.raises(Refused, match="is not a git repository"):
+        _had(wired, Person(), worktree=True)
+
+    assert epic.chats(wired.workspace) == []
+    assert wired.driver.opened == []
+    assert (wired.driver.closes, wired.env.closes) == (1, 1)
+
+
+def test_a_chat_with_a_virtual_nous_is_written_down_at_its_concrete_one(
+    wired: Wired, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def virtual(name: str) -> bool:
+        return name == "smart"
+
+    def entry(name: str) -> str:
+        return "claude/opus:high"
+
+    monkeypatch.setattr(nous, "virtual", virtual)
+    monkeypatch.setattr(nous, "entry", entry)
+
+    ended = _had(wired, Person(), agent="smart")
+
+    (drove,) = _ran(ended.at).agents
+    assert (drove.backend, drove.model, drove.effort) == ("claude", "opus", "high")
+    assert drove.spec == "claude/opus:high"
 
 
 def test_a_chat_carried_on_with_another_agent_says_so(wired: Wired) -> None:
     first = _had(wired, Person())
 
-    _had(wired, Person(), task="go", resume=first.epic, agent="claude/opus:high")
+    _had(wired, Person(), task="go", resume=first.at, agent="claude/opus:high")
 
-    sets = [one for one in _events(first.epic) if one["event"] == "set"]
+    sets = [one for one in _events(first.at) if one["event"] == "set"]
     assert [one["agents"][0]["model"] for one in sets] == ["opus"]
-    assert _ran(first.epic).agents[0].model == "opus"
+    assert _ran(first.at).agents[0].model == "opus"
 
 
 def test_a_conversation_that_cannot_be_carried_on_is_a_new_one_that_says_why(
@@ -861,9 +988,9 @@ def test_a_conversation_that_cannot_be_carried_on_is_a_new_one_that_says_why(
     wired.driver.refuses_carrying = UnsupportedOperation("cannot fork")
     person = Person()
 
-    again = _had(wired, person, task="go", resume=first.epic)
+    again = _had(wired, person, task="go", resume=first.at)
 
-    assert again.epic == first.epic
+    assert again.at == first.at
     assert wired.driver.sessions[-1].carried is None
     assert person.shown == [
         (
@@ -886,7 +1013,7 @@ def test_a_carried_conversation_whose_first_turn_cannot_go_on_is_put_down(
     wired.driver.reply = lost
     person = Person()
 
-    _had(wired, person, task="go", resume=first.epic)
+    _had(wired, person, task="go", resume=first.at)
 
     assert [one.carried is None for one in wired.driver.sessions] == [
         True,
@@ -899,7 +1026,7 @@ def test_a_carried_conversation_whose_first_turn_cannot_go_on_is_put_down(
             "so this is a new one.\n\ndid: go"
         )
     ]
-    assert _ran(first.epic).how == "stopped"
+    assert _ran(first.at).how == "stopped"
 
 
 def test_a_first_turn_carried_on_that_fails_is_said(wired: Wired) -> None:
@@ -911,7 +1038,7 @@ def test_a_first_turn_carried_on_that_fails_is_said(wired: Wired) -> None:
     wired.driver.reply = refuses
     person = Person()
 
-    _had(wired, person, task="go", resume=first.epic)
+    _had(wired, person, task="go", resume=first.at)
 
     assert person.shown == ["That turn could not be taken: out of credit"]
 
@@ -922,7 +1049,7 @@ def test_a_chat_with_no_conversation_kept_is_carried_on_in_a_new_one(
     first = _had(wired, Person(), task="")
     person = Person()
 
-    _had(wired, person, task="go", resume=first.epic)
+    _had(wired, person, task="go", resume=first.at)
 
     assert person.shown[0].startswith(
         "This conversation could not be carried on (it was not kept as it stopped)"
@@ -992,7 +1119,7 @@ def test_a_preference_set_once_the_chat_has_ended_writes_nothing_after_its_end(
     chat.prefers("flow")
 
     assert chat.prefer == "flow"
-    assert _events(ended.epic)[-1]["event"] == "ended"
+    assert _events(ended.at)[-1]["event"] == "ended"
 
 
 def test_a_slash_name_is_said_until_the_harness_has_listed_its_catalogue() -> None:
@@ -1034,12 +1161,92 @@ def test_a_model_or_effort_changed_in_a_chat_is_its_agent_from_then_on(
 
     ended = _had(wired, Person(says=["/model opus", "/model opus"]))
 
-    (set_,) = [one for one in _events(ended.epic) if one.get("event") == "set"]
+    (set_,) = [one for one in _events(ended.at) if one.get("event") == "set"]
     assert (set_["agents"][0]["model"], set_["agents"][0]["effort"]) == ("opus", "low")
-    assert _ran(ended.epic).agents[-1].model == "opus"
+    assert _ran(ended.at).agents[-1].model == "opus"
     chosen = Settings(wired.workspace).chat_agent
     assert chosen is not None
     assert chosen.spec == "claude/opus:low"
+
+
+def test_a_model_asked_after_in_a_chat_without_an_effort_changes_nothing(
+    wired: Wired,
+) -> None:
+    from types import SimpleNamespace
+
+    from hmz.runtime.kept import Runs
+
+    wired.driver.fence = Fence()
+    wired.driver.catalog = [NativeCommand("/", "model", "the model", "call")]
+    Settings(wired.workspace).chat_agent = Runs("claude/opus:max", "")
+
+    async def asked(session: Session, request: TurnRequest) -> str:
+        assert session.agent is not None
+        # As an agent started without an effort holds it: no rung at all.
+        session.agent.config, session.agent.effort = SimpleNamespace(model="haiku"), ""
+        return "Model: haiku" if request.native else f"did: {request.prompt}"
+
+    wired.driver.reply = asked
+
+    ended = _had(wired, Person(says=["/model", "/model bogus"]), agent="claude/haiku")
+
+    assert not [one for one in _events(ended.at) if one.get("event") == "set"]
+    chosen = Settings(wired.workspace).chat_agent
+    assert chosen is not None
+    assert chosen.spec == "claude/opus:max"
+
+
+def test_a_model_or_effort_changed_on_the_conversation_alone_is_its_agent_too(
+    wired: Wired,
+) -> None:
+    from types import SimpleNamespace
+
+    wired.driver.fence = Fence()
+    wired.driver.catalog = [NativeCommand("/", "model", "the model", "call")]
+
+    async def switched(session: Session, request: TurnRequest) -> str:
+        assert session.agent is not None
+        if session.agent.config is None:
+            session.agent.config, session.agent.effort = (
+                SimpleNamespace(model="haiku"),
+                "low",
+            )
+        if request.native:
+            # As Codex serves it: the conversation moves, and its agent stays what it was.
+            session.coganchor = SimpleNamespace(model="gpt-y", effort="high")
+            return "model gpt-y, effort high, from the next turn on"
+        return f"did: {request.prompt}"
+
+    wired.driver.reply = switched
+
+    ended = _had(wired, Person(says=["/model gpt-y high"]))
+
+    (set_,) = [one for one in _events(ended.at) if one.get("event") == "set"]
+    assert (set_["agents"][0]["model"], set_["agents"][0]["effort"]) == (
+        "gpt-y",
+        "high",
+    )
+    assert _ran(ended.at).agents[-1].model == "gpt-y"
+    chosen = Settings(wired.workspace).chat_agent
+    assert chosen is not None
+    assert chosen.spec == "claude/gpt-y:high"
+
+
+def test_a_model_called_first_leaves_what_the_harness_has_not_listed_as_text(
+    wired: Wired,
+) -> None:
+    # claude lists `/model` from the start and what it passes only once a turn was said to it.
+    wired.driver.catalog = [NativeCommand("/", "model", "the model", "call")]
+    person = Person(says=["/fix-tests now", "plain", "/nope"])
+
+    _had(wired, person, task="/model opus")
+
+    assert [(one.prompt, one.native) for one in wired.driver.requests] == [
+        ("/model opus", True),
+        ("/fix-tests now", False),
+        ("plain", False),
+    ]
+    assert person.shown[-1] == "no such command: /nope"
 
 
 # ------------------------------------------------------------------------------ a role
@@ -1092,7 +1299,7 @@ def test_a_chat_with_a_role_carried_on_with_nothing_said_waits_and_is_not_briefe
     first = _had(wired, Person(), role=role)
     person = Person(["and now?"])
 
-    _had(wired, person, task="", resume=first.epic, role=role)
+    _had(wired, person, task="", resume=first.at, role=role)
 
     assert person.shown == ["", "did: and now?"]
     assert wired.driver.prompts == ["You are her.\n\nhi", "and now?"]
@@ -1105,7 +1312,7 @@ def test_a_new_conversation_put_in_for_one_not_carried_on_is_briefed(
     first = _had(wired, Person(), role=role)
     wired.driver.refuses_carrying = HarnessRefused("gone")
 
-    _had(wired, Person(), task="again", resume=first.epic, role=role)
+    _had(wired, Person(), task="again", resume=first.at, role=role)
 
     assert wired.driver.prompts[-1] == "You are her.\n\nagain"
 

@@ -8,6 +8,7 @@ home of its own, paired from the code `hmz daemon pair` makes.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import os
@@ -50,6 +51,7 @@ from tests.integration.doubles_ssh import Host, faked
 from tests.integration.doubles_tui import (
     OWN,
     PATIENCE,
+    RUNS,
     SIZE,
     leaves,
     on,
@@ -264,6 +266,101 @@ async def test_an_epic_is_started_on_another_daemon_and_steered_here(
     }
 
 
+async def test_a_chat_followed_on_another_daemon_is_not_this_directorys(
+    host: Host,
+) -> None:
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    project = host.home / "project"
+
+    def starts() -> dict[str, Any]:
+        with pick.remotes().client("box") as client:
+            return client.call(
+                "chat.start",
+                {"workspace": str(project), "agent": RUNS, "task": "hi far"},
+                idem="abc123abc123",
+                seconds=PATIENCE,
+            )
+
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        made = await asyncio.to_thread(starts)
+        await typed(pilot, "/epics @box")
+        await on(pilot, RemoteEpics)
+        await shows(pilot, "hi far")
+        # A chat going there is no epic of that daemon, and is listed as a chat to follow.
+        await shows(pilot, " · chat")
+        await _menu(pilot, str(made["chat"]))
+        assert "export" not in screen(pilot.app)
+        await onto(pilot, "follow")
+        await pilot.press("enter")
+        await until(pilot, lambda: len(pilot.app.screen_stack) == 1, "the chat")
+        await shows(pilot, "@box", "heard hi far")
+        await typed(pilot, "more far")
+        await shows(pilot, "heard more far")
+
+        # Left going there: a line typed back here is this directory's own chat's.
+        await pilot.press("escape")
+        await on(pilot, RemoteEpics)
+        await leaves(pilot)
+        await until(pilot, lambda: "@box" not in screen(pilot.app), "this machine's")
+        await typed(pilot, "hello local")
+        await shows(pilot, "heard hello local")
+        assert "is not a chat of" not in screen(pilot.app)
+
+
+async def test_chat_while_another_daemons_epic_is_followed_is_this_machines(
+    host: Host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+    project = host.home / "project"
+    own_flow(project, ASKS)
+    here = os.environ["HUMANIZE_HOME"]
+    monkeypatch.setenv("HUMANIZE_HOME", str(host.humanize))
+    Hmz(project).settings.remember(OWN, {}, budget={"cost": 1.0})
+    monkeypatch.setenv("HUMANIZE_HOME", here)
+
+    def held() -> list[str]:
+        with pick.remotes().client("box") as client:
+            listed = client.call("hosts.list", {}, seconds=PATIENCE)
+        return [str(one["slot"]) for one in listed["held"]]
+
+    async with Humanize().run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "hello local chat")
+        await shows(pilot, "heard hello local chat")
+        await typed(pilot, "/epics @box")
+        await on(pilot, RemoteEpics)
+        await pilot.press("n")
+        await on(pilot, Starting)
+        await pilot.press(*str(project), "enter")
+        await onto(pilot, "flow")
+        await pilot.press(*OWN, "enter")
+        await pilot.press(*"the far plan", "enter")
+        await pilot.click("#act-done")
+        await until(pilot, lambda: len(pilot.app.screen_stack) == 1, "the epic")
+        await shows(pilot, "@box", "plan the far plan?")
+
+        # A line typed there once it has ended is no word to this machine's chat.
+        await typed(pilot, "a plan")
+        await shows(pilot, "is 'a plan' good?")
+        await typed(pilot, "it is")
+        await until(pilot, (project / "result.json").exists, "the epic to end")
+        await shows(pilot, "the flow is done")
+        await typed(pilot, "not from there")
+        # Nor the start of a chat there: what `n` on that daemon's list starts is an epic.
+        await shows(pilot, "start an epic on box with n on /epics @box")
+        assert "start a chat on" not in screen(pilot.app)
+
+        # The chat of this frontend is this machine's: back on its own host, here.
+        await typed(pilot, "/chat")
+        await until(pilot, lambda: "@box" not in screen(pilot.app), "this machine's")
+        await shows(pilot, "heard hello local chat")
+        await typed(pilot, "are you there")
+        await shows(pilot, "heard are you there")
+        assert "no chat is going here" not in screen(pilot.app)
+        assert not [slot for slot in await asyncio.to_thread(held) if slot]
+
+
 class _Gated:
     """Another daemon, holding each answer but the list's until it is let go."""
 
@@ -371,6 +468,48 @@ async def test_what_is_asked_of_another_daemon_is_said_while_it_is_under_way(
     finally:
         held.close()
         following.set()
+
+
+async def test_another_daemons_epics_left_while_they_are_read_have_nothing_to_show(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asking: None
+) -> None:
+    del asking
+    stand_in(tmp_path, monkeypatch)
+
+    class Slow(_Gated):
+        """Another daemon, holding the list as well until it is let go."""
+
+        def call(self, method: str, *args: Any, **kwargs: Any) -> object:
+            self.gate("asked").set()
+            self.gate("left").wait(PATIENCE)
+            return super().call(method, *args, **kwargs)
+
+    held = Slow()
+    monkeypatch.setattr(pick, "remotes", lambda: held)
+    Hmz().daemons.write("box", {"routes": ["stdio:ssh://box.example"]})
+
+    def emptied(sheet: RemoteEpics) -> None:
+        """Lets the list go once the sheet is taken apart, and not yet taken off."""
+        if sheet.query("#about"):
+            asyncio.get_running_loop().call_soon(emptied, sheet)
+        else:
+            held.gate("left").set()
+
+    try:
+        async with Humanize().run_test(size=SIZE) as pilot:
+            await opened(pilot)
+            await typed(pilot, "/epics @box")
+            sheet = await on(pilot, RemoteEpics)
+            await until(pilot, held.gate("asked").is_set, "the list to be asked for")
+            # A sheet closed loses what it draws on before it is off the interface: the
+            # list read by then has nothing to be put up on, and nothing comes of it.
+            emptied(sheet)
+            await pilot.press("escape")
+            await until(pilot, held.gate("left").is_set, "the sheet to be taken apart")
+            await until(pilot, lambda: not sheet.workers, "the read to end")
+            await until(pilot, lambda: len(pilot.app.screen_stack) == 1, "the prompt")
+    finally:
+        held.close()
 
 
 @pytest.fixture

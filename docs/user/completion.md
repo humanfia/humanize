@@ -50,7 +50,7 @@ With no flow running, type `/`:
   <span class="p">/exit</span>              <span class="p">Exit</span>
   <span class="p">/flow</span> <span class="m">[flow] [task]</span> <span class="p">Set up a flow, or start one on a task</span>
   <span class="p">/resume</span>            <span class="p">Resume the last epic in this directory</span><span class="n">2</span>
-  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, notifications, daemons, accounts, fallback, runtimes, backup, workspace</span>
+  <span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: general, notifications, daemons, accounts, nous, runtimes, backup, workspace</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /
 <span class="d">────────────────────────────────────────────────────────────</span>
@@ -96,7 +96,7 @@ What to look at, by number:
 | --- | --- |
 | `/` | every command that would do something now, with what it takes after its name and what it is for |
 | `/flow ` | every flow you can run here, by the name it is offered under |
-| `/settings ` | its nine pages: `general`, `notifications`, `daemons`, `accounts`, `fallback`, `runtimes`, `backup`, `workspace`, `usage` |
+| `/settings ` | its nine pages: `general`, `notifications`, `daemons`, `accounts`, `nous`, `runtimes`, `backup`, `workspace`, `usage` |
 | `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task, as `/flow ralph_loop fix the build` does. |
 
 In a chat, the list offers what the chat's coding agent takes at its own prompt as well: its

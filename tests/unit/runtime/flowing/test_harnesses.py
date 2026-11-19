@@ -376,6 +376,15 @@ async def test_every_session_of_an_agent_is_called_by_its_name_and_not_its_role(
     assert open_agent(_spec()).name != driver.name
 
 
+async def test_an_agent_given_a_name_is_called_by_it(
+    coganchor: type[CLI], tmp_path: Path
+) -> None:
+    driver = open_agent(_spec(), name="Kept1")
+
+    assert driver.name == "Kept1"
+    assert _cli(await _session(driver, tmp_path)).id == "Kept1"
+
+
 async def test_a_session_is_refused_where_it_cannot_open(
     coganchor: type[CLI], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -563,6 +572,26 @@ class Asked:
 
     async def communicate(self) -> tuple[bytes, bytes]:
         return b"", b""
+
+
+async def test_a_harness_runtime_for_work_on_a_tcp_target_is_refused_as_it_is_settled(
+    coganchor: type[CLI],
+) -> None:
+    listening = AnchoredConfig(
+        anchor=AnchorConfig(target="tcp://node7:40123", workspace="/w", token="s3cret")
+    )
+    harbors: Any = Runtime()
+
+    with pytest.raises(HarnessUnrecoverable) as refused:
+        await open_agent(_spec(), harbors).open(
+            _on(listening), permission=Permission(), skills=(), hooks=HookTable()
+        )
+
+    said = str(refused.value)
+    assert said.startswith(
+        "ssh@[box]: claude's harness cannot run where its harness setting (docker:gpu) says: "
+    )
+    assert "a tcp:// target is a serving half somebody else left listening" in said
 
 
 @pytest.fixture

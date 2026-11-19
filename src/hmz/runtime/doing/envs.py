@@ -3,9 +3,9 @@
 `hosts.env.list`, `hosts.env.read`, `hosts.env.write`, `hosts.env.exec` and `hosts.env.grep`
 (Section 4.23 of daemon.md): each carried out by the host going with the epic, through the env's
 own driver on the run's own loop, as the epic's flow would carry it out, without the flow
-hearing of it and without attaching. Each env is one the run holds at its root -- a role's, or
-the workspace -- as the run lists them for the env panels (:mod:`hmz.runtime.doing.desk`); what
-is here is the work done in it, which :meth:`hmz.runtime.Host.env` asks for.
+hearing of it and without attaching. Each env is one the run holds at its root -- a role's,
+two roles of one driver each an env of its own, or the workspace no role took; what is here is
+the work done in it, which :meth:`hmz.runtime.Host.env` asks for.
 """
 
 from __future__ import annotations
@@ -14,13 +14,13 @@ import asyncio
 import concurrent.futures
 import os
 import posixpath
+import re
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from hmz.runtime.doing.desk import Holds
     from hmz.runtime.flowing.spi import EnvDriver
 
 __all__ = ["NO_FLOW", "EnvRefusal", "answered", "carried", "listed"]
@@ -35,8 +35,15 @@ _MOST = 1 << 20
 _LINE = 400
 
 #: Searches as `hosts.env.grep` does, with no more lines than `$3`, grep alone being unable to
-#: stop early; then says grep's own exit status as the last line of stderr.
-_GREP = '{ grep -rnIsE --null -e "$1" -- "$2"; echo "$?" >&2; } | head -n "$3"'
+#: stop early; then says grep's own exit status as the last line of stderr. A file's name
+#: ends with a NUL where grep knows `--null`, which BusyBox's does not, and else with the colon.
+_GREP = (
+    'grep --null -q x /dev/null 2>/dev/null; [ "$?" -lt 2 ] && named=--null || named=-H; '
+    '{ grep -rnIsE "$named" -e "$1" -- "$2"; echo "$?" >&2; } | head -n "$3"'
+)
+
+#: A line found by a grep that ends a file's name with a colon: the name, the line, the text.
+_FOUND = re.compile(r"(.*?):(\d+):(.*)", re.DOTALL)
 
 #: Says the workdir with every link followed, then the deepest of `$1` and the directories it
 #: lies in that is there, likewise: where a path is, said on the env's own machine.
@@ -44,6 +51,10 @@ _REAL = (
     'pwd -P && p=$1 && while [ "$p" != . ] && [ ! -e "$p" ] && [ ! -L "$p" ]; '
     'do p=$(dirname -- "$p"); done && readlink -f -- "$p"'
 )
+
+#: Says where the workdir is, as a command run in it is told and with every link followed: what
+#: its machine alone knows of a workdir said under `~`.
+_WHERE = "pwd && pwd -P"
 
 #: How long an env's driver may take over anything but a command, in seconds.
 _PATIENCE = 120
@@ -107,8 +118,16 @@ async def _inside(driver: EnvDriver, env: str, path: str) -> str:
         machine for one elsewhere that runs commands.
     """
     workdir = str(driver.workdir)
-    whole = posixpath.normpath(posixpath.join(workdir, path))
     outside = EnvRefusal(400, f"{path} is outside the env {env}.")
+    if path.startswith("/") and workdir.startswith("~") and "exec" in _can(driver):
+        # An absolute path is in a workdir under the home or out of it as its machine says.
+        code, said, _ = await driver.exec(["sh", "-c", _WHERE], timeout=_PATIENCE)
+        whole = posixpath.normpath(path)
+        at = [one for one in said.splitlines() if code == 0 and _under(whole, one)]
+        if not at:
+            raise outside
+        path = posixpath.relpath(whole, at[0])
+    whole = posixpath.normpath(posixpath.join(workdir, path))
     if not _under(whole, workdir):
         raise outside
     relative = posixpath.relpath(whole, workdir)
@@ -202,8 +221,8 @@ async def _exec(driver: EnvDriver, env: str, said: Mapping[str, Any]) -> dict[st
     seconds = _number(said, "seconds", 120, 1, 3600)
     try:
         code, stdout, stderr = await driver.exec(argv, timeout=seconds)
-    except EnvCommandTimeout:
-        return {"code": None, "stdout": "", "stderr": ""}
+    except EnvCommandTimeout as late:
+        code, stdout, stderr = None, late.stdout, late.stderr
     return {"code": code, "stdout": _tail(stdout), "stderr": _tail(stderr)}
 
 
@@ -220,8 +239,10 @@ async def _grep(driver: EnvDriver, env: str, said: Mapping[str, Any]) -> dict[st
         raise EnvRefusal(400, said_.strip())
     matches: list[dict[str, Any]] = []
     for one in stdout.split("\n"):
-        path, _, rest = one.partition("\0")
+        path, named, rest = one.partition("\0")
         line, _, text = rest.partition(":")
+        if not named and (found := _FOUND.fullmatch(one)):
+            path, line, text = found.groups()
         if line.isdigit():
             matches.append(
                 {
@@ -267,6 +288,17 @@ async def carried(
     return await does(driver, env, said)
 
 
+class Holds(Protocol):
+    """A run going, as far as `hosts.env.*` go: its envs by name, and the loop they live on."""
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop: ...
+
+    def env_roles(self) -> Mapping[str, EnvDriver]:
+        """The driver of each env it holds at its root, by name. From any thread."""
+        ...
+
+
 def answered(holds: Holds, said: Mapping[str, Any]) -> dict[str, Any]:
     """Carries out one call of Section 4.23 on what a run going holds, from any other thread.
 
@@ -278,10 +310,7 @@ def answered(holds: Holds, said: Mapping[str, Any]) -> dict[str, Any]:
       EnvRefusal: As Section 4.23 refuses it; 409 where the run's loop has ended.
       EnvError: What the env could not do, as its driver raised it.
     """
-    envs: dict[str, EnvDriver] = {}
-    for one in holds.held_envs():
-        if one.parent is None:
-            envs.setdefault(one.role, one.driver)
+    envs = holds.env_roles()
     method = str(said.get("do"))
     if method == "hosts.env.list":
         return {"envs": listed(envs)}

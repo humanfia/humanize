@@ -1,9 +1,18 @@
 // The box a person types into at the foot of a view, as in a chat: it grows with what is
 // typed, Enter sends it and Shift+Enter starts a new line, and what refused it is said over it.
 // Given what to complete with, it offers, over itself, what the word being typed could become,
-// picked with the arrows and taken with Tab or Enter, as a terminal's prompt completes.
+// picked with the arrows and taken with Tab or Enter, as a terminal's prompt completes. Told
+// what stops what it is typed to (`stops`), its button stops that in place of sending, while
+// Enter still sends what is typed.
 
-import { fill, h, icon, problem } from './dom.js'
+// A box of a chat's -- a new chat's, a chat's, a new epic's -- is drawn as a chat app's desk
+// (`desk`): inside it only the Add button, what is typed and the button that sends; every
+// choice beside it is a quiet chip in the row under it, where it runs at the left and how it
+// runs at the right (Section 3.6.6.15 of protocol/web.md).
+
+import { added, addsOf } from './desk.js'
+import { fill, h, icon, iconButton, problem } from './dom.js'
+import { choice, menu } from './shell.js'
 
 /**
  * @param {object} made
@@ -15,13 +24,27 @@ import { fill, h, icon, problem } from './dom.js'
  * @param {boolean} [made.empty] Whether it may be sent empty.
  * @param {string} [made.busy] What it says over itself while what was sent is being taken.
  * @param {(text: string, caret: number) => Promise<Completing|null>|Completing|null} [made.complete] What the word at the caret could become.
+ * @param {{left?: Node[], right?: Node[], add?: true | string[], able?: (key: string) => string} | null} [made.desk]
+ *   Drawn as a chat's desk: the chips under the box, at its left and at its right; what its Add
+ *   menu offers -- all of it, or the keys of desk.js's `ADDS` it does; and `able`, which says why
+ *   one of them cannot be picked now, or '' where it can. `tools` then stand at the right under
+ *   the box, never in it.
  */
-export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…', complete = null }) {
+export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…', complete = null, desk = null }) {
   const text = h('textarea', { rows: '1', placeholder, 'aria-label': label, 'data-hmz': 'composer-text' }, value)
   const send = h('button', { class: 'send', type: 'submit', 'aria-label': 'Send', title: 'Send' }, icon('send'))
   const said = h('div', { class: 'composer-said', 'aria-live': 'polite' })
-  const tray = h('div', { class: 'composer-tools' }, tools)
-  const form = h('form', { class: 'composer', 'data-hmz': 'composer' }, said, text, h('div', { class: 'composer-bar' }, tray, send))
+  const tray = h('div', { class: desk ? 'under-right' : 'composer-tools' }, desk ? [tools, desk.right || []] : tools)
+  const left = desk ? h('div', { class: 'under-left' }, desk.left || []) : null
+  const form = desk
+    ? h(
+        'form',
+        { class: 'composer composer-desk', 'data-hmz': 'composer' },
+        said,
+        h('div', { class: 'composer-box' }, desk.add ? adder(text, desk.add, desk.able) : null, text, send),
+        h('div', { class: 'composer-under', 'data-hmz': 'composer-under' }, left, tray),
+      )
+    : h('form', { class: 'composer', 'data-hmz': 'composer' }, said, text, h('div', { class: 'composer-bar' }, tray, send))
   const grow = () => {
     text.style.height = 'auto'
     text.style.height = `${Math.min(text.scrollHeight, 320)}px`
@@ -36,8 +59,36 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
       form.requestSubmit()
     }
   })
+  /** What the button does in place of sending, while there is something to stop. */
+  let stop = null
+  const stops = (act) => {
+    if (Boolean(act) !== Boolean(stop)) {
+      const said = act ? 'Stop' : 'Send'
+      send.classList.toggle('stop', Boolean(act))
+      send.setAttribute('aria-label', said)
+      send.title = said
+      send.dataset.hmz = act ? 'stop' : 'send'
+      fill(send, icon(act ? 'stop' : 'send'))
+    }
+    stop = act
+  }
+  send.dataset.hmz = 'send'
   form.addEventListener('submit', async (event) => {
     event.preventDefault()
+    // The button pressed, while there is something to stop, stops it: what refused is said.
+    if (stop && event.submitter === send) {
+      if (send.disabled) return
+      send.disabled = true
+      try {
+        await stop()
+        fill(said)
+      } catch (error) {
+        fill(said, problem(error))
+      } finally {
+        send.disabled = false
+      }
+      return
+    }
     if ((!empty && !text.value.trim()) || send.disabled) return
     send.disabled = true
     form.classList.add('busy')
@@ -56,12 +107,45 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
       send.disabled = false
       form.classList.remove('busy')
       form.removeAttribute('aria-busy')
-      send.setAttribute('aria-label', 'Send')
+      send.setAttribute('aria-label', stop ? 'Stop' : 'Send')
     }
   })
   // Measured again whenever its box changes, so one built before it is shown fits once shown.
   new ResizeObserver(() => requestAnimationFrame(grow)).observe(text)
-  return { node: form, text, tray, said, send, again: () => offered?.again() }
+  return { node: form, text, tray, left, said, send, stops, again: () => offered?.again() }
+}
+
+/**
+ * The Add button of a chat's box, and its menu: each choice types the prefix a line of that kind
+ * starts with, and the box then offers what it could become, as it does where the prefix is typed.
+ */
+function adder(text, which, able = () => '') {
+  const button = iconButton('plus', 'Add', { class: 'composer-add', 'data-hmz': 'composer-add' })
+  menu(
+    button,
+    (close) =>
+      addsOf(which).map((one) => {
+        const why = able(one.key)
+        const item = choice({
+          label: one.label,
+          about: why,
+          glyph: one.glyph,
+          close,
+          act: () => {
+            const now = added(text.value, text.selectionStart ?? text.value.length, one.sigil)
+            text.value = now.text
+            text.focus()
+            text.setSelectionRange(now.caret, now.caret)
+            text.dispatchEvent(new Event('input'))
+          },
+        })
+        item.dataset.add = one.key
+        item.disabled = Boolean(why)
+        return item
+      }),
+    { up: true, label: 'Add' },
+  )
+  return h('div', { class: 'menu-holder' }, button)
 }
 
 /**

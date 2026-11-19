@@ -392,6 +392,27 @@ def test_a_signal_the_target_cannot_take_is_let_go(
     assert peer.sent[-1].meta["sig"] == 15
 
 
+def test_a_command_is_held_only_on_a_target_that_says_it_can(
+    opened: Opener,
+) -> None:
+    def holding(frame: Frame) -> list[Frame]:
+        if frame.op is Op.HOLD:
+            return [Frame.error(frame.msg_id, OSError(errno.EIO, "no"))]
+        return []
+
+    client, peer = opened(holding)
+    handle = client.start_exec(["sh"], "/", {}, ignore, ignore, tty=True)
+
+    handle.hold(held=True)
+    assert peer.sent[-1].op is Op.EXEC, "an older target is not asked"
+    client.info["hold"] = True
+    handle.hold(held=True)
+
+    asked = peer.sent[-1]
+    assert asked.op is Op.HOLD
+    assert asked.meta == {**asked.meta, "target": handle.msg_id, "held": True}
+
+
 def test_a_terminal_is_resized_only_on_a_target_that_says_it_can(
     opened: Opener,
 ) -> None:
@@ -470,6 +491,28 @@ def test_a_closed_client_refuses_new_requests() -> None:
     client.close()
     with pytest.raises(ConnectionResetError):
         client.listdir("/")
+
+
+def test_a_client_whose_target_went_refuses_new_requests() -> None:
+    peer = Peer(hello)
+    client = RemoteClient(peer, timeout=0.5)
+    client.start()
+    ended = threading.Event()
+
+    def on_exit(result: dict[str, Any] | None, error: OSError | None) -> None:
+        ended.set()
+
+    client.start_exec(["sleep"], "/", {}, ignore, on_exit)
+    # The target goes, and a write to it still succeeds: the first one on a socket does.
+    peer.inbox.put(None)
+    assert ended.wait(5)
+    with pytest.raises(ConnectionResetError):
+        client.listdir("/")
+    with pytest.raises(ConnectionResetError):
+        client.start_exec(["sleep"], "/", {}, ignore, ignore)
+    assert not peer.shut
+    client.close()
+    assert peer.shut
 
 
 def test_a_send_that_fails_is_a_connection_reset() -> None:

@@ -389,7 +389,15 @@ def test_a_bundle_reads_back_in_as_the_epic_it_was(
 
     assert back == ran
     # As it was, less the credentials struck out of it on the way.
-    assert read(back) == before._replace(task=f"fix it with {REDACTED}")
+    after = read(back)
+    assert after is not None
+    # And says when it was read in, which is the last its record was written.
+    assert after == before._replace(
+        task=f"fix it with {REDACTED}",
+        title=f"fix it with {REDACTED}",
+        updated=after.updated,
+    )
+    assert after.updated >= before.updated
     log = back / SESSIONS / "claude" / "projects" / "p" / "s1.jsonl"
     assert '"input_tokens": 9' in log.read_text()
     assert logs(back, sessions(back)[0]) == {"projects/p/s1.jsonl": log}
@@ -539,7 +547,15 @@ def test_an_epic_laid_out_as_files_reads_back_in_as_a_bundle_does(
     back = placed(tmp_path / "held" / ran.name, "there")
 
     assert back == ran
-    assert read(back) == before._replace(task=f"fix it with {REDACTED}")
+    after = read(back)
+    assert after is not None
+    # And says when it was read in, which is the last its record was written.
+    assert after == before._replace(
+        task=f"fix it with {REDACTED}",
+        title=f"fix it with {REDACTED}",
+        updated=after.updated,
+    )
+    assert after.updated >= before.updated
     last = json.loads((back / "epic.jsonl").read_text().splitlines()[-1])
     assert (last["event"], last["from"], last["head"]) == (
         "imported",

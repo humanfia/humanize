@@ -28,8 +28,8 @@ rules as `main`. Three workflows do it:
 1. **`release.yml`**, run by hand on `main` with the version, checks it, finds `release/X.Y`,
    and has [release-please](https://github.com/googleapis/release-please) open the release
    pull request against it. For a new `X.Y` it first cuts `release/X.Y` from `main`. The pull
-   request bumps `version` in `pyproject.toml`, `uv.lock` and the macOS app's `tauri.conf.json`,
-   and adds the release's section
+   request bumps `version` in `pyproject.toml`, `uv.lock`, the macOS app's `tauri.conf.json`,
+   and `Cargo.toml` and `Cargo.lock` in `crates/coganchor`, and adds the release's section
    to `CHANGELOG.md`, written from the pull request titles since the last release of that line,
    or, for a new line, since the line before it was cut. A pre-release counts as a last release
    only to the pre-releases after it: `0.2.0` says all that changed since `0.1.x`, not just
@@ -38,7 +38,8 @@ rules as `main`. Three workflows do it:
    a workflow opened, it waits for approval, and its `ci-ok` is needed to merge it. It runs
    again on every push to a `release/*` branch, the merge included, on what the push changed.
 3. **`publish.yml`**, on a push to a `release/*` branch that merged its release pull request,
-   tags the merge commit `vX.Y.Z`, builds a wheel and an sdist, runs `twine check --strict`
+   tags the merge commit `vX.Y.Z`, builds `coganchor` for Linux and macOS, on x86-64 and arm64
+   each, builds a wheel that carries all four and an sdist, runs `twine check --strict`
    (which fails if PyPI could not render `README.md`), publishes both to
    [PyPI](https://pypi.org/project/hmz/), and only then publishes the GitHub release, so it is
    never out before its package. Beside them, on macOS, it builds [Humanize Desktop](/user/desktop)
@@ -48,8 +49,8 @@ rules as `main`. Three workflows do it:
    in WSL, as a per-user installer, `humanize-X.Y.Z-windows-x64-setup.exe`, attests it, and
    attaches it as well. Those are all the release offers: the wheel and the sdist are PyPI's.
 
-`main` itself never says a released version: its `pyproject.toml` says `0.0.0`, and so does
-`tauri.conf.json`.
+`main` itself never says a released version: its `pyproject.toml` says `0.0.0`, and so do
+`tauri.conf.json` and `crates/coganchor/Cargo.toml`.
 
 The disk image is signed ad hoc, which is why [its guide](/user/installation#the-first-time-it-opens)
 says how to open it the first time. Once the repository holds an Apple Developer ID in the
@@ -92,7 +93,8 @@ The version is checked before anything is opened:
 | `X.Y.Z` with `Z` above 0, or its pre-releases | `release/X.Y`, which must exist | come after every release of `X.Y`, with `X.Y.0` released |
 
 So a line goes alpha, beta, rc, release, then patches, and never back. On PyPI each version
-is in PEP 440: `0.2.0-beta.1` is `0.2.0b1`. An alpha, beta or rc is a pre-release on GitHub,
+is in PEP 440: `0.2.0-beta.1` is `0.2.0b1`, which `hmz --version` says, while `coganchor
+--version` says it as named, `0.2.0-beta.1`. An alpha, beta or rc is a pre-release on GitHub,
 and the latest release is the newest that is not one, so a patch to an older line never takes
 it.
 
@@ -147,7 +149,7 @@ The run takes a few minutes. Follow it with:
 gh run watch "$(gh run list --workflow publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
 ```
 
-Once its five jobs are green, the release is on
+Once every job is green, the release is on
 [GitHub Releases](https://github.com/humanfia/humanize/releases). Then install it from PyPI:
 
 ```sh

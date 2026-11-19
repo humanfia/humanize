@@ -80,6 +80,7 @@ It is normative. It is cited by the tag [CLI].
   - [15.1. Synopsis](#151-synopsis)
   - [15.2. Output](#152-output)
   - [15.3. Exit](#153-exit)
+  - [15.4. The chats written down](#154-the-chats-written-down)
 - [16. Security Considerations](#16-security-considerations)
 - [17. References](#17-references)
   - [17.1. Normative References](#171-normative-references)
@@ -862,7 +863,8 @@ times.
 ### 10.2. Backing an epic up
 
 **10.2.1** `hmz backup <epic>` MUST back up the epic of the current workspace whose name is
-`<epic>`, or, where none is, the epic at the path `<epic>`.
+`<epic>`, or, where none is, the chat of the current workspace whose id is `<epic>` (Section 8.3.14
+of [CORE]), or, where none is, the epic or the chat at the path `<epic>`.
 
 **10.2.2** The epic MUST go to the targets `--to` names; without `--to`, to the targets the epic was
 started with; and where it was started with none, to the default targets.
@@ -894,9 +896,17 @@ task with white space runs collapsed and cut to 60 characters, separated by two 
 **10.3.3** For a target that cannot be read, `hmz backup --list` MUST write `<target>: failed:
 <reason>` to standard error, MUST go on to the next target, and MUST exit with status 1.
 
+**10.3.4** The chats a target holds MUST NOT be counted or written among its epics. Where it holds
+any, `hmz backup --list` MUST write, after the epics of that target, `<target>: <n> chat` or
+`<target>: <n> chats`, `chat` where `<n>` is 1, followed by one line per chat as Section 10.3.2
+states for an epic, the chat's id in place of the epic name and its first message in place of the
+task.
+
 ### 10.4. Downloading
 
-**10.4.1** `<epic>` after `--pull` MUST be an epic's name or `<machine>/<workspace>/<name>`.
+**10.4.1** `<epic>` after `--pull` MUST be an epic's name, a chat's id or
+`<machine>/<workspace>/<name>`; a chat MUST be downloaded as this section states for an epic, into
+this machine's chats (Section 8.3.14 of [CORE]).
 
 **10.4.2** `hmz backup --pull` MUST download the epic from the first target that holds it, in the
 order of Section 10.3.1, into this machine's epics as an import (Section 11 of [CORE]).
@@ -1264,7 +1274,13 @@ machine, and MUST NOT start or reach a daemon.
 ### 15.1. Synopsis
 
 ```text
-hmz chat [-a <agent>] [--resume <epic>] [--] <message>
+hmz chat [-a <agent>] [--resume <chat> | --worktree] [--] <message>
+hmz chat --list [--archived]
+hmz chat --rename <chat> <title>
+hmz chat --fork <chat>
+hmz chat --archive <chat>
+hmz chat --unarchive <chat>
+hmz chat --delete <chat> [--yes]
 ```
 
 **15.1.1** `hmz chat` MUST take one turn of a chat (Section 8 of [CORE]) in the current directory as
@@ -1280,22 +1296,33 @@ be the one used.
 **15.1.3** Without `-a`, `hmz chat` MUST use the chat agent the workspace remembers (Section 3.5.1.9
 of [FILES]), and MUST refuse where none is remembered, saying to give one with `-a`.
 
-**15.1.4** `--resume <epic>` MUST carry on the chat of that epic name in this workspace, in that
-same epic (Section 8.7 of [CORE]), with `<message>` as its next turn and with its own agent unless
-`-a` is given.
+**15.1.4** `--resume <chat>` MUST carry on the chat of that id in this workspace (Section 8.7 of
+[CORE]; `chat.start` with `resume` the id, Section 4.25 of [DAEMON]), with `<message>` as its next
+turn and with its own agent unless `-a` is given. `<chat>` MUST be the id of a chat, which is the
+name of its directory; `hmz chat` MUST NOT name a chat an epic, and MUST NOT carry on an epic.
 
-**15.1.5** `<message>` MUST be exactly one positional argument and MUST NOT be empty; a message that
-begins with `-` MUST be given after `--`.
+**15.1.5** Without an option of Section 15.4, `<message>` MUST be exactly one positional argument
+and MUST NOT be empty; a message that begins with `-` MUST be given after `--`.
 
 **15.1.6** `<message>` MUST be served as Section 8.9 of [CORE] states, except that a `$` line that
 names a flow and a name Section 8.9.7 of [CORE] keeps MUST be refused, naming it.
 
 **15.1.7** `hmz chat` MUST NOT change the remembered setup of any workspace.
 
+**15.1.8** `--worktree` MUST start the chat with its assistant working in a new git worktree of the
+workspace (`chat.start` with `worktree` true, Section 4.25 of [DAEMON]). `--worktree` together with
+`--resume` MUST be refused before anything is asked of the daemon: a chat carried on works where it
+worked. Where the workspace is no git repository, the refusal of `chat.start` MUST be written as
+Section 15.3.2 states.
+
 ### 15.2. Output
 
 **15.2.1** `hmz chat` MUST draw the turn on standard error and write its answer to standard output
 as Section 7.12.1 to Section 7.12.5 state for `hmz exec`.
+
+**15.2.2** Once `chat.start` is answered, `hmz chat` MUST write `hmz chat: chat <id>` to standard
+error, `<id>` being the id of the chat started or carried on, which `--resume` and the options of
+Section 15.4 take.
 
 ### 15.3. Exit
 
@@ -1313,6 +1340,41 @@ exit with status 1 (Section 8.4.9 of [CORE]).
 
 **15.3.5** On `SIGINT`, `SIGTERM` or `SIGHUP`, `hmz chat` MUST leave the chat to its host (Section
 8.8.6 of [CORE]) and exit with status 128 plus the number of the signal.
+
+### 15.4. The chats written down
+
+**15.4.1** `--list`, `--rename`, `--fork`, `--archive`, `--unarchive` and `--delete` MUST be
+mutually exclusive and MUST take no turn of a chat; each together with `-a`, `--resume` or
+`--worktree`, a positional argument with any of them but `--rename`, `--archived` without `--list`
+and `--yes` without `--delete` MUST each be a usage error.
+
+**15.4.2** Each MUST be asked of this machine's daemon by the method of Section 4.25 of [DAEMON]
+named for it, starting the daemon where none runs, `<chat>` being a chat's id; `hmz chat` MUST NOT
+read or write a chat's files for any of them.
+
+**15.4.3** `hmz chat --list` MUST write to standard output one line per chat of the current
+workspace that is not archived (`chat.list` with `workspace`), newest first: its id, its state
+(Section 4.25.5.3 of [DAEMON]) and its title with white space runs collapsed and cut to 60
+characters, separated by two spaces. With `--archived` it MUST write the archived chats alone.
+
+**15.4.4** `hmz chat --rename <chat> <title>` MUST give the chat that title (`chat.rename`),
+`<title>` being the one positional argument and saying something, else a usage error; `--archive
+<chat>` MUST archive the chat (`chat.archive`) and `--unarchive <chat>` MUST put it back
+(`chat.unarchive`). Each MUST write the chat's line as Section 15.4.3 states it, as the chat then
+stands.
+
+**15.4.5** `hmz chat --fork <chat>` MUST fork the chat (`chat.fork`) and write the id of the new
+chat to standard output.
+
+**15.4.6** `hmz chat --delete <chat>` MUST delete the chat (`chat.delete`) and write nothing to
+standard output. Without `--yes` it MUST first ask on standard error, naming the chat by its line of
+Section 15.4.3 (`chat.get`) and saying that it cannot be brought back, and MUST delete only where
+`y` or `yes` is then read from standard input, compared without regard to case; where standard
+input is not a terminal it MUST read nothing and say to give `--yes`. A chat not deleted for want of
+a yes MUST be said on standard error and MUST exit with status 1.
+
+**15.4.7** Each MUST exit with status 0 once done; what the daemon refuses MUST be written and exit
+as Section 15.3.2 states, and a daemon that cannot be reached or started as Section 15.3.4 states.
 
 ## 16. Security Considerations
 

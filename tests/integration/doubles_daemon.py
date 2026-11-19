@@ -190,6 +190,56 @@ def project(
     return at
 
 
+def old_chat(workspace: Path, task: str, **began: Any) -> Path:
+    """A chat as an earlier hmz wrote one down: an epic of the workspace's, of kind `chat`.
+
+    Args:
+      workspace: The workspace it was had in.
+      task: Its first message.
+      began: What its `began` says besides -- `kind="chat"` where none is given, or
+        `flow="chat"` for the one a still earlier hmz wrote, which said no kind.
+
+    Returns:
+      The epic's directory, holding its record and the one session it kept.
+    """
+    import json
+
+    from hmz.runtime.epic import JOURNAL, SESSIONS, under
+
+    at = under(workspace) / f"20250101T000000.{len(task):03d}Z-0ldc4a"
+    (at / SESSIONS / "claude").mkdir(parents=True)
+    lines: list[dict[str, Any]] = [
+        {
+            "event": "began",
+            "at": "2025-01-01T00:00:00.000Z",
+            "task": task,
+            "workspace": str(workspace.resolve()),
+            "agents": [
+                {
+                    "agent": "assistant",
+                    "backend": "claude",
+                    "model": "claude-haiku-4-5",
+                    "effort": "",
+                    "provider": "",
+                    "name": "NeiKos496",
+                }
+            ],
+            **(began or {"kind": "chat"}),
+        },
+        {
+            "event": "opened",
+            "at": "2025-01-01T00:00:01.000Z",
+            "agent": "NeiKos496",
+            "backend": "claude",
+            "session": "old",
+            "where": f"{SESSIONS}/claude",
+        },
+        {"event": "ended", "at": "2025-01-01T00:00:02.000Z", "how": "stopped"},
+    ]
+    (at / JOURNAL).write_text("".join(json.dumps(one) + "\n" for one in lines))
+    return at
+
+
 def folds(seconds: float, monkeypatch: pytest.MonkeyPatch) -> None:
     """Has every host from here on fold a chat nobody reads `seconds` after its turn.
 
@@ -214,8 +264,8 @@ def folds(seconds: float, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 #: A chat standing in for :class:`hmz.runtime.chatting.Chat`: every message answered `you said:
-#: <it>`, in an epic of kind chat it writes as a chat does -- carried on in the one it is
-#: given -- with a native catalogue of `/compact` and `!`.
+#: <it>`, in a record it writes as a chat does -- carried on in the one it is given -- with a
+#: native catalogue of `/compact` and `!`.
 CHAT = """
 from hmz.coganchor.agents.native import NativeCommand
 from hmz.runtime import chatting
@@ -228,7 +278,7 @@ class StandIn(chatting.Chat):
         self._at = None
 
     @property
-    def epic(self):
+    def at(self):
         return self._at
 
     def prefers(self, prefer):

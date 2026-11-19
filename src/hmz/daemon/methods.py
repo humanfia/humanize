@@ -89,7 +89,7 @@ _NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_termi
 
 
 #: Why a chat whose host folded it away takes nothing more (Section 4.25.2.4).
-_FOLDED = "this chat has folded away; carry it on from its epic"
+_FOLDED = "this chat has folded away; carry it on with chat.start"
 
 
 def _refused(code: int, message: str, data: dict[str, Any] | None = None) -> Exception:
@@ -221,16 +221,15 @@ class _Methods:
 
         router = self._router
         session = router.session(call)
-        if session.paired:
-            raise _refused(409, "This device is already paired.")
+        token, name = str(call.params["token"]), str(call.params["name"])
         try:
-            device = pairing.claim(
-                router.codes,
-                router.devices,
-                str(call.params["token"]),
-                str(call.params["name"]),
-                session.fingerprint,
-            )
+            if session.paired:
+                router.devices.check(name)
+                device = router.codes.claims(token, lambda: session.device)
+            else:
+                device = pairing.claim(
+                    router.codes, router.devices, token, name, session.fingerprint
+                )
         except pairing.InvalidCodeError as why:
             raise _refused(403, str(why)) from None
         except ValueError as why:
@@ -239,7 +238,7 @@ class _Methods:
             raise _refused(
                 503, f"The device could not be written down: {why}"
             ) from None
-        session.device = device
+        router.claimed(session.fingerprint, device)
         return {"daemon_id": router.daemon_id, "device": device}
 
     def devices_list(self, call: Call) -> dict[str, Any]:
@@ -297,7 +296,7 @@ class _Methods:
             running.append(
                 {
                     key: status.get(key)
-                    for key in ("state", "run", "flow", "epic", "task", "turn")
+                    for key in ("state", "run", "flow", "epic", "chat", "task", "turn")
                     if key in status
                 }
                 | {
@@ -407,13 +406,16 @@ class _Methods:
     def _chat_held(self, call: Call) -> Hosted:
         """The host of the chat a call names (Section 4.25.2.4).
 
+        An Ai-chan conversation is a chat too, on its `ai:` slot (Sections 4.25.3.5 and
+        4.25.4.2).
+
         Raises:
           RpcError: 400 for a slot that is not a chat's, 404 where no host holds it, and
             409 where its chat has folded away and its host gone with it.
         """
         named = workspace(call.params["workspace"])
         slotted = slot(call.params.get("slot"))
-        if not slotted.startswith("chat:"):
+        if not slotted.startswith(("chat:", "ai:")):
             raise _refused(400, f"{slotted or '(the workspace)'} is not a chat slot.")
         hosted = self._router.hosts.get(named, slotted)
         if hosted is None and self._router.hosts.gone(named, slotted):
@@ -440,6 +442,11 @@ class _Methods:
         checked = chat_checked(Hmz(Path(named)), params)
         if not checked["ok"]:
             raise _refused(int(checked["code"]), str(checked["why"]))
+        # An Ai-chan conversation is carried on by attaching to its slot (Section 4.22.5.2),
+        # and is none of a workspace's chats (Section 14.7.4 of core.md).
+        resumed = Path(checked["resume"] or "").name
+        if resumed in self._router.links.kept.epics():
+            raise _refused(404, f"{resumed} is not a chat of {named}.")
         hosted = self._router.hosts.opened(named, slotted)
         started = self._chatted(
             call,
@@ -448,13 +455,14 @@ class _Methods:
                 "do": "start",
                 "agent": checked["agent"],
                 "task": checked["task"],
-                "resume": checked["resume"],
+                "resume": resumed or None,
                 "prefer": checked["prefer"],
                 "permission": checked["permission"],
+                "worktree": checked["worktree"],
                 "remember": params.get("remember") is True,
             },
         )
-        return {"slot": hosted.slot, "epic": str(started.get("epic") or "")}
+        return {"slot": hosted.slot, "chat": str(started.get("chat") or "")}
 
     def chat_say(self, call: Call) -> dict[str, Any]:
         """Says one line to a chat (Section 4.25.2)."""
@@ -481,6 +489,11 @@ class _Methods:
         if refused:
             raise _refused(400, refused)
         self._chatted(call, self._chat_held(call), {"do": "set", **said})
+        return {}
+
+    def chat_stop(self, call: Call) -> dict[str, Any]:
+        """Stops a chat's open turn, leaving the chat between turns (Section 4.25.6)."""
+        self._chatted(call, self._chat_held(call), {"do": "stop"})
         return {}
 
     def epic(self, do: str) -> Handler:
@@ -613,6 +626,7 @@ class _Methods:
             "chat.say": self.chat_say,
             "chat.commands": self.chat_commands,
             "chat.set": self.chat_set,
+            "chat.stop": self.chat_stop,
         }
 
 

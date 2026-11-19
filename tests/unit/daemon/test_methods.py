@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 from hmz.daemon import where
-from hmz.daemon.listening import spec
+from hmz.daemon.listening import Listener, spec
 from hmz.daemon.methods import ENV, EPIC, families, methods, slot, workspace
 from hmz.rpc import RpcError
 
@@ -112,10 +112,63 @@ def test_a_listener_spec_is_a_route_a_daemon_listens_on(text: str) -> None:
     assert str(spec(text)) == text
 
 
-@pytest.mark.parametrize("text", ["unix:", "stdio:local", "nothing", "tcp://h"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "unix:",
+        "stdio:local",
+        "nothing",
+        "tcp://h",
+        "ws://h",
+        "wss://h:1",
+        "ws://h:1/x",
+        "ws://h:0/x",
+        "ws://h:x",
+    ],
+)
 def test_anything_else_is_no_listener(text: str) -> None:
     with pytest.raises(ValueError, match=f"{text} is not a listener."):
         spec(text)
+
+
+def _nobody(*_: object) -> Any:
+    raise AssertionError("no client joins a listener that never opened")
+
+
+def test_a_listener_still_being_opened_is_not_settled_until_it_could_not_be() -> None:
+    # Its identity is the first thing a `relay:` listener asks for, on its own thread.
+    asked, let = threading.Event(), threading.Event()
+
+    def identity() -> Any:
+        asked.set()
+        let.wait(10)
+        raise OSError("no identity can be made here")
+
+    one = Listener("relay:ws://relay.invalid/", _nobody, identity, _nobody)
+    try:
+        assert asked.wait(10)
+        assert not one.settled(0.05)
+        let.set()
+        assert one.settled(10)
+        assert one.route == ""
+    finally:
+        let.set()
+        one.close()
+
+
+def test_a_listener_closed_before_it_opened_is_settled() -> None:
+    let = threading.Event()
+
+    def identity() -> Any:
+        let.wait(10)
+        raise OSError("no identity can be made here")
+
+    one = Listener("relay:ws://relay.invalid/", _nobody, identity, _nobody)
+    try:
+        one.close()
+        assert one.settled(0)
+    finally:
+        let.set()
 
 
 class _Hosted:

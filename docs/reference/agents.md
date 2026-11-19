@@ -321,7 +321,7 @@ cannot, the CLI runs unattended and the [fence](#the-fence) holds.
 | The fence | What the driver does |
 | --- | --- |
 | none (an agent driven by hand) | nothing is said: the CLI's own defaults |
-| writes nothing (`Fence.writes` is False: no standing rule gives `write`) | the CLI's file-writing tools are withheld, its shell is kept, nothing is asked; the fence refuses any write the shell attempts |
+| writes nothing (`Fence.writes` is False: no rule gives a path `write` once `~` and `.` are resolved on this machine) | the CLI's file-writing tools are withheld, its shell is kept, nothing is asked; the fence refuses any write the shell attempts |
 | writes somewhere | every tool, nothing asked; the fence decides where writes land |
 | `online` False | the CLI's web tools off ([Web search](#whether-an-agent-may-search-the-web)), and the fence cuts the network |
 | a `PERMISSION_REQUEST` or `ASK_USER` hook hung | the CLI's approval routing on, as each row below says |
@@ -722,6 +722,10 @@ history; its first turn performs the fork.
 - `into=` another agent of the same backend, account and machine; anything else is `ValueError`.
 - The child carries the session's effort, budget, skills and callbacks.
 - A child driven after its parent has taken another turn raises `RuntimeError`.
+- A session whose last turn was answered at [another nous](#when-the-place-has-nowhere-left-to-run)
+  is the stand-in's conversation from then on: `id` and `named` are that conversation's,
+  `forks` is that backend's, `keep` copies its files, and `fork` forks it. The child walks its
+  agent's nous from where the session was, and takes its turns in that fork.
 - `session.forks` says whether this backend forks. Under a flow, `agent.fork(session)`, cut by
   its first `run(…, env=…)`; a fork onto another machine is `UnsupportedOperation: <cli>
   cannot fork a session onto another machine`. A session whose turn is given another workdir
@@ -1431,7 +1435,7 @@ Each fault adjusts a concrete nous's retries (`nous.ANSWERS`):
 | `retired` | none | — | no | the model is gone or was never this account's; another nous is what answers it |
 | `contended` | 3 | constant | no | two turns of it are sharing one database |
 | `dropped` | 1 | the nous's | yes | |
-| `fenced` | none | — | no | the run's network fence keeps it off that host, which no sign-in answers; give the role online of ALL to let it through |
+| `fenced` | none | — | no | the run's network fence keeps it off that host, which no sign-in answers; give the role network=True to let it through |
 | `killed` | 1 | constant | yes | the machine it runs on may be out of memory |
 | `missing` | none | — | no | |
 | `sandboxed` | none | — | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |
@@ -1632,7 +1636,7 @@ codex app-server [--strict-config] [--disable goals] [--enable|--disable <featur
 ```
 
 Threads are `thread/start`, `thread/resume` and `thread/fork`; turns are `turn/start` (model,
-effort, rung, approval, service tier, `outputSchema`); steering is `turn/steer`.
+effort, approval, service tier, `outputSchema`); steering is `turn/steer`.
 A turn ends on `turn/completed`, whose status and error say whether it failed; the thread may
 fall `idle` first, which ends nothing.
 
@@ -1650,12 +1654,12 @@ fall `idle` first, which ends nothing.
 | a non-positive value | `model_context_window must be a positive integer, not '-1'` |
 | wrong order | `model_auto_compact_token_limit must be below model_context_window` |
 | `goals` as a feature | `goals is the flow's to say, as AgentConfig(goals=...) -- a second place for it would be two answers` |
-| a web or browser feature | `web_search_request is what the agent may reach for, which the flow says as AgentConfig(web_search=...) and AgentConfig(permission=...) where it declares the place -- a feature is not a second place for it` |
+| a web or browser feature | `web_search_request is what the agent may reach for, which the flow says as AgentConfig(web_search=...) and AgentConfig(fence=...) where it declares the place -- a feature is not a second place for it` |
 | bad `approvals` | `approvals must be one of '', 'untrusted', 'on-failure', 'on-request', 'never', not 'sometimes'` |
 
 - The server reads `overrides`, `features`, `strict_config`, `web_search`, the account and the
   fence once at start; a change starts a new server for the next turn and each conversation is
-  resumed there by id. Model, effort, rung and `approvals` are per call.
+  resumed there by id. Model, effort and `approvals` are per call.
 - The agent owns every app server it starts until that server is down, including one still
   being introduced to, one an account or callback change let go of while a turn runs on it,
   and one retiring that is still writing its home back. Stopping the agent, a cut and the

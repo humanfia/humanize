@@ -545,6 +545,23 @@ def test_a_peer_target_is_met_by_coganchor_and_not_by_this_process() -> None:
         transport.connect(Target.parse("peer://t@b:7"), [])
 
 
+def test_an_ipv6_listener_is_dialled_without_the_brackets_it_is_spelled_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dialled: list[tuple[str, int]] = []
+
+    def refused(address: tuple[str, int], **_: Any) -> Any:
+        dialled.append(address)
+        raise ConnectionRefusedError("nothing listens in a unit test")
+
+    monkeypatch.setattr("socket.create_connection", refused)
+    target = Target.parse("tcp://[::1]:7000")
+    with pytest.raises(ConnectionRefusedError):
+        transport.connect(target, [])
+    assert dialled == [("::1", 7000)]
+    assert target.describe() == "tcp://[::1]:7000"
+
+
 class Child:
     def __init__(self, *, stubborn: bool) -> None:
         self.stubborn = stubborn

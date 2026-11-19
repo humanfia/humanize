@@ -140,6 +140,7 @@ class Plain:
         self.files = dict(files or {})
         self.mtimes = dict.fromkeys(self.files, 1.0)
         self.dirs: set[str] = set()
+        self.links: dict[str, str] = {}
         self.reads = 0
         self.ran: list[list[str]] = []
         self.answers = answers or _answers("/bin/zsh")
@@ -147,15 +148,22 @@ class Plain:
     def at(self, path: str) -> str:
         return posixpath.normpath(posixpath.join(str(self.workdir), path))
 
+    def through(self, path: str) -> str:
+        """Where a path leads, every link on the way followed."""
+        at = self.at(path)
+        while at in self.links:
+            at = self.at(posixpath.join(posixpath.dirname(at), self.links[at]))
+        return at
+
     async def read(self, path: str) -> bytes:
         self.reads += 1
         try:
-            return self.files[self.at(path)]
+            return self.files[self.through(path)]
         except KeyError:
             raise FileNotFoundError(path) from None
 
     async def write(self, path: str, data: bytes) -> None:
-        at = self.at(path)
+        at = self.through(path)
         self.files[at] = data
         self.mtimes[at] = self.mtimes.get(at, 1.0) + 1
 
@@ -200,6 +208,10 @@ class Box(Plain):
 
     async def stat(self, path: str) -> Stat:
         at = self.at(path)
+        if at in self.links:
+            # As `lstat` says a link: its own time, and the length of where it points.
+            target = self.links[at]
+            return Stat(posixpath.basename(at), "link", len(target), 5.0, target)
         kind = self._kind(at)
         if kind is None:
             raise FileNotFoundError(path)
@@ -376,7 +388,7 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
     assert env == {
         "id": ROOT,
         "role": "repo",
-        "chain": "local@/work",
+        "chain": "repo",
         "parent": None,
         "run": 1,
         "backend": "local",
@@ -393,6 +405,8 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
     holding.envs.append(Held("repo", "local@/work#temp_clone(t)", "local@/work", copy))
     derived = _envs(alice, lambda envs: len(envs) == 2)[1]
     assert (derived["id"], derived["parent"]) == (COPY, ROOT)
+    # Labelled by its role and what derived it, not by where its root is.
+    assert derived["chain"] == "repo#temp_clone(t)"
 
     # Destroyed under the run: no longer listed, and nothing more is done in it.
     del holding.envs[1]
@@ -410,6 +424,57 @@ def test_the_envs_a_run_holds_are_listed_as_they_come_and_go(
         "why": "That environment has closed.",
     }
     del box
+
+
+def test_the_workspace_is_labelled_by_the_role_that_takes_it(
+    host: tuple[Host, Workspace], holding: Holding, box: Box
+) -> None:
+    holding.envs[:] = [Held("workspace", "local@/work#1", None, box)]
+    alice, _ = _going(host)
+    (env,) = _envs(alice, bool)
+    assert (env["id"], env["role"], env["chain"]) == (
+        "1:local@/work#1",
+        "workspace",
+        "workspace",
+    )
+
+    holding.envs[:] = [
+        Held("repo", "local@/work#1", None, box),
+        Held("repo", "local@/work#1#subdir(s)", "local@/work#1", Box(workdir="/s")),
+    ]
+    root, sub = _envs(alice, lambda envs: len(envs) == 2)
+    assert (root["id"], root["role"], root["chain"]) == (
+        "1:local@/work#1",
+        "repo",
+        "repo",
+    )
+    assert sub["chain"] == "repo#subdir(s)"
+
+
+def test_envs_sharing_a_chain_are_each_listed_under_an_id_of_their_own(
+    host: tuple[Host, Workspace], holding: Holding
+) -> None:
+    alice, _ = _going(host)
+    chain = "local@/work#worktree(,)"
+    one = Box(workdir="/trees/1", files={"/trees/1/one.txt": b""})
+    two = Box(workdir="/trees/2", files={"/trees/2/two.txt": b""})
+    holding.envs.append(Held("repo", chain, "local@/work", one))
+    holding.envs.append(Held("repo", chain, "local@/work", two))
+
+    listed = _envs(alice, lambda envs: len(envs) == 3)
+    assert [env["workdir"] for env in listed] == ["/work", "/trees/1", "/trees/2"]
+    assert [env["chain"] for env in listed[1:]] == ["repo#worktree(,)"] * 2
+    assert [env["parent"] for env in listed[1:]] == [ROOT, ROOT]
+    first, second = (env["id"] for env in listed[1:])
+    assert len({ROOT, first, second}) == 3
+    for env, name in ((first, "one.txt"), (second, "two.txt")):
+        entries = _ok(alice.asks("env.list", env=env, path=""))["entries"]
+        assert [entry["name"] for entry in entries] == [name]
+
+    # Each keeps its id while it is held, whatever becomes of the other.
+    del holding.envs[1]
+    (_, left) = _envs(alice, lambda envs: len(envs) == 2)
+    assert (left["id"], left["workdir"]) == (second, "/trees/2")
 
 
 def test_an_env_nobody_listed_is_refused(host: tuple[Host, Workspace]) -> None:
@@ -447,6 +512,38 @@ def test_a_directory_is_listed_dirs_first_and_a_file_stated(
         "ok": False,
         "why": "No such file: nope",
     }
+
+
+class Homely(Box):
+    """A driver whose workdir is under a home that only its machine knows."""
+
+    def at(self, path: str) -> str:
+        at = path if path.startswith("~") else posixpath.join(str(self.workdir), path)
+        return posixpath.normpath(f"/home/me{at[1:]}" if at.startswith("~") else at)
+
+    async def absolute(self, path: str) -> str:
+        return self.at(path)
+
+
+def test_a_path_under_a_home_is_answered_as_an_absolute_one(
+    host: tuple[Host, Workspace], holding: Holding
+) -> None:
+    homely = Homely("~/proj", files={"/home/me/proj/src/a.py": b"x = 1\n"})
+    holding.envs[0] = Held("repo", "ssh@box/~/proj", None, homely)
+    alice, _ = _going(host)
+    (env,) = _envs(alice, bool)
+    assert env["workdir"] == "~/proj"
+
+    listed = _ok(alice.asks("env.list", env=env["id"], path=env["workdir"]))
+    assert listed["path"] == "/home/me/proj"
+    assert [one["name"] for one in listed["entries"]] == ["src"]
+    stated = _ok(alice.asks("env.stat", env=env["id"], path="src/a.py"))
+    assert stated["path"] == "/home/me/proj/src/a.py"
+    above = _ok(alice.asks("env.stat", env=env["id"], path="~/../me/proj/src"))
+    assert above["path"] == "/home/me/proj/src"
+    assert _ok(alice.asks("env.list", env=env["id"], path="../.."))["path"] == "/home"
+    under = posixpath.join(listed["path"], "src")
+    assert _ok(alice.asks("env.list", env=env["id"], path=under))["path"] == under
 
 
 def test_a_file_is_read_in_chunks_reading_it_once(
@@ -495,6 +592,52 @@ def test_a_write_goes_only_where_the_file_is_as_it_was_read(
     assert base64.b64decode(
         _ok(alice.asks("env.read", env=ROOT, path="a.txt"))["data"]
     ) == (b"y")
+
+
+def test_a_file_read_or_written_through_a_link_is_answered_as_itself(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    alice, _ = _going(host)
+    box.links["/work/src/link.bin"] = "../z.bin"
+    box.links["/work/again.bin"] = "src/link.bin"
+
+    # The link is stated as the link it is.
+    stated = _ok(alice.asks("env.stat", env=ROOT, path="again.bin"))
+    assert (stated["kind"], stated["size"], stated["mtime"], stated["target"]) == (
+        "link",
+        12,
+        5.0,
+        "src/link.bin",
+    )
+    # What is read through it is the file, with the file's own size and time.
+    first = _ok(alice.asks("env.read", env=ROOT, path="again.bin", length=100))
+    rest = _ok(alice.asks("env.read", env=ROOT, path="again.bin", offset=100))
+    assert (first["size"], first["mtime"]) == (256, 1.0)
+    assert (rest["size"], rest["mtime"], rest["eof"]) == (256, 1.0, True)
+    assert box.reads == 1
+    # And so is what is written through it.
+    wrote = _ok(
+        alice.asks(
+            "env.write",
+            env=ROOT,
+            path="again.bin",
+            data=_b64(b"hi"),
+            if_match=first["etag"],
+        )
+    )
+    assert (wrote["size"], wrote["mtime"]) == (2, 2.0)
+    assert box.files["/work/z.bin"] == b"hi"
+    # The file changed where it is, is read again through the link.
+    box.files["/work/z.bin"] = b"yo"
+    box.mtimes["/work/z.bin"] = 3.0
+    read = _ok(alice.asks("env.read", env=ROOT, path="again.bin"))
+    assert (base64.b64decode(read["data"]), read["mtime"]) == (b"yo", 3.0)
+    # A link to nothing is no file.
+    box.links["/work/lost"] = "nowhere"
+    assert alice.asks("env.read", env=ROOT, path="lost") == {
+        "ok": False,
+        "why": "No such file: lost",
+    }
 
 
 def test_files_are_made_renamed_and_removed_and_each_is_written_down(
@@ -623,6 +766,55 @@ def test_a_search_reads_what_grep_said(host: tuple[Host, Workspace], box: Box) -
     assert box.ran[-1][5:7] == ["E", "i"]
 
 
+@pytest.mark.parametrize(
+    ("err", "why"),
+    [
+        (
+            "rg: regex parse error:\n    (\n    ^\nerror: unclosed group\n",
+            "error: unclosed group",
+        ),
+        (
+            (
+                "rg: regex parse error:\n    (?=a)\n    ^^^\n"
+                "error: look-around is not supported\n\n"
+                "Consider enabling PCRE2 with the --pcre2 flag, which can handle\n"
+                "backreferences and look-around.\n"
+            ),
+            "error: look-around is not supported",
+        ),
+        ("", "the search failed"),
+    ],
+)
+def test_a_search_the_tool_cannot_read_is_refused_in_its_words(
+    host: tuple[Host, Workspace], box: Box, err: str, why: str
+) -> None:
+    box.answers = _answers("rg\n", 2, err)
+    alice, _ = _going(host)
+
+    assert alice.asks("env.search", env=ROOT, query="(", regex=True) == {
+        "ok": False,
+        "why": why,
+    }
+
+
+def test_a_search_reads_a_path_with_a_colon_from_grep(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    box.answers = _answers(
+        "grep\n"
+        "./a:12:b.txt\x003:the needle\n"  # grep --null
+        "sub/b:c.txt\x001\x00x needle: 1:2\n"  # git grep -z
+        "sub/b:c.txt:1:x needle\n"  # a grep that cannot end a name with a NUL
+    )
+    alice, _ = _going(host)
+
+    assert _ok(alice.asks("env.search", env=ROOT, query="needle"))["matches"] == [
+        {"path": "a:12:b.txt", "line": 3, "column": 5, "text": "the needle"},
+        {"path": "sub/b:c.txt", "line": 1, "column": 3, "text": "x needle: 1:2"},
+        {"path": "sub/b:c.txt", "line": 1, "column": 3, "text": "x needle"},
+    ]
+
+
 # ------------------------------------------------------------------ terminals
 
 
@@ -718,6 +910,45 @@ def test_a_terminal_is_not_read_while_nobody_has_room_for_more(
         got = len(_term(alice.snapshot(), term))
         assert got - acked <= desk.CREDIT + len(piece)
     assert got == total
+
+
+def _flooded(alice: Told, box: Box) -> str:
+    """A terminal that has printed more than its only viewer has room for, so is not read."""
+    term = _ok(alice.asks("env.term.open", env=ROOT, cols=80, rows=24))["term"]
+    pty = box.ptys[0]
+    for _ in range(24):
+        pty.prints(b"x" * (128 << 10))
+    _until(lambda: len(_term(alice.snapshot(), term)) >= desk.CREDIT)
+    time.sleep(0.2)
+    reads = pty.reads
+    time.sleep(0.2)
+    assert pty.reads == reads
+    return term
+
+
+def test_a_terminal_closed_while_nobody_has_room_for_more_is_said_to_have_ended(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    alice, _ = _going(host)
+    term = _flooded(alice, box)
+
+    _ok(alice.asks("env.term.close", term=term))
+
+    assert box.ptys[0].killed
+    alice.told("term_exit", term=term, status=137)
+
+
+def test_a_terminal_whose_env_closed_while_nobody_has_room_for_more_is_read_out(
+    host: tuple[Host, Workspace], box: Box
+) -> None:
+    alice, run = _going(host)
+    term = _flooded(alice, box)
+    pty = box.ptys[0]
+
+    run.released.set()
+
+    alice.told("term_exit", term=term)
+    _until(lambda: pty.killed and pty.out.empty())
 
 
 def test_a_terminal_outlives_its_viewer_keeping_what_it_printed(

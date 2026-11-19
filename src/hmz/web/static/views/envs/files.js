@@ -498,8 +498,6 @@ export async function mount(el, ctx) {
 
   // Drawing ---------------------------------------------------------------------------------------
 
-  let dragging = null
-
   function tabOf(one) {
     const doc = docs.get(one.path)
     const name = L.baseName(one.path)
@@ -513,7 +511,6 @@ export async function mount(el, ctx) {
         role: 'tab',
         'aria-selected': active ? 'true' : 'false',
         title: L.relative(one.path, tree.root),
-        draggable: 'true',
         tabindex: active ? '0' : '-1',
         'data-hmz': 'files-tab',
         'data-path': one.path,
@@ -542,18 +539,8 @@ export async function mount(el, ctx) {
     tab.addEventListener('mousedown', (event) => {
       if (event.button === 1) event.preventDefault()
     })
-    tab.addEventListener('dragstart', (event) => {
-      dragging = one.path
-      event.dataTransfer.effectAllowed = 'move'
-      event.dataTransfer.setData('text/plain', one.path)
-    })
-    tab.addEventListener('dragover', (event) => {
-      if (dragging) event.preventDefault()
-    })
-    tab.addEventListener('drop', (event) => {
-      event.preventDefault()
-      if (dragging) tabs = L.moveTab(tabs, dragging, one.path)
-      dragging = null
+    L.dragTab(tab, (before) => {
+      tabs = L.moveTab(tabs, one.path, before)
       drawTabs()
       persist()
     })
@@ -793,6 +780,8 @@ export async function mount(el, ctx) {
       let stat
       try {
         stat = await call('env.stat', { path: doc.path })
+        // A link is open as the file it leads to, whose size and time a read answers.
+        if (stat.kind === 'link') stat = await call('env.read', { path: doc.path, offset: 0, length: 0 })
       } catch (error) {
         if (/^No such file/.test(said(error)) && !doc.gone) {
           doc.gone = true

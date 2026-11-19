@@ -27,6 +27,29 @@ pytestmark = [
     pytest.mark.timeout(90),
 ]
 
+#: Writes through two `LocalEnv` roles nobody passed, both the run's workspace, then waits.
+TWO = """
+import asyncio
+
+from hmz.flows import AgentCollection, EnvCollection, FilesEnvMixin, FlowParams, LocalEnv, flow
+
+
+class Files(LocalEnv, FilesEnvMixin): ...
+
+
+class Envs(EnvCollection):
+    code: Files
+    docs: Files
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams, name="two")
+async def two(task, *, agents, envs, params, ctx):
+    await envs["code"].write("a.txt", b"x")
+    await envs["docs"].write("b.txt", b"y")
+    while True:
+        await asyncio.sleep(0.05)
+"""
+
 
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
@@ -111,6 +134,13 @@ def test_the_envs_of_an_epic_are_listed_written_read_run_in_and_searched(
         assert call("hosts.env.exec", **at, argv=["sleep", "30"], seconds=1)[
             "result"
         ] == {"code": None, "stdout": "", "stderr": ""}
+        # One killed at its timeout still answers what it wrote before then.
+        assert call(
+            "hosts.env.exec",
+            **at,
+            argv=["sh", "-c", "echo hi; echo oops >&2; sleep 30"],
+            seconds=1,
+        )["result"] == {"code": None, "stdout": "hi\n", "stderr": "oops\n"}
         assert call("hosts.env.grep", **at, pattern="w.r+ld")["result"] == {
             "matches": [{"path": "notes/a.txt", "line": 2, "text": "world"}],
             "more": False,
@@ -140,4 +170,37 @@ def test_the_envs_of_an_epic_are_listed_written_read_run_in_and_searched(
             "message": "The epic has no env nope.",
         }
         assert held.status()["attached"] == 1
+        link.stop()
+
+
+def test_two_env_roles_sharing_the_workspace_are_each_listed_and_reached(
+    workspace: Path,
+) -> None:
+    written(workspace, "two", TWO)
+    held = daemon.host()
+    named = where.workspace(workspace)
+    with (
+        held.link(name="starter") as link,
+        where.connects(where.at()) as one,
+    ):
+        one.settimeout(60)
+        call = _client(one)
+        link.start("./two", "forever", budget={"cost": 1})
+        assert until((workspace / "b.txt").exists)
+
+        local = {
+            "kind": "local",
+            "workdir": str(workspace.resolve()),
+            "can": ["read", "write", "exec", "grep"],
+        }
+        assert call("hosts.env.list", workspace=named)["result"]["envs"] == [
+            {"name": "code", **local},
+            {"name": "docs", **local},
+        ]
+        assert call("hosts.env.read", workspace=named, env="docs", path="b.txt")[
+            "result"
+        ] == {"text": "y", "size": 1, "eof": True}
+        assert call("hosts.env.read", workspace=named, env="workspace", path="b.txt")[
+            "error"
+        ] == {"code": 404, "message": "The epic has no env workspace."}
         link.stop()

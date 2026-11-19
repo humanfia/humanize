@@ -1987,7 +1987,7 @@ class Commit(Form[tuple[str, bool]]):
     def action_done(self) -> None:
         said = self._typed_in.get("message", "").strip()
         amend = self._typed_in.get("amend") == "on"
-        if not said and not amend:
+        if not said:
             self._wrong = "message is required"
             self._fill()
             return
@@ -2152,7 +2152,23 @@ class Changes(_Page):
     def action_unstage(self) -> None:
         group, path = self._under()
         if path and group == _STAGED:
-            self.run_worker(self._does("env.git.unstage", paths=[path]), group="do")
+            self.run_worker(
+                self._does("env.git.unstage", paths=self._staged(path)), group="do"
+            )
+
+    def _staged(self, path: str | None = None) -> list[str]:
+        """The paths that unstage `path`, or all that is staged: a rename's old path too."""
+        return sorted(
+            {
+                str(one[key])
+                for group, files in grouped(self._files)
+                if group == _STAGED
+                for one in files
+                if path in (None, str(one.get("path")))
+                for key in ("path", "orig")
+                if one.get(key)
+            }
+        )
 
     def action_discard(self) -> None:
         group, path = self._under()
@@ -2187,14 +2203,7 @@ class Changes(_Page):
             self.run_worker(self._does("env.git.stage", paths=paths), group="do")
 
     def _unstages_all(self) -> None:
-        paths = sorted(
-            {
-                str(one.get("path"))
-                for group, files in grouped(self._files)
-                if group == _STAGED
-                for one in files
-            }
-        )
+        paths = self._staged()
         if paths:
             self.run_worker(self._does("env.git.unstage", paths=paths), group="do")
 

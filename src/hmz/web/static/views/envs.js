@@ -14,12 +14,13 @@
 
 import { hash } from '../api.js'
 import { stays } from '../app.js'
+import { pathOf } from '../chats.js'
 import { empty, fill, h, headline, pathText, problem } from '../dom.js'
 import { watch } from '../epic.js'
 import { hearing, hosted } from '../held.js'
 import { bar, keep, kept } from '../shell.js'
 import { COLOURS } from '../themes.js'
-import { clampWidth, factsOf, nameOf, panelsOf, paramsOf, pick, tabOf, treeOf, usable } from './envs/tree.js'
+import { clampWidth, factsOf, nameOf, offOf, panelsOf, paramsOf, pick, tabOf, treeOf, usable } from './envs/tree.js'
 
 /** Each panel's module, loaded the first time it is opened. */
 const PANELS = {
@@ -68,7 +69,7 @@ export function confirmed(text, { yes = 'OK', no = 'Cancel' } = {}) {
 
 /** Why there are no environments to show, as what is followed says it; '' where there may be. */
 function why(seen, name) {
-  if (!name && seen.none) return 'No epic is going here.'
+  if (!name && seen.none) return 'Nothing is going here.'
   if (name && seen.error && !seen.detail) return seen.error.message
   if (name && seen.detail && !seen.detail.held && !seen.going) return 'This epic is not running: its environments are open only while it runs.'
   return ''
@@ -85,8 +86,8 @@ export function mount(root, { query }) {
     const key = JSON.stringify([detail && detail.name, detail && detail.task])
     if (key === titled) return
     titled = key
-    const back = detail ? hash(`/epics/${encodeURIComponent(detail.name)}`) : hash(`/live?${new URLSearchParams(Object.entries(wanted).filter(([, value]) => value))}`)
-    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : 'The epic going')]
+    const back = detail ? hash(pathOf(detail)) : hash(`/live?${new URLSearchParams(Object.entries(wanted).filter(([, value]) => value))}`)
+    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : wanted.slot.startsWith('chat:') ? 'The chat going' : 'The epic going')]
     fill(head, bar({ title: 'Environments', sub }))
   }
   titling(null)
@@ -218,7 +219,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
       const walk = (node) => {
         const one = node.env
         const chosen = current && current.id === one.id
-        const state = one.available === false ? 'unavailable' : one.open === false ? 'closed' : ''
+        const state = offOf(one)
         items.push(
           h(
             'div',
@@ -298,7 +299,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
     const env = current.env
     const facts = factsOf(env)
     const declared = env.declared || []
-    const off = env.available === false ? 'unavailable' : env.open === false ? 'closed' : ''
+    const off = offOf(env)
     // In a side panel, the pick of every environment is in the head too.
     const key = JSON.stringify([env, envs.map((one) => [one.id, one.role, one.chain, one.open, one.available])])
     if (said === key) return
@@ -313,7 +314,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
           ? h(
               'select',
               { class: 'envs-select', 'aria-label': 'Environment', 'data-hmz': 'envs-select', onchange: (event) => choose(event.target.value) },
-              envs.map((one) => h('option', { value: one.id, selected: one.id === env.id }, `${one.role} · ${nameOf(one)}${usable(one) ? '' : ` (${one.open === false ? 'closed' : 'unavailable'})`}`)),
+              envs.map((one) => h('option', { value: one.id, selected: one.id === env.id }, `${one.role} · ${nameOf(one)}${usable(one) ? '' : ` (${offOf(one)})`}`)),
             )
           : null,
         h('b', { class: envs.length > 1 ? 'envs-named' : '', 'data-hmz': 'envs-name' }, nameOf(env)),
@@ -471,16 +472,18 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
     }
   }
 
-  /** Tells the panels of the environment shown a message, by its type. */
+  /** Tells the panels of the environment shown a message, by its type: whether one took it as its own. */
   function dispatch(message) {
-    if (!current || left) return
+    if (!current || left) return false
+    let taken = false
     for (const fn of [...(current.handlers.get(message.type) || [])]) {
       try {
-        fn(message)
+        if (fn(message) === true) taken = true
       } catch (error) {
         console.error(error)
       }
     }
+    return taken
   }
 
   // A theme painted anew -- picked, or the system's light or dark gone over to -- is told to
@@ -573,7 +576,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
       tabs.hidden = panes.hidden = !read
       if (read) for (const tab of tabs.querySelectorAll('[role=tab]')) tab.hidden = !current.panes.has(tab.dataset.tab)
       notice.hidden = false
-      const said = current.env.available === false ? 'This environment is unavailable.' : 'This environment has closed.'
+      const said = offOf(current.env) === 'closed' ? 'This environment has closed.' : 'This environment is unavailable.'
       fill(notice, h('div', { class: 'envs-off', role: 'status', 'data-hmz': 'envs-off' }, read ? h('p', {}, h('strong', {}, said), ' What was last read of it is shown; nothing in it can be changed.') : empty(said, ' Pick another, or open it again by running the flow.')))
     }
     tell()

@@ -168,7 +168,8 @@ def _forget(router: Router, call: Call) -> dict[str, Any]:
     # Forgotten before its host is closed: a frontend attached to it that attaches again as
     # it goes finds no conversation to start it again for. Its epic as its host names it,
     # where that was not written down yet, so that it stays off every list of epics.
-    kept.forgot(ident, str(hosted.status().get("epic") or "") if hosted else "")
+    status = hosted.status() if hosted else {}
+    kept.forgot(ident, str(status.get("chat") or status.get("epic") or ""))
     if hosted is not None:
         hosted.stop()
     return {}

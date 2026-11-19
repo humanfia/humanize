@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import datetime
+import enum
 import math
-from typing import Any
+from typing import Any, Literal, cast
 
 import pydantic
 import pytest
@@ -279,3 +280,93 @@ async def test_a_param_is_named_by_its_title_and_by_its_key_without_one() -> Non
     assert "rounds" not in titled.replace("Review rounds", "")
     assert "how many" in titled
     assert any("goal" in row for row in rows)
+
+
+class _Colour(enum.Enum):
+    red = "red"
+    blue = "blue"
+
+
+class _Inner(BaseModel):
+    depth: int = 1
+
+
+class _Shaped(BaseModel):
+    level: Literal[1, 2] = 1
+    colour: _Colour = _Colour.red
+    tags: list[str] = ["a", "b"]
+    pair: tuple[int, int] = (1, 2)
+    seen: set[str] = {"a"}
+    weights: dict[str, int] = {"a": 1}
+    inner: _Inner = _Inner()
+
+
+async def _set(typed: dict[str, str]) -> list[Any]:
+    """What **Set** answers a sheet of `_Shaped` with once `typed` is written over it."""
+    from textual.app import App
+
+    form = pick.Configures("loop", _Shaped, None)
+    answered: list[Any] = []
+
+    class _Host(App[None]):
+        def on_mount(self) -> None:
+            self.push_screen(form, answered.append)
+
+    async with _Host().run_test() as pilot:
+        await pilot.pause()
+        form.put_back({**cast("dict[str, str]", form.held()), **typed})
+        form.applied()
+        await pilot.pause()
+    return answered
+
+
+async def test_set_takes_the_defaults_of_a_flow_as_the_sheet_shows_them() -> None:
+    assert await _set({}) == [_Shaped()]
+
+
+async def test_set_reads_what_is_typed_as_json_where_the_field_refuses_the_text() -> (
+    None
+):
+    assert await _set({"tags": '["c"]', "weights": '{"b": 2}', "level": "2"}) == [
+        _Shaped(level=2, tags=["c"], weights={"b": 2})
+    ]
+
+
+async def test_set_still_refuses_what_neither_reading_gives_the_model() -> None:
+    assert await _set({"tags": "nope"}) == []
+
+
+class _Capped(BaseModel):
+    cost: float | None = None
+    tokens: int | None = None
+    goal: str = "ship"
+
+
+@pytest.mark.parametrize(
+    ("typed", "taken"),
+    [
+        ({}, _Capped()),
+        ({"cost": "1.5"}, _Capped(cost=1.5)),
+        ({"tokens": " ", "goal": ""}, _Capped(goal="")),
+    ],
+)
+async def test_a_param_left_blank_that_is_unset_by_default_stays_unset(
+    typed: dict[str, str], taken: _Capped
+) -> None:
+    from textual.app import App
+
+    form = pick.Configures("loop", _Capped, None)
+    answers: list[BaseModel | None] = []
+
+    class _Host(App[None]):
+        def on_mount(self) -> None:
+            self.push_screen(form, answers.append)
+
+    host = _Host()
+    async with host.run_test() as pilot:
+        await pilot.pause()
+        for row, text in typed.items():
+            form.dropped(row, text)
+        form.applied()
+        await pilot.pause()
+    assert answers == [taken]

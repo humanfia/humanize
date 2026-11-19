@@ -6,6 +6,7 @@ import asyncio
 import errno
 import signal
 from pathlib import PurePosixPath
+from typing import Any
 
 import pytest
 
@@ -423,6 +424,48 @@ async def test_what_a_terminal_wrote_and_nobody_read_is_bounded(
     assert len(read) <= (8 << 20) + len(chunk)
 
 
+async def test_a_terminal_nobody_reads_is_held_on_the_host_and_loses_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote(info={"hold": True})
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(None, cols=80, rows=24)
+    (running,) = remote.execs
+    assert running.wrote is not None
+    chunk = bytes(1 << 20)
+
+    running.wrote(1, chunk)
+    read = await pty.read()
+    assert running.holds == [], "a terminal that is read is not held"
+    for _ in range(19):  # more than is kept of one that cannot be held
+        running.wrote(1, chunk)
+    running.wrote(1, b"last")
+    await until(lambda: running.holds == [True])
+
+    while not read.endswith(b"last"):
+        read += await pty.read()
+
+    assert len(read) == 20 * len(chunk) + len(b"last")
+    await until(lambda: running.holds == [True, False])
+
+
+async def test_a_held_terminal_is_let_go_of_to_be_killed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = FakeRemote(info={"hold": True})
+    driver = await _driver(monkeypatch, remote)
+    pty = await driver.pty(None, cols=80, rows=24)
+    (running,) = remote.execs
+    assert running.wrote is not None
+    running.wrote(1, bytes(2 << 20))
+    await until(lambda: running.holds == [True])
+
+    await pty.kill()
+
+    await until(lambda: running.holds == [True, False])
+    assert running.signals == [signal.SIGKILL]
+
+
 async def test_closing_kills_a_terminal_there(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -454,6 +497,63 @@ async def test_a_workdir_not_on_the_host_is_unavailable(
     driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath("/nowhere"))
 
     with pytest.raises(EnvUnavailable, match="/nowhere"):
+        await driver.probe()
+    assert not driver.available
+
+
+class _MacRemote(FakeRemote):
+    """A Mac's serving half: `/tmp` links into `/private`, which it folds away again."""
+
+    def call(self, op: object, *, path: str) -> dict[str, Any]:
+        if path.removeprefix("/private") == "/tmp":
+            return {"kind": "link", "size": 11, "mtime_ns": 0, "target": "private/tmp"}
+        return super().call(op, path=path)
+
+    def listdir(self, path: str) -> dict[str, Any]:
+        if path.removeprefix("/private") == "/tmp":
+            return {"entries": []}
+        return super().listdir(path)
+
+
+def _mac_path(path: str, *, fold_case: bool = False) -> str:
+    """A path as a Mac's two spellings of `/tmp` are held to one."""
+    return "/tmp" if path == "/private/tmp" else path
+
+
+@pytest.mark.parametrize("workdir", ["/tmp", "/private/tmp"])
+async def test_a_directory_a_mac_reaches_through_private_is_a_workdir_there(
+    monkeypatch: pytest.MonkeyPatch, workdir: str
+) -> None:
+    from hmz.coganchor import proto
+
+    monkeypatch.setattr(proto, "path_key", _mac_path)
+    reach(monkeypatch, _MacRemote())
+    driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath(workdir))
+
+    await driver.probe()
+
+    assert driver.available
+
+
+class _LoopRemote(FakeRemote):
+    """A serving half whose `/work/loop` is a link to itself, as its errno says on a Mac."""
+
+    def call(self, op: object, *, path: str) -> dict[str, Any]:
+        if path == "/work/loop":
+            return {"kind": "link", "size": 4, "mtime_ns": 0, "target": "loop"}
+        return super().call(op, path=path)
+
+    def listdir(self, path: str) -> dict[str, Any]:
+        if path == "/work/loop":
+            raise OSError(62, "Too many levels of symbolic links")
+        return super().listdir(path)
+
+
+async def test_a_link_to_itself_is_no_workdir(monkeypatch: pytest.MonkeyPatch) -> None:
+    reach(monkeypatch, _LoopRemote())
+    driver = MachineEnvDriver(SSHMachine("box"), PurePosixPath("/work/loop"))
+
+    with pytest.raises(EnvUnavailable, match="/work/loop"):
         await driver.probe()
     assert not driver.available
 

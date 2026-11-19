@@ -35,6 +35,9 @@ _PATIENCE = 10.0
 #: How long a host is given to say how it stands before it is answered for.
 _ANSWERING = 5.0
 
+#: How many hosts that went are kept as they last stood, where nobody asks: as many as notices.
+_LEFT = 200
+
 #: How often a subscription that asked for figures has them worked out again, at most.
 _FIGURING = 1.0
 
@@ -195,6 +198,9 @@ class Hosted:
         self.slot = slot
         self.said: dict[str, Any] = {}
         self.peer: Peer | None = None
+        #: How it stood as it went, as it said last of all; None while it is up, or where it
+        #: went without saying.
+        self.last: dict[str, Any] | None = None
         self._lock = threading.Lock()
         self._subs: dict[str, Subscription] = {}
 
@@ -214,7 +220,12 @@ class Hosted:
         }
 
     def told(self, call: Call) -> None:
-        """Takes one message the host sent up the link, for the subscription it names."""
+        """Takes one message the host sent up the link, for the subscription it names.
+
+        What it says as it goes, `went`, is kept as how it last stood.
+        """
+        if call.method == "went":
+            self.last = dict(call.params)
         if call.method != "told":
             return
         with self._lock:
@@ -399,6 +410,8 @@ class Hosts:
         self._starting: dict[tuple[str, str], Future[Hosted]] = {}
         #: Every slot of a chat or an `hmz exec` whose host has gone, which is not started again.
         self._gone: set[tuple[str, str]] = set()
+        #: How each host that has gone stood as it went, until `left` is asked.
+        self._left: dict[tuple[str, str], dict[str, Any]] = {}
         self._order = itertools.count()
         #: Whether a host was ever taken on.
         self.ever = False
@@ -424,6 +437,20 @@ class Hosts:
         """Whether the host of a chat's or an `hmz exec`'s slot has gone, not to come back."""
         with self._lock:
             return (workspace, slot) in self._gone
+
+    def left(self) -> dict[tuple[str, str], dict[str, Any]]:
+        """How each host that went since this was last asked stood as it went, asked once.
+
+        A host goes as soon as it is idle, an `hmz exec`'s right after its epic ends: how it
+        stood then is what the notice of that epic is made of, which no status asked of the
+        hosts still held would say.
+
+        Returns:
+          Each one's last status by workspace and slot, less those that went without saying.
+        """
+        with self._lock:
+            left, self._left = self._left, {}
+        return left
 
     def opened(self, workspace: str, slot: str) -> Hosted:
         """The host of a workspace and slot, started where none is.
@@ -559,6 +586,11 @@ class Hosts:
             mine = self._held.get(key) is hosted
             if mine:
                 del self._held[key]
+                if hosted.last is not None:
+                    self._left[key] = hosted.last
+                    # Nobody asks a private daemon: the oldest go, rather than all be kept.
+                    while len(self._left) > _LEFT:
+                        del self._left[next(iter(self._left))]
                 if hosted.slot and not hosted.slot.startswith("ai:"):
                     self._gone.add(key)
         if mine and hosted.slot.startswith("ai:") and self.ai is not None:

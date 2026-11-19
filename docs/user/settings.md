@@ -317,6 +317,7 @@ about.
 | Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
 | Agents | Ai-chan | the nous a new conversation with [Ai-chan](/user/ai-chan) thinks with unless you pick another: `none`, the one you chose, another [nous](#nous), or `another…`, which chooses its CLI, account, model and effort. With `none`, each new conversation asks for one. It takes effect from the next conversation made; one already made keeps its own. |
 | Chat | Chat prefers for $ | what `$<name>` in a chat starts where the chat's agent has a skill of that name and a flow is called it too: `native`, the skill (the default), or `flow`, the flow. A chat can say otherwise for itself with `/prefer`. |
+| Chat | Harness sessions | whether `/resume` in a chat also lists the [sessions each CLI had of its own](/user/chat#harness-sessions) in this directory, to continue as chats. Off by default. The same setting as **Settings › General › Harness sessions** in `hmz web`. |
 | Privacy | Error reports | whether Humanize [reports what goes wrong](/user/reporting) to its developers |
 | Privacy | What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 
@@ -360,11 +361,12 @@ A flow can watch its agents' tool calls itself. See [Hooks](/weaver/hooks).
 
 ## Notifications {#notifications}
 
-Which epics on this machine `hmz` tells you of, while you are not on them: one that ends --
-done, failed or stopped -- a flow asking you something, and a chat waiting for its next turn,
-in any directory. Each is a card in the corner of the screen for a few seconds, and a `●` on
-its epic in [`/epics`](/user/tracing) until you open it there. The epic on your screen -- this
-directory's, while its log or the monitor is up -- is never told of.
+Which epics and chats on this machine `hmz` tells you of, while you are not on them: an epic
+that ends -- done, failed or stopped -- a flow asking you something, and a chat waiting for its
+next turn, in any directory. Each is a card in the corner of the screen for a few seconds, and
+a `●` on its epic in [`/epics`](/user/tracing) until you open it there; a chat, which `/epics`
+does not list, is marked nowhere. The epic on your screen -- this directory's, while its log or
+the monitor is up -- is never told of, nor is the chat on your screen.
 
 | Heading | Row | What it is |
 | --- | --- | --- |
@@ -407,7 +409,8 @@ where that directory has not run the flow before -- and follows it; **follow** o
 there does the same for it. It is followed on the interface's own screen, as an epic of this
 machine is, with `@<name>` on the status line: you read it, answer what it asks, say a line to
 it or stop it, and <kbd>esc</kbd> leaves it going there and comes back to
-the list.
+the list. Your own chat stays on this machine meanwhile: `/chat` leaves the epic going there
+and puts that chat back on the screen.
 
 **Batch apply…** writes this machine's settings to other daemons: switch on the pages --
 general, nous, runtimes, backup -- and the daemons, and each says whether they were
@@ -865,7 +868,8 @@ are left behind when it moves to another.
   process's own turns.
 
 Settings an older Humanize wrote under `fallbacks` are read as each place's `then`, and moved
-under `nous` the next time a nous is saved.
+under `nous` the next time a nous is saved. Where two of those places fell back to each other,
+the one listed first keeps its `then` and the other is left out.
 
 ::: details From Python
 The nous you save at the prompt are the ones `Hmz().nous` reads and writes:
@@ -1209,6 +1213,7 @@ top names the directory.
 | --- | --- | --- |
 | Flow | Default flow | the flow last set up here, and how many agents that flow was set up with |
 | Chat | Chat agent | the agent a new chat in this directory talks to: <kbd>enter</kbd> sets up its CLI, account, model and effort, as a flow's agent is set up. It takes effect from the next chat. |
+| Chat | Archived chats | the [chats archived](/user/chat#managing) in this directory, newest first: <kbd>enter</kbd> on one puts it back on `/resume` at once, with nothing to save. |
 | Reset | Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
 
 **Forget** clears this directory only. Every other directory, and everything on the other

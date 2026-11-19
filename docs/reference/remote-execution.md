@@ -157,7 +157,9 @@ Parsing rules:
   absolute or under `~/` (the node's home) and holding no newline, carriage return, NUL or `"`.
   It is accepted so that older spellings still parse, and is not used: nothing on the node
   needs a Python.
-- `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits.
+- `tcp://`: `HOST:PORT` split at the last `:`; the port must be digits. An IPv6 host is
+  written in brackets (`tcp://[::1]:7000`), which are kept in the target and stripped when
+  it is dialled.
 - `peer://`: `TICKET@HOST:PORT`; brackets around an IPv6 host are stripped.
 
 | Input | `ValueError` message |
@@ -192,13 +194,23 @@ over its stdin and stdout.
 The handshake reply (`Op.HELLO`) carries `version`, `hostname`, `platform` (`linux` or
 `darwin`), `python` (`coganchor <version>`: the field keeps the name it had when the serving half was
 Python, so the protocol stays at version 1), `pid`, `exports` (`[{virtual, real}]`), `fence` (`{fs: bool, net: bool}`, see
-[below](#a-fence-on-both-machines)) and `resize: true`. A token mismatch fails it with `EACCES`, `invalid token`.
+[below](#a-fence-on-both-machines)), `resize: true` and `hold: true`. A token mismatch fails it with `EACCES`, `invalid token`, and closes the connection.
 
 `resize` says the serving half takes `Op.RESIZE {target, rows, cols}`: the window of the pty
 the command of exchange `target` runs under (an `EXEC` with `tty: true`) is set to that, and
 the command's foreground process group is sent `SIGWINCH`. It is answered whether or not that
 command still runs; `rows` or `cols` outside `0..65535` is `EINVAL`. A client asks only a
 serving half whose reply says `resize`; an older one answers the op `ENOSYS`.
+
+`hold` says the serving half takes `Op.HOLD {target, held}`: while `held` is `true` it reads no
+more of what the command of exchange `target` writes, so the command waits on its full terminal
+or pipe, and `false` starts the reading again; what was read before is still sent. It is
+answered whether or not that command still runs; a `held` that is not a boolean is `EINVAL`. A
+command still held when its connection goes is let go of and killed. A client asks only a
+serving half whose reply says `hold`. This is how a terminal in a remote env waits for the
+people viewing it: Humanize holds it once 1 MiB of its output is unread and lets go at half
+that, so nothing it prints is lost. Against an older serving half it keeps at most 8 MiB
+unread and drops the oldest beyond that.
 
 ### The link over a network {#the-link-over-a-network}
 
@@ -212,7 +224,7 @@ it is.
 | Binding | The SHA-256 of the DER SubjectPublicKeyInfo of the serving half's certificate. |
 | Key | The token's bytes on `tcp://`; the ticket's on `peer://`, where any token is ignored. |
 | Handshake | The request carries `proof`, hex of HMAC-SHA256(key, `hmz-anchor cog` NUL binding), and no `token`; the reply carries `proof`, hex of HMAC-SHA256(key, `hmz-anchor anchor` NUL binding and the request's 32 proof bytes). Null both ways where neither side holds a key (a loopback listener without a token). |
-| Refusals | A serving half holding a key compares in constant time and refuses a missing or wrong proof with `EACCES`, `invalid token`. A client holding a key refuses a missing or wrong proof in the reply, before any other request: `ConnectionError: the serving half at <target> did not prove the token` (from `coganchor cog`, exit 1). |
+| Refusals | A serving half holding a key compares in constant time and refuses a missing or wrong proof with `EACCES`, `invalid token`, and closes the connection. A client holding a key refuses a missing or wrong proof in the reply, before any other request: `ConnectionError: the serving half at <target> did not prove the token` (from `coganchor cog`, exit 1). |
 | Broker | Each half presents, and greets a punched socket with, hex of SHA-256(`hmz-anchor ticket` NUL ticket), never the ticket. A relayed session's bytes are TLS. |
 
 The certificate is not vouched for by anybody: who is at the other end is as certain as the
@@ -318,6 +330,7 @@ as a usage error and exits 2.
 | `target` or `harness` not a [target spelling](#targets) | the target parse message |
 | `native=True` with a harness on another machine | `a native session has no harness to put anywhere: the CLI on the target is the one that runs, so --harness and --native ask for opposite things` |
 | a `peer://` target with any `harness` but `local` | `a peer:// target is a meeting Humanize books for a harness it is placing; naming both is naming the same introduction twice` |
+| a `tcp://` target with a harness on another machine (`same` included) | `a tcp:// target is a serving half somebody else left listening, which Humanize can start nothing beside; a harness on another machine has no way to be introduced to it` |
 | `net` not `local` or `remote` | `unsupported net 'X'; expected local or remote` (the option: `argument --net: invalid choice: …`) |
 | a redirect that is not two absolute paths | `unsupported redirect 'a=b'; expected two absolute paths` |
 | an empty hush, or one containing `=` | `unsupported hush 'A=B'; expected a variable name` |
@@ -334,7 +347,7 @@ Refused only when a turn is started:
 | Condition | Error |
 | --- | --- |
 | no agent named | `ValueError: no agent given` (native), `ValueError: no agent command given` (supervised) |
-| a harness on a `tcp://` or `peer://` machine, or `same` with such a target | `ValueError: nothing is started on the far side of tcp://h:1` |
+| a harness on a `tcp://` or `peer://` machine | `ValueError: nothing is started on the far side of tcp://h:1` |
 | `chdir` outside the workspace | `ValueError: <chdir> is not inside <workspace>` |
 | the agent not on this machine's `PATH` (supervised) | `FileNotFoundError: <name>: not found on PATH` |
 
@@ -880,7 +893,7 @@ listening on a machine without Humanize installed, copy the build for that machi
   expected [HOST:]PORT`, exit 2. A bind failure exits 1.
 - `--token` defaults to `$HUMANIZE_TOKEN`. With a token, a session whose handshake does not
   present it (on `--stdio`), or prove it ([over TLS](#the-link-over-a-network), on
-  `--listen`), is refused with `invalid token`.
+  `--listen`), is refused with `invalid token` and its connection closed.
 - `--peer` takes no token: its ticket is the secret, `$HUMANIZE_TOKEN` is ignored, and
   `--token` or `--token-file` with it is refused: `hmz: --token cannot be given with --peer,
   whose ticket is the secret`, exit 2.

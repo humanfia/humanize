@@ -31,3 +31,24 @@ def _asks_its_cli() -> None:
 @pytest.fixture(autouse=True)
 def _priced() -> None:
     """Overrides `tests/system`'s: no price list is fetched."""
+
+
+@pytest.fixture
+def loops(_humanize_home: None) -> None:
+    """The stand-in loops, where the flows installed out of `official` are kept.
+
+    Humanize ships no flow: a test that runs `goal` or `flame_chase` has it installed as the
+    integration tests have it (`tests/integration/conftest.py`).
+    """
+    import shutil
+
+    from hmz.runtime.flowing.index import kept
+    from hmz.runtime.flowing.verses import OFFICIAL
+    from tests.integration.conftest import FLOWS
+
+    shutil.copytree(
+        FLOWS,
+        kept(OFFICIAL),
+        ignore=shutil.ignore_patterns("__pycache__"),
+        dirs_exist_ok=True,
+    )

@@ -174,7 +174,7 @@ watch, and never set.
 | `PWD` | an anchored agent; every command run on a target | the working directory |
 | `TERM` | a command run on a target with a terminal | `xterm-256color` unless set |
 | `HUMANIZE_SHADOW` | `coganchor cog` started for a harness on another machine | its mirror: `$HOME/.cache/humanize-mirrors/<sha16>` on an `ssh` machine, `/tmp/humanize-mirrors/<sha16>` in a container (`/tmp/humanize-mirrors-<UID>/<sha16>` for a target naming `user=UID`) |
-| `HUMANIZE_TOKEN` | a local `coganchor anchor --stdio` child | the token |
+| `HUMANIZE_TOKEN` | a local `coganchor anchor --stdio` child | the token; removed when the session has none, so that an exported one is not required of it |
 | `HUMANIZE_AICHAN_LINK` | the host of an [Ai-chan](/user/ai-chan) conversation, for her conversation on its `ai:` host, which refuses to start without it | the path of the conversation's [scoped link](/reference/daemon#scoped-links) |
 | `COGANCHOR_BINARIES` | every `coganchor` Humanize starts | the package's `hmz/coganchor/bin/` directory, whose `<os>-<arch>/coganchor` builds it copies to other machines |
 | the account's `env` | every turn, sign-in and model listing under an account | from `providers/<cli>/<name>/provider.json` ([Files](/reference/files)); includes fixed values a sign-in way sets (e.g. `CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION=us-east-1`) |

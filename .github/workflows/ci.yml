@@ -61,32 +61,41 @@ jobs:
           # Unit tests mock every other package, so a package's run only for it. The agents,
           # daemon and tui topics run the packages they import, and `hmz`, which loads the
           # rest lazily; core, anchor and web run `hmz` whole. runtime, flows and coganchor
-          # import each other, so each is the three.
+          # import each other, so each is the three. A double counts for every topic whose
+          # tests import it, and a document of protocol/ for every suite whose tests read it,
+          # which tests/integration/test_core_ci_filters.py holds these to.
           filters: |
             shared: &shared
               - pyproject.toml
               - uv.lock
               - src/hmz/*
               - tests/conftest.py
+              - tests/integration/conftest.py
+              - tests/integration/flows/**
               - .github/workflows/ci.yml
             kernel: &kernel
               - src/hmz/runtime/**
               - src/hmz/flows/**
               - src/hmz/coganchor/**
-            unit-cli: [*shared, src/hmz/cli/**, tests/unit/cli/**]
-            unit-coganchor: [*shared, src/hmz/coganchor/**, tests/unit/coganchor/**]
-            unit-daemon: [*shared, src/hmz/daemon/**, tests/unit/daemon/**]
-            unit-flows: [*shared, src/hmz/flows/**, tests/unit/flows/**]
-            unit-runtime: [*shared, src/hmz/runtime/**, tests/unit/runtime/**]
-            unit-sdk: [*shared, src/hmz/sdk/**, tests/unit/sdk/**]
-            unit-tui: [*shared, src/hmz/tui/**, tests/unit/tui/**]
-            unit-web: [*shared, src/hmz/web/**, tests/unit/web/**]
+            # tests/unit/conftest.py is under every unit test, and under no other.
+            unit: &unit
+              - *shared
+              - tests/unit/conftest.py
+            unit-cli: [*unit, src/hmz/cli/**, tests/unit/cli/**]
+            unit-coganchor: [*unit, src/hmz/coganchor/**, tests/unit/coganchor/**]
+            # The daemon's tests hold what it serves to the methods of protocol/openrpc.json.
+            unit-daemon: [*unit, src/hmz/daemon/**, tests/unit/daemon/**, protocol/openrpc.json]
+            unit-flows: [*unit, src/hmz/flows/**, tests/unit/flows/**]
+            unit-runtime: [*unit, src/hmz/runtime/**, tests/unit/runtime/**]
+            unit-sdk: [*unit, src/hmz/sdk/**, tests/unit/sdk/**]
+            unit-tui: [*unit, src/hmz/tui/**, tests/unit/tui/**]
+            unit-web: [*unit, src/hmz/web/**, tests/unit/web/**]
             # The RPC package holds protocol/openrpc.json to the protocol's text.
-            unit-rpc: [*shared, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
-            unit-trust: [*shared, src/hmz/trust/**, tests/unit/trust/**]
-            unit-reach: [*shared, src/hmz/reach/**, tests/unit/reach/**]
-            unit-relay: [*shared, src/hmz/relay/**, tests/unit/relay/**]
-            unit-rtc: [*shared, src/hmz/rtc/**, tests/unit/rtc/**]
+            unit-rpc: [*unit, src/hmz/rpc/**, tests/unit/rpc/**, protocol/**]
+            unit-trust: [*unit, src/hmz/trust/**, tests/unit/trust/**]
+            unit-reach: [*unit, src/hmz/reach/**, tests/unit/reach/**]
+            unit-relay: [*unit, src/hmz/relay/**, tests/unit/relay/**]
+            unit-rtc: [*unit, src/hmz/rtc/**, tests/unit/rtc/**]
             integration-agents:
               - *shared
               - *kernel
@@ -95,18 +104,25 @@ jobs:
             integration-daemon:
               - *shared
               - *kernel
-              - src/hmz/{cli,daemon,sdk,web}/**
+              - src/hmz/{cli,daemon,reach,relay,rpc,sdk,trust,web}/**
               - tests/integration/*_daemon*.py
+              - tests/integration/doubles_core.py
               - tests/integration/doubles_easytier.py
+              - tests/integration/doubles_ssh.py
             integration-tui:
               - *shared
               - *kernel
-              - src/hmz/{cli,daemon,tui}/**
+              - src/hmz/{cli,daemon,reach,rpc,trust,tui}/**
               - tests/integration/*_tui*.py
+              - tests/integration/doubles_daemon.py
+              - tests/integration/doubles_ssh.py
             integration-core:
               - *shared
               - src/hmz/**
               - tests/integration/*_core*.py
+              - tests/integration/doubles_daemon.py
+              # tests/integration/test_core_ci_caches.py holds it to what the jobs here restore.
+              - .github/workflows/cache.yml
             integration-anchor:
               - *shared
               - src/hmz/**
@@ -118,7 +134,11 @@ jobs:
               - *shared
               - src/hmz/**
               - tests/integration/*_web*.py
+              # The policy a page is served with is read out of it.
+              - protocol/web.md
               - tests/integration/doubles_core.py
+              - tests/integration/doubles_daemon.py
+              - tests/integration/doubles_ssh.py
             # A daemon reached over each carrier: ssh and EasyTier through their doubles, and a
             # WebRTC data channel over loopback. reach dials EasyTier and ssh through coganchor.
             integration-reach:
@@ -133,11 +153,13 @@ jobs:
               - src/hmz/{cli,reach,relay,rpc,rtc,trust}/**
               - tests/integration/*_relay*.py
               - tests/unit/relay/doubles_relay.py
-            # The page's own modules, tested by node alone.
+            # The page's own modules, tested by node alone, its writes against the methods of
+            # protocol/openrpc.json.
             js:
               - .github/workflows/ci.yml
               - src/hmz/web/static/**
               - tests/unit/web/js/**
+              - protocol/openrpc.json
             # The page's third-party code, and what builds it.
             vendor:
               - src/hmz/web/vendor/**
@@ -145,6 +167,7 @@ jobs:
               - .github/workflows/ci.yml
             coganchor:
               - crates/coganchor/**
+              - release-please-config.json
               - .github/workflows/ci.yml
             # The app, and the page it carries.
             desktop:
@@ -217,6 +240,9 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: crates/coganchor
+          # The cache the `coganchor` job reads: a cache is keyed by its job's name, and
+          # cache.yml saves none under this job's.
+          shared-key: coganchor
           # Restores what cache.yml saved on `main`, and writes nothing.
           save-if: false
 

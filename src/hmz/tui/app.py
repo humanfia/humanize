@@ -78,6 +78,7 @@ from hmz.runtime.watching.monitor import short, tallied
 from hmz.runtime.watching.notices import Notices, preferences
 
 from .asking import Asks, blocks, fields, summary
+from .chats import Resumes
 from .complete import Command, flow_names, hinted, offered, tagged
 from .envs import Reach, opens_env, used
 from .flows import INSTALLED, VERSES, Flows, Lists
@@ -94,7 +95,6 @@ from .monitoring import (
 )
 from .pick import (
     AI_NEW,
-    CONTINUES,
     DETACHES,
     FOLLOWS,
     LOCAL_DAEMON,
@@ -108,7 +108,6 @@ from .pick import (
     Epics,
     Held,
     Leaves,
-    Picks,
     RemoteEpics,
     Reports,
     Runs,
@@ -322,6 +321,34 @@ def _old_chat(flow: str) -> bool:
     return bool(flow) and re.split(r"[/#]", flow.rstrip("/#"))[-1] == _OLD_CHAT
 
 
+#: The calls of the chats that write nothing, which carry no `idem`.
+_CHAT_READS = frozenset({"chat.commands", "chat.list", "chat.harness.list"})
+
+#: What marks, in the list of chats, a session a harness had of its own (Section 7.12.5.4
+#: of [TUI]): its id there is this, its harness and its session id.
+_HARNESS = "harness:"
+
+#: The calls of the sessions each harness had of its own, which are this machine's.
+_HARNESSED = ("chat.harness.list", "chat.harness.adopt")
+
+#: The calls that name a chat as it is written down, by its id and no workspace (Section
+#: 4.25.7 of [DAEMON]): this machine's, as the chats `/resume` lists are.
+_CHAT_NAMED = frozenset(
+    {
+        "chat.rename",
+        "chat.fork",
+        "chat.archive",
+        "chat.unarchive",
+        "chat.backup",
+        "chat.delete",
+    }
+)
+
+#: What `/stop` says in a chat with no turn open, as its host refuses one (Section 4.25 of
+#: [DAEMON]).
+_NO_TURN = "no turn is open, so there is nothing to stop"
+
+
 def _chats(
     afar: tuple[str, str] | None, method: str, params: dict[str, Any]
 ) -> dict[str, Any]:
@@ -333,8 +360,10 @@ def _chats(
 
     Args:
       afar: The daemon of another machine and its workspace, or None for this machine's.
-      method: `chat.start`, `chat.say`, `chat.commands` or `chat.set`.
-      params: What it takes, `workspace` and `slot` included.
+      method: `chat.start`, `chat.say`, `chat.commands`, `chat.set`, `chat.stop`,
+        `chat.list`, or one that names a chat as it is written down.
+      params: What it takes, `workspace` included, and `slot` for a chat going on a host;
+        or `chat`, for one that names a chat.
 
     Returns:
       What it answered.
@@ -347,7 +376,7 @@ def _chats(
 
     from hmz.daemon import Refused
 
-    idem = secrets.token_urlsafe(12) if method != "chat.commands" else None
+    idem = None if method in _CHAT_READS else secrets.token_urlsafe(12)
     if afar is not None:
         with remotes().client(afar[0]) as client:
             answered: Any = client.call(
@@ -931,7 +960,7 @@ class Humanize(App[None]):
     def _leaves(self) -> None:
         """Leaves without asking: letting go of a run a host holds, closing on any other.
 
-        Which is all leaving a chat ever is -- a chat is not stopped, so there is nothing
+        Which is all leaving a chat ever is -- leaving ends no chat, so there is nothing
         to ask -- and what `/exit` does once it has been told to leave a flow running. A run
         a host holds goes on for whoever else reads it; one held here goes with the process.
         """
@@ -962,7 +991,7 @@ class Humanize(App[None]):
         With nothing running it is the interface, asked the same way: twice, because leaving
         is not what ctrl+c means anywhere else and a first press that left would be a run
         somebody ended while reaching to clear a line. In a chat it is the interface whatever
-        is going on, as it is in Claude Code: a chat is never stopped, only left.
+        is going on, as it is in Claude Code: a key never stops a chat, only leaves it.
         """
         editor = self._prompt()
         if editor.text:
@@ -1084,7 +1113,7 @@ class Humanize(App[None]):
         self._linked: Link | None = link
         #: Which of the workspace's hosts that is: "" for its own, which runs its flows one at
         #: a time, or `chat:<hex>` for one chat's -- every conversation is a host of its own,
-        #: and so an epic of its own, beside the flows and beside every other conversation.
+        #: beside the flows and beside every other conversation.
         self._slot = ""
         #: The Ai-chan conversation the log screen follows, as `aichan.list` answers one, or
         #: None while it follows a workspace's own host or a chat's (Section 7.19 of tui.md).
@@ -1096,17 +1125,17 @@ class Humanize(App[None]):
         #: this interface is moving from one host to another: what the one let go of still
         #: says on its way out is about runs nobody here is reading any more.
         self._hearing: Link | None = link
-        #: The chat epic the next line typed carries on, as `/epics` was asked to continue it,
-        #: or None for a line that starts a conversation of its own.
-        self._continuing: Path | None = None
+        #: The chat the next line typed carries on, by its id, as `/resume` or `/chat` went
+        #: back to it, or None for a line that starts a conversation of its own.
+        self._continuing: str | None = None
         #: Whether a flow is on the screen rather than this interface's chat: from the moment
         #: one is started or found running on the host attached to, until the chat is put
         #: back on it. The chat is what this opens on (Section 3.1 of [TUI]).
         self._flow_shown = False
-        #: This interface's chat, once it has started: the host holding it, and its epic by
-        #: name. It goes on there while a flow is on the screen, and `/chat` comes back to it.
+        #: This interface's chat, once it has started: the host holding it, and its id. It
+        #: goes on there while a flow is on the screen, and `/chat` comes back to it.
         self._chat_slot = ""
-        self._chat_epic = ""
+        self._chat_id = ""
         #: Where the chat on the screen is in its turn, as its host says it: `running`,
         #: `done`, or "" where the host attached to holds no chat (Section 4.6 of [DAEMON]).
         self._turn = ""
@@ -1120,9 +1149,11 @@ class Humanize(App[None]):
         #: The task of a chat this interface asked to start and has not yet seen start, which
         #: its host tells as said by the session that asked rather than by this link.
         self._mine = ""
-        #: The epic the run in front of us writes, once it has one: what a notice is told
-        #: apart from the one on the screen by.
+        #: The epic the run in front of us writes, once it has one, or the chat the host
+        #: attached to holds, by its id -- a chat is no epic, and its host names none: what
+        #: a notice is told apart from the one on the screen by.
         self._epic_now = ""
+        self._chat_now = ""
         #: What happened to the runs of every workspace on this machine worth telling, told as
         #: it happens once mounted -- and the epics told of that have not been opened since,
         #: by name, which `/epics` marks.
@@ -1156,6 +1187,9 @@ class Humanize(App[None]):
         #: Whether what the runs held when this arrived has all been told, so that what is
         #: told after it is happening now rather than being read back.
         self._live = False
+        #: The lines typed here into the chat on the screen that its host has yet to tell
+        #: of, oldest first: what it tells of them is not drawn a second time.
+        self._typed: list[str] = []
         #: What the runs have said and the screen has not taken yet, oldest first, and
         #: whether the screen has been asked to take it.
         self._arriving = threading.Lock()
@@ -1394,7 +1428,9 @@ class Humanize(App[None]):
           The one this workspace remembers for its chats, else the first agent there is to
           open on (Section 16.5.4 of [TUI]).
         """
-        remembered = self.settings.chat_agent
+        # As the file says now, not as it said when this opened: `/settings`, another
+        # frontend and the last chat here all write it (Section 8.3.8 of [CORE]).
+        remembered = Hmz().settings.chat_agent
         if isinstance(remembered, Runs):
             return remembered
         spare = opens_on(Hmz().installed())
@@ -1715,6 +1751,7 @@ class Humanize(App[None]):
         self._opened_envs = []
         self._reach.moved()
         self._live = self._starting = self._afk = False
+        self._typed = []
         self._run = self._seen_last = self._stopping = None
         self._halted, self._forcing, self._answering = set(), set(), set()
         if (sheet := self._asking) is not None:
@@ -1727,7 +1764,7 @@ class Humanize(App[None]):
         self._epic_as, self._usage, self._afk_of = {}, {}, {}
         self._asked_in, self._shown_on = {}, {}
         self._last_answer = self._last_asked = self._last_answer_in = ""
-        self._started_by = self._epic_now = ""
+        self._started_by = self._epic_now = self._chat_now = ""
         self._continuing = None
         self._turn = ""
         with self._btw_lock:
@@ -2993,12 +3030,12 @@ class Humanize(App[None]):
         return self._run is not None and not self.chatting()
 
     def chatting(self) -> bool:
-        """Whether the chat is on the screen: an epic of kind `chat`, or none of a flow.
+        """Whether the chat is on the screen: a run of kind `chat`, or none of a flow.
 
         A chat is one conversation with one agent, read as Claude Code reads one -- no
-        monitor, no views to step round, nothing to stop -- so everything that is about
-        a flow of several agents is left out of it. Told by the epic's kind, never by what
-        its flow is called: a flow named `chat` is a flow like any other.
+        monitor, no views to step round, nothing to stop but its open turn -- so everything
+        that is about a flow of several agents is left out of it. Told by the run's kind,
+        never by what its flow is called: a flow named `chat` is a flow like any other.
         """
         # And an Ai-chan conversation, which is drawn as one (Section 7.19.6 of tui.md).
         if self._ai is not None:
@@ -3009,10 +3046,57 @@ class Humanize(App[None]):
             return run.kind == "chat"
         return not self._flow_shown
 
+    def _typed_here(self) -> bool:
+        """Whether a line this interface says is put on the screen as it is typed.
+
+        In its own chat, every line of which goes through `_says_to_chat`. Not in an Ai-chan
+        conversation, drawn as a chat though it is: past its task, a line said there is an
+        answer or a word put into her turn like any flow's, drawn when her host says it.
+        """
+        return self.chatting() and self._ai is None
+
+    def _typed_already(self, said: Mapping[str, Any]) -> bool:
+        """Whether a line the chat's host tells of is on the screen as it was typed here.
+
+        Only one typed since this interface reached the chat's host, and only once: a chat
+        gone back to is drawn from what its host tells of it, the screen having been cleared,
+        and a line another frontend said was never typed here. Told by what was typed, since
+        a line of a chat names no frontend, said through the daemon as it is.
+
+        Args:
+          said: The line, as the host tells it: `said`, or `answered` to what the chat asked.
+
+        Returns:
+          Whether it is, which takes it off the lines waiting to be told.
+        """
+        if not self._typed_here() or self._by(said):
+            return False
+        text = str(said.get("text") or "")
+        asked = said.get("question")
+        options: Sequence[str] = next(
+            (
+                one.get("options") or ()
+                for one in self._pending
+                if asked and one.get("question") == asked
+            ),
+            (),
+        )
+        for typed in self._typed:
+            # A number typed at a question is told as the answer it numbers.
+            try:
+                at = int(typed)
+            except ValueError:  # no number, or digits `int` does not read as one
+                at = 0
+            if typed == text or (0 < at <= len(options) and options[at - 1] == text):
+                self._typed.remove(typed)
+                return True
+        return False
+
     def refused_chat(self) -> str:
         """Why `/chat` has nothing to do now: the chat is on the screen already."""
         # An Ai-chan conversation is drawn as a chat, but is not this interface's chat.
-        on = self.chatting() and self._ai is None
+        # Nor is what is followed on another daemon, chat or not: its own is this machine's.
+        on = self.chatting() and self._ai is None and self._afar is None
         return "the chat is already on the screen" if on else ""
 
     def refused_prefer(self) -> str:
@@ -3045,7 +3129,8 @@ class Humanize(App[None]):
                 else "Ai-chan is not answering, so there is nothing to stop"
             )
         if self.chatting():
-            return "a chat is not stopped: /clear starts another"
+            # Its open turn, which stopping interrupts and leaves the chat between turns.
+            return "" if self._turn == "running" else _NO_TURN
         if self._run is not None:
             return ""
         if self._stopping is not None:
@@ -3444,8 +3529,8 @@ class Humanize(App[None]):
         Read as Section 8.9 of [CORE] reads it, against the chat's catalogue, the flows here
         and the chat's preference: a flow is started, the harness's own input and words are
         said to the chat, and what only the harness's own interface serves is refused saying
-        so. A `/` the harness has no catalogue to read against yet is left to be a command of
-        Humanize's, which is all it can be told apart as until the chat has opened.
+        so. A `/` naming nothing of a catalogue that holds no `/` entry, or of one not yet
+        listed, is said as text (Section 8.9.13 of [CORE]).
 
         Args:
           line: The line, as it was typed.
@@ -3453,8 +3538,6 @@ class Humanize(App[None]):
         Returns:
           Whether it was served here; False for a line that is a command of Humanize's.
         """
-        if line.startswith("/") and not self._natives:
-            return False
         # Its name ended by any whitespace, as a `$` line's is, and a task put on the line
         # under it: read as the name and what follows it. A shell command or a path is read
         # as it was typed.
@@ -3888,9 +3971,9 @@ class Humanize(App[None]):
     def action_clear(self) -> None:
         """Clears the screen, and in a chat starts another conversation, as Claude Code's does.
 
-        Without ending the one on the screen, which is never stopped: it goes on on a host of
-        its own, folds away once nobody has looked at it for a while, and is there to be
-        continued from `/epics`. This interface moves to a host of the next conversation's,
+        Without ending the one on the screen: it goes on on a host of its own, folds away
+        once nobody has looked at it for a while, and is there to be carried on from
+        `/resume`. This interface moves to a host of the next conversation's,
         and the line typed after it starts that one.
 
         Outside a chat there is nothing else for it to clear. A turn carries no context across
@@ -3912,10 +3995,10 @@ class Humanize(App[None]):
             self._continuing = None
             # A new chat, with nothing of the last one's: its own host, its own catalogue,
             # its own preference, once the next line starts it (Section 8.8.4 of [CORE]).
-            self._chat_slot = self._chat_epic = ""
+            self._chat_slot = self._chat_id = ""
             self._natives, self._natives_of, self._listed = [], "", False
-            self._prefer, self._prefer_from = self.settings.chat_prefer, "settings"
-            self._prefer_own = None
+            self._forgets_prefer()
+            self._chat_runs = self._chat_agent()
             if self._epic_as:
                 from hmz.daemon import where
 
@@ -3949,10 +4032,13 @@ class Humanize(App[None]):
         would be the second of a gesture the command interrupted.
 
         Following an Ai-chan conversation it stops her open turn alone, and the conversation
-        goes on between turns.
+        goes on between turns; and so it does a chat's, which it never ends (Section 4.25 of
+        [DAEMON]).
         """
         if self._ai is not None:
             self._asks("stop")
+        elif self.chatting():
+            self._asks("chat.stop", slot=self._slot)
         else:
             self.action_stop_flow()
         self._presses = 0
@@ -4056,7 +4142,11 @@ class Humanize(App[None]):
         """
         said = dict(request)
         method = str(said.pop("do"))
-        afar = self._afar
+        # The chats listed are this machine's, which `/resume` carries on here whatever is
+        # followed on another daemon.
+        if method in _CHAT_NAMED:
+            return _chats(None, method, said)
+        afar = None if method in ("chat.list", *_HARNESSED) else self._afar
         workspace = afar[1] if afar is not None else str(self.hmz.workspace)
         return _chats(afar, method, {"workspace": workspace, **said})
 
@@ -4110,7 +4200,8 @@ class Humanize(App[None]):
         one menu either way, so that a flow is set up in one place however it was reached for.
 
         Args:
-          named: A flow to open the menu already holding, or "" for the one in force.
+          named: A flow to open the menu already holding, or "" for the one running, or the
+            one in force where none is.
           running: Whether a flow is running, which is what takes the flows away.
           page: Which page to open on where no flow is named.
 
@@ -4127,10 +4218,14 @@ class Humanize(App[None]):
         # What is in hand is what is in hand for the flow the interface is set up on. A menu
         # opened straight into another flow is handed none, and reads what that one was last
         # set up with here -- which is what turning to it would have read.
-        holding = not named or named == self._flow_named
+        # And a menu opened under an epic is on the flow that epic runs (Section 7.9.3 of
+        # [TUI]), which another frontend may have started and is then not the one in hand.
+        going = self._run.flow if running and self._run is not None else ""
+        flow = named or going or self._flow_named
+        holding = flow == self._flow_named
         chosen = await self.push_screen_wait(
             Flows(
-                named or self._flow_named,
+                flow,
                 self._models if holding else {},
                 self._params if holding else None,
                 agents,
@@ -4463,6 +4558,13 @@ class Humanize(App[None]):
         said = event.said
         for one in said.told:
             self.show(one)
+        if not self._chat_id:
+            # What the pages wrote for themselves is the next chat's, and with no chat had
+            # here yet the next line starts it: a chat that is going keeps its own.
+            self._chat_runs = self._chat_agent()
+            if self._prefer_from == "settings":
+                self._prefer = Hmz().settings.chat_prefer
+            self._draw()
         if said.enable_sentry is not None:
             # Through the same road the first-start question takes, so that the answer is
             # written down, what was read is forgotten, and reporting starts or stops now
@@ -4590,8 +4692,6 @@ class Humanize(App[None]):
             self._moves("", None)
         if said.doing == RESUMES and said.epic is not None:
             self._carries_on(said.epic)
-        elif said.doing == CONTINUES and said.epic is not None:
-            self._continues(said.epic)
 
     def _statuses(self) -> dict[str, dict[str, Any]]:
         """How the runs of every host on this machine stand, attaching to none of them.
@@ -4626,9 +4726,10 @@ class Humanize(App[None]):
             self.call_from_thread(self._notified, notice, system=wanted["system"])
 
     def _notified(self, notice: dict[str, Any], *, system: bool) -> None:
-        """Tells of one notice, where its epic is not the one on the screen.
+        """Tells of one notice, where its epic or chat is not the one on the screen.
 
-        A card in the corner, and a dot on its epic in `/epics` until that is opened; and,
+        A card in the corner, and a dot on its epic in `/epics` until that is opened -- a
+        chat is no epic, and has no row there to dot; and,
         unless the system is turned off in Notifications, the terminal's bell and a system
         notification of it, which a terminal that knows the sequence shows.
 
@@ -4666,18 +4767,17 @@ class Humanize(App[None]):
                 self._driver.write(f"\x1b]9;{shown}\x07")
 
     def _shows(self, notice: Mapping[str, Any]) -> bool:
-        """Whether a notice's epic is the one on the screen.
+        """Whether a notice's epic or chat is the one on the screen.
 
-        The epic of the host attached to, on its log or on the monitor rather than under a
-        menu -- by the epic rather than the workspace, since every chat is an epic of its own
-        and one turn done in another of them is news here.
+        That of the host attached to, on its log or on the monitor rather than under a menu
+        -- by which it is rather than by the workspace, since every chat is on a host of its
+        own and one turn done in another of them is news here.
         """
-        epic = str(notice.get("epic") or "")
+        epic, chat = str(notice.get("epic") or ""), str(notice.get("chat") or "")
         return (
-            bool(epic)
-            and epic == self._epic_now
-            and (len(self.screen_stack) == 1 or isinstance(self.screen, Monitoring))
-        )
+            (bool(epic) and epic == self._epic_now)
+            or (bool(chat) and chat == self._chat_now)
+        ) and (len(self.screen_stack) == 1 or isinstance(self.screen, Monitoring))
 
     def action_resume(self, argv: Sequence[str] = ()) -> None:
         """Carries the last run here of a flow that can be picked up on: what `/resume` is for.
@@ -4741,7 +4841,7 @@ class Humanize(App[None]):
         for epic in reversed(runs):
             ran = epics.read(epic)
             if ran is not None and _a_chat(ran):
-                continue  # carried on from `/epics` or by talking in it, never by `/resume`
+                continue  # what an earlier hmz kept of a chat, which is read and no more
             if ran is None or ran.resumable or self._picks_up(ran.flow):
                 break
         else:
@@ -4845,7 +4945,7 @@ class Humanize(App[None]):
     def _carries_on(self, epic: Path, ran: Ran | None = None) -> None:
         """Runs the flow of one run again, picking up what that run left behind.
 
-        Which is a run of its own: a flow's epic is one run and is never reopened -- a chat's
+        Which is a run of its own: a flow's epic is one run and is never reopened -- a chat
         is, which `_continues` carries on -- so this is the flow started again from the
         journal of the run being picked up, writing into an epic of its own that says which
         one it came from.
@@ -4925,69 +5025,185 @@ class Humanize(App[None]):
     async def _resumes_chat(self) -> None:
         """Puts up the earlier chats of this directory, newest first, and carries one on.
 
-        Read off the screen, a list of epics being a directory of records to read; the one
-        on the screen is not among them, being the one already had.
+        As `chat.list` answers them (Section 4.25 of [DAEMON]), asked off the screen; the one
+        on the screen is among them, ticked as the one already had, so that what the list
+        offers of a chat -- renaming, forking, archiving, backing up -- is offered of it too.
         """
-        epics = self.hmz.epics
 
-        def listed() -> list[tuple[str, str, str]]:
-            from hmz.daemon.reach import conversations
+        def listed() -> list[dict[str, Any]]:
+            found: list[dict[str, Any]] = []
+            while True:
+                said = self._chat_asked(
+                    {"do": "chat.list", "offset": len(found), "limit": 200}
+                )
+                page = cast("list[dict[str, Any]]", said.get("chats") or [])
+                found += page
+                if not page or len(found) >= int(said.get("total") or 0):
+                    return found
 
-            # Not this one, and not Ai-chan's, which is no chat of yours to carry on.
-            others = {self._chat_epic, *conversations().epics()}
-            rows: list[tuple[str, str, str]] = []
-            for epic in reversed(epics.all()):
-                ran = epics.read(epic)
-                if ran is None or not _a_chat(ran) or epic.name in others:
-                    continue
-                said = " ".join(ran.task.split())
-                rows.append((epic.name, _clipped(said, 60) or epic.name, epic.name))
-            return rows
-
-        chats = await asyncio.to_thread(listed)
-        if not chats:
+        try:
+            chats = await asyncio.to_thread(listed)
+        except Exception as why:  # noqa: BLE001 -- a refusal, or no daemon: said either way
+            self.show(f"hmz: {why}", "red")
+            return
+        # Each with the host that holds it, "" for none.
+        slots = {str(one.get("id") or ""): str(one.get("slot") or "") for one in chats}
+        # After them, where the setting says so, the sessions each harness had of its own.
+        outside: list[dict[str, Any]] = []
+        # Read afresh: `/settings` writes it for itself, as it does what `$` prefers.
+        if Hmz().settings.harness_sessions:
+            with contextlib.suppress(Exception):
+                outside = await asyncio.to_thread(
+                    lambda: cast(
+                        "list[dict[str, Any]]",
+                        self._chat_asked({"do": "chat.harness.list", "limit": 200}).get(
+                            "sessions"
+                        )
+                        or [],
+                    )
+                )
+        if not chats and not outside:
             self.show(
-                "hmz: no other chat has been had here, so there is nothing to resume",
-                "red",
+                "hmz: no chat has been had here, so there is nothing to resume", "red"
             )
             return
-        picked = await self.push_screen_wait(_Chats(chats))
-        if picked:
-            self._continues(epics.under() / picked)
+        mine = self._chat_id
 
-    def _continues(self, epic: Path) -> None:
-        """Goes back to one chat chosen on `/epics` or `/resume`, to carry the conversation on.
+        def asks(method: str, **said: Any) -> dict[str, Any]:
+            return self._chat_asked({"do": method, **said})
+
+        sheet = Resumes(
+            chats,
+            asks,
+            mine,
+            # Read-only, so with no menu: one picked goes on as a chat made of a copy of it.
+            [
+                (
+                    f"{_HARNESS}{one.get('harness')}:{one.get('id')}",
+                    _clipped(" ".join(str(one.get("title") or "").split()), 60)
+                    or str(one.get("id") or ""),
+                    f"{one.get('harness')} session, read-only: a copy goes on as a chat",
+                )
+                for one in outside
+            ],
+        )
+        picked = await self.push_screen_wait(sheet)
+        if mine and mine in sheet.gone and mine == self._chat_id:
+            # The chat on the screen was archived or deleted: a new one, as `/clear` starts.
+            self.action_clear()
+        if picked and picked.startswith(_HARNESS):
+            harness, _, session = picked.removeprefix(_HARNESS).partition(":")
+            try:
+                made = await asyncio.to_thread(
+                    self._chat_asked,
+                    {
+                        "do": "chat.harness.adopt",
+                        "harness": harness,
+                        "session": session,
+                    },
+                )
+            except Exception as why:  # noqa: BLE001 -- a refusal, or no daemon: said either way
+                self.show(f"hmz: {why}", "red")
+                return
+            self._continues(str(made.get("chat") or ""), "")
+        elif picked and picked != mine:
+            # A fork just made is on no host, and is carried on by the next line.
+            self._continues(picked, slots.get(picked, ""))
+
+    def _continues(self, chat: str, slot: str | None = None) -> None:
+        """Goes back to one chat chosen on `/resume` or by `/chat`, to carry the conversation on.
 
         To the host holding it where one still is, which is the conversation as it stands,
-        read from the top. Otherwise it has folded away -- or ended some other way -- and the
-        line typed next carries it on: in the same epic, on a host of its own, by an agent
-        that remembers what was said in it, which is what talking to it again is.
+        read from the top. Otherwise it has folded away -- or ended some other way -- and is
+        drawn with what was said in it, and the line typed next carries it on: the same chat,
+        on a host of its own, by an agent that remembers what was said in it, which is what
+        talking to it again is.
 
         Args:
-          epic: The chat, by the directory it is written in.
+          chat: The chat, by its id.
+          slot: The host holding it as `chat.list` has just said it, "" for none; or None to
+            ask the hosts of this workspace.
         """
         from hmz.daemon import where
 
         self._flow_shown = False
-        slot = self._holding(epic.name)
-        if slot is not None:
-            if slot != self._slot:
-                self._relinks(slot)
-            self._chat_slot, self._chat_epic = slot, epic.name
+        held = self._holding(chat) if slot is None else slot or None
+        if held is not None:
+            # On this machine, whose chat it is, whatever is followed on another daemon.
+            if (held, None) != (self._slot, self._afar):
+                self._forgets_prefer()
+                self._moves(held, None)
+            self._chat_slot, self._chat_id = held, chat
             return
-        ran = self.hmz.epics.read(epic)
-        if ran is None:
+        at = self.hmz.epics.chat(chat)
+        ran = self.hmz.epics.read(at) if at is not None else None
+        if at is None or ran is None:
             self.show(
-                f"hmz: {epic.name} cannot be read, so it cannot be continued", "red"
+                f"hmz: chat {escape(chat)} cannot be read, so it cannot be continued",
+                "red",
             )
             return
-        if why := self.hmz.epics.foreign(epic):
-            self.show(f"hmz: {ran.name} cannot be continued here: {why}", "red")
+        self._forgets_prefer()
+        if ran.prefer in _PREFERS:
+            # Its own, as the chat records it, which carrying it on keeps.
+            self._prefer, self._prefer_from = ran.prefer, "chat"
+        self._moves(where.chat(), None)
+        self._continuing = chat
+        self._chat_slot, self._chat_id = "", chat
+        self._draws_said(at, ran)
+
+    @work(group="said", exclusive=True)
+    async def _draws_said(self, at: Path, ran: Ran) -> None:
+        """Draws what was said in a chat that has folded away, above what carries it on.
+
+        Read back out of the log its last session kept, which holds the conversation whole:
+        carrying a chat on forks the session before it (Section 8.7.4 of [CORE]). Slow, so
+        read off the screen's thread, and drawn only while the chat is still the one to be
+        carried on -- not once a line has carried it on, or another has been gone to -- and
+        by the last reading asked for alone, so that one opened twice over is drawn once.
+
+        Args:
+          at: The chat, by the directory it is written in.
+          ran: What the chat records.
+        """
+        said: list[dict[str, Any]] = []
+        with contextlib.suppress(OSError, ValueError):
+            said = await asyncio.to_thread(self.hmz.epics.transcripts, at)
+        if self._continuing != at.name:
             return
-        self._relinks(where.chat())
-        self._continuing = epic
-        self._chat_slot, self._chat_epic = "", epic.name
-        self.show(f"[dim]say something to continue {escape(ran.name)}[/dim]")
+        by_key = {one["key"]: one["actions"] for one in said}
+        last = next(
+            (
+                by_key[key]
+                for one in reversed(ran.sessions)
+                if (key := f"{one.backend}:{one.ident}") in by_key
+            ),
+            (),
+        )
+        for action in last:
+            args = action["args"]
+            if action["category"] == "turn":
+                self._said_by_you(str(args.get("prompt") or action["name"]))
+            elif action["category"] == "message":
+                text = escape(str(args.get("text") or action["name"])).splitlines()
+                self.show(
+                    "\n".join(
+                        [
+                            f"[green]{_SAID}[/] {(text or [''])[0]}",
+                            *(f"  {line}" for line in text[1:]),
+                        ]
+                    )
+                )
+        self.show(f"[dim]say something to continue chat {escape(ran.name)}[/dim]")
+        self._draw()
+
+    def _forgets_prefer(self) -> None:
+        """Drops the preference of the chat left, which is that chat's and no other's.
+
+        The settings' again, until the chat gone to says its own (Section 8.9.10 of [CORE]).
+        """
+        self._prefer, self._prefer_from = Hmz().settings.chat_prefer, "settings"
+        self._prefer_own = None
 
     def action_chat(self, argv: Sequence[str] = ()) -> None:
         """Puts this interface's chat back on the screen, which went on while a flow was on it.
@@ -5005,18 +5221,18 @@ class Humanize(App[None]):
             self.show("hmz: /chat takes no arguments", "red")
             self._presses = 0
             return
-        if self._chat_epic:
-            self._continues(self.hmz.epics.under() / self._chat_epic)
+        if self._chat_id:
+            self._continues(self._chat_id)
         else:
             self._flow_shown = False
-            self._relinks(where.chat())
+            self._moves(where.chat(), None)
         self._draw()
 
     def action_prefer(self, argv: Sequence[str] = ()) -> None:
         """Says or sets what `$<name>` means in this chat where it names a skill and a flow.
 
         Alone, the preference and where it comes from; with `native` or `flow`, this chat's
-        own from now on, recorded in its epic so that it outlives carrying the chat on
+        own from now on, recorded in the chat so that it outlives carrying the chat on
         (Section 7.20 of [TUI]).
 
         Args:
@@ -5053,14 +5269,14 @@ class Humanize(App[None]):
             self._prefer_own = prefer
             takes()
 
-    def _holding(self, epic: str) -> str | None:
-        """Which of this workspace's hosts has one epic going, if one does.
+    def _holding(self, chat: str) -> str | None:
+        """Which of this workspace's hosts holds one chat, if one does.
 
         Args:
-          epic: The epic, by name.
+          chat: The chat, by its id.
 
         Returns:
-          The host's slot, or None where none of them is running it.
+          The host's slot, or None where none of them holds it.
         """
         from hmz import daemon
 
@@ -5077,7 +5293,7 @@ class Humanize(App[None]):
                 for slot, status in found
                 # Running, or a chat between turns, which its host says by where its turn is.
                 if (status.get("state") == "running" or status.get("turn"))
-                and status.get("epic") == epic
+                and status.get("chat") == chat
             ),
             None,
         )
@@ -5263,10 +5479,12 @@ class Humanize(App[None]):
             self._shows_context(message)
         elif kind == "withdrawn":
             self._withdrawn(message)
-        elif kind == "answered" and not (self.chatting() and not self._by(message)):
-            self._answered(message)
-        elif kind == "said" and not (self.chatting() and not self._by(message)):
+        elif kind in ("answered", "said") and self._typed_already(message):
             # A line of a chat this interface said is on the screen already, as it was typed.
+            pass
+        elif kind == "answered":
+            self._answered(message)
+        elif kind == "said":
             self._said_by_you(
                 str(message.get("text") or ""),
                 str(message.get("key") or ""),
@@ -5386,14 +5604,18 @@ class Humanize(App[None]):
             self._epic_as = dict(message)
         if "epic" in message:
             self._epic_now = str(message.get("epic") or "")
+        if "chat" in message:
+            self._chat_now = str(message.get("chat") or "")
         # Where a chat is in its turn, which a host that holds none does not say.
         turn, self._turn = self._turn, str(message.get("turn") or "")
         if self._turn and self._slot.startswith("chat:"):
             # The chat attached to is this interface's from now on, whichever way it was
-            # reached; what its harness takes is asked again as each turn ends, a turn having
-            # perhaps given it a skill or a command it did not have.
-            self._chat_slot = self._slot
-            self._chat_epic = self._epic_now or self._chat_epic
+            # reached on this machine -- one followed on another daemon stays that daemon's,
+            # and is not carried on from here; what its harness takes is asked again as each
+            # turn ends, a turn having perhaps given it a skill or a command it did not have.
+            if self._afar is None:
+                self._chat_slot = self._slot
+                self._chat_id = self._chat_now or self._chat_id
             if self._natives_of != self._slot or (
                 self._turn == "done" and turn != "done"
             ):
@@ -5487,7 +5709,7 @@ class Humanize(App[None]):
           record: The run, as it was told to stop.
         """
         self._halted.add(int(record["run"]))
-        # Not a chat that ended here, which is never stopped from here: it ends as its host
+        # Not a chat that ended here, which nothing here ends: it ends as its host
         # closes, and there is nobody left here then to say so to.
         client = str(record.get("client") or "")
         quiet = self.chatting() and client in ("", self._me)
@@ -5865,12 +6087,19 @@ class Humanize(App[None]):
             if self._slot.startswith("chat:") and (self._starting or self._turn)
             else None
         )
-        if held is None and self._chat_epic and self._continuing is None:
+        if (
+            held is None
+            and self._afar is None
+            and self._chat_id
+            and self._continuing is None
+        ):
             # Its chat went on by itself while a flow was on the screen, or ended under it:
-            # back to it where a host still holds it, and carried on where none does.
-            held = self._holding(self._chat_epic)
+            # back to it where a host still holds it, and carried on where none does. Not
+            # from an epic followed on another daemon, where this machine's chat is not said
+            # to (`_chat_starts`): `/chat` comes back to it.
+            held = self._holding(self._chat_id)
             if held is None:
-                self._continuing = self.hmz.epics.under() / self._chat_epic
+                self._continuing = self._chat_id
             elif held != self._slot:
                 self._relinks(held)
         if held is None:
@@ -5881,10 +6110,17 @@ class Humanize(App[None]):
         # said -- an answer to what the chat waits on, or a word put into its turn -- is not
         # drawn again (`_told`), and a `!` goes to nobody who would say it.
         self._said_by_you(text)
-        self._asks("chat.say", slot=held, text=text)
+        self._typed.append(text)
+        self._asks(
+            "chat.say",
+            # Never said, so never told of.
+            refused=lambda: text in self._typed and self._typed.remove(text),
+            slot=held,
+            text=text,
+        )
 
     def _chat_starts(self, task: str) -> None:
-        """Starts a chat on what was said, or carries on the one `/epics` or `/chat` chose.
+        """Starts a chat on what was said, or carries on the one `/resume` or `/chat` chose.
 
         On a host of its own: the one attached to, where it is a chat's that has had no chat
         yet, and a new one otherwise -- reached first, so that everything the chat says from
@@ -5900,10 +6136,11 @@ class Humanize(App[None]):
             self.show("hmz: no coding agent is installed", "red")
             return
         if self._afar is not None:
-            # What is set up here is this machine's: a chat there is had from its own list.
+            # What is set up here is this machine's, and no chat is started there from here:
+            # what its own list starts is an epic of a flow.
             daemon = escape(self._afar[0])
             self.show(
-                f"hmz: start a chat on {daemon} with n on /epics @{daemon}; "
+                f"hmz: start an epic on {daemon} with n on /epics @{daemon}; "
                 "esc comes back here",
                 "red",
             )
@@ -5923,7 +6160,8 @@ class Humanize(App[None]):
             if resume is None and self._chat_runs is not None
             else "",
             task=task,
-            resume=str(resume) if resume is not None else None,
+            # The id of the chat carried on, which is one of this workspace's.
+            resume=resume,
             prefer=self._prefer_own,
             # Remembered for the next chat here, as the agent a chat was last started with.
             remember=resume is None,
@@ -5931,13 +6169,15 @@ class Humanize(App[None]):
         self._draw()
 
     def _chat_started(self, answer: dict[str, Any]) -> None:
-        """Takes the host and the epic a chat was started on, and asks what its harness takes.
+        """Takes the host a chat was started on and its id, and asks what its harness takes.
 
         Args:
-          answer: What `chat.start` answered: `slot` and `epic`.
+          answer: What `chat.start` answered: `slot` and `chat`.
         """
         self._chat_slot = str(answer.get("slot") or self._slot)
-        self._chat_epic = str(answer.get("epic") or self._chat_epic)
+        self._chat_id = str(answer.get("chat") or self._chat_id)
+        # Recorded in the chat now, where `chat.set` changes it: not said again on carrying on.
+        self._prefer_own = None
         self._asks_natives()
 
     def _asks_natives(self) -> None:
@@ -6147,14 +6387,15 @@ class Humanize(App[None]):
         return isinstance(schema, dict)
 
     def _web_page(self) -> str:
-        """Where the web page shows the epic going, or "" where that is not known here.
+        """Where the web page shows the epic or the chat going, or "" where that is not known.
 
         Only for this machine's own runs, and only where `hmz web` has listened here: a page
         on another machine is reached from that machine.
         """
-        if self._afar is not None or not self._epic_now:
+        named = self._chat_now or self._epic_now
+        if self._afar is not None or not named:
             return ""
-        if self._web[0] == self._epic_now:
+        if self._web[0] == named:
             return self._web[1]
         from urllib.parse import quote
 
@@ -6166,9 +6407,10 @@ class Humanize(App[None]):
         except (OSError, UnicodeDecodeError):
             said = ""
         port = int(said) if said.isdigit() and int(said) in range(1, 1 << 16) else 0
+        at = "chats" if self._chat_now else "epics"
         self._web = (
-            self._epic_now,
-            f"http://127.0.0.1:{port}/#/epics/{quote(self._epic_now)}" if port else "",
+            named,
+            f"http://127.0.0.1:{port}/#/{at}/{quote(named)}" if port else "",
         )
         return self._web[1]
 
@@ -6529,30 +6771,6 @@ _ENV_PATIENCE = 60.0
 #:
 #: Written down here rather than beside the class, since a row names the method that carries
 #: it out and the class has to exist first.
-class _Chats(Picks):
-    """The earlier chats of this directory, newest first, to carry one on: `/resume` in a chat.
-
-    What the harness's own `/resume` is at its prompt: a list of the conversations had here,
-    one of which is picked up where it was left (Section 8.9.8 of [CORE]).
-    """
-
-    asked = "Resume a chat"
-    about = "The chats of this directory, newest first: the one picked goes on."
-
-    def __init__(self, chats: Sequence[tuple[str, str, str]]) -> None:
-        """Holds the chats to choose between.
-
-        Args:
-          chats: One `(epic, what it began with, the line about it)` apiece, newest first.
-        """
-        super().__init__()
-        self._chats = list(chats)
-
-    def rows(self) -> list[tuple[str, str, str]]:
-        """Each chat, by its epic, with what it began with."""
-        return list(self._chats)
-
-
 #: `/exit`, and `/quit` under the name the harnesses give it.
 _EXIT = Command(
     "exit",
@@ -6657,6 +6875,9 @@ _COMMANDS: tuple[Command, ...] = (
         "Stop the flow without confirmation",
         lambda app, _: app.action_stop(),
         refuses=lambda app: app.refused_stop(),
+        now=lambda app: (
+            "Stop the turn, and go on with the chat" if app.chatting() else ""
+        ),
     ),
     _EXIT,
     # The harnesses' own word for it, which is what fingers used to one of them type.

@@ -78,14 +78,29 @@ def update(argv: list[str]) -> int:
         )
         return 1
     print(f"Updated hmz to {newest}")
-    from hmz import daemon
-
-    if held := daemon.daemons():
+    if (pid := _daemon()) is not None:
         print(
-            f"Epics held on this machine (pid {held[0].pid}) run hmz {__version__} "
+            f"Epics held on this machine (pid {pid}) run hmz {__version__} "
             "until that daemon stops"
         )
     return 0
+
+
+def _daemon() -> int | None:
+    """The pid of this machine's daemon, or None where none is listening.
+
+    The daemon itself, whether or not it holds a host: it is what runs the old release.
+    """
+    from hmz.daemon import where
+
+    try:
+        at = where.at()
+        pid = where.held(at).get("pid")
+        if pid is not None:
+            where.connects(at, 1.0).close()
+    except OSError:
+        return None
+    return pid
 
 
 def _how() -> list[str] | str:

@@ -326,7 +326,7 @@ def test_a_phone_folds_the_list_into_a_picker(project: Path, engine: str) -> Non
         assert gutter == "16px"
 
 
-#: The chat faked: its slot, its epic, and the run it has going.
+#: The chat faked: its slot, its id, the run it has going, and what `chat.get` answers of it.
 _SLOT = "chat:fake"
 #: The chat's host, as an address's query names it.
 _HOST = urlencode({"workspace": _FAKE, "slot": _SLOT})
@@ -347,33 +347,29 @@ _STARTED = {
     "at": 1794879452.0,
 }
 _DETAIL: dict[str, Any] = {
-    "name": _CHAT,
+    "id": _CHAT,
+    "title": "hello there",
     "workspace": _FAKE,
-    "slot": _SLOT,
-    "flow": "chat",
-    "task": "hello there",
+    "workdir": _FAKE,
+    "agent": "claude/claude-haiku-4-5",
+    "model": "claude-haiku-4-5",
     "began": "2026-11-17T00:00:00.000Z",
-    "ended": None,
-    "how": "running",
+    "updated": "2026-11-17T00:00:00.000Z",
+    "state": "going",
+    "slot": _SLOT,
+    "asking": [],
+    "permission": "workspace-write",
+    "archived": False,
+    "spent": None,
+    "at": "/nowhere/chat",
+    "task": "hello there",
+    "prefer": "",
+    "forked": "",
     "agents": [{"name": "Ada", "role": "assistant", "runs": "claude/claude-haiku-4-5"}],
     "sessions": [],
-    "resumable": True,
-    "spent": None,
-    "held": True,
-    "asking": [],
+    "earlier": 0,
     "backup": [],
     "backed": {},
-    "at": "/nowhere/epic",
-    "ref": "chat:chat",
-    "envs": [],
-    "used": [],
-    "params": {},
-    "budget": None,
-    "picked_up": "",
-    "earlier": 0,
-    "picks_up": False,
-    "foreign": "",
-    "calls": [],
 }
 
 
@@ -384,7 +380,7 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
                 "result": {"sub": _SUB, "workspace": _FAKE, "slot": _SLOT}
             },
             "epic.detach": lambda _: {"result": {}},
-            "runs.get": lambda _: {"result": _DETAIL},
+            "chat.get": lambda _: {"result": _DETAIL},
         }
     )
 
@@ -411,7 +407,8 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
                 "type": "run",
                 "state": "running",
                 "run": 1,
-                "epic": _CHAT,
+                "epic": "",
+                "chat": _CHAT,
                 "slot": _SLOT,
                 "turn": "",
                 **_STARTED,
@@ -455,9 +452,10 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
         opener.click()
         panel = page.locator("[data-hmz=inspector]")
         expect(panel).to_be_visible()
-        expect(panel.get_by_role("tab", name="Environment")).to_have_attribute(
-            "aria-selected", "true"
-        )
+        # Headed by the panel shown, with no tabs: the bar's buttons pick it.
+        title = panel.locator("[data-hmz=pane-title]")
+        expect(title).to_have_text("Files")
+        expect(panel.get_by_role("tab").locator("visible=true")).to_have_count(0)
         frame_ = panel.locator("[data-hmz=envs]")
         expect(frame_.locator("[data-hmz=envs-name]")).to_have_text("workspace")
         expect(frame_.locator("[data-hmz=envs-tree]")).to_have_count(0)
@@ -469,14 +467,48 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
             "href", f"#/envs/live?{_HOST}&env=1%3Aworkspace&tab=files"
         )
 
+        # The bar's buttons each open the environment on a panel of its own, say which
+        # is open -- wherever it was picked -- and shut the panel where it is the one open.
+        bar = page.locator("[data-hmz=bar]")
+        pressed = bar.locator(".pane-toggle[aria-pressed=true]")
+        expect(pressed).to_have_attribute("data-hmz", "pane-files")
+        for pane in ("terminal", "changes", "files"):
+            button = bar.locator(f"[data-hmz=pane-{pane}]")
+            expect(button).to_be_enabled()
+            button.click()
+            expect(pressed).to_have_attribute("data-hmz", f"pane-{pane}")
+            expect(frame_.locator(f"[data-hmz=envs-tab-{pane}]")).to_have_attribute(
+                "aria-selected", "true"
+            )
+            expect(title).to_have_text(pane.capitalize())
+        bar.locator("[data-hmz=pane-changes]").click()
+        expect(pressed).to_have_attribute("data-hmz", "pane-changes")
+        expect(frame_.locator("[data-hmz=envs-tabs]")).to_be_hidden()
+        bar.locator("[data-hmz=pane-changes]").click()
+        expect(panel).to_be_hidden()
+        expect(pressed).to_have_count(0)
+        bar.locator("[data-hmz=pane-details]").click()
+        expect(pressed).to_have_attribute("data-hmz", "pane-details")
+        expect(title).to_have_text("Details")
+        bar.locator("[data-hmz=pane-files]").click()
+        expect(frame_.locator("[data-hmz=envs-tab-files]")).to_have_attribute(
+            "aria-selected", "true"
+        )
+
         # The row of tabs drawn again -- a board put up -- leaves the environment as it was.
         frame_.evaluate("(el) => (el.dataset.marked = 'yes')")
         wire.event(_SUB, {"type": "board", "items": [{"key": "k", "value": "v"}]})
-        expect(panel.get_by_role("tab", name="Board")).to_be_visible()
+        expect(frame_).to_have_attribute("data-marked", "yes")
+        # The board is a pane of View options, beside the side questions.
+        bar.locator("[data-hmz=chat-view]").click()
+        expect(
+            page.get_by_role("menu", name="View options").get_by_role("menuitem")
+        ).to_have_text(["Side questions", "Board", "Ai-chan"])
+        page.keyboard.press("Escape")
         expect(frame_).to_have_attribute("data-marked", "yes")
 
         # The Details tab links where the chat works to it, and says what was done in it.
-        panel.get_by_role("tab", name="Details").click()
+        bar.locator("[data-hmz=pane-details]").click()
         expect(panel.locator("[data-hmz=env-link]")).to_have_attribute(
             "href", f"#/envs/live?{_HOST}&env=1%3Aworkspace"
         )

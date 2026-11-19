@@ -4,12 +4,14 @@
 // daemon works out -- the same the terminal interface draws (`epic.attach` with `figures`,
 // Section 4.7 of protocol/daemon.md). A host is followed only while a view of it is open. What a
 // view asks of a host's runs goes through `ask`, as a call to the epic on its subscription; what
-// it asks of a chat -- starting one, saying its next line, its catalogue -- through `chatAsk`.
+// it asks of a chat -- starting one, saying its next line, its catalogue, stopping its turn --
+// through `chatAsk`.
 //
 // A host is named by `where`: a workspace's path alone for the workspace's own, or
 // `{workspace, slot}` for a chat's.
 
 import { attach, call, onDaemon } from './api.js'
+import { Flow } from './views/envs/terminal_flow.js'
 
 /** The most records kept per workspace, and about how many bytes of them, as the daemon keeps. */
 const KEPT = 20000
@@ -92,6 +94,10 @@ export async function hosted(where, method, params = {}) {
 /**
  * Tells `fn` every message of a host's subscription as it comes -- those it keeps and those it
  * does not, such as a terminal's output sent to this page alone -- while something follows it.
+ * A terminal's output (`term`) is `fn`'s to acknowledge only where it answers `true`, as one that
+ * draws it does: what nobody takes is acknowledged here, since a terminal left running is still
+ * one this page views, and its host stops reading it once its output goes unacknowledged
+ * (Section 4.24.4.6 of protocol/daemon.md).
  *
  * @returns {() => void} What stops telling it.
  */
@@ -121,11 +127,11 @@ async function starts(workspace, slot, { scratch = false, ...said }) {
 }
 
 /**
- * Asks a chat one thing: `start`, `say`, `commands`, `set` -- the call `chat.<what>` (Section
- * 4.25 of protocol/daemon.md), which names the chat by its workspace and slot rather than by a
- * subscription. A chat started at a workspace alone is a new chat's, on a host of its own beside
- * every other epic there, which the answer names; one started with `scratch` is started in a
- * directory made for it alone.
+ * Asks a chat going one thing: `start`, `say`, `commands`, `set`, `stop` -- the call
+ * `chat.<what>` (Section 4.25 of protocol/daemon.md), which names the chat by its workspace and
+ * slot rather than by a subscription. A chat started at a workspace alone is a new chat's, on a
+ * host of its own beside every epic there, which the answer names; one started with `scratch`
+ * is started in a directory made for it alone; one carried on is started with `resume`, its id.
  *
  * @param {string|{workspace: string, slot: string}} where The chat, or the workspace a new one starts in.
  * @param {string} what The method of `chat.*`.
@@ -137,7 +143,7 @@ export async function chatAsk(where, what, params = {}) {
   return call(`chat.${what}`, { ...params, workspace, slot })
 }
 
-/** Starts a chat, or carries one on, answering `{workspace, slot, epic}`. */
+/** Starts a chat, or carries one on, answering `{workspace, slot, chat}`. */
 async function chatStarts(workspace, slot, { scratch = false, ...said }) {
   // No workspace: a directory made for the chat alone, as `scratch` makes one for an epic, with
   // a chat's host of its own there, which the chat then starts on.
@@ -191,6 +197,19 @@ export function current(state) {
   return { number, run, records: number ? state.records.filter((one) => one.run === number) : [] }
 }
 
+/**
+ * What a session of a host's run in front was shown so far, oldest first: the context of each
+ * of its `shown` records held, for a face mounted after they came.
+ */
+export function shownTo(where, session) {
+  const { workspace, slot } = placed(where)
+  const one = followed.get(`${workspace}\n${slot}`)
+  if (!one || !session) return []
+  return current(one.state)
+    .records.filter((record) => record.type === 'shown' && String(record.session) === String(session))
+    .map((record) => record.context || [])
+}
+
 function following(workspace, slot) {
   const state = { workspace, slot, connected: false, gone: '', me: '', epoch: '', standing: {}, records: [], figures: null }
   const listeners = new Set()
@@ -199,7 +218,32 @@ function following(workspace, slot) {
   let pending = 0
   /** The attaching that is this one's now: what an earlier one says is said to nobody. */
   let opening = null
+  /** What counts the output of each terminal nobody on the page draws, by the terminal. */
+  const undrawn = new Map()
   const one = { state, listeners, opening: null, connect, close }
+
+  /** Acknowledges a terminal's output nobody took, as often as one drawn is acknowledged. */
+  function unread(mine, message) {
+    const term = message.term
+    if (message.type === 'term_exit') {
+      undrawn.get(term)?.stop()
+      undrawn.delete(term)
+      return
+    }
+    if (!undrawn.has(term)) {
+      const ack = (bytes) => mine.then((sub) => opening === mine && call('env.term.ack', { term, bytes, sub: sub.sub })).catch(() => {})
+      undrawn.set(term, new Flow({ ack }))
+    }
+    const bytes = atob(message.data || '').length
+    undrawn.get(term).got(bytes)
+    undrawn.get(term).wrote(bytes)
+  }
+
+  /** The subscription is over: what it counted was counted for it alone. */
+  function uncount() {
+    for (const flow of undrawn.values()) flow.stop()
+    undrawn.clear()
+  }
 
   function tell() {
     if (pending) return
@@ -212,14 +256,16 @@ function following(workspace, slot) {
   function hear(mine, message) {
     if (opening !== mine) return
     // Whoever hears it going wrong is not what the rest of the page follows the host by.
+    let taken = false
     for (const fn of [...(heard.get(`${workspace}\n${slot}`) || [])]) {
       try {
-        fn(message)
+        if (fn(message) === true) taken = true
       } catch (error) {
         console.error(error)
       }
     }
     const type = message.type
+    if ((type === 'term' && !taken) || type === 'term_exit') unread(mine, message)
     if (type === 'welcome') {
       if (message.epoch !== state.epoch) {
         // Another life of the host's: everything is told again, from the top.
@@ -233,10 +279,11 @@ function following(workspace, slot) {
       // Context beside a question, an image's above all, weighs what it is written as.
       const weighs = String(message.text ?? '').length + (message.context ? JSON.stringify(message.context).length : 0) + FRAME
       state.records.push(message)
-      // Context shown to a person goes to the face their session has open, where it has one.
+      // Context shown to a person goes to the face their session has open, where it has one:
+      // one mounted later is handed it as it is mounted (`shownTo`).
       if (type === 'shown' && message.session) {
         import('./faces/host.js')
-          .then(({ showFace }) => showFace(message.session, message.context || []))
+          .then(({ showFace }) => showFace(message.session, message.context || [], { where: { workspace, slot }, run: message.run }))
           .catch(() => {})
       }
       weights.push(weighs)
@@ -257,6 +304,7 @@ function following(workspace, slot) {
   function ended(mine, why) {
     if (opening !== mine) return
     opening = one.opening = null
+    uncount()
     state.connected = false
     state.gone = why || 'The host let this page go.'
     tell()
@@ -294,6 +342,7 @@ function following(workspace, slot) {
   function close() {
     const was = opening
     opening = one.opening = null
+    uncount()
     state.connected = false
     was?.then((sub) => sub.close(), () => {})
   }

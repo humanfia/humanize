@@ -244,6 +244,14 @@ pub fn inside(directory: &str) -> io::Result<Vec<Bridge>> {
 /// `directory`, and runs the program inside it. Its status; 126 where the bridges could not be
 /// made and the program never ran, 127 where it could not be run.
 pub fn main(directory: &str, argv: &[OsString]) -> i32 {
+    // It goes when bubblewrap does, which goes when the wrapper does. Said again here, though
+    // `--die-with-parent` said it before bubblewrap became this: becoming a program under
+    // another AppArmor profile, as Ubuntu's for `bwrap` makes of it, forgets it was said.
+    // SAFETY: integer arguments only.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0)
+    };
     let bridges = match inside(directory) {
         Ok(bridges) => bridges,
         Err(why) => {
@@ -251,10 +259,30 @@ pub fn main(directory: &str, argv: &[OsString]) -> i32 {
             return exit::UNFENCED;
         }
     };
-    let status = match std::process::Command::new(&argv[0])
-        .args(&argv[1..])
-        .spawn()
+    let mut program = std::process::Command::new(&argv[0]);
+    program.args(&argv[1..]);
+    #[cfg(target_os = "linux")]
     {
+        use std::os::unix::process::CommandExt;
+        // SAFETY: getpid has no preconditions.
+        let relay = unsafe { libc::getpid() };
+        // SAFETY: the closure makes two system calls with integer arguments and allocates
+        // nothing where all went well, which is all a forked child may do.
+        unsafe {
+            program.pre_exec(move || {
+                // It goes when the relay does, as the relay goes when the wrapper does:
+                // bubblewrap's `--die-with-parent` reaches the relay and no further.
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                if libc::getppid() != relay {
+                    return Err(io::Error::from_raw_os_error(libc::ESRCH));
+                }
+                Ok(())
+            });
+        }
+    }
+    let status = match program.spawn() {
         Ok(child) => crate::fence::wrap::waited(child.id() as libc::pid_t),
         Err(why) => {
             eprintln!(

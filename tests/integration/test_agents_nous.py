@@ -428,6 +428,31 @@ def test_a_fault_with_no_edge_fails_the_graph(places: Standins) -> None:
     assert places.calls("opencode") == []
 
 
+def test_a_graph_none_of_whose_nous_can_take_the_turn_fails_as_missing(
+    places: Standins,
+) -> None:
+    # opencode has no effort `zzz`, so the only nous the graph reaches names no stand-in and
+    # nothing runs: a failure of the `missing` kind that names it, not a bug.
+    nous.put(
+        Nous(
+            "one",
+            graph=Graph("only", (Node("only", use="opencode/opencode/stand-in:zzz"),)),
+        )
+    )
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="claude-stand-in", effort="high", nous="one")
+    )
+
+    with pytest.raises(Failed) as failed:
+        agent.new()("hello")
+
+    assert failed.value.fault == "missing"
+    assert failed.value.returncode != 127
+    assert "opencode/opencode/stand-in:zzz" in str(failed.value)
+    assert places.calls("opencode") == []
+    assert places.calls("claude") == []
+
+
 def test_a_balance_node_carries_on_to_another_member_and_keeps_it(
     places: Standins,
 ) -> None:
@@ -461,3 +486,71 @@ def test_a_balance_node_carries_on_to_another_member_and_keeps_it(
 
     assert len(places.calls("claude")) == 1
     assert places.said("opencode") == ["hello", "again"]
+
+
+OPENCODE_FORKING = r"""
+said = sys.stdin.read()
+note(said)
+session = flags.get("--session") or "ses_" + flags["--model"].rpartition("/")[2]
+if "--fork" in argv:
+    session += "_forked"
+out({"type": "text", "sessionID": session, "part": {"id": "p1", "type": "text",
+                                                    "text": session + ": " + said}})
+out({"type": "step_finish", "sessionID": session,
+     "part": {"id": "p2", "type": "step-finish", "reason": "stop",
+              "tokens": {"total": 3, "input": 2, "output": 1, "reasoning": 0,
+                         "cache": {"read": 0, "write": 0}}}})
+"""
+
+
+def test_a_session_answered_at_a_stand_in_is_forked_and_kept_as_that_conversation(
+    places: Standins, tmp_path: Path
+) -> None:
+    # Two models dealt in turn: the second session's turns are all the other member's, in a
+    # conversation of the stand-in's, and that conversation is the one a fork carries on.
+    places.install("opencode", OPENCODE_FORKING)
+    nous.put(
+        Nous(
+            "pool",
+            graph=Graph(
+                "p",
+                (
+                    Node(
+                        "p",
+                        balance="round-robin",
+                        among=(
+                            ("opencode/opencode/stand-in", 1),
+                            ("opencode/opencode/other", 1),
+                        ),
+                    ),
+                ),
+            ),
+        )
+    )
+    agent = OpencodeAgent(dataclasses.replace(OPENCODE, nous="pool"))
+    first, second = agent.new(), agent.new()
+    assert first("one") == "ses_stand-in: one"
+    assert second("two") == "ses_other: two"
+
+    assert second.id == second.named == "ses_other"
+    assert second.forks
+    child = second.fork()
+    assert child("three") == "ses_other_forked: three"
+    assert child.id == "ses_other_forked"
+    assert child("four") == "ses_other_forked: four"
+    # And by another agent at the same nous, which is how a flow's fork is taken.
+    another = OpencodeAgent(dataclasses.replace(OPENCODE, nous="pool"))
+    assert second.fork(into=another)("there") == "ses_other_forked: there"
+    # The conversation forked goes on where it was, and a fork of it is cut where it was asked.
+    late = second.fork()
+    assert second("five") == "ses_other: five"
+    with pytest.raises(RuntimeError, match="taken a turn since"):
+        late("too late")
+
+    # Kept as that conversation too: its files, where the agent's sessions are.
+    kept = agent.kept()
+    assert kept is not None
+    (kept / "storage").mkdir(parents=True, exist_ok=True)
+    (kept / "storage" / "ses_other.json").write_text("{}")
+    second.keep(tmp_path / "copy")
+    assert (tmp_path / "copy" / "storage" / "ses_other.json").read_text() == "{}"

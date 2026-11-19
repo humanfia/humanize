@@ -21,7 +21,7 @@ a run, and is the person it is had with -- what it says is asked of every fronte
 say next, and what is said to it (`chat` requests, which `chat.*` of daemon.md carries) answers
 that. A chat's host that nobody reads, between turns, for :data:`FOLD` seconds folds the chat
 away: it ends as an empty next message ends it, keeping its conversation, and saying something
-in it again carries it on in the same epic.
+in it again carries it on in the same chat.
 
 What is held for them:
 
@@ -126,11 +126,17 @@ _PERSON = "human"
 #: the turn open as it is said, which would take it as words.
 _NATIVE = "native:"
 
-#: How long a chat started waits to be told its epic before the start is answered without it.
+#: How long a chat started waits to be told its name before the start is answered without it.
 _NAMING = 30.0
 
 #: Why a chat that has folded away takes nothing more (Section 4.13.8 of daemon.md).
-_FOLDED = "this chat has folded away; carry it on from its epic"
+_FOLDED = "this chat has folded away; carry it on with chat.start"
+
+#: Why a chat that has ended takes nothing more.
+_ENDED = "this chat has ended; carry it on with chat.start"
+
+#: Why a chat with no turn open is not stopped (Section 4.25.6.2 of daemon.md).
+_NO_TURN = "no turn is open, so there is nothing to stop"
 
 #: Why a chat's host takes no line nor answer of `epic.say` (Section 4.10.1.3 of daemon.md).
 _TO_CHAT = "say it to the chat with chat.say"
@@ -313,9 +319,16 @@ def _returned(value: Any) -> Any:
         return str(value)
 
 
-def _epic_of(shown: _Run | None) -> str:
-    """The name of the epic a run is written into, or "" before it has one."""
-    epic = shown.run.epic if shown is not None else None
+def _epic_of(shown: _Run | None, kind: str = "flow") -> str:
+    """The name of the epic a run is written into, or "" before it has one or for a chat.
+
+    Args:
+      shown: The run.
+      kind: `flow`, or `chat` for the name of the chat a chat is written into instead.
+    """
+    if shown is None or shown.run.kind != kind:
+        return ""
+    epic = shown.run.epic
     return epic.name if epic is not None else ""
 
 
@@ -667,6 +680,7 @@ class Host:
             "chat.say": functools.partial(self._chats_for, "say"),
             "chat.commands": functools.partial(self._chats_for, "commands"),
             "chat.set": functools.partial(self._chats_for, "set"),
+            "chat.stop": functools.partial(self._chats_for, "stop"),
         }
         for method in _ENV_METHODS:
             self._requests[method] = functools.partial(self._env_asked, method)
@@ -903,9 +917,9 @@ class Host:
         Returns:
           How many frontends are attached and who, the state and number of the run, the
           flow, its epic and task, what it may spend and has spent -- both None with nothing
-          running -- the questions it waits on, what kind of epic it is and where a chat is
-          in its turn, how the last run to end ended, and the flows running, as refs and as
-          calls.
+          running -- the questions it waits on, whether it is a flow's or a chat, the chat
+          and where it is in its turn, how the last run to end ended, and the flows running,
+          as refs and as calls.
         """
         with self._lock:
             running = self._current
@@ -933,6 +947,7 @@ class Host:
             "epic_kind": shown.run.kind if shown is not None else "",
             "flow": shown.run.flow if shown is not None else "",
             "epic": _epic_of(shown),
+            "chat": _epic_of(shown, "chat"),
             "task": shown.started.get("task", "") if shown is not None else "",
             "pending": pending,
             "ended": ended,
@@ -1150,8 +1165,10 @@ class Host:
             state=self._state(),
             **(shown.started if shown is not None else {"run": 0}),
             stopping=self._stopping.number if self._stopping is not None else None,
-            # Which epic it writes, once it has one: what a frontend addresses it by.
+            # Which epic it writes, or which chat, once it has one: what a frontend
+            # addresses it by.
             epic=_epic_of(shown),
+            chat=_epic_of(shown, "chat"),
             slot=self._slot,
             **self._turn(shown),
         )
@@ -1160,17 +1177,17 @@ class Host:
         """Where a chat is in its turn: "running" while its agent answers, "done" otherwise.
 
         A turn ends where the chat asks what to say next, or where the chat does; what the
-        agent asks its user mid-turn is not the end of one. Nothing for an epic of a flow.
+        agent asks its user mid-turn is not the end of one, and a `!` command or a line
+        refused between two turns is not the start of one. Nothing for an epic of a flow.
         Under the lock.
         """
         if shown is None or shown.run.kind != "chat":
             return {}
+        between = shown is not self._current or shown.run.chat.between
         listening = any(
             one.run == shown.number and one.mode == "listen" for one in self._questions
         )
-        return {
-            "turn": "done" if listening or shown is not self._current else "running"
-        }
+        return {"turn": "done" if between or listening else "running"}
 
     def _name_of(self, client: str) -> str:
         frontend = self._frontends.get(client)
@@ -1426,8 +1443,8 @@ class Host:
         said by whoever the daemon names.
 
         Args:
-          said: `do` -- `start`, `say`, `commands` or `set` -- what that takes, and `by`, who
-            asked.
+          said: `do` -- `start`, `say`, `commands`, `set` or `stop` -- what that takes, and
+            `by`, who asked.
 
         Returns:
           `ok`, and `why` and `code` where it is not.
@@ -1449,6 +1466,7 @@ class Host:
             "say": self._chat_say,
             "commands": self._chat_commands,
             "set": self._chat_set,
+            "stop": self._chat_stop,
         }.get(do)
         if doing is None:
             return _no(f"no such request: chat.{do}")
@@ -1458,11 +1476,13 @@ class Host:
             return _no(str(why) or type(why).__name__)
 
     def _chat_start(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
-        """Starts a chat here, or carries one on, and answers it with its slot and epic."""
+        """Starts a chat here, or carries one on, and answers it with its slot and its name."""
         checked = chat_checked(self._hmz, said)
         if not checked["ok"]:
             return checked
         agent, task, resume = checked["agent"], checked["task"], checked["resume"]
+        # The chat carried on, by its name, as whoever follows this host is told of it.
+        resumed = Path(resume).name if resume else None
         prefer: Prefer | None = checked["prefer"]
         ai = self._slot.startswith("ai:")
         if ai and (client or not isinstance(said.get("ai"), dict)):
@@ -1496,6 +1516,7 @@ class Host:
                 prefer=prefer,
                 role=role,
                 permission=None if ai else checked["permission"],
+                worktree=checked["worktree"],
             )
         except Exception as why:  # noqa: BLE001 -- a chat that will not start is said so
             with self._lock:
@@ -1519,7 +1540,7 @@ class Host:
             "profile_flow": False,
             "profile_environment": False,
             "backup": [],
-            "resume": resume,
+            "resume": resumed,
             "began": time.monotonic(),
             "at": time.time(),
         }
@@ -1535,17 +1556,17 @@ class Host:
         return answer if not answer["ok"] else answer | {"slot": self._slot}
 
     def _named(self, current: _Run, run: Chatting) -> dict[str, Any]:
-        """A chat started, answered with its epic once it has one, or how it ended without.
+        """A chat started, answered with its name once it has one, or how it ended without.
 
-        A chat that is refused -- an agent it cannot open -- ends before its epic is made, and
-        its start is refused with why (Section 8.3.7 of core.md).
+        A chat that is refused -- an agent it cannot open -- ends before its record is made,
+        and its start is refused with why (Section 8.3.7 of core.md).
         """
         deadline = time.monotonic() + (_NAMING if run.names_epic else 0.0)
         with self._lock:
             while True:
                 epic = run.epic
                 if epic is not None:
-                    return _ok(run=current.number, epic=epic.name)
+                    return _ok(run=current.number, chat=epic.name)
                 ended = self._ended
                 if self._current is not current and (
                     ended is not None and ended.get("run") == current.number
@@ -1553,10 +1574,10 @@ class Host:
                     if ended.get("how") in ("refused", "failed", "crashed"):
                         why = str(ended.get("why") or "").strip()
                         return _no(why.splitlines()[-1] if why else "it failed", 400)
-                    return _ok(run=current.number, epic="")
+                    return _ok(run=current.number, chat="")
                 left = deadline - time.monotonic()
                 if left <= 0:
-                    return _ok(run=current.number, epic="")
+                    return _ok(run=current.number, chat="")
                 self._spoke.wait(min(left, _TICK / 5))
 
     def _chatting(self) -> tuple[_Run, Chatting] | dict[str, Any]:
@@ -1566,7 +1587,7 @@ class Host:
         current = self._current
         if current is None or current.run.kind != "chat":
             if self._slot.startswith("chat:") and self._runs:
-                return _no("this chat has ended; carry it on from its epic", 409)
+                return _no(_ENDED, 409)
             return _no("no chat is going here", 409)
         return current, current.run
 
@@ -1604,7 +1625,7 @@ class Host:
             return _no(f"{typed} cannot be said here: {read.why}", 400)
         with self._lock:
             if self._current is not current:
-                return _no("this chat has ended; carry it on from its epic", 409)
+                return _no(_ENDED, 409)
             # What the assistant asked mid-turn is answered by the next thing said.
             asked = next(
                 (
@@ -1684,7 +1705,7 @@ class Host:
         )
 
     def _chat_set(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
-        """Sets the chat's own preference, its permission, or both, recorded in its epic."""
+        """Sets the chat's own preference, its permission, or both, recorded in the chat."""
         del by, client
         refused = chat_set_refused(said)
         if refused:
@@ -1700,6 +1721,24 @@ class Host:
             chat.permits(said["permission"])
         if said.get("prefer") is not None:
             chat.prefers(said["prefer"])
+        return _ok()
+
+    def _chat_stop(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
+        """Stops the chat's open turn, leaving it between turns (Section 8.5.4 of core.md)."""
+        del by, client, said
+        with self._lock:
+            going = self._chatting()
+        if isinstance(going, dict):
+            return going
+        if not going[1].interrupt():
+            # Her conversation's, as its own frontends word it (Section 4.22.5.3).
+            ai = self._slot.startswith("ai:")
+            return _no(
+                "Ai-chan is not answering, so there is nothing to stop"
+                if ai
+                else _NO_TURN,
+                409,
+            )
         return _ok()
 
     def _flows(self) -> list[Any]:
@@ -1808,17 +1847,20 @@ class Host:
                 self._drops(current.number, "ended")
                 # Nobody was there to see it end, and nobody asked for it to: the next to
                 # arrive is the one it ended for. A chat ends only as somebody leaves it,
-                # its conversation kept in its epic, and so for nobody.
+                # its conversation kept in the chat, and so for nobody; an exec host's one
+                # epic is not kept either, for nothing attaches to that host again.
                 if (
                     not self._frontends
                     and not current.stopped_by
                     and current.run.kind != "chat"
+                    and not self._slot.startswith("exec:")
                 ):
                     self._keeps = True
             self._ended = {
                 "how": how,
                 "why": why,
                 "epic": _epic_of(current),
+                "chat": _epic_of(current, "chat"),
                 "at": time.time(),
                 "run": current.number,
                 "kind": current.run.kind,
@@ -1846,16 +1888,10 @@ class Host:
         del said
         with self._lock:
             current = self._current
-            if (
-                self._slot.startswith("ai:")
-                and current is not None
-                and current.run.kind == "chat"
-            ):
-                # Her open turn alone: the conversation goes on between turns (Section
-                # 4.22.5.3 of daemon.md).
-                if not current.run.interrupt():
-                    return _no("Ai-chan is not answering, so there is nothing to stop")
-                return _ok()
+            if current is not None and current.run.kind == "chat":
+                # A chat's open turn alone: the chat goes on between turns (Section 8.5.4 of
+                # core.md), as `chat.stop` leaves it.
+                return self._chat_stop(frontend.name, frontend.client, {})
             if current is None:
                 if self._stopping is not None:
                     return _no(f"the flow is already stopping: {_UNWINDING}")
@@ -2346,8 +2382,19 @@ class Host:
             current is not None
             and current.number == number
             and not self._closed
-            and not self._away_of.get(role, self._away_all)
+            and not self._nobody(role)
         )
+
+    def _nobody(self, role: str) -> bool:
+        """Whether nobody is there to answer as a role. Under the lock.
+
+        A chat's person is nobody's outworlder, so away is never said of them: nobody is
+        there for a chat only once it has folded away.
+        """
+        current = self._current
+        if current is not None and current.run.kind == "chat":
+            return self._folded
+        return self._away_of.get(role, self._away_all)
 
     def _asks(self, number: int, question: Question) -> str | None:
         """Puts what a run asks whoever is outside it to every frontend, and waits.
@@ -2526,7 +2573,7 @@ class Host:
                 if not self._live(number, role):
                     self._withdraws(
                         asked,
-                        "away" if self._away_of.get(role, self._away_all) else "over",
+                        "away" if self._nobody(role) else "over",
                     )
                     return None
                 if (
@@ -2601,7 +2648,9 @@ class Host:
             return _no(_TO_CHAT)
         question = str(said.get("question") or "")
         text = said.get("text")
-        valued = "value" in said
+        sent = said.get("value")
+        # A value of null is one not sent.
+        valued = sent is not None
         if valued and text is not None:
             return _no("an answer is text or a value, not both")
         if not valued and (not isinstance(text, str) or not text):
@@ -2615,12 +2664,14 @@ class Host:
             answer = _chosen(asked.options, cast("str", text))
             value: Any = answer
         elif asked.schema is None:
-            value = said["value"]
-            if not isinstance(value, str) or not value:
-                return _no(f"{question} is answered in text")
+            value = sent
+            if not isinstance(value, str):
+                return _misfit(({"path": [], "message": "text is expected"},))
+            if not value:
+                return _no("an answer says something")
             answer = value
         else:
-            value = said["value"] if valued else _parsed(cast("str", text))
+            value = sent if valued else _parsed(cast("str", text))
             if value is _UNPARSED:
                 return _misfit(({"path": [], "message": "the answer is not JSON"},))
             answer = json.dumps(value, ensure_ascii=False)
@@ -2712,7 +2763,7 @@ class Host:
         before it looks would leave its question waiting for nobody.
         """
         self._snap("away", all=self._away_all, of=dict(self._away_of))
-        for asked in [one for one in self._questions if self.away_for(one.role)]:
+        for asked in [one for one in self._questions if self._nobody(one.role)]:
             self._withdraws(asked, "away")
         self._spoke.notify_all()
 
@@ -2892,18 +2943,18 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
 
     What `chat.start` refuses before a host is asked (Section 4.25.1.6 of daemon.md), the same
     whoever asks: no task, no agent and no chat carried on to take one from, an agent that is
-    not one, a preference that is neither, a permission that is no preset, and a chat to
-    carry on that is no chat of this workspace.
+    not one, a preference that is neither, a permission that is no preset, a chat to carry
+    on that is no chat of this workspace, and a worktree asked for a chat carried on.
 
     Args:
       hmz: The workspace.
-      said: `agent`, `task`, `resume`, `prefer` and `permission`, as `chat.start` takes
-        them.
+      said: `agent`, `task`, `resume`, `prefer`, `permission` and `worktree`, as `chat.start`
+        takes them.
 
     Returns:
       `ok` with `agent` (the carried-on chat's own where none was named), `runs` (it, as
-      settings keep it), `task`, `resume` (the epic's whole path, or None), `prefer` and
-      `permission`; or `ok` false with `why` and the `code` to refuse it with.
+      settings keep it), `task`, `resume` (the chat's directory, or None), `prefer`,
+      `permission` and `worktree`; or `ok` false with `why` and the `code` to refuse it with.
     """
     task, prefer = said.get("task"), said.get("prefer")
     # An Ai-chan conversation started with nothing said waits, between turns, for what is.
@@ -2919,9 +2970,12 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     resume = str(said.get("resume") or "")
     carried: Path | None = None
     if resume:
-        carried = hmz.epics.chat(resume)
+        # Hers by its directory, which the daemon keeps for her; any other by its name.
+        carried = Path(resume) if ai else hmz.epics.chat(resume)
         if carried is None:
             return _no(f"{resume} is not a chat of {hmz.workspace}.", 404)
+        if said.get("worktree") is True:
+            return _no("a chat carried on works where it worked", 400)
         if not agent or permission is None:
             # What the chat had, where it is carried on with none of its own named.
             ran = hmz.epics.read(carried)
@@ -2936,12 +2990,13 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     if not agent:
         return _no("an agent for the chat is named", 400)
     try:
-        # Her nous may be a nous by name, which no setting keeps as a chat's agent.
-        runs = None if ai else assistant(agent)
-        if ai:
-            from hmz.runtime.flowing.specs import parse_agents
+        from hmz.coganchor import nous
+        from hmz.runtime.flowing.specs import parse_agents
 
-            parse_agents([f"assistant={agent}"])
+        (named,) = parse_agents([f"assistant={agent}"])
+        # A nous by name is no agent a setting keeps (Section 3.4.1.6 of core.md): hers is
+        # not kept, and a chat's is kept as the concrete nous it starts at.
+        runs = None if ai else assistant(nous.entry(agent) if named.nous else agent)
     except ValueError as why:
         return _no(str(why), 400)
     return _ok(
@@ -2951,6 +3006,7 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
         resume=str(carried) if carried is not None else None,
         prefer=prefer,
         permission=permission,
+        worktree=said.get("worktree") is True,
     )
 
 
@@ -3043,6 +3099,7 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
         question answered by an agent that could write.
     """
     from hmz.coganchor.fence import READ, Fence
+    from hmz.runtime.flowing.harnessing import ASKING_FEATURE
 
     fence = source.config.fence
     reading = (
@@ -3065,6 +3122,18 @@ def _read_only(source: AgentBase, name: str) -> AgentBase:
     # Nothing is let out of Codex's read-only sandbox.
     if hasattr(source.config, "unsandboxed"):
         settings["unsandboxed"] = ()
+    # Codex's `approvals` would open the copy's thread at `untrusted` over the `never` its
+    # fence is told with, and its asking feature would let it ask a user nobody plays: both
+    # are there for hooks hung on the source, and none is hung on the copy.
+    if hasattr(source.config, "approvals"):
+        settings["approvals"] = ""
+    features = cast(
+        "tuple[tuple[str, Any], ...] | None", getattr(source.config, "features", None)
+    )
+    if features is not None:
+        settings["features"] = tuple(
+            one for one in features if one[0] != ASKING_FEATURE
+        )
     clone = source.clone(
         config=dataclasses.replace(source.config, **settings), name=name, skills=()
     )

@@ -240,8 +240,11 @@ sbatch --parsable
   --nodes 1 --ntasks 1
   [--partition P] [--account A] [--qos Q] [--time T] [--constraint C]
   [--cpus-per-task N] [--mem <MiB>M] [--gpus N]
-  --wrap <script>
+  --wrap <script>                          for via=srun
 ```
+
+For `via=tcp` there is no `--wrap`: the script holds the secret, so `sbatch` reads it from its
+standard input, as `#!/bin/sh` and then the script, and the secret is on no command line here.
 
 `start()` submits where `submit()` has not, follows the job with `squeue` until it is
 `RUNNING` -- asking after 1 s, then twice as long each time up to 10 s apart, and asking again
@@ -251,7 +254,7 @@ and reaches its node:
 | `via` | The job's script | Anchor |
 | --- | --- | --- |
 | `srun` | `exec sleep 2147483647`: nothing, for as long as the job is let | `slurm://<job>`: every connection is a step of the job, `srun --jobid=<job> --overlap`, sharing its allocation (see [Remote execution › Targets](/reference/remote-execution#targets)) |
-| `tcp` | waits for `coganchor` under `$HOME/.cache/humanize/`, then runs the serving half listening on `0.0.0.0:<free port>`, exporting the workspace and nothing else, with a random secret set in the script (`HUMANIZE_TOKEN`), never on a command line on the node | `tcp://<node>:<port>` with `token` the secret; `srun` is used once to put `coganchor` on the node and to read the port off `/tmp/humanize-slurm-<job>.out` there (60 s) |
+| `tcp` | waits for `coganchor` under `$HOME/.cache/humanize/`, then runs the serving half listening on `0.0.0.0:<free port>`, exporting the workspace and `${HUMANIZE_HOME:-$HOME/.hmz}/envs` on the node (where [what is derived from a workdir](/reference/files) lives) and nothing else, with a random secret set in the script (`HUMANIZE_TOKEN`), never on a command line on the node | `tcp://<node>:<port>` with `token` the secret; `srun` is used once to put `coganchor` on the node and to read the port off `/tmp/humanize-slurm-<job>.out` there (60 s) |
 
 The mirror is at `<dir>/shadow` of a private temporary directory here, and the anchor is
 observed as `DockerConfig`'s is. `stop()` runs `scancel <job>` (never a job it did not submit)
@@ -1316,7 +1319,7 @@ from hmz.coganchor.machines import (
 from hmz.coganchor.machines.store import (
     SSHRuntime, DockerRuntime, SwarmRuntime, AppleContainerRuntime, SlurmRuntime, new, add,
     write, find,
-    runtimes, remove, where, under, imports, daemon_of, node_of,
+    runtimes, remove, imports, daemon_of, node_of,
 )
 from hmz.coganchor.transport import Endpoint
 from hmz.coganchor.agents import anchored
@@ -1327,11 +1330,10 @@ from hmz.sdk import Hmz  # Hmz().runtimes
 | --- | --- |
 | `all(backend="")` | every runtime, by backend then name |
 | `find(backend, name)` | one, or `None` |
-| `where(backend, name)` | its directory |
 | `new(backend, name, **fields)` | build and check, unwritten |
 | `add(runtime)` | write a new one |
 | `write(runtime)` | write, replacing |
-| `remove(backend, name) -> bool` | delete its directory |
+| `remove(backend, name) -> bool` | take it out of `settings.yaml`; whether there was one |
 | `hosts(config=None)` | ssh config hosts, resolved |
 | `import_ssh(config=None, names=None, *, update=False)` | import ssh config hosts |
 | `resolve(runtime) -> SSHHost` | what `ssh -G` makes of a runtime |

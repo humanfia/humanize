@@ -873,7 +873,8 @@ class EnvDriver(Protocol):
           The exit status, stdout and stderr, decoded as UTF-8 with errors replaced.
 
         Raises:
-          EnvCommandTimeout: If it ran past `timeout`. It and its children were killed.
+          EnvCommandTimeout: If it ran past `timeout`. It and its children were killed; what
+            it had written by then may be given as the exception's `stdout` and `stderr`.
           EnvError: The leaf for why it could not be started.
           asyncio.CancelledError: If the awaiting task was cancelled. It was killed.
         """

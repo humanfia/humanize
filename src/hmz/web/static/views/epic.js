@@ -1,12 +1,14 @@
-// One epic: the run going, as it happens, or one written down. `#/runs/<name>` draws it as a
-// graph of its agents and who handed to whom; `/agents/<agent>` is the graph with that agent
-// picked out; `/sessions/<key>` is one session's thread, as a chat is read; `/exomyth` is its
-// timeline, drawn by views/exomyth. `#/live` is whichever run is going on a host: a workspace's
-// own, or a chat's by its `slot`. A chat is only its conversation, as a chat app draws one:
-// never a graph, its agents or a way to stop it -- and one folded away is carried on by saying
-// something in it, on a host of its own, with what was said before it still above. Every line
-// of a chat goes by `chat.say`; its box completes its harness's native input, the names hmz
-// keeps and the flows, and serves those hmz keeps and the flows itself. Under
+// One epic, or one chat: the run going, as it happens, or one written down. `#/epics/<name>`
+// draws an epic as a graph of its agents and who handed to whom; `/agents/<agent>` is the graph
+// with that agent picked out; `/sessions/<key>` is one session's thread, as a chat is read;
+// `/exomyth` is its timeline, drawn by views/exomyth. `#/chats/<id>` is a chat, which is no
+// epic, read by `chat.get`. `#/live` is whichever run is going on a host: a workspace's own, or
+// a chat's by its `slot`. A chat is only its conversation, as a chat app draws one: never a
+// graph or its agents -- its box's button stops the turn open, never the chat -- and one folded
+// away is carried on by saying something in it, on a host of its own, with what was said before
+// it still above. Every line of a chat goes by `chat.say`; its box completes its harness's
+// native input, the names hmz keeps and the flows, and serves those hmz keeps and the flows
+// itself. Under
 // the view, while the run goes, are the questions it waits on a person for and the box that
 // says a line to it; beside it, a panel of what it is and was -- its figures, its budget, how it
 // was set up, the flows it called -- with its board, its people and the side questions asked
@@ -15,20 +17,25 @@
 import { asides, board, outworlders, question, saying } from '../acting.js'
 import { settle } from '../asking/card.js'
 import { call, exported, given, hash } from '../api.js'
-import { go } from '../app.js'
-import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, iconButton, lasting, problem, secondsOf, when } from '../dom.js'
+import { go, renamed } from '../app.js'
+import { acting, ago, badge, flowName, pathText, confirming, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
+import { modelName, parted } from '../chips/agent.js'
 import { modelFact } from '../chips/model.js'
+import { PANES, chipNamed, paneOf, standing as standingSaid, stoppable, toggled, usageSaid } from '../desk.js'
 import { ask, chatAsk, follow } from '../held.js'
 import { chatPermission } from '../chips/permission.js'
 import { composer as composed } from '../composer.js'
-import { chatting, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
+import { archiving, retitling } from '../chat-actions.js'
+import { pathOf, worksIn } from '../chats.js'
+import { chatting as isChat, live, lookedAt, markOf, read as markRead, sessionsOf, took, watch, written } from '../epic.js'
 import { graph } from '../graph.js'
 import { bar, choice, dragged, keep, kept, menu, section as heading, sidePanel, submenu, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
-import { copy, hideTip, menuOn, toast } from '../ui.js'
+import { copy, menuOn, toast } from '../ui.js'
 import { saidTraced, sayer } from '../transcript.js'
 import { completions, pathItems, pathParts, preferSaid, RESERVED, route, typing } from '../natives.js'
-import { usedLine } from './envs/tree.js'
+import { barButton, glyph, paneButtons } from './chatbar.js'
+import { panelsOf, usedLine } from './envs/tree.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
 const LINES = 3000
@@ -39,11 +46,18 @@ export function mount(root, { parts, query }) {
   /** Which host the epic going is looked for on, for an epic not named. */
   const wanted = { workspace: query.get('workspace') || '', slot: query.get('slot') || '' }
   let mode = modeOf(parts)
-  const panel = sidePanel('the epic')
+  /** The buttons of the panes beside a chat, once its bar is drawn. */
+  let panes = null
+  // A chat's bar says which pane is open, each time its panel opens or shuts.
+  const panel = sidePanel('the epic', { told: () => panes && sayPanes() })
+  // Not drawn until what is in front is known: a chat's is shut where an epic's is open, and
+  // neither is opened only to be shut.
+  panel.node.classList.add('unsettled')
   const head = h('div', { class: 'bar-holder' })
   const main = h('div', { class: 'epic-main' })
   const dock = h('div', { class: 'dock', 'data-hmz': 'dock' })
-  fill(root, h('div', { class: 'view view-epic' }, h('div', { class: 'work' }, head, main, dock), panel.node))
+  const view = h('div', { class: 'view view-epic' }, h('div', { class: 'work' }, head, main, dock), panel.node)
+  fill(root, view)
 
   // A person is read by their log, as the terminal interface's monitor reads one; an agent is
   // picked out on the graph.
@@ -97,6 +111,8 @@ export function mount(root, { parts, query }) {
         // A chat's host is on a slot of its own, which says it is one before it is written down.
         const chat = wanted.slot.startsWith('chat:')
         const what = chat ? 'chat' : 'epic'
+        // No chat's: the panel an epic keeps, as it was left.
+        if (!chat) panel.node.classList.remove('unsettled')
         region('head', ['none', starting], () => fill(head, bar({ title: starting ? `Starting the ${what}…` : `No ${what} is going` })))
         region('main', ['none', starting, none], () =>
           fill(
@@ -122,9 +138,9 @@ export function mount(root, { parts, query }) {
     if (!name) {
       // The run going is named now: the address says which, and it is followed by name.
       name = detail.name
-      history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}`))
+      renamed(pathOf(detail))
       stop()
-      stop = watch(name, { workspace: detail.workspace, slot: wanted.slot }, told)
+      stop = watch(name, { workspace: detail.workspace, slot: wanted.slot }, told, { chat: isChat(detail) })
       return
     }
     const run = going && going.started ? going : null
@@ -135,14 +151,20 @@ export function mount(root, { parts, query }) {
     }
     // A chat is its one conversation, and is opened on it wherever it is opened, as a chat app
     // opens on one: the one going, or the last it opened, which a chat carried on goes on from.
+    // Its address is the chat's alone: a chat has no session to name in it.
     const conversation = chat && (run ? run.records.find((one) => one.type === 'opened' && !one.person) : sessionsOf(detail).at(-1))
-    if (conversation && mode.session !== conversation.key) {
-      history.replaceState(null, '', hash(`/epics/${encodeURIComponent(name)}/sessions/${encodeURIComponent(conversation.key)}`))
-      mode = modeOf(['epics', name, 'sessions', conversation.key])
-    }
+    if (conversation && mode.session !== conversation.key) mode = { session: conversation.key, focus: '', log: '' }
     const model = run ? live(held, run, detail) : written(detail, traced)
     const agentOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
     persons = new Set(model.agents.filter((one) => one.person).map((one) => one.name))
+    // A chat's panel is its own, shut until a pane of it is asked for, as a chat app's session opens.
+    if (chat && !chatPanel) {
+      chatPanel = true
+      panel.keptAs('hmz-chat-panel', false)
+    }
+    panel.node.classList.remove('unsettled')
+    // A chat's bar runs over its panel too, so a pane's button stays where it was pressed.
+    view.classList.toggle('chat-view', chat)
     if (chat) followCatalogue(detail, run)
     drawHead(detail, run, chat)
     if (chat || reading(mode)) drawThread(detail, run)
@@ -164,10 +186,9 @@ export function mount(root, { parts, query }) {
     const state = markOf(how, { chat, turn, asked, epic: detail.name })
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
     const stopWaits = Date.now() - (stopsAsked.get(detail.name) || 0) < STOP_WAITS
-    if (chat) return drawChatHead(detail, going, state)
+    if (chat) return drawChatHead(detail, going)
     region('head', [mode, detail.name, detail.task, detail.flow, detail.picks_up, state, going, run && run.state, detail.backed, stopWaits], () => {
       const actions = []
-      // A chat is never stopped from its page: it is a conversation, as a chat app's.
       if (!chat && going && run.state === 'running') actions.push(stopWaits ? h('button', { class: 'btn danger', type: 'button', disabled: true }, 'Stopping…') : confirming({ label: 'Stop', ask: 'Stop this epic?', yes: 'Stop', no: 'Cancel', busy: 'Stopping…', held: true, act: () => stopping(detail.name) }))
       else if (!chat && going && run.state === 'stopping') actions.push(confirming({ label: 'Force stop', ask: 'Close every session now?', yes: 'Force stop', no: 'Cancel', busy: 'Stopping…', act: () => ask(here, 'force') }))
       if (!going && detail.picks_up && !chat) actions.push(h('a', { class: 'btn', href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, icon('resume'), 'Resume'))
@@ -198,32 +219,106 @@ export function mount(root, { parts, query }) {
     if (clock) clock.textContent = [took(detail, run) && `took ${took(detail, run)}`, spent].filter(Boolean).join(' · ')
   }
 
+  /** Whether the panel is kept as a chat's, once the epic in front is known to be one. */
+  let chatPanel = false
   /** The chat in front and whether it is going, as its bar's menus read them when they open. */
   let chatNow = null
 
+  /** The panel of the chat's environment shown, or asked for: the one it opens on where never picked. */
+  let envTab = ''
+
+  /** Says, on the chat's bar, which pane is open and which the chat has now. */
+  function sayPanes() {
+    const env = chatNow && chatNow.going ? chatEnv() : null
+    const has = new Set(env ? panelsOf(env).map((one) => one.key) : [])
+    panes.said(paneOf({ open: !panel.node.hidden, tab, env: envTab }), (key) => key === 'details' || has.has(key), Boolean(chatNow && chatNow.going))
+    const title = panel.body.querySelector('.pane-title')
+    if (title) title.textContent = paneTitle()
+  }
+
+  /** Opens the panel beside the chat on one of its tabs, and for the environment on one of its panels. */
+  function showPane(key, env = '') {
+    tab = key
+    if (env) envTab = env
+    for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
+    panel.open()
+    draw()
+    if (key === 'env' && envFrame && envFrame.made) envFrame.made.show(envFrame.env, envTab)
+  }
+
+  /** What pressing a pane's button does: opens that pane, or shuts the panel where it is the one open. */
+  function pressPane(key) {
+    const then = toggled({ open: !panel.node.hidden, tab, env: envTab }, key)
+    if (!then.open) return panel.set(false)
+    showPane(then.tab, then.env)
+  }
+
   /**
-   * A chat's bar: its title, one menu of what can be done to it, and the panel's button, as a
-   * chat app's is. Made once for the chat and said again in place, so that a menu open on it
-   * stays open while the chat goes on; how it stands is said only while something is happening.
+   * A chat's bar, as a chat app's session keeps its toolbar: its title as a button with its one
+   * menu right after it, and at the far right a button for each pane beside the conversation,
+   * then what else can be shown. Made once for the chat and said again in place, so that a menu
+   * open on it stays open while the chat goes on; how the chat stands is said over its box.
    */
-  function drawChatHead(detail, going, state) {
+  function drawChatHead(detail, going) {
     chatNow = { detail, going }
     region('head', ['chat', detail.name], () => {
-      const more = iconButton('more', 'More', { 'data-hmz': 'chat-menu' })
-      menu(more, chatMenu, { align: 'end', label: 'Chat menu' })
-      fill(head, bar({ title: headline(detail.task), sub: [], actions: [more, panel.toggle] }))
-      menuOn(head.querySelector('.bar-title'), () => epicMenu({ ...chatNow.detail, held: chatNow.going }))
+      const more = barButton('more', 'More options', { 'data-hmz': 'chat-menu' })
+      menu(more, chatMenu, { label: 'Chat menu' })
+      const view = barButton('view', 'View options', { 'data-hmz': 'chat-view' })
+      menu(view, viewMenu, { align: 'end', label: 'View options' })
+      panes = paneButtons(pressPane)
+      // The bar ends with `View options`, as a session's does: Ai-chan is offered in it.
+      const top = bar({ title: headline(detail.title), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)], aichan: false })
+      top.classList.add('chat-bar')
+      // The title is a button, as a session's is: pressed, it is edited where it stands.
+      const named = top.querySelector('.bar-title')
+      const title = h('button', { class: 'chat-title', type: 'button', 'data-hmz': 'chat-title', onclick: retitle })
+      named.querySelector('h1').replaceChildren(title)
+      named.querySelector('.bar-sub').replaceWith(h('div', { class: 'menu-holder' }, more))
+      fill(head, top)
+      menuOn(named, () => epicMenu({ ...chatNow.detail, held: chatNow.going }, { rename: retitle }))
       drawn['head-chat'] = undefined
     })
-    region('head-chat', [detail.task, state], () => {
-      const named = head.querySelector('.bar-title')
-      named.title = detail.task
-      named.querySelector('h1').textContent = headline(detail.task)
-      // Kept, hidden, while the chat is idle: what reads how it stands finds it there.
-      const mark = badge(state)
-      mark.hidden = state === 'stopped'
-      fill(named.querySelector('.bar-sub'), mark)
+    region('head-chat', [detail.title, Boolean(detail.archived)], () => {
+      const title = head.querySelector('.chat-title')
+      // Said whole where pointed at, and as what pressing it does to whoever cannot see it.
+      title.dataset.tip = detail.title
+      title.setAttribute('aria-label', `${detail.title}, rename`)
+      title.textContent = headline(detail.title)
+      // An archived chat is still read, and is put back among the others from its bar.
+      head.querySelector('[data-hmz=chat-unarchive]')?.remove()
+      if (detail.archived) head.querySelector('.bar-actions').prepend(h('button', { class: 'btn small', type: 'button', 'data-hmz': 'chat-unarchive', onclick: () => archiving(chatNow.detail, false).catch((error) => toast(error.message, 6000)) }, 'Unarchive'))
     })
+    sayPanes()
+  }
+
+  /** Renames the chat in front where its title stands on its bar. */
+  function retitle() {
+    retitling(head.querySelector('.chat-title'), chatNow.detail)
+  }
+
+  /**
+   * What else a chat can show beside it: the side questions asked of it, which never reach it,
+   * its board while it keeps one, and Ai-chan's drawer.
+   */
+  function viewMenu(close) {
+    const pane = (key, label, glyph) => {
+      const shown = !panel.node.hidden && tab === key
+      const item = choice({ label, glyph, chosen: shown, close, act: () => (shown ? panel.set(false) : showPane(key)) })
+      item.dataset.hmz = `view-${key}`
+      return item
+    }
+    const standing = held() ? held().standing : {}
+    const drawer = Boolean(document.querySelector('.app.aichan-open'))
+    const aichan = choice({ label: 'Ai-chan', glyph: 'agent', chosen: drawer, close, act: () => dispatchEvent(new CustomEvent('hmz:aichan')) })
+    aichan.dataset.hmz = 'view-aichan'
+    return [pane('aside', 'Side questions', 'thread'), chatNow && chatNow.going && standing.board ? pane('board', 'Board', 'menu') : null, h('hr'), aichan]
+  }
+
+  /** What the pane open beside a chat is headed by: the tab it is on, and for its environment the panel shown. */
+  function paneTitle() {
+    if (tab === 'env') return (PANES.find((one) => one.env === envTab) || { label: 'Environment' }).label
+    return { epic: 'Details', aside: 'Side questions', board: 'Board' }[tab] || ''
   }
 
   /**
@@ -246,7 +341,7 @@ export function mount(root, { parts, query }) {
     button.disabled = true
     button.setAttribute('aria-busy', 'true')
     try {
-      await upload(name, { noticed: false })
+      await upload(seen.detail, { noticed: false })
     } finally {
       button.disabled = false
       button.removeAttribute('aria-busy')
@@ -286,7 +381,8 @@ export function mount(root, { parts, query }) {
     traceError = null
     draw()
     try {
-      traced = (await call('runs.trace', { name })).sessions
+      // What a chat said is read with the chat itself; an epic's, off its logs.
+      traced = isChat(seen.detail) ? (await call('chat.get', { chat: name, trace: true })).trace : (await call('runs.trace', { name })).sessions
     } catch (error) {
       traceError = error
     }
@@ -492,9 +588,12 @@ export function mount(root, { parts, query }) {
     // Every line of a chat going is said to it, an answer to what it asks included.
     if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), permits, true)
     talk?.model.again()
+    // While a turn is open, the button of the box stops it: the chat stays, between turns.
+    talk?.stops(going && stoppable(standing.run && standing.run.turn) ? () => chatAsk(here, 'stop') : null)
     const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
     region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
       dock.querySelector('.composer, .dock-note')?.remove()
+      drawn['dock-standing'] = undefined
       if (composer) dock.append(composer)
       // A chat is carried on by saying something in it, never by resuming it.
       else if (detail.picks_up && !chat)
@@ -504,6 +603,31 @@ export function mount(root, { parts, query }) {
       // A chat that kept nothing to carry on from, as the terminal interface says it.
       else if (chat && !going && !detail.picks_up) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'not-carried' }, 'This chat cannot be continued here.'))
     })
+    if (chat) drawStanding(detail, going)
+  }
+
+  /**
+   * How a chat stands, said in a quiet line over its box only while it answers, waits on its
+   * person or has failed; and what it has spent, on the chip under its box.
+   */
+  function drawStanding(detail, going) {
+    const turn = going && held().standing.run ? held().standing.run.turn : ''
+    const pending = going ? (held().standing.pending && held().standing.pending.pending) || [] : []
+    const state = markOf(going ? 'running' : detail.how, { chat: true, turn, asked: pending.map((one) => `${one.run}:${one.question}`), epic: detail.name })
+    const said = standingSaid(state, modelName(parted(detail.agents?.[0]?.runs || '').model))
+    region('dock-standing', [said, state], () => {
+      dock.querySelector('[data-hmz=chat-status]')?.remove()
+      if (!said) return
+      const line = h('p', { class: ['chat-status', `chat-${state}`], role: 'status', 'data-hmz': 'chat-status', 'data-state': state }, state === 'running' ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, said)
+      const box = dock.querySelector('.composer, .dock-note')
+      if (box) box.before(line)
+      else dock.append(line)
+    })
+    const spent = usageSaid(going ? held().figures : null, detail.spent)
+    for (const chip of dock.querySelectorAll('[data-hmz=chat-usage]')) {
+      chip.setAttribute('aria-label', chipNamed('Usage', spent))
+      chip.querySelector('.chip-value').textContent = spent
+    }
   }
 
   // ------------------------------------------------------------------ the panel beside it
@@ -521,18 +645,22 @@ export function mount(root, { parts, query }) {
     panel.node.setAttribute('aria-label', chat ? 'the chat' : 'the epic')
     // The environment is worked in, which wants the room an editor does.
     panel.node.classList.toggle('envs-wide', tab === 'env')
+    panel.node.classList.toggle('chat-pane', chat)
     // Left once another tab is picked; kept, and put back, while only the row of tabs is drawn again.
     if (tab !== 'env') leaveEnv()
     region('panel-tabs', [tabs, tab], () => {
       fill(
         panel.body,
         // The top row of a wide window, beside the view; on a narrow one, a sheet's head inside it.
+        // A chat's pane is picked on its bar, as a session's is: it is headed by its name alone.
         dragged(
-          tabbed(tabs, tab, (key) => {
-            tab = key
-            for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
-            draw()
-          }),
+          chat
+            ? h('h2', { class: 'pane-title', 'data-hmz': 'pane-title' }, paneTitle())
+            : tabbed(tabs, tab, (key) => {
+                tab = key
+                for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
+                draw()
+              }),
           'deep',
           'wide',
         ),
@@ -570,10 +698,17 @@ export function mount(root, { parts, query }) {
         import('./envs.js').then(
           (module) => {
             if (mine !== envMounting) return
-            envFrame = { key: JSON.stringify(host), node: into }
+            envFrame = { key: JSON.stringify(host), node: into, env: env.id }
             envFrame.made = module.frame(into, {
               follow: (told) => follow(host, (state) => told(state, '')),
               env: env.id,
+              tab: envTab,
+              // The bar says which of its panels is shown, wherever it was picked.
+              moved: (now) => {
+                if (envFrame) envFrame.env = now.env
+                envTab = now.tab || envTab
+                if (panes) sayPanes()
+              },
               compact: true,
               full: (id, panel) => envsAddress(host, { env: id, tab: panel }),
             })
@@ -734,16 +869,16 @@ export function mount(root, { parts, query }) {
 
   /**
    * The box a chat folded away is carried on in: what is said in it starts the chat again on a
-   * host of its own, going on in this epic with the agent it had and the preference set for it,
-   * and the page follows that host.
+   * host of its own, going on in the same chat, named by its id, with the agent it had and the
+   * preference set for it, and the page follows that host.
    */
   function carrying(detail) {
     const box = chatBox(detail, async (text) => {
-      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.at, prefer: preferring, permission: box.permission.picked() })
+      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.name, prefer: preferring, permission: box.permission.picked() })
       carry = null
       carryingOn = true
       stop()
-      stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told)
+      stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told, { chat: true })
       // No host holds it: the permission picked is kept for the chat to be carried on with.
     }, () => null)
     return box.node
@@ -758,6 +893,8 @@ export function mount(root, { parts, query }) {
   let catalogueAt = -1
   /** The flows on offer in the workspace, where no host holds the chat to say its catalogue. */
   let flowsHere = null
+  /** The preference the workspace's settings give, which a chat no host holds has with none of its own. */
+  let preferHere = 'native'
   /** The preference a chat folded away is carried on with, picked before it is carried on. */
   let preferring = null
   /** The box a chat going is talked to in. */
@@ -767,7 +904,8 @@ export function mount(root, { parts, query }) {
 
   /**
    * Reads the catalogue again where the host changed or a turn ended since it was read; the
-   * workspace's flows are read once besides, for a chat no host holds or one not yet answered.
+   * workspace's flows and its preference are read once besides, for a chat no host holds or one
+   * not yet answered.
    */
   function followCatalogue(detail, run) {
     if (!flowsHere) {
@@ -775,6 +913,13 @@ export function mount(root, { parts, query }) {
       call('flows.list', { workspace: detail.workspace }).then(
         (found) => {
           flowsHere = found.flows.map((one) => ({ sigil: '$', name: one.name, about: one.about || '', how: '', source: 'flow' }))
+        },
+        () => {},
+      )
+      call('settings.get', { workspace: detail.workspace }).then(
+        (settings) => {
+          preferHere = settings.prefer
+          draw()
         },
         () => {},
       )
@@ -812,7 +957,7 @@ export function mount(root, { parts, query }) {
   function preference(detail) {
     if (preferring) return { prefer: preferring, from: 'chat' }
     if (catalogue && catalogue.slot === here.slot) return { prefer: catalogue.prefer, from: catalogue.prefer_from }
-    return detail.prefer ? { prefer: detail.prefer, from: 'chat' } : { prefer: 'native', from: 'settings' }
+    return detail.prefer ? { prefer: detail.prefer, from: 'chat' } : { prefer: preferHere, from: 'settings' }
   }
 
   /** Sets the chat's preference: on its host while it goes, else for when it is carried on. */
@@ -839,9 +984,9 @@ export function mount(root, { parts, query }) {
   function chatMenu(close) {
     const { detail, going } = chatNow
     const env = going ? chatEnv() : null
-    const base = hash(`/epics/${encodeURIComponent(detail.name)}`)
+    const base = hash(pathOf(detail))
     const made = []
-    for (const one of epicMenu({ ...detail, held: going })) {
+    for (const one of epicMenu({ ...detail, held: going }, { rename: retitle })) {
       if (!one || one.head || one.href === base) continue
       if (one === '-') {
         if (made.length && made.at(-1).tagName !== 'HR') made.push(h('hr'))
@@ -855,11 +1000,7 @@ export function mount(root, { parts, query }) {
     if (made.length && made.at(-1).tagName !== 'HR') made.push(h('hr'))
     // A chat's workspace, opened beside it: its files, a terminal in it and its changes.
     if (env) {
-      const opens = choice({ label: 'Environment', glyph: 'folder', close, act: () => {
-        tab = 'env'
-        panel.open()
-        draw()
-      } })
+      const opens = choice({ label: 'Environment', glyph: 'folder', close, act: () => showPane('env') })
       opens.dataset.hmz = 'env-open'
       made.push(opens)
     }
@@ -893,12 +1034,14 @@ export function mount(root, { parts, query }) {
     const typed = typing(text, caret)
     if (!typed) return null
     const groups = completions(entries(), typed, preference(detail).prefer)
-    if (typed.sigil === '@' && detail.workspace) {
+    // Where the chat works: its folder, or the worktree made for it there.
+    const root = detail.workdir || detail.workspace
+    if (typed.sigil === '@' && root) {
       const { dir, base } = pathParts(typed.word)
       // Names starting with `.` are listed only once a `.` is typed, as a shell completes them.
       const hidden = base.startsWith('.')
       const key = `${hidden}\n${dir}`
-      if (!pathsListed.has(key)) pathsListed.set(key, call('paths.list', { at: `${detail.workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
+      if (!pathsListed.has(key)) pathsListed.set(key, call('paths.list', { at: `${root.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
       const items = pathItems(dir, base, await pathsListed.get(key))
       if (items.length) groups.unshift({ source: 'path', label: 'Files', items })
     }
@@ -910,7 +1053,7 @@ export function mount(root, { parts, query }) {
    * starts the flows a line names, and says every other line as `say` does.
    */
   function chatBox(first, say, sets, going = false) {
-    // The epic as it was read last, which the box outlives a reading of.
+    // The chat as it was read last, which the box outlives a reading of.
     const now = () => (seen && seen.detail) || first
     const model = modelFact({
       of: () => now().agents?.[0]?.runs || '',
@@ -921,8 +1064,12 @@ export function mount(root, { parts, query }) {
     })
     const permission = chatPermission(first, sets)
     if (catalogue && catalogue.slot === here.slot) permission.host(catalogue)
+    // What the chat has used, as a chat app keeps a ring there: what it has spent beside it once
+    // there is something to say, and its details say the rest.
+    const usage = h('button', { class: 'chip-btn desk-chip usage-chip', type: 'button', 'aria-label': 'Usage', 'data-hmz': 'chat-usage', 'data-tip': 'What this chat has used', onclick: () => showPane('epic') }, glyph('usage'), h('span', { class: 'chip-value' }))
     const box = composed({
-      tools: [permission.node, model.node],
+      // Under the box, at its right: how the chat runs. Where it runs is settled once it has begun.
+      desk: { add: true, right: [model.node, permission.node, usage] },
       placeholder: 'Reply…',
       label: 'What to say',
       complete: (text, caret) => completing(now(), text, caret),
@@ -938,11 +1085,9 @@ export function mount(root, { parts, query }) {
         return say(text)
       },
     })
-    // What the box takes besides a message, said on hover rather than in it.
-    box.text.title = INPUT_HINT
+    // What the box takes besides a message is offered by its Add menu; said, besides, to
+    // whoever cannot see that menu.
     box.text.setAttribute('aria-description', INPUT_HINT)
-    // Typed in, the box is no longer asking what it takes.
-    box.text.addEventListener('input', hideTip)
     box.node.dataset.hmz = 'say'
     return Object.assign(box, { model, permission })
   }
@@ -969,10 +1114,7 @@ export function mount(root, { parts, query }) {
       }
       case 'btw': {
         // A side question is asked beside the chat, in its panel, never in it.
-        panel.open()
-        tab = 'aside'
-        for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
-        draw()
+        showPane('aside')
         const asking = panel.body.querySelector('.aside textarea')
         if (asking) {
           asking.value = rest
@@ -1004,7 +1146,7 @@ export function mount(root, { parts, query }) {
   }
 
   let stop = () => {}
-  stop = watch(name, wanted, told)
+  stop = watch(name, wanted, told, { chat: parts[0] === 'chats' })
   // The clocks a run going is drawn with move on their own between records.
   const ticking = setInterval(() => {
     if (seen && seen.going && seen.going.live) draw()
@@ -1023,7 +1165,8 @@ export function mount(root, { parts, query }) {
     },
     /** Moves to another part of the same run without drawing it all again. */
     moved({ parts: next }) {
-      if (next[0] !== 'epics' || !name || next[1] !== name || next[2] === 'exomyth') return false
+      const at = seen && seen.detail && isChat(seen.detail) ? 'chats' : 'epics'
+      if (next[0] !== at || !name || next[1] !== name || next[2] === 'exomyth') return false
       mode = modeOf(next)
       for (const one of ['head', 'panel-run', 'dock-composer']) drawn[one] = undefined
       draw()
@@ -1055,11 +1198,6 @@ function exomyth(root, name, query) {
     },
     moved: () => false,
   }
-}
-
-/** Whether an epic is a chat: by its kind, or, for one written before chats had one, by its flow. */
-function isChat(epic) {
-  return Boolean(epic) && (epic.kind === 'chat' || chatting(epic))
 }
 
 /** The address of the Environments view of a host's envs, `#/envs/live?workspace=…&slot=…&env=…&tab=…`. */
@@ -1209,11 +1347,12 @@ function budgetTile(usage) {
   return h('div', { class: 'tile' }, h('div', { class: 'kicker' }, 'budget'), limits.length ? limits : h('div', { class: 'sub' }, 'No measurable limit'))
 }
 
-/** What each fact of an epic is called: as hmz names it, and, for a chat, in plain words. */
+/** What each fact of an epic or a chat is called: as hmz names it, and, for a chat, in plain words. */
 const FACTS = {
   name: ['epic', 'Chat ID'],
   at: ['written to', 'Saved at'],
   workspace: ['workdir', 'Folder'],
+  workdir: ['', 'Works in'],
   began: ['', 'Started'],
   agents: ['agents', 'Model'],
   used: ['envs', 'Environment'],
@@ -1235,6 +1374,8 @@ function facts(detail, chat = false) {
     h('dd', {}, pathed(detail.at)),
     h('dt', {}, said('workspace')),
     h('dd', {}, pathed(detail.workspace)),
+    // A chat started in a worktree works there, in place of its folder.
+    chat && worksIn(detail) ? [h('dt', {}, said('workdir')), h('dd', { 'data-hmz': 'chat-workdir' }, pathed(worksIn(detail)))] : null,
     // When a chat began is said here: its bar says its title alone.
     chat && detail.began ? [h('dt', {}, said('began')), h('dd', { title: when(detail.began) }, ago(detail.began))] : null,
     h('dt', {}, said('agents')),

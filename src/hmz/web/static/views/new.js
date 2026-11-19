@@ -1,20 +1,24 @@
-// A new run, as a new chat opens: the flow picked in the bar as a model is picked, the task typed
-// into the box in the middle, and the folder it runs in picked under that box, where a chat app
-// keeps it. The rest a flow is set up with -- an agent for each role,
-// where each environment works, its params, its budget, where it is backed up and whether its flow
-// and its environment are profiled -- is under Options on the box, set up as this directory last
-// ran that flow, the way `/flow` in the terminal interface sets one up. Picking a run up again is
-// the same box, on that run. A new epic is of a flow: a new chat is a form of its own
-// (views/newchat.js), which the sidebar opens beside this one (Section 3.8.17 of protocol/web.md).
+// A new epic, in the frame a new chat opens in: `New epic` in the bar with the flow picked beside
+// it as a model is picked, what the flow is for said in the middle, and the task typed into the
+// box docked at the foot of the page, with where it runs -- the daemon and the folder -- under
+// that box at its left, where a chat app keeps them. The rest a flow is set up with -- an agent
+// for each role, where each environment works, its params, its budget, where it is backed up and
+// whether its flow and its environment are profiled -- is under Options, by the box, set up as
+// this directory last ran that flow, the way `/flow` in the terminal interface sets one up.
+// Picking a run up again is the same box, on that run. A new epic is of a flow: a new chat is a
+// form of its own (views/newchat.js), which the sidebar opens beside this one (Sections 3.8.17
+// and 3.8.24 of protocol/web.md).
 
 import { call, given, hash, refresh } from '../api.js'
-import { covered, go, stays } from '../app.js'
+import { covered, focusing, go, stays } from '../app.js'
+import { environmentChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
-import { acting, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
+import { NO_FOLDER } from '../desk.js'
+import { acting, empty, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
 import { paramsForm } from '../asking/form.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
-import { firstWorkspace, workspacePicker } from '../places.js'
+import { firstWorkspace, folderFiles, workspacePicker } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
@@ -28,39 +32,51 @@ export function mount(root, { query }) {
   const place = workspacePicker(scratch ? null : workspace, (path) => {
     scratch = path === null
     workspace = path || ''
+    files.clear()
     load(query.get('flow') || '')
-  }, { none: true })
-  const greeting = h('h2', { class: 'greeting' }, resume ? 'Resume epic' : 'What should the agents do?')
+  }, { none: true, plain: true })
+  // A task names a file as a first message does: `@` completes the paths of the folder picked.
+  // An epic of no folder works in a directory made as it starts, which holds nothing to name yet.
+  const files = folderFiles(() => (scratch ? '' : workspace))
   const about = h('p', { class: 'greeting-about' })
   // Where no flow is on offer -- a home nothing was installed into yet -- how a first epic starts.
   const guide = h('div', { class: 'guide' })
   /** Whether the example was installed from here, so the steps after it stay said. */
   let installed = false
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
-  const optionsChip = h('button', { class: 'chip-btn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
+  const optionsChip = h('button', { class: 'chip-btn desk-chip', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
   const summary = h('span', { class: 'composer-summary' })
   const resumed = h('div', { class: 'resumed' })
+  // Said in the middle of the page where no flow is on offer: hmz ships none.
+  const lacking = h('div', { 'data-hmz': 'no-flow', hidden: true })
+  /** Where the flows of the folder picked are installed. */
+  const flowsAt = () => hash(`/flows${workspace ? `?workspace=${encodeURIComponent(workspace)}` : ''}`)
   const box = composer({
     placeholder: 'Describe the task',
     label: 'Task',
-    tools: [optionsChip, summary],
     empty: true,
     busy: 'Starting…',
     submit: (task) => start(task),
+    complete: files.complete,
+    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new').node, place.node], right: [summary, optionsChip] },
   })
   box.node.dataset.hmz = 'start'
-  box.node.classList.add('composer-home')
   optionsChip.addEventListener('click', () => {
     options.hidden = !options.hidden
     optionsChip.setAttribute('aria-expanded', String(!options.hidden))
+    if (!options.hidden) options.scrollIntoView({ block: 'nearest' })
   })
+  const top = bar({ title: resume ? 'Resume epic' : 'New epic' })
+  // The flow, beside the heading, as a chat's bar keeps what can be done beside its title.
+  top.querySelector('.bar-title').append(h('div', { class: 'pickers' }, pickerHolder))
   fill(
     root,
     h(
       'div',
-      { class: 'view view-new' },
-      bar({ lead: h('div', { class: 'pickers' }, pickerHolder) }),
-      h('div', { class: 'home' }, h('div', { class: 'home-inner' }, h('div', { class: 'home-mark', 'aria-hidden': 'true' }, h('img', { src: '/mark.svg', alt: '' })), greeting, about, guide, resumed, box.node, under(place.node), options)),
+      { class: 'view view-new view-desk', 'data-hmz': 'new-epic' },
+      top,
+      h('div', { class: 'desk-body' }, h('div', { class: 'desk-column' }, lacking, guide, about, resumed, options)),
+      h('div', { class: 'dock desk-dock' }, box.node),
     ),
   )
 
@@ -80,6 +96,8 @@ export function mount(root, { query }) {
   menu(
     picker,
     (close) => {
+      // None to pick: where one is installed.
+      if (!flows.length) return [choice({ label: 'Open Flows', glyph: 'flows', href: flowsAt(), close })]
       const whose = {}
       for (const one of flows) (whose[one.whose] ||= []).push(one)
       return Object.entries(whose).map(([from, list]) => [
@@ -103,6 +121,8 @@ export function mount(root, { query }) {
   /** Reads what a workspace offers -- its flows, and the one it last set up -- and opens one. */
   async function load(flow) {
     const mine = (loading = scratch ? 'none' : workspace || 'here')
+    // Asked for now: what takes the focus while this is read keeps it.
+    const focus = focusing()
     fill(box.said)
     reading(true)
     try {
@@ -126,10 +146,24 @@ export function mount(root, { query }) {
       const wanted = (ran && ran.flow) || asked || found.flow || (flows[0] && flows[0].name) || ''
       if (!flows.length || installed) fill(guide, guide.firstChild || firstUse())
       else fill(guide)
+      lacking.hidden = Boolean(wanted)
+      // With no flow there is nothing to set up.
+      optionsChip.disabled = !wanted
       if (!wanted) {
+        // Nothing is picked, and nothing drawn of what was: the page says so where it is read,
+        // and where a flow is installed.
+        choosing = ''
+        picked = null
+        setup = null
         reading(false)
-        fill(options, problem('No flow is on offer here.'))
-      } else choose(wanted, ran)
+        fill(picker.querySelector('b'), 'None')
+        fill(resumed)
+        fill(options)
+        options.hidden = true
+        optionsChip.setAttribute('aria-expanded', 'false')
+        fill(summary)
+        fill(lacking, empty('No flow here yet.', ' A new epic runs a flow. Install one from Flows, then start it here.', h('a', { class: 'btn primary', href: flowsAt(), 'data-hmz': 'no-flow-open' }, 'Open Flows')))
+      } else choose(wanted, ran, focus)
     } catch (error) {
       if (mine !== loading) return
       reading(false)
@@ -138,7 +172,7 @@ export function mount(root, { query }) {
   }
   load(query.get('flow') || '')
 
-  async function choose(name, ran) {
+  async function choose(name, ran, focus = focusing()) {
     choosing = name
     const at = workspace
     run = ran
@@ -160,15 +194,17 @@ export function mount(root, { query }) {
     picked = read
     reading(false)
     fill(resumed, ran ? h('p', { class: 'note' }, `Picks up ${ran.name}, carrying on from where it stopped.`) : null)
-    greeting.textContent = ran ? 'Resume epic' : `What should ${name} do?`
+    // What the page asked in the middle, asked in the box.
+    box.text.placeholder = ran ? 'Describe the task' : `What should ${name} do?`
     setup = drawOptions(picked, ran)
     if (ran && !box.text.value) {
       box.text.value = ran.task
       box.text.dispatchEvent(new Event('input'))
     }
     summarise()
-    // Typed into next -- but not from under a dialog opened over it, out of what is typed there.
-    if (!covered()) box.text.focus()
+    // Typed into next -- but not from under a dialog opened over it, out of what is typed there,
+    // nor out of Ai-chan's drawer beside it, nor out of what took the focus while this was read.
+    focus(box.text)
   }
 
   function summarise() {
@@ -282,7 +318,7 @@ export function mount(root, { query }) {
       'section',
       { class: 'first-use', 'data-hmz': 'first-use' },
       h('h3', {}, 'Your first epic'),
-      h('p', {}, 'No flow is on offer here yet, as Humanize ships none. Start with the example, ', h('code', {}, EXAMPLE), ', in three steps:'),
+      h('p', {}, 'Humanize ships no flow. Start with the example, ', h('code', {}, EXAMPLE), ', in three steps:'),
       h(
         'ol',
         {},
@@ -295,6 +331,7 @@ export function mount(root, { query }) {
   }
 
   async function start(task) {
+    if (!flows.length) throw new Error('Install a flow first, from Flows.')
     if (!picked || !setup) throw new Error('Pick a flow first.')
     let read
     try {
@@ -333,11 +370,6 @@ export function newOf(kind, { workspace = '', scratch = false } = {}) {
   const query = new URLSearchParams(given(scratch ? { scratch: '1' } : { workspace }))
   const text = query.toString()
   return `/new${kind === 'chat' ? '/chat' : ''}${text ? `?${text}` : ''}`
-}
-
-/** What stands under a new epic's box, at its left: the folder it works in, as a chat app keeps it. */
-export function under(...chips) {
-  return h('div', { class: 'composer-under', 'data-hmz': 'composer-under' }, chips)
 }
 
 /**

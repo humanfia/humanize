@@ -88,9 +88,10 @@ flow: [A turn can be cut off](/features/budgets).
 ## Chat
 
 You talking to one [agent](#agent), a turn at a time, in one conversation in one
-[workspace](#workspace): an [epic](#epic) of its own kind, with no flow, params or budget. `hmz`
-opens on one, and lines your agent's CLI reads natively, such as its `/` commands and skills,
-work in it. See [Chat](/user/chat).
+[workspace](#workspace): a session of its own, which is no [epic](#epic), with no flow, params
+or budget. It is kept as its own record, under its own id and title, listed apart from the
+epics, and carried on by saying something in it. `hmz` opens on one, and lines your agent's CLI
+reads natively, such as its `/` commands and skills, work in it. See [Chat](/user/chat).
 
 ## Effort
 
@@ -107,8 +108,9 @@ that names none works in the [workspace](#workspace). See
 
 ## Epic
 
-One run of one flow, or one [chat](#chat), written down as it happens: the flow, its agents,
-and every session they opened. `/epics` lists the epics of this directory. See [Tracing](/user/tracing) and
+One run of one flow, written down as it happens: the flow, its agents,
+and every session they opened. `/epics` lists the epics of this directory. A [chat](#chat) is
+not an epic. See [Tracing](/user/tracing) and
 [Picking a run up](/user/resuming).
 
 ## Flow

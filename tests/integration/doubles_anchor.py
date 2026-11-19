@@ -86,7 +86,8 @@ os.execve("/bin/sh", ["/bin/sh", "-c", " ".join(rest)], env)
 #: under its name, which is its id too: `docker service create`, `ls` (by `label=` filters),
 #: `inspect`, `ps` and `rm`, and `docker inspect --type task`. A service's task is preparing
 #: for `$FAKE_SWARM_STARTING` seconds after it was created, then running in a container whose
-#: `exec` runs here -- or failed, where the service's name holds `$FAKE_SWARM_FAILING`. A
+#: `exec` runs here -- or failed, where the service's name holds `$FAKE_SWARM_FAILING`. While
+#: a test holds the swarm's tasks (`Fakes.hold`), every one of them goes on preparing. A
 #: stalled `service create` (`Fakes.stall`) creates the service, and then never answers.
 _SWARM = """
 import time
@@ -107,7 +108,10 @@ def swarmed(state, sub, args):
             print("[]")
             return 1
         failing = os.environ.get("FAKE_SWARM_FAILING", "")
-        if time.time() - made["made"] < float(os.environ.get("FAKE_SWARM_STARTING") or 0):
+        if (
+            os.path.exists(os.path.join(state, "holding"))
+            or time.time() - made["made"] < float(os.environ.get("FAKE_SWARM_STARTING") or 0)
+        ):
             status = {"State": "preparing"}
         elif failing and failing in service:
             status = {"State": "failed", "Err": "task: non-zero exit (1)"}
@@ -319,6 +323,16 @@ class Fakes:
         assert self.swarm is not None
         return sorted(one.stem for one in self.swarm.glob("*.json"))
 
+    def hold(self) -> None:
+        """Keeps every task of the swarm preparing, however long, until :meth:`release`."""
+        assert self.swarm is not None
+        (self.swarm / "holding").touch()
+
+    def release(self) -> None:
+        """Lets the tasks :meth:`hold` kept preparing run."""
+        assert self.swarm is not None
+        (self.swarm / "holding").unlink(missing_ok=True)
+
     def stall(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -408,9 +422,10 @@ def swarm(
 
 
 #: `sbatch`, `squeue`, `scancel` and `srun`, for a cluster whose one node is this machine. A
-#: job is its `--wrap` run here in a session of its own, in the far home, writing where its
-#: `--output` says under the far root; it runs until it is cancelled or ends, and `squeue`
-#: says so. `srun --jobid=J ... ARGV` runs ARGV here, as `--export=HOME,USER` leaves it.
+#: job is its `--wrap`, or the script on `sbatch`'s stdin where there is none, run here in a
+#: session of its own, in the far home, writing where its `--output` says under the far root;
+#: it runs until it is cancelled or ends, and `squeue` says so. `srun --jobid=J ... ARGV` runs
+#: ARGV here, as `--export=HOME,USER` leaves it.
 _SLURM = """
 import signal, subprocess
 
@@ -442,7 +457,7 @@ if tool == "sbatch":
     output = rooted([flags.get("--output", os.devnull).replace("%j", job)])[0]
     with open(output, "ab") as out:
         made = subprocess.Popen(
-            ["/bin/sh", "-c", flags["--wrap"]],
+            ["/bin/sh", "-c", flags["--wrap"] if "--wrap" in flags else sys.stdin.read()],
             cwd=flags["--chdir"] if os.path.isdir(flags.get("--chdir", "")) else None,
             env={"HOME": os.environ["FAKE_HOME"], "USER": "me", "PATH": "/usr/bin:/bin"},
             stdin=subprocess.DEVNULL, stdout=out, stderr=out, start_new_session=True,

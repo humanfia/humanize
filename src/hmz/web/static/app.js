@@ -1,5 +1,5 @@
 // The page itself, laid out as Codex and Claude lay theirs out: the sidebar of every workspace's
-// epics on the left, and whichever view the address names beside it -- a new chat or epic, its graph, one session's
+// chats and epics on the left, and whichever view the address names beside it -- a new chat or epic, its graph, one session's
 // thread, the flows -- and Ai-chan's drawer beside it, with finding a run and the settings opened
 // over it as dialogs. Routed by the address's fragment, so that every view of the page is an
 // address that can be kept, shared or opened again, and the server serves one page for all of
@@ -7,6 +7,7 @@
 // Local.
 
 import { daemon, hash, hello, started } from './api.js'
+import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
 import { mountSidebar } from './sidebar.js'
 import { dragged, kept, toggleSidebar } from './shell.js'
@@ -18,9 +19,11 @@ import './importing.js'
 const VIEWS = {
   new: () => import('./views/new.js'),
   live: () => import('./views/epic.js'),
+  chats: () => import('./views/epic.js'),
   epics: () => import('./views/epic.js'),
   flows: () => import('./views/flows.js'),
   envs: () => import('./views/envs.js'),
+  harness: () => import('./views/harness.js'),
 }
 
 /** Every dialog, opened over the view the page was on. */
@@ -28,6 +31,7 @@ const DIALOGS = {
   search: () => import('./views/search.js'),
   download: () => import('./views/download.js'),
   settings: () => import('./views/settings.js'),
+  delete: () => import('./views/chatdelete.js'),
 }
 
 // The strip kept across its top for the window's traffic lights moves the window, as a title bar.
@@ -47,6 +51,28 @@ let drawing = 0
 let behind = ''
 /** What the view drawn was drawn for, so a dialog opened over it leaves it standing. */
 let shown = ''
+/**
+ * How many steps of the history the dialog open is past the view under it, so that closing it
+ * steps back to that view and leaves the history as it was: 0 where the page was opened on the
+ * dialog's address, with no view before it.
+ */
+let over = 0
+/** Whether the dialog open is being stepped back from, until the page is where that leads. */
+let leaving = false
+/** What held the focus as the dialog opened, which has it back once the dialog closes over the same view. */
+let focused = null
+/** What held the focus as the address was last routed: where the person was as they asked for the view. */
+let asked = null
+/** The address the view under a dialog took meanwhile, put in the address once the dialog closes. */
+let renaming = ''
+/** What the view drawn is kept by once it put its own query in the address: come back to, it stands. */
+let stayed = ''
+
+/** What a view is kept by: the parts of its address's path, and its query. */
+function keyOf(path) {
+  const url = new URL(path, 'http://page')
+  return `${url.pathname.split('/').filter(Boolean).map(decodeURIComponent).join('/')}?${url.searchParams}`
+}
 
 /** Where the page is: the parts of the address's path, after the daemon it names, and its query. */
 export function where() {
@@ -72,8 +98,36 @@ export function stays(query) {
   const said = new URLSearchParams()
   for (const [name, value] of Object.entries(query)) if (value !== '' && value !== undefined && value !== null) said.set(name, value)
   const text = said.toString()
-  history.replaceState(null, '', hash(`/${parts.map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`))
+  // What the entry is kept with stays: how far a dialog's is past the view under it.
+  history.replaceState(history.state, '', hash(`/${parts.map(encodeURIComponent).join('/')}${text ? `?${text}` : ''}`))
   routedTo = location.hash
+  if (here === shown.split('?')[0]) stayed = `${here}?${text}`
+}
+
+/**
+ * Says the view drawn is at another address from now on -- an epic going, named; a chat, on its
+ * conversation -- without a step in the history and without drawing it again: closing a dialog
+ * goes back to that address, and the sidebar marks its row by it. Under a dialog the address is
+ * the dialog's, so it is put there once the dialog has closed.
+ */
+export function renamed(path) {
+  if (covered()) {
+    renaming = path
+    return
+  }
+  renaming = ''
+  history.replaceState(history.state, '', hash(path))
+  routedTo = location.hash
+  shown = keyOf(path)
+  stayed = ''
+  behind = path
+  // The sidebar marks the row the address names, as it does where the address changes.
+  window.dispatchEvent(new CustomEvent('hmz:renamed'))
+}
+
+/** The address of the view drawn under whatever dialog is open. */
+export function under() {
+  return behind
 }
 
 /** Whether the address names a dialog, over the view drawn: what that view does is not to say. */
@@ -81,15 +135,58 @@ export function covered() {
   return Boolean(DIALOGS[where().parts[0]])
 }
 
-/** Closes the dialog open, going back to the view under it. */
-export function shut() {
-  go(behind || '/new/chat')
+/**
+ * Whether the person has gone to type in Ai-chan's drawer, beside the view drawn, since they asked
+ * for that view: what it reads meanwhile takes no focus out of the drawer. One asked for from the
+ * drawer itself, by its shortcut, is typed into as any other.
+ */
+export function beside() {
+  const at = document.activeElement
+  return at !== asked && Boolean(at?.closest('[data-hmz=aichan]'))
 }
 
-async function route() {
+/**
+ * What a view gives the focus by once what it reads is drawn, asked for as the reading begins:
+ * the box typed into next takes the focus then, unless a dialog is over the view, the person
+ * went to type in Ai-chan's drawer beside it, or the focus
+ * went elsewhere while the view read -- a control pressed, Tab, a dialog closed that gave it
+ * back -- which is not taken from where it was put.
+ *
+ * @returns {(el: HTMLElement) => void}
+ */
+export function focusing() {
+  const held = document.activeElement
+  return (el) => {
+    if (!covered() && !beside() && unmoved(held, document.activeElement, [document.body, page])) el.focus()
+  }
+}
+
+/**
+ * Closes the dialog open, going back to the view under it: by the steps of the history the
+ * dialog took, so that it leaves none behind and Back goes on to what was open before the view,
+ * as from a dialog that was never an address.
+ */
+export function shut() {
+  if (leaving) return
+  if (over > 0) {
+    leaving = true
+    history.go(-over)
+  } else go(behind || '/new/chat')
+}
+
+async function route(event) {
   if (out) return
+  // Told before anything of the address is drawn: a menu open closes, and gives its focus back.
+  window.dispatchEvent(new CustomEvent('hmz:route'))
   const mine = ++routed
   routedTo = location.hash
+  asked = document.activeElement
+  leaving = false
+  // A dialog's entry is kept with how far it is past the view: one come back to says so itself.
+  if (covered()) {
+    if (!history.state || typeof history.state.over !== 'number') history.replaceState({ over: event ? over + 1 : 0 }, '')
+    over = history.state.over
+  } else over = 0
   // Busy until every address asked for is drawn: the view left stands until then, and is not
   // what the address names.
   drawing++
@@ -111,10 +208,16 @@ async function routing(mine) {
     if (mine !== routed) return
     return open(mine, dialog, parts, query)
   }
-  close()
   behind = location.hash.replace(/^#/, '') || '/new/chat'
   const key = `${parts.join('/')}?${query}`
-  if (key === shown) return
+  const same = key === shown || key === stayed
+  close(same)
+  if (same) {
+    // What the view called itself while the dialog was over it.
+    if (renaming) renamed(renaming)
+    return
+  }
+  renaming = ''
   await view(mine, parts, query, key)
 }
 
@@ -137,6 +240,7 @@ async function view(mine, parts, query, key) {
   // A view that can move within itself -- a run's graph to one of its sessions -- does.
   if (mounted && mounted.load === load && mounted.moved && mounted.moved({ parts: named, query })) {
     shown = key
+    stayed = ''
     return
   }
   if (mounted) mounted.leave()
@@ -145,6 +249,7 @@ async function view(mine, parts, query, key) {
     const module = await load()
     if (mine !== routed && !DIALOGS[where().parts[0]]) return
     shown = key
+    stayed = ''
     fill(page)
     const made = module.mount(page, { parts: named, query })
     mounted = typeof made === 'function' ? { load, leave: made } : { load, leave: () => {}, ...made }
@@ -170,6 +275,7 @@ async function open(mine, load, parts, query) {
   try {
     const module = await load()
     if (mine !== routed) return
+    if (overlay.hidden) focused = document.activeElement
     fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), dialog)
     overlay.hidden = false
     document.body.classList.add('dialog-open')
@@ -182,19 +288,66 @@ async function open(mine, load, parts, query) {
   }
 }
 
-function close() {
+/** Closes the dialog open; `same` where the view under it is the one the page stays on. */
+function close(same = false) {
   opened = ''
   if (closing) closing()
   closing = null
+  const back = focused
+  focused = null
   if (overlay.hidden) return
   overlay.hidden = true
   fill(overlay)
   document.body.classList.remove('dialog-open')
-  page.focus({ preventScroll: true })
+  // The focus goes back to where it was -- the box being typed into, or what opened the dialog --
+  // where that is still there to be seen; else to the page.
+  if (same && back instanceof HTMLElement && back !== document.body && seen(back)) back.focus({ preventScroll: true })
+  else page.focus({ preventScroll: true })
 }
+
+/** Whether something is drawn within the window: not gone, hidden, or in a drawer slid away. */
+function seen(el) {
+  if (!el.isConnected) return false
+  const box = el.getBoundingClientRect()
+  return box.width > 0 && box.height > 0 && box.right > 0 && box.left < innerWidth
+}
+
+/** What Tab stops at. */
+const STOPS = 'a[href], button, input, select, textarea, [tabindex]'
+
+/**
+ * Keeps Tab within the dialog open, as a modal one keeps it: it goes from stop to stop of the
+ * dialog, the same in every browser -- one that leaves buttons out of its own order would go on
+ * to the page under it -- and past its last stop is its first.
+ */
+function held(event) {
+  const dialog = overlay.querySelector('.dialog')
+  if (!dialog) return
+  const stops = [...dialog.querySelectorAll(STOPS)].filter((el) => el.tabIndex >= 0 && !el.disabled && seen(el))
+  if (!stops.length) return
+  const at = stops.indexOf(document.activeElement)
+  // A menu opened from it stands in the page, and keeps its own keys.
+  if (at < 0 && document.activeElement?.closest('.popover')) return
+  event.preventDefault()
+  const step = event.shiftKey ? -1 : 1
+  stops[at < 0 ? (step > 0 ? 0 : stops.length - 1) : (at + step + stops.length) % stops.length].focus()
+}
+
+// What is opened from a dialog -- a chat found, a new chat -- takes the dialog's place in the
+// history, so that Back from it goes to the view the dialog was over and never to the dialog.
+document.addEventListener('click', (event) => {
+  if (overlay.hidden || over !== 1 || event.defaultPrevented || event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null
+  if (!link || link.target || link.hasAttribute('download')) return
+  const first = link.getAttribute('href').replace(/^#\/?(@[^/?]*\/?)?/, '').split(/[/?]/)[0]
+  if (DIALOGS[decodeURIComponent(first)]) return
+  event.preventDefault()
+  location.replace(link.href)
+})
 
 document.addEventListener('keydown', (event) => {
   const mod = event.metaKey || event.ctrlKey
+  if (event.key === 'Tab' && !overlay.hidden) return held(event)
   if (mod && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     go('/search')
@@ -206,6 +359,9 @@ document.addEventListener('keydown', (event) => {
     toggleSidebar()
   } else if (event.key === 'Escape' && !overlay.hidden) {
     shut()
+  } else if (event.key === 'Escape' && document.querySelector('.app').classList.contains('side-open')) {
+    // The drawer the sidebar is on a narrow window closes as a dialog does.
+    toggleSidebar(false)
   }
 })
 
@@ -244,8 +400,10 @@ window.addEventListener('hmz:daemon', () => {
   if (mounted) mounted.leave()
   mounted = null
   shown = ''
+  stayed = ''
   opened = ''
   behind = ''
+  renaming = ''
   named().catch(() => {})
 })
 

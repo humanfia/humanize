@@ -15,9 +15,11 @@ import dataclasses
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from importlib.metadata import version
 from typing import TYPE_CHECKING
@@ -28,13 +30,15 @@ import yaml
 from hmz import home
 from hmz.coganchor import easytier, settings
 from hmz.daemon import link, where
-from hmz.runtime.doing.daemons import Remotes, Unreached
+from hmz.reach import SocketPipe
+from hmz.runtime.doing.daemons import Daemons, Remotes, Unreached
+from hmz.trust import identity, tls
 
 from . import doubles_easytier
 from .doubles_ssh import Host, faked, written
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 pytestmark = [
@@ -125,6 +129,21 @@ def test_a_daemon_that_cannot_be_reached_says_why(host: Host) -> None:
         with pytest.raises(Unreached) as unreached:
             remotes.client("gone")
         assert unreached.value.seen["state"] == "failed"
+    finally:
+        remotes.close()
+
+
+def test_a_daemon_that_cannot_be_started_there_says_why(host: Host) -> None:
+    host.cannot_connect("No space left on device")
+    remotes = Remotes()
+    try:
+        with pytest.raises(Unreached) as unreached:
+            remotes.client("box")
+        assert unreached.value.seen == {
+            "state": "failed",
+            "detail": "hmz: the daemon cannot be reached: No space left on device",
+            "version": "",
+        }
     finally:
         remotes.close()
 
@@ -254,8 +273,8 @@ def test_a_daemon_over_tcp_is_paired_by_its_code_and_reached(served: _Served) ->
         with pytest.raises(Unreached) as claimed:
             remotes.pair("again", code)
         assert (claimed.value.status, str(claimed.value)) == (
-            409,
-            "This device is already paired.",
+            403,
+            "That pairing code is not valid: ask for a new one.",
         )
 
         client = remotes.client("lab")
@@ -264,6 +283,81 @@ def test_a_daemon_over_tcp_is_paired_by_its_code_and_reached(served: _Served) ->
         assert client.call("hosts.list") == {"held": []}
     finally:
         remotes.close()
+
+
+def test_a_daemon_removed_here_is_added_again_from_a_new_code(served: _Served) -> None:
+    remotes = Remotes()
+    try:
+        first = remotes.pair("lab", served.code(), device="laptop")
+        Daemons().remove("lab")
+        assert _daemons() == []
+
+        again = remotes.pair("lab", served.code(), device="renamed")
+        assert again == first
+        assert _daemons() == [again]
+        client = remotes.client("lab")
+        assert client.device == "laptop"
+        assert [one["name"] for one in client.call("devices.list")["devices"]] == [
+            "laptop"
+        ]
+    finally:
+        remotes.close()
+
+
+def _slow(
+    monkeypatch: pytest.MonkeyPatch,
+    opening: float,
+    serves: Callable[[socket.socket], None],
+) -> tuple[str, float, str]:
+    """How reaching a daemon over TCP fails, each carrier accepted being given to `serves`.
+
+    Returns:
+      The route, how many seconds after it was started it was given up on, and what was said.
+    """
+    monkeypatch.setattr("hmz.reach.OPENING", opening)
+    listening = socket.create_server(("127.0.0.1", 0))
+    held: list[socket.socket] = []
+
+    def accepts() -> None:
+        with contextlib.suppress(OSError):
+            while True:
+                held.append(listening.accept()[0])
+                serves(held[-1])
+
+    threading.Thread(target=accepts, daemon=True).start()
+    route = f"tcp://127.0.0.1:{listening.getsockname()[1]}"
+    written({"name": "slow", "id": identity.device().fingerprint, "routes": [route]})
+    remotes = Remotes()
+    try:
+        started = time.monotonic()
+        remotes.connect("slow")
+        said = _stands(remotes, "slow", "failed")
+        return route, time.monotonic() - started, said["detail"]
+    finally:
+        remotes.close()
+        listening.close()
+        for one in held:
+            one.close()
+
+
+def test_a_daemon_that_never_speaks_tls_did_not_open_in_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    route, _, detail = _slow(monkeypatch, 1.0, lambda _: None)
+    assert detail == f"{route} did not open within 1 seconds."
+
+
+def test_tls_and_hello_share_the_time_a_route_has_to_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def serves(carrier: socket.socket) -> None:
+        # Secured only once most of the time is gone, and hello never answered.
+        time.sleep(3.0)
+        tls.answer(SocketPipe(carrier, trusted=False), identity.device())
+
+    route, took, detail = _slow(monkeypatch, 4.0, serves)
+    assert detail == f"{route} did not open within 4 seconds."
+    assert took < 6.0
 
 
 #: The secret the EasyTier network is joined with, and the node it is written down with; the
@@ -326,3 +420,25 @@ def test_a_daemon_over_easytier_is_paired_reached_again_and_its_easytier_reaped(
     assert all(_gone(pid) for pid in joined)
     assert remotes.state("far")["state"] == "idle"
     assert all(_SECRET not in " ".join(argv) for argv, _ in network.told())
+
+
+def test_a_connect_over_stdio_that_is_interrupted_exits_without_a_traceback(
+    served: _Served,
+) -> None:
+    connected = subprocess.Popen(
+        [sys.executable, "-m", "hmz", "daemon", "connect", "--stdio"],
+        env=served.env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        assert connected.stdout is not None
+        assert connected.stdout.readline() == b"hmz-stdio/1\n"
+        # As the desktop app stops the process of every pipe it closes.
+        connected.send_signal(signal.SIGINT)
+        _, said = connected.communicate(timeout=PATIENCE)
+    finally:
+        connected.kill()
+        connected.wait(10)
+    assert (connected.returncode, said) == (128 + signal.SIGINT, b"")

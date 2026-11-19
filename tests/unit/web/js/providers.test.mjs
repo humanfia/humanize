@@ -170,6 +170,24 @@ test('the desktop app pipes carry a session through pipe_open, pipe_send and its
   await until(() => fake.invoked.some(([command]) => command === 'pipe_close'))
 })
 
+test('a route the desktop app refuses to open leaves the daemon failed with the sentence the app said', async () => {
+  // A command of Tauri that answers `Err(String)` rejects with the bare string, not with an Error.
+  const internals = {
+    transformCallback: () => 1,
+    invoke: async (command, args) => {
+      if (command === 'pipe_open') throw `${args.route} cannot be reached from here.`
+      return 1
+    },
+  }
+  const client = connect({ name: 'box', id: '', routes: ['stdio:wsl'] }, [tauri(internals)], { client: { name: '', kind: 'desktop' } })
+  try {
+    await assert.rejects(client.call('echo', {}), { code: 503, message: 'stdio:wsl cannot be reached from here.' })
+    assert.deepEqual(client.state, { state: 'failed', detail: 'stdio:wsl cannot be reached from here.' })
+  } finally {
+    client.close()
+  }
+})
+
 /** A DER element. */
 function tlv(tag, ...parts) {
   const body = parts.flatMap((part) => [...part])

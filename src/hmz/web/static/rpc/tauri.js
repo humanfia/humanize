@@ -57,8 +57,12 @@ export function tauri(internals = /** @type {any} */ (globalThis).__TAURI_INTERN
   return {
     opens: (route) => OPENED.has(routeKind(route) ?? ''),
     async open(route, id, { state, signal }) {
-      await listen()
-      const { pipe: name } = await invoke('pipe_open', { route, id })
+      // A command the app refuses rejects with the sentence itself, a string and not an Error.
+      const { pipe: name } = await listen()
+        .then(() => invoke('pipe_open', { route, id }))
+        .catch((error) => {
+          throw new Error(error?.message ?? error)
+        })
       return new Promise((resolve, reject) => {
         let sent = Promise.resolve()
         /** @type {Pipe | null} */

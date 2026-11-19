@@ -70,6 +70,26 @@ def test_fields_are_read_off_the_schema_in_order() -> None:
     assert by["extra"].kind == "json"
 
 
+def test_a_field_is_named_by_its_own_title_not_by_its_type_s() -> None:
+    class Limits(BaseModel):
+        turns: int = 3
+
+    class Triage(BaseModel):
+        severity: Colour
+        confidence: Colour
+        actor_limits: Limits
+        shade: Colour = Field(title="Which shade")
+
+    titles = {one.name: one.title for one in asking.fields(Triage.model_json_schema())}
+
+    assert titles == {
+        "severity": "severity",
+        "confidence": "confidence",
+        "actor_limits": "actor limits",
+        "shade": "Which shade",
+    }
+
+
 def test_a_yes_or_no_is_worded_from_a_short_description() -> None:
     (tests,) = [
         one for one in asking.fields(Review.model_json_schema()) if one.name == "tests"

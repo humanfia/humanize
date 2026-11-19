@@ -657,7 +657,9 @@ carves that subtree out of it. Whenever the rules give the workdir `.` `WRITE`
 and an absolute `$TMPDIR` are writable too, as Codex's `workspace-write` does. They are held as
 the CLI's own always-granted paths below are: where one of them and a rule's path nest, the
 deeper of the two decides, and at the same path the more permissive wins. So `deny("/tmp")`
-does not take `/tmp` away, and `deny("/tmp/x")` does keep the agent out of `/tmp/x`. A rule
+does not take `/tmp` away, and `deny("/tmp/x")` does keep the agent out of `/tmp/x`. Each of
+the three is granted as it is spelled and with its symbolic links followed (a Mac's `/tmp` is
+`/private/tmp`), so a rule spelled either way is carved out of it. A rule
 that writes `~` also writes whatever the user may change: all of `/`, held by the files' own permissions,
 except for root, which gets those temporary directories and `/run/user/0` and keeps the rest
 as the other rules say. Independently of the rules, the CLI may:
@@ -690,7 +692,7 @@ directory or file over a carve-out, and cuts the network with a namespace of its
 macOS, a Seatbelt profile for paths and sockets, whose carve-outs follow its grants and so
 win; and on all, a loopback proxy passing only the listed hosts. A machine whose
 `sandbox.native` names `codex` hands Codex's grant to Codex's own sandbox instead, which holds
-the commands it runs and not Codex itself, where that sandbox can say the grant. A session is never run wider than its
+the commands it runs and not Codex itself, where that sandbox can say the grant and no `on_permission_request` hook is hung. A session is never run wider than its
 permission. Where neither the CLI nor the machine can hold the fence, the session is refused
 with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
 
@@ -1128,9 +1130,9 @@ Each is handed the same question: the prompt, the context as JSON, the JSON Sche
 sent it, with each error's `path` and `message`, and the question stays up: `run` never sees a
 misfit.
 
-**While away**, `run` returns at once: `""` for text; the schema built from defaults where
-every field has one; otherwise `OutworlderAway`:
-`nobody is there to answer with a <Model>, and it has fields with no default`.
+**While away**, `run` returns at once: `""` for text; the schema built with no arguments
+where that builds one; otherwise `OutworlderAway`:
+`nobody is there to answer a <Model>, and it has no default`.
 
 A caller may pass its own outworlder, one from `Outworlder.new()`, or omit the role (the
 callee gets the run's). An outworlder may also be passed for a plain `Agent` role that
@@ -1985,8 +1987,8 @@ one that is not installed by its [`git+` ref](#refs), as
 | [`flame_chase`](https://humanfia.ai/flows/flame-chase) | [humanfia/flame-chase-flow](https://github.com/humanfia/flame-chase-flow) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
 | [`rlar`](https://humanfia.ai/flows/rlar) | [humanfia/rlar-flow](https://github.com/humanfia/rlar-flow) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
-A [chat](/user/chat), which `hmz` opens on, is not among them: it is an epic of its own kind,
-with no flow.
+A [chat](/user/chat), which `hmz` opens on, is not among them: it is a session of its own,
+with no flow and no epic.
 
 The loops are each the plainest form of their idea, written to be read and copied. Each runs
 until its budget is spent (`rlar` also until its reviewer says done), and a turn that fails
@@ -2311,7 +2313,7 @@ FlowException
 | <code id="enverror">EnvError</code> | `FlowException` | an environment could not do what it was asked |
 | <code id="envunavailable">EnvUnavailable</code> | `EnvError` | the machine is gone or the workdir does not exist |
 | <code id="envconnectionerror">EnvConnectionError</code> | `EnvError`, `ConnectionError` | the connection to a remote environment failed |
-| <code id="envcommandtimeout">EnvCommandTimeout</code> | `EnvError`, `TimeoutError` | `exec` ran past its `timeout` and was killed |
+| <code id="envcommandtimeout">EnvCommandTimeout</code> | `EnvError`, `TimeoutError` | `exec` ran past its `timeout` and was killed; `stdout` and `stderr` are what it had written by then, `""` where the env's driver did not keep it |
 | <code id="envfilenotfound">EnvFileNotFound</code> | `EnvError`, `FileNotFoundError` | `read` of a missing file |
 | <code id="envpermissiondenied">EnvPermissionDenied</code> | `EnvError`, `PermissionError` | a read, write or command refused for want of permission |
 | <code id="worktreeerror">WorktreeError</code> | `EnvError` | `derive_worktree` failed |
@@ -2372,7 +2374,9 @@ async def run_fake(
 | `journal` | `None` | Path of a resumable flow's journal. |
 | `resume` | `False` | Pick up `journal`. |
 
-Returns the very object the flow returned, or raises the very exception it raised. The flow
+Returns the very object the flow returned, or raises the very exception it raised. A run
+refused before the flow is called raises what the flow API raises for it -- `RequirementError`
+(`CapabilityMissing`, `MissingRole`, `HarnessMismatch`) or `ParamsError` -- not `Refused`. The flow
 runs through a [private daemon](/reference/sdk#fakes) the test starts in its own process, with
 a temporary home of its own: this machine's daemon is never touched, and the epic it writes is
 removed when `run_fake` returns or raises, so `Hmz().epics` does not list it. A `NotRequired`
@@ -2480,6 +2484,9 @@ FakeOutworlder(reply: Reply = None, *, away: bool = False)
 
 Answers like a `FakeAgentDriver`, or is away: a reply is text, a pydantic model, or a mapping
 or JSON text, sent as the answer to the schema asked for; a function receives `output_schema=`.
+Under `fakes.run_fake` it answers as a program does, which has the schema and not its model:
+`output_schema` is the JSON Schema asked for (`Ask.schema`), `None` for text, and with nothing
+scripted a schema is answered with nothing, as an away person answers it, rather than `"ok"`.
 
 | Attribute | What it holds |
 | --- | --- |

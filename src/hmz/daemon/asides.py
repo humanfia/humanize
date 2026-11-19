@@ -2,8 +2,8 @@
 
 A side question is asked beside an epic rather than of it, in a session side copy the host of
 that epic opens (`epic.aside`): the workspace's own host for the epic in view on it, the host
-of a chat's slot for that chat, and the workspace's own host again for an epic no host holds,
-carried on from where that epic kept the session. The daemon opens them as a frontend of its
+of a chat's slot for that chat, and the workspace's own host again for an epic or a chat no
+host holds, carried on from where it kept the session. The daemon opens them as a frontend of its
 own, of kind `btw`, attached to a host only while a `btw.*` call asks something of it or it
 holds a side conversation open, and lets go of it once neither has happened for a minute. Each
 side conversation is kept per workspace and per `aside`, the name a client gives it, the same
@@ -273,9 +273,12 @@ class _Workspace:
             return held
 
     def holding(self, epic: str) -> _Host | None:
-        """The host of the workspace whose epic going, stopping or last is `epic`, if any."""
+        """The host of the workspace whose epic or chat going, stopping or last is `epic`."""
         for hosted in self.router.hosts.listed():
-            if hosted.workspace == self.named and hosted.status().get("epic") == epic:
+            if hosted.workspace != self.named:
+                continue
+            status = hosted.status()
+            if epic in (status.get("epic"), status.get("chat")):
                 return self.host(hosted.slot)
         return None
 
@@ -376,9 +379,9 @@ class Asides:
             return held
 
     def listed(self, call: Call) -> dict[str, Any]:
-        """`btw.list`: the asides open about one epic, attaching to nothing."""
+        """`btw.list`: the asides open about one epic or one chat, attaching to nothing."""
         named = workspace(call.params["workspace"])
-        epic = str(call.params.get("epic") or "")
+        epic = str(call.params.get("chat") or call.params.get("epic") or "")
         with self._lock:
             held = self._held.get(named)
         asides: list[dict[str, Any]] = []
@@ -415,7 +418,7 @@ class Asides:
         question = " ".join(str(call.params["question"]).split())
         aside = str(call.params["aside"])
         to = str(call.params.get("to") or "")
-        epic = str(call.params.get("epic") or "")
+        epic = str(call.params.get("chat") or call.params.get("epic") or "")
         held = self._of(named)
         with held.lock:
             one = held.asides.get(aside)
@@ -456,15 +459,15 @@ class Asides:
 
 
 def _named(epic: str) -> Any:
-    """An epic written down, by its name, of whichever workspace.
+    """An epic or a chat written down, by its name, of whichever workspace.
 
     Raises:
       RpcError: 404 where there is none.
     """
-    from hmz.runtime.epic import every, read
+    from hmz.runtime.epic import chats, every, read
 
     if epic and "/" not in epic and not epic.startswith("."):
-        for at in every():
+        for at in (*every(), *chats()):
             if at.name == epic and (ran := read(at)) is not None:
                 return ran
     raise _refused(404, f"There is no epic {epic}.")
