@@ -28,6 +28,34 @@ export function draw(holder, query, parts, scope) {
     drawWriting()
   }
 
+  /**
+   * What is said, in pieces that may each be held whole on a line: its words, and of a nous
+   * what is before its `/`, its model, and its effort -- so that one is never broken at a hyphen.
+   */
+  const worded = (said) =>
+    String(said)
+      .split(' ')
+      .flatMap((word, at) => [at ? ' ' : null, word.split(/(?<=\/)|(?=:)/).map((part, n) => [n ? h('wbr') : null, h('span', { 'data-hmz': 'nous-word' }, part)])])
+
+  /**
+   * Holds every such piece of the table drawn whole while the table has room for them all.
+   * Where it has not, they break where they must, as they would unheld: the table does not
+   * scroll for them.
+   */
+  function fit(wrap) {
+    const words = wrap.querySelectorAll('[data-hmz=nous-word]')
+    let wide = -1
+    const hold = () => {
+      if (wrap.clientWidth === wide) return
+      wide = wrap.clientWidth
+      for (const word of words) word.style.whiteSpace = 'nowrap'
+      if (wrap.scrollWidth > wide) for (const word of words) word.style.whiteSpace = ''
+    }
+    hold()
+    // Again once it is as wide as it was not, a frame on: holding them lays the table out anew.
+    new ResizeObserver(() => requestAnimationFrame(hold)).observe(wrap)
+  }
+
   /** A graph as a cell says it: a line per node from the start, or what none means. */
   const graphCell = (graph, none) =>
     graph
@@ -36,7 +64,7 @@ export function draw(holder, query, parts, scope) {
             'div',
             { 'data-hmz': 'nous-node' },
             h('span', { class: 'dim' }, `${one.id}${one.start ? ' (start)' : ''}: `),
-            h('span', { class: 'mono' }, one.text),
+            h('span', { class: 'mono' }, worded(one.text)),
             one.edges ? h('span', { class: 'dim' }, ` · ${one.edges}`) : null,
           ),
         )
@@ -47,10 +75,10 @@ export function draw(holder, query, parts, scope) {
       h(
         'tr',
         { 'data-hmz': 'nous-row', 'data-name': one.name },
-        h('td', {}, h('div', { class: 'mono' }, one.name), h('span', { class: 'chip', 'data-hmz': 'nous-kind' }, one.virtual ? 'virtual' : 'concrete')),
-        h('td', {}, one.tries ? `${one.tries} more ${one.tries === 1 ? 'go' : 'goes'}, ${one.policy}` : h('span', { class: 'dim' }, 'once'), h('div', { class: 'dim' }, one.timeout ? `at most ${lasting(one.timeout)}` : 'no limit')),
-        h('td', {}, graphCell(one.graph, '—')),
-        h('td', {}, graphCell(one.then, 'nowhere')),
+        h('td', {}, h('div', { class: 'mono' }, worded(one.name)), h('span', { class: 'chip', 'data-hmz': 'nous-kind' }, one.virtual ? 'virtual' : 'concrete')),
+        h('td', { 'data-label': 'Tried' }, one.tries ? `${one.tries} more ${one.tries === 1 ? 'go' : 'goes'}, ${one.policy}` : h('span', { class: 'dim' }, 'once'), h('div', { class: 'dim' }, one.timeout ? `at most ${lasting(one.timeout)}` : 'no limit')),
+        h('td', { 'data-label': 'Graph' }, graphCell(one.graph, '—')),
+        h('td', { 'data-label': 'Then' }, graphCell(one.then, 'nowhere')),
         h('td', {}, renaming === one.name ? renameForm(one) : actions(one)),
       ),
     )
@@ -62,6 +90,7 @@ export function draw(holder, query, parts, scope) {
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Nous'), h('th', {}, 'Tried'), h('th', {}, 'Graph'), h('th', {}, 'Then'), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'No nous written down. A failed turn fails where it ran.'),
     )
+    if (rows.length) fit(listing.querySelector('.table-wrap'))
   }
 
   function actions(one) {

@@ -34,8 +34,10 @@
   border-top: 0;
 }
 
-.popover .model-menu .menu-filter {
-  margin: var(--space-4) 0 var(--space-2);
+/* Where a model nobody listed is typed under those listed, it keeps from the last of them the
+   room it keeps from what follows it. */
+.popover .model-menu .choice + .menu-filter {
+  margin-top: var(--space-4);
 }
 
 /* A part of a chat's agent that is said, not picked: its name where a choice's is, past the

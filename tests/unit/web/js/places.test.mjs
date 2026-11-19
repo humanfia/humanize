@@ -16,13 +16,15 @@ const { workspacePicker } = await import('../../../../src/hmz/web/static/places.
 after(async () => (await api.client('local')).close())
 
 /** The folder picker in the page, its menu's `Open folder…` picked. */
-async function opening() {
-  const made = workspacePicker('/w/app', () => {})
+async function opening(offers) {
+  const made = workspacePicker('/w/app', () => {}, offers)
   body.append(made.node)
   const button = made.node.querySelector('[data-hmz=workspace-picker]')
   const form = made.node.querySelector('form')
   await until(() => button.textContent === 'app')
+  button.box = { left: 1168, top: 8, width: 112, height: 28 }
   button.click()
+  made.menuLeft = made.node.querySelector('[role=menu]').style.left
   made.node.querySelectorAll('[role=menuitem]').find((one) => one.textContent === 'Open folder…').click()
   return { ...made, button, form, field: form.querySelector('input') }
 }
@@ -64,5 +66,15 @@ test('the form closes as a menu does, from wherever in it the focus is, and keep
     assert.equal(next.button.getAttribute('aria-expanded'), 'false')
     dismiss('route')
     next.node.remove()
+  }
+})
+
+test('the last thing in its row, the picker lines what it opens up with its end', async () => {
+  for (const [offers, left] of [[{}, '1168px'], [{ end: true }, '1180px']]) {
+    const made = await opening(offers)
+    assert.equal(made.menuLeft, left)
+    assert.equal(made.form.style.left, left)
+    dismiss('route')
+    made.node.remove()
   }
 })

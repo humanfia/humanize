@@ -22,7 +22,7 @@ export function draw(holder, query, parts, scope) {
   })
   const range = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How far back' })
   const body = h('div', { class: 'reading', 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, 'Reading what the epics spent…'))
-  fill(holder, h('div', { class: 'row' }, h('span', { class: 'dim' }, 'Range'), range, places), body)
+  fill(holder, h('div', { class: 'row' }, h('span', { class: 'kicker' }, 'Range'), range, places), body)
 
   let stop = () => {}
   const watch = () => {

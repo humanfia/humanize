@@ -14,12 +14,10 @@ export function mount(root, { parts, query }) {
   const id = parts[1] || ''
   // A chat of another daemon the page keeps, where its settings list it.
   const on = query.get('daemon') ? { on: query.get('daemon') } : {}
-  /** Closes this dialog alone: one step back where it was opened over another, else the way any dialog closes. */
-  const leave = () => (history.state && history.state.over > 1 ? history.back() : shut())
   const named = h('p', { class: 'delete-title', 'data-hmz': 'delete-title' }, id)
   const said = h('div', { class: 'delete-said', role: 'alert' })
   const doing = h('button', { class: 'btn danger', type: 'button', 'data-hmz': 'delete-confirm' }, 'Delete')
-  const keep = h('button', { class: 'btn quiet', type: 'button', autofocus: true, 'data-hmz': 'delete-cancel', onclick: leave }, 'Cancel')
+  const keep = h('button', { class: 'btn quiet', type: 'button', autofocus: true, 'data-hmz': 'delete-cancel', onclick: shut }, 'Cancel')
   root.classList.add('dialog-delete')
   root.setAttribute('aria-label', 'Delete chat')
   fill(
@@ -29,12 +27,6 @@ export function mount(root, { parts, query }) {
     h('div', { class: 'dialog-body delete-body' }, named, h('p', { class: 'delete-about' }, DELETING), said),
     h('div', { class: 'dialog-foot delete-foot' }, keep, doing),
   )
-  // Escape closes this dialog as `Cancel` does, before the page closes every dialog open by it.
-  root.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return
-    event.stopPropagation()
-    leave()
-  })
   let gone = false
   call('chat.get', { chat: id }, on).then(
     (chat) => {
@@ -67,7 +59,7 @@ export function mount(root, { parts, query }) {
     if (gone) return
     // Deleted from over its own view, there is no chat left to go back to: a new chat, in its place.
     if (under().split('?')[0].endsWith(`/chats/${encodeURIComponent(id)}`)) addEventListener('hashchange', () => location.replace(hash('/new/chat')), { once: true })
-    leave()
+    shut()
   })
   return () => {
     gone = true

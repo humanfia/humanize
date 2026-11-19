@@ -184,8 +184,12 @@ export function paramsOf(method, params, env) {
   return made
 }
 
-/** How wide the tree may be, in pixels, out of how wide the frame is. */
-export function clampWidth(width, whole) {
-  const most = Math.max(160, Math.floor((whole || 0) * 0.5))
-  return Math.round(Math.min(most, Math.max(160, Number(width) || 0)))
+/** How wide a list may be dragged, in pixels: `least` at least, and `most` where that is more. */
+export function clampWidth(width, most, least = 160) {
+  return Math.round(Math.min(Math.max(least, Number(most) || 0), Math.max(least, Number(width) || 0)))
+}
+
+/** Whether a key asks for the menu of what the keys are on: the menu key, or Shift+F10. */
+export function menuKey(event) {
+  return event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)
 }

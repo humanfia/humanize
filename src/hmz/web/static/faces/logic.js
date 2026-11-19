@@ -21,7 +21,7 @@ export const TOKENS = Object.freeze([
   'lavender', 'gold', 'live', 'live-ink', 'live-soft', 'link', 'done', 'fail', 'budget',
   'budget-ink', 'lane-1', 'lane-2', 'lane-3', 'lane-4', 'lane-5', 'lane-6', 'shadow', 'sans',
   'mono', 'control', 'control-ink', 'primary', 'on-primary', 'field', 'edge', 'selected', 'quiet',
-  'border-w', 'radius-xs', 'radius-sm', 'radius-md', 'radius-lg', 'control-h', 'control-h-sm',
+  'track', 'thumb', 'border-w', 'radius-xs', 'radius-sm', 'radius-md', 'radius-lg', 'control-h', 'control-h-sm',
   'control-h-xs', 'control-h-lg',
 ])
 

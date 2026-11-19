@@ -1,12 +1,18 @@
 /* The Files panel: the explorer or a search on the left, the tabs and the editor on the right,
    a status bar under it. Every colour and every size is one of the page's tokens. A strip of
-   tabs or tools stands --strip-h tall over its hairline, as the other panels' strips do. */
+   tabs or tools stands --strip-h tall over its hairline, as the other panels' strips do. The
+   panel answers to its own width, not the window's: where it is narrow the explorer stands over
+   the editor.
+
+   The explorer is as wide as it was dragged to (--files-side), about a third of the panel
+   until it is, and never more than two fifths of it, in whole pixels: the line between the two
+   is the frame's own, in a column of its own. */
 
 .files {
   --strip-h: 36px;
   position: relative;
   display: grid;
-  grid-template-columns: clamp(200px, 32%, var(--files-side, 260px)) minmax(0, 1fr);
+  grid-template-columns: round(min(40%, var(--files-side, clamp(200px, 32%, 260px))), 1px) var(--border-w) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   background: var(--surface);
@@ -25,9 +31,7 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  border-right: var(--border);
   background: var(--side);
-  resize: horizontal;
   overflow: hidden;
 }
 
@@ -44,6 +48,11 @@
   background: var(--surface);
 }
 
+/* The explorer's tabs stand on the edge the panel's tabs over them and the field under them do. */
+.files-side-tabs {
+  padding-inline: var(--space-8);
+}
+
 .files-side-tab,
 .files-tab {
   display: flex;
@@ -54,7 +63,7 @@
   border-radius: var(--radius-md);
   background: none;
   color: var(--ink-3);
-  font: 500 var(--text-md) var(--sans);
+  font: 500 var(--text-md)/20px var(--sans);
   cursor: pointer;
   user-select: none;
   transition:
@@ -133,6 +142,17 @@ input:is(.files-filter, .files-input) {
   font-size: var(--text-md);
 }
 
+/* What empties a field is the page's small cross, not the browser's own. */
+.files input[type='search']::-webkit-search-cancel-button {
+  appearance: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin: 0;
+  background: var(--ink-3);
+  mask: var(--envs-cross) center / contain no-repeat;
+  cursor: pointer;
+}
+
 .files-explorer > .files-filter,
 .files-search > .files-query,
 .files-search > .files-input {
@@ -144,19 +164,16 @@ input:is(.files-filter, .files-input) {
   margin-top: var(--space-4);
 }
 
+/* The list ends short of what stands under it, so that a row brought into view at its foot --
+   the last one, picked -- does not touch that. */
 .files-tree,
 .files-results {
   position: relative;
   flex: 1;
   min-height: 0;
-  margin-top: var(--space-8);
+  margin: var(--space-8) 0 var(--space-4);
   overflow: auto;
   outline: none;
-}
-
-.files-tree:focus-visible {
-  outline: 1px solid var(--link);
-  outline-offset: -1px;
 }
 
 .files-sizer {
@@ -200,7 +217,10 @@ input:is(.files-filter, .files-input) {
   font-weight: 500;
 }
 
-.files-tree:focus .files-row.selected {
+/* Where the keys are in the tree is ringed while it is the keys that are used, and once: on
+   the row they are on, or on the tree where they are on none yet. */
+.files-tree:focus-visible .files-row.selected,
+.files-tree:focus-visible:not(:has(.files-row.selected)) {
   outline: 1px solid var(--link);
   outline-offset: -1px;
 }
@@ -316,7 +336,7 @@ input.files-rename {
   border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-3);
-  font: 600 var(--text-xs) var(--mono);
+  font: 600 var(--text-xs)/16px var(--mono);
   cursor: pointer;
 }
 
@@ -485,6 +505,29 @@ input.files-rename {
 @media (hover: none) {
   .files-tab-close {
     visibility: visible;
+  }
+}
+
+/* Under a finger the panel's small buttons are taken hold of in more room than they are drawn
+   in: 40px up and down, as the page's are, and sideways as far as the next thing leaves. The
+   field under the search's stands that much further down, clear of it. */
+@media (pointer: coarse) {
+  .files-query {
+    gap: var(--space-8);
+  }
+
+  .files-search > .files-input {
+    margin-top: var(--space-8);
+  }
+
+  :is(.files-tab-close, .files-toggle) {
+    position: relative;
+  }
+
+  :is(.files-tab-close, .files-toggle)::after {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--space-8)) calc(-1 * var(--space-4));
   }
 }
 
@@ -668,20 +711,27 @@ input.files-rename {
   min-height: 100%;
 }
 
+/* The bar is one line tall, and what it says is never cut short: where there is no room for
+   all of it, what does not fit falls to a line under the bar, which is not seen. What is to
+   stay therefore stands first -- whether the tab is written, then what is pressed, the line
+   endings and the wrapping, with the language between them -- then where the caret is, and the
+   encoding last. */
 .files-status {
   display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
   align-items: center;
   flex: none;
   gap: var(--space-8);
-  min-height: var(--control-h-xs);
-  padding: 0 var(--space-12);
+  height: calc(var(--control-h-xs) + var(--border-w));
+  padding: var(--space-2) var(--space-12) 0;
   border-top: var(--border);
   background: var(--surface);
   color: var(--ink-3);
   font-size: var(--text-sm);
   line-height: 16px;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: clip;
 }
 
 .files-gap {
@@ -692,14 +742,6 @@ input.files-rename {
 .files-status-item {
   flex: none;
   padding: var(--space-2) var(--space-4);
-}
-
-/* Where the bar is too narrow for all it says, what only says gives way to what can be pressed. */
-span.files-status-item {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .files-state:empty {
@@ -816,18 +858,22 @@ button.files-status-item:hover {
   color: var(--ink-3);
 }
 
-/* ----------------------------------------------------------------- a phone */
+/* ----------------------------------------------------------------- a narrow panel */
 
-@media (max-width: 860px) {
+/* Narrow -- a phone, or the panel beside a chat in a small window -- the explorer stands over
+   the editor, each as wide as the panel. */
+@container envs-pane (max-width: 479px) {
   .files {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(140px, 38%) minmax(0, 1fr);
+    grid-template-rows: minmax(140px, round(38%, 1px)) minmax(0, 1fr);
   }
 
   .files-side {
-    resize: none;
-    border-right: 0;
     border-bottom: var(--border);
+  }
+
+  .files-split {
+    display: none;
   }
 
   /* Until a file is open the explorer has the panel to itself. */

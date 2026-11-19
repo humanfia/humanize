@@ -75,10 +75,10 @@ def test_every_workspaces_chats_are_listed_and_found_by_workspace(
             places = page.call("workspaces.list", here=str(here))
         assert places["here"] == str(here)
         assert [one["path"] for one in places["workspaces"]][:1] == [str(here)]
-        assert {one["path"]: one["epics"] for one in places["workspaces"]} == {
-            str(here): 1,
-            str(other): 1,
-        }
+        # Each counts its chat as a chat, and no epic (Section 4.17.5.1 of [DAEMON]).
+        assert {
+            one["path"]: (one["epics"], one["chats"]) for one in places["workspaces"]
+        } == {str(here): (0, 1), str(other): (0, 1)}
 
 
 def test_a_workspace_is_opened_by_its_path_and_forgotten(
@@ -274,7 +274,16 @@ def test_the_folder_is_picked_under_the_box_and_not_in_the_bar(
         files = page.get_by_role("menu", name="Add").locator("[data-add=files]")
         expect(files).to_be_disabled()
         expect(files).to_contain_text("Pick a folder first")
+        # One popup at a time: the folder menu opened by the keyboard, with no press
+        # outside the Add menu, shuts it.
+        chip.focus()
+        page.keyboard.press("Enter")
+        expect(page.get_by_role("menu", name="Folders")).to_be_visible()
+        expect(page.get_by_role("menu", name="Add")).to_have_count(0)
+        expect(page.locator(".popover:visible")).to_have_count(1)
         page.keyboard.press("Escape")
+        expect(page.locator(".popover:visible")).to_have_count(0)
+        expect(chip).to_be_focused()
 
 
 def test_a_projects_own_flows_are_offered_in_that_project_alone(

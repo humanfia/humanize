@@ -7,8 +7,10 @@
 
 import { fill, h, icon, iconButton } from '../../dom.js'
 import * as layers from '../../layers.js'
-import { menuOn } from '../../ui.js'
+import { menuOf, menuOn } from '../../ui.js'
 import * as L from './files_logic.js'
+import { splitter } from './split.js'
+import { menuKey } from './tree.js'
 
 /** How tall a row of the explorer and of the search's results is, in pixels. */
 const ROW = 22
@@ -173,6 +175,8 @@ export async function mount(el, ctx) {
   const quickNote = h('div', { class: 'files-quick-note' })
   const quick = h('div', { class: 'files-quick', role: 'dialog', 'aria-label': 'Go to file', hidden: true, 'data-hmz': 'files-quick' }, quickInput, quickNote, quickList)
   const panel = h('div', { class: 'files', 'data-hmz': 'files' }, sideBox, main, quick)
+  // The explorer takes two fifths of the panel at most, as files.css lays it out.
+  sideBox.after(splitter(panel, { name: '--files-side', key: 'hmz-files-side', label: 'Resize the explorer', kind: 'files-split', most: (whole) => whole * 0.4, hmz: 'files-split' }))
   fill(el, panel)
 
   // The editor ------------------------------------------------------------------------------------
@@ -202,7 +206,8 @@ export async function mount(el, ctx) {
     return cm.EditorState.create({
       doc: text,
       extensions: [
-        cm.keymap.of([cm.indentWithTab]),
+        // Before the editor's own keys: its Go to line is opened as the page opens it, one panel at a time.
+        cm.keymap.of([{ key: 'Mod-Alt-g', run: () => (panelTo('goto'), true) }, cm.indentWithTab]),
         cm.basicSetup,
         themeC.of(cm.themeFor(ctx.theme())),
         langC.of(cm.languageFor(L.baseName(doc.path)) || []),
@@ -668,13 +673,26 @@ export async function mount(el, ctx) {
       statusBox,
       h('span', { class: ['files-state', `is-${doc.conflict ? 'error' : doc.saver.state}`], 'data-hmz': 'files-saved' }, saving),
       h('span', { class: 'files-gap' }),
-      h('button', { class: 'files-status-item', type: 'button', title: 'Go to line', 'data-hmz': 'files-position', onclick: () => panelTo('goto') }, `Ln ${line.number}, Col ${head - line.from + 1}`, chosen ? ` (${chosen} selected)` : '', state.selection.ranges.length > 1 ? ` · ${state.selection.ranges.length} cursors` : ''),
-      h('span', { class: 'files-status-item' }, doc.bom ? 'UTF-8 with BOM' : 'UTF-8'),
+      // As files.css orders them: where the bar has no room for them all, the last give way first.
       h('button', { class: 'files-status-item', type: 'button', title: 'Change the line endings', 'data-hmz': 'files-eol', onclick: () => toggleEol(doc) }, doc.eol === '\r\n' ? 'CRLF' : 'LF'),
       h('span', { class: 'files-status-item', 'data-hmz': 'files-language' }, L.languageOf(doc.path)),
       h('button', { class: ['files-status-item', wrap && 'on'], type: 'button', title: 'Wrap lines (Alt+Z)', 'aria-pressed': wrap ? 'true' : 'false', 'data-hmz': 'files-wrap', onclick: () => toggleWrap() }, 'Wrap'),
+      h('button', { class: 'files-status-item', type: 'button', title: 'Go to line', 'data-hmz': 'files-position', onclick: () => panelTo('goto') }, `Ln ${line.number}, Col ${head - line.from + 1}`, chosen ? ` (${chosen} selected)` : '', state.selection.ranges.length > 1 ? ` · ${state.selection.ranges.length} cursors` : ''),
+      h('span', { class: 'files-status-item', 'data-hmz': 'files-encoding' }, doc.bom ? 'UTF-8 with BOM' : 'UTF-8'),
     )
+    reach()
   }
+
+  /**
+   * What the bar has no room for falls under its one line, where it is not seen: it is not
+   * reached by a key or a press there either.
+   */
+  function reach() {
+    const line = statusBox.offsetHeight
+    for (const item of statusBox.children) item.inert = line > 0 && item.offsetTop - statusBox.offsetTop >= line
+  }
+  const barSized = new ResizeObserver(reach)
+  barSized.observe(statusBox)
 
   /**
    * Shows one of the editor's own panels, `find` or `goto`, in place of the other: one at a
@@ -929,7 +947,7 @@ export async function mount(el, ctx) {
   function entryMenu(row) {
     const dir = row.kind === 'dir' ? row.path : L.parentOf(row.path)
     return [
-      { head: L.relative(row.path, tree.root) },
+      { head: L.relative(row.path, tree.root), path: true },
       row.kind !== 'dir' && { label: 'Open', glyph: 'open', act: () => open(row.path, { pin: true }) },
       { label: 'New file…', glyph: 'file', act: () => startNew('file', dir) },
       { label: 'New folder…', glyph: 'folder', act: () => startNew('dir', dir) },
@@ -1016,12 +1034,20 @@ export async function mount(el, ctx) {
       Delete: () => row && !closed && remove(row.path),
       Backspace: () => (event.metaKey || event.ctrlKey) && row && !closed && remove(row.path),
     }
-    const act = keys[event.key]
+    const act = menuKey(event) ? () => menuAt(row) : keys[event.key]
     if (!act) return
     event.preventDefault()
     act()
   })
   const within = (path) => L.within(path, tree.root)
+
+  /** Opens an entry's menu under its row, brought into view: the tree has the focus back as it closes. */
+  function menuAt(row) {
+    if (!row) return
+    tree.view.show(rows.indexOf(row))
+    const at = tree.view.element(row.path)
+    if (at) menuOf(at, treeBox)
+  }
 
   filterBox.addEventListener('input', () => {
     filter = filterBox.value
@@ -1193,14 +1219,7 @@ export async function mount(el, ctx) {
         return made
       }
       const span = L.matchOn(row.text, searching.query, searching, row.column || 1)
-      let text = row.text
-      let at = span
-      // A match far along a long line is shown with what is just before it.
-      const cut = span && span[0] > 40 ? span[0] - 24 : 0
-      if (cut) {
-        text = `…${text.slice(cut)}`
-        at = [span[0] - cut + 1, span[1] - cut + 1]
-      }
+      const { text, span: at } = L.snippet(row.text, span)
       const said_ = at ? [text.slice(0, at[0]), h('mark', {}, text.slice(at[0], at[1])), text.slice(at[1])] : [text]
       const made = h('div', { class: 'files-result', role: 'listitem', tabindex: '0', 'data-hmz': 'files-result', 'data-path': row.path, 'data-line': String(row.line), title: `${L.relative(row.path, tree.root)}:${row.line}` }, h('span', { class: 'files-line' }, String(row.line)), h('span', { class: 'files-text' }, said_))
       const go = () => open(row.path, { line: row.line, column: (span ? span[0] : (row.column || 1) - 1) + 1 })
@@ -1496,6 +1515,7 @@ export async function mount(el, ctx) {
       window.removeEventListener('pagehide', flushAll)
       window.removeEventListener('focus', poll)
       seeing.disconnect()
+      barSized.disconnect()
       theming.disconnect()
       scheme.removeEventListener('change', retheme)
       off?.()

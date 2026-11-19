@@ -132,6 +132,11 @@
   scroll-padding-block: var(--space-8) calc(2 * var(--row-h) + var(--control-h-sm) + var(--space-24));
 }
 
+/* What says there is nothing, or that the list is being read, starts on that edge too. */
+.dialog-search-box .dialog-body > :is(.empty, .loading, .error) {
+  margin-inline: var(--space-16);
+}
+
 .search-group + .search-group {
   margin-top: var(--space-8);
 }
@@ -142,8 +147,9 @@
 }
 
 /* What can be done stays in sight under what was found, however much of that there is: the list
-   scrolls behind it. */
-.search-list > .search-group:last-child:not(:first-child) {
+   scrolls behind it. A line parts it from what is over it, whether that was found or says that
+   nothing was. */
+.search-list > .search-group:last-child {
   position: sticky;
   bottom: 0;
   z-index: var(--z-sticky);
@@ -189,12 +195,12 @@
   font-weight: 400;
 }
 
-.dialog-search-box .result:hover,
-.search-action:hover {
-  background: var(--hover);
+/* The one the arrows, or the pointer, moved to: the one Enter opens. The pointer over a line
+   moves to it, so a line pointed at has no fill of its own to be taken for that one. */
+.dialog-search-box .result:hover {
+  background: none;
 }
 
-/* The one the arrows, or the pointer, moved to: the one Enter opens. */
 .dialog-search-box .result.active,
 .search-action.active {
   background: var(--selected);
@@ -207,24 +213,33 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-sm);
+  font: var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
 }
 
-/* One whose epic is going says so behind the live dot. */
-.result.held .result-how::before {
+/* How it stands is said in the colours its row in the sidebar says it in: a failure in the
+   colour of one, and what waits on its person in the colour of that. */
+.result-how:is([data-state='failed'], .tone-failed) {
+  color: var(--fail);
+}
+
+.result-how:is([data-state='asking'], .tone-asking, .tone-waiting) {
+  color: var(--budget-ink);
+}
+
+/* One whose epic is going has the live dot before its title. */
+.result.held .result-task::before {
   content: '';
   display: inline-block;
   width: 8px;
   height: 8px;
-  margin-right: var(--space-6);
+  margin-right: var(--space-8);
   border-radius: var(--radius-full);
   background: var(--live);
 }
 
 /* What else there is to say of one, in a line over the foot once a key or the pointer has moved
-   to it: until then what was found runs to the foot. It goes on to a second line sooner than be
-   cut short. */
+   to it. It goes on to a second line sooner than be cut short. */
 .search-detail {
   flex: none;
   display: flex;
@@ -236,8 +251,10 @@
   color: var(--ink-3);
 }
 
+/* Its room is kept from the start, with nothing drawn in it, so that nothing over it moves as
+   the first line is moved to. */
 .search-detail:empty {
-  display: none;
+  visibility: hidden;
 }
 
 /* The same under a line of its own, where nothing hovers or the window is narrow. */
@@ -269,6 +286,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-4);
+  line-height: 16px;
 }
 
 .search-hint kbd {
@@ -297,10 +315,42 @@
 
 /* The box is 672 by 584 over the middle of a wide window, and no taller than the window lets it
    be, however much was found: what was found scrolls inside it. */
+body:has(> .overlay > .dialog-search-box) {
+  --dialog-wide: 672px;
+}
+
 @media (min-width: 861px) {
   .dialog.dialog-search-box {
-    width: min(100%, 672px);
+    width: min(100%, var(--dialog-wide));
     height: min(584px, 100%);
+  }
+}
+
+/* A window under 1040 wide leaves no room beside the box for what is said for a moment: it is
+   said under the box, in the window's corner, a toast's height and no more. */
+@media (min-width: 861px) and (max-width: 1039px) {
+  body:has(> .overlay:not([hidden]) > .dialog-search-box) > .toasts {
+    bottom: var(--space-8);
+    width: var(--toast-wide);
+  }
+
+  body:has(> .overlay:not([hidden]) > .dialog-search-box) > .toasts > * {
+    max-height: var(--toast-high);
+    overflow-y: auto;
+  }
+}
+
+/* A window under 776 tall leaves no room for that under the box either: there it is said at
+   the box's foot, in room the box keeps bare under what it holds for as long as it is said, as
+   a window the box fills does. */
+@media (min-width: 861px) and (max-width: 1039px) and (max-height: 775px) {
+  body:has(> .toasts:not(:empty)) > .overlay > .dialog-search-box {
+    padding-bottom: calc(var(--toast-high) + 2 * var(--space-8));
+  }
+
+  body:has(> .overlay:not([hidden]) > .dialog-search-box) > .toasts {
+    right: calc(50vw - var(--dialog-wide) / 2 + var(--border-w) + var(--space-8));
+    bottom: calc(max(var(--space-16), 50vh - 292px) + var(--border-w) + var(--space-8));
   }
 }
 
@@ -339,9 +389,21 @@
     flex-wrap: wrap;
   }
 
+  /* How it went stays one row, which scrolls inside itself where the window is narrower, so
+     each of them is as wide there as anywhere else. */
   .dialog-filters .segmented {
     flex: 0 1 auto;
-    flex-wrap: wrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .dialog-filters .segmented::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dialog-filters .segmented button {
+    flex: none;
+    padding: 0 var(--space-12);
   }
 
   .search-hints {

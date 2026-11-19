@@ -2,10 +2,19 @@
    Source Control lays them out. Every colour and every size is a token of style.css. A row stands
    --ch-row tall, which changes.js lays the list out by, and a head --strip-h over its hairline, as
    the other panels' strips do. The panel answers to its own width, not the window's: where it is
-   narrow the diff takes the list's place. */
+   narrow the diff takes the list's place.
+
+   The list is as wide as it was dragged to (--ch-side), about a third of the panel until it is,
+   never less than the 200px its message and its rows are read at and never more than two fifths
+   of the panel, in whole pixels.
+
+   The list's column has one edge, the panel's gutter: the branch, the message and every chevron
+   stand on it. What a chevron opens is named --ch-slot further in, the room a chevron takes, and
+   what is under that name one step of the tree further in again. */
 
 .changes {
   --ch-row: 24px;
+  --ch-slot: calc(var(--icon-sm) + var(--space-4));
   --strip-h: 36px;
   container: changes / inline-size;
   display: flex;
@@ -24,11 +33,18 @@
 .ch-side {
   display: flex;
   flex-direction: column;
-  flex: 0 0 clamp(260px, 34%, 360px);
+  flex: 0 0 round(min(40%, max(200px, var(--ch-side, clamp(260px, 34%, 360px)))), 1px);
   min-height: 0;
   min-width: 0;
   border-right: var(--border);
   background: var(--side);
+}
+
+/* What sizes the list lies over the list's own line, with the frame's room either side of it. */
+.changes > .envs-resizer {
+  flex: none;
+  width: calc(var(--border-w) + 2 * var(--space-4));
+  margin-left: calc(-1 * (var(--border-w) + var(--space-4)));
 }
 
 .ch-grow {
@@ -47,6 +63,7 @@
 }
 
 .ch-head {
+  padding-left: var(--gutter);
   color: var(--ink-2);
 }
 
@@ -95,12 +112,14 @@
   height: var(--icon-sm);
 }
 
-.ch-tool:hover:not(:disabled) {
+/* Pointed at or pressed, a tool that is on stays filled as one that is on: neither rule
+   weighs more than the one after them. */
+.ch-tool:where(:not(:disabled)):hover {
   background: var(--hover);
   color: var(--ink);
 }
 
-.ch-tool:active:not(:disabled) {
+.ch-tool:where(:not(:disabled)):active {
   background: var(--pressed);
 }
 
@@ -140,7 +159,7 @@
   flex-direction: column;
   flex: none;
   gap: var(--space-8);
-  padding: var(--space-8);
+  padding: var(--space-8) var(--gutter);
   border-bottom: var(--border);
 }
 
@@ -188,17 +207,15 @@
   display: none;
 }
 
+/* The list ends short of what stands under it, so that a row brought into view at its foot does
+   not touch that. */
 .ch-list {
   position: relative;
   flex: 1 1 auto;
   min-height: 96px;
+  margin-bottom: var(--space-4);
   overflow: auto;
   outline: none;
-}
-
-.ch-list:focus-visible {
-  outline: 1px solid var(--link);
-  outline-offset: -1px;
 }
 
 .ch-spacer {
@@ -213,11 +230,17 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--depth, 0) * var(--indent));
+  padding: 0 var(--space-12) 0 calc(var(--space-12) + var(--depth, 0) * var(--indent));
   border-radius: var(--radius-sm);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+}
+
+/* A file has no chevron, and keeps the room of one: its name starts where a folder's beside it
+   does, a step further in than the name it is under. */
+.ch-kind-file {
+  padding-left: calc(var(--space-12) + var(--depth, 0) * var(--indent) + var(--ch-slot));
 }
 
 .ch-row:hover {
@@ -228,7 +251,10 @@
   background: var(--selected);
 }
 
-.ch-list:focus .ch-row.cursor {
+/* Where the keys are in the list is ringed while it is the keys that are used, and once: on
+   the row they are on, or on the list where they are on none yet. */
+.ch-list:focus-visible .ch-row.cursor,
+.ch-list:focus-visible:not(:has(.ch-row.cursor)) {
   outline: 1px solid var(--link);
   outline-offset: -1px;
 }
@@ -315,19 +341,13 @@
   display: none;
 }
 
-summary .ch-count {
-  display: inline-block;
-  margin-left: var(--space-6);
-  vertical-align: top;
-}
-
 /* What happened to a file, in git's own letter: green where it is new, red where it is gone or
    in conflict. */
 .ch-letter {
   width: 16px;
   flex: 0 0 auto;
   color: var(--ink-2);
-  font: 600 var(--text-sm) var(--mono);
+  font: 600 var(--text-sm)/16px var(--mono);
   text-align: center;
 }
 
@@ -352,6 +372,10 @@ summary .ch-count {
   flex: 1 1 auto;
 }
 
+.ch-quiet {
+  padding-left: calc(var(--gutter) + var(--ch-slot) + var(--indent));
+}
+
 .ch-section {
   border-top: var(--border);
   max-height: 40%;
@@ -359,16 +383,40 @@ summary .ch-count {
   flex: 0 0 auto;
 }
 
+/* What folds under the list opens as a group of it does: the same chevron, on the same edge,
+   in the browser's own mark's place. */
 .ch-section summary {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
   min-height: var(--control-h-sm);
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-6) var(--gutter);
   background: var(--side);
   color: var(--ink-3);
   font: 500 var(--text-sm)/16px var(--sans);
+  list-style: none;
   cursor: pointer;
+}
+
+.ch-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.ch-section summary::before {
+  content: '';
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  background: var(--ink-3);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='square'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform var(--dur) var(--ease);
+}
+
+.ch-section[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .ch-section summary:hover {
@@ -380,14 +428,16 @@ summary .ch-count {
   outline-offset: -2px;
 }
 
+/* A commit: what it is called has the row's width, and who made it and when share the line
+   under that. */
 .ch-commit-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
-    'hash subject when'
+    'hash subject subject'
     'hash author when';
   column-gap: var(--space-8);
-  padding: var(--space-4) var(--gutter);
+  padding: var(--space-4) var(--gutter) var(--space-4) calc(var(--gutter) + var(--ch-slot) + var(--indent));
 }
 
 .ch-hash {
@@ -417,6 +467,7 @@ summary .ch-count {
   grid-area: when;
   color: var(--ink-3);
   font-size: var(--text-sm);
+  line-height: 16px;
   white-space: nowrap;
 }
 
@@ -425,7 +476,7 @@ summary .ch-count {
   align-items: center;
   gap: var(--space-8);
   min-height: var(--control-h-sm);
-  padding: 0 var(--space-8) 0 var(--gutter);
+  padding: 0 var(--gutter) 0 calc(var(--gutter) + var(--ch-slot) + var(--indent));
 }
 
 .ch-snapshot .btn {
@@ -513,6 +564,22 @@ summary .ch-count {
   overflow: auto;
 }
 
+/* Side by side, the two stand as tall as the panel, however short the file is: each editor,
+   and in it what scrolls, which the gutter is as tall as. */
+.ch-diff-body .cm-mergeViewEditors,
+.ch-diff-body .cm-mergeViewEditor > .cm-editor {
+  min-height: 100%;
+}
+
+.ch-diff-body .cm-mergeViewEditor .cm-scroller {
+  flex-grow: 1;
+}
+
+.ch-diff-body .cm-mergeViewEditor .cm-gutters {
+  align-self: stretch;
+  height: auto;
+}
+
 .ch-diff-body > .loading,
 .ch-diff-body > .error {
   margin: var(--space-12) var(--gutter);
@@ -536,7 +603,8 @@ summary .ch-count {
     border-right: 0;
   }
 
-  .changes.diffing > .ch-side {
+  .changes.diffing > .ch-side,
+  .changes > .envs-resizer {
     display: none;
   }
 
@@ -556,5 +624,30 @@ summary .ch-count {
 @media (hover: none) {
   .ch-acts {
     visibility: visible;
+  }
+}
+
+/* Under a finger a tool is taken hold of in more room than it is drawn in, and stands further
+   from the next: 40px up and down in a head, as the page's buttons are, and a row's in the row's
+   own height, so that none takes a press meant for the row over or under it. */
+@media (pointer: coarse) {
+  .ch-head,
+  .ch-diff-head,
+  .ch-acts {
+    gap: var(--space-8);
+  }
+
+  .ch-tool {
+    position: relative;
+  }
+
+  .ch-tool::after {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--space-8)) calc(-1 * var(--space-4));
+  }
+
+  .ch-acts .ch-tool::after {
+    inset-block: calc((var(--control-h-xs) - var(--ch-row)) / 2);
   }
 }

@@ -90,6 +90,21 @@ def test_the_bar_names_the_daemon_and_its_picker_switches(
         expect(picker).to_have_count(0)
         expect(page.locator(".toast")).to_have_text("Connecting farm")
 
+        # One popup at a time: the bell's menu opened by the keyboard, with no press outside
+        # the picker, shuts the picker and the menu open beside it.
+        bar.click()
+        picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).click()
+        expect(daemons).to_be_visible()
+        bell = page.locator("[data-hmz=notifications]")
+        bell.focus()
+        page.keyboard.press("Enter")
+        expect(page.locator("[data-hmz=notification-menu]")).to_be_visible()
+        expect(picker).to_have_count(0)
+        expect(daemons).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=notification-menu]")).to_be_hidden()
+        expect(bell).to_be_focused()
+
         bar.click()
         picker.get_by_role("menuitem", name=re.compile(r"^Daemon")).press("ArrowRight")
         daemons.get_by_role("menuitem", name="Manage").click()

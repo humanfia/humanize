@@ -55,6 +55,11 @@ async def solo(
     return await one.run(task, session=await one.spawn(), env=envs["workspace"])
 '''
 
+#: What is drawn with a shadow: nothing floats by one, a hairline edge parts it from the page.
+_SHADOWED = """() => [...document.querySelectorAll('*')]
+  .filter((one) => getComputedStyle(one).boxShadow !== 'none')
+  .map((one) => `${one.tagName.toLowerCase()}.${one.className}`)"""
+
 
 def _git(at: Path, *argv: str) -> str:
     said = subprocess.run(
@@ -174,6 +179,23 @@ def test_the_flows_page_installs_out_of_a_flowverse_and_says_what_is_newer(
             "@theirs/solo 1.0.0 → 1.1.0"
         )
         expect(page.locator("[data-hmz=sidebar] [data-hmz=updates]")).to_have_text("1")
+
+        # One popup at a time: a second card's menu shuts the first's, the bell's list shuts
+        # that, and Escape leaves none; and none of them is parted from the page by a shadow.
+        floating = page.locator(".popover:visible")
+        page.locator(".card[data-verse=official]").click(button="right")
+        expect(floating).to_have_count(1)
+        expect(floating.get_by_role("menuitem", name="Fetch")).to_be_visible()
+        page.locator(".card[data-verse=theirs]").click(button="right", force=True)
+        expect(floating).to_have_count(1)
+        expect(floating).to_contain_text(str(index))
+        assert page.evaluate(_SHADOWED) == []
+        page.locator("[data-hmz=notifications]").click(force=True)
+        expect(floating).to_have_count(1)
+        expect(floating.get_by_role("menuitem", name="Fetch")).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(floating).to_have_count(0)
+        expect(page.locator("[aria-expanded=true][aria-haspopup]")).to_have_count(0)
 
         # Fetched out of a card's menu, it says so until the daemon answers.
         wire.holds("flowverses.fetch")

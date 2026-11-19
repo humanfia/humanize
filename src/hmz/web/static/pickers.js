@@ -198,7 +198,8 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
     fill(effort, h('option', { value: '' }, 'Default'), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, one)))
     effort.disabled = !offered.efforts.length
     again.disabled = !chosen.cli || offered.asking
-    said.textContent = offered.asking ? `Asking ${chosen.cli} for models…` : offered.failed ? `No models: ${offered.failed}` : ''
+    // One line, cut short where it is long: its tip says the whole of it.
+    said.textContent = said.dataset.tip = offered.asking ? `Asking ${chosen.cli} for models…` : offered.failed ? `No models: ${offered.failed}` : ''
   }
 
   cli.addEventListener('change', () => {

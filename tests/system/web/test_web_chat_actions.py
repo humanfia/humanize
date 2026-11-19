@@ -136,15 +136,51 @@ def test_a_chat_is_renamed_where_its_title_stands(
             expect(title).to_have_attribute("aria-label", "first thing, rename")
 
             # Pressed, the title is a field holding it; Escape leaves it as it was.
+            more = page.locator("[data-hmz=bar] [data-hmz=chat-menu]")
+            more_at = more.bounding_box()
             title.click()
             field = page.locator("[data-hmz=bar] [data-hmz=title-edit]")
             expect(field).to_be_focused()
             expect(field).to_have_value("first thing")
+            # The field lies over the title, which keeps its room: the menu's button after
+            # it is not thrown aside, to be pressed where it no longer is.
+            assert more_at is not None
+            assert more.bounding_box() == more_at
             field.fill("never kept")
             field.press("Escape")
             expect(field).to_have_count(0)
             expect(title).to_have_text("first thing")
             expect(title).to_be_focused()
+
+            # One menu at a time. A right-click in the bar's menu is that menu's own:
+            # the title's menu does not open over it.
+            menu = _bar_menu(page)
+            menu.get_by_role("menuitem", name="Copy link").click(button="right")
+            expect(page.locator(".popover.context")).to_have_count(0)
+            expect(menu).to_be_visible()
+            expect(page.get_by_role("menu")).to_have_count(1)
+            # The focus gone to another button, the menu closes; that button's menu,
+            # opened by a key, is the only one, and Escape gives its button the focus.
+            view = page.locator("[data-hmz=bar] [data-hmz=chat-view]")
+            view.focus()
+            expect(menu).to_have_count(0)
+            page.keyboard.press("Enter")
+            expect(page.get_by_role("menu", name="View options")).to_be_visible()
+            expect(page.get_by_role("menu")).to_have_count(1)
+            page.keyboard.press("Escape")
+            expect(page.get_by_role("menu")).to_have_count(0)
+            expect(view).to_be_focused()
+            if width >= 860:
+                # A tip never stands over the menu its own button opened.
+                more.hover()
+                tip = page.locator(".tip")
+                expect(tip).to_have_text("More options")
+                more.click()
+                page.mouse.move(more_at["x"] + 9, more_at["y"] + 9)
+                page.wait_for_timeout(400)
+                expect(tip).to_have_count(0)
+                expect(page.get_by_role("menu", name="Chat menu")).to_be_visible()
+                page.keyboard.press("Escape")
 
             # Enter saves it, and its row in the sidebar follows.
             title.click()

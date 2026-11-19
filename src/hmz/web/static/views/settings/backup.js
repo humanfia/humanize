@@ -15,10 +15,10 @@ const POLICIES = [
   ['end', 'On epic end'],
 ]
 
-/** When a target is backed up to, as the list says it. */
+/** When a target is backed up to, as the list says it: each time whole on its line. */
 function whenSaid(one) {
   const said = POLICIES.filter(([key]) => one.policies.includes(key)).map(([key, label]) => (key === 'interval' ? `Every ${one.every} minutes` : label))
-  return said.length ? said.join(' · ') : 'Manual'
+  return (said.length ? said : ['Manual']).flatMap((each, at) => [at ? ' · ' : null, h('span', { style: { whiteSpace: 'nowrap' } }, each)])
 }
 
 export function draw(holder, query, parts, scope) {
@@ -47,31 +47,27 @@ export function draw(holder, query, parts, scope) {
         { 'data-hmz': 'backup-target', 'data-name': one.name },
         h('td', {}, h('b', {}, one.name)),
         h('td', { class: 'mono' }, one.url, h('div', { class: 'dim' }, one.branch)),
-        h('td', {}, whenSaid(one)),
-        h(
-          'td',
-          {},
-          h(
-            'label',
-            { class: 'check' },
-            h('input', {
-              type: 'checkbox',
-              'data-hmz': 'backup-default',
-              checked: data.defaults.includes(one.name),
-              onchange: (event) => save(data.targets, event.target.checked ? [...data.defaults, one.name] : data.defaults.filter((name) => name !== one.name)).catch((error) => {
-                toast(error.message)
-                drawListing()
-              }),
-            }),
-            'Default',
-          ),
-        ),
+        h('td', { 'data-label': 'When' }, whenSaid(one)),
         h(
           'td',
           {},
           h(
             'div',
             { class: 'row' },
+            h(
+              'label',
+              { class: 'check' },
+              h('input', {
+                type: 'checkbox',
+                'data-hmz': 'backup-default',
+                checked: data.defaults.includes(one.name),
+                onchange: (event) => save(data.targets, event.target.checked ? [...data.defaults, one.name] : data.defaults.filter((name) => name !== one.name)).catch((error) => {
+                  toast(error.message)
+                  drawListing()
+                }),
+              }),
+              'Default',
+            ),
             h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
             confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove', small: true, act: async () => {
               await save(data.targets.filter((other) => other.name !== one.name), data.defaults.filter((name) => name !== one.name))
@@ -94,12 +90,12 @@ export function draw(holder, query, parts, scope) {
           'span',
           { class: 'row' },
           // What the targets hold, brought here onto the daemon picked.
-          data.targets.length ? h('a', { class: 'btn quiet', href: scope.name === 'local' ? '#/download' : `#/@${encodeURIComponent(scope.name)}/download`, 'data-hmz': 'download' }, 'Download') : null,
+          data.targets.length ? h('a', { class: 'btn small quiet', href: scope.name === 'local' ? '#/download' : `#/@${encodeURIComponent(scope.name)}/download`, 'data-hmz': 'download' }, 'Download') : null,
           scope.batch(() => [['settings.set', { backup: data }]]),
         ),
       ),
       rows.length
-        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Repository'), h('th', {}, 'When'), h('th', {}, ''), h('th', {}, ''))), h('tbody', {}, rows)))
+        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Repository'), h('th', {}, 'When'), h('th', {}, ''))), h('tbody', {}, rows)))
         : h('p', { class: 'dim' }, 'None yet: no epic is backed up.'),
     )
   }

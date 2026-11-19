@@ -16,7 +16,7 @@ const waiting = []
 globalThis.requestAnimationFrame = (fn) => waiting.push(fn)
 const frame = () => waiting.splice(0).forEach((fn) => fn())
 
-const { chain, closed, dismiss, opened, tipping, yields } = await import('../../../../src/hmz/web/static/layers.js')
+const { chain, closed, dismiss, modal, opened, place, tipping, yields } = await import('../../../../src/hmz/web/static/layers.js')
 
 /** A thing in the page: inside `parent`, with the box it is given, taking the focus when asked. */
 function el(name, parent = null, box = { left: 10, top: 10, width: 100, height: 20 }) {
@@ -42,8 +42,8 @@ let log = []
  * A layer opened, a frame ago unless `fresh`: its node inside `inside`, by `anchor`; its closer
  * says so first, as an owner's does.
  */
-function layer(name, { anchor = null, inside = null, kind, back, quiet = false, fresh = false } = {}) {
-  const one = { name, node: el(name, inside), anchor, kind, back, open: true }
+function layer(name, { anchor = null, inside = null, kind, back, over, escape, quiet = false, fresh = false } = {}) {
+  const one = { name, node: el(name, inside), anchor, kind, back, over, escape, open: true }
   one.close = () => {
     if (!one.open) return
     if (!quiet) closed(one)
@@ -172,14 +172,29 @@ test('the window sized closes menus, and a panel only where what opened it has n
   assert.deepEqual(names(), [])
   layer('form', { anchor: el('chip'), kind: 'panel' })
   dismiss('resize')
+  frame()
   assert.deepEqual(names(), ['form'])
   dismiss('route')
   layer('form', { anchor: el('chip', null, { left: -400, top: 10, width: 100, height: 20 }), kind: 'panel' })
   dismiss('resize')
+  frame()
   assert.deepEqual(names(), [])
   layer('form', { anchor: el('chip', null, { left: 10, top: 10, width: 0, height: 0 }), kind: 'panel' })
   dismiss('resize')
+  frame()
   assert.deepEqual(names(), [])
+})
+
+test('a panel whose opener is put back in the window as it is sized is kept', () => {
+  // Opened from a panel that the window, made shorter, leaves below it until it is placed again.
+  const box = { left: 10, top: 900, width: 100, height: 20 }
+  const form = layer('form', { anchor: el('chip'), kind: 'panel' })
+  layer('picker', { anchor: el('browse', form.node, box), inside: form.node, kind: 'panel' })
+  dismiss('resize')
+  assert.deepEqual(names(), ['form', 'picker'])
+  box.top = 400
+  frame()
+  assert.deepEqual(names(), ['form', 'picker'])
 })
 
 test('one drawn no more is let go of without a key or a press spent on it', () => {
@@ -259,13 +274,37 @@ test('Escape closes the topmost alone and goes no further, and with none open is
   assert.deepEqual(names(), ['root'])
 })
 
-test('the focus gone elsewhere closes down to the layer that holds it; one from nowhere closes nothing', () => {
+test('one that takes Escape only from inside itself leaves it to what else it was pressed in', () => {
+  const pane = el('pane')
+  const find = layer('find', { anchor: pane, kind: 'panel', escape: 'within' })
+  // In the pane it stands by -- a name being typed, the shell -- the key is that one's.
+  const outside = key('Escape', el('rename', pane))
+  assert.ok(!outside.stopped && !outside.prevented)
+  assert.deepEqual(names(), ['find'])
+  const inside = key('Escape', el('field', find.node))
+  assert.ok(inside.stopped && inside.prevented)
+  assert.deepEqual(names(), [])
+})
+
+test('the focus gone elsewhere closes down to the layer that holds it; the window looked at again closes nothing', () => {
   const chip = el('chip')
+  const form = layer('form', { anchor: chip, kind: 'panel' })
+  // The window left and looked at again: the focus it has back, where it was, went nowhere.
+  const button = el('button')
+  button.focus()
+  heard.window.blur()
+  heard.document.focusin({ target: button, relatedTarget: null })
+  assert.deepEqual(names(), ['form'])
+  // From the page itself, or past the last thing Tab stops at and round to the first, it went
+  // elsewhere all the same.
+  heard.document.focusin({ target: el('field', form.node), relatedTarget: null })
+  assert.deepEqual(names(), ['form'])
+  heard.window.blur()
+  heard.document.focusin({ target: el('elsewhere'), relatedTarget: null })
+  assert.deepEqual(names(), [])
   const root = layer('root', { anchor: chip })
   const choice = el('choice', root.node)
   layer('sub', { anchor: el('opener', root.node), inside: root.node })
-  heard.document.focusin({ target: el('elsewhere'), relatedTarget: null })
-  assert.deepEqual(names(), ['root', 'sub'])
   heard.document.focusin({ target: choice, relatedTarget: el('sub-choice') })
   assert.deepEqual(names(), ['root'])
   // Back on what opened it, it stays open.
@@ -319,6 +358,16 @@ test('a scroll that takes away what a layer stands by closes it; one inside a la
   assert.deepEqual(names(), ['palette'])
 })
 
+test('a menu at the pointer closes as what it was opened over scrolls away, and on no other scroll', () => {
+  const list = el('list')
+  layer('context', { over: el('row', list) })
+  // A run writing on beside it scrolls its own thread, chunk by chunk.
+  heard.document.scroll({ target: el('transcript') })
+  assert.deepEqual(names(), ['context'])
+  heard.document.scroll({ target: list })
+  assert.deepEqual(names(), [])
+})
+
 test('a scroll told of in the frame one opened in happened before it, and closes nothing', () => {
   const list = el('list')
   layer('menu', { anchor: el('button', list), inside: list, fresh: true })
@@ -339,6 +388,64 @@ test('the window sized, left, and the page gone elsewhere are heard on the windo
   layer('form', { anchor: el('chip'), kind: 'panel' })
   heard.window['hmz:route']()
   assert.deepEqual(names(), [])
+})
+
+test('the focus gone into a frame closes what a press there would, a panel with the menus', async () => {
+  const frame = { ...el('face'), tagName: 'IFRAME' }
+  const form = layer('form', { anchor: el('chip'), kind: 'panel' })
+  layer('picker', { anchor: el('browse', form.node), inside: form.node })
+  // Elsewhere -- another window -- the panel keeps what was typed into it.
+  heard.window.blur()
+  assert.deepEqual(names(), ['form'])
+  document.activeElement = frame
+  heard.window.blur()
+  assert.deepEqual(names(), [])
+  // Where the browser says where the focus went only once the window was left.
+  layer('form', { anchor: el('chip'), kind: 'panel' })
+  document.activeElement = null
+  heard.window.blur()
+  document.activeElement = frame
+  assert.deepEqual(names(), ['form'])
+  await settled()
+  assert.deepEqual(names(), [])
+  // A frame inside a layer is that layer's own.
+  const panel = layer('panel', { kind: 'panel' })
+  document.activeElement = { ...el('inner', panel.node), tagName: 'IFRAME' }
+  heard.window.blur()
+  await settled()
+  assert.deepEqual(names(), ['panel'])
+})
+
+test('a native dialog is closed by a press on its backdrop, not by one dragged out of it', () => {
+  const on = {}
+  let shut = 0
+  const dialog = {
+    addEventListener: (type, fn) => (on[type] = fn),
+    getBoundingClientRect: () => ({ left: 100, top: 100, right: 300, bottom: 200 }),
+    showModal: () => (dialog.open = true),
+    close: () => shut++,
+  }
+  layer('menu', { anchor: el('button') })
+  modal(dialog, 'no')
+  assert.ok(dialog.open)
+  assert.deepEqual(names(), [])
+  const [inside, padding, beside] = [
+    { target: el('button'), clientX: 150, clientY: 150 },
+    { target: dialog, clientX: 102, clientY: 102 },
+    { target: dialog, clientX: 50, clientY: 50 },
+  ]
+  // Begun inside -- what was typed, selected to its end -- and let go of beside it.
+  on.pointerdown(inside)
+  on.click(beside)
+  // Its own padding is not its backdrop.
+  on.pointerdown(padding)
+  on.click(padding)
+  on.pointerdown(beside)
+  on.click(inside)
+  assert.equal(shut, 0)
+  on.pointerdown(beside)
+  on.click(beside)
+  assert.equal(shut, 1)
 })
 
 test('the focus one held goes back to what opened it, unless a press or the focus elsewhere closed it', () => {
@@ -471,4 +578,66 @@ test('the arrow keys, Home and End move through the choices of the menu the focu
   assert.ok(!press('ArrowDown', last, { metaKey: true }).prevented)
   // Outside a menu the keys are whatever they were.
   assert.ok(!press('ArrowDown', { closest: () => null, matches: () => false }).prevented)
+})
+
+/** A popup of a size, and where it was put: placed, it reads `[left, top]`. */
+function popup(width = 180, height = 100) {
+  const pop = {
+    offsetWidth: width,
+    offsetHeight: height,
+    style: { setProperty: (name, value) => (pop.style[name] = value), removeProperty: (name) => delete pop.style[name] },
+    at: () => [parseFloat(pop.style.left), parseFloat(pop.style.top)],
+  }
+  return pop
+}
+
+/** What opens one: a thing with a box, in whatever of `within` is asked for by its selector. */
+function opener(box, within = {}) {
+  return { ...el('opener', null, box), closest: (what) => within[what] ?? null }
+}
+
+test('a popup is put under what opened it, over it where that has the room, and in from the window’s edge', () => {
+  const pop = popup()
+  // Under it, 6 on, at its start; at its end where asked.
+  place(pop, opener({ left: 100, top: 100, width: 80, height: 28 }))
+  assert.deepEqual(pop.at(), [100, 134])
+  place(pop, opener({ left: 300, top: 100, width: 80, height: 28 }), { align: 'end' })
+  assert.deepEqual(pop.at(), [200, 134])
+  // No room under it: over it, and no taller than the room there.
+  place(pop, opener({ left: 100, top: 740, width: 80, height: 28 }))
+  assert.deepEqual(pop.at(), [100, 634])
+  assert.equal(pop.style['--room'], '726px')
+  // Asked to open over it, it does where it fits.
+  place(pop, opener({ left: 100, top: 400, width: 80, height: 28 }), { up: true })
+  assert.deepEqual(pop.at(), [100, 294])
+  // Never past the window's far edge, nor its near one.
+  place(pop, opener({ left: 950, top: 100, width: 40, height: 28 }))
+  assert.deepEqual(pop.at(), [812, 134])
+  place(pop, opener({ left: 20, top: 100, width: 40, height: 28 }), { align: 'end' })
+  assert.deepEqual(pop.at(), [8, 134])
+})
+
+test('one opened from a bar stands clear of the bar’s line, a tip by its button', () => {
+  const pop = popup(60, 24)
+  const button = opener({ left: 900, top: 8, width: 28, height: 28 }, { '.bar': el('bar', null, { left: 0, top: 0, width: 1000, height: 86 }) })
+  place(pop, button)
+  assert.deepEqual(pop.at(), [900, 90])
+  place(pop, button, { clear: false })
+  assert.deepEqual(pop.at(), [900, 42])
+})
+
+test('one is put clear of another box as of what opened it: under both, or over both', () => {
+  const pop = popup(180, 176)
+  // A button over the box that is typed into: its menu opens under the box, not on it.
+  const typed = el('box', null, { left: 100, top: 164, width: 320, height: 46 })
+  place(pop, opener({ left: 100, top: 128, width: 180, height: 28 }), { by: typed })
+  assert.deepEqual(pop.at(), [100, 216])
+  // With no room under the box, over the button.
+  const low = el('box', null, { left: 100, top: 744, width: 320, height: 46 })
+  place(pop, opener({ left: 100, top: 708, width: 180, height: 28 }), { by: low })
+  assert.deepEqual(pop.at(), [100, 526])
+  // A chip under its composer's box opens over the whole box, unasked.
+  const desk = { querySelector: () => el('box', null, { left: 100, top: 690, width: 600, height: 46 }) }
+  place(pop, opener({ left: 500, top: 744, width: 90, height: 28 }, { '.composer-desk': desk }), { up: true })
+  assert.deepEqual(pop.at(), [500, 508])
 })

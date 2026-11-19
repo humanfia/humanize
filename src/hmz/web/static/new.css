@@ -25,7 +25,7 @@
   transition: border-color var(--dur) var(--ease);
 }
 
-.composer-desk:focus-within .composer-box {
+.composer-box:has(> textarea:focus) {
   border-color: var(--ink-3);
 }
 
@@ -47,7 +47,8 @@
   padding: 0 var(--space-12);
 }
 
-/* Under the box: the two ends pushed apart, and set in from its edges as a chat app's are. */
+/* Under the box: the two ends pushed apart, and set in from its edges as a chat app's are. Where
+   they do not fit side by side the second stands under the first, at the end it keeps. */
 .composer-under {
   display: flex;
   align-items: center;
@@ -78,6 +79,7 @@
 .under-right:has(> .composer-summary) {
   flex: 1 1 0;
   flex-wrap: nowrap;
+  justify-content: flex-end;
 }
 
 .composer-under .menu-holder,
@@ -119,6 +121,13 @@
   height: var(--icon-sm);
   margin: 0;
   accent-color: var(--primary);
+  outline: none;
+}
+
+/* It is the chip, not the box in it, that says the keyboard is on it. */
+.composer-under .desk-check:has(:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .composer-under .desk-check.disabled {
@@ -162,12 +171,14 @@
 }
 
 /* The middle of the page: empty, but for what waits on the person -- or, for an epic, what its
-   flow is for and how it is set up. */
+   flow is for and how it is set up. It ends short of the box under it: what is scrolled in it is
+   cut on the page, not on the box's edge. */
 .desk-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: grid;
+  margin-bottom: var(--space-8);
   padding: var(--space-24) var(--gutter);
 }
 

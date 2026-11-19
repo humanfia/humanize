@@ -3,8 +3,9 @@
 // opening closes every other that it was not opened from, and the one set of listeners here
 // closes them as a desktop app's are closed: by a press elsewhere, Escape, the focus leaving, a
 // scroll that takes away what one stands by, the window sized or left, the page gone elsewhere.
-// The tooltip and a box's completions yield to all of it. Imports nothing, and keeps the chain
-// without a document, so that it is tested without one.
+// The tooltip and a box's completions yield to all of it; and each is put by what opened it
+// here, against the window. Imports nothing, and keeps the chain without a document, so that
+// it is tested without one.
 
 /**
  * One thing that floats.
@@ -19,6 +20,10 @@
  * @property {'menu'|'panel'} [kind] `menu`, the default, holds only choices; `panel` holds
  *   something typed, which the window sized or left does not lose.
  * @property {HTMLElement|null} [back] What has the focus back as it closes, in place of the anchor.
+ * @property {Element|null} [over] What one with no anchor was opened over, a menu at the pointer:
+ *   scrolled away, it closes as one whose anchor was.
+ * @property {'within'} [escape] `within` where Escape closes it only while the focus is inside
+ *   it: one that stands by a whole pane, whose other keys are the pane's own.
  */
 
 /** The open chain, root first. */
@@ -43,6 +48,8 @@ let strayed = -1
  * only now, as scrolls are -- once a frame.
  */
 let fresh = false
+/** What held the focus as the window was left: the focus it has back as the window is looked at again moved nowhere. */
+let away = null
 /** What takes the tooltip down. */
 let untip = () => {}
 /** What closes each list of completions that is open. */
@@ -155,7 +162,7 @@ export function closed(layer) {
  * opening (`dialog`), the sidebar folded or its drawer moved (`fold`). The window sized
  * (`resize`) or left (`blur`) closes menus alone: a panel keeps what was typed into it, as does
  * a menu while a field of it is being typed into, and on `resize` either goes only where what
- * opened it has no box in the window any more.
+ * opened it has no box in the window any more, a frame on.
  *
  * @param {'route'|'dialog'|'fold'|'resize'|'blur'} why
  */
@@ -165,8 +172,17 @@ export function dismiss(why) {
   if (why !== 'resize' && why !== 'blur') return shut(0, HELD)
   const within = typeof document === 'undefined' ? null : document.activeElement
   const typed = within && typeof within.matches === 'function' && within.matches('input, textarea, [contenteditable]') ? layerOf(within) : -1
-  const at = stack.findIndex((one, i) => (one.kind !== 'panel' && i > typed) || (why === 'resize' && one.anchor && !boxed(one.anchor)))
+  const at = stack.findIndex((one, i) => one.kind !== 'panel' && i > typed)
   if (at >= 0) shut(at, HELD)
+  if (why !== 'resize') return
+  // Looked at a frame on, once what was kept is placed again in the window as it is now.
+  const off = () => {
+    drop()
+    const lost = stack.findIndex((one) => one.anchor && !boxed(one.anchor))
+    if (lost >= 0) shut(lost, HELD)
+  }
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(off)
+  else off()
 }
 
 /** The open chain, root first. */
@@ -199,7 +215,9 @@ export function yields(close) {
 
 /**
  * Shows a native dialog over everything, as a modal one: whatever floats closes first, a press
- * on its backdrop closes it, and the page going elsewhere closes it as answered `away`.
+ * on its backdrop closes it -- one begun inside it and let go of on the backdrop, what was
+ * selected dragged out of it, does not -- and the page going elsewhere closes it as answered
+ * `away`.
  *
  * @param {HTMLDialogElement} dialog In the page, not shown yet.
  * @param {string} [away] What it returns where the page went elsewhere under it.
@@ -207,14 +225,82 @@ export function yields(close) {
 export function modal(dialog, away = '') {
   dismiss('dialog')
   const left = () => dialog.close(away)
-  dialog.addEventListener('click', (event) => {
+  const backdrop = (event) => {
     const box = dialog.getBoundingClientRect()
     // Its own padding is not its backdrop.
-    if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close()
-  })
+    return event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)
+  }
+  let begun = false
+  dialog.addEventListener('pointerdown', (event) => (begun = backdrop(event)))
+  dialog.addEventListener('click', (event) => begun && backdrop(event) && dialog.close())
   dialog.addEventListener('close', () => (removeEventListener('hmz:route', left), drop()), { once: true })
   addEventListener('hmz:route', left)
   dialog.showModal()
+}
+
+/** Room kept between whatever floats and the window's edge, and between it and what opened it. */
+export const EDGE = 8
+export const GAP = 6
+/** How far under a bar's line what opens from the bar stands, where that is further than by what opened it. */
+const CLEAR = 4
+
+/**
+ * Puts a popup by what opened it, against the window rather than whatever holds it -- a dialog
+ * or a list that scrolls would cut it off -- as a desktop app puts a menu: on the side asked for
+ * where it fits, on the other where that has more room, no taller than the room it has, and
+ * moved in from an edge rather than past it. Under a bar it opens clear of the bar's line.
+ *
+ * @param {HTMLElement} pop The popup, shown.
+ * @param {Element} anchor What opened it.
+ * @param {{align?: 'start'|'end', up?: boolean, span?: boolean, by?: Element|null, clear?: boolean}} how
+ *   Which edge of it the popup lines up with, whether it would rather open over it, and whether
+ *   it is as wide as it; `by`, a box it stands clear of as it does of what opened it, under
+ *   both or over both; `clear`, false for what a bar's line is nothing to -- a tip.
+ */
+export function place(pop, anchor, { align = 'start', up = false, span = false, by = null, clear = true } = {}) {
+  const box = anchor.getBoundingClientRect()
+  const also = (by ?? anchor).getBoundingClientRect()
+  // A chip under a box that is typed into opens over the whole box, never on it.
+  const typed = (anchor.closest('.composer-desk')?.querySelector('.composer-box') ?? anchor).getBoundingClientRect()
+  const top = Math.min(box.top, also.top, typed.top)
+  const bar = clear ? anchor.closest('.bar')?.getBoundingClientRect() : null
+  const under = Math.max(Math.max(box.bottom, also.bottom) + GAP, bar ? bar.bottom + CLEAR : 0)
+  if (span) pop.style.width = `${box.width}px`
+  pop.style.removeProperty('--room')
+  // Measured from the window's own edge: where it last stood, or stands before it is placed,
+  // the window's far edge may leave it narrower than it is.
+  pop.style.left = '0'
+  const room = { below: innerHeight - under - EDGE, above: top - GAP - EDGE }
+  const [first, second] = up ? ['above', 'below'] : ['below', 'above']
+  const side = pop.offsetHeight <= room[first] || room[first] >= room[second] ? first : second
+  pop.style.setProperty('--room', `${Math.max(room[side], 80)}px`)
+  const { offsetWidth: wide, offsetHeight: tall } = pop
+  pop.style.top = `${side === 'below' ? under : Math.max(EDGE, top - GAP - tall)}px`
+  const left = align === 'end' ? box.right - wide : box.left
+  pop.style.left = `${Math.max(EDGE, Math.min(left, innerWidth - wide - EDGE))}px`
+}
+
+/**
+ * Places a popup and keeps it by what opened it as the window is sized or the popup grows; says
+ * how to stop. What opened it scrolled away, it is closed, not sent after it.
+ */
+export function follow(pop, anchor, how) {
+  const again = () => place(pop, anchor, how)
+  again()
+  // Placed again in the next frame rather than inside the observer's own: placing it sizes it,
+  // which said there would be a size the observer is not told of, and an error.
+  let frame = 0
+  const grown = new ResizeObserver(() => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(again)
+  })
+  grown.observe(pop)
+  addEventListener('resize', again)
+  return () => {
+    grown.disconnect()
+    cancelAnimationFrame(frame)
+    removeEventListener('resize', again)
+  }
 }
 
 /** How far each key moves through a menu's choices: to the first and the last for the other two. */
@@ -237,7 +323,7 @@ function rove(event) {
   items[to].focus()
 }
 
-if (typeof document !== 'undefined') {
+if (page && typeof document !== 'undefined') {
   // The focus a press moves goes where the browser puts it -- off a button pressed, in some,
   // onto whatever holds it -- as the press goes down, a finger's as it ends: before the button
   // is let go of, and before anything else runs.
@@ -265,42 +351,63 @@ if (typeof document !== 'undefined') {
   document.addEventListener('mousedown', pressed, true)
   document.addEventListener('mouseup', lifted, true)
   // Escape closes the topmost alone, and goes no further: one press never closes two things.
+  // One that takes it only from inside itself leaves it, pressed elsewhere, to what it was pressed in.
   document.addEventListener(
     'keydown',
     (event) => {
       untip(event)
       if (event.isComposing) return
       drop()
-      if (event.key !== 'Escape' || !stack.length) return rove(event)
+      const top = stack.at(-1)
+      if (event.key !== 'Escape' || !top) return rove(event)
+      if (top.escape === 'within' && !has(top.node, event.target)) return
       event.preventDefault()
       event.stopImmediatePropagation()
       shut(stack.length - 1, LOOSE)
     },
     true,
   )
-  // The focus gone elsewhere, by Tab or by code, closes down to the layer that holds it. One
-  // that came from nowhere -- the window looked at again, a choice drawn again -- closes nothing.
+  // The focus gone elsewhere, by Tab or by code, closes down to the layer that holds it. The
+  // focus the window has back as it is looked at again, where it was, went nowhere and closes
+  // nothing.
   document.addEventListener('focusin', (event) => {
     drop()
     const at = layerOf(event.target)
     strayed = pressing && at < 0 ? layerOf(event.relatedTarget) : -1
-    if (!pressing && event.relatedTarget) shut(at + 1, NEVER)
+    if (!pressing && event.target !== away) shut(at + 1, NEVER)
+    away = null
   })
   // What a layer stands by scrolled away, it closes rather than chase it. A menu at the pointer
-  // stands by nothing, and closes on any scroll but its own; a panel that stands by nothing
-  // stands in its pane, whatever scrolls.
+  // stands by nothing: it closes as what it was opened over scrolls away or, opened over
+  // nothing, on any scroll but its own. A panel that stands by nothing stands in its pane,
+  // whatever scrolls.
   document.addEventListener(
     'scroll',
     (event) => {
       untip(event)
       if (fresh) return
       drop()
-      const at = stack.findIndex((one, i) => (one.anchor ? has(event.target, one.anchor) : one.kind !== 'panel' && !stack.slice(i).some((inner) => has(inner.node, event.target))))
+      const at = stack.findIndex((one, i) => {
+        const by = one.anchor ?? one.over
+        return by ? has(event.target, by) : one.kind !== 'panel' && !stack.slice(i).some((inner) => has(inner.node, event.target))
+      })
       if (at >= 0) shut(at, HELD)
     },
     true,
   )
   addEventListener('resize', () => dismiss('resize'))
-  addEventListener('blur', () => dismiss('blur'))
+  // The focus gone into a frame is a press or a Tab this page is told nothing more of: it closes
+  // what a press there would, a panel with the menus -- looked for once more a turn on, where
+  // the browser says where the focus went only after saying the window was left.
+  const framed = () => {
+    const at = document.activeElement
+    if (at?.tagName === 'IFRAME') shut(layerOf(at) + 1, NEVER)
+  }
+  addEventListener('blur', () => {
+    away = document.activeElement
+    dismiss('blur')
+    framed()
+    setTimeout(framed)
+  })
   addEventListener('hmz:route', () => dismiss('route'))
 }

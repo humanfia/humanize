@@ -302,7 +302,7 @@ export function mount(app, where) {
           (read) => {
             const before = sessionsOf(detail)[detail.earlier - 1]
             const found = before && read.trace.find((each) => each.key === before.traced)
-            if (found && found.actions.length) fill(earlier, saidTraced({ ...found, label: before.key }))
+            if (found && found.actions.length) fill(earlier, saidTraced({ ...found, label: before.key, chat: true }))
           },
           () => {},
         )

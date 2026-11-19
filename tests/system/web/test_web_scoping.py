@@ -146,7 +146,7 @@ def test_another_daemon_is_switched_to_and_back(project: Path, engine: str) -> N
         since = len(wire.calls)
         page.locator(".side-nav a[data-nav=new]").click()
         expect(page.locator("[data-hmz=flow-picker] b")).to_be_visible()
-        assert page.evaluate("location.hash").startswith("#/@other/new?")
+        page.wait_for_url(re.compile(r"#/@other/new\?"))
         # Asked of `other` over a session of its own, not over Local's.
         local = wire.over[0]
         later = [

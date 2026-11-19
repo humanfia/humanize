@@ -12,14 +12,16 @@
   color: var(--ink);
 }
 
-/* The strip of tabs: as tall as a tab and the room around it, whatever a tab holds. */
+/* The strip of tabs: as tall as a tab and the room around it, whatever a tab holds, its tabs on
+   the edge the panel's tabs over them stand on and its tool 8px from the panel's edge, where the
+   other panels' tools end. */
 .term-head {
   display: flex;
   align-items: center;
   flex: none;
   gap: var(--space-4);
   min-height: calc(var(--strip-h) + var(--border-w));
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-8);
   border-bottom: var(--border);
   background: var(--surface);
 }
@@ -47,7 +49,7 @@
   padding: 0 var(--space-2) 0 var(--space-8);
   border-radius: var(--radius-md);
   color: var(--ink-3);
-  font: 500 var(--text-md) var(--sans);
+  font: 500 var(--text-md)/20px var(--sans);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -129,7 +131,6 @@ input.term-rename {
 .term-head .term-new {
   width: var(--control-h-xs);
   height: var(--control-h-xs);
-  margin-right: var(--space-2);
   border-radius: var(--radius-sm);
 }
 
@@ -273,7 +274,7 @@ input.term-rename {
 }
 
 .term-find-case {
-  font: 600 var(--text-xs) var(--sans);
+  font: 600 var(--text-xs)/16px var(--sans);
 }
 
 /* The field stands bare in the bar, whose edge is the one it has. */
@@ -288,12 +289,17 @@ input.term-find-input {
   outline: none;
 }
 
+/* The bar has a button of its own that shuts it: the browser's cross in the field is not drawn. */
+input.term-find-input::-webkit-search-cancel-button {
+  display: none;
+}
+
 .term-find-count {
   flex: none;
   min-width: 64px;
   padding: 0 var(--space-4);
   color: var(--ink-3);
-  font: var(--text-sm) var(--sans);
+  font: var(--text-sm)/16px var(--sans);
   font-variant-numeric: tabular-nums;
 }
 

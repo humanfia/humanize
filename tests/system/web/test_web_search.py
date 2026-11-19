@@ -147,34 +147,54 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
         opened(site, engine=engine, width=1296, height=792, routed=wire.routes) as page,
     ):
         _search(page)
-        # The box: 672 by 584, in the middle across and 127 down a window 792 tall.
+        # The box: 672 by 584, in the middle of the window: 104 down one 792 tall.
         left, top, wide, tall = _box(page, "[data-hmz=dialog-search]")
         assert (left, wide, tall) == (312, 672, 584)
-        assert abs(top - 127) <= 1
+        assert abs(top - 104) <= 1
+        # Flat: a hairline around it, and no shadow under it or under anything in it.
+        assert page.evaluate(
+            """() => {
+              const box = document.querySelector('[data-hmz=dialog-search]')
+              return [box, ...box.querySelectorAll('*')].every(
+                (one) => getComputedStyle(one).boxShadow === 'none')
+            }"""
+        )
+        assert (
+            page.locator("[data-hmz=dialog-search]").evaluate(
+                "(box) => getComputedStyle(box).borderTopWidth"
+            )
+            == "1px"
+        )
 
         def within(selector: str) -> tuple[int, int, int, int]:
             x, y, w, h = _box(page, selector)
             return (x - left, y - top, w, h)
 
         # The field across its top, and `Close` at its right.
-        assert within("[data-hmz=dialog-search] .dialog-search") == (25, 18, 577, 32)
+        assert within("[data-hmz=dialog-search] .dialog-search") == (25, 17, 594, 32)
         assert within("[data-hmz=dialog-search] .dialog-head .icon-btn") == (
-            634,
-            20,
+            627,
+            19,
             28,
             28,
         )
-        # Under it the tabs, 29 tall, from the field's left edge.
+        # Under it the tabs, 29 tall, the first one's word on the field's left edge.
         tabs = page.locator("[data-hmz=search-tabs] [role=tab]")
         expect(tabs).to_have_text(["All", "Chats", "Epics"])
         expect(tabs.first).to_have_attribute("aria-selected", "true")
-        assert within("[data-hmz=search-tabs] [role=tab]")[:2] == (25, 58)
+        assert within("[data-hmz=search-tabs] [role=tab]")[:2] == (17, 57)
+        assert (
+            tabs.first.evaluate(
+                "(one) => parseFloat(getComputedStyle(one).paddingLeft)"
+            )
+            == 8
+        )
         assert set(
             tabs.evaluate_all(
                 "(all) => all.map((one) => one.getBoundingClientRect().height)"
             )
         ) == {29}
-        # Then what was found: a quiet heading, and a line apiece, 36 apart.
+        # Then what was found: a quiet heading, and a line apiece, 32 tall and 34 apart.
         expect(page.locator("[data-hmz=found] .search-heading").first).to_contain_text(
             "Recents"
         )
@@ -185,9 +205,10 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
         first, second = rows.nth(0).bounding_box(), rows.nth(1).bounding_box()
         assert first is not None
         assert second is not None
-        assert (round(first["x"]) - left, round(first["y"]) - top) == (11, 148)
-        assert (round(first["height"]), round(second["y"] - first["y"])) == (36, 36)
-        # And a foot that says what the keys do, its last word 21 over the box's bottom.
+        assert (round(first["x"]) - left, round(first["y"]) - top) == (9, 131)
+        assert (round(first["height"]), round(second["y"] - first["y"])) == (32, 34)
+        # And a foot that says what the keys do, from the field's left edge, in the middle of
+        # its 40.
         hints = page.locator("[data-hmz=search-hints] .search-hint")
         expect(hints).to_have_text(
             [
@@ -199,14 +220,17 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
                 re.compile("^Open"),
             ]
         )
+        foot = within("[data-hmz=dialog-search] .search-foot")
+        assert (foot[1], foot[3]) == (543, 40)
         x, y, _, h = within("[data-hmz=search-hints] .search-hint")
-        assert x == 21
+        assert x == 25
         assert abs(y + h / 2 - 563) <= 1
-        # What was found runs to the foot: nothing is said between them of a line that no
-        # key and no pointer has moved to.
+        # Nothing is said between what was found and the foot of a line that no key and no
+        # pointer has moved to; the room of what will be, 32 tall, is kept, so that nothing
+        # moves as the first is.
         expect(page.locator("[data-hmz=search-detail]")).to_be_hidden()
         _, y, _, h = within("[data-hmz=found]")
-        assert y + h == within("[data-hmz=dialog-search] .search-foot")[1]
+        assert y + h + 32 == foot[1]
         # A key the pages at the foot's right leave no room for is left unsaid, not cut.
         assert page.evaluate(
             """() => {
@@ -218,8 +242,8 @@ def test_search_is_laid_out_as_claudes_window_lays_out_its_own(engine: str) -> N
               })
             }"""
         )
-        assert (
-            within("[data-hmz=search-hints] .search-hint:nth-child(4)")[1] == y + h + 14
+        assert within("[data-hmz=search-hints] .search-hint:nth-child(4)")[1] == (
+            foot[1] + 11
         )
         # Nothing of it is wider than the box, or under its foot.
         assert page.evaluate(

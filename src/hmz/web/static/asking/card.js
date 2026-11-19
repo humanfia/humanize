@@ -15,7 +15,7 @@ import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, s
 const settlers = new WeakMap()
 
 /** The tokens of the page's look a face is drawn in. */
-const TOKENS = ['paper', 'surface', 'raised', 'side', 'ink', 'ink-2', 'ink-3', 'on-ink', 'line', 'line-strong', 'hover', 'green', 'pink', 'pink-ink', 'cyan', 'cyan-ink', 'lavender', 'gold', 'live', 'link', 'done', 'fail', 'budget', 'primary', 'on-primary', 'field', 'edge', 'control', 'control-ink', 'selected', 'quiet', 'sans', 'mono']
+const TOKENS = ['paper', 'surface', 'raised', 'side', 'ink', 'ink-2', 'ink-3', 'on-ink', 'line', 'line-strong', 'hover', 'green', 'pink', 'pink-ink', 'cyan', 'cyan-ink', 'lavender', 'gold', 'live', 'link', 'done', 'fail', 'budget', 'primary', 'on-primary', 'field', 'edge', 'control', 'control-ink', 'selected', 'quiet', 'track', 'thumb', 'sans', 'mono']
 
 pruneDrafts()
 

@@ -16,7 +16,10 @@
   display: flex;
 }
 
+/* --envs-cross is the page's cross as a mask, for what a panel draws that is not the page's
+   own: a field's clear button, the editor's close buttons. */
 .envs {
+  --envs-cross: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='square'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -29,13 +32,15 @@
   background: none;
 }
 
+/* The list is as wide as it was dragged to, and gives way, down to 160px, before the one picked
+   is left less than 560px. */
 .envs-split {
   --envs-tree: 240px;
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: var(--envs-tree) var(--border-w) minmax(0, 1fr);
+  grid-template-columns: clamp(160px, 100% - 560px, var(--envs-tree)) var(--border-w) minmax(0, 1fr);
 }
 
 .envs-compact .envs-split {
@@ -115,9 +120,19 @@
   color: var(--ink-3);
 }
 
+/* What kind of environment it is: a small icon in a slot of its own, as a file's is in a tree. */
 .envs-glyph {
+  display: inline-grid;
+  place-items: center;
+  align-self: center;
+  width: var(--icon);
+  height: var(--icon);
   color: var(--ink-3);
-  font-size: var(--text-xs);
+}
+
+.envs-glyph .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .envs-name {
@@ -161,13 +176,24 @@
   padding: 0 var(--gutter);
 }
 
+/* The head is one line over the tabs: the environment's name and its tags, then, said quietly,
+   what kind it is and where, and at the line's end what was found of its machine. Where the line
+   has not the room for all of it, the path gives way first, and then what is said quietly goes
+   to a line of its own under the name. */
 .envs-head {
+  position: relative;
   flex: none;
-  padding: var(--space-12) var(--gutter) var(--space-8);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-12);
+  padding: var(--space-8) var(--gutter) 0;
 }
 
-/* Where the panel is picked on a chat's bar there are no tabs under the head, which keeps the line. */
+/* Where the panel is picked on a chat's bar there are no tabs under the head, which keeps the
+   line and, on one line, stands as tall as a bar. */
 .chat-pane .envs-head {
+  padding-bottom: calc(var(--space-8) - var(--border-w));
   border-bottom: var(--border);
 }
 
@@ -176,7 +202,7 @@
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
-  min-height: var(--control-h-xs);
+  min-height: var(--control-h-sm);
 }
 
 .envs-title b {
@@ -212,12 +238,24 @@ select.envs-select {
   opacity: 0.7;
 }
 
+/* The head's button stands at the head's end, level with its first line, in room the head keeps
+   for it, and ends where the panel's own tools do under it: 8px from the panel's edge. */
 .icon-btn.envs-full {
+  position: absolute;
+  top: calc(var(--space-8) + var(--space-2));
+  right: var(--space-8);
   width: var(--control-h-xs);
   height: var(--control-h-xs);
-  margin-left: auto;
   border-radius: var(--radius-sm);
-  font-size: var(--text-lg);
+}
+
+.envs-head:has(.envs-full) {
+  padding-right: calc(var(--control-h-xs) + 2 * var(--space-8));
+}
+
+.envs-full .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 /* What kind of environment it is, and that it is closed: a tag beside its name. */
@@ -239,21 +277,25 @@ select.envs-select {
   --tone-ink: var(--fail);
 }
 
+/* What is said quietly shares the name's line while it has 320px of it, and is one line itself
+   while its own words fit. */
 .envs-meta {
+  flex: 1 1 320px;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2) var(--space-12);
-  margin-top: var(--space-4);
+  align-items: baseline;
+  gap: 0 var(--space-12);
+  min-width: 0;
   font-size: var(--text-sm);
   line-height: 16px;
   color: var(--ink-3);
-  min-width: 0;
 }
 
+/* The path has the room the rest leaves, which puts what follows it at the line's end, and is
+   cut, at its start, down to 16 letters before anything goes to a line under it. */
 .envs-workdir {
+  flex: 1 1 16ch;
   min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
 }
 
 .envs-uses {
@@ -301,12 +343,204 @@ select.envs-select {
   padding: 0 var(--gutter);
 }
 
+/* A panel is laid out by how wide it stands itself, not by how wide the window is. */
 .envs-pane-body {
+  container: envs-pane / inline-size;
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* ------------------------------------------------------------------ the editors */
+
+/* The line the caret is on is said in the one neutral fill, and only while the editor is being
+   written in. Each rule here names the editor as well as what is in it, which is what puts it
+   over the editor's own theme. */
+.envs .cm-editor :is(.cm-activeLine:not(.cm-changedLine), .cm-activeLineGutter) {
+  background: none;
+}
+
+.envs .cm-editor.cm-focused :is(.cm-activeLine:not(.cm-changedLine), .cm-activeLineGutter) {
+  background: var(--hover);
+}
+
+/* Find, replace and go to line are the editor's own panels, drawn with the page's controls: a
+   strip at the editor's foot, a row for what is looked for, a row for how, a row for what
+   replaces it, and room at its right for the button that shuts it, which stands where the
+   panel's other trailing buttons do. They are laid out by how wide the editor stands. */
+.envs .cm-editor .cm-panels {
+  container: envs-panels / inline-size;
+}
+
+.envs .cm-editor .cm-panels.cm-panels-bottom {
+  border-top: var(--border);
+}
+
+.envs .cm-editor .cm-panels .cm-panel,
+.envs .cm-editor .cm-panels .cm-panel form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+}
+
+.envs .cm-editor .cm-panels .cm-panel {
+  padding: var(--space-8) calc(var(--control-h-xs) + 2 * var(--space-8)) var(--space-8) var(--space-8);
+}
+
+.envs .cm-editor .cm-panels .cm-panel :is(input, button, label) {
+  margin: 0;
+}
+
+/* A row ends where a line as wide as the panel, and of no height, stands after it: one after
+   what is looked for and, where the file can be written, one before what replaces it. */
+.envs .cm-editor .cm-panels .cm-search::before,
+.envs .cm-editor .cm-panels .cm-search:has([name='replace'])::after {
+  content: '';
+  flex-basis: 100%;
+  order: 1;
+}
+
+.envs .cm-editor .cm-panels .cm-search label {
+  order: 2;
+}
+
+.envs .cm-editor .cm-panels .cm-search:has([name='replace'])::after {
+  order: 3;
+}
+
+.envs .cm-editor .cm-panels .cm-search [name^='replace'] {
+  order: 4;
+}
+
+.envs .cm-editor .cm-panels .cm-search br {
+  display: none;
+}
+
+.envs .cm-editor .cm-panels .cm-panel .cm-textfield {
+  flex: 1 1 96px;
+  max-width: 240px;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-md);
+  font: var(--text-md)/20px var(--sans);
+}
+
+.envs .cm-editor .cm-panels .cm-panel .cm-textfield:hover {
+  border-color: var(--ink-3);
+}
+
+.envs .cm-editor .cm-panels .cm-panel .cm-textfield:focus {
+  border-color: var(--link);
+  outline: 2px solid color-mix(in srgb, var(--link) 30%, transparent);
+  outline-offset: 0;
+}
+
+.envs .cm-editor .cm-panels .cm-panel .cm-button {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-md);
+  font: 500 var(--text-md)/20px var(--sans);
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease);
+}
+
+.envs .cm-editor .cm-panels .cm-panel .cm-button:hover {
+  background: color-mix(in srgb, var(--control-ink) 6%, var(--control));
+}
+
+.envs .cm-editor .cm-panels .cm-panel .cm-button:active {
+  background: color-mix(in srgb, var(--control-ink) 10%, var(--control));
+}
+
+/* The editor writes what its controls are called in small letters: each is given its capital. */
+.envs .cm-editor .cm-panels .cm-panel :is(.cm-button, label)::first-letter {
+  text-transform: uppercase;
+}
+
+.envs .cm-editor .cm-panels .cm-panel label {
+  color: var(--ink-2);
+  font: var(--text-md)/20px var(--sans);
+  white-space: nowrap;
+}
+
+/* What a field is called, in a line with the field. */
+.envs .cm-editor .cm-panels .cm-dialog label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* A way of looking: its box stands before its name, out of the line, so that the name's first
+   letter is the line's, and nearer its own name than the name before it. */
+.envs .cm-editor .cm-panels .cm-search label {
+  position: relative;
+  display: block;
+  margin-right: var(--space-4);
+  padding-left: calc(var(--space-16) + var(--space-6));
+  cursor: pointer;
+}
+
+.envs .cm-editor .cm-panels .cm-search label input {
+  position: absolute;
+  top: var(--space-2);
+  left: 0;
+  border-radius: var(--radius-xs);
+}
+
+/* What shuts the panel: the page's small icon button, its cross drawn as the page's is, level
+   with the first row. */
+.envs .cm-editor .cm-panels .cm-panel :is([name='close'], .cm-dialog-close) {
+  top: calc(var(--space-8) + var(--space-2));
+  right: var(--space-8);
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 0;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease);
+}
+
+.envs .cm-editor .cm-panels .cm-panel :is([name='close'], .cm-dialog-close)::before {
+  content: '';
+  display: block;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin: auto;
+  background: var(--ink-2);
+  mask: var(--envs-cross) center / contain no-repeat;
+}
+
+.envs .cm-editor .cm-panels .cm-panel :is([name='close'], .cm-dialog-close):hover {
+  background: var(--hover);
+}
+
+.envs .cm-editor .cm-panels .cm-panel :is([name='close'], .cm-dialog-close):active {
+  background: var(--pressed);
+}
+
+/* In a narrow editor -- beside a chat in a small window, on a phone -- what is looked for has
+   the first row to itself, up to the button that shuts the panel, and the rows under it have the
+   panel's whole width, what replaces it giving way to its buttons: each is then one row, where
+   they would be two. */
+@container envs-panels (max-width: 320px) {
+  .envs .cm-editor .cm-panels .cm-search {
+    padding-right: var(--space-8);
+  }
+
+  .envs .cm-editor .cm-panels .cm-search [name='search'] {
+    flex-basis: 100%;
+    max-width: none;
+    margin-right: calc(var(--control-h-xs) + var(--space-8));
+  }
+
+  .envs .cm-editor .cm-panels .cm-search [name='replace'].cm-textfield {
+    flex-basis: calc(2 * var(--space-40));
+  }
 }
 
 /* ------------------------------------------------------------------ asking before doing */
@@ -373,10 +607,11 @@ select.envs-select {
 }
 
 /* An environment shares the view, not the window: it takes half of what is beside the sidebar,
-   980px at the most, and leaves the conversation no less than 360px. */
+   in whole pixels and 980px at the most, and leaves the conversation no less than 360px -- or,
+   where the view has not the room for both, what is left beside the 280px a panel is read at. */
 @media (min-width: 861px) {
   .view-epic:has(> .inspector.envs-wide:not([hidden])) {
-    grid-template-columns: minmax(min(360px, 100%), 1fr) minmax(0, min(50%, 980px));
+    grid-template-columns: minmax(min(360px, 100% - 280px), 1fr) minmax(0, round(min(50%, 980px), 1px));
   }
 }
 
@@ -390,7 +625,7 @@ select.envs-select {
 
   /* On a phone the tree folds into the picker over the panels. */
   .envs-side,
-  .envs-resizer,
+  .envs-split > .envs-resizer,
   .envs-named {
     display: none;
   }

@@ -5,8 +5,9 @@
 // through the local LiteLLM gateway are listed last, under a group of their own -- and where the
 // extra they need is missing, the group says so and the line that adds it is said under it.
 
-import { confirming } from '../../confirm.js'
-import { acting, ago, fill, h, problem } from '../../dom.js'
+import { ago, fill, h, iconButton, problem } from '../../dom.js'
+import { closed, opened, place } from '../../layers.js'
+import { menuButton, menuOn, toast } from '../../ui.js'
 
 export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'accounts' }, h('p', { class: 'loading', role: 'status' }, 'Reading the accounts…'))
@@ -23,37 +24,78 @@ export function draw(holder, query, parts, scope) {
     drawListing()
   }
 
+  /** Does what a menu picked of an account, saying so in a toast until it is done, then how it went. */
+  const doing = (said, method, params, done) => {
+    toast(said, 0)
+    scope.call(method, params).then(
+      (answer) => {
+        shown(answer)
+        toast(done)
+      },
+      (error) => toast(error.message, 4000),
+    )
+  }
+
+  /**
+   * What is done with an account less often than it is corrected, behind `More options` and on
+   * a right click: what its CLI runs asked again, it written down for another CLI its
+   * credentials could run, and it removed.
+   */
+  const more = (one, button) => [
+    { label: 'Refresh models', glyph: 'resume', act: () => doing('Asking…', 'accounts.models', { cli: one.cli, name: one.name }, 'Models refreshed') },
+    ...one.serves.map((cli) => ({ label: `Copy to ${cli}`, glyph: 'copy', act: () => doing('Copying…', 'accounts.copy', { cli: one.cli, name: one.name, into: cli }, `Copied to ${cli}`) })),
+    one.name ? '-' : null,
+    one.name ? { label: 'Remove', glyph: 'trash', danger: true, act: () => removing(one, button) } : null,
+  ]
+
+  /**
+   * Asks whether an account is removed, by `More options`, as a button that asks before it
+   * does what cannot be undone asks by itself (dom.js): the row stays as it is, the answer
+   * that takes the question back has the focus, and whatever closes a menu takes it back too.
+   */
+  function removing(one, button) {
+    const ask = `Remove ${one.cli}@${one.name}, credentials and all?`
+    const no = h('button', { class: 'btn quiet small', type: 'button' }, 'Cancel')
+    const yes = h('button', { class: 'btn small danger', type: 'button' }, 'Remove')
+    const asked = h('div', { class: 'popover row', role: 'dialog', 'aria-label': ask, 'data-hmz': 'account-removing' }, h('span', {}, ask), no, yes)
+    const layer = {
+      node: asked,
+      anchor: button,
+      close() {
+        if (!asked.isConnected) return
+        closed(layer)
+        asked.remove()
+      },
+    }
+    no.addEventListener('click', layer.close)
+    yes.addEventListener('click', () => {
+      layer.close()
+      doing('Removing…', 'accounts.remove', { cli: one.cli, name: one.name }, 'Removed')
+    })
+    // Before the button, which is laid out as the last of its line.
+    button.before(asked)
+    opened(layer)
+    place(asked, button, { align: 'end' })
+    no.focus()
+  }
+
   function drawListing() {
-    const rows = data.accounts.map((one) =>
-      h(
+    const rows = data.accounts.map((one) => {
+      const button = iconButton('more', 'More options', { 'data-hmz': 'account-menu' })
+      const row = h(
         'tr',
         { 'data-hmz': 'account' },
         h('td', { class: 'mono' }, one.cli),
         h('td', {}, h('b', {}, one.name || 'Local'), h('div', { class: 'dim' }, one.name ? `made by ${one.way}` : 'signed in outside Humanize')),
-        h('td', {}, one.sets.length ? h('div', { class: 'row' }, one.sets.map((name) => h('span', { class: 'chip mono' }, name))) : h('span', { class: 'dim' }, 'nothing')),
-        h('td', {}, one.models.length ? h('span', { title: one.models.join('\n') }, `${one.models.length} model${one.models.length === 1 ? '' : 's'}`) : h('span', { class: 'dim' }, 'None'), one.asked ? h('div', { class: 'dim' }, `asked ${ago(one.asked)}`) : null),
-        h(
-          'td',
-          {},
-          h(
-            'div',
-            { class: 'row' },
-            acting('Refresh models', async () => shown(await scope.call('accounts.models', { cli: one.cli, name: one.name })), { kind: 'btn small quiet', busy: 'Asking…' }),
-            one.serves.length ? copying(one) : null,
-            one.name ? h('button', { class: 'btn small quiet', type: 'button', onclick: () => correcting(one) }, 'Edit') : null,
-            one.name
-              ? confirming({
-                  label: 'Remove',
-                  ask: `Remove ${one.cli}@${one.name}, credentials and all?`,
-                  yes: 'Remove',
-                  small: true,
-                  act: async () => shown(await scope.call('accounts.remove', { cli: one.cli, name: one.name })),
-                })
-              : null,
-          ),
-        ),
-      ),
-    )
+        h('td', { 'data-label': 'Sets' }, one.sets.length ? h('div', { class: 'row' }, one.sets.map((name) => h('span', { class: 'chip mono' }, name))) : h('span', { class: 'dim' }, 'nothing')),
+        h('td', { 'data-label': 'Models' }, one.models.length ? h('span', { title: one.models.join('\n') }, `${one.models.length} model${one.models.length === 1 ? '' : 's'}`) : h('span', { class: 'dim' }, 'None'), one.asked ? h('div', { class: 'dim' }, `asked ${ago(one.asked)}`) : null),
+        // `Edit`, and the rest behind `More options`.
+        h('td', {}, h('div', { class: 'row' }, one.name ? h('button', { class: 'btn small quiet', type: 'button', onclick: () => correcting(one) }, 'Edit') : null, button)),
+      )
+      menuOn(row, () => more(one, button))
+      menuButton(button, row)
+      return row
+    })
     fill(
       listing,
       // Nothing an account holds is ever shown, so nothing of it can be copied elsewhere.
@@ -65,17 +107,6 @@ export function draw(holder, query, parts, scope) {
             h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'CLI'), h('th', {}, 'Account'), h('th', {}, 'Sets'), h('th', {}, 'Models'), h('th', {}, ''))), h('tbody', {}, rows)),
           )
         : h('p', { class: 'dim' }, 'Nobody has made an account yet: every agent runs as this machine’s own sign-in.'),
-    )
-  }
-
-  /** Writes one account down for another CLI its credentials could run. */
-  function copying(one) {
-    const into = h('select', { 'aria-label': `Copy ${one.cli}@${one.name} to` }, one.serves.map((cli) => h('option', { value: cli }, cli)))
-    return h(
-      'span',
-      { class: 'row' },
-      into,
-      acting('Copy', async () => shown(await scope.call('accounts.copy', { cli: one.cli, name: one.name, into: into.value })), { kind: 'btn small quiet', busy: 'Copying…' }),
     )
   }
 

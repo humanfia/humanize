@@ -90,11 +90,12 @@ export function nameOf(path) {
  * @param {string | null} chosen The workspace chosen to begin with, "" for where `hmz web`
  *   started, or null for no workspace.
  * @param {(path: string | null) => void} changed Told the workspace picked, null for none.
- * @param {{ none?: boolean, plain?: boolean }} [offers] Whether no workspace is on offer, and
- *   whether the menu is a chat app's folder menu: each folder one row, by the last part of its
- *   path alone, under no heading, its whole path said where it is pointed at.
+ * @param {{ none?: boolean, plain?: boolean, end?: boolean }} [offers] Whether no workspace is on
+ *   offer; whether the menu is a chat app's folder menu: each folder one row, by the last part
+ *   of its path alone, under no heading, its whole path said where it is pointed at; and whether
+ *   the picker is the last thing in its row, what it opens lined up with its end.
  */
-export function workspacePicker(chosen, changed, { none = false, plain = false } = {}) {
+export function workspacePicker(chosen, changed, { none = false, plain = false, end = false } = {}) {
   const said = h('b', {}, '…')
   const button = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
   const folder = pathPicker({ label: 'Folder', placeholder: '~/project' })
@@ -105,6 +106,8 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
   const node = h('div', { class: 'menu-holder' }, button, opening)
   let list = []
   let path = chosen
+  // Where the menu opens, and the form that takes its place.
+  const where = { align: end ? 'end' : 'start', up: plain }
 
   function set(to) {
     path = to
@@ -134,7 +137,7 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
       choice({ label: 'Open folder…', glyph: 'plus', act: () => open(), close }),
       none ? tipped(choice({ label: NONE, about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close }), plain ? NOWHERE : '') : null,
     ],
-    { label: 'Folders', up: plain },
+    { label: 'Folders', ...where },
   )
 
   function pick(to) {
@@ -158,7 +161,7 @@ export function workspacePicker(chosen, changed, { none = false, plain = false }
   function open() {
     opening.hidden = false
     opened(layer)
-    unfollow = follow(opening, button, {})
+    unfollow = follow(opening, button, where)
     button.setAttribute('aria-expanded', 'true')
     problem_.textContent = ''
     typed.value = ''

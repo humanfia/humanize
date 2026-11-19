@@ -11,13 +11,13 @@ import { inApp, menu, section, settleSidebar } from './shell.js'
 import { stored } from './stored.js'
 import { posted } from './ui.js'
 
-/** What each kind is called, and the mark it is drawn with. */
+/** What each kind is called, and the icon and the tone it is marked with: a chat that waits on a word is marked as a chat is, a question by a mark of its own. */
 const KINDS = {
-  done: ['Done', '✔', 'done'],
-  failed: ['Failed', '✕', 'failed'],
-  stopped: ['Stopped', '■', 'stopped'],
-  asked: ['Question', '?', 'asking'],
-  listening: ['Waiting', '›', 'asking'],
+  done: ['Done', 'check', 'done'],
+  failed: ['Failed', 'close', 'failed'],
+  stopped: ['Stopped', 'stop', 'stopped'],
+  asked: ['Question', 'question', 'asking'],
+  listening: ['Waiting', 'thread', 'asking'],
 }
 
 /** How long a card stays. */
@@ -166,8 +166,8 @@ function drawList(list, close) {
 }
 
 function mark(item) {
-  const [, glyph, tone] = KINDS[wantedAs(item)] || ['', '·', 'idle']
-  return h('span', { class: `choice-mark tone-${tone}`, 'aria-hidden': 'true' }, h('span', { class: 'glyph' }, glyph))
+  const [, glyph, tone] = KINDS[wantedAs(item)] || ['', 'bell', 'idle']
+  return h('span', { class: `choice-mark glyph tone-${tone}`, 'aria-hidden': 'true' }, icon(glyph))
 }
 
 const kindOf = (item) => (KINDS[wantedAs(item)] || [item.kind])[0]

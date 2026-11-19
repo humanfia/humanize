@@ -482,6 +482,11 @@ _OVERLAPS = """() => {
   return found
 }"""
 
+#: What is drawn with a shadow: nothing floats by one, a hairline edge parts it from the page.
+_SHADOWED = """() => [...document.querySelectorAll('*')]
+  .filter((one) => getComputedStyle(one).boxShadow !== 'none')
+  .map((one) => `${one.tagName.toLowerCase()}.${one.className}`)"""
+
 
 @pytest.mark.parametrize("width", [1280, 1000])
 def test_the_panel_says_a_span_a_process_and_a_range_without_overlapping(
@@ -499,6 +504,7 @@ def test_the_panel_says_a_span_a_process_and_a_range_without_overlapping(
         page.mouse.click(at["x"], at["y"])
         expect(details.locator("[data-hmz=exomyth-args]")).to_be_visible()
         assert page.evaluate(_OVERLAPS) == []
+        assert page.evaluate(_SHADOWED) == []
 
         details.locator(".exo-link").first.click()
         expect(details).to_contain_text("Process")

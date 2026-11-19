@@ -6,6 +6,7 @@ import {
   defaultTab,
   factsOf,
   flatten,
+  menuKey,
   nameOf,
   offOf,
   panelsOf,
@@ -98,12 +99,18 @@ test('a call names the environment, but for a terminal’s own methods', () => {
   for (const method of ['env.term.input', 'env.term.resize', 'env.term.ack', 'env.term.close']) assert.deepEqual(paramsOf(method, { term: 't', env: 'x' }, '1:a'), { term: 't' })
 })
 
-test('the list is never narrower than it can be read, nor wider than half the frame', () => {
-  assert.equal(clampWidth(40, 1000), 160)
-  assert.equal(clampWidth(300, 1000), 300)
-  assert.equal(clampWidth(900, 1000), 500)
-  assert.equal(clampWidth(Infinity, 1000), 500)
+test('a list is never dragged narrower than it can be read, nor wider than it may be', () => {
+  assert.equal(clampWidth(40, 500), 160)
+  assert.equal(clampWidth(300, 500), 300)
+  assert.equal(clampWidth(900, 500), 500)
+  assert.equal(clampWidth(Infinity, 401.6), 402)
+  // Where there is no room for the least, the least is asked for all the same.
   assert.equal(clampWidth(200, 0), 160)
+  assert.equal(clampWidth(200, -395), 160)
+  assert.equal(clampWidth(100, Infinity), 160)
+  // A list read at more than that is asked for no narrower.
+  assert.equal(clampWidth(100, 400, 200), 200)
+  assert.equal(clampWidth(900, 100, 200), 200)
 })
 
 test('an environment that has closed is said closed, as the host tells it: out of reach too', () => {
@@ -112,4 +119,11 @@ test('an environment that has closed is said closed, as the host tells it: out o
   assert.equal(offOf(env('1:a', { open: false })), 'closed')
   assert.equal(offOf(env('1:a', { available: false })), 'unavailable')
   assert.equal(offOf(env('1:a')), '')
+})
+
+test('the menu of what the keys are on is asked for by the menu key, or Shift+F10', () => {
+  assert.equal(menuKey({ key: 'ContextMenu', shiftKey: false }), true)
+  assert.equal(menuKey({ key: 'F10', shiftKey: true }), true)
+  assert.equal(menuKey({ key: 'F10', shiftKey: false }), false)
+  assert.equal(menuKey({ key: 'Enter', shiftKey: true }), false)
 })

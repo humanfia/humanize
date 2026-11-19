@@ -7,7 +7,7 @@ import { blocks } from './asking/blocks.js'
 import { fieldsOf, kindOf, resolved, summaryOf } from './asking/logic.js'
 import { h, lasting } from './dom.js'
 import { refusedSaid, shellOf, shellParts } from './natives.js'
-import { copy, menuOn } from './ui.js'
+import { copy, menuOf, menuOn } from './ui.js'
 
 /** How much of a long line is shown before the rest is folded away. */
 const SHORT = 600
@@ -71,6 +71,38 @@ export function shellLine(ran) {
   ])
 }
 
+/**
+ * Gives the keys a way to a thread's lines, which nothing else gives the focus: the thread is
+ * one stop of Tab, the arrows go from it to its newest line and then from line to line, and on a
+ * line Alt and Enter open its menu, as the menu key does where a keyboard has one. A thread the
+ * pointer pressed is scrolled by the arrows still.
+ *
+ * @param {HTMLElement} thread What holds the lines.
+ * @returns {HTMLElement} The thread.
+ */
+export function walked(thread) {
+  let tabbed = false
+  thread.tabIndex = 0
+  thread.addEventListener('focus', () => (tabbed = thread.matches(':focus-visible')))
+  thread.addEventListener('pointerdown', () => (tabbed = false))
+  thread.addEventListener('keydown', (event) => {
+    const lines = [...thread.querySelectorAll(':scope > .said')]
+    const on = lines.indexOf(event.target)
+    if (event.key === 'Enter' && event.altKey && on >= 0) {
+      if (menuOf(event.target)) event.preventDefault()
+      return
+    }
+    const step = { ArrowUp: -1, ArrowDown: 1 }[event.key]
+    if (!step || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const to = on < 0 ? event.target === thread && tabbed && lines.at(-1) : lines[on + step]
+    if (!to) return
+    event.preventDefault()
+    to.tabIndex = -1
+    to.focus()
+  })
+  return thread
+}
+
 /** A thread as text: each line, whose it is where it says, one after another. */
 function threadOf(one) {
   const thread = one.closest('.thread')
@@ -105,6 +137,9 @@ export function sayer(key, { chat = false, folded = false } = {}) {
   let answer = ''
   // What each question asked for, so that its answer is said back as its fields.
   const schemas = new Map()
+  // What an agent here last stopped to ask and the line that says it: the flow putting that to
+  // its person is that question, said once.
+  let stopped = null
   return (record) => {
     const mine = whose(record)
     switch (record.type) {
@@ -127,7 +162,7 @@ export function sayer(key, { chat = false, folded = false } = {}) {
                 ? kind === 'session'
                 : record.role && (kind === 'agent' ? record.role === whom : key.startsWith(`${record.role}/`))
         )
-          ? [asked(record, schemas)]
+          ? asking(record)
           : []
       case 'answered':
         if (kind === 'person' && record.role === whom) return [line('you', answeredText(record, schemas), { who: record.by ? `${record.by} answered` : 'answered' })]
@@ -142,18 +177,35 @@ export function sayer(key, { chat = false, folded = false } = {}) {
         return chat && kind === 'session' ? [shellLine(shellOf(record))] : []
       case 'refused':
         return chat && kind === 'session' ? [line('refused', refusedSaid(record))] : []
-      case 'event':
-        if (mine && record.kind === 'result') answer = String(record.text || '')
-        return mine ? said(record, kind === 'agent' ? record.session || record.agent : '', began, folded) : []
+      case 'event': {
+        if (!mine) return []
+        if (record.kind === 'result') answer = String(record.text || '')
+        const lines = said(record, kind === 'agent' ? record.session || record.agent : '', began, folded)
+        if (record.kind === 'asks') stopped = { text: String(record.text || '').trim(), line: lines[0] }
+        return lines
+      }
       default:
         return []
     }
   }
+
+  /** A question put to a person: a line of its own, or the line its agent asked it on just before. */
+  function asking(record) {
+    const echoed = stopped && stopped.text === String(record.text || '').trim() ? stopped.line : null
+    stopped = null
+    const one = asked(record, schemas, echoed)
+    return echoed ? [] : [one]
+  }
 }
 
-/** A question asked, with what it showed beside it and, for a form, how much it asks. */
-function asked(record, schemas) {
-  const one = line('asks', record.text, { who: `${record.role || 'the flow'} asks` })
+/**
+ * A question asked, with what it showed beside it and, for a form, how much it asks: on a line
+ * of its own, or added to the line that asked it already. The line says which question it is,
+ * `data-question`, for what answers it to be put by it.
+ */
+function asked(record, schemas, one = null) {
+  one ||= line('asks', record.text, { who: `${record.role || 'the flow'} asks` })
+  one.dataset.question = record.question
   const body = one.querySelector('.body')
   const context = blocks(record.context)
   if (context) body.append(context)
@@ -223,19 +275,23 @@ function said(record, who, began, folded = false) {
 
 /**
  * What sessions of a run written down said and did, read off its trace: one session's, or
- * several in the order they did it, each line saying whose it is.
+ * several in the order they did it, each line saying whose it is. What opened a turn is drawn
+ * on the prompt's chevron, as the terminal interface draws it; a chat's session, one given
+ * with `chat`, has it as its person's line, as the chat drew it while it went.
  */
 export function saidTraced(...sessions) {
   const lines = []
   const many = sessions.length > 1
-  const actions = sessions.flatMap((one) => one.actions.map((action) => ({ ...action, whose: one.label || one.key }))).sort((a, b) => a.start - b.start)
+  const actions = sessions.flatMap((one) => one.actions.map((action) => ({ ...action, whose: one.label || one.key, chat: Boolean(one.chat) }))).sort((a, b) => a.start - b.start)
   for (const action of actions) {
     const args = action.args || {}
     const who = many ? action.whose : ''
     switch (action.category) {
-      case 'turn':
-        lines.push(h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), h('div', { class: 'body' }, many ? h('div', { class: 'who' }, action.whose) : null, args.prompt ? String(args.prompt) : action.name)))
+      case 'turn': {
+        const prompt = args.prompt ? String(args.prompt) : action.name
+        lines.push(action.chat ? line('you', prompt) : h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), h('div', { class: 'body' }, many ? h('div', { class: 'who' }, action.whose) : null, prompt)))
         break
+      }
       case 'message':
         lines.push(line('text', args.text ?? action.name, { who }))
         break

@@ -58,6 +58,14 @@ let shown = ''
  * dialog's address, with no view before it.
  */
 let over = 0
+/**
+ * How many of those steps lead back to the dialog this one was opened from, which closing it
+ * goes back to (Section 3.6.6.26 of protocol/web.md): 0 where it was opened over a view, and
+ * for a page of the same dialog as the one before it, which closes as that one does.
+ */
+let up = 0
+/** Which dialog the address routed last named, or none. */
+let last = ''
 /** Whether the dialog open is being stepped back from, until the page is where that leads. */
 let leaving = false
 /** What held the focus as the dialog opened, which has it back once the dialog closes over the same view. */
@@ -163,15 +171,16 @@ export function focusing() {
 }
 
 /**
- * Closes the dialog open, going back to the view under it: by the steps of the history the
- * dialog took, so that it leaves none behind and Back goes on to what was open before the view,
- * as from a dialog that was never an address.
+ * Closes the dialog open, going back to what it was opened over -- the dialog it was opened
+ * from, or the view under it: by the steps of the history the dialog took, so that it leaves
+ * none behind and Back goes on to what was open before, as from a dialog that was never an
+ * address.
  */
 export function shut() {
   if (leaving) return
   if (over > 0) {
     leaving = true
-    history.go(-over)
+    history.go(-(up || over))
   } else go(behind || '/new/chat')
 }
 
@@ -184,11 +193,15 @@ async function route(event) {
   routedTo = location.hash
   asked = document.activeElement
   leaving = false
-  // A dialog's entry is kept with how far it is past the view: one come back to says so itself.
-  if (covered()) {
-    if (!history.state || typeof history.state.over !== 'number') history.replaceState({ over: event ? over + 1 : 0 }, '')
+  // A dialog's entry is kept with how far it is past the view, and past the dialog it was
+  // opened from: one come back to says so itself.
+  const kind = covered() ? where().parts[0] : ''
+  if (kind) {
+    if (!history.state || typeof history.state.over !== 'number') history.replaceState({ over: event ? over + 1 : 0, up: !event || !last ? 0 : kind !== last ? 1 : up && up + 1 }, '')
     over = history.state.over
-  } else over = 0
+    up = history.state.up || 0
+  } else over = up = 0
+  last = kind
   // Busy until every address asked for is drawn: the view left stands until then, and is not
   // what the address names.
   drawing++
@@ -284,7 +297,7 @@ async function open(mine, load, parts, query) {
     overlay.hidden = false
     document.body.classList.add('dialog-open')
     closing = module.mount(dialog, { parts, query }) || null
-    dialog.querySelector('[autofocus], input, button, a')?.focus()
+    ;(dialog.querySelector('[autofocus]') || dialog.querySelector('input, button, a'))?.focus()
   } catch (error) {
     console.error(error)
     fill(overlay, h('div', { class: 'dialog-scrim', onclick: shut }), h('div', { class: 'dialog' }, problem(error)))
@@ -337,6 +350,15 @@ function held(event) {
   stops[at < 0 ? (step > 0 ? 0 : stops.length - 1) : (at + step + stops.length) % stops.length].focus()
 }
 
+/**
+ * Goes where a shortcut leads: asked for where the page already is, it is a going there all the
+ * same, at which whatever floats closes and the drawer the sidebar is on a narrow window shuts.
+ */
+function jump(path) {
+  if (location.hash === hash(path)) window.dispatchEvent(new CustomEvent('hmz:route'))
+  else go(path)
+}
+
 // What is opened from a dialog -- a chat found, a new chat -- takes the dialog's place in the
 // history, so that Back from it goes to the view the dialog was over and never to the dialog.
 document.addEventListener('click', (event) => {
@@ -357,14 +379,13 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Tab' && !overlay.hidden) return modal || held(event)
   if (mod && event.key.toLowerCase() === 'k') {
     event.preventDefault()
-    go('/search')
+    jump('/search')
   } else if (mod && event.shiftKey && event.key.toLowerCase() === 'o') {
     event.preventDefault()
-    go('/new/chat')
+    jump('/new/chat')
   } else if (mod && event.key === '.') {
     event.preventDefault()
-    // The page under a dialog takes no key.
-    if (overlay.hidden && !modal) toggleSidebar()
+    if (!modal) toggleSidebar()
   } else if (event.key !== 'Escape' || modal || event.defaultPrevented) {
     return
   } else if (!overlay.hidden) {

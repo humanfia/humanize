@@ -147,6 +147,12 @@
   animation: pulse 1.2s ease-in-out infinite;
 }
 
+/* What the word being typed could become floats over that line too, not on it: the line, the
+   room it keeps from the box, and the room a menu keeps from what it floats over. */
+.chat-status + .composer > .composer-complete {
+  bottom: calc(100% + 16px + var(--space-4) + var(--space-8));
+}
+
 /* What the chat has used: a ring 24px square, as a chat app keeps one there, and beside it what
    the chat has spent once there is something to say. */
 .composer-under .chip-btn.usage-chip {
@@ -202,15 +208,12 @@ input.title-edit {
   min-width: 0;
   height: var(--control-h-sm);
   padding: 0 calc(var(--space-8) - var(--border-w));
-  border: var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--field);
-  color: var(--ink);
   font: inherit;
 }
 
 /* On the bar the field lies over the title, which keeps its room: what stands after the title
-   stays where it is, to be pressed, while the title is renamed and once it is. */
+   stays where it is, to be pressed, while the title is renamed and once it is. A short title's
+   field is wide enough to write in, and lies over the menu after the title then. */
 .chat-bar .bar-title h1:has(> .title-edit) {
   position: relative;
 }
@@ -222,9 +225,31 @@ input.title-edit {
 
 .chat-bar .title-edit {
   position: absolute;
+  z-index: var(--z-float);
   inset: 0 auto 0 0;
   width: 100%;
   min-width: min(24ch, 60vw);
+}
+
+/* On a phone the room is the title's column: the field is as wide as what is written in it,
+   never narrower than can be written in, and ends where a title filling the column does --
+   short of the menu after it, and of the panes' buttons. */
+@media (max-width: 860px) {
+  .chat-bar .bar-title:has(.title-edit) {
+    position: relative;
+  }
+
+  .chat-bar .bar-title h1:has(> .title-edit) {
+    position: static;
+  }
+
+  .chat-bar .title-edit {
+    field-sizing: content;
+    width: auto;
+    min-width: min(24ch, 100% - var(--control-h-sm) - var(--space-2));
+    max-width: calc(100% - var(--control-h-sm) - var(--space-2));
+    margin-block: auto;
+  }
 }
 
 .side-run > .title-edit {
@@ -246,6 +271,7 @@ input.title-edit {
 
 .delete-body p {
   margin: 0 0 var(--space-8);
+  line-height: 20px;
 }
 
 .delete-body p:last-of-type {
@@ -330,6 +356,5 @@ input.title-edit {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
   gap: var(--space-8) var(--space-12);
 }

@@ -36,14 +36,20 @@ the run, grouped by role, with the ones a flow made nested under the one they ca
   a file is written 0.8 seconds after you stop typing, and when you leave it. If an agent changed
   it meanwhile, a banner offers **Compare**, **Keep mine** or **Reload**; a file you have not
   touched just follows what the agent writes. `Ctrl+P` opens any file by name, `Ctrl+Shift+F`
-  searches them all.
+  searches them all. Drag the line between the tree and the editor, or move it with the arrow
+  keys, to size the tree; a double click puts it back. The tree takes two fifths of the panel at
+  the most, and in a panel narrower than 480 pixels it stands over the editor. Right-click an
+  entry, or press the menu key on it, to make, rename, delete or copy its path.
 - **Terminal.** A login shell in the workdir, as many as you like. Close the page and they keep
   running; open it again, or from another browser, and you see what they printed while you were
   away. A shell nobody has looked at for 10 minutes is closed, and every shell goes when its
   environment does.
 - **Changes.** Like an editor's source control: merge conflicts, staged, changed and untracked
   files, a diff of each, stage, unstage, discard, commit, the last commits, and, where the run keeps
-  them, the snapshots to rewind to. Rewinding waits until no agent is mid-turn there.
+  them, the snapshots to rewind to. Rewinding waits until no agent is mid-turn there. What a
+  file's buttons do is also in its menu, on a right click or the menu key, and `Delete` discards
+  the one the keys are on, asking first. The line between the list and the diff sizes the list
+  as the one in Files sizes the tree, between 200 pixels and two fifths of the panel.
 
 </div>
 

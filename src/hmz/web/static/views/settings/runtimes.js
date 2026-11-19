@@ -33,8 +33,8 @@ export function draw(holder, query, parts, scope) {
         { 'data-hmz': 'runtime' },
         h('td', { class: 'mono' }, one.backend),
         h('td', {}, h('b', {}, one.name), h('div', { class: 'dim' }, one.made)),
-        h('td', { class: 'mono' }, reached(one), one.workdir ? h('div', { class: 'dim' }, one.workdir) : null),
-        h('td', {}, checked[key] ? said(checked[key]) : h('span', { class: 'dim' }, 'not asked')),
+        h('td', { class: 'mono', 'data-label': 'Address' }, reached(one), one.workdir ? h('div', { class: 'dim' }, one.workdir) : null),
+        h('td', { 'data-label': 'Resources' }, checked[key] ? said(checked[key]) : h('span', { class: 'dim' }, 'not asked')),
         h(
           'td',
           {},

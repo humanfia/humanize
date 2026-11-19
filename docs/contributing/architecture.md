@@ -40,7 +40,7 @@ holds the same table, so an import that breaks it fails the run.
 | who is outside a run: claims, away, questions, lines said to agents, asides | `runtime/doing/hosting.py` |
 | what a frontend does in a run's environments (`env.*`): the `envs` list, files, terminals and their flow control | `runtime/doing/desk.py`; git's commands and what they print, `runtime/doing/gitdesk.py` |
 | a slash command, a key, a menu; what the interface draws of a message | `tui/` |
-| a view of the web interface, or what its server answers | `web/`: the page under `web/static/`, plain ES modules speaking JSON-RPC to daemons (`rpc/`, `api.js`); the server in `site.py` -- the page's files, `/here`, admission -- and its bridges `/rpc` and `/dial` in `bridge.py` |
+| a view of the web interface, or what its server answers | `web/`: the page under `web/static/`, plain ES modules speaking JSON-RPC to daemons (`rpc/`, `api.js`), drawn from the tokens of `style.css`, its menus and popups kept by `layers.js` ([The page's look and what floats](#web-look)); the server in `site.py` -- the page's files, `/here`, admission -- and its bridges `/rpc` and `/dial` in `bridge.py` |
 | runs kept going after the terminal closes, and the one JSON-RPC endpoint every client reaches them through, on its socket and its listeners | `daemon/` |
 | a method the daemon serves beyond epics and sessions: settings, accounts, nous, runtimes, EasyTier, flows, workspaces, paths, notices, runs, backups, files | `daemon/api/`, a module per family naming its own in `METHODS` |
 | a carrier between a client and a daemon: a route, dialing it, listening, racing routes | `reach/` |
@@ -222,6 +222,52 @@ uv run pytest -n0 tests/system/test_harness_task.py -k <name>
 
 Check it with `uv run hmz --help`, which lists every entry of `COMMANDS`, and with
 `uv run hmz <command> --help`.
+
+## The page's look and what floats {#web-look}
+
+The page's stylesheets -- `web/static/style.css` and the ones beside it and under `chips/`,
+`faces/` and `views/` -- are written by hand and served as they are. Its look is stated once,
+at the head of `style.css`, as tokens on `:root`; a rule takes its values from them, never from
+a literal:
+
+| What | Tokens |
+| --- | --- |
+| Padding, margin and gap | `--space-2` to `--space-40`; `--gutter` for a plane's inset, `--indent` for a step of a tree |
+| Corners | `--radius-xs`, `-sm`, `-md` (what is pressed), `-lg` (what contains), `-xl` (the composer and a menu), `-full` |
+| Lines | `var(--border)` between planes, around cards and as dividers; `var(--border-strong)` around what floats or is typed into; `var(--border-w) solid var(--edge)` around a button. None is thicker than `--border-w`, one pixel |
+| Sizes | `--control-h-xs`, `-sm`, `--control-h`, `-lg` for controls, `--row-h` for a list's row, `--bar-h` for a bar; `--icon-sm`, `--icon`, `--icon-lg` |
+| Type | `--text-xs` to `--text-xl`, in `--sans` or `--mono` |
+| States | `--hover` under the pointer, `--selected` for what is current, chosen or open, `--pressed` while pressed, `--quiet` for a resting fill, `--focus-ring` as the outline of what holds the keys |
+| Stacking | `--z-sticky`, `--z-float`, `--z-sheet`, `--z-scrim`, `--z-drawer`, `--z-dialog`, `--z-menu`, `--z-toast`, `--z-tip`, `--z-skip`: the only values a `z-index` takes |
+| Motion | `--dur`, `--dur-slow` and `--ease` |
+
+No rule sets a `box-shadow`: what floats is the opaque `--raised` surface inside
+`var(--border-strong)`, and a dialog is set off by `--scrim`. A state is a fill, the same one
+everywhere; nothing moves, grows or gains a border as its state changes. An accent says one
+thing -- green sends, cyan is live or a link or the focus, pink is unread, gold waits on you,
+red failed or destroys -- and the colours a [theme](/user/web#themes) may set are the ones
+`themes.js` lists; every other colour is worked out from those, so that a theme made before
+still draws.
+
+Whatever floats over the page for a moment -- a menu, the list beside one, a menu at the
+pointer, a panel that is typed into -- is registered with `web/static/layers.js`, which keeps
+them as one chain and holds the page's only listeners that close them: a press elsewhere,
+Escape, the focus leaving, a scroll, the window sized or left, the page going elsewhere. A
+module that opens one:
+
+- calls `opened(layer)` once its node is in the page and shown, and `closed(layer)` first in
+  its own closer; `layer` names its `node`, the `anchor` that opened it, its `close`, and
+  `kind: 'panel'` where something is typed in it;
+- toggles from its trigger, on which it sets `aria-haspopup` and `aria-expanded`, and adds no
+  listener of its own for an outside press, Escape, scroll, resize or blur;
+- shows a `<dialog>` with `modal(dialog)` rather than `showModal()`, and calls
+  `dismiss('dialog')` before any other dialog of its own is shown;
+- puts it with `place()` or `follow()`, and says anything for a moment through `posted()` or
+  `toast()` of `ui.js`, which keep the one `.toasts` region.
+
+`menu()` and `submenu()` of `shell.js`, `menuOn()` and `menuButton()` of `ui.js` and
+`confirming()` of `dom.js` already do all of it. `layers.js` imports nothing and keeps its chain
+without a document, so `tests/unit/web/js/layers.test.mjs` tests it under `node --test`.
 
 ## Vendored web code {#vendored-web-code}
 

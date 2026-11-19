@@ -268,12 +268,12 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         _chats(page, wire)
         bar = page.locator("[data-hmz=bar]")
 
-        # Its bar, as a chat app's session keeps its toolbar: 45px high, its title a
+        # Its bar, as a chat app's session keeps its toolbar: 44px high, its title a
         # button with the one menu right after it, and at the far right a 28px button
         # for each pane, then View options, with which it ends -- no word of hmz's own,
         # and nothing saying how the chat stands.
         expect(bar.locator("h1")).to_have_text("hello there")
-        assert _box(page, "[data-hmz=bar]")["height"] == 45
+        assert _box(page, "[data-hmz=bar]")["height"] == 44
         title = _box(page, "[data-hmz=chat-title]")
         more_at = _box(page, "[data-hmz=chat-menu]")
         assert 0 <= more_at["x"] - (title["x"] + title["width"]) <= 4
@@ -438,7 +438,7 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         # The bar runs over the pane too: the button stays where it was pressed, so
         # pressing there again shuts the pane.
         assert _box(page, "[data-hmz=pane-details]") == before
-        assert _box(page, "[data-hmz=inspector]")["y"] == 45
+        assert _box(page, "[data-hmz=inspector]")["y"] == 44
         page.mouse.click(before["x"] + 14, before["y"] + 14)
         expect(panel).to_be_hidden()
         # The title is a button that renames the chat where it stands, and opens no pane.
@@ -491,6 +491,10 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         bar.locator("[data-hmz=chat-view]").click()
         offered.get_by_role("menuitem", name="Ai-chan").click()
         expect(page.locator("[data-hmz=app]")).to_have_class(re.compile("aichan-open"))
+        # Both would leave the conversation too narrow to read: the drawer takes the
+        # pane's place, and the conversation keeps 480 at the least.
+        expect(panel).to_be_hidden()
+        assert _box(page, "[data-hmz=say]")["width"] >= 480
         bar.locator("[data-hmz=chat-view]").click()
         expect(offered.locator("[data-hmz=view-aichan]")).to_have_class(
             re.compile("chosen")
@@ -702,14 +706,14 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
             "href", re.compile(r"#/settings/usage\?workspace=")
         )
 
-        # Permissions: 308 wide where there is room, the three in rows of 46 under no
+        # Permissions: 308 wide where there is room, the three in rows of 44 under no
         # heading, opened on the one in force.
         under.locator("[data-hmz=permission]").click()
         menu = page.get_by_role("menu", name="Permissions")
         expect(menu.locator(".popover-head")).to_have_count(0)
         expect(menu.get_by_role("menuitem")).to_have_count(3)
         assert _box(page, "[role=menu][aria-label=Permissions]")["width"] == 308
-        assert set(menu.get_by_role("menuitem").evaluate_all(_TALL)) == {46}
+        assert set(menu.get_by_role("menuitem").evaluate_all(_TALL)) == {44}
         expect(menu.locator("[data-permission=workspace-write]")).to_be_focused()
         expect(menu.locator(".permission-note")).to_be_visible()
         page.keyboard.press("Escape")
@@ -721,7 +725,11 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         expect(rows).to_have_text(["Haiku 4.5", "Opus 4.1", "EffortDefault", "More"])
         assert set(rows.evaluate_all(_TALL)) == {28}
         expect(menu.locator("[data-value=claude-haiku-4-5]")).to_be_focused()
+        # One opened beside it takes the other's place: never two side by side.
+        menu.get_by_role("menuitem", name="Effort").click()
+        expect(page.locator("[data-hmz=pick-effort]")).to_be_visible()
         menu.get_by_role("menuitem", name="More").click()
+        expect(page.locator("[data-hmz=pick-effort]")).to_have_count(0)
         more = page.locator("[data-hmz=pick-more]")
         expect(more.locator("[data-hmz=pick-model-typed]")).to_be_visible()
         expect(

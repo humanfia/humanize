@@ -26,7 +26,7 @@ const KEPT = 8
 /** Each category's colour, as a theme token; `epic` is the root's. */
 const TOKENS = {
   epic: '--line-strong',
-  flow: '--primary',
+  flow: '--ink-3',
   session: '--lane-3',
   turn: '--lane-1',
   llm: '--lane-2',
@@ -329,7 +329,7 @@ export function mount(el, model, range, told = {}) {
   function themed() {
     const style = getComputedStyle(document.documentElement)
     const read = (token) => style.getPropertyValue(token).trim()
-    colours = { paper: read('--paper'), ink: read('--ink'), onFill: read('--on-fill'), onPrimary: read('--on-primary'), pink: read('--pink'), cyan: read('--cyan'), sans: read('--sans') || 'sans-serif' }
+    colours = { paper: read('--paper'), ink: read('--ink'), onFill: read('--on-fill'), onInk: read('--on-ink'), pink: read('--pink'), cyan: read('--cyan'), sans: read('--sans') || 'sans-serif' }
     for (const [cat, token] of Object.entries(TOKENS)) colours[cat] = read(token)
     paletted()
     widths.clear()
@@ -515,7 +515,7 @@ export function mount(el, model, range, told = {}) {
       ctx.fillStyle = palette[agg.cat[n]]
       ctx.fillRect(x0, y + 1, Math.max(1, w - (w > 3 ? 1 : 0)), ROW - 2)
       if (w > 24) {
-        ctx.fillStyle = text(agg.cat[n]) === 'flow' ? colours.onPrimary : text(agg.cat[n]) === 'epic' ? colours.ink : colours.onFill
+        ctx.fillStyle = text(agg.cat[n]) === 'flow' ? colours.onInk : text(agg.cat[n]) === 'epic' ? colours.ink : colours.onFill
         clipped(text(agg.name[n]), x0 + 4, y + ROW / 2, w - 8)
       }
       ctx.globalAlpha = 1

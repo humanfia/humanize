@@ -27,13 +27,18 @@
 
 /* ------------------------------------------------------------------- A group's heading */
 
-/* The first stands 20 under the entries, 8 of which is theirs; the rest 16 under the one before. */
+/* The first stands 20 under the entries, 8 of which is theirs; the rest 16 under the one before,
+   or 4 where that one is folded and shows no rows: headings on their own stand as a list. */
 .side-group {
   margin-top: var(--space-12);
 }
 
 .side-group + .side-group {
   margin-top: var(--space-16);
+}
+
+.side-group:has(> .side-folder .side-toggle[aria-expanded='false']) + .side-group {
+  margin-top: var(--space-4);
 }
 
 .side-folder {
@@ -209,14 +214,22 @@
   outline-offset: 2px;
 }
 
+/* Its second line ends where its first does, short of the menu: what stands at the end of
+   either is on one edge down the list. That room, the menu's width after the line's gap, is the
+   first thing a narrow sidebar takes back: the flow's name is cut only once it is gone. */
 .side-sub {
   height: 16px;
-  padding: 0 var(--space-8) 0 calc(var(--icon) + var(--space-4));
+  padding-left: calc(var(--icon) + var(--space-4));
+}
+
+.side-sub::after {
+  content: '';
+  flex: 0 100000 var(--control-h-xs);
 }
 
 /* The flow it is of, said quietly under its title. */
 .side-tag {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;

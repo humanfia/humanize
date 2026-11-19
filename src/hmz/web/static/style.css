@@ -35,6 +35,9 @@
   /* How much ink is mixed into what is selected and into what is pressed. */
   --selected-mix: 10%;
   --pressed-mix: 14%;
+  /* The track a choice of a few stands in, and the one taken in it: always the lighter. */
+  --track: color-mix(in srgb, var(--ink) 10%, transparent);
+  --thumb: var(--raised);
   --grid: color-mix(in srgb, var(--ink) 4.5%, transparent);
   --grid-major: color-mix(in srgb, var(--ink) 9%, transparent);
   --scrim: rgba(20, 26, 31, 0.45);
@@ -84,6 +87,8 @@
   --hover: rgba(230, 239, 241, 0.08);
   --selected-mix: 15%;
   --pressed-mix: 20%;
+  --track: color-mix(in srgb, var(--ink) 8%, transparent);
+  --thumb: color-mix(in srgb, var(--ink) 22%, var(--surface));
   --grid: color-mix(in srgb, var(--ink) 4%, transparent);
   --grid-major: color-mix(in srgb, var(--ink) 8%, transparent);
   --scrim: rgba(0, 0, 0, 0.6);
@@ -151,8 +156,8 @@
   --menu-max: 320px;
   --dialog-sm: 400px;
   --dialog-md: 520px;
-  --dialog-lg: 720px;
   --toast-wide: 320px;
+  --toast-high: 80px; /* how tall a toast stands, at most, where room is kept bare for it */
   --side-gutter: var(--space-8); /* a row's inset from the sidebar's edges, both sides */
   --side-label: 18px; /* where a sidebar label without an icon starts */
 
@@ -265,7 +270,7 @@ body {
   overflow: hidden;
   background: var(--paper);
   color: var(--ink);
-  font: var(--text)/1.5 var(--sans);
+  font: var(--text)/20px var(--sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -276,6 +281,12 @@ a {
 button {
   font: inherit;
   color: inherit;
+}
+
+/* What is said strongly is said in the heaviest weight a heading has, and no heavier. */
+b,
+strong {
+  font-weight: 600;
 }
 
 :focus-visible {
@@ -306,7 +317,7 @@ kbd {
 }
 
 code {
-  font-size: 0.92em;
+  font-size: var(--text-sm);
 }
 
 .icon {
@@ -444,12 +455,25 @@ code {
   background: var(--hover);
 }
 
+/* The row the page is on, and the bar whose menu is open: on that darker ground what a row
+   says quietly is said a step stronger, so that it reads as well as on a plain one. */
 .side-nav a[aria-current='page'],
 .side-run > a[aria-current='page'],
 .side-agent[aria-current='page'],
 .side-session[aria-current='page'],
 .side-account[aria-expanded='true'] {
   background: var(--selected);
+  --ink-3: var(--ink-2);
+}
+
+/* What it says in a tone is said deeper there too, by as much ink as reads on that ground: the
+   word for a failure, and the pill of what is going. */
+.side-run > a[aria-current='page'] .side-status:is([data-state='failed'], .tone-failed) {
+  color: color-mix(in srgb, var(--fail) 80%, var(--ink));
+}
+
+.side-run > a[aria-current='page'] .pill-live {
+  color: color-mix(in srgb, var(--live-ink) 80%, var(--ink));
 }
 
 :is(.side-nav a, .side-run > a, .side-agent, .side-session, .side-account):active,
@@ -557,6 +581,7 @@ code {
   width: var(--icon-sm);
   text-align: center;
   font-size: var(--text-xs);
+  line-height: 16px;
   color: var(--tone, var(--ink-3));
 }
 
@@ -685,10 +710,11 @@ code {
   font: 500 var(--text) / 20px var(--sans);
 }
 
+/* On the baseline its name and host stand on, its mark sitting on that line. */
 .side-state {
   flex: none;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-6);
   font: var(--text-xs) / 16px var(--mono);
   color: var(--ink-3);
@@ -772,6 +798,13 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A menu headed by a path is headed as a path is set, its end kept and its start cut: its
+   letters in their order whichever way the line is cut. */
+.context-head.path::before,
+.context-head.path::after {
+  content: '\200e';
 }
 
 /* One choice: a row 28 high with its mark, what it is called and, under that, what it is about. */
@@ -972,8 +1005,12 @@ code {
   color: var(--control-ink);
 }
 
-.icon-btn.path-browse:hover:not(:disabled) {
+.icon-btn.path-browse:where(:not(:disabled)):hover {
   background: color-mix(in srgb, var(--control-ink) 6%, var(--control));
+}
+
+.icon-btn.path-browse:where(:not(:disabled)):active {
+  background: color-mix(in srgb, var(--control-ink) 10%, var(--control));
 }
 
 .icon-btn.path-browse[aria-expanded='true'] {
@@ -1156,18 +1193,17 @@ code {
 }
 
 /* Whatever is said for a moment stands in one corner of the page, clear of the box that is
-   typed into: under the bar and under the row beneath it, which may be the bar's own second row
-   or the head of a pane with the button that shuts it. The newest first, each under the one
-   before. */
+   typed into: under the bar, and no wider than a panel open beside the view, whose head is the
+   bar there. The newest first, each under the one before. */
 .toasts {
   position: fixed;
-  top: calc(var(--lights-strip, 0px) + 2 * var(--bar-h) + var(--space-8));
+  top: calc(var(--lights-strip, 0px) + var(--bar-h) + var(--under, 0px) + var(--space-8));
   right: var(--space-16);
   z-index: var(--z-toast);
   display: grid;
   gap: var(--space-8);
   justify-items: end;
-  width: min(var(--toast-wide), calc(100vw - 32px));
+  width: min(var(--toast-wide), var(--panel-wide) - 2 * var(--space-16), 100vw - 2 * var(--space-16));
   pointer-events: none;
 }
 
@@ -1175,11 +1211,42 @@ code {
   display: none;
 }
 
+/* Under a second row too, where one stands under the bar at that corner: the head of a pane
+   beside a chat, with the button that shuts it; what switches an epic between its shapes, and
+   Exomyth's tools, where no panel is open beside them. */
+.app:not(.aichan-open):has(.chat-pane:not([hidden])) ~ .toasts,
+.app:not(.aichan-open):has(.view > .inspector[hidden]):has(.shape-switch, .exo-tools) ~ .toasts {
+  --under: var(--bar-h);
+}
+
+/* A narrow window's bar is two rows itself, where its buttons go under its title. */
+@media (max-width: 860px) {
+  .toasts {
+    --under: var(--bar-h);
+  }
+}
+
 /* While a dialog is open that corner is the dialog's own, where the button that shuts it is:
-   they stand at the window's foot instead. */
+   only the newest is said, at the window's foot, so that it never reaches up over what the
+   dialog holds. */
 body:has(> .overlay:not([hidden])) > .toasts {
   top: auto;
   bottom: var(--space-16);
+}
+
+/* Only the newest is said, too, over a view that is one page under its bar, which holds what
+   is pressed right up to that corner. */
+body:has(> .overlay:not([hidden])) > .toasts > :nth-child(n + 2),
+.app:has(.view-pad) ~ .toasts > :nth-child(n + 2) {
+  display: none;
+}
+
+/* Beside a dialog in the window's middle it is no wider than the room the dialog leaves there,
+   down to the least that can be read in. */
+@media (min-width: 861px) {
+  body:has(> .overlay:not([hidden])) > .toasts {
+    width: clamp(160px, 50vw - var(--dialog-wide, var(--dialog-md)) / 2 - var(--space-24), var(--toast-wide));
+  }
 }
 
 .toasts > * {
@@ -1205,6 +1272,12 @@ body:has(> .overlay:not([hidden])) > .toasts {
   overflow-wrap: anywhere;
 }
 
+/* On the dark page it stands over fills like its own, a hairline lost among them: its edge is
+   drawn in the quiet ink there, which tells it from any of them. */
+[data-theme='dark'] :is(.toast, .notify-card) {
+  border-color: var(--ink-3);
+}
+
 /* A toast that stays: an import going, or why it failed, until the next or until closed. */
 .notice {
   display: flex;
@@ -1212,11 +1285,22 @@ body:has(> .overlay:not([hidden])) > .toasts {
   gap: var(--space-8);
 }
 
+/* Why it failed is said in the ink, behind the dot of what failed. */
 .notice .error {
   margin: 0;
   padding: 0;
   background: none;
   color: inherit;
+}
+
+.notice:has(> .error)::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: var(--space-6) 0;
+  border-radius: var(--radius-full);
+  background: var(--fail);
 }
 
 .notice a {
@@ -1302,6 +1386,7 @@ img {
 }
 
 .view-pad {
+  width: 100%;
   max-width: var(--column);
   margin: 0 auto;
   padding: var(--space-24) var(--gutter) var(--space-40);
@@ -1314,13 +1399,13 @@ img {
 /* The bar over a view: one row as high as the sidebar's title row, its line included, so the two
    and the head of a panel beside them stand on one line. What stands in it is centred in that
    whole height: as much is kept over its rows as the line takes under them. Where its title and
-   its buttons do not fit side by side the buttons go under the title, and nothing runs past its
-   end. */
+   its buttons do not fit side by side the buttons go under the title, in a row as high, and
+   nothing runs past its end. */
 .bar {
   flex: none;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 0 var(--space-8);
   min-width: 0;
   min-height: var(--bar-h);
@@ -1337,6 +1422,10 @@ img {
 
 .side-folded .bar .bar-side {
   display: inline-grid;
+}
+
+.bar > .icon-btn {
+  margin-block: calc((var(--bar-h) - 2 * var(--border-w) - var(--control-h-sm)) / 2);
 }
 
 /* The title and under it, where the view has more to say, one quiet line: each row of a bar is as
@@ -1357,6 +1446,13 @@ img {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A title with a line under it is the two centred in the bar, which is no higher for the line.
+   It is a task's, and long: it keeps room to be read in, and the buttons go under it sooner
+   than it gives that up. */
+.bar-title:has(> .bar-sub) {
+  flex-basis: 240px;
 }
 
 .bar-sub {
@@ -1393,6 +1489,17 @@ img {
   font-size: var(--text-xs);
 }
 
+.bar-sub a,
+.crumbs a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.bar-sub a:hover,
+.crumbs a:hover {
+  text-decoration: underline;
+}
+
 .bar-actions {
   flex: 0 1 auto;
   min-width: 0;
@@ -1406,13 +1513,24 @@ img {
   margin-left: auto;
 }
 
-.crumbs a {
-  color: inherit;
-  text-decoration: none;
+/* A question asked in a bar is asked by its buttons alone, and takes no room to ask: the answer
+   that takes it back stands over what follows it on the bar, which is not drawn meanwhile. */
+.bar-actions .confirm {
+  position: relative;
 }
 
-.crumbs a:hover {
-  text-decoration: underline;
+.bar-actions .confirm > span {
+  display: none;
+}
+
+.bar-actions .confirm > .btn + .btn {
+  position: absolute;
+  top: 0;
+  left: calc(100% + var(--space-4));
+}
+
+.bar-actions:has(> .confirm > .btn + .btn) > .confirm ~ * {
+  visibility: hidden;
 }
 
 .crumbs > span:not(.mono) {
@@ -1466,17 +1584,23 @@ img {
   background: var(--hover);
 }
 
+/* Pressed or open it is filled: what it is, said quietly, is said a step darker on the fill. */
 .flow-picker:active {
   background: var(--pressed);
+  --ink-3: var(--ink-2);
 }
 
 .flow-picker[aria-expanded='true'] {
   background: var(--selected);
+  --ink-3: var(--ink-2);
 }
 
 /* ------------------------------------------------------------------ controls */
 
-/* A button drawn as an icon alone: nothing until it is pointed at, then the one neutral fill. */
+/* A button drawn as an icon alone: nothing until it is pointed at, then the one neutral fill.
+   Pointed at is said only where there is something to point with -- a finger leaves it behind
+   on whatever it last touched -- and no more strongly than a class, so that what a button is
+   set to, said after it, stays said while it is pointed at. */
 .icon-btn {
   display: inline-grid;
   place-items: center;
@@ -1501,9 +1625,11 @@ img {
   height: var(--icon);
 }
 
-.icon-btn:where(:not(:disabled)):hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .icon-btn:where(:not(:disabled)):hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 
 .icon-btn:where(:not(:disabled)):active {
@@ -1552,11 +1678,13 @@ img {
   height: var(--icon);
 }
 
-.btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--control-ink) 6%, var(--control));
+@media (hover: hover) {
+  .btn:where(:not(:disabled)):hover {
+    background: color-mix(in srgb, var(--control-ink) 6%, var(--control));
+  }
 }
 
-.btn:active:not(:disabled) {
+.btn:where(:not(:disabled)):active {
   background: color-mix(in srgb, var(--control-ink) 10%, var(--control));
 }
 
@@ -1572,11 +1700,13 @@ img {
   border-color: transparent;
 }
 
-.btn.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--primary) 88%, var(--paper));
+@media (hover: hover) {
+  .btn.primary:where(:not(:disabled)):hover {
+    background: color-mix(in srgb, var(--primary) 88%, var(--paper));
+  }
 }
 
-.btn.primary:active:not(:disabled) {
+.btn.primary:where(:not(:disabled)):active {
   background: color-mix(in srgb, var(--primary) 80%, var(--paper));
 }
 
@@ -1586,11 +1716,13 @@ img {
   border-color: color-mix(in srgb, var(--fail) 45%, transparent);
 }
 
-.btn.danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--fail) 8%, transparent);
+@media (hover: hover) {
+  .btn.danger:where(:not(:disabled)):hover {
+    background: color-mix(in srgb, var(--fail) 8%, transparent);
+  }
 }
 
-.btn.danger:active:not(:disabled) {
+.btn.danger:where(:not(:disabled)):active {
   background: color-mix(in srgb, var(--fail) 14%, transparent);
 }
 
@@ -1601,12 +1733,14 @@ img {
   color: var(--ink-2);
 }
 
-.btn.quiet:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .btn.quiet:where(:not(:disabled)):hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 
-.btn.quiet:active:not(:disabled) {
+.btn.quiet:where(:not(:disabled)):active {
   background: var(--pressed);
 }
 
@@ -1625,9 +1759,11 @@ img {
   cursor: progress;
 }
 
-/* A small button, and any button on a bar, stands as tall as the icon buttons beside it. */
+/* A small button, and any button on a bar or in a card's header, stands as tall as the icon
+   buttons beside it. */
 .btn.small,
-.bar-actions .btn {
+.bar-actions .btn,
+.panel > header .btn {
   height: var(--control-h-sm);
   padding: 0 var(--space-8);
 }
@@ -1639,10 +1775,6 @@ img {
   flex-wrap: wrap;
 }
 
-.confirm span {
-  font-weight: 600;
-}
-
 /* A choice of a few, one always taken: a quiet track, and the one taken raised out of it. */
 .segmented {
   display: inline-flex;
@@ -1652,7 +1784,7 @@ img {
   gap: var(--space-2);
   border: 0;
   border-radius: var(--radius-md);
-  background: var(--selected);
+  background: var(--track);
 }
 
 /* A track with no choice in it yet is not drawn. */
@@ -1669,19 +1801,21 @@ img {
   border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-2);
-  font: 500 var(--text-md) var(--sans);
+  font: 500 var(--text-md)/20px var(--sans);
   cursor: pointer;
   transition:
     background-color var(--dur) var(--ease),
     color var(--dur) var(--ease);
 }
 
-.segmented button:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .segmented button:hover {
+    color: var(--ink);
+  }
 }
 
 .segmented button[aria-pressed='true'] {
-  background: var(--raised);
+  background: var(--thumb);
   color: var(--ink);
   outline: var(--border);
   outline-offset: -1px;
@@ -1730,14 +1864,18 @@ select {
 }
 
 /* WebKit draws a select its own way, deaf to the border, padding and background above: each is
-   drawn plain, as every engine then draws it, with a chevron of two gradients in the ink. */
+   drawn plain, as every engine then draws it, with the chevron a chip has: two strokes, each a
+   gradient in the quiet ink, so that it follows a theme as an icon does. A chip's select
+   (`.chip-select select`) moves and sizes these two strokes and nothing else: it counts on
+   there being two, in this order. */
 select {
+  --stroke: transparent calc(50% - 0.5px), var(--ink-3) 0, var(--ink-3) calc(50% + 0.5px), transparent 0;
   appearance: none;
   padding-right: var(--space-24);
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
-    linear-gradient(-45deg, transparent 50%, var(--ink-3) 50%);
-  background-position: right 12px center, right 8px center;
+  background-image: linear-gradient(to top right, var(--stroke)), linear-gradient(to bottom right, var(--stroke));
+  background-position:
+    right 12px center,
+    right 8px center;
   background-size: 4px 4px;
   background-repeat: no-repeat;
 }
@@ -1774,6 +1912,7 @@ textarea {
 }
 
 input:is([type='checkbox'], [type='radio']) {
+  flex: none;
   width: 16px;
   height: 16px;
   margin: 0;
@@ -1781,8 +1920,39 @@ input:is([type='checkbox'], [type='radio']) {
   accent-color: var(--primary);
 }
 
+/* A box to tick is drawn, the same in every engine and theme: a field's ground and edge, and
+   ticked, the primary fill under a tick in its ink. The tick is two strokes, each a gradient,
+   set about the box's middle whatever size the box is. */
 input[type='checkbox'] {
+  --stroke: transparent calc(50% - 0.75px), var(--on-primary) 0, var(--on-primary) calc(50% + 0.75px), transparent 0;
+  appearance: none;
   border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition:
+    background-color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+input[type='checkbox']:focus {
+  border-color: var(--line-strong);
+}
+
+@media (hover: hover) {
+  input[type='checkbox']:where(:not(:disabled)):hover {
+    border-color: var(--ink-3);
+  }
+}
+
+input[type='checkbox']:checked {
+  border-color: var(--primary);
+  background:
+    linear-gradient(to top right, var(--stroke)) calc(50% - 2.5px) calc(50% + 1.5px) / 3px 3px no-repeat,
+    linear-gradient(to bottom right, var(--stroke)) calc(50% + 2px) 50% / 6px 6px no-repeat,
+    var(--primary);
+}
+
+input[type='checkbox']:disabled {
+  cursor: default;
 }
 
 .search {
@@ -1807,13 +1977,16 @@ input[type='checkbox'] {
   color: var(--ink-3);
 }
 
-.field .hint {
-  font-size: var(--text-sm);
+/* What a field is for, and what is wrong in it, said small under it; a hint is as quiet beside
+   a card's heading. */
+.field .hint,
+.panel > header .hint {
+  font: var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
 }
 
 .field .problem {
-  font-size: var(--text-sm);
+  font: var(--text-sm)/16px var(--sans);
   color: var(--fail);
 }
 
@@ -1837,6 +2010,11 @@ input[type='checkbox'] {
   min-height: var(--control-h);
 }
 
+/* In a row of boxes to tick alone, two boxes stand further apart than a box and its words. */
+.row:has(> .check):not(:has(> :not(.check))) {
+  column-gap: var(--space-16);
+}
+
 .grid {
   display: grid;
   gap: var(--space-12) var(--space-16);
@@ -1854,7 +2032,8 @@ input[type='checkbox'] {
 
 .role h3 {
   margin: 0;
-  font-size: var(--text);
+  font: 500 var(--text-sm)/16px var(--sans);
+  color: var(--ink-3);
   display: flex;
   gap: var(--space-8);
   align-items: center;
@@ -1907,15 +2086,37 @@ p + .panel {
   font: 600 var(--text-lg)/22px var(--sans);
 }
 
+/* A card's heading and what is done with the whole card: one line as tall as a small button,
+   whether or not it holds one, with what is done at its right. A heading that stands alone is
+   as tall. */
+.panel > h2 {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h-sm);
+}
+
 .panel > header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-8);
+  min-height: var(--control-h-sm);
   margin-bottom: var(--space-12);
+}
+
+.panel > header > :not(.row, .btn, .confirm) + :is(.row, .btn, .confirm) {
+  margin-left: auto;
 }
 
 .panel > header h2 {
   margin: 0;
+}
+
+/* A button without a frame that ends the heading -- the last thing drawn in it, or in the row
+   that ends it -- is set out by its inset, as one that ends a line of a table is: its words end
+   on the card's text edge. */
+:is(.panel > header, .panel > header > .row:last-child, .panel > header > .row:last-child > .row:last-child)
+  > .btn.quiet:nth-last-child(1 of :not([hidden])) {
+  margin-right: calc(-1 * var(--space-8));
 }
 
 .loading,
@@ -2052,8 +2253,7 @@ p + .panel {
   flex-wrap: wrap;
 }
 
-.tabs button,
-.tabs a {
+.tabs button {
   display: inline-flex;
   align-items: center;
   height: var(--control-h-sm);
@@ -2062,7 +2262,7 @@ p + .panel {
   border-radius: var(--radius-md);
   background: none;
   color: var(--ink-3);
-  font: 500 var(--text-md) var(--sans);
+  font: 500 var(--text-md)/20px var(--sans);
   cursor: pointer;
   text-decoration: none;
   transition:
@@ -2070,19 +2270,18 @@ p + .panel {
     color var(--dur) var(--ease);
 }
 
-.tabs button:hover,
-.tabs a:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .tabs button:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 
-.tabs button:active,
-.tabs a:active {
+.tabs button:active {
   background: var(--pressed);
 }
 
-.tabs button[aria-selected='true'],
-.tabs a[aria-current='page'] {
+.tabs button[aria-selected='true'] {
   background: var(--selected);
   color: var(--ink);
 }
@@ -2098,7 +2297,11 @@ p + .panel {
 
 /* ------------------------------------------------------------------ tables and figures */
 
+/* What holds a table knows how wide it is, so that its rows can be stood as blocks where
+   there is no room for columns; a table still too wide for it scrolls in it, and never runs
+   out of its card. */
 .table-wrap {
+  container-type: inline-size;
   overflow-x: auto;
 }
 
@@ -2128,24 +2331,193 @@ th.num {
   white-space: nowrap;
 }
 
+/* An id, a path and a figure are set alike: small, in the mono, on the line the words beside
+   them stand on -- from its top, so that the two faces on one line make it no taller. */
+td.mono,
+td .mono,
 td.num {
   font: var(--text-sm)/20px var(--mono);
+  vertical-align: top;
+}
+
+td.num {
   font-variant-numeric: tabular-nums;
 }
 
-.tiles {
-  display: grid;
-  gap: var(--space-8);
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+/* What a line of a table is called is one word, however it is spelled: it stays on one line,
+   and what gives where room is short is what is said of it. */
+.table-wrap td > b {
+  white-space: nowrap;
 }
 
-/* A figure and what it counts: a quiet ground, no frame. */
+/* In a card the first and the last column stand on the card's own text edges, and the table
+   that ends the card leaves the last line to the card's frame. */
+.panel :is(th, td):first-child {
+  padding-left: 0;
+}
+
+.panel :is(th, td):last-child {
+  padding-right: 0;
+}
+
+.panel > :is(.table-wrap, details):last-child tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+/* There its box reaches a button's inset past the table on every side, so that a button set
+   out by its inset, or drawn over the room above and under its line, is drawn whole; and the
+   table that ends the card ends its last line where the card's own words would end. */
+.panel > .table-wrap {
+  margin: calc(-1 * var(--space-8));
+  padding: var(--space-8);
+}
+
+.panel > .table-wrap:not(:first-child) {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.panel > .table-wrap:last-child {
+  margin-bottom: calc(-1 * var(--space-8) - var(--space-6));
+}
+
+/* What is done with a row stands in its last cell, from the right, on the line the row's
+   first words stand on: its controls are taller than a line of words, and are drawn over the
+   room above and under it. Up to three stand on one line; more wrap. */
+td:last-child:has(.btn, .icon-btn) {
+  text-align: right;
+}
+
+td:last-child:has(.btn, .icon-btn) > :is(.row, .confirm) {
+  justify-content: flex-end;
+  margin-block: calc(-1 * var(--space-4));
+}
+
+td:last-child:has(.btn, .icon-btn) > .row:not(:has(> :nth-child(4))) {
+  flex-wrap: nowrap;
+}
+
+/* A box to tick among them is as tall as they are. */
+td:last-child:has(.btn, .icon-btn) > .row > .check {
+  min-height: var(--control-h-sm);
+}
+
+/* A button without a frame is set out by its inset, so that its words, or its icon, end where
+   a framed button's edge would. */
+td:last-child > .row > :is(.btn.quiet, .confirm:has(> .btn.quiet:only-child)):last-child,
+td:last-child > .confirm:has(> .btn.quiet:only-child) {
+  margin-right: calc(-1 * var(--space-8));
+}
+
+td:last-child > .row > .icon-btn:last-child {
+  margin-right: calc((var(--icon) - var(--control-h-sm)) / 2);
+}
+
+@container (max-width: 640px) {
+  /* Where there is little room a table of figures keeps its columns, set closer. */
+  th,
+  td {
+    padding-inline: var(--space-4);
+  }
+
+  .share {
+    min-width: var(--space-40);
+  }
+
+  /* A table of things with something to do to each stands each as a block instead: what it
+     is called, what is known of it, and under those what is done with it, from the left; a
+     line between two. */
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) thead {
+    display: none;
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) :is(table, tbody, tr, td) {
+    display: block;
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) tr {
+    padding: var(--space-8) 0;
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) tr + tr {
+    border-top: var(--border);
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td {
+    padding: var(--space-2) 0;
+    border: 0;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  /* A cell that says what its column was called is set as a fact is: its name in the column
+     a list of facts keeps for names, and what it holds beside it. */
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td[data-label] {
+    position: relative;
+    padding-left: calc(96px + var(--space-12));
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td[data-label]::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 96px;
+    font: 500 var(--text-sm)/20px var(--sans);
+    color: var(--ink-3);
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td:last-child > :is(.row, .confirm) {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin: var(--space-4) 0 0;
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td:last-child > .row > :is(.btn, .confirm, .icon-btn):last-child {
+    margin-right: 0;
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td:last-child > .row > :is(.btn.quiet, .confirm:has(> .btn.quiet:only-child)):first-child,
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td:last-child > .confirm:has(> .btn.quiet:only-child) {
+    margin-left: calc(-1 * var(--space-8));
+  }
+
+  .table-wrap:has(td:last-child :is(.btn, .icon-btn)) td:last-child > .row > .icon-btn:first-child {
+    margin-left: calc((var(--icon) - var(--control-h-sm)) / 2);
+  }
+
+  .panel > .table-wrap:last-child:has(td:last-child :is(.btn, .icon-btn)) {
+    margin-bottom: calc(-1 * var(--space-8));
+  }
+
+  .panel > .table-wrap:last-child:has(td:last-child :is(.btn, .icon-btn)) tr:last-child {
+    padding-bottom: 0;
+  }
+}
+
+/* Figures stand in rows that are always full: each takes an even share of its row, 128px of
+   it at the least, and the ones a row has no room for start the next. */
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+/* A figure and what it counts: a quiet ground, no frame, as tall as a figure with a line under
+   it whether or not it has one. */
 .tile {
+  flex: 1 1 128px;
+  min-height: calc(16px + 24px + 16px + 2 * var(--space-2) + 2 * var(--space-8));
   padding: var(--space-8) var(--space-12);
   border: 0;
   border-radius: var(--radius-md);
   background: var(--quiet);
   min-width: 0;
+}
+
+/* A tile that holds a row of tags in place of one figure is given the room of two. */
+.tile:has(> .row) {
+  flex: 2 1 calc(2 * 128px + var(--space-8));
+  min-height: 0;
 }
 
 .tile .value {
@@ -2180,8 +2552,10 @@ dl.facts dt::first-letter {
   margin: var(--space-4) 0 var(--space-6);
 }
 
+/* A share stands at the middle of the line its row's words stand on. */
 .share {
   min-width: 60px;
+  margin: var(--space-8) 0;
 }
 
 .meter > span,
@@ -2201,7 +2575,7 @@ dl.facts {
   align-items: baseline;
   gap: var(--space-4) var(--space-12);
   margin: 0;
-  font-size: var(--text-md);
+  font: var(--text-md)/20px var(--sans);
 }
 
 dl.facts dt {
@@ -2211,12 +2585,34 @@ dl.facts dt {
 
 dl.facts dd {
   margin: 0;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-dl.facts dd.mono {
-  font-size: var(--text-sm);
+/* An id and a path among them are set alike, whatever they are an id of: small, in the mono
+   and the second ink, unless said to be quieter still, and on the line of the words beside
+   them from its top, so that the two faces on one line make it no taller. */
+dl.facts :is(.mono, .path) {
+  font: var(--text-sm)/20px var(--mono);
+  vertical-align: top;
+}
+
+:where(dl.facts :is(.mono, .path)) {
   color: var(--ink-2);
+}
+
+/* An id is one word: it stays on its line, and is cut short where the line ends. */
+dl.facts :is(dd.mono, dd div.mono) {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A path cut at its start is as wide as a whole number of its letters, and a hair over so
+   that none of them is squeezed out: the mark of the cut then stands on the edge every other
+   value starts at. */
+dl.facts .path {
+  max-width: calc(round(down, 100% - 1px, 1ch) + 1px);
 }
 
 pre.block {
@@ -2232,14 +2628,57 @@ pre.block {
   overflow: auto;
 }
 
+/* Flows called by flows: a list without marks, on the text edge of what holds it, and what
+   was called from a flow a step in under it. */
 .tree {
   margin: 0;
-  padding-left: var(--space-16);
-  font-size: var(--text-md);
+  padding: 0;
+  list-style: none;
+  font: var(--text-md)/20px var(--sans);
+}
+
+.tree .tree {
+  padding-left: var(--indent);
 }
 
 .tree li {
   margin: var(--space-4) 0;
+}
+
+/* What a card folds away is opened by a line with the chevron every folded thing has: two
+   strokes, each a gradient in the quiet ink, turned down once it is open. */
+:is(.panel, .flow-detail) > details > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: fit-content;
+  list-style: none;
+  color: var(--ink-2);
+  font: var(--text-md)/20px var(--sans);
+  cursor: pointer;
+}
+
+:is(.panel, .flow-detail) > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+:is(.panel, .flow-detail) > details > summary::before {
+  --stroke: transparent calc(50% - 0.5px), var(--ink-3) 0, var(--ink-3) calc(50% + 0.5px), transparent 0;
+  content: '';
+  flex: none;
+  width: 4px;
+  height: 8px;
+  background:
+    linear-gradient(to top right, var(--stroke)) top / 4px 4px no-repeat,
+    linear-gradient(to bottom right, var(--stroke)) bottom / 4px 4px no-repeat;
+}
+
+:is(.panel, .flow-detail) > details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+:is(.panel, .flow-detail) > details[open] > summary {
+  margin-bottom: var(--space-8);
 }
 
 .handovers {
@@ -2301,9 +2740,10 @@ pre.block {
 }
 
 /* How a flow is set up: its sections one under another on the page's own column, a line between
-   each and the next, and no box round the lot. */
+   each and the next, and no box round the lot. Scrolled to, it keeps room over its first heading. */
 .options {
   margin-top: var(--space-16);
+  scroll-margin-top: var(--space-16);
 }
 
 .resumed .note {
@@ -2328,7 +2768,7 @@ pre.block {
 }
 
 .options .hint {
-  font-size: var(--text-sm);
+  font: var(--text-sm) / 16px var(--sans);
   color: var(--ink-3);
 }
 
@@ -2344,27 +2784,62 @@ pre.block {
   gap: var(--space-8);
 }
 
+/* What fills a role, picked a step at a time: the steps in columns of one width, and after them
+   the button that asks anew, as high as they are, in a column of its own at the end of the first
+   row. A step is given 128px, all of them side by side -- or, where four and the button have not
+   that across (576px, the gaps between counted), a hair under half of what the button leaves:
+   two to a row. */
 .picker {
-  display: flex;
-  align-items: flex-end;
+  --step: min(50% - var(--space-24) - 1px, max(128px, (576px - 100%) * 999));
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--step), 1fr));
+  align-items: end;
   gap: var(--space-8);
-  flex-wrap: wrap;
+}
+
+.picker:has(> .icon-btn) {
+  grid-template-columns: repeat(auto-fit, minmax(var(--step), 1fr)) var(--control-h);
 }
 
 .picker .field {
-  flex: 1 1 128px;
   min-width: 0;
 }
 
 .picker select,
 .picker input {
   width: 100%;
+  text-overflow: ellipsis;
 }
 
+.picker > .icon-btn {
+  grid-area: 1 / -2;
+  width: var(--control-h);
+  height: var(--control-h);
+}
+
+/* What the steps have to say of themselves -- that the models are being asked for, or why there
+   are none -- is said over the end of the line under them, so that nothing moves as it comes
+   and goes: that line fades out under it, on the card's ground, and is not cut through. Steps
+   with no line under them say it on a row of their own. */
 .picker > .hint {
-  flex-basis: 100%;
-  font-size: var(--text-sm);
-  color: var(--ink-3);
+  position: absolute;
+  top: calc(100% + var(--space-8));
+  right: 0;
+  max-width: 100%;
+  padding-left: var(--space-32);
+  background: linear-gradient(to right, transparent, var(--surface) var(--space-24));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker:last-child > .hint {
+  position: static;
+  grid-column: 1 / -1;
+  justify-self: end;
+  padding-left: 0;
+  background: none;
 }
 
 .picker > .hint:empty {
@@ -2387,7 +2862,7 @@ pre.block {
   transition: border-color var(--dur) var(--ease);
 }
 
-.composer:focus-within {
+.composer:has(> textarea:focus) {
   border-color: var(--ink-3);
 }
 
@@ -2441,8 +2916,24 @@ pre.block {
   flex-wrap: wrap;
 }
 
-/* How a flow is set up, said beside what opens its options: each part a tag as high as a chip,
-   cut short where the row has no room for the whole of it. */
+/* With nothing on its bar but the button that sends, the box is one row: the button stands at
+   the end of what is typed. */
+.composer-tools:empty {
+  display: none;
+}
+
+.composer:has(> .composer-bar > .composer-tools:empty) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.composer:has(> .composer-bar > .composer-tools:empty) > .composer-said {
+  grid-column: 1 / -1;
+}
+
+/* How a flow is set up, said beside what opens its options: each part a tag as high as a chip
+   and quieter than one pressed, cut short where the row has no room for the whole of it. What
+   opens the options after them is never cut. */
 .composer-summary {
   flex: 0 1 auto;
   display: flex;
@@ -2458,9 +2949,15 @@ pre.block {
   height: var(--control-h-xs);
   max-width: 260px;
   border-radius: var(--radius-sm);
-  font: var(--text-xs) / var(--control-h-xs) var(--mono);
+  padding-block: var(--space-4);
+  background: var(--quiet);
+  font: var(--text-xs) / 16px var(--mono);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.composer-summary ~ .chip-btn {
+  flex: none;
 }
 
 .options.stale {
@@ -2505,10 +3002,9 @@ pre.block {
   color: var(--on-ink);
 }
 
-/* With nothing it could send -- a line on its way, or a chat's box with nothing typed -- it is
-   quiet. */
+/* With nothing it could send -- a line on its way, or a box with nothing typed -- it is quiet. */
 .send:disabled,
-.composer-desk:has(textarea:placeholder-shown) .send:not(.stop) {
+.composer:has(textarea:placeholder-shown) .send:not(.stop) {
   background: var(--selected);
   color: var(--ink-3);
 }
@@ -2558,8 +3054,14 @@ pre.block {
   background: var(--hover);
 }
 
+/* On the one the keys are on, what is said quietly is said a step darker, to be read on its fill. */
 .complete-item.active {
   background: var(--selected);
+  --ink-3: var(--ink-2);
+}
+
+.complete-item.active .complete-tag {
+  color: var(--ink);
 }
 
 .complete-item.refused {
@@ -2625,15 +3127,18 @@ pre.block {
   color: var(--ink);
 }
 
+/* Pressed or open, a chip is filled: what it says quietly is said a step darker on the fill. */
 .chip-btn:active,
 .composer-under .flow-picker:active {
   background: var(--pressed);
+  --ink-3: var(--ink-2);
 }
 
 .chip-btn:is([aria-expanded='true'], [aria-pressed='true']),
 .composer-under .flow-picker[aria-expanded='true'] {
   background: var(--selected);
   color: var(--ink);
+  --ink-3: var(--ink-2);
 }
 
 .chip-btn .icon,
@@ -2664,24 +3169,54 @@ pre.block {
   font: inherit;
 }
 
+/* A chip that is a select is as wide as what it holds and as high as the chip, and ends in a
+   select's chevron at the size of a chip's. It is the chip, not the select in it, that says the
+   keyboard is on it. */
 .chip-select select {
+  field-sizing: content;
+  align-self: stretch;
   height: auto;
   max-width: min(24ch, 40vw);
   padding: 0 var(--space-16) 0 var(--space-2);
   border: 0;
   background-color: transparent;
-  background-position: right 4px center, right 0 center;
+  background-position:
+    right 6px center,
+    right 3px center;
+  background-size: 3px 3px;
   font: inherit;
   color: inherit;
+}
+
+/* Where an engine sizes a select by the longest of its choices, the one picked is set at its
+   end, so that the chevron stays by the words; the choices listed keep their own edge. */
+@supports not (field-sizing: content) {
+  .chip-select select {
+    text-align: right;
+  }
+
+  .chip-select option {
+    text-align: left;
+  }
+}
+
+.chip-select select:focus {
+  outline: none;
+}
+
+.chip-select:has(:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 /* ------------------------------------------------------------------ a run */
 
 /* The view and the panel beside it. The view keeps the width it can be read at: where the
-   window has not the room for both, the panel is the one that narrows. */
+   window has not the room for both, the panel is the one that narrows -- to no less than its own
+   lines are read at, which the view then gives way to. */
 .view-epic {
   display: grid;
-  grid-template-columns: minmax(min(360px, 100%), 1fr) minmax(0, auto);
+  grid-template-columns: minmax(min(360px, 100% - 280px), 1fr) minmax(0, auto);
   height: 100%;
   min-height: 0;
 }
@@ -2723,7 +3258,8 @@ pre.block {
 }
 
 /* The questions waiting, one under the other. One alone scrolls inside its own frame, so its
-   edges stay where the box's are; several scroll as a list. */
+   edges stay where the box's are, and what it brings into view stops clear of the foot its
+   answer is sent from; several scroll as a list. */
 .questions {
   width: min(100%, var(--column));
   min-height: 0;
@@ -2741,11 +3277,13 @@ pre.block {
   flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
+  scroll-padding-bottom: calc(var(--control-h) + var(--space-12) + var(--gutter) + var(--space-8));
 }
 
-/* A question: the one gold-edged surface of the view. */
+/* A question: the one gold-edged surface of the view, each row of it no wider than it is. */
 .question {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-12);
   min-width: 0;
   padding: var(--gutter);
@@ -2763,14 +3301,19 @@ pre.block {
   flex: 1;
 }
 
-/* What stands where the box would, once nothing more can be said. */
+/* What stands where the box would, once nothing more can be said: on the edge the chips under
+   the box keep, as the line over it saying how the chat stands is. */
 .dock-note {
   width: min(100%, var(--column));
   margin: 0;
-  padding: var(--space-12);
+  padding: 0 var(--space-12);
   color: var(--ink-3);
-  text-align: center;
-  font-size: var(--text-md);
+  font: var(--text-md)/20px var(--sans);
+}
+
+/* With nothing over it, it keeps as far from the view as from the window's foot. */
+.dock-note:first-child {
+  padding-top: var(--space-8);
 }
 
 /* ------------------------------------------------------------------ the graph */
@@ -2924,7 +3467,8 @@ pre.block {
   background: var(--surface);
 }
 
-/* As tall as graph.js lays a node's head out: a name's line and two lines under it. */
+/* As tall as graph.js lays a node's head out: a name's line and two lines under it. Its upper
+   corners are the card's, inside the card's edge, so the ring round it is drawn whole. */
 .node-head {
   flex: none;
   display: grid;
@@ -2933,6 +3477,7 @@ pre.block {
   height: 70px;
   padding: 0 var(--space-12);
   border: 0;
+  border-radius: calc(var(--radius-lg) - var(--border-w)) calc(var(--radius-lg) - var(--border-w)) 0 0;
   background: none;
   text-align: left;
   cursor: pointer;
@@ -3197,11 +3742,13 @@ pre.block {
   border-color: var(--ink);
 }
 
+/* An agent's head: its lane and its name, what it runs as, and at the end of the name's line how
+   it stands. */
 .list-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-8);
-  flex-wrap: wrap;
+  gap: 0 var(--space-8);
   color: var(--ink);
   text-decoration: none;
 }
@@ -3212,10 +3759,10 @@ pre.block {
 
 .list-head .mono {
   font-size: var(--text-sm);
+  overflow-wrap: anywhere;
 }
 
 .list-state {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: var(--space-6);
@@ -3223,18 +3770,61 @@ pre.block {
   color: var(--ink-2);
 }
 
+/* On a phone what it runs as has a line of its own, under the name's. */
+@media (max-width: 860px) {
+  .list-head {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .list-head .mono {
+    grid-area: 2 / 1 / auto / -1;
+  }
+}
+
 .list-agent .links {
   margin: 0;
 }
 
-/* What was spent, by model: figures set close, as narrow as the panel is. */
+/* A log or a session named in an agent's card: quiet, as its row in a node is, its mark and its
+   name on the card's text edge and a ground under both where it is pointed at. */
+:is(.list-agent, .focus) .links a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--control-h-xs);
+  margin-left: calc(-1 * var(--space-8));
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--dur) var(--ease);
+}
+
+:is(.list-agent, .focus) .links a:hover {
+  background: var(--hover);
+}
+
+:is(.list-agent, .focus) .links a:active {
+  background: var(--pressed);
+}
+
+/* What was spent, by model: figures set close, as narrow as the panel is, and every cell,
+   words or figures, on the small text's own line. */
 table.spending {
   font-size: var(--text-sm);
 }
 
-table.spending td,
 table.spending th {
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+}
+
+table.spending td {
+  padding: var(--space-6);
+}
+
+table.spending td,
+table.spending td .mono {
+  line-height: 16px;
 }
 
 /* The first and the last column stand on the panel's own text edges. */
@@ -3256,16 +3846,34 @@ table.spending th::first-letter {
   text-transform: uppercase;
 }
 
+/* A model's name stands over its figures, no line between them: whole on one line, cut where
+   the panel ends, and asking for no width of its own. */
+table.spending tr.spending-of td {
+  max-width: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 table.spending tr.whole td {
   font-weight: 600;
   border-top: var(--border-strong);
 }
 
+/* The last row closes the table: the line under it is whatever holds the table's. */
+table.spending tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 /* ------------------------------------------------------------------ a thread */
 
+/* What is said scrolls over the box it is answered in, and ends short of it: a line cut there is
+   cut on the page, not on the box's edge. */
 .thread-scroll {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--space-8);
   overflow-y: auto;
 }
 
@@ -3289,6 +3897,12 @@ table.spending tr.whole td {
   gap: var(--space-8);
   font: var(--text-lg) / 22px var(--sans);
   color: var(--ink);
+}
+
+/* The keys on the conversation, or on a line of it, are said by a ring rounded as a row's is. */
+.thread:focus-visible,
+.thread > .said:focus-visible {
+  border-radius: var(--radius-md);
 }
 
 .said {
@@ -3351,7 +3965,8 @@ table.spending tr.whole td {
 }
 
 .said.begins,
-.said.ends {
+.said.ends,
+.said.env-used {
   font: var(--text-xs) / 16px var(--mono);
   color: var(--ink-3);
 }
@@ -3372,9 +3987,16 @@ table.spending tr.whole td {
   background: color-mix(in srgb, var(--budget) 10%, transparent);
 }
 
-/* The answers a question at the end of a conversation offers, under it as it is drawn. */
+/* The answers a question at the end of a conversation offers, under it as it is drawn: each as
+   high as a form's button. */
 .thread-ask {
+  margin-top: var(--space-8);
   padding-left: calc(var(--space-20) + var(--space-8));
+}
+
+.thread-ask .btn {
+  height: var(--control-h);
+  padding: 0 var(--space-12);
 }
 
 /* What went wrong, or was not allowed: said on the tint of what failed. */
@@ -3433,22 +4055,53 @@ table.spending tr.whole td {
   margin-top: 0;
 }
 
-/* A long line folded to its beginning: the line itself is what opens it. */
+/* A long line folded to its beginning: the line itself is what opens it, behind one small mark
+   whatever the line is. Pointed at it is filled as far as the column goes and no further; open,
+   the whole of it stands under its beginning, set in to where the words began, behind a line. */
 details.said-more > summary {
-  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-6));
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  margin: calc(-1 * var(--space-4)) 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-6));
   padding: var(--space-4) var(--space-6);
   border-radius: var(--radius-sm);
+  list-style: none;
   cursor: pointer;
   transition: background-color var(--dur) var(--ease);
+}
+
+details.said-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.said-more > summary::before {
+  content: '▸';
+  flex: none;
+  width: var(--space-8);
+  color: var(--ink-3);
+  font: normal 400 var(--text-xs) var(--sans);
+}
+
+details.said-more[open] > summary::before {
+  content: '▾';
 }
 
 details.said-more > summary:hover {
   background: var(--hover);
 }
 
+details.said-more > summary:focus-visible {
+  outline-offset: -2px;
+}
+
 details.said-more[open] > summary {
-  margin-bottom: 0;
   color: var(--ink-3);
+}
+
+details.said-more > div {
+  margin: var(--space-8) 0 0 var(--space-4);
+  padding-left: calc(var(--space-12) - var(--border-w));
+  border-left: var(--border);
 }
 
 .thread-cut {
@@ -3511,8 +4164,20 @@ details.said-more[open] > summary {
   border-top: var(--border);
 }
 
+/* What the panel says in sentences is set as the rest of it is. */
+.panel-pane > p,
+.side-section > p {
+  font-size: var(--text-md);
+  line-height: 20px;
+}
+
+/* A hint keeps a step from what is over and under it, and at the pane's top the pane's inset. */
+.panel-pane > .dim {
+  margin: var(--space-12) 0;
+}
+
 .panel-pane > .dim:first-child {
-  margin: var(--space-16) 0 var(--space-12);
+  margin-top: var(--space-16);
 }
 
 /* A button with no frame stands with its words, not its edge, on the pane's text edge. */
@@ -3534,6 +4199,16 @@ details.said-more[open] > summary {
   margin: 0 0 var(--space-8);
   font: 500 var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
+}
+
+/* A sentence in a section stands as close under its name as anything else does, and one after
+   a list a step under it. */
+.side-section > p {
+  margin: 0;
+}
+
+.side-section > ul + p {
+  margin-top: var(--space-8);
 }
 
 /* The agent picked out on the graph. */
@@ -3562,11 +4237,22 @@ details.said-more[open] > summary {
   font-size: var(--text-sm);
 }
 
+/* A fact said as a block, as an epic's parameters are, has the panel's whole width under its
+   name: beside it, a column's worth breaks every key in two. */
+.inspector dl.facts :is(dt:has(+ dd > pre.block), dd:has(> pre.block)) {
+  grid-column: 1 / -1;
+}
+
+.inspector dl.facts dd:has(> pre.block) {
+  margin-bottom: var(--space-4);
+}
+
 .links {
   margin: var(--space-4) 0 0;
   padding: 0;
   list-style: none;
   font-size: var(--text-md);
+  line-height: 20px;
 }
 
 .links li {
@@ -3578,14 +4264,29 @@ details.said-more[open] > summary {
   font-size: var(--text-sm);
 }
 
+/* Where a session works: its key, then what it is called and runs on, which opens it, and
+   under them its path, on a line of its own and cut as a path is -- at a whole letter, so
+   that the mark of the cut stands on the edge the key starts at. */
+.links[data-hmz='environments'] li {
+  font: var(--text-sm)/20px var(--mono);
+  color: var(--ink-2);
+}
+
+.links[data-hmz='environments'] li > .mono {
+  color: var(--ink);
+}
+
+.links[data-hmz='environments'] .path {
+  max-width: calc(round(down, 100% - 1px, 1ch) + 1px);
+}
+
 /* Aside: the side conversations open, each picked by its tab, and the one shown as a card. */
 .aside {
   display: grid;
   gap: var(--space-8);
 }
 
-.aside-strip,
-.aside-head {
+.aside-strip {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-4);
@@ -3625,18 +4326,22 @@ details.said-more[open] > summary {
   color: var(--ink);
 }
 
+/* The one shown stands on the panel itself, under its tab: the box it is asked in is the one
+   frame it has. */
 .aside-one {
   display: grid;
   gap: var(--space-8);
-  padding: var(--space-12);
-  background: var(--raised);
-  border: var(--border);
-  border-radius: var(--radius-lg);
 }
 
+/* It is named by its tab, the one pressed: over it stands only what closes it, at the end of
+   a row there is none of where there is nothing to close. */
 .aside-head {
-  justify-content: space-between;
-  min-height: var(--control-h-xs);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.aside-head:has(> .btn[hidden]) {
+  display: none;
 }
 
 .aside-head .btn {
@@ -3644,10 +4349,9 @@ details.said-more[open] > summary {
   border-radius: var(--radius-sm);
 }
 
-.aside-title {
-  font: 500 var(--text-sm)/16px var(--sans);
-  color: var(--ink-3);
-  overflow-wrap: anywhere;
+/* A small box in a narrow panel: a field's corners, not the page's own box's. */
+.aside .composer {
+  border-radius: var(--radius-md);
 }
 
 .aside-log {
@@ -3800,8 +4504,10 @@ details.said-more[open] > summary {
    the panel beside. The canvas reads its colours off the tokens above, the categories' keys in
    the panel the same ones. */
 
-/* The tabs and the tools: a bar under the view's own, growing by a line where they wrap. */
+/* The tabs and the tools: a bar under the view's own, growing by a line where they wrap. What
+   is in it is laid out by how wide the bar is, not the window. */
 .exo-tools {
+  container-type: inline-size;
   flex: none;
   display: flex;
   align-items: center;
@@ -3813,16 +4519,25 @@ details.said-more[open] > summary {
   background: var(--paper);
 }
 
+/* The tools take what the tabs leave of their row, or a row of their own where that is too
+   little: what is looked for stands first, on the edge the row starts at however wide it is
+   let grow, and the buttons at the row's end. */
 .exo-actions {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-8);
+}
+
+.exo-search + .btn {
   margin-left: auto;
 }
 
 /* What is looked for: a small field that holds its count and the two buttons stepping through. */
 .exo-search {
+  flex: 1 1 auto;
+  max-width: 520px;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -3845,8 +4560,15 @@ details.said-more[open] > summary {
   outline-offset: 0;
 }
 
+.exo-search > .icon {
+  width: var(--icon);
+  height: var(--icon);
+}
+
 .exo-search .exo-find {
+  flex: 1 1 auto;
   width: 160px;
+  min-width: 0;
   height: var(--control-h-xs);
   padding: 0 var(--space-6);
   border: 0;
@@ -3865,6 +4587,15 @@ details.said-more[open] > summary {
   min-width: 3ch;
   font-size: var(--text-xs);
   color: var(--ink-3);
+}
+
+/* A bar whose row is no wider than the field goes: the field has the row to itself, all of
+   it, and the buttons, together, the one under it. */
+@container (max-width: 536px) {
+  .exo-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
 }
 
 .exo-main {
@@ -3950,16 +4681,27 @@ details.said-more[open] > summary {
   font: 600 var(--text)/20px var(--sans);
 }
 
+/* The slices' rows are picked: the ground under one runs a step past its words at both ends,
+   into room kept beside the table for it. Each cell keeps its own line under it, so that ground
+   is as tall as the row in every browser. */
+.exo-stats .table-wrap {
+  margin: 0 calc(-1 * var(--space-8));
+  padding: 0 var(--space-8);
+}
+
+.exo-stats table.spending {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 /* A column's heading is the button that sorts by it: the button keeps the cell's own inset. */
-.exo-stats th,
-.exo-stats th:first-child,
-.exo-stats th:last-child {
+.exo-stats table.spending th {
   padding: 0;
 }
 
 .exo-sort {
   width: 100%;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-6);
   border: 0;
   background: none;
   color: inherit;
@@ -3991,6 +4733,31 @@ details.said-more[open] > summary {
 
 .exo-row.chosen td {
   background: var(--selected);
+}
+
+/* The ground past a row's two ends, rounded as a row's is. */
+.exo-row td:is(:first-child, :last-child) {
+  position: relative;
+}
+
+.exo-row td:first-child::before,
+.exo-row td:last-child::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: calc(-1 * var(--border-w));
+  width: var(--space-8);
+  background: inherit;
+}
+
+.exo-row td:first-child::before {
+  right: 100%;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.exo-row td:last-child::after {
+  left: 100%;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 .exo-more {
@@ -4036,7 +4803,7 @@ pre.exo-args {
   width: 8px;
   height: 8px;
   margin-right: var(--space-6);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-full);
   background: var(--lane-6);
 }
 
@@ -4046,7 +4813,7 @@ td:has(> .exo-key) {
 }
 
 .exo-flow {
-  background: var(--primary);
+  background: var(--ink-3);
 }
 
 .exo-session,
@@ -4072,8 +4839,10 @@ td:has(> .exo-key) {
 
 /* ------------------------------------------------------------------ flows */
 
+/* The cards stand a step under whatever is said over them, and what one of them opens a
+   larger step under them all. */
 .gallery {
-  margin-top: var(--space-24);
+  margin-top: var(--space-16);
 }
 
 .gallery-group + .gallery-group {
@@ -4143,7 +4912,7 @@ td:has(> .exo-key) {
   border-radius: var(--radius-md);
   background: var(--selected);
   color: var(--ink);
-  font: 600 var(--text-xl) var(--sans);
+  font: 600 var(--text-xl)/24px var(--sans);
 }
 
 .card-name {
@@ -4165,14 +4934,24 @@ td:has(> .exo-key) {
   overflow: hidden;
 }
 
+/* Where a flowverse is fetched from: one line, set as an id is, and cut at a whole letter so
+   that the mark of the cut stands on the card's text edge. */
+.card-about .path {
+  font-size: var(--text-sm);
+  max-width: calc(round(down, 100% - 1px, 1ch) + 1px);
+}
+
 /* A card holding its name alone stands it level with its mark. */
 .card > .card-name:last-child {
   grid-row: 1 / span 2;
   align-self: center;
 }
 
-/* What a chosen card opens: one card, with nothing boxed inside it. */
+/* What a chosen card opens: one card, with nothing boxed inside it, which knows how wide it
+   is. */
 .flow-detail {
+  container-type: inline-size;
+  margin-top: var(--space-24);
   padding: var(--space-16);
   border: var(--border);
   border-radius: var(--radius-lg);
@@ -4197,19 +4976,12 @@ td:has(> .exo-key) {
 }
 
 .flow-detail p,
-.flow-detail dl,
-.flow-detail .empty {
+.flow-detail dl {
   margin: 0;
 }
 
 .flow-detail p.mono {
   font-size: var(--text-sm);
-}
-
-.flow-detail summary {
-  color: var(--ink-2);
-  font-size: var(--text-md);
-  cursor: pointer;
 }
 
 .flows-tabs .tabs {
@@ -4222,14 +4994,17 @@ td:has(> .exo-key) {
 
 .flows-said .loading,
 .flows-said .note {
-  margin: 0 0 var(--space-12);
+  margin: 0;
 }
 
 .flows-said .loading {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
+/* What there is to know of the flows -- a newer release among it -- is said in the neutral
+   wash: gold is a question waiting, and nothing here waits on an answer. */
 .flows-said .note {
+  --tone: var(--ink-3);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -4243,10 +5018,9 @@ td:has(> .exo-key) {
   overflow-wrap: anywhere;
 }
 
-/* A newer release is out: the one tag here that is not neutral. */
+/* A newer release is out: a neutral tag as the others are, its words in the ink. */
 .node-tag.fresh {
-  background: color-mix(in srgb, var(--pink) 12%, transparent);
-  color: var(--pink-ink);
+  color: var(--ink);
 }
 
 /* The flows an index lists, one to a line under a hairline: its name and what it is on the
@@ -4270,6 +5044,14 @@ td:has(> .exo-key) {
   padding-bottom: 0;
 }
 
+/* What a release is gives way to what is done with it: its words wrap in the room beside the
+   controls, and only where that room is too little for words do the controls go under them --
+   in every line of the list alike. */
+.release > :first-child {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
 .release b {
   margin-right: var(--space-6);
   font-weight: 600;
@@ -4279,9 +5061,41 @@ td:has(> .exo-key) {
   font-size: var(--text-md);
 }
 
+/* Every release's versions are picked in a box of one width, and what is done with it is said
+   on buttons of one width -- wide enough for what each says while it is busy -- so that the
+   boxes and the buttons stand in columns and stay there: a release with one button leaves the
+   last column bare. */
 .release select {
+  width: 80px;
   height: var(--control-h-sm);
   font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.release .row > .confirm > .btn {
+  min-width: 88px;
+}
+
+.release .row > .confirm:nth-child(2):last-child {
+  margin-right: calc(88px + var(--space-8));
+}
+
+/* What takes a release away is said as quietly as what is beside it until it is pointed at,
+   held or asked: a column of them is not a column of warnings. */
+.release .row > .confirm > .btn.danger:not(:hover, :focus-visible, [aria-expanded='true']) {
+  border-color: var(--edge);
+  color: var(--control-ink);
+}
+
+/* A flowverse's address is long and its name short: the address takes the room there is, as
+   far as an address is read. */
+[data-hmz='add-verse-form'] .row > .field:first-child {
+  flex: 1 1 320px;
+  max-width: 560px;
+}
+
+[data-hmz='add-verse-form'] .row > .field:last-child {
+  flex: 0 1 200px;
 }
 
 /* ------------------------------------------------------------------ dialogs */
@@ -4464,10 +5278,16 @@ a.result:focus-visible {
   margin: 0;
 }
 
-/* Settings: the pages named down the left, the one open beside them. */
+/* Settings: the pages named down the left, the one open beside them, in a box 980 by 760 where
+   the window has the room. */
+body:has(> .overlay > .dialog-settings) {
+  --dialog-wide: 980px;
+  --dialog-high: 760px;
+}
+
 .dialog-settings {
-  width: min(100%, 980px);
-  height: min(760px, 100%);
+  width: min(100%, var(--dialog-wide));
+  height: min(var(--dialog-high), 100%);
   flex-direction: row;
 }
 
@@ -4482,11 +5302,13 @@ a.result:focus-visible {
   overflow-y: auto;
 }
 
+/* What the dialog is, what its page is and `Close` stand on one line: each as high as `Close`,
+   the same distance under the dialog's top. */
 .settings-nav h2 {
-  height: var(--row-h);
-  margin: 0 0 var(--space-4);
+  height: var(--control-h-sm);
+  margin: 0 0 var(--space-8);
   padding: 0 var(--space-8);
-  font: 600 var(--text-lg)/32px var(--sans);
+  font: 600 var(--text-lg) / var(--control-h-sm) var(--sans);
 }
 
 .settings-nav a {
@@ -4517,9 +5339,11 @@ a.result:focus-visible {
   outline-offset: -2px;
 }
 
+/* No taller than the dialog, whatever it holds: what is under its head scrolls. */
 .settings-page {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -4528,13 +5352,13 @@ a.result:focus-visible {
 .settings-head {
   flex: none;
   position: relative;
-  padding: var(--space-16) calc(var(--control-h-sm) + 2 * var(--space-8)) var(--space-16) var(--space-24);
+  padding: var(--space-8) calc(var(--control-h-sm) + 2 * var(--space-8)) var(--space-16) var(--space-24);
   border-bottom: var(--border);
 }
 
 .settings-head h3 {
   margin: 0;
-  font: 600 var(--text-lg)/22px var(--sans);
+  font: 600 var(--text-lg) / var(--control-h-sm) var(--sans);
 }
 
 .settings-head p {
@@ -4546,6 +5370,36 @@ a.result:focus-visible {
   position: absolute;
   top: var(--space-8);
   right: var(--space-8);
+}
+
+/* Settings all but fills a window, and leaves no room beside it: what is said for a moment
+   while it is open stands in its head, in the room left of `Close`, where nothing is pressed.
+   It stands in the middle of the head's two lines, a step clear of the head's edges and no
+   taller than that leaves it -- one taller scrolls in itself -- and no wider than the line has
+   left once what the page is for has had as much, past the 200 of the pages' names. */
+@media (min-width: 861px) {
+  body:has(> .overlay:not([hidden]) > .dialog-settings) > .toasts {
+    --band: calc(var(--control-h-sm) + 20px + var(--space-24) + var(--space-2));
+    top: calc(max(var(--space-16), 50vh - var(--dialog-high) / 2) + var(--border-w));
+    right: calc(max(var(--space-16), 50vw - var(--dialog-wide) / 2) + var(--border-w) + var(--control-h-sm) + 2 * var(--space-8));
+    bottom: auto;
+    width: min(
+      var(--toast-wide),
+      min(var(--dialog-wide), 100vw - 2 * var(--space-16)) - 200px - var(--space-24) - var(--control-h-sm) - 2 * var(--space-8) - var(--toast-wide)
+    );
+    height: var(--band);
+    align-content: center;
+  }
+
+  body:has(> .overlay:not([hidden]) > .dialog-settings) > .toasts > * {
+    max-height: calc(var(--band) - 2 * var(--space-8));
+    overflow-y: auto;
+  }
+
+  /* A card says what it is about in one line there. */
+  body:has(> .overlay:not([hidden]) > .dialog-settings) > .toasts .choice-about {
+    -webkit-line-clamp: 1;
+  }
 }
 
 /* One level of cards, each a section of the page, set further apart than what is inside one:
@@ -4594,6 +5448,13 @@ a.result:focus-visible {
 
 .settings-body .form > [aria-live]:empty {
   position: absolute;
+}
+
+/* An address or a path in a table breaks wherever it must, so that what is done with its row
+   stays in the card; a word of a dozen letters is never broken. */
+.settings-body td.mono {
+  min-width: 12ch;
+  overflow-wrap: anywhere;
 }
 
 /* A field in a row of small controls is as small as they are. */
@@ -4649,11 +5510,6 @@ a.result:focus-visible {
 
   .bar .bar-side {
     display: inline-grid;
-  }
-
-  /* A question asked in a bar is asked by its buttons alone. */
-  .bar-actions .confirm > span {
-    display: none;
   }
 
   .view-epic {
@@ -4735,25 +5591,94 @@ a.result:focus-visible {
     display: none;
   }
 
-  /* What is said for a moment while a dialog fills the window stands over whatever foot the
-     dialog has. */
-  body:has(> .overlay:not([hidden])) > .toasts {
-    bottom: calc(var(--bar-h) + var(--space-8));
+  /* What is said for a moment while a dialog fills the window is said at the window's foot,
+     in room the dialog keeps bare under what it holds for as long as it is said: nothing in
+     the dialog is drawn over. A toast taller than that room scrolls in itself. */
+  body:has(> .toasts:not(:empty)) > .overlay > .dialog:not(.dialog-delete) {
+    padding-bottom: calc(var(--toast-high) + 2 * var(--space-8));
+  }
+
+  body:has(> .overlay:not([hidden]) > .dialog:not(.dialog-delete)) > .toasts {
+    bottom: var(--space-8);
+  }
+
+  body:has(> .overlay:not([hidden]) > .dialog:not(.dialog-delete)) > .toasts > * {
+    max-height: var(--toast-high);
+    overflow-y: auto;
+  }
+
+  /* Whether each limit of a budget may be run over is ticked in one column under the limits. */
+  .option-group > .row > .check {
+    grid-column: 1 / -1;
+  }
+
+  /* A flowverse's address and its name each take the form's whole width. */
+  [data-hmz='add-verse-form'] .row > .field:is(:first-child, :last-child) {
+    flex: 1 1 100%;
+    max-width: none;
   }
 }
 
-/* Under a finger a small control is taken hold of in a room 40 across, whatever size it is
-   drawn at. */
+/* Under a finger a small control is taken hold of in a room 40 across and 40 high, whatever
+   size it is drawn at: the room reaches past its edges as far as it falls short of that, and
+   not at all past an edge it is already long enough along. It never reaches over a control
+   beside it: toward one that stands next to it in its line, or that ends the line next to its
+   own, it reaches halfway across what parts the two -- which is said for each line that parts
+   its controls -- and toward anything else, the whole way. */
 @media (pointer: coarse) {
-  :where(.icon-btn, .chip-btn) {
+  :where(.icon-btn, .chip-btn, .flow-picker, .desk-check, .send, .segmented button) {
     position: relative;
   }
 
-  .icon-btn::after,
-  .chip-btn::after {
+  :is(.icon-btn, .chip-btn, .flow-picker, .desk-check, .send, .segmented button)::after {
+    --room: min(0px, (100% - 40px) / 2);
     content: '';
     position: absolute;
-    inset: calc(-1 * var(--space-6));
+    inset: var(--room) max(var(--room), -1 * var(--reach-right, 40px)) var(--room) max(var(--room), -1 * var(--reach-left, 40px));
+  }
+
+  :is(.bar, .composer-box) > * {
+    --reach: var(--space-4);
+  }
+
+  :is(.bar-actions, .side-foot, .under-left, .under-right) > * {
+    --reach: var(--space-2);
+  }
+
+  :is(.bar-title, .zoom, .segmented) > * {
+    --reach: 1px;
+  }
+
+  /* What is said of a line's end is said of the control that ends it, and of the one a menu's
+     holder holds: both take it from what holds them. */
+  :is(a, button, input, select, textarea, label, :has(a, button, input, select, textarea, label))
+    + :is(.icon-btn, .chip-btn, .flow-picker, .desk-check, .send, .segmented button, .menu-holder, .bar > *) {
+    --reach-left: var(--reach, 0px);
+  }
+
+  :is(.icon-btn, .chip-btn, .flow-picker, .desk-check, .send, .segmented button, .menu-holder, .bar > *):has(
+      + :is(a, button, input, select, textarea, label),
+      + * :is(a, button, input, select, textarea, label)
+    ) {
+    --reach-right: var(--reach, 0px);
+  }
+
+  /* In the sidebar's list one line stands right under another, and a line's menu over the end
+     of its own line: there the room reaches across the line and no higher or lower than it.
+     Nothing stands near the bell that the sidebar's head sets at its far end. */
+  :is(.side-run, .side-folder) > .icon-btn::after {
+    top: calc(-1 * var(--space-4));
+    bottom: calc(-1 * var(--space-4));
+  }
+
+  :is(.side-run > .icon-btn, .side-top > .notify-bell) {
+    --reach-left: 40px;
+  }
+
+  /* The chips under a box, where they stand in two rows, stand far enough apart for the room
+     of one row not to reach over the other. */
+  .composer .composer-under {
+    row-gap: var(--space-16);
   }
 }
 
@@ -4796,20 +5721,21 @@ a.result:focus-visible {
 
 /* There the page runs to the window's top edge too, and the window's minimize, maximize and
    close buttons stand over its top right, 138 by 32 pixels. The top row under them keeps that
-   room at its right for them alone, as Claude's window does: the bar over the view, the panel
-   beside it where it is open on a wide window, and the head of a dialog that fills a narrow
-   one. Full screen, where they are gone, the page is drawn as anywhere else. */
+   room at its right for them alone, as Claude's window does: the bar over the view -- not a
+   day's bar in a chart, which is called the same -- the panel beside it where it is open on a
+   wide window, and the head of a dialog that fills a narrow one, which a dialog that only asks
+   never does. Full screen, where they are gone, the page is drawn as anywhere else. */
 :root[data-shell='windows']:not([data-fullscreen]) {
   --captions: 138px;
 }
 
-:root[data-shell='windows']:not([data-fullscreen]) .bar {
+:root[data-shell='windows']:not([data-fullscreen]) :not(.bars) > .bar {
   padding-right: calc(var(--space-8) + var(--captions));
 }
 
 @media (min-width: 861px) {
   /* The panel, open, is the top right instead: the bar beside it has the room to itself. */
-  :root[data-shell='windows']:not([data-fullscreen]) .view:has(> .inspector:not([hidden])) .bar {
+  :root[data-shell='windows']:not([data-fullscreen]) .view:has(> .inspector:not([hidden])) :not(.bars) > .bar {
     padding-right: var(--space-8);
   }
 
@@ -4823,7 +5749,7 @@ a.result:focus-visible {
 }
 
 @media (max-width: 860px) {
-  :root[data-shell='windows']:not([data-fullscreen]) .dialog-head {
+  :root[data-shell='windows']:not([data-fullscreen]) .dialog:not(.dialog-delete) .dialog-head {
     padding-right: calc(var(--space-8) + var(--captions));
   }
 
@@ -4834,10 +5760,6 @@ a.result:focus-visible {
 }
 
 /* ------------------------------------------------------------------ themes */
-
-.panel > header > .row {
-  margin-left: auto;
-}
 
 .field > .segmented {
   justify-self: start;
@@ -4854,25 +5776,29 @@ a.result:focus-visible {
 }
 
 .theme-list {
+  container-type: inline-size;
   display: grid;
-  gap: var(--space-8);
 }
 
 /* A pair, or a theme: what it looks like, what it is called and what is done with it, in one
-   line. The one in use has the ink edge. */
+   line of the card that lists them, a hairline between two. The one in use is said by the ink
+   edge of its picture. */
 .theme-row {
   display: flex;
   align-items: center;
   gap: var(--space-8) var(--space-12);
   flex-wrap: wrap;
-  padding: var(--space-8);
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--raised);
+  padding: var(--space-12) 0;
+  border-bottom: var(--border);
 }
 
-.theme-row.chosen {
-  border-color: var(--ink);
+.theme-row:first-child {
+  padding-top: 0;
+}
+
+.theme-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .theme-swatch-button {
@@ -4903,7 +5829,7 @@ a.result:focus-visible {
 }
 
 .theme-name .dim {
-  font-size: var(--text-sm);
+  font: var(--text-sm)/16px var(--sans);
 }
 
 /* A theme drawn small, in its own colours: a strip of its sidebar, its text on its page, and
@@ -5275,43 +6201,6 @@ input[aria-invalid='true'] {
   gap: var(--space-8) var(--space-16);
 }
 
-.daemons-table td:last-child .row {
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-}
-
-/* A phone's width: each daemon a block of its own, its buttons under it, a line between two. */
-@media (max-width: 860px) {
-  .daemons-table thead {
-    display: none;
-  }
-
-  .daemons-table,
-  .daemons-table tbody,
-  .daemons-table tr,
-  .daemons-table td {
-    display: block;
-  }
-
-  .daemons-table tr {
-    padding: var(--space-8) 0;
-  }
-
-  .daemons-table tr + tr {
-    border-top: var(--border);
-  }
-
-  .daemons-table td {
-    border: 0;
-    padding: var(--space-2) 0;
-  }
-
-  .daemons-table td:last-child .row {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-}
-
 /* notifications */
 
 .notify-bell {
@@ -5319,20 +6208,28 @@ input[aria-invalid='true'] {
   margin-left: auto;
 }
 
-/* How many are unread, on the bell's corner. */
+/* How many are unread, hung on the bell's corner, so that the bell is seen beside it: ringed in
+   the sidebar's own colour, which parts the two where they meet. */
 .notify-count {
   position: absolute;
-  top: calc(-1 * var(--space-2));
-  right: calc(-1 * var(--space-4));
-  min-width: 16px;
-  height: 16px;
-  padding: 0 var(--space-4);
+  top: calc(-1 * var(--space-6));
+  right: calc(-1 * var(--space-6));
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-2);
+  border: 2px solid var(--side);
   border-radius: var(--radius-full);
   background: var(--pink);
   color: var(--on-fill);
-  font: 600 var(--text-xs)/16px var(--sans);
+  font: 600 var(--text-xs)/14px var(--sans);
   text-align: center;
   pointer-events: none;
+}
+
+/* Beside the window's traffic lights the row has no room over the bell: there it hangs level
+   with the bell's top. */
+:root[data-shell='macos']:not([data-fullscreen]) .notify-count {
+  top: calc(-1 * var(--space-2));
 }
 
 /* The list the bell opens: a panel, its head over what was said, which scrolls under it. */
@@ -5380,9 +6277,10 @@ input[aria-invalid='true'] {
   padding: var(--space-8);
 }
 
+/* The mark is drawn in its tone's ink, which reads on the surface as the tone itself may not. */
 .notify-item .glyph,
 .notify-open .glyph {
-  color: var(--tone);
+  color: var(--tone-ink, var(--tone));
 }
 
 .notify-item .choice-label,
@@ -5410,7 +6308,7 @@ input[aria-invalid='true'] {
 .notify-none {
   margin: 0;
   padding: var(--space-8);
-  font-size: var(--text-sm);
+  font: var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
 }
 
@@ -5473,8 +6371,10 @@ input[aria-invalid='true'] {
   scroll-margin: var(--space-12);
 }
 
-/* Arriving, a card is marked once and the mark fades: it never goes on calling. */
-.ask-card.ask-new {
+/* Arriving, a card is marked once and the mark fades: it never goes on calling. Its foot, a
+   plane of its own over the card, is marked with it. */
+.ask-card.ask-new,
+.ask-card.ask-new .ask-foot {
   animation: ask-arrive 1.2s ease-out;
 }
 
@@ -5549,14 +6449,12 @@ input[aria-invalid='true'] {
   color: var(--budget-ink);
 }
 
-.ask-answer {
-  display: grid;
-  gap: var(--space-12);
-  min-width: 0;
-}
-
-.ask-answer:empty {
-  display: none;
+/* The means to answer are the card's own rows: what holds them is no box of its own, so that
+   the foot an answer is sent from keeps to the card's frame and not to its form's. */
+.ask-answer,
+.ask-plain-form,
+.ask-form {
+  display: contents;
 }
 
 /* ---- context */
@@ -5616,7 +6514,7 @@ input[aria-invalid='true'] {
 
 .ask-block-kind {
   flex: none;
-  font: 500 var(--text-sm)/20px var(--sans);
+  font: 500 var(--text-sm)/16px var(--sans);
   color: var(--ink-3);
 }
 
@@ -5636,6 +6534,7 @@ input[aria-invalid='true'] {
 .ask-block-sum {
   color: var(--ink-3);
   font-size: var(--text-sm);
+  line-height: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5671,7 +6570,7 @@ pre.ask-plain {
 }
 
 .ask-markdown {
-  line-height: 1.55;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 
@@ -5884,11 +6783,6 @@ pre.ask-plain {
 
 /* ---- the form */
 
-.ask-form {
-  display: grid;
-  gap: var(--space-16);
-}
-
 .ask-fields {
   display: grid;
   gap: var(--space-16);
@@ -5911,6 +6805,12 @@ pre.ask-plain {
 .ask-label {
   font: 500 var(--text-md)/20px var(--sans);
   color: var(--ink);
+}
+
+/* Where a flow is set up a parameter is one field among the form's own, and is called as they are. */
+.options .ask-label {
+  font: 500 var(--text-sm)/16px var(--sans);
+  color: var(--ink-3);
 }
 
 /* What is said of an answer beside its name. */
@@ -5952,10 +6852,12 @@ pre.ask-plain {
   font-weight: 600;
 }
 
+/* The answers stand clear of the line over them, by the ring round the one the keys are on. */
 .ask-choices {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
+  margin-top: var(--space-4);
 }
 
 /* One answer of a few: a large button, the one taken filled and edged in ink. */
@@ -5977,11 +6879,12 @@ pre.ask-plain {
     background-color var(--dur) var(--ease);
 }
 
-.ask-choice:hover:not(:disabled) {
+/* Pointed at or pressed, it counts for no more than the one taken, which is drawn after it. */
+.ask-choice:where(:not(:disabled)):hover {
   background: color-mix(in srgb, var(--control-ink) 6%, var(--control));
 }
 
-.ask-choice:active:not(:disabled) {
+.ask-choice:where(:not(:disabled)):active {
   background: color-mix(in srgb, var(--control-ink) 10%, var(--control));
 }
 
@@ -6158,13 +7061,26 @@ pre.ask-plain {
   display: none;
 }
 
-/* The answer is sent at the card's right, with what keys send it and what is kept beside it. */
+/* The answer is sent at the card's right, with what keys send it and what is kept beside it:
+   from the card's foot, a hairline over it. Where a card scrolls in its own frame the foot
+   stays at that frame's, so that what sends the answer is in view and the rest is seen to go
+   on under the line. */
 .ask-foot {
   display: flex;
   flex-direction: row-reverse;
   align-items: center;
   gap: var(--space-12);
   flex-wrap: wrap;
+  margin: 0 calc(-1 * var(--gutter)) calc(-1 * var(--gutter));
+  padding: var(--space-12) var(--gutter) var(--gutter);
+  border-top: var(--border);
+  background: var(--raised);
+}
+
+.questions > .ask-card:only-child .ask-foot {
+  position: sticky;
+  bottom: calc(-1 * var(--gutter));
+  z-index: var(--z-sticky);
 }
 
 /* Not yet complete, it still sends -- to say what is missing -- but does not call to be pressed. */
@@ -6333,6 +7249,18 @@ pre.ask-plain {
 .aichan-btn .aichan-avatar {
   width: 20px;
   height: 20px;
+}
+
+/* Beside the view the drawer keeps the width its lines are read at: where the window has not
+   the room for both, the view is the one that gives way, until the window is a narrow one. */
+@media (min-width: 861px) {
+  .app.aichan-open {
+    grid-template-columns: var(--side-wide) minmax(min(360px, 100% - var(--side-wide) - 280px), 1fr) minmax(0, auto);
+  }
+
+  .app.aichan-open.side-folded {
+    grid-template-columns: minmax(min(360px, 100% - 280px), 1fr) minmax(0, auto);
+  }
 }
 
 /* The drawer's head: a bar as tall as the view's, with room at its right for the button that

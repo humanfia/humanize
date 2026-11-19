@@ -713,6 +713,30 @@ export function matchOn(text, query, options = {}, column = 1) {
   return first
 }
 
+/** How much of a line is said before a match, at most, in characters. */
+export const LEAD = 16
+
+/**
+ * A line of a result as a narrow list says it, the match in sight: its indentation gone, and
+ * where more than `lead` characters stand before the match, an ellipsis in place of all but the
+ * last of them.
+ *
+ * @param {string} text The line.
+ * @param {[number, number] | null} span Where the match is on it, as `matchOn` found it.
+ * @returns {{text: string, span: [number, number] | null}} What is said, and where the match is in that.
+ */
+export function snippet(text, span, lead = LEAD) {
+  const line = String(text)
+  const indent = line.length - line.trimStart().length
+  if (!span) return { text: line.slice(indent), span: null }
+  // A match in the indentation keeps what it matched.
+  const start = Math.min(indent, span[0])
+  const from = span[0] - start > lead ? span[0] - lead : start
+  const mark = from > start ? '…' : ''
+  const moved = from - mark.length
+  return { text: mark + line.slice(from), span: [span[0] - moved, span[1] - moved] }
+}
+
 /**
  * The one change that turns `before` into `after`: what they share at either end is left be, so
  * a file reloaded from disk keeps where its cursor and scroll were.

@@ -1,6 +1,8 @@
 // What every view builds its page out of: elements, the few shapes the page repeats -- a
 // status, a confirmation, an error, nothing yet -- and how a time or a length of time is said.
 
+import { closed, opened, place } from './layers.js'
+
 /** An element, its properties, and what goes in it. */
 export function h(tag, props = {}, ...kids) {
   const el = document.createElement(tag)
@@ -82,35 +84,59 @@ export function empty(title, text, ...actions) {
 }
 
 /**
- * A button that asks before it does something that cannot be undone, in place rather than in
- * a dialog: pressed, it becomes the question and two answers.
+ * A button that asks before it does something that cannot be undone, where it stands rather
+ * than in a dialog: pressed, it stays as it is and the question opens by it with its two
+ * answers, as a menu opens by its button, so that nothing beside it moves. The answer that
+ * takes it back has the focus, and whatever closes a menu (layers.js) takes it back as well.
  */
 export function confirming({ label, ask, yes, no = 'Cancel', act, danger = true, small = false, busy = `${yes}…`, held = false }) {
-  const holder = h('span', { class: 'confirm' })
-  const start = () => {
-    const doing = h('button', { class: ['btn', danger && 'danger', small && 'small'], type: 'button' }, yes)
-    const keep = h('button', { class: ['btn quiet', small && 'small'], type: 'button', onclick: idle }, no)
-    doing.addEventListener('click', async () => {
-      doing.disabled = keep.disabled = true
-      doing.textContent = busy
-      try {
-        await act()
-        // Held, it stays busy until what it did is drawn, which draws it anew -- or, where
-        // that never comes, a while.
-        if (held) setTimeout(idle, 10000)
-        else idle()
-      } catch (error) {
-        fill(holder, problem(error))
-        setTimeout(idle, 4000)
-      }
-    })
-    fill(holder, h('span', {}, ask), doing, keep)
-    doing.focus()
+  const button = h('button', { class: ['btn', danger && 'danger', small && 'small'], type: 'button', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, label)
+  const holder = h('span', { class: 'confirm' }, button)
+  let asked = null
+  const layer = { node: null, anchor: button, close }
+  function close() {
+    if (!asked) return
+    closed(layer)
+    asked.remove()
+    asked = null
+    button.setAttribute('aria-expanded', 'false')
   }
-  function idle() {
-    fill(holder, h('button', { class: ['btn', danger && 'danger', small && 'small'], type: 'button', onclick: start }, label))
+  const idle = () => {
+    button.disabled = false
+    button.textContent = label
   }
-  idle()
+  const answer = async () => {
+    close()
+    button.disabled = true
+    button.textContent = busy
+    try {
+      await act()
+      // Held, it stays busy until what it did is drawn, which draws it anew -- or, where
+      // that never comes, a while.
+      if (held) setTimeout(idle, 10000)
+      else idle()
+    } catch (error) {
+      fill(holder, problem(error))
+      setTimeout(() => {
+        fill(holder, button)
+        idle()
+      }, 4000)
+    }
+  }
+  button.addEventListener('click', () => {
+    if (asked) return close()
+    const keep = h('button', { class: 'btn quiet small', type: 'button', onclick: close }, no)
+    // Not what Humanize Desktop's window is dragged by, though it may open in a bar that is.
+    asked = h('div', { class: 'popover row', role: 'dialog', 'aria-label': ask || label, 'data-tauri-drag-region': 'false' }, ask ? h('span', {}, ask) : null, keep, h('button', { class: ['btn small', danger && 'danger'], type: 'button', onclick: answer }, yes))
+    button.after(asked)
+    layer.node = asked
+    opened(layer)
+    // Into the line it ends, where its button stands in the far half of the window.
+    const box = button.getBoundingClientRect()
+    place(asked, button, { align: box.left + box.right > innerWidth ? 'end' : 'start' })
+    button.setAttribute('aria-expanded', 'true')
+    keep.focus()
+  })
   return holder
 }
 
@@ -136,10 +162,11 @@ export function acting(label, act, { busy = `${label}…`, kind = 'btn', done = 
   return holder
 }
 
-/** Copies text, saying so on the button that did it. */
+/** Copies text, saying so on the button that did it, which stays as wide as it was: nothing by it moves. */
 export function copier(label, text) {
   const button = h('button', { class: 'btn quiet small', type: 'button' }, label)
   button.addEventListener('click', async () => {
+    button.style.minWidth = `${button.getBoundingClientRect().width}px`
     try {
       await navigator.clipboard.writeText(typeof text === 'function' ? text() : text)
       button.textContent = 'Copied'
@@ -268,6 +295,7 @@ const ICONS = {
   copy: ['M9 9h11v11H9Z', 'M5 15H4V4h11v1'],
   open: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v6H4V6h6'],
   bell: ['M6 16v-5a6 6 0 0 1 12 0v5l2 2H4Z', 'M10 21h4'],
+  question: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 4', 'M12 17h0'],
   compose: ['M11 4H4v16h16v-7', 'M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z'],
   fork: ['M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M12 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M6 9v3h12V9', 'M12 12v3'],
   archive: ['M3 5h18v4H3Z', 'M5 9v11h14V9', 'M10 13h4'],

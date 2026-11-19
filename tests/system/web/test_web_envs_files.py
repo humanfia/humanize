@@ -129,6 +129,15 @@ def test_a_file_is_opened_edited_and_saved_and_a_conflict_offered(engine: str) -
         expect(page.locator("[data-hmz=files-position]")).to_have_text(
             re.compile(r"^Ln 5, Col 12")
         )
+        # Flat: nothing drawn here, the editor included, casts a shadow.
+        assert (
+            page.evaluate(
+                """() => [...document.querySelectorAll('*')]
+                  .filter((el) => getComputedStyle(el).boxShadow !== 'none')
+                  .map((el) => `${el.tagName}.${el.className}`)"""
+            )
+            == []
+        )
         page.screenshot(path=str(_shots() / f"envs_files_{engine}.png"))
 
 
@@ -226,6 +235,33 @@ def test_the_explorer_makes_renames_and_removes_files(engine: str) -> None:
         expect(tree.locator("[data-path='/w/src/util.py']")).to_have_count(0)
         tree.press("ArrowRight")
         expect(tree.locator("[data-path='/w/src/util.py']")).to_be_visible()
+
+        # The menu key opens the menu of the entry the keys are on; shut, the tree has them back.
+        tree.press("ContextMenu")
+        expect(page.get_by_role("menuitem", name="New file…")).to_be_focused()
+        expect(page.get_by_role("menu").locator(".popover-head")).to_have_text("src")
+        # A right click on another entry while it is open leaves one menu, that entry's.
+        # (Pressed past the menu's right edge: the menu lies over the middle of the row.)
+        tree.locator("[data-path='/w/blob.bin']").click(
+            button="right", position={"x": 230, "y": 11}
+        )
+        expect(page.get_by_role("menu")).to_have_count(1)
+        expect(page.get_by_role("menu").locator(".popover-head")).to_have_text(
+            "blob.bin"
+        )
+        page.keyboard.press("Escape")
+        expect(page.get_by_role("menu")).to_have_count(0)
+        expect(tree).to_be_focused()
+
+        # The line beside the explorer sizes it, by the keys too, as wide as it was last left.
+        split = page.locator("[data-hmz=files-split]")
+        before = int(split.get_attribute("aria-valuenow") or 0)
+        split.focus()
+        page.keyboard.press("ArrowRight")
+        expect(split).to_have_attribute("aria-valuenow", str(before + 16))
+        assert page.evaluate("localStorage.getItem('hmz-files-side')") == str(
+            before + 16
+        )
 
 
 def _shots() -> Path:

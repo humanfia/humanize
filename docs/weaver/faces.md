@@ -267,7 +267,7 @@ run:
 | --- | --- |
 | `hmz.on("ask", ({prompt, context, schema, errors}) => …)` | Receives each new question of the session. `context` is a list of [blocks](#context-blocks) as JSON, `schema` the JSON Schema or `null` for text, `errors` `[]` or the reasons the last try was refused. |
 | `hmz.on("show", (context) => …)` | Receives what the flow pushed with `show`. |
-| `hmz.on("theme", (tokens) => …)` | Receives the page's colours and fonts when the person changes theme. They are set on `:root` before the face loads, so `var(--ink)` just works. |
+| `hmz.on("theme", (tokens) => …)` | Receives the page's colours, fonts and the measures of its controls -- the width of a line, the radii, a control's heights -- when the person changes theme. They are set on `:root` before the face loads, so `var(--ink)` or `var(--radius-md)` just works. The page draws flat, and `--shadow` is `none`. |
 | `hmz.submit(value)` | Answers the current question. Returns a promise of `{ok: true}` or `{ok: false, errors}`; each error is `{path, message}`, `path` the field's path in the value. A text question takes a string. |
 | `hmz.resize(height)` | Sets the frame's height in pixels. The frame follows the face's own height without it. |
 

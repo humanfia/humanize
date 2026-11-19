@@ -788,6 +788,8 @@ export async function mount(el, ctx) {
     const layer = {
       node,
       kind: 'panel',
+      // Escape closes it from inside it alone: in a tab's name or the shell, the key is theirs.
+      escape: 'within',
       close,
       get anchor() {
         return root

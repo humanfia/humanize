@@ -8,14 +8,14 @@ import { call, hash, refresh } from '../api.js'
 import { acting, fill, h, headline, problem, when } from '../dom.js'
 import { nameOf } from '../places.js'
 import { bar } from '../shell.js'
-import { saidTraced } from '../transcript.js'
+import { saidTraced, walked } from '../transcript.js'
 
 export function mount(root, { parts, query }) {
   const [, harness = '', session = ''] = parts
   const workspace = query.get('workspace') || ''
   const named = { workspace, harness, session }
   const head = h('div', {}, bar({ title: 'Harness session' }))
-  const box = h('div', { class: 'thread', 'data-hmz': 'thread', role: 'log' }, h('p', { class: 'loading', role: 'status' }, 'Reading its logs…'))
+  const box = walked(h('div', { class: 'thread', 'data-hmz': 'thread', role: 'log' }, h('p', { class: 'loading', role: 'status' }, 'Reading its logs…')))
   const dock = h('div', { class: 'dock' })
   let gone = false
   fill(root, h('div', { class: 'view view-harness', 'data-hmz': 'harness-session' }, head, h('div', { class: 'harness-main' }, h('div', { class: 'thread-scroll' }, h('div', { class: 'thread-column' }, box))), dock))

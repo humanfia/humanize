@@ -262,3 +262,85 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
         row.scroll_into_view_if_needed()
         row.click(button="right", position={"x": 300, "y": 20})
         _whole(page, page.locator(".popover.context"))
+
+
+def _popups(page: Page) -> list[str]:
+    """What is open over the page: every popup drawn, by its label or its class."""
+    return page.evaluate(
+        """() => [...document.querySelectorAll('.popover, [role=menu], [role=tooltip]')]
+            .filter((one) => one.getClientRects().length)
+            .filter((one) => getComputedStyle(one).visibility !== 'hidden')
+            .map((one) => one.getAttribute('aria-label') || one.className)"""
+    )
+
+
+def _flat(page: Page) -> bool:
+    """Whether nothing open over the page casts a shadow: a popup is edged by a hairline."""
+    return page.evaluate(
+        """() => [...document.querySelectorAll('.popover, [role=menu], .dialog, .toast')]
+            .filter((one) => one.getClientRects().length)
+            .every((one) => getComputedStyle(one).boxShadow === 'none')"""
+    )
+
+
+def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
+    project: Path, engine: str
+) -> None:
+    """Opening one popup closes the others; a press outside, Escape or leaving closes it."""
+    with served() as site, opened(site, engine=engine, width=1296, height=792) as page:
+        go(page, "/new/chat")
+        folders = page.locator("[data-hmz=workspace-picker]")
+        where = page.locator("[data-hmz=environment]")
+        folders.click()
+        expect(page.get_by_role("menu", name="Folders")).to_be_visible()
+        assert _popups(page) == ["Folders"]
+        assert _flat(page)
+
+        # A press on another's button is not swallowed: one click closes this and opens that.
+        where.click()
+        expect(page.get_by_role("menu", name="Folders")).to_have_count(0)
+        expect(where).to_have_attribute("aria-expanded", "true")
+        expect(folders).to_have_attribute("aria-expanded", "false")
+        assert len(_popups(page)) == 1
+        # Its own button pressed again closes it.
+        where.click()
+        expect(where).to_have_attribute("aria-expanded", "false")
+        assert _popups(page) == []
+
+        # The form a folder is opened by, and the panel it is browsed for in, are one chain:
+        # Escape closes the topmost alone, and a menu opened elsewhere closes the whole of it.
+        folders.click()
+        page.get_by_role("menuitem", name="Open folder…").click()
+        form = page.locator(".workdir-open")
+        expect(form).to_be_visible()
+        expect(page.get_by_role("menu", name="Folders")).to_have_count(0)
+        page.locator("[data-hmz=path-browse]").click()
+        panel = page.locator("[data-hmz=path-panel]")
+        expect(panel).to_be_visible()
+        assert _flat(page)
+        page.keyboard.press("Escape")
+        expect(panel).to_be_hidden()
+        expect(form).to_be_visible()
+        where.click()
+        expect(form).to_be_hidden()
+        expect(where).to_have_attribute("aria-expanded", "true")
+        assert len(_popups(page)) == 1
+        page.keyboard.press("Escape")
+        assert _popups(page) == []
+
+        # A press on nothing closes it, and so does going elsewhere: nothing is left over
+        # the dialog the page goes to.
+        folders.click()
+        page.get_by_role("menuitem", name="Open folder…").click()
+        expect(form).to_be_visible()
+        page.mouse.click(640, 300)
+        expect(form).to_be_hidden()
+        folders.click()
+        page.get_by_role("menuitem", name="Open folder…").click()
+        expect(form).to_be_visible()
+        page.locator("[data-hmz=path-browse]").click()
+        expect(panel).to_be_visible()
+        go(page, "/settings/themes")
+        expect(page.locator("[data-hmz=pair]").first).to_be_visible()
+        assert _popups(page) == []
+        assert _flat(page)

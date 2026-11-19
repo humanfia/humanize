@@ -22,6 +22,8 @@
   --hover: rgba(20, 26, 31, 0.06);
   --selected: color-mix(in srgb, var(--ink) 10%, transparent);
   --quiet: color-mix(in srgb, var(--ink) 4%, transparent);
+  --track: var(--selected);
+  --thumb: var(--raised);
   --pink: rgb(236, 111, 163);
   --link: rgb(11, 112, 128);
   --fail: rgb(207, 53, 82);
@@ -233,13 +235,15 @@ input[type='button'] {
     color 0.12s;
 }
 
-button:hover:not(:disabled),
-.button:hover {
+/* Pointed at and pressed are said no more strongly than the button itself, so that what a
+   button is set to, said after them, stays said while it is pointed at. */
+button:where(:not(:disabled)):hover,
+:where(.button):hover {
   background: color-mix(in srgb, var(--control-ink) 6%, var(--control));
 }
 
-button:active:not(:disabled),
-.button:active {
+button:where(:not(:disabled)):active,
+:where(.button):active {
   background: color-mix(in srgb, var(--control-ink) 10%, var(--control));
 }
 
@@ -271,13 +275,18 @@ button.quiet {
   color: var(--ink-2);
 }
 
-button.quiet:hover:not(:disabled) {
+button.quiet:where(:not(:disabled)):hover {
   background: var(--hover);
   color: var(--ink);
 }
 
-button.quiet:active:not(:disabled) {
+button.quiet:where(:not(:disabled)):active {
   background: var(--selected);
+}
+
+button.quiet[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--ink);
 }
 
 button:disabled {
@@ -339,9 +348,32 @@ input[type='radio'] {
   accent-color: var(--primary);
 }
 
+/* A box to tick is drawn, the same in every engine and theme: a field's ground and edge, and
+   ticked, the primary fill under a tick in its ink. The tick is two strokes, each a gradient,
+   set about the box's middle. */
+input[type='checkbox'] {
+  --stroke: transparent calc(50% - 0.75px), var(--on-primary) 0, var(--on-primary) calc(50% + 0.75px), transparent 0;
+  appearance: none;
+  background: var(--field);
+  border: var(--border-w) solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
+}
+
 input:is([type='checkbox'], [type='radio']):focus {
+  border-color: var(--line-strong);
   outline: var(--focus-ring);
   outline-offset: 2px;
+}
+
+input[type='checkbox']:checked {
+  border-color: var(--primary);
+  background:
+    linear-gradient(to top right, var(--stroke)) calc(50% - 2.5px) calc(50% + 1.5px) / 3px 3px no-repeat,
+    linear-gradient(to bottom right, var(--stroke)) calc(50% + 2px) 50% / 6px 6px no-repeat,
+    var(--primary);
 }
 
 ::placeholder {
@@ -376,7 +408,7 @@ legend {
   gap: var(--space-2);
   padding: var(--space-2);
   border-radius: var(--radius-md);
-  background: var(--selected);
+  background: var(--track);
 }
 
 .choices button {
@@ -388,15 +420,13 @@ legend {
   color: var(--ink-2);
 }
 
-.choices button:hover:not(:disabled),
-.choices button:active:not(:disabled) {
+.choices button:where(:not(:disabled)):is(:hover, :active) {
   background: none;
   color: var(--ink);
 }
 
-.choices button[aria-pressed='true'],
-.choices button[aria-pressed='true']:hover {
-  background: var(--raised);
+.choices button[aria-pressed='true'] {
+  background: var(--thumb);
   color: var(--ink);
   outline: var(--border-w) solid var(--line);
   outline-offset: -1px;

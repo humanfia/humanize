@@ -33,7 +33,7 @@ import { graph } from '../graph.js'
 import { bar, choice, dragged, keep, kept, menu, section as heading, sidePanel, submenu, tabbed } from '../shell.js'
 import { backedSaid, epicMenu, upload } from '../sidebar.js'
 import { copy, menuOn, toast } from '../ui.js'
-import { saidTraced, sayer } from '../transcript.js'
+import { saidTraced, sayer, walked } from '../transcript.js'
 import { completions, pathItems, pathParts, preferSaid, RESERVED, route, typing } from '../natives.js'
 import { barButton, glyph, paneButtons } from './chatbar.js'
 import { panelsOf, usedLine } from './envs/tree.js'
@@ -52,7 +52,7 @@ export function mount(root, { parts, query }) {
   // A chat's bar says which pane is open, each time its panel opens or shuts.
   const panel = sidePanel('the epic', { told: () => panes && sayPanes() })
   // Not drawn until what is in front is known: a chat's is shut where an epic's is open, and
-  // neither is opened only to be shut.
+  // neither is opened only to be shut, nor with nothing in it where nothing is going.
   panel.node.classList.add('unsettled')
   const head = h('div', { class: 'bar-holder' })
   const main = h('div', { class: 'epic-main' })
@@ -112,8 +112,6 @@ export function mount(root, { parts, query }) {
         // A chat's host is on a slot of its own, which says it is one before it is written down.
         const chat = wanted.slot.startsWith('chat:')
         const what = chat ? 'chat' : 'epic'
-        // No chat's: the panel an epic keeps, as it was left.
-        if (!chat) panel.node.classList.remove('unsettled')
         region('head', ['none', starting], () => fill(head, bar({ title: starting ? `Starting the ${what}…` : `No ${what} is going` })))
         region('main', ['none', starting, none], () =>
           fill(
@@ -415,7 +413,7 @@ export function mount(root, { parts, query }) {
   function drawThread(detail, run) {
     const key = threadKey()
     region('main-kind', ['thread'], () => {
-      box = h('div', { class: 'thread', 'data-hmz': 'thread', role: 'log', 'aria-live': 'off' })
+      box = walked(h('div', { class: 'thread', 'data-hmz': 'thread', role: 'log', 'aria-live': 'off' }))
       cut = h('p', { class: 'dim thread-cut', hidden: true }, isChat(detail) ? `Only the last ${LINES} lines are shown here; the chat keeps them all.` : `Only its last ${LINES} lines are drawn here; the epic keeps every one.`)
       fill(main, h('div', { class: 'thread-scroll' }, h('div', { class: 'thread-column' }, cut, box)))
       saidFor = ''
@@ -438,13 +436,16 @@ export function mount(root, { parts, query }) {
       // above what is said now.
       const before = chat && detail.earlier ? sessionsOf(detail)[detail.earlier - 1] : null
       if (before && !traced && !tracing && !traceError) readTrace()
+      // A thread read at its end stays at its end as it grows, over it as under it.
+      const stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
+      let added = false
       region('thread-before', [saidFor, before && before.key, Boolean(traced)], () => {
         box.querySelector(':scope > .thread-before')?.remove()
         const read = before && traced && traced.find((each) => each.key === before.traced)
-        if (read && read.actions.length) box.prepend(h('div', { class: 'thread-before', 'data-hmz': 'thread-before' }, saidTraced({ ...read, label: before.key })))
+        if (!read || !read.actions.length) return
+        box.prepend(h('div', { class: 'thread-before', 'data-hmz': 'thread-before' }, saidTraced({ ...read, label: before.key, chat: true })))
+        added = true
       })
-      const stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
-      let added = false
       for (const record of run.records) {
         if (record.seq <= saidUpTo) continue
         saidUpTo = record.seq
@@ -467,12 +468,13 @@ export function mount(root, { parts, query }) {
       if (!box.childElementCount) box.append(h('p', { class: 'dim thread-empty' }, 'Nothing said yet.'))
       else if (added) box.querySelector(':scope > .thread-empty')?.remove()
       // What a chat's agent stops to ask in a turn is asked at the end of its conversation,
-      // its answers offered there to pick and anything typed below answering it.
+      // its answers offered under the line that asks it and anything typed below answering it.
       const asking = chat && mode.session && run.live ? askedIn(mode.session) : null
-      region('thread-ask', [saidFor, asking], () => {
+      const asks = asking ? box.querySelector(`:scope > [data-question="${CSS.escape(String(asking.question))}"]`) : null
+      region('thread-ask', [saidFor, asking, Boolean(asks)], () => {
         main.querySelector('.thread-ask')?.remove()
         if (!asking || !asking.options.length) return
-        box.after(
+        ;(asks || box).after(
           h(
             'div',
             { class: 'thread-ask row', 'data-hmz': 'thread-ask' },
@@ -493,7 +495,7 @@ export function mount(root, { parts, query }) {
       saidFor = ''
       // The sessions the thread is of: one, or every one of an agent's.
       const sessions = sessionsOf(detail).filter((one) => (mode.session ? one.key === key : one.agent === mode.log))
-      const read = traced ? sessions.map((one) => ({ ...(traced.find((each) => each.key === one.traced) || { actions: [] }), label: one.key })).filter((one) => one.actions.length) : []
+      const read = traced ? sessions.map((one) => ({ ...(traced.find((each) => each.key === one.traced) || { actions: [] }), label: one.key, chat: isChat(detail) })).filter((one) => one.actions.length) : []
       fill(
         box,
         traceError
@@ -506,6 +508,8 @@ export function mount(root, { parts, query }) {
                 ? saidTraced(...read)
                 : h('p', { class: 'dim' }, persons.has(mode.log) ? 'A person’s log is kept while the epic is.' : 'Its logs held nothing said.'),
       )
+      // Opened on what was said last, as one going is; read from there as far back as wanted.
+      scroller.scrollTop = scroller.scrollHeight
     })
   }
 
@@ -786,12 +790,15 @@ export function mount(root, { parts, query }) {
       // Its role's environment that works where it does, else its role's latest at the top.
       const roles = role ? envs.filter((one) => one.role === role).sort((a, b) => (b.run || 0) - (a.run || 0)) : []
       const env = (workdir && roles.find((one) => one.workdir === workdir)) || roles.find((one) => !one.parent) || null
+      // What it is called and runs on is said whole, and is the link; its path stands under
+      // them on a line of its own, the only thing cut short.
       return h(
         'li',
         {},
         h('span', { class: 'mono' }, key),
         ' ',
         env ? h('a', { href: envsAt({ env: env.id }), 'data-hmz': 'env-link', title: 'Open this environment' }, where) : where,
+        workdir ? h('div', {}, pathed(workdir)) : null,
         harness ? h('div', { class: 'dim' }, `harness on ${harness}`) : null,
       )
     }
@@ -814,7 +821,8 @@ export function mount(root, { parts, query }) {
     const calls = (standing.calls && standing.calls.calls) || []
     if (!chat && run && calls.length) {
       const offset = run.offset
-      parts.push(section('Running flows', h('ul', { class: 'tree' }, calls.map((call) => h('li', { style: { marginLeft: `${call.depth * 14}px` } }, h('b', {}, call.name), ' ', h('span', { class: 'dim' }, offset === null ? '' : lasting(Date.now() / 1000 - (call.since + offset))))))))
+      // The flow the epic was started with is the first deep: on the text's edge, what it called a step in.
+      parts.push(section('Running flows', h('ul', { class: 'tree' }, calls.map((call) => h('li', { style: { marginLeft: `calc(${call.depth - 1} * var(--indent))` } }, h('b', {}, call.name), ' ', h('span', { class: 'dim' }, offset === null ? '' : lasting(Date.now() / 1000 - (call.since + offset))))))))
     } else if (!chat && detail.calls.length) {
       parts.push(section('Called flows', tree(detail.calls)))
     }
@@ -1239,11 +1247,16 @@ function reading(mode) {
 /**
  * What the run has spent, model by model and kind by kind -- never one lump over the kinds -- in
  * an order that does not change, money beside the tokens where it is known, and a figure that is
- * only a floor marked as one, as the terminal interface's monitor says it.
+ * only a floor marked as one, as the terminal interface's monitor says it. A column for each
+ * kind is all a panel has the room for: a model's name stands whole on a row of its own over
+ * its figures, and a count is cut short as the figures over the panel are, said exactly where
+ * it is pointed at.
  */
 function spendingOf(figures) {
-  const kinds = (figures.reckoning || []).map((one) => one.kind)
+  const reckoned = figures.reckoning || []
   const named = (kind) => (kind ? kind.replace(/_/g, ' ') : 'unsorted')
+  const over = (name) => h('tr', { class: 'spending-of' }, h('td', { class: 'mono', colspan: reckoned.length + 2, title: name }, name))
+  const count = (tokens, floor = false) => h('td', { class: 'num', title: `${floor ? 'at least ' : ''}${Math.round(tokens)}${floor ? ': a backend here does not count this kind' : ''}` }, `${floor ? '≥' : ''}${thousands(tokens)}`)
   return [
     h(
       'div',
@@ -1251,18 +1264,26 @@ function spendingOf(figures) {
       h(
         'table',
         { class: 'spending', 'data-hmz': 'spending' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Model'), kinds.map((kind) => h('th', { class: 'num' }, named(kind))), h('th', { class: 'num' }, 'Cost'), h('th', { class: 'num' }, 'Out/s'))),
+        h('thead', {}, h('tr', {}, reckoned.map((one) => h('th', { class: 'num' }, named(one.kind))), h('th', { class: 'num' }, 'Cost'), h('th', { class: 'num' }, 'Out/s'))),
         h(
           'tbody',
           {},
-          figures.spending.map((one) =>
-            h('tr', {}, h('td', { class: 'mono' }, one.model), kinds.map((kind) => h('td', { class: 'num' }, one.kinds[kind] ? Math.round(one.kinds[kind]) : '—')), h('td', { class: 'num' }, one.money || '—'), h('td', { class: 'num' }, one.rate)),
-          ),
-          h('tr', { class: 'whole' }, h('td', {}, 'All'), (figures.reckoning || []).map((one) => h('td', { class: 'num', title: one.whole ? '' : 'at least: a backend here does not count this kind' }, `${one.whole ? '' : '≥'}${Math.round(one.tokens)}`)), h('td'), h('td')),
+          figures.spending.map((one) => [
+            over(one.model),
+            h('tr', {}, reckoned.map(({ kind }) => (one.kinds[kind] ? count(one.kinds[kind]) : h('td', { class: 'num' }, '—'))), h('td', { class: 'num' }, one.money || '—'), h('td', { class: 'num' }, one.rate)),
+          ]),
+          h('tr', { class: 'whole spending-of' }, h('td', { colspan: reckoned.length + 2 }, 'All')),
+          h('tr', {}, reckoned.map((one) => count(one.tokens, !one.whole)), h('td'), h('td')),
         ),
       ),
     ),
   ]
+}
+
+/** A count of tokens short enough for a narrow column, as the runs' own figures cut one short. */
+function thousands(count) {
+  if (count < 1e3) return String(Math.round(count))
+  return count < 1e6 ? `${(count / 1e3).toFixed(1)}k` : `${(count / 1e6).toFixed(2)}M`
 }
 
 /** Where each session of an epic works, and where its harness was put, as each opened. */
@@ -1273,9 +1294,9 @@ function placesOf(detail, run) {
   return sessionsOf(detail).filter((one) => one.harness).map((one) => [one.key, '', one.harness]).concat(detail.used.map((one) => [one.split('=')[0], one.split('=').slice(1).join('='), '']))
 }
 
-/** Where a session works, on one line as the terminal interface's monitor says it under the session: its role, then its kind, target and workdir. */
+/** Where a session works, as the terminal interface's monitor says it under the session: its role, then its kind and target. Its workdir is said after them, as a path is. */
 function placed(env) {
-  return env ? [env.role, env.kind, env.target, env.workdir].filter(Boolean).join(' · ') : ''
+  return env ? [env.role, env.kind, env.target].filter(Boolean).join(' · ') : ''
 }
 
 /** The agents as a list rather than a graph: the working first, then in the flow's order. */
