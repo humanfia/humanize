@@ -41,7 +41,7 @@ changes ─┬▶ tests    unit, a package at a time, then            │
 | the `agents` topic | `runtime`, `flows`, `coganchor` or `cli` |
 | the `daemon` topic | those, `daemon`, `reach`, `relay`, `rpc`, `sdk`, `trust` or `web` |
 | the `tui` topic | those of `agents`, `daemon`, `reach`, `rpc`, `trust` or `tui` |
-| the `core`, `anchor` and `web` topics | anything in `src/hmz/`: they run `hmz` whole; the `anchor` topic also `crates/coganchor/` |
+| the `core`, `anchor` and `web` topics | anything in `src/hmz/`: they run `hmz` whole; the `anchor` topic also `crates/coganchor/`, and the `core` topic also `cache.yml`, which it holds to the caches `ci.yml` restores |
 | the `reach` topic | those of `agents`, `daemon`, `reach`, `rpc`, `rtc` or `trust` |
 | the `relay` topic | `cli`, `reach`, `relay`, `rpc`, `rtc` or `trust` |
 | `tests/unit/rpc` | also anything in `protocol/`: it holds `protocol/openrpc.json` to the protocol's text |
