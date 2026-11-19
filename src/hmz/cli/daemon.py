@@ -179,17 +179,24 @@ def _unreached(why: OSError) -> int:
 
 def _connect() -> int:
     """`hmz daemon connect --stdio`: standard streams spliced to the daemon's socket."""
+    import signal
+
     from hmz import daemon
     from hmz.reach import SYNC, dial, splice, stdio
 
     try:
-        pipe = dial("unix:", start=daemon.start)
-    except OSError as why:
-        return _unreached(why)
-    here = stdio()
-    # What the client discards everything up to: what a shell printed before this ran.
-    here.sendall(SYNC)
-    splice(here, pipe)
+        try:
+            pipe = dial("unix:", start=daemon.start)
+        except OSError as why:
+            return _unreached(why)
+        here = stdio()
+        # What the client discards everything up to: what a shell printed before this ran.
+        here.sendall(SYNC)
+        splice(here, pipe)
+    except KeyboardInterrupt:
+        # Somebody stopping the line, as the desktop app stops the process of every pipe it
+        # closes: it exits as the interrupt would have had it, without a traceback.
+        raise SystemExit(128 + signal.SIGINT) from None
     return 0
 
 

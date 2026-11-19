@@ -665,6 +665,7 @@ hmz daemon uninstall
 | Condition | stderr | Exit |
 | --- | --- | --- |
 | `serve` interrupted or terminated | — | `0` |
+| `connect --stdio` interrupted | — | `130` |
 | `serve` with a daemon already running | `hmz: a daemon is already running (pid <pid>)` | `1` |
 | The daemon cannot be reached or started | `hmz: the daemon cannot be reached: <why>` | `1` |
 | The daemon speaks another protocol | `hmz: the runs on this machine are held by an older Humanize (pid <pid>); stop it with that version` | `1` |
