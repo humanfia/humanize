@@ -147,6 +147,40 @@ def test_parameters_out_of_their_range_are_refused(
     assert (refused.code, refused.message) == (-32602, message)
 
 
+@pytest.mark.parametrize("method", ["runs.list", "runs.usage"])
+def test_the_epics_of_a_workspace_since_removed_are_still_read(
+    session: _Session, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, method: str
+) -> None:
+    from types import SimpleNamespace
+
+    import hmz.runtime.epic
+    from hmz.daemon import reach
+
+    asked: list[str] = []
+
+    def every(workspace: str = "") -> list[Any]:
+        asked.append(workspace)
+        return []
+
+    def spent(ran: list[Any], days: int) -> dict[str, Any]:
+        del ran, days
+        none = dict.fromkeys(
+            ("runs", "cost", "output_tokens", "seconds", "money", "tokens", "worked"), 0
+        )
+        return {"days": [], "flows": [], "ended": {}, "whole": none}
+
+    monkeypatch.setattr(runs, "RUNS", SimpleNamespace(all=every))
+    monkeypatch.setattr(runs, "running", list)
+    monkeypatch.setattr(reach, "conversations", lambda: SimpleNamespace(epics=set))
+    monkeypatch.setattr(hmz.runtime.epic, "spending", spent)
+    gone = tmp_path / "gone"
+
+    _call(session, method, workspace=str(gone))
+
+    # The directory is not there, and what was written down of it is what is asked for.
+    assert asked == [str(gone.resolve())]
+
+
 @pytest.mark.parametrize(
     ("said", "code", "data"),
     [

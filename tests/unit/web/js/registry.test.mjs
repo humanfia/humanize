@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { claim, local, parsePairing, registry, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
+import { claim, local, parsePairing, reach, registry, RpcError, WRITES } from '../../../../src/hmz/web/static/rpc/index.js'
 import { toBase64url } from '../../../../src/hmz/web/static/rpc/pipe.js'
 import { daemon, fakeIndexedDB, provider } from './helpers.mjs'
 
@@ -96,6 +96,22 @@ test('a claimed code keeps the daemon; a refused claim keeps nothing', async () 
   await assert.rejects(claim(store, { name: 'other', code: code({ token: 'x' }), device: 'browser' }, [provider(served)]), /not valid/)
   await assert.rejects(claim(store, { name: 'box', code: code(), device: 'browser' }, [provider(served)]), /already/)
   assert.deepEqual((await store.list()).map((one) => one.name), ['box'])
+})
+
+test('a P2P daemon is claimed over its easytier route here and kept with the id its code gives', async () => {
+  const served = daemon({ methods: { 'pair.claim': (params) => ({ daemon_id: ID, device: params.name }) } })
+  const store = registry(fakeIndexedDB())
+  const opened = []
+  const asked = { name: 'edge', code: code({ routes: ['easytier:home', 'tcp://box:7700'] }), device: 'browser', first: 'easytier:edge' }
+  const entry = await claim(store, asked, [provider(served, opened)])
+  // The code's own easytier route names that machine's entry, not this one's.
+  assert.deepEqual(entry, { name: 'edge', id: ID, routes: ['easytier:edge', 'tcp://box:7700'] })
+  assert.equal(opened[0], 'easytier:edge')
+  assert.deepEqual(await store.list(), [entry])
+  // Pinned, its untrusted route is not refused for want of an id.
+  const session = await reach({ ...entry, routes: ['easytier:edge'] }, [provider(served)])
+  assert.equal(session.route, 'easytier:edge')
+  session.peer.close('Done.')
 })
 
 test('the writes are the methods of openrpc.json taking idem', () => {

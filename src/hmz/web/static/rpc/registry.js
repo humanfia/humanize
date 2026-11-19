@@ -210,20 +210,21 @@ export function parsePairing(code) {
 /**
  * Adds a daemon from a pairing code (Section 4.5.7 of protocol/wire.md): reaches it over the
  * code's routes pinning the code's id, claims the code as `device`, and keeps the daemon as
- * `name` only once the claim succeeds.
+ * `name` only once the claim succeeds. A P2P daemon's is claimed over `first`, its `easytier:`
+ * route as this machine names it, in place of the code's own (Section 3.13.6 of protocol/web.md).
  *
  * @param {ReturnType<typeof registry>} store
- * @param {{name: string, code: string, device: string}} asked `device` the name this browser is
- *   paired as.
+ * @param {{name: string, code: string, device: string, first?: string}} asked `device` the name
+ *   this browser is paired as.
  * @param {import('./client.js').Provider[]} providers
  * @param {{name: string, kind: string}} [client] As `session.hello` says it.
  * @returns {Promise<import('./client.js').DaemonEntry>}
  */
-export async function claim(store, { name, code, device }, providers, client = { name: '', kind: 'web' }) {
+export async function claim(store, { name, code, device, first }, providers, client = { name: '', kind: 'web' }) {
   named(name)
   const { id, routes, token } = parsePairing(code)
   if ((await store.list()).some((one) => one.name === name)) throw new Error(`There is already a daemon ${name}.`)
-  const entry = { name, id, routes }
+  const entry = { name, id, routes: first ? [first, ...routes.filter((one) => routeKind(one) !== routeKind(first))] : routes }
   const session = await reach(entry, providers, { client })
   try {
     await session.peer.call('pair.claim', { token, name: device })

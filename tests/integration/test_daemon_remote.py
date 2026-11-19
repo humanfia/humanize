@@ -31,7 +31,7 @@ from hmz import home
 from hmz.coganchor import easytier, settings
 from hmz.daemon import link, where
 from hmz.reach import SocketPipe
-from hmz.runtime.doing.daemons import Remotes, Unreached
+from hmz.runtime.doing.daemons import Daemons, Remotes, Unreached
 from hmz.trust import identity, tls
 
 from . import doubles_easytier
@@ -273,14 +273,33 @@ def test_a_daemon_over_tcp_is_paired_by_its_code_and_reached(served: _Served) ->
         with pytest.raises(Unreached) as claimed:
             remotes.pair("again", code)
         assert (claimed.value.status, str(claimed.value)) == (
-            409,
-            "This device is already paired.",
+            403,
+            "That pairing code is not valid: ask for a new one.",
         )
 
         client = remotes.client("lab")
         assert remotes.state("lab")["state"] == "up"
         assert (client.daemon_id, client.device) == (written_["id"], "laptop")
         assert client.call("hosts.list") == {"held": []}
+    finally:
+        remotes.close()
+
+
+def test_a_daemon_removed_here_is_added_again_from_a_new_code(served: _Served) -> None:
+    remotes = Remotes()
+    try:
+        first = remotes.pair("lab", served.code(), device="laptop")
+        Daemons().remove("lab")
+        assert _daemons() == []
+
+        again = remotes.pair("lab", served.code(), device="renamed")
+        assert again == first
+        assert _daemons() == [again]
+        client = remotes.client("lab")
+        assert client.device == "laptop"
+        assert [one["name"] for one in client.call("devices.list")["devices"]] == [
+            "laptop"
+        ]
     finally:
         remotes.close()
 

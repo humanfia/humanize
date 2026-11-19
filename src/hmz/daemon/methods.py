@@ -221,16 +221,15 @@ class _Methods:
 
         router = self._router
         session = router.session(call)
-        if session.paired:
-            raise _refused(409, "This device is already paired.")
+        token, name = str(call.params["token"]), str(call.params["name"])
         try:
-            device = pairing.claim(
-                router.codes,
-                router.devices,
-                str(call.params["token"]),
-                str(call.params["name"]),
-                session.fingerprint,
-            )
+            if session.paired:
+                router.devices.check(name)
+                device = router.codes.claims(token, lambda: session.device)
+            else:
+                device = pairing.claim(
+                    router.codes, router.devices, token, name, session.fingerprint
+                )
         except pairing.InvalidCodeError as why:
             raise _refused(403, str(why)) from None
         except ValueError as why:

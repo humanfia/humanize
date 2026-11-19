@@ -458,7 +458,7 @@ daemon:
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there |
-| **Usage** | What the epics spent, of every directory or of one, by day and by flow, looking back 7, 30, 90 or 365 days |
+| **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
 | **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 
@@ -616,7 +616,7 @@ cannot be taken -- and how to reach it:
 | **Code** | | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair` or by **Pair a device** on a page that reaches it. It is claimed at once, over the routes it carries, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. |
 | **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config` not yet added, picked from a list; picking one fills in the name. Nothing here writes to the config. It is resolved through your config every time, so editing the config edits the daemon. |
 | **SSH** | **Custom** | The host, user, port, identity file, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept by the page, and the config is not read again. |
-| **P2P** | **EasyTier** | The secret that machine's EasyTier entry holds: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. |
+| **P2P** | **EasyTier** | The secret that machine's EasyTier entry holds: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. For a new daemon, also that machine's pairing code: it is claimed at once over EasyTier, and the daemon is kept, held to that machine's id, only once the claim succeeds. |
 
 **SSH** and **P2P** are offered only where the page can open their routes: in a browser,
 through `hmz web`; in [Humanize Desktop](/user/desktop), through the app.
@@ -626,6 +626,8 @@ in the daemon's own kind and mode, with every route it is reached by, in the ord
 tried, to add to, take from or reorder; a P2P daemon's secret is never shown again, and leaving
 it empty keeps it. Removing one forgets how to reach it, and nothing on the host: its epics,
 its `hmz` and its pairing of this machine stay there.
+A daemon removed can be added again from a new pairing code: this machine is not
+paired a second time, and keeps the name it was paired under.
 
 The daemons are kept by this browser, in its IndexedDB: each its name, the daemon id pinned,
 and its [routes](/reference/settings#settings-yaml). Another browser, Humanize Desktop, and `hmz`
@@ -679,12 +681,14 @@ listen: ["easytier:home"]
 ```
 
 and make a pairing code there, `hmz daemon pair`. Then, on your own machine, add a **P2P** ›
-**EasyTier** daemon of the same name, with the same secret and at least one of the same nodes:
-it writes the EasyTier entry of that name here, which the route `easytier:home` opens with; in
-[Humanize Desktop](/user/desktop), it writes it to the app as well, which opens the route itself. A
-route over EasyTier is held to the daemon's id, which only pairing gives: claim that machine's
-code under **Code**, and the daemon it adds is reached over EasyTier. Until it is paired, a P2P
-daemon fails with `easytier:home needs the id of the daemon it reaches.`
+**EasyTier** daemon with the same secret, at least one of the same nodes, and that pairing code:
+it writes the EasyTier entry of the name you give here, which the route `easytier:<name>` opens
+with; in [Humanize Desktop](/user/desktop), it writes it to the app as well, which opens the route
+itself. A route over EasyTier is held to the daemon's id, which only pairing gives, so the form
+claims the code at once over that route -- then over the code's other routes, if it carries any
+-- and keeps the daemon only once the claim succeeds, saying why otherwise. A P2P daemon kept
+without an id by an earlier release fails with `easytier:home needs the id of the daemon it
+reaches.`: remove it and add it again with a pairing code.
 
 - <span id="easytier-nodes"></span>**The two ends meet through a shared node.** EasyTier runs no public node
   of its own, so you name one or more each side: a URL such as `tcp://host:11010` (or `udp`,

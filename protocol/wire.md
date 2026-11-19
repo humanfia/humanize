@@ -367,7 +367,8 @@ code's `id`, and MUST call `pair.claim` with the code's `token` and the name of 
 then keep the daemon's id and routes as Section 3.4.6 of [FILES] or Section 3.13 of [WEB] states.
 
 **4.5.8** `pair.claim` MUST admit the session's device fingerprint where the token is one the daemon
-holds and has not expired, MUST then forget the token, and MUST make the session paired at once.
+holds and has not expired, MUST then forget the token, and MUST make the session paired at once; on
+a session paired already it MUST admit nothing more (Section 4.14.2.3 of [DAEMON]).
 
 **4.5.9** A token MUST be compared in constant time, and a token not held, claimed or expired MUST
 be refused 403, `That pairing code is not valid: ask for a new one.`
