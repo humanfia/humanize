@@ -3506,7 +3506,8 @@ the terminal interface says where its turn is instead (Section 11.4 of [TUI]).
 
 **8.5.3** A chat that has ended MUST be reported as resting, or as failed where Section 8.4.9
 applies; a chat MUST NOT be reported as `done`. A frontend MAY mark a chat, in place of any of
-these, while it waits on a reply a person has not yet seen, as Section 3.5 of [WEB] does.
+these, while it waits on a reply a person has not yet seen, and MAY say going and resting in the
+words it says an epic's state in, as Section 3.5 of [WEB] does.
 
 **8.5.4** A frontend MUST offer a way to stop the open turn of a chat (`chat.stop` in Section 4 of
 [DAEMON]). Stopping MUST interrupt that turn, MUST say in the conversation that the turn was
@@ -3681,8 +3682,9 @@ MUST be refused, saying why, while a turn of the chat is open and where the chat
 not kept in its directory, its harness having kept it elsewhere or the chat having opened none.
 
 **8.10.3** Archiving a chat (`chat.archive`) MUST record it as archived and MUST change nothing else
-of it; a frontend MUST leave an archived chat out of its lists of chats, MUST be able to list the
-archived chats of a workspace, and MUST be able to put one back (`chat.unarchive`).
+of it; a frontend MUST leave an archived chat out of its lists of chats. The archived chats of a
+workspace MUST be listable apart (`chat.list` with `archived`), and an archived chat MUST be put
+back among the others by `chat.unarchive`.
 
 **8.10.4** Deleting a chat (`chat.delete`) MUST remove its chat directory, the sessions kept in it
 included, and nothing else: no epic directory, and no worktree the chat worked in. It MUST be

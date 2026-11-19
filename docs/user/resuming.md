@@ -62,8 +62,8 @@ Three things are worth knowing before you rely on it:
   run of its own, with its own sessions, its own trace and its own row in
   [`/epics`](/user/tracing#what-a-run-writes-down). A week of stops and starts reads as one run
   per stretch. A [chat](/user/chat) is the one exception: it is one conversation, so saying
-  something in one that has ended carries it on in its own epic, its agent remembering what
-  was said.
+  something in one that has folded away carries it on as the same chat, its agent remembering
+  what was said.
 - **The agents' conversations carry over only where the flow kept them.** What carries over
   is what the flow chose to keep, and the files the agents already changed in your project. A
   flow that kept a session in its record, as `stateful_ralph` does, has that conversation

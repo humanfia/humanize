@@ -546,19 +546,19 @@ A pair holds both its themes, each with its `colors` and `images`, in place of a
 `images` by plane (`page`, `sidebar`, `panel`, `dialog`). Importing keeps what a theme can hold
 and drops the rest: an unknown token, a value that is not a colour, a picture that is not an image.
 
-## Example: start an epic in the browser, answer it in the terminal
+## Example: start a chat in the browser, answer it in the terminal
 
-Start `hmz web` in a project, and open **New epic**:
+Start `hmz web` in a project, which opens on **New chat**:
 
-1. Choose **Chat**. Pick a model from the chip under the box, such as **Haiku 4.5**, type a first
-   message and press <kbd>Enter</kbd>. The page goes to the conversation, `assistant/1`.
+1. Pick a model from the chip under the box, such as **Haiku 4.5**, type a first
+   message and press <kbd>Enter</kbd>. The page goes to the chat, `#/chats/<id>`.
 2. When the agent has answered, the chat waits for your next line, typed in the box under it.
 3. In a terminal in the same directory, run `hmz`, which opens on a new chat of its own. Type
-   `/epics`, press <kbd>enter</kbd> on the chat you started, and choose `continue`: it is still
+   `/resume` and press <kbd>enter</kbd> on the chat you started: it is still
    going, so it is read where it is, waiting for you to say what next.
 4. Answer it in the terminal. In the browser, your answer is a line of yours in the
    conversation, and the agent's reply follows it.
-5. Type `/clear` in the terminal. A chat is never stopped: `/clear` starts another, and the
+5. Type `/clear` in the terminal. A chat is never ended: `/clear` starts another, and the
    first goes on in the browser until nobody reads it, when it folds away.
 
 ### Check it worked
@@ -721,23 +721,23 @@ not only the one showing:
 | **asked** | A flow put a question to a person: the outworlder. See [Questions](/user/questions). |
 | **listening** | A flow waits for what to say next. A chat that finished a turn is **done**, never this. |
 
-Each says which daemon, which directory and which epic it came from, and what was asked or how
-it ended.
+Each says which daemon, which directory and which epic or chat it came from, and what was asked
+or how it ended.
 
 - **The bell**, at the top of the sidebar, counts the ones you have not read. Click it for the
   **menu**: the latest notifications of every daemon, newest first, each labelled with its
-  daemon. Click one to open its epic, switching to its daemon; mark them all read, or clear
+  daemon. Click one to open its epic or its chat, switching to its daemon; mark them all read, or clear
   them. This browser keeps the newest 200.
 - **Toasts.** A new notification also shows as a card in the corner of the page for a few
   seconds.
 - **System notifications.** While the page is hidden or not focused, a notification is also
   one of your system's: the browser's, or, in [Humanize Desktop](/user/desktop#notifications), a
   macOS one. Clicking it brings the page back on what it is about.
-- **Sidebar marks.** An epic with a notification unread has a square beside it in the
-  sidebar, and so does its workspace while folded. Opening the epic reads them, as does
+- **Sidebar marks.** An epic or a chat with a notification unread has a square beside it in the
+  sidebar, and so does its workspace while folded. Opening it reads them, as does
   **Mark as read** in its menu.
 
-None is shown of the epic you are looking at -- a question or a chat turn there included: it is
+None is shown of the epic or chat you are looking at -- a question or a chat turn there included: it is
 read as it comes.
 
 The page asks each daemon for its notices itself, while it is reached: Local always, a remote

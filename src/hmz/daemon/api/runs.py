@@ -409,7 +409,7 @@ def row(
 
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
     how = ending(ran, going=held or going)
-    # An epic an earlier hmz recorded for a chat, which was of no flow (Section 4.16.2.3).
+    # An epic an earlier hmz recorded for a chat, which was of no flow (Section 4.16.2.1).
     chat = kind(ran) == "chat"
     return {
         "name": ran.name,

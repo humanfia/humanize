@@ -61,6 +61,7 @@ H/
 │   ├── conversations.yaml
 │   ├── forgotten.yaml
 │   └── <id>/
+├── chats/<ws>/<stamp>-<hex6>/          one chat
 └── epics/<ws>/<stamp>-<hex6>/          one run
 
 M/
@@ -106,10 +107,10 @@ workspace of every conversation of the scope `daemon`.
 | Property | Value |
 | --- | --- |
 | Mode | `0700`, and `0700` for each `<id>/` |
-| `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (its epic's name, `""` before it has one), `created` (UTC). Mode `0600`, replaced atomically, written by the daemon alone |
-| `forgotten.yaml` | a YAML list of the epic names of the conversations forgotten, in the order forgotten, which keeps each off every list of epics. Mode `0600`, replaced atomically, written by the daemon alone |
+| `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the name of the conversation's own [chat](#chats), `""` before it has one; of one an earlier Humanize began, its epic's name), `created` (UTC). Mode `0600`, replaced atomically, written by the daemon alone |
+| `forgotten.yaml` | a YAML list of the `record` of each conversation forgotten, in the order forgotten, which keeps each off every list of chats and of epics. Mode `0600`, replaced atomically, written by the daemon alone |
 | `<id>/` | that conversation's scratch directory, where her CLI works; made with the conversation |
-| Removed | an entry and its `<id>/` by `aichan.forget`, never its epic's records; the whole of `H/ai/` by you, while no daemon of this home runs, forgets every conversation, and their epics are then listed as any other |
+| Removed | an entry and its `<id>/` by `aichan.forget`, never what its `record` names; the whole of `H/ai/` by you, while no daemon of this home runs, forgets every conversation, and the chat of each is then listed as any other |
 
 ### `H/easytier/<version>/` {#h-easytier}
 
@@ -282,7 +283,7 @@ On the machine an environment is on; `<state>` is `H` here and
 | `…/clones/<…>.lock` | `flock(LOCK_EX\|LOCK_NB)` held by the process holding the copy (this machine only) | unlinked on destroy |
 | `…/clones/<…>.part.<pid>/`, `….part.gone….<pid>/` | a copy being made; one being removed | transient |
 | `…/scratch/<id>-<blake2b(id)>/` | a scratch directory | as copies |
-| `…/worktrees/<ref\|head>-<hex8>/` | a `derive_worktree` with no `dir` | **never removed** |
+| `…/worktrees/<ref\|head>-<hex8>/` | a `derive_worktree` with no `dir`; the worktree of a [chat started in one](/user/chat#worktree) | **never removed** |
 | `envs/mirrors/<container>/<digest>/` | the local mirror of a `docker` or `apple-container` environment's workdir | removed with the container |
 | `envs/mirrors/<service>/<digest>/` | the local mirror of a `swarm` environment's workdir | removed with the service |
 | `envs/mirrors/<job name>/<digest>/` | the local mirror of a `slurm` environment's workdir | removed with the job |
@@ -334,6 +335,38 @@ One run ([Tracing › Epics](/reference/tracing#epics) has every schema). `<stam
 | `traces/*.trace.json` | on demand; plain write | [Chrome trace](/reference/tracing#document) |
 
 Epics are never deleted by Humanize.
+
+### `H/chats/<ws>/<stamp>-<hex6>/` {#chats}
+
+One [chat](/user/chat), which is no epic: `<ws>`, `<stamp>` and `<hex6>` as an epic's, and no
+chat and epic share a name. The directory's name is the chat's **id**, what
+[`chat.*`](/reference/daemon#chats), `hmz chat --resume` and `#/chats/<id>` name it by. Only a
+directory holding `chat.jsonl` is a chat.
+
+| File | Written | Format |
+| --- | --- | --- |
+| `chat.jsonl` | appended per event, never rewritten | the chat's record: JSON Lines, each with `event` and `at`, as [`epic.jsonl`](/reference/tracing#epic-jsonl) |
+| `.held` | as an epic's, held while the chat is going | a chat whose `.held` is locked is going |
+| `sessions/<cli>/…` | by the CLI itself, redirected | the CLI's own layout: the conversation |
+| `host.log` | as an epic's | as an epic's |
+
+The events of `chat.jsonl`:
+
+| `event` | When | Fields |
+| --- | --- | --- |
+| `began` | the chat begins; once, first | `task` (its first message), `workspace`, `agents` (one entry, whose `agent` is `assistant`, as an epic's), and, each only where it applies: `backup` (its targets), `prefer` (`native` or `flow`, its own preference), `permission` (`read-only` or `danger-full-access`; none is `workspace-write`), `workdir` (the [worktree](/user/chat#worktree) its assistant works in), `title` and `forked` (the chat it is a fork of; a fork only) |
+| `set` | its preference, agent, permission or title is set, or it is archived or put back | any of `prefer`, `agents` (as `began` gives them), `permission`, `title`, `archived` (bool); a reader takes each from the last event that gives it, `began` included, a chat with no `title` being titled by the first line of its `task` |
+| `opened` | a session's CLI has given it an id | as an epic's [`opened`](/reference/tracing#epic-jsonl) |
+| `reopened` | the chat is carried on; never another `began` | `task`, the message that carried it on |
+| `usage`, `backed` | as an epic's, `usage` each time the chat ends | as an epic's; what a chat spent is the sum of its `usage` events |
+| `ended` | the chat ends: it folds away or is said an empty next message, or its first turn fails | `how`: `stopped` or `failed`. A chat has ended only where an `ended` follows its last `reopened` |
+
+A chat is removed only by [`chat.delete`](/reference/daemon#chats), which removes the directory
+whole and never the worktree a `workdir` names, or by you, while the chat is not going. A fork
+is a new directory holding a copy of `sessions/`.
+
+A chat an earlier Humanize began is an epic under `H/epics/`, whose `began` gives `kind`
+`chat`: it stays there, read as an epic, and is not a chat.
 
 ## Caches
 
@@ -391,9 +424,10 @@ your own; `~/.gemini/antigravity-cli/agents/` is never written.
 
 ## Retention
 
-Nothing prunes `epics/`, worktrees under
+Nothing prunes `epics/`, `chats/`, worktrees under
 `envs/`, snapshot refs, `M/compiled/`, `M/docker-ssh/` or `history.jsonl`.
-Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations.
+Delete them by hand; an epic's `sessions/` is the only copy of that run's conversations, and a
+chat's of its conversation.
 `coganchor` on other machines goes once nothing has used it for 14 days. Nothing of it is kept
 here: the builds are in the installed package, under `hmz/coganchor/bin/<os>-<arch>/`. The
 `humanize-*.pyz` and `*.digest` an earlier Humanize left in `$TMPDIR/humanize-<uid>/` can be

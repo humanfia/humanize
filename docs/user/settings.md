@@ -360,11 +360,12 @@ A flow can watch its agents' tool calls itself. See [Hooks](/weaver/hooks).
 
 ## Notifications {#notifications}
 
-Which epics on this machine `hmz` tells you of, while you are not on them: one that ends --
-done, failed or stopped -- a flow asking you something, and a chat waiting for its next turn,
-in any directory. Each is a card in the corner of the screen for a few seconds, and a `●` on
-its epic in [`/epics`](/user/tracing) until you open it there. The epic on your screen -- this
-directory's, while its log or the monitor is up -- is never told of.
+Which epics and chats on this machine `hmz` tells you of, while you are not on them: an epic
+that ends -- done, failed or stopped -- a flow asking you something, and a chat waiting for its
+next turn, in any directory. Each is a card in the corner of the screen for a few seconds, and
+a `●` on its epic in [`/epics`](/user/tracing) until you open it there; a chat, which `/epics`
+does not list, is marked nowhere. The epic on your screen -- this directory's, while its log or
+the monitor is up -- is never told of, nor is the chat on your screen.
 
 | Heading | Row | What it is |
 | --- | --- | --- |

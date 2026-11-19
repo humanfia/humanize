@@ -145,8 +145,8 @@ What to look at, by number:
   it.
 - **Forgetting** removes the conversation from the list and deletes her scratch directory. It
   asks first (`Forget Ai-chan#<n>?` at the prompt), and cannot be undone.
-- **Her conversations are not your epics.** None is listed in `/epics`, in the page's sidebar
-  or among a directory's epics, while it lasts or after you forget it; what it wrote down is
+- **Her conversations are not your epics or chats.** None is listed in `/epics`, in the page's sidebar
+  or among a directory's epics or chats, while it lasts or after you forget it; what it wrote down is
   kept on disk either way.
 
 ## Many conversations

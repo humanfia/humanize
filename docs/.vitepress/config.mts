@@ -141,7 +141,7 @@ const MOVED: Record<string, string> = {
   'tutorials/build-an-agent': 'user/tutorials/build-an-agent',
   ...Object.fromEntries(MOVED_TO_HUMANFIA.map((page) => [`flows/${page}`, `${HUMANFIA_FLOWS}${page}`])),
   'flows/': HUMANFIA_FLOWS,
-  // `chat` was a flow, and is a kind of epic of its own now, with a page in the User Guide.
+  // `chat` was a flow, and is a session of its own now, no epic, with a page in the User Guide.
   'flows/chat': 'user/chat',
   // One page here once held both cleanup flows; each has its own now, and the first is where
   // it went.

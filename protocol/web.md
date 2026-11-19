@@ -437,7 +437,7 @@ otherwise. What a chat a host holds waits on MUST be read from `hosts.running`, 
 so that what it waits on between turns is marked `asking` until this browser has seen it. Sorted
 by `Last updated` (3.5.17.2), a chat that rests MUST stand by its `updated`.
 
-**3.5.20.3** An epic an earlier hmz recorded for a chat (`kind` `chat`, Section 4.16.2.3 of
+**3.5.20.3** An epic an earlier hmz recorded for a chat (`kind` `chat`, Section 4.16.2.1 of
 [DAEMON]) MUST be listed, found and drawn as any other epic, at `#/epics/<name>`, with its flow
 said as `chat`. The page MUST NOT draw it as a chat, and MUST NOT offer to resume it, to start a
 new epic like it, or to say anything in it.

@@ -1313,7 +1313,7 @@ recorded for an Ai-chan conversation, kept or forgotten (Section 14.7.4 of [CORE
 
 **4.16.1.4** No method of Section 4.16 but `runs.usage` MUST answer anything of a chat (Section 8 of
 [CORE]): a chat is no epic, and is read by `chat.*` (Section 4.25). An epic an earlier hmz
-recorded for a chat (Section 6.5.20 of [FILES]) MUST be answered as any other epic is.
+recorded for a chat (Section 6.5.19 of [FILES]) MUST be answered as any other epic is.
 
 #### 4.16.2. Epic rows
 

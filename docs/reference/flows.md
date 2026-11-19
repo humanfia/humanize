@@ -1987,8 +1987,8 @@ one that is not installed by its [`git+` ref](#refs), as
 | [`flame_chase`](https://humanfia.ai/flows/flame-chase) | [humanfia/flame-chase-flow](https://github.com/humanfia/flame-chase-flow) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
 | [`rlar`](https://humanfia.ai/flows/rlar) | [humanfia/rlar-flow](https://github.com/humanfia/rlar-flow) | `actor`, `reviewer` | | ✓ | required | what each role declares |
 
-A [chat](/user/chat), which `hmz` opens on, is not among them: it is an epic of its own kind,
-with no flow.
+A [chat](/user/chat), which `hmz` opens on, is not among them: it is a session of its own,
+with no flow and no epic.
 
 The loops are each the plainest form of their idea, written to be read and copied. Each runs
 until its budget is spent (`rlar` also until its reviewer says done), and a turn that fails

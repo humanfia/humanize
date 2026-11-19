@@ -30,7 +30,7 @@ const FIRST = [37, 38, 39, 40]
 const SECOND = [41, 42]
 const CAUSES = ['ctrl+c', 'budget spent', 'machine off']
 const RUNS = [
-  { name: 'chat · 11:02', note: "can't be picked up" },
+  { name: 'review · 11:02', note: "can't be picked up" },
   { name: 'nightly · 09:12', note: 'resumable' },
   { name: 'nightly · 08:40', note: 'resumable' },
 ]
@@ -273,7 +273,7 @@ const own = (i: number) => ({ x: L.value.own.xs[i], w: L.value.own.w })
     :beats="BEATS"
     sim
     mobile-ratio="6 / 13"
-    label="A run of nightly, a loop of your own, counts its rounds, 37, 38, 39, 40, and its flow saves the count in a record each time it changes. The run is stopped: by ctrl+c, by a spent budget, or by the machine being switched off. Whichever it was, the saved record stays behind, holding round: 40. At the prompt, /resume (or hmz exec --resume from a script) looks through the runs kept for this directory: it skips a chat run, which cannot be picked up, and takes the last run of a flow that can. What it starts is a new run, with its own id, sessions, trace and /epics row, which begins from the record and counts on to round 41, then 42. What carries over: the flow's kept state and its temporary copies. What does not: the agents' conversations, which start in fresh sessions since nightly keeps none in its state, and what the budget had spent, which is counted from zero."
+    label="A run of nightly, a loop of your own, counts its rounds, 37, 38, 39, 40, and its flow saves the count in a record each time it changes. The run is stopped: by ctrl+c, by a spent budget, or by the machine being switched off. Whichever it was, the saved record stays behind, holding round: 40. At the prompt, /resume (or hmz exec --resume from a script) looks through the runs kept for this directory: it skips a run whose flow cannot be picked up, and takes the last run of a flow that can. What it starts is a new run, with its own id, sessions, trace and /epics row, which begins from the record and counts on to round 41, then 42. What carries over: the flow's kept state and its temporary copies. What does not: the agents' conversations, which start in fresh sessions since nightly keeps none in its state, and what the budget had spent, which is counted from zero."
   >
     <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>

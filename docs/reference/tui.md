@@ -367,7 +367,7 @@ menu never offers a chat: a chat's agent is set on the [Workspace page](#workspa
 
 Puts back on the screen the [chat](#chat) of this interface, which went on on its own host while
 a flow was on the screen. One that has folded away meanwhile is drawn as folded, and carried on,
-in the same epic, when the next line is said.
+the same chat, when the next line is said.
 
 ### `/prefer [native|flow]` {#prefer-command}
 
