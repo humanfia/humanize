@@ -179,6 +179,7 @@ _SENT = "sent"
 _DETAILS = "details"
 _AI_CHAN = "ai_chan"
 _PREFER = "prefer"
+_HARNESS = "harness_sessions"
 _RUNS = "flow"
 _CHAT_AGENT = "chat-agent"
 _FORGET = "forget"
@@ -249,6 +250,7 @@ def _word(on: bool | None) -> str:  # noqa: FBT001 -- a switch is one
 _MEANS = {
     _SENTRY: ("send error reports", "send nothing"),
     _DETAILS: ("show tool calls and thinking", "show turn responses only"),
+    _HARNESS: ("list each harness's own sessions", "list Humanize's chats alone"),
     _FORGET: ("clear saved settings here", "keep them"),
     _SYSTEM: ("ring the bell and notify the system", "a card in hmz alone"),
     **dict.fromkeys(KINDS, ("tell me", "say nothing")),
@@ -324,6 +326,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         #: every chat that does not say for itself.
         self._prefer: Literal["native", "flow"] = settings.chat_prefer
         self._prefer_was = self._prefer
+        #: Whether `/resume` in a chat lists the sessions each harness had of its own here.
+        self._harness = self._harness_was = settings.harness_sessions
         #: The agent a new chat in this directory talks to, or None where none was chosen.
         self._chat_agent = self._chat_agent_was = settings.chat_agent
         #: Which kinds of notice are told, and whether the system shows them too: kept with the
@@ -516,11 +520,18 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
     def _pending(self, page: int) -> bool:
         """Whether one page is holding a change that saving would land."""
         if page == _EVERYWHERE:
-            return (self._sentry, self._details, self._ai_chan, self._prefer) != (
+            return (
+                self._sentry,
+                self._details,
+                self._ai_chan,
+                self._prefer,
+                self._harness,
+            ) != (
                 self._sentry_was,
                 self._details_was,
                 self._ai_chan_was,
                 self._prefer_was,
+                self._harness_was,
             )
         if page == _NOTIFICATIONS:
             return (self._kinds, self._system) != (self._kinds_was, self._system_was)
@@ -664,6 +675,14 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 self._prefer,
                 "what $<name> starts in a chat where a native skill and a flow share it",
                 _PICK,
+                group="Chat",
+            ),
+            _Setting(
+                _HARNESS,
+                "Harness sessions",
+                _word(self._harness),
+                "list the sessions each harness had of its own here, to continue as chats",
+                _SWITCH,
                 group="Chat",
             ),
             _Setting(
@@ -911,6 +930,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._sentry = on_
         elif row == _DETAILS:
             self._details = on_
+        elif row == _HARNESS:
+            self._harness = on_
         else:
             self._forget = on_
         self._said = ""
@@ -920,6 +941,7 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         return {
             _SENTRY: self._sentry,
             _DETAILS: self._details,
+            _HARNESS: self._harness,
             _FORGET: self._forget,
             _SYSTEM: self._system,
             **self._kinds,
@@ -1023,6 +1045,11 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                 settings.chat_prefer = self._prefer
             except OSError as why:
                 told.append(f"hmz: chat preference not saved: {escape(str(why))}")
+        if self._harness != self._harness_was:
+            try:
+                settings.harness_sessions = self._harness
+            except OSError as why:
+                told.append(f"hmz: harness sessions not saved: {escape(str(why))}")
         agent = self._chat_agent
         if agent is not None and agent != self._chat_agent_was and not self._forget:
             try:

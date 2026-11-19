@@ -317,6 +317,7 @@ about.
 | Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
 | Agents | Ai-chan | the nous a new conversation with [Ai-chan](/user/ai-chan) thinks with unless you pick another: `none`, the one you chose, another [nous](#nous), or `another…`, which chooses its CLI, account, model and effort. With `none`, each new conversation asks for one. It takes effect from the next conversation made; one already made keeps its own. |
 | Chat | Chat prefers for $ | what `$<name>` in a chat starts where the chat's agent has a skill of that name and a flow is called it too: `native`, the skill (the default), or `flow`, the flow. A chat can say otherwise for itself with `/prefer`. |
+| Chat | Harness sessions | whether `/resume` in a chat also lists the [sessions each CLI had of its own](/user/chat#harness-sessions) in this directory, to continue as chats. Off by default. The same setting as **Settings › General › Harness sessions** in `hmz web`. |
 | Privacy | Error reports | whether Humanize [reports what goes wrong](/user/reporting) to its developers |
 | Privacy | What is sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 

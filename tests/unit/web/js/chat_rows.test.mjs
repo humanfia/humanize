@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { chatDetail, chatRow, epicRow, pathOf } from '../../../../src/hmz/web/static/chats.js'
-import { sorted } from '../../../../src/hmz/web/static/sidebar-view.js'
+import { chatDetail, chatRow, epicRow, harnessRow, pathOf } from '../../../../src/hmz/web/static/chats.js'
+import { GROUP_ROWS, paged, sorted } from '../../../../src/hmz/web/static/sidebar-view.js'
 
 /** A chat as `chat.list` rows one. */
 const chat = (fields = {}) => ({ id: '20260101-000000-abcdef', title: 'Fix the build', workspace: '/w', workdir: '/w', agent: 'claude/opus:high', model: 'opus', began: '2026-01-01T00:00:00Z', updated: '2026-01-02T00:00:00Z', state: 'resting', slot: '', asking: [], permission: 'workspace-write', archived: false, spent: null, ...fields })
@@ -62,4 +62,28 @@ test('an epic an earlier hmz recorded for a chat is an epic of the flow chat, at
   const flow = { name: 'e2', kind: 'flow', flow: 'ralph', resumable: true }
   assert.equal(epicRow(flow), flow)
   assert.equal(pathOf({ name: 'a b', kind: 'flow' }), '/epics/a%20b')
+})
+
+/** A harness session as `chat.harness.list` rows one. */
+const session = (fields = {}) => ({ id: 'aaaa-1', harness: 'claude', title: 'Tidy the parser', workspace: '/w s', model: 'opus', began: '2026-01-01T00:00:00Z', updated: '2026-01-02T00:00:00Z', ...fields })
+
+test('a harness session is a row of its own kind, told by its title or else its id, never going', () => {
+  const row = harnessRow(session())
+  assert.deepEqual([row.name, row.kind, row.task, row.how, row.held, row.ended], ['harness:claude:aaaa-1', 'harness', 'Tidy the parser', 'stopped', false, '2026-01-02T00:00:00Z'])
+  assert.equal(harnessRow(session({ title: '' })).task, 'aaaa-1')
+  // Two harnesses may give one id: the rows are told apart.
+  assert.notEqual(harnessRow(session({ harness: 'codex' })).name, row.name)
+})
+
+test('a harness session has an address of its own, which names its harness, its id and its workspace', () => {
+  assert.equal(pathOf(harnessRow(session())), '/harness/claude/aaaa-1?workspace=%2Fw%20s')
+})
+
+test('harness sessions after a group’s rows count among what it shows before Show N more', () => {
+  const chats = Array.from({ length: GROUP_ROWS - 1 }, (_, at) => chatRow(chat({ id: `c${at}` })))
+  const outside = [1, 2, 3].map((at) => harnessRow(session({ id: `s${at}` })))
+  const { rows, more } = paged([...chats, ...outside])
+  assert.deepEqual([rows.length, rows.at(-1).name, more], [GROUP_ROWS, 'harness:claude:s1', 2])
+  // The one the page is on is shown wherever it stands.
+  assert.equal(paged([...chats, ...outside], GROUP_ROWS, 'harness:claude:s3').rows.at(-1).name, 'harness:claude:s3')
 })
