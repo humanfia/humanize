@@ -205,6 +205,33 @@ def test_a_chat_turn_taken_wholly_between_two_looks_is_a_done_notice(
     assert notices.look() == []
 
 
+def test_a_chat_carried_on_by_another_host_waiting_is_no_notice(
+    statuses: Statuses, notices: Notices
+) -> None:
+    unspent = {"cost": 0.0, "output_tokens": 0, "duration": "PT0S"}
+    spent = unspent | {"output_tokens": 7, "duration": "PT1S"}
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"] |= {"pid": 1, "started": 1.0, "usage": spent}
+    notices.look()
+    # Its host folds and goes, and attaching starts another, which carries the chat on
+    # waiting between turns: it numbers its questions afresh, and has taken no turn.
+    del statuses.now["/w"]
+    assert notices.look() == []
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"] |= {"pid": 2, "started": 2.0, "usage": unspent}
+    assert notices.look() == []
+
+    # The turn it then takes is told, seen running or not.
+    _chat(statuses, "done", pending=[_asked("q2", "listen")])
+    statuses.now["/w"] |= {"pid": 2, "started": 2.0, "usage": spent}
+    assert [one["kind"] for one in notices.look()] == ["done"]
+
+    # And so is the first turn of a host that took it before anybody looked.
+    _chat(statuses, "done", pending=[_asked("q1", "listen")])
+    statuses.now["/w"] |= {"pid": 3, "started": 3.0, "usage": spent}
+    assert [one["kind"] for one in notices.look()] == ["done"]
+
+
 def test_a_flow_named_chat_is_a_flow_that_listens_and_stops(
     statuses: Statuses, notices: Notices
 ) -> None:
