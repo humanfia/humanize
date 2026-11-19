@@ -177,6 +177,15 @@
   opacity: 1;
 }
 
+/* The daemon shown cannot be reached: why, what to do next, and the buttons that do it. */
+.side-unreached {
+  padding: 4px 8px;
+}
+
+.side-unreached .row {
+  margin: 8px 0 0;
+}
+
 .side-menu .icon {
   width: 16px;
   height: 16px;

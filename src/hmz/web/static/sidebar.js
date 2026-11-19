@@ -11,7 +11,7 @@ import { call, daemon, exported, given, hash, hello, known, onState, poll, recon
 import { ask } from './held.js'
 import { pick } from './importing.js'
 import { copy, menuButton, menuOn, toast } from './ui.js'
-import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
+import { acting, ago, fill, flowName, h, headline, icon, iconButton, problem, tone, when } from './dom.js'
 import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, epicRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
@@ -237,7 +237,7 @@ export function mountSidebar(root, context, where) {
         asked = null
         loading = null
       }
-      if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Loading…'))
+      if (!data) fill(list, error ? failed(error) : h('p', { class: 'side-quiet', role: 'status' }, 'Loading…'))
       else draw()
     }
     const stops = [poll('chat.list', { limit }, 4000, heard('chats')), poll('runs.list', { limit }, 4000, heard('runs'))]
@@ -756,6 +756,27 @@ export function mountSidebar(root, context, where) {
     watch()
     watchPlaces()
   })
+}
+
+/**
+ * Why the epics of the daemon shown could not be read: the daemon cannot be reached, said as
+ * everywhere else with what to do next, and the two things to do about it here -- reach it again,
+ * or manage the daemons -- or another refusal, as it was said.
+ */
+function failed(error) {
+  if (!error.next) return problem(error)
+  const name = daemon()
+  return h(
+    'div',
+    { class: 'side-unreached', 'data-hmz': 'unreached' },
+    problem(error),
+    h(
+      'p',
+      { class: 'row' },
+      acting('Connect', () => reconnect(name).then(() => ['chat.list', 'runs.list'].forEach((one) => refresh(one))), { kind: 'btn small', busy: 'Connecting…' }),
+      h('a', { class: 'btn small quiet', href: hash('/settings/daemons') }, 'Manage'),
+    ),
+  )
 }
 
 /** The mark of a notification unread, on its chat or epic and on the folded workspace of it. */

@@ -115,6 +115,13 @@ export function mount(root, { query }) {
     }
     const installed = Object.fromEntries(((verses && verses.installed) || []).map((one) => [one.flow, one]))
     const updates = Object.fromEntries(((verses && verses.updates) || []).map((one) => [one.flow, one]))
+    // None on offer: where a first one comes from.
+    if (!data.flows.length) {
+      const verses = h('button', { class: 'btn small quiet', type: 'button', onclick: () => ((tab = 'verses'), watch()) }, 'Flowverses')
+      const example = h('a', { class: 'btn small primary', href: hash(`/new?workspace=${encodeURIComponent(workspace)}`) }, 'New epic')
+      fill(list, h('div', { 'data-hmz': 'no-flows' }, empty('No flows yet.', ' Humanize ships none: New epic installs the example in a step, and Flowverses lists every other.', example, verses)))
+      return
+    }
     const whose = {}
     for (const one of data.flows) (whose[one.whose] ||= []).push(one)
     fill(

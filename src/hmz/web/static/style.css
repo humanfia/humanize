@@ -1602,6 +1602,13 @@ p + .panel {
   color: var(--ink);
 }
 
+/* What to do about a daemon that cannot be reached, under why it cannot. */
+.error-next {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-2);
+}
+
 .note {
   margin: 8px 0;
   padding: 8px 12px;
@@ -1920,6 +1927,36 @@ pre.block {
 
 .resumed .note {
   margin-top: 16px;
+}
+
+/* A workspace with no flow on offer: how its first epic is started, a step at a time. */
+.first-use {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 2px solid var(--ink);
+}
+
+.first-use h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.first-use p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.first-use ol {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding-left: 1.4em;
+}
+
+.first-use li .confirm,
+.first-use li [data-hmz='installed'] {
+  margin-left: 8px;
 }
 
 /* Who fills a role and where an environment works, a step at a time. */

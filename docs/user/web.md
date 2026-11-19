@@ -439,6 +439,24 @@ directory last set it up:
   without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set, where the window has the room: on a phone **Options** alone does, once opened. Every flow
 needs at least one limit. The page goes to the epic once it starts.
 
+### Your first epic {#first-epic}
+
+Humanize ships no flow, so on a new machine **New epic** has none to offer. It says so, with
+**Open Flows**, and under that how a first epic starts, in three steps, with the example flow,
+`ralph_loop`:
+
+1. **Install** the example: **Install example** installs it from the official
+   [flowverse](/weaver/flowverses), fetching its index first where it was never fetched, then
+   opens the form on it with **Options** shown. Where it cannot be installed, the page says why
+   beside the button.
+2. **Set a budget** under **Options**: at least one limit, such as 10 minutes. Its role starts
+   on the first CLI installed here.
+3. **Describe the task** in the box, and press <kbd>Enter</kbd>.
+
+**Flows** with nothing installed says the same: **New epic** goes to these steps, and
+**Flowverses** to every other flow there is to install. [Your first run](/user/first-run) takes
+the same flow through the terminal interface.
+
 ### Ai-chan {#ai-chan}
 
 Ai-chan is an agent you operate Humanize through by talking to her. Her avatar, at the right of
@@ -857,6 +875,22 @@ or leave it out.
 
 This machine's daemon is one an older Humanize started, and `hmz web` serves nothing over it.
 Stop it with that version, as the message says, and start `hmz web` again.
+
+### `Local is unavailable, failed: …` {#unavailable}
+
+The page cannot reach a daemon: here Local, or a remote one by its name. The page says so in one
+sentence wherever it asked something -- which daemon, how it stands, and what reaching it said
+last -- and under it what to do next. Where the sidebar cannot read that daemon's chats and epics, it
+holds the same, with **Connect**, which reaches it again, and **Manage**, which opens
+**Settings → Daemons**.
+
+| Daemon | What to do |
+| --- | --- |
+| Local, in a browser | Check that `hmz web` is still running, then press **Connect**. If it stopped, start it again and open the address it prints. |
+| Local, in [Humanize Desktop](/user/desktop#troubleshooting) | Check that `hmz` is installed where your login shell finds it, then press **Connect**. |
+| SSH | Check that `ssh` reaches its host from a terminal here without asking for anything, then press **Connect**. See [A daemon says `failed`](#a-daemon-says-failed). |
+| P2P | Check that both machines name the same secret and a node they both reach, and that this machine is paired with it, then press **Connect**. See [A P2P daemon says `failed`](#a-p2p-daemon-says-failed). |
+| Paired | Check that its machine is on and its daemon is listening, then press **Connect**. |
 
 ### The sidebar says why the host let it go
 

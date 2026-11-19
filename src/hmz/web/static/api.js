@@ -6,6 +6,7 @@
 
 import { bridge, claim, connect, ERRORS, local, registry, RpcError, tauri, webrtc } from './rpc/index.js'
 import { fromBase64, toBase64 } from './rpc/pipe.js'
+import { unreached } from './unreached.js'
 
 /** Where the page is shown: the desktop application's web view, or a browser. */
 const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
@@ -83,6 +84,8 @@ export class Refused extends Error {
 
 /** Every daemon reached, by name. */
 const clients = new Map()
+/** What each daemon reached was reached by, by name: its kind says what to check when it fails. */
+const entries = new Map()
 /** Who is told each change of any daemon's state. */
 const stateWatchers = new Set()
 
@@ -97,6 +100,7 @@ export async function client(name = daemon()) {
   const entry = name === 'local' ? local() : (await daemons.list()).find((one) => one.name === name)
   if (!entry) throw new Refused(`There is no daemon ${name}.`, ERRORS.NOT_FOUND)
   if (clients.has(name)) return clients.get(name)
+  entries.set(name, entry)
   const made = connect(entry, providers, {
     client: CLIENT,
     // An id answered over a trusted route is pinned from then on (Section 3.8.2.7 of protocol/daemon.md).
@@ -186,13 +190,19 @@ export async function pair(name, code, first) {
   }
 }
 
-/** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
+/**
+ * A failure, said as the page says it: a refusal keeps its words; a daemon that cannot be
+ * reached -- a remote one, or Local while it is not up -- says so, and what to do next, as
+ * `next`, the same wherever it is said.
+ */
 function refused(error, name) {
   if (error instanceof Refused) return error
   if (error instanceof RpcError) {
-    if (error.code === ERRORS.UNAVAILABLE && name !== 'local') {
-      const { state, detail } = stateOf(name)
-      return new Refused(`${name} is unavailable, ${state}${detail ? `: ${detail}` : '.'}`, error.code, error.data)
+    const { state, detail } = stateOf(name)
+    if (error.code === ERRORS.UNAVAILABLE && (name !== 'local' || state !== 'up')) {
+      const entry = entries.get(name)
+      const said = unreached(name, state, detail || error.message, { kind: entry && name !== 'local' ? kindOf(entry) : '', desktop: DESKTOP })
+      return Object.assign(new Refused(said.why, error.code, error.data), { next: said.next })
     }
     return new Refused(error.message, error.code, error.data)
   }

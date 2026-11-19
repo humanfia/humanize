@@ -26,7 +26,7 @@ in a browser does.
 - **Local is this machine's daemon.** On macOS, the app reaches it by running
   `hmz daemon connect --stdio` -- the `hmz` your login shell finds, `~/.local/bin` included --
   which starts the daemon where it is not running. Where there is no `hmz`, the page still opens,
-  and says Local cannot be reached until you [install it](/user/installation#cli). On Windows,
+  and says `Local is unavailable` until you [install it](/user/installation#cli). On Windows,
   Local is the daemon in WSL, and the app installs `hmz` there: see [On Windows](#windows).
 - **Other machines too.** The [daemons](/user/web#daemons) the page reaches -- your ssh hosts
   and P2P daemons -- are reached from the app itself: ssh with your ssh config, WSL's
@@ -157,7 +157,7 @@ at any launch: at once where WSL's daemon is not running, and otherwise once it 
 
 ### Local cannot be reached
 
-The page opened, but says Local cannot be reached. On macOS, `hmz` is not installed, or not where
+The page opened, but says `Local is unavailable, failed: …`. On macOS, `hmz` is not installed, or not where
 your login shell finds it: [install it](/user/installation#cli), then reconnect from **Settings →
 Daemons**. Either way, the app's log has what `hmz daemon connect` said:
 

@@ -9,7 +9,7 @@
 // form of its own (views/newchat.js), which the sidebar opens beside this one (Sections 3.8.17
 // and 3.8.24 of protocol/web.md).
 
-import { call, given, hash } from '../api.js'
+import { call, given, hash, refresh } from '../api.js'
 import { covered, focusing, go, stays } from '../app.js'
 import { environmentChip } from '../chips/environment.js'
 import { composer } from '../composer.js'
@@ -39,6 +39,10 @@ export function mount(root, { query }) {
   // An epic of no folder works in a directory made as it starts, which holds nothing to name yet.
   const files = folderFiles(() => (scratch ? '' : workspace))
   const about = h('p', { class: 'greeting-about' })
+  // Where no flow is on offer -- a home nothing was installed into yet -- how a first epic starts.
+  const guide = h('div', { class: 'guide' })
+  /** Whether the example was installed from here, so the steps after it stay said. */
+  let installed = false
   const options = h('div', { class: 'options', id: 'options', hidden: true, 'data-hmz': 'options' })
   const optionsChip = h('button', { class: 'chip-btn desk-chip', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'options' }, icon('sliders'), h('span', {}, 'Options'))
   const summary = h('span', { class: 'composer-summary' })
@@ -71,7 +75,7 @@ export function mount(root, { query }) {
       'div',
       { class: 'view view-new view-desk', 'data-hmz': 'new-epic' },
       top,
-      h('div', { class: 'desk-body' }, h('div', { class: 'desk-column' }, lacking, about, resumed, options)),
+      h('div', { class: 'desk-body' }, h('div', { class: 'desk-column' }, lacking, guide, about, resumed, options)),
       h('div', { class: 'dock desk-dock' }, box.node),
     ),
   )
@@ -140,6 +144,8 @@ export function mount(root, { query }) {
       // A flow the address names that is not on offer there opens the one it last set up.
       const asked = flows.some((one) => one.name === flow) ? flow : ''
       const wanted = (ran && ran.flow) || asked || found.flow || (flows[0] && flows[0].name) || ''
+      if (!flows.length || installed) fill(guide, guide.firstChild || firstUse())
+      else fill(guide)
       lacking.hidden = Boolean(wanted)
       // With no flow there is nothing to set up.
       optionsChip.disabled = !wanted
@@ -287,6 +293,43 @@ export function mount(root, { query }) {
     }
   }
 
+  /**
+   * The three steps of a first epic, beside a button that takes the first: the example flow
+   * installed out of the official flowverse, which is fetched first where it never was, then
+   * opened with its Options shown, for the budget, and the box for the task.
+   */
+  function firstUse() {
+    const install = acting(
+      'Install example',
+      async () => {
+        const { verses } = await call('flowverses.list')
+        if (!verses.some((one) => one.name === OFFICIAL && one.fetched)) await call('flowverses.fetch', { name: OFFICIAL })
+        await call('flowverses.install', { flow: EXAMPLE })
+        refresh('flowverses.list')
+        installed = true
+        install.replaceWith(h('span', { class: 'chip', 'data-hmz': 'installed' }, 'Installed'))
+        options.hidden = false
+        optionsChip.setAttribute('aria-expanded', 'true')
+        await load(EXAMPLE)
+      },
+      { kind: 'btn primary small', busy: 'Installing…' },
+    )
+    return h(
+      'section',
+      { class: 'first-use', 'data-hmz': 'first-use' },
+      h('h3', {}, 'Your first epic'),
+      h('p', {}, 'Humanize ships no flow. Start with the example, ', h('code', {}, EXAMPLE), ', in three steps:'),
+      h(
+        'ol',
+        {},
+        h('li', { 'data-hmz': 'step' }, h('b', {}, 'Install'), ' the example flow from the official flowverse.', install),
+        h('li', { 'data-hmz': 'step' }, h('b', {}, 'Set a budget'), ' under Options: at least one limit, such as 10 minutes.'),
+        h('li', { 'data-hmz': 'step' }, h('b', {}, 'Describe the task'), ' in the box, and press Enter.'),
+      ),
+      h('p', {}, 'Or install another flow from ', h('a', { href: hash('/flows?tab=verses') }, 'Flowverses'), '.'),
+    )
+  }
+
   async function start(task) {
     if (!flows.length) throw new Error('Install a flow first, from Flows.')
     if (!picked || !setup) throw new Error('Pick a flow first.')
@@ -317,6 +360,10 @@ export function mount(root, { query }) {
     for (const one of leaving) one()
   }
 }
+
+/** The flowverse Humanize's own flows are installed out of, and the flow a first epic is offered. */
+const OFFICIAL = 'official'
+const EXAMPLE = 'ralph_loop'
 
 /** The address of a new epic of a kind, `chat` or `flow`, in a workspace -- or in none, `scratch`. */
 export function newOf(kind, { workspace = '', scratch = false } = {}) {
