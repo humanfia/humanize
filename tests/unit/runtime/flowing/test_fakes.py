@@ -965,6 +965,22 @@ async def test_run_fake_fills_every_role_with_a_fake_of_what_it_asks_for() -> No
     ]
 
 
+class Reviewer:
+    """An outworlder driver of a flow author's own: the two members the protocol names."""
+
+    def away_for(self, role: str) -> bool:
+        return False
+
+    async def run(self, ask: Ask, role: str) -> str:
+        return f"{role} read {ask.prompt}"
+
+
+async def test_run_fake_asks_an_outworlder_driver_given_by_role() -> None:
+    said = await run_fake(wanting, agents={"human": Reviewer()})
+
+    assert said[-1] == "human read ok?"
+
+
 class Coding(AgentCollection):
     coder: Agent
 

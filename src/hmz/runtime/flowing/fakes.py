@@ -1591,7 +1591,7 @@ async def filled(
         said = given.pop(role.name, None)
         if role.auto:
             if said is not None and outworlder is None:
-                outworlder = said if hasattr(said, "away") else FakeOutworlder(said)
+                outworlder = said if hasattr(said, "away_for") else FakeOutworlder(said)
             continue
         if said is None and not role.required:
             continue
