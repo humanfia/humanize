@@ -259,14 +259,15 @@ const PROBING: Duration = Duration::from_secs(30);
 const INSTALLING: Duration = Duration::from_secs(900);
 
 /// `ssh` reaching the route's host, asking nothing of anybody, running `script` there with
-/// `sh`.
+/// `sh`. On Windows it is WSL's `ssh`, run through `wsl.exe`: the hosts the page offers and
+/// the identity files it imports are those of Local's ssh config, which is WSL's (Section
+/// 3.13.5 of [WEB] and Section 3.5.6 of [DESKTOP]), and Windows' own `ssh` reads another.
+/// Killing that `wsl.exe` hangs up the `ssh` it runs, which ends on it.
 pub fn ssh(route: &Ssh, script: &str) -> Command {
+    #[cfg(not(windows))]
     let mut command = Command::new("ssh");
     #[cfg(windows)]
-    std::os::windows::process::CommandExt::creation_flags(
-        &mut command,
-        crate::wsl::CREATE_NO_WINDOW,
-    );
+    let mut command = crate::wsl::command("ssh", None);
     // First, so that no option given after takes it back: ssh keeps the first of each.
     command.args(["-T", "-o", "BatchMode=yes"]);
     if let Some(port) = route.port {
@@ -442,6 +443,38 @@ mod tests {
             .collect()
     }
 
+    /// On Windows, what WSL's `ssh` is given, once `wsl.exe` is seen to run it from the home
+    /// of the default distribution; elsewhere, `args` as they are.
+    fn in_wsl(args: Vec<String>) -> Vec<String> {
+        #[cfg(windows)]
+        let args = {
+            assert_eq!(args[..4], ["--cd", "~", "--exec", "ssh"]);
+            args[4..].to_vec()
+        };
+        args
+    }
+
+    /// The hosts the page offers are those of WSL's ssh config (`runtimes.hosts` of Local),
+    /// so it is WSL's `ssh` that reaches them, not Windows' own.
+    #[cfg(windows)]
+    #[test]
+    fn runs_the_ssh_of_wsl_on_windows() {
+        let route = Ssh {
+            host: "box".into(),
+            identity: Some("/home/me/.ssh/id".into()),
+            ..Ssh::default()
+        };
+        let command = ssh(&route, CONNECT);
+        assert_eq!(command.get_program(), "wsl.exe");
+        let args = args(&command);
+        assert_eq!(args[..4], ["--cd", "~", "--exec", "ssh"]);
+        // The identity file is a path of WSL, given as it is written.
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["-i", "/home/me/.ssh/id"])
+        );
+    }
+
     #[test]
     fn runs_ssh_in_batch_mode_with_what_the_route_says() {
         let route = Ssh {
@@ -453,7 +486,9 @@ mod tests {
             options: vec!["BatchMode=no".into(), "Compression=yes".into()],
         };
         let command = ssh(&route, CONNECT);
+        #[cfg(not(windows))]
         assert_eq!(command.get_program(), "ssh");
+        let args = |command: &Command| in_wsl(args(command));
         let mut want: Vec<String> = [
             "-T",
             "-o",
