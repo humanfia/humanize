@@ -13,7 +13,7 @@ import { pick } from './importing.js'
 import { copy, menuButton, menuOn, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
 import { chatActions, retitling } from './chat-actions.js'
-import { chatRow, epicRow, pathOf } from './chats.js'
+import { chatRow, epicRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { bell, readOf, unreadOn } from './notifications.js'
 import { nameOf } from './places.js'
@@ -23,6 +23,10 @@ import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSideba
 
 /** How many chats, and how many epics, a page of the list holds. */
 const PAGE = 60
+
+/** How many harness sessions of a workspace are read, and how long what was read stands. */
+const HARNESSED = 50
+const HARNESSED_FOR = 15000
 
 /** Which entry of the sidebar an address is of: a new chat's own, else the one its first part names. */
 const entryOf = (parts) => (parts[0] === 'new' && parts[1] === 'chat' ? 'new/chat' : parts[0] || 'new')
@@ -209,6 +213,10 @@ export function mountSidebar(root, context, where) {
   const details = new Map()
   /** Each row pinned that the list read does not hold, as its epic says it, with when it was read. */
   const strays = new Map()
+  /** Whether the sessions each harness had of its own are listed, as the setting says. */
+  let outside = false
+  /** Those sessions of each workspace, by its path, with when they were read. */
+  const harnessed = new Map()
 
   let stop = () => {}
   /** The list of what was read: the chats and the epics, each as a row of it. */
@@ -262,6 +270,32 @@ export function mountSidebar(root, context, where) {
     gather()
     if (data) draw()
   })
+
+  // Whether each harness's own sessions are listed, as `General` set it.
+  poll('settings.get', {}, 30000, (answer) => {
+    if (!answer || outside === (answer.harness_sessions === true)) return
+    outside = answer.harness_sessions === true
+    if (data) draw()
+  })
+
+  /** The sessions each harness had of its own in a workspace, as rows, read again where they are old. */
+  function outsiders(path) {
+    if (!outside) return []
+    const read = harnessed.get(path)
+    if (!(read && (read.asking || Date.now() - read.at < HARNESSED_FOR))) {
+      harnessed.set(path, { ...(read || { rows: [] }), asking: true })
+      const of = daemon()
+      const told = (rows) => {
+        if (of !== daemon()) return
+        const changed = JSON.stringify(rows) !== JSON.stringify((harnessed.get(path) || { rows: [] }).rows)
+        harnessed.set(path, { rows, at: Date.now() })
+        if (data && changed) draw()
+      }
+      // One that cannot be read lists none, and is asked again later.
+      call('chat.harness.list', { workspace: path, limit: HARNESSED }).then((answer) => told(answer.sessions.map(harnessRow)), () => told([]))
+    }
+    return harnessed.get(path).rows
+  }
 
   /** Keeps what `Group and sort` chose, and draws the list by it. */
   const choose = (next) => {
@@ -324,7 +358,7 @@ export function mountSidebar(root, context, where) {
     stale = false
     const held = spot()
     const { parts, query } = where()
-    const here = parts[0] === 'epics' || parts[0] === 'chats' ? parts[1] : ''
+    const here = parts[0] === 'epics' || parts[0] === 'chats' ? parts[1] : parts[0] === 'harness' ? `harness:${parts[1]}:${parts[2]}` : ''
     for (const link of root.querySelectorAll('.side-nav a')) {
       if (link.dataset.nav === entryOf(parts)) link.setAttribute('aria-current', 'page')
       else link.removeAttribute('aria-current')
@@ -346,7 +380,8 @@ export function mountSidebar(root, context, where) {
         const folder = group.kind === 'folder' && Boolean(group.path)
         const open = !shut.has(group.key)
         const called = folder ? nameOf(group.path) : group.label
-        const { rows, more: rest } = paged(group.runs, shown.get(group.key), here)
+        // After its chats and epics, the sessions each harness had of its own there, where listed.
+        const { rows, more: rest } = paged(folder && open ? [...group.runs, ...outsiders(group.path)] : group.runs, shown.get(group.key), here)
         hidden += rest
         // A heading over its rows, not a row: the group's name, said quietly, which folds them
         // away where it is pressed -- the arrow after it says which way it stands.
@@ -497,7 +532,28 @@ export function mountSidebar(root, context, where) {
     return h('li', { class: 'side-item', 'data-place': folder.path }, row)
   }
 
+  /** A session a harness had of its own: its first line, quietly, and its harness; only read. */
+  function outsider(run, here) {
+    const at = run.name === here
+    const link = h(
+      'a',
+      { href: hash(pathOf(run)), 'aria-current': at ? 'page' : null, title: `${run.task}\n${run.harness} session · ${when(run.updated)}`, 'data-hmz': 'harness-session', 'data-harness': run.harness },
+      h('span', { class: 'side-label' }, headline(run.task)),
+      h('span', { class: 'side-status side-harness-name' }, run.harness),
+    )
+    const row = h('div', { class: ['side-run', 'side-chat', 'side-harness', at && 'current'] }, link)
+    menuOn(row, () => [
+      { head: `${run.harness} session` },
+      { label: 'Open', glyph: 'open', href: hash(pathOf(run)) },
+      '-',
+      { label: 'Copy first message', glyph: 'copy', act: () => copy(run.task, 'Message copied') },
+      { label: 'Copy session ID', glyph: 'copy', act: () => copy(run.id, 'Session ID copied') },
+    ])
+    return h('li', { class: 'side-item', 'data-epic': run.name }, row)
+  }
+
   function item(run, here, parts, unseen) {
+    if (run.kind === 'harness') return outsider(run, here)
     // A chat is only its conversation, running while its agent answers and done otherwise: the
     // row is the chat, with nothing under it, current wherever in it the page is.
     const chat = chatting(run)
@@ -673,6 +729,11 @@ export function mountSidebar(root, context, where) {
   window.addEventListener('hmz:renamed', () => data && draw())
   window.addEventListener('hmz:notifications', () => data && draw())
   window.addEventListener('hmz:seen', () => data && draw())
+  // A harness session was continued as a chat: what was read of them is read again.
+  window.addEventListener('hmz:harness', () => {
+    harnessed.clear()
+    if (data) draw()
+  })
   // A row pinned or marked, from wherever its menu was opened.
   window.addEventListener('hmz:list', () => data && draw())
   // The menu that held a drawing back has closed, by a choice, a click elsewhere or Escape.
@@ -690,6 +751,7 @@ export function mountSidebar(root, context, where) {
     shown.clear()
     details.clear()
     strays.clear()
+    harnessed.clear()
     fill(list, h('p', { class: 'side-quiet', role: 'status' }, 'Loading…'))
     watch()
     watchPlaces()

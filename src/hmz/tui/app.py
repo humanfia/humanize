@@ -322,7 +322,14 @@ def _old_chat(flow: str) -> bool:
 
 
 #: The calls of the chats that write nothing, which carry no `idem`.
-_CHAT_READS = frozenset({"chat.commands", "chat.list"})
+_CHAT_READS = frozenset({"chat.commands", "chat.list", "chat.harness.list"})
+
+#: What marks, in the list of chats, a session a harness had of its own (Section 7.12.5.4
+#: of [TUI]): its id there is this, its harness and its session id.
+_HARNESS = "harness:"
+
+#: The calls of the sessions each harness had of its own, which are this machine's.
+_HARNESSED = ("chat.harness.list", "chat.harness.adopt")
 
 #: What `/stop` says in a chat with no turn open, as its host refuses one (Section 4.25 of
 #: [DAEMON]).
@@ -4123,7 +4130,7 @@ class Humanize(App[None]):
         method = str(said.pop("do"))
         # The chats listed are this machine's, which `/resume` carries on here whatever is
         # followed on another daemon.
-        afar = None if method == "chat.list" else self._afar
+        afar = None if method in ("chat.list", *_HARNESSED) else self._afar
         workspace = afar[1] if afar is not None else str(self.hmz.workspace)
         return _chats(afar, method, {"workspace": workspace, **said})
 
@@ -5028,7 +5035,21 @@ class Humanize(App[None]):
             for one in chats
             if one.get("id") != self._chat_id
         }
-        if not slots:
+        # After them, where the setting says so, the sessions each harness had of its own.
+        outside: list[dict[str, Any]] = []
+        # Read afresh: `/settings` writes it for itself, as it does what `$` prefers.
+        if Hmz().settings.harness_sessions:
+            with contextlib.suppress(Exception):
+                outside = await asyncio.to_thread(
+                    lambda: cast(
+                        "list[dict[str, Any]]",
+                        self._chat_asked({"do": "chat.harness.list", "limit": 200}).get(
+                            "sessions"
+                        )
+                        or [],
+                    )
+                )
+        if not slots and not outside:
             self.show(
                 "hmz: no other chat has been had here, so there is nothing to resume",
                 "red",
@@ -5046,9 +5067,33 @@ class Humanize(App[None]):
                     for one in chats
                     if (name := str(one.get("id") or "")) in slots
                 ]
+                + [
+                    (
+                        f"{_HARNESS}{one.get('harness')}:{one.get('id')}",
+                        _clipped(" ".join(str(one.get("title") or "").split()), 60)
+                        or str(one.get("id") or ""),
+                        f"{one.get('harness')} session, read-only: a copy goes on as a chat",
+                    )
+                    for one in outside
+                ]
             )
         )
-        if picked:
+        if picked and picked.startswith(_HARNESS):
+            harness, _, session = picked.removeprefix(_HARNESS).partition(":")
+            try:
+                made = await asyncio.to_thread(
+                    self._chat_asked,
+                    {
+                        "do": "chat.harness.adopt",
+                        "harness": harness,
+                        "session": session,
+                    },
+                )
+            except Exception as why:  # noqa: BLE001 -- a refusal, or no daemon: said either way
+                self.show(f"hmz: {why}", "red")
+                return
+            self._continues(str(made.get("chat") or ""), "")
+        elif picked:
             self._continues(picked, slots[picked])
 
     def _continues(self, chat: str, slot: str | None = None) -> None:

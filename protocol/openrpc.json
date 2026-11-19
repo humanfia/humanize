@@ -6980,6 +6980,12 @@
               "flow"
             ]
           }
+        },
+        {
+          "name": "harness_sessions",
+          "schema": {
+            "type": "boolean"
+          }
         }
       ],
       "result": {
@@ -10086,6 +10092,257 @@
         "scope": "daemon"
       },
       "x-hmz-writes": true
+    },
+    {
+      "name": "chat.harness.list",
+      "summary": "The sessions each harness had of its own in a workspace.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "offset",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      ],
+      "result": {
+        "name": "list",
+        "schema": {
+          "type": "object",
+          "required": [
+            "sessions",
+            "total",
+            "offset",
+            "limit"
+          ],
+          "properties": {
+            "sessions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/HarnessSession"
+              }
+            },
+            "total": {
+              "type": "integer"
+            },
+            "offset": {
+              "type": "integer"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "chat.harness.get",
+      "summary": "One harness session, and what was said in it where asked.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "harness",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "session",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "trace",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "get",
+        "schema": {
+          "$ref": "#/components/schemas/HarnessSession"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": false
+    },
+    {
+      "name": "chat.harness.adopt",
+      "summary": "A new chat that goes on from a copy of a harness session.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "harness",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "session",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "agent",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "adopt",
+        "schema": {
+          "type": "object",
+          "required": [
+            "chat"
+          ],
+          "properties": {
+            "chat": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     }
   ],
   "components": {
@@ -10356,6 +10613,9 @@
               "native",
               "flow"
             ]
+          },
+          "harness_sessions": {
+            "type": "boolean"
           }
         }
       },
@@ -10753,7 +11013,46 @@
           "archived": {
             "type": "boolean"
           },
-          "spent": {}
+          "spent": {},
+          "adopted": {
+            "type": "string"
+          }
+        }
+      },
+      "HarnessSession": {
+        "type": "object",
+        "required": [
+          "id",
+          "harness",
+          "title",
+          "workspace",
+          "model",
+          "began",
+          "updated"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "began": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "string"
+          },
+          "trace": {}
         }
       }
     },

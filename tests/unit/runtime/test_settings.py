@@ -289,6 +289,18 @@ def test_epics_are_of_this_directory_until_turned_to_this_machine(
     assert Settings().every_epic is False
 
 
+def test_harness_sessions_are_not_listed_until_turned_on(held: doubles.Store) -> None:
+    said = Settings()
+    assert said.harness_sessions is False
+
+    said.harness_sessions = True
+    assert Settings().harness_sessions is True
+    assert held.held["harness_sessions"] is True
+
+    held.held["harness_sessions"] = "yes"
+    assert Settings().harness_sessions is False
+
+
 def test_forgetting_a_workspace_leaves_the_others_and_says_whether_it_was_there(
     held: doubles.Store, tmp_path: Path
 ) -> None:

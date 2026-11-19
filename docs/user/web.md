@@ -102,6 +102,13 @@ grouped, until you **Unpin** it. **Mark as unread** puts the square of an unread
 beside it until you open it or choose **Mark as read**, which also reads its notifications. Both
 are kept by this browser.
 
+With **Harness sessions** on in [Settings › General](#settings), a folder also lists, after its
+chats and epics, the [sessions each CLI had of its own](/user/chat#harness-sessions) there: quieter
+rows that end in the CLI's name. One opens to be read, with **Continue in chat** under it, which
+copies it into a chat of that folder and opens the chat; the CLI's own session is never changed.
+They count among the rows a folder shows before **Show N more**, are listed only while the list is
+grouped by folder, and are not among what **Search** finds.
+
 Every view is an address: copy it, keep it, or open it in another tab. The address names the
 daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same machine; one with no
 `@` is Local's.
@@ -470,7 +477,7 @@ daemon:
 | Page | What is there |
 | --- | --- |
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
-| **General** | Whether a turn's working is shown, **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
+| **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: ask what it runs again, **Edit** it (what you leave blank stays as it was), copy it to another CLI, remove it, or make one |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |

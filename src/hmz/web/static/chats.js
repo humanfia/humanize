@@ -65,8 +65,27 @@ export function epicRow(row) {
   return { ...row, kind: 'flow', flow: 'chat', resumable: false, ...('picks_up' in row ? { picks_up: false } : {}) }
 }
 
-/** Where a chat or an epic is on the page: `/chats/<id>`, or `/epics/<name>`. */
+/**
+ * A session a harness had of its own, as `chat.harness.list` rows it, as a row of the sidebar's
+ * list: of the kind `harness`, named by its harness and its id, told by the first line said in
+ * it or, where its log gave none, by its id; never going, and only read.
+ */
+export function harnessRow(one) {
+  return {
+    ...one,
+    name: `harness:${one.harness}:${one.id}`,
+    kind: 'harness',
+    flow: '',
+    task: one.title || one.id,
+    ended: one.updated,
+    how: 'stopped',
+    held: false,
+  }
+}
+
+/** Where a chat, an epic or a harness session is on the page: `/chats/<id>`, `/epics/<name>`, or `/harness/<harness>/<id>` with its workspace. */
 export function pathOf(run) {
+  if (run.kind === 'harness') return `/harness/${encodeURIComponent(run.harness)}/${encodeURIComponent(run.id)}?workspace=${encodeURIComponent(run.workspace)}`
   return `/${run.kind === 'chat' ? 'chats' : 'epics'}/${encodeURIComponent(run.name)}`
 }
 

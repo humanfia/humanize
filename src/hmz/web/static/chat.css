@@ -304,3 +304,22 @@
 .delete-head {
   padding: 12px 16px;
 }
+
+/* A harness session, only read: what was said in it, and under it the one way on. */
+.harness-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.harness-tag {
+  font-family: var(--mono);
+}
+
+.harness-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+}

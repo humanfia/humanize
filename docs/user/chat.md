@@ -299,6 +299,29 @@ In `hmz web` each is in the chat's menu, and the archived chats of a directory a
 its settings: see [Managing a chat](/user/web#managing-a-chat). `hmz` has no command for them
 yet: call one from a program, as any [method of the daemon](/reference/daemon) is called.
 
+## Sessions a harness had of its own {#harness-sessions}
+
+A session you had in `claude`, `codex` or another CLI directly -- not through Humanize -- is
+not a chat, and by default Humanize lists none of them. Turn on **Harness sessions** on the
+General page of the settings ([`harness_sessions`](/reference/settings#harness-sessions)) and
+the sessions each installed CLI had in a directory are listed after that directory's chats:
+
+| Where | What you see | Continuing one |
+| --- | --- | --- |
+| `hmz web` | quiet rows after the folder's chats, each ending in its CLI's name; a row opens the session to **read** | **Continue in chat** under it |
+| `hmz`, `/resume` in a chat | rows after the chats, each `<cli> session, read-only` | pick it |
+
+A harness session is only ever read. **Continuing** one copies its files into a new chat of
+that directory and opens that chat: the chat is titled by the session's first line, talks to
+the same CLI at the model the session last ran on, and goes on from the copy with the next
+thing you say. The CLI's own session stays exactly as it was -- you can still `claude
+--resume` it -- and it leaves the list while the chat made from it exists.
+
+Listed are the sessions of `claude`, `codex`, `grok`, `pi`, `omp` and `qwen` that worked in
+that very directory, where the CLI is installed. Sessions of the other CLIs are not listed,
+and neither is anything Humanize ran itself: those are chats and epics already. The methods
+behind it are [`chat.harness.*`](/reference/daemon#harness-sessions).
+
 ## Where a chat is kept {#where-a-chat-is-kept}
 
 Each chat is a directory of its own in [Humanize's home](/reference/files#chats),

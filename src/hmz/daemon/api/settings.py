@@ -40,8 +40,8 @@ def read(hmz: Any) -> dict[str, Any]:
 
     Returns:
       `workspace`, `flow`, `chat` (the chat agent remembered there, or ""), `prefer`, `ai_chan`,
-      `details`, `reports`, `flows`, `backup`, `listen` and `ice_servers`, with nothing
-      signed in.
+      `details`, `harness_sessions`, `reports`, `flows`, `backup`, `listen` and
+      `ice_servers`, with nothing signed in.
     """
     from hmz.coganchor import settings as kept
     from hmz.runtime.kept import written
@@ -55,6 +55,7 @@ def read(hmz: Any) -> dict[str, Any]:
         "prefer": settings.chat_prefer,
         "ai_chan": settings.ai_chan,
         "details": settings.details,
+        "harness_sessions": settings.harness_sessions,
         "reports": settings.enable_sentry,
         "flows": sorted(settings.flows()),
         "backup": {
@@ -85,8 +86,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
 
     Args:
       hmz: Humanize, for the workspace.
-      said: Any of `chat`, `prefer`, `ai_chan`, `details`, `reports`, `backup`, `listen` and
-        `ice_servers`; anything else is not read.
+      said: Any of `chat`, `prefer`, `ai_chan`, `details`, `harness_sessions`, `reports`,
+        `backup`, `listen` and `ice_servers`; anything else is not read.
 
     Returns:
       What :func:`read` answers afterwards.
@@ -111,6 +112,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
         raise _refused("ai_chan is a nous or an agent spec, or nothing.")
     if "details" in said and not isinstance(said["details"], bool):
         raise _refused("details is true or false.")
+    if "harness_sessions" in said and not isinstance(said["harness_sessions"], bool):
+        raise _refused("harness_sessions is true or false.")
     if "reports" in said and not isinstance(said["reports"], bool):
         raise _refused("reports is true or false.")
     held = kept.read()
@@ -132,6 +135,8 @@ def write(hmz: Any, said: Mapping[str, Any]) -> dict[str, Any]:
         hmz.settings.ai_chan = said["ai_chan"]
     if "details" in said:
         hmz.settings.detailing(on=said["details"])
+    if "harness_sessions" in said:
+        hmz.settings.harness_sessions = said["harness_sessions"]
     if "reports" in said:
         hmz.settings.answers(enable_sentry=said["reports"])
     return read(hmz)

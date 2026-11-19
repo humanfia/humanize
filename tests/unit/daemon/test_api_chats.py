@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 from hmz.daemon import reach
-from hmz.daemon.api import chats, workspaces
+from hmz.daemon.api import chats, runs, workspaces
 from hmz.rpc import RpcError
 
 if TYPE_CHECKING:
@@ -79,6 +79,7 @@ def _ran(name: str = "20260101-abc", **said: Any) -> Any:
         "archived": False,
         "workdir": "",
         "forked": "",
+        "adopted": "",
     }
     return SimpleNamespace(**read | said)
 
@@ -127,6 +128,9 @@ def test_every_method_that_names_a_chat_is_served() -> None:
             "unarchive",
             "backup",
             "delete",
+            "harness.list",
+            "harness.get",
+            "harness.adopt",
         )
     }
 
@@ -248,6 +252,7 @@ def test_a_chat_whole_is_its_row_and_what_it_opened() -> None:
         "task",
         "prefer",
         "forked",
+        "adopted",
         "agents",
         "sessions",
         "earlier",
@@ -710,3 +715,166 @@ def test_a_resting_chat_is_deleted_with_all_it_kept_and_a_going_one_never(
     assert not made["c1"].exists()
     assert (made["c2"].is_dir(), made["c3"].is_dir()) == (True, True)
     assert worktree.is_dir()
+
+
+# ------------------------------------------------------------------ a harness's own sessions
+
+
+def _found(harness: str, ident: str, **said: Any) -> Any:
+    """A harness session, as `hmz.runtime.doing.adopting` finds one."""
+    found: dict[str, Any] = {
+        "harness": harness,
+        "ident": ident,
+        "title": f"said in {ident}",
+        "began": "2026-01-01T00:00:00Z",
+        "updated": "2026-01-02T00:00:00+00:00",
+        "cwd": "/w",
+        "model": "opus",
+        "log": Path("/homes") / harness / ident,
+    }
+    return SimpleNamespace(**found | said)
+
+
+class _Adopting:
+    """`hmz.runtime.doing.adopting`, as far as `chat.harness.*` asks it."""
+
+    HARNESSES = ("claude", "codex")
+
+    def __init__(self) -> None:
+        self.found: list[Any] = []
+        self.asked: list[tuple[Path, set[tuple[str, str]]]] = []
+        self.adopted: list[tuple[str, Path, str]] = []
+        self.refuses = ""
+
+    def listed(self, workspace: Path, owned: set[tuple[str, str]]) -> list[Any]:
+        self.asked.append((workspace, owned))
+        return [one for one in self.found if (one.harness, one.ident) not in owned]
+
+    def said(self, one: Any) -> list[dict[str, Any]]:
+        return [{"key": f"{one.harness}:{one.ident}", "agent": "", "actions": []}]
+
+    def adopt(self, one: Any, workspace: Path, agent: str = "") -> Path:
+        if self.refuses:
+            raise ValueError(self.refuses)
+        self.adopted.append((one.ident, workspace, agent))
+        return Path("/chats/-w/20260103-new")
+
+
+@pytest.fixture
+def harnessed(monkeypatch: pytest.MonkeyPatch, held: _Chats) -> _Adopting:
+    """What each harness had of its own, as a test says it, beside the chats and no epic."""
+    import hmz.runtime.doing
+
+    fake = _Adopting()
+    monkeypatch.setattr(hmz.runtime.doing, "adopting", fake, raising=False)
+    monkeypatch.setattr(runs, "RUNS", _Chats())
+    return fake
+
+
+def test_the_harness_sessions_of_a_workspace_are_paged_as_rows(
+    held: _Chats, harnessed: _Adopting
+) -> None:
+    del held
+    harnessed.found = [_found("codex", "x-1"), _found("claude", "c-1", title="")]
+
+    said = _call("chat.harness.list", workspace="/w")
+
+    assert said == {
+        "sessions": [
+            {
+                "id": "x-1",
+                "harness": "codex",
+                "title": "said in x-1",
+                "workspace": WORKSPACE,
+                "model": "opus",
+                "began": "2026-01-01T00:00:00Z",
+                "updated": "2026-01-02T00:00:00+00:00",
+            },
+            {
+                "id": "c-1",
+                "harness": "claude",
+                "title": "",
+                "workspace": WORKSPACE,
+                "model": "opus",
+                "began": "2026-01-01T00:00:00Z",
+                "updated": "2026-01-02T00:00:00+00:00",
+            },
+        ],
+        "total": 2,
+        "offset": 0,
+        "limit": 50,
+    }
+    paged = _call("chat.harness.list", workspace="/w", offset=1, limit=1)
+    assert ([one["id"] for one in paged["sessions"]], paged["total"]) == (["c-1"], 2)
+    # Asked of the workspace as it was said, which is what a harness wrote down.
+    assert harnessed.asked[0][0] == Path("/w")
+    assert _refused("chat.harness.list", workspace="w") == (
+        400,
+        "Say the workspace as a whole path, not w.",
+    )
+
+
+def test_what_a_chat_or_an_epic_opened_is_no_harness_session(
+    held: _Chats, harnessed: _Adopting
+) -> None:
+    harnessed.found = [_found("claude", "c-1"), _found("claude", "c-2")]
+    opened = SimpleNamespace(backend="claude", ident="c-1")
+    # A chat of another workspace, an Ai-chan conversation among them, owns its sessions too.
+    held.held = [_ran("c1", workspace="/elsewhere", sessions=(opened,))]
+
+    said = _call("chat.harness.list", workspace="/w")
+
+    assert [one["id"] for one in said["sessions"]] == ["c-2"]
+    assert harnessed.asked[0][1] == {("claude", "c-1")}
+    assert (
+        _refused("chat.harness.get", workspace="/w", harness="claude", session="c-1")[0]
+        == 404
+    )
+
+
+def test_a_harness_session_is_read_with_what_was_said_where_asked(
+    held: _Chats, harnessed: _Adopting
+) -> None:
+    del held
+    harnessed.found = [_found("claude", "c-1")]
+    named = {"workspace": "/w", "harness": "claude", "session": "c-1"}
+
+    assert "trace" not in _call("chat.harness.get", **named)
+    whole = _call("chat.harness.get", **named, trace=True)
+
+    assert (whole["id"], whole["harness"]) == ("c-1", "claude")
+    assert whole["trace"] == [{"key": "claude:c-1", "agent": "", "actions": []}]
+    assert _refused("chat.harness.get", **named | {"harness": "codex"}) == (
+        404,
+        "There is no codex session c-1 of /w.",
+    )
+
+
+def test_a_harness_session_is_adopted_as_a_chat_or_refused_saying_why(
+    held: _Chats, harnessed: _Adopting
+) -> None:
+    del held
+    harnessed.found = [_found("claude", "c-1")]
+    named = {"workspace": "/w", "harness": "claude", "session": "c-1"}
+
+    assert _call("chat.harness.adopt", **named) == {"chat": "20260103-new"}
+    assert _call("chat.harness.adopt", **named, agent="claude/sonnet") == {
+        "chat": "20260103-new"
+    }
+    assert harnessed.adopted == [
+        ("c-1", Path("/w"), ""),
+        ("c-1", Path("/w"), "claude/sonnet"),
+    ]
+
+    harnessed.refuses = (
+        "c-1 does not say the model it ran on: name an agent for the chat"
+    )
+    assert _refused("chat.harness.adopt", **named) == (
+        409,
+        "C-1 does not say the model it ran on: name an agent for the chat.",
+    )
+    assert _refused("chat.harness.adopt", **named | {"harness": "opencode"}) == (
+        409,
+        "A session of opencode cannot be continued in a chat.",
+    )
+    assert _refused("chat.harness.adopt", **named | {"session": "c-0"})[0] == 404
