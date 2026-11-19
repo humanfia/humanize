@@ -38,7 +38,8 @@ rules as `main`. Three workflows do it:
    a workflow opened, it waits for approval, and its `ci-ok` is needed to merge it. It runs
    again on every push to a `release/*` branch, the merge included, on what the push changed.
 3. **`publish.yml`**, on a push to a `release/*` branch that merged its release pull request,
-   tags the merge commit `vX.Y.Z`, builds a wheel and an sdist, runs `twine check --strict`
+   tags the merge commit `vX.Y.Z`, builds `coganchor` for Linux and macOS, on x86-64 and arm64
+   each, builds a wheel that carries all four and an sdist, runs `twine check --strict`
    (which fails if PyPI could not render `README.md`), publishes both to
    [PyPI](https://pypi.org/project/hmz/), and only then publishes the GitHub release, so it is
    never out before its package. Beside them, on macOS, it builds [Humanize Desktop](/user/desktop)
@@ -148,7 +149,7 @@ The run takes a few minutes. Follow it with:
 gh run watch "$(gh run list --workflow publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
 ```
 
-Once its five jobs are green, the release is on
+Once every job is green, the release is on
 [GitHub Releases](https://github.com/humanfia/humanize/releases). Then install it from PyPI:
 
 ```sh
