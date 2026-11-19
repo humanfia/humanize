@@ -15,12 +15,12 @@ slot, holding that workspace's runs. Every client is a client of a daemon over a
 [wire protocol](https://github.com/humanfia/humanize/blob/main/protocol/wire.md): frames and
 JSON-RPC 2.0 whose methods `protocol/openrpc.json` lists. A frontend is an
 `hmz` interface (`kind` `tui`), the [web interface](/reference/web) `hmz web` serves (`kind`
-`web`, named `browser`), or a program linked through the [SDK](/reference/sdk#link) (`kind`
-`sdk`). Package: `hmz.daemon`. Notation: [Conventions](/reference/#conventions).
+`web`, or `desktop` in [Humanize Desktop](/user/desktop)), or a program linked through the
+[SDK](/reference/sdk#link) (`kind` `sdk`). Package: `hmz.daemon`. Notation: [Conventions](/reference/#conventions).
 
 ```text
  hmz (alice@tui) ──┐ daemon.sock (trusted)          ┌─ host process, ~/src/api ─────────────┐
- hmz web (browser) ┼────────────── daemon ─────┬──▶│ Host: the run, claims, away, queued  │
+ page (alice@web) ─┼────────────── daemon ─────┬──▶│ Host: the run, claims, away, queued  │
  program (ci@sdk) ─┘                (one per   │   │ lines, questions, history, snapshots │
  another machine ── tcp/ws/relay ── machine)   │   └──────────────────────────────────────┘
    (mutual TLS)     webrtc (DTLS)              └──▶┌─ host process, ~/src/web ─────────────┐
@@ -47,7 +47,7 @@ JSON-RPC 2.0 whose methods `protocol/openrpc.json` lists. A frontend is an
 | Caller | Host |
 | --- | --- |
 | `hmz`, whatever the terminal | A host process, found or started (see [CLI › Where the runs are held](/reference/cli#where-runs-are-held)). After 3 failed attempts, 0.5 s apart, stderr says `hmz: the daemon cannot be reached: <why>` and it exits `1`. |
-| `hmz web` | A host process, found or started with [`attach`](#module), tried 3 times 0.5 s apart; where none can be had it says so and exits `1`. |
+| `hmz web` | None of its own: it reaches this machine's daemon, starting it where none runs, once before it listens, and exits `1` where it cannot (see [CLI › `hmz web`](/reference/cli#hmz-web)). The page it serves opens its own sessions, and each `epic.attach` of those finds or starts a host process. |
 | `hmz exec`, `Hmz().run()` | A host process on a new exec slot (`exec:<hex>`) of the workspace, started by this machine's daemon. |
 | `Hmz().run()` with a driver object, `fakes.run_fake()` | A host in the calling program's own [private daemon](/reference/sdk#fakes). |
 | `Daemons().host()`, `hmz.daemon.host()` | A host process, found or started. |
@@ -725,7 +725,7 @@ notifications are the messages told to the link, and each request is the call `e
 refusal raised as `Refused`. `OSError` where that daemon is not reached or will not attach.
 `close()` stops following.
 
-`attach` is how `hmz` and `hmz web` reach runs held apart from them: it starts the daemon
+`attach` is how `hmz` reaches runs held apart from it: it starts the daemon
 where none is and attaches through it (`epic.attach` starts the host), as `kind`,
 tried **3** times **0.5 s** apart while linking raises `OSError`, the last of which it raises. A
 daemon of another `protocol` raises `Older`, saying what [`older`](#discovery) says,
