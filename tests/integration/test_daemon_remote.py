@@ -15,9 +15,11 @@ import dataclasses
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from importlib.metadata import version
 from typing import TYPE_CHECKING
@@ -28,13 +30,15 @@ import yaml
 from hmz import home
 from hmz.coganchor import easytier, settings
 from hmz.daemon import link, where
+from hmz.reach import SocketPipe
 from hmz.runtime.doing.daemons import Remotes, Unreached
+from hmz.trust import identity, tls
 
 from . import doubles_easytier
 from .doubles_ssh import Host, faked, written
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 pytestmark = [
@@ -279,6 +283,62 @@ def test_a_daemon_over_tcp_is_paired_by_its_code_and_reached(served: _Served) ->
         assert client.call("hosts.list") == {"held": []}
     finally:
         remotes.close()
+
+
+def _slow(
+    monkeypatch: pytest.MonkeyPatch,
+    opening: float,
+    serves: Callable[[socket.socket], None],
+) -> tuple[str, float, str]:
+    """How reaching a daemon over TCP fails, each carrier accepted being given to `serves`.
+
+    Returns:
+      The route, how many seconds after it was started it was given up on, and what was said.
+    """
+    monkeypatch.setattr("hmz.reach.OPENING", opening)
+    listening = socket.create_server(("127.0.0.1", 0))
+    held: list[socket.socket] = []
+
+    def accepts() -> None:
+        with contextlib.suppress(OSError):
+            while True:
+                held.append(listening.accept()[0])
+                serves(held[-1])
+
+    threading.Thread(target=accepts, daemon=True).start()
+    route = f"tcp://127.0.0.1:{listening.getsockname()[1]}"
+    written({"name": "slow", "id": identity.device().fingerprint, "routes": [route]})
+    remotes = Remotes()
+    try:
+        started = time.monotonic()
+        remotes.connect("slow")
+        said = _stands(remotes, "slow", "failed")
+        return route, time.monotonic() - started, said["detail"]
+    finally:
+        remotes.close()
+        listening.close()
+        for one in held:
+            one.close()
+
+
+def test_a_daemon_that_never_speaks_tls_did_not_open_in_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    route, _, detail = _slow(monkeypatch, 1.0, lambda _: None)
+    assert detail == f"{route} did not open within 1 seconds."
+
+
+def test_tls_and_hello_share_the_time_a_route_has_to_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def serves(carrier: socket.socket) -> None:
+        # Secured only once most of the time is gone, and hello never answered.
+        time.sleep(3.0)
+        tls.answer(SocketPipe(carrier, trusted=False), identity.device())
+
+    route, took, detail = _slow(monkeypatch, 4.0, serves)
+    assert detail == f"{route} did not open within 4 seconds."
+    assert took < 6.0
 
 
 #: The secret the EasyTier network is joined with, and the node it is written down with; the
