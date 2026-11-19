@@ -59,10 +59,12 @@ from typing import TYPE_CHECKING, Any, cast
 from hmz.coganchor import backends
 from hmz.runtime import telemetry
 from hmz.runtime.epic import (
+    CHATTED,
     JOURNAL,
     RESUME,
     SESSIONS,
     TRACES,
+    journal,
     logs,
     note,
     read,
@@ -393,6 +395,7 @@ def placed(epic: Path, origin: str) -> Path:
         anything under it but plain files and directories -- for a run that says no workspace,
         and for an epic already here.
     """
+    record = journal(epic).name
     try:
         # Nothing but plain files and directories, as a bundle holds: a link out of a
         # repository is a file of this machine's read as the epic's.
@@ -411,13 +414,15 @@ def placed(epic: Path, origin: str) -> Path:
                 )
                 for one in [epic, *epic.rglob("*")]
             ],
+            record,
         )
         return _places(
             name,
             (epic / MANIFEST).read_bytes(),
-            (epic / JOURNAL).read_bytes(),
+            (epic / record).read_bytes(),
             origin,
             lambda beside: shutil.copytree(epic, beside / name),
+            chat=record == CHATTED,
         )
     except OSError as why:
         raise ValueError(f"{epic.name} could not be imported: {why}") from why
@@ -429,6 +434,8 @@ def _places(
     journal: bytes | None,
     origin: str,
     fills: Callable[[Path], object],
+    *,
+    chat: bool = False,
 ) -> Path:
     """Puts one epic, already checked, where it goes here, and says where it came from.
 
@@ -438,6 +445,7 @@ def _places(
       journal: Its record, as written.
       origin: Where it came from, for the line saying it was imported.
       fills: What writes the epic, as `<name>/`, into the directory it is handed.
+      chat: Whether it is a chat, which goes among the chats of its workspace.
 
     Returns:
       Where the epic now is.
@@ -448,6 +456,9 @@ def _places(
     """
     head = _head_of(manifest)
     kept = under(_workspace_of(name, journal))
+    if chat:
+        # Beside the epics of every workspace, under the same name for the workspace.
+        kept = kept.parents[1] / "chats" / kept.name
     if (kept / name).exists():
         raise ValueError(f"{name} is already here, at {kept / name}")
     kept.mkdir(parents=True, exist_ok=True)
@@ -472,12 +483,13 @@ def _places(
     return kept / name
 
 
-def _one(source: str, members: Sequence[tuple[str, str]]) -> str:
+def _one(source: str, members: Sequence[tuple[str, str]], record: str = JOURNAL) -> str:
     """The one epic a bundle holds, by name, having checked that it holds nothing else.
 
     Args:
       source: The bundle, by name, for what is said of it.
       members: Everything in it, by name, each a `file`, a `dir` or "" for anything else.
+      record: What its own record is called: an epic's, or a chat's.
 
     Returns:
       The epic's name, which is what it is filed under here.
@@ -496,7 +508,7 @@ def _one(source: str, members: Sequence[tuple[str, str]]) -> str:
         if not kind or ".." in one.split("/"):
             raise ValueError(f"{source} holds {one}, which is not a file in it")
     files = {one for one, kind in members if kind == "file"}
-    for needed in (JOURNAL, MANIFEST):
+    for needed in (record, MANIFEST):
         if f"{name}/{needed}" not in files:
             raise ValueError(f"{source} has no {needed}")
     return name
@@ -1015,7 +1027,7 @@ def _pinned(epic: Path) -> str | None:
     not what the run was on.
     """
     with contextlib.suppress(OSError):
-        lines = (epic / JOURNAL).read_text(encoding="utf-8", errors="replace")
+        lines = journal(epic).read_text(encoding="utf-8", errors="replace")
         for line in reversed(lines.splitlines()):
             try:
                 said = json.loads(line)

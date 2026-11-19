@@ -463,7 +463,7 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
 
 | Method | Fields (default) | Answer | Refusals |
 | --- | --- | --- | --- |
-| `chat.list` | `workspace` (only that workspace's chats; every workspace's without it), `archived` (`false`: `true` lists the archived chats alone, otherwise those not archived alone), `q` (text found in the title, the first message or the name), `offset` (`0`), `limit` (`50`, at most `200`) | `chats` ([chat rows](#chat-rows), newest begun first), `total`, `offset`, `limit` | — |
+| `chat.list` | `workspace` (only that workspace's chats, a workspace since removed included; every workspace's without it), `archived` (`false`: `true` lists the archived chats alone, otherwise those not archived alone), `q` (text found in the title, the first message or the name), `offset` (`0`), `limit` (`50`, at most `200`) | `chats` ([chat rows](#chat-rows), newest begun first), `total`, `offset`, `limit` | — |
 | `chat.get` | `chat`, `trace` (`false`) | the chat row, with `at` (its directory), `task` (its first message, whole), `prefer` (its own preference, `""` for none), `forked` (the name of the chat it was forked from, `""` for none), `adopted` (the [harness session](#harness-sessions) it was made from, `<harness>:<id>`, `""` for none), `agents` and `sessions` (as `runs.get` answers them), `earlier` (how many of its sessions it opened before it was last carried on), `backup` and `backed` (as an epic row's); with `trace`, also `trace`: what `runs.trace` answers as `sessions` for an epic, each session's actions | 404 |
 | `chat.rename` | `chat`, `title` (1 to 240 characters) | the chat row | 400 `A chat's title says something.` for white space alone; 404 |
 | `chat.fork` | `chat` | `chat`, the new chat's name | 409 `Chat <name> has a turn open; fork it once it is done.`, also while a process that is no host holds it; 409 `<name> cannot be forked: its conversation is not kept in the chat.`; 404 |
@@ -491,9 +491,16 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
   hmz. It is refused while the chat is going: while a host holds it, between turns included, or
   any other process does.
 
-The TUI and the web page call `chat.list`, `chat.get`, `chat.stop` and `chat.backup`; nothing
-in them calls `chat.rename`, `chat.fork`, `chat.archive`, `chat.unarchive` or `chat.delete`
-yet, which are for a client of the daemon to call.
+The TUI and the web page call `chat.list`, `chat.get`, `chat.stop` and `chat.backup`. The TUI
+calls `chat.rename`, `chat.fork`, `chat.archive`, `chat.backup` and `chat.delete` from the menu
+of a chat on [`/resume`](/reference/tui#resume) and `chat.unarchive` from its Workspace page,
+[`hmz chat`](/reference/cli#chat-written-down) calls each but `chat.backup` by its option, and
+the web page calls them from [a chat's menu](/user/web#managing-a-chat) and `chat.unarchive`
+from a directory's settings.
+
+A chat backed up is listed and downloaded with the epics of its target: `backups.epics` answers
+it among `epics` with `chat` `true`, its `epic` the chat's id and its `flow` `""`, and
+`backups.pull` downloads it into this machine's chats.
 
 #### A harness's own sessions {#harness-sessions}
 

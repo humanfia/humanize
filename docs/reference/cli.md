@@ -20,6 +20,7 @@ hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
 hmz chat [-a <agent>] [--resume <chat> | --worktree] [--] <message>  say one message to an agent here
+hmz chat --list [--archived] | --rename <chat> <title> | --fork <chat> | --archive <chat> | --unarchive <chat> | --delete <chat> [--yes]
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz daemon serve|connect --stdio|pair|devices|install|uninstall  this machine's daemon
 hmz relay serve [--listen <host>:<port>]  relay daemons and the devices that reach them
@@ -576,7 +577,10 @@ at a prompt, and ends it. A chat is not a flow and not an epic: it has one agent
 and no budget, and is kept under its own id.
 
 ```text
-usage: hmz chat [-h] [-a SPEC] [--resume CHAT] [--worktree] message
+usage: hmz chat [-h] [-a SPEC] [--resume CHAT] [--worktree]
+                [--list | --rename CHAT | --fork CHAT | --archive CHAT |
+                --unarchive CHAT | --delete CHAT] [--archived] [--yes]
+                [message]
 ```
 
 `hmz chat` starts the chat on a new chat slot (`chat:`, see
@@ -590,7 +594,7 @@ is done, and then ends the chat with an empty next message.
 | <span id="chat-resume"></span>`--resume` | a chat's id, as `chat.list` and the chat's page name it | 0‥1 | — | Carry that chat of this workspace on (`chat.start` with `resume`), with `message` as its next turn and its own agent unless `-a` is given. An epic is not carried on, one an earlier hmz recorded for a chat included. |
 | <span id="chat-worktree"></span>`--worktree` | flag | 0‥1 | off | Start the chat with its assistant working in a new git worktree of the workspace (`chat.start` with `worktree`). Refused with `--resume` before the daemon is asked: a chat carried on works where it worked. In a directory that is no git repository the daemon refuses the start, exit `2`. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
-| `message` | positional string | exactly 1 (**required**, not empty) | — | The first message, or the next. Put `--` before one that starts with `-`. |
+| `message` | positional string | exactly 1 (**required**, not empty) without an option of [the chats written down](#chat-written-down) | — | The first message, or the next. Put `--` before one that starts with `-`. |
 
 The message is served as a line said in a chat ([native input](/user/chat#what-a-line-means)),
 except that a `$` line naming a flow, and a name hmz keeps (`/clear`, `/resume`, `/exit`,
@@ -599,7 +603,9 @@ except that a `$` line naming a flow, and a name hmz keeps (`/clear`, `/resume`,
 nothing any workspace remembers.
 
 The turn is drawn on stderr and the answer written to stdout, as
-[`hmz exec`](#watching-a-run) does.
+[`hmz exec`](#watching-a-run) does. Once `chat.start` is answered, `hmz chat: chat <id>` is
+written to stderr: the id of the chat started or carried on, which `--resume` and
+[the options below](#chat-written-down) take.
 
 A line the chat serves with no turn ends it the same way, exit `0`: a `!<command>` hmz runs
 itself is drawn on stderr as `! <command>`, with what it wrote as errors and `exit <status>`
@@ -616,6 +622,34 @@ not be carried on (<reason>), so this is a new one.`
 | `1` | The turn failed: what the harness said, on stderr. Or the daemon could not be reached, as for `hmz exec`. |
 | `2` | Refused before the chat started: `hmz chat: error: <reason>` on stderr, a refusal of `chat.start` with its message as `<reason>`. |
 | `128 + signum` | `SIGINT`, `SIGTERM` or `SIGHUP`: the chat is left to its host. |
+
+### The chats written down {#chat-written-down}
+
+These take no turn. Each asks this machine's daemon, started where none runs, by the
+[`chat.*`](/reference/daemon#chats) method named, `CHAT` being a chat's id; none reads a chat's
+files. They are mutually exclusive, and each with `-a`, `--resume` or `--worktree` is a usage
+error.
+
+| Option | Value | Asks | Writes to stdout |
+| --- | --- | --- | --- |
+| <span id="chat-list"></span>`--list` | flag | `chat.list` with this workspace, a page of 200 at a time | one line per chat that is not archived, newest first: `<id>  <state>  <title>`, the title on one line and cut to 60 characters |
+| `--archived` | flag, with `--list` only | `chat.list` with `archived` | the archived chats alone, the same way |
+| <span id="chat-rename"></span>`--rename` | `CHAT`, then the title as the one positional argument (not blank) | `chat.rename` | the chat's line, as it then stands |
+| <span id="chat-fork"></span>`--fork` | `CHAT` | `chat.fork` | the id of the new chat |
+| <span id="chat-archive"></span>`--archive`, `--unarchive` | `CHAT` | `chat.archive`, `chat.unarchive` | the chat's line, as it then stands |
+| <span id="chat-delete"></span>`--delete` | `CHAT` | `chat.get`, then `chat.delete` | nothing |
+| `--yes` | flag, with `--delete` only | `chat.delete` alone | nothing |
+
+Without `--yes`, `--delete` asks on stderr -- `hmz chat: delete <id>  <state>  <title>`, then
+`for good? It cannot be brought back. [y/N]` -- and deletes only on `y` or `yes` read from
+stdin, in either case. Where stdin is no terminal it reads nothing and says
+`hmz chat: nobody is at a terminal to ask; say --yes`.
+
+| Exit | When |
+| --- | --- |
+| `0` | Done. |
+| `1` | `--delete` was not answered yes: `hmz chat: chat <id> was not deleted` on stderr. Or the daemon could not be reached. |
+| `2` | A usage error; or the daemon refused it, `hmz chat: error: <reason>` on stderr: `There is no chat <id>.`, a chat still going that is to be deleted, a chat whose turn is open that is to be forked. |
 
 ## `hmz web` {#hmz-web}
 
@@ -739,7 +773,9 @@ usage: hmz backup [-h] [--to NAME] [--list | --pull EPIC] [epic]
 
 Backs one epic of this directory -- by its name, or by its path -- up to
 [git repositories](/user/backups) now, waits for it, and says how each target took it. With
-`--list` or `--pull`, reads the targets instead: each is fetched first.
+`--list` or `--pull`, reads the targets instead: each is fetched first. A
+[chat](/user/backups#chats) of this directory is named by its id where no epic has that name,
+and is backed up, listed and downloaded as an epic is.
 
 | Option | Value | Occurrences | Default | Meaning |
 | --- | --- | --- | --- | --- |
@@ -753,8 +789,8 @@ Backs one epic of this directory -- by its name, or by its path -- up to
 | Every target took it | stdout `<target>: backed up to <url>`, the URL with anything signed into it taken out | `0` |
 | A target did not | stderr `<target>: failed: <why>` | `1` |
 | No such epic, no such target, or no target at all | argparse usage error on stderr | `2` |
-| `--list` | stdout `<target>: <n> epics`, then per epic `  <machine>  <workspace>  <epic>  <how or unfinished>  <task>` | `0` |
-| `--pull`, downloaded | stdout the path it now has | `0` |
+| `--list` | stdout `<target>: <n> epics`, then per epic `  <machine>  <workspace>  <epic>  <how or unfinished>  <task>`; then, where the target holds chats, `<target>: <n> chats` and a line per chat the same way, its id and its first message | `0` |
+| `--pull`, downloaded | stdout the path it now has: under `epics/`, or under `chats/` for a chat | `0` |
 | A target could not be fetched | stderr `<target>: failed: <why>`, the rest still read | `1` |
 | `--pull` of an epic already here | stderr `hmz backup: <epic> is already here, at <path>` | `1` |
 | `--pull` of an epic no target holds, or more than one machine's of that name | argparse usage error on stderr | `2` |

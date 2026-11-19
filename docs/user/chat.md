@@ -133,6 +133,7 @@ its first turn; every line after is the next.
 | stop the turn the agent is taking | `/stop` ([below](#stopping-a-turn)) |
 | start a new chat, leaving this one to fold away | `/clear` |
 | carry on an earlier chat of this directory | `/resume` in the chat: a list of them, newest first |
+| rename, fork, archive, upload or delete a chat | `/resume` in the chat, then <kbd>m</kbd> on it ([below](#managing)) |
 | ask a side question | `/btw <question>` |
 | leave | `/exit`, `/quit`, or `ctrl+c` twice; the chat is left to its host |
 | say how a `$` name that is both is read | `/prefer`, `/prefer native`, `/prefer flow` |
@@ -273,7 +274,7 @@ under, so a side question reaches every session it opened:
 
 | Where | How |
 | --- | --- |
-| `hmz` | `/resume` in a chat lists this directory's other chats, newest first, by title; pick one and type the next line |
+| `hmz` | `/resume` in a chat lists this directory's chats, newest first, by title, the one on the screen ticked; pick another and type the next line |
 | `hmz web` | open the chat from the sidebar or from the **Chats** tab of **Search** -- its address is `#/chats/<id>` -- and type in its box |
 | the shell | `hmz chat --resume <chat id> "<message>"` ([below](#from-the-shell)) |
 | a program | [`chat.start`](/reference/daemon#chats) with `resume` the chat's id |
@@ -296,8 +297,32 @@ talking in it, a chat can be:
 | deleted | `chat.delete` | removes its record and the sessions kept with it, for good: Humanize cannot bring it back. Refused while the chat is going -- a host holds it, between turns included -- so delete it once it has folded away. No epic and no [worktree](#worktree) is removed |
 
 In `hmz web` each is in the chat's menu, and the archived chats of a directory are listed in
-its settings: see [Managing a chat](/user/web#managing-a-chat). `hmz` has no command for them
-yet: call one from a program, as any [method of the daemon](/reference/daemon) is called.
+its settings: see [Managing a chat](/user/web#managing-a-chat).
+
+In `hmz`, type `/resume` in a chat and press <kbd>m</kbd> on a chat of the list -- the one on
+the screen is there too, ticked -- for its menu:
+
+| Row | What happens |
+| --- | --- |
+| `rename` | a form opens on the chat's title; type the new one and press **done** |
+| `fork` | the list closes on the new chat, drawn with what was said so far; the next line you type goes on in it |
+| `archive` | the chat leaves the list. Archive the chat on the screen and closing the list starts a new chat, as `/clear` does |
+| `upload` | offered once a [backup target](/user/backups) exists: the chat is queued to its targets, or the defaults |
+| `delete` | a box asks first and says it is permanent; **keep** is the answer under the cursor, **delete** removes the chat for good |
+| `copy id` | copies the chat's [id](#where-a-chat-is-kept) |
+
+The line under the list says how each went, a refusal included: a chat that is still going
+cannot be deleted, and one whose turn is open cannot be forked.
+
+**Archived chats are put back in the directory's settings**: `/settings workspace`, then
+**Archived chats**, lists them newest first, and <kbd>enter</kbd> on one puts it back on
+`/resume` at once.
+
+From the shell, [`hmz chat`](#from-the-shell) does the same by id: `--list` (with `--archived`
+for the archived ones), `--rename`, `--fork`, `--archive`, `--unarchive` and `--delete`.
+There is no `/rename`, `/fork` or `/archive` in a chat: a `/` line that is not one of
+[Humanize's own](#what-a-line-means) belongs to the agent's CLI, which may have a command of
+that name.
 
 ## Sessions a harness had of its own {#harness-sessions}
 
@@ -361,6 +386,32 @@ is a new conversation's, in the same chat. It exits `0` once the
 turn is done, `1` where the turn failed, `2` where it was refused before it started, and 128
 plus the signal's number where a signal ended it, leaving the chat to its host. It changes
 nothing this directory remembers. See [CLI › `hmz chat`](/reference/cli#hmz-chat).
+
+As the chat starts, its id is written to stderr -- `hmz chat: chat <id>` -- which is what
+`--resume` and the options below take. Each asks the daemon, and takes no turn:
+
+```console
+$ hmz chat --list
+20261117T100000.123Z-ab12cd  resting  What does this repository do?
+$ hmz chat --rename 20261117T100000.123Z-ab12cd "The tour"
+20261117T100000.123Z-ab12cd  resting  The tour
+$ hmz chat --fork 20261117T100000.123Z-ab12cd
+20261119T091500.456Z-4d5e6f
+$ hmz chat --archive 20261117T100000.123Z-ab12cd
+20261117T100000.123Z-ab12cd  resting  The tour
+$ hmz chat --list --archived
+20261117T100000.123Z-ab12cd  resting  The tour
+$ hmz chat --unarchive 20261117T100000.123Z-ab12cd
+20261117T100000.123Z-ab12cd  resting  The tour
+$ hmz chat --delete 20261119T091500.456Z-4d5e6f
+hmz chat: delete 20261119T091500.456Z-4d5e6f  resting  The tour
+for good? It cannot be brought back. [y/N] y
+```
+
+`--list` says the chats of this directory, newest first: id, how it stands (`resting`,
+`going`, `turn`, `asking` or `failed`) and title. `--delete` asks unless `--yes` is given, and
+deletes nothing where nobody is at a terminal to answer. `hmz backup <chat id>` backs a chat
+up ([Backing epics up](/user/backups#chats)).
 
 ## Troubleshooting
 

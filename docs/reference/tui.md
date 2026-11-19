@@ -123,7 +123,7 @@ interface opens on a new chat, its agent the chat agent remembered for this dire
 | Starting a flow | `$<flow> <task>` or `/flow <flow> <task>` puts the flow on the screen, on this directory's own host, and leaves the chat going on its own; `/chat` brings it back, as it stands or, folded away meanwhile, as it was left, carried on by the next line. A line said while no epic of a flow is going goes to the chat. |
 | Its harness's own input | A line starting `/`, `$`, `!` or `@` is first read as the harness reads it at its own prompt, against the catalogue the chat's host gives (`chat.commands`): its commands and skills are said to it, a `!` command runs for the chat and is drawn dim, as a shell draws it, with what it printed under it, and a command only the harness's own interface serves is refused, `<cmd> is served only by the harness's own interactive interface`. Humanize keeps `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`, `/settings`, `/chat` and `/prefer`. A `/` naming nothing is `no such command` where the catalogue has any `/` entry and the chat has taken a turn, and is said as text otherwise. |
 | `$` names both | A `$<name>` that is both a skill and a flow runs the skill unless the chat prefers flows: `/prefer` says which and where it comes from (the settings file, or this chat), `/prefer native\|flow` sets it for this chat. `/flow <name> <task>` always starts the flow. |
-| `/resume` | Lists the other chats of this directory that are not archived, newest first, by title, as the daemon's `chat.list` answers them; the one picked is read where it is while a host holds it, and otherwise drawn with what was said in it and carried on, the same chat (`chat.start` with `resume` its id), by the next line you say: `say something to continue chat <id>`. With [`harness_sessions`](/reference/settings#harness-sessions) on, the [sessions each CLI had of its own](/user/chat#harness-sessions) here follow the chats, each `<cli> session, read-only: a copy goes on as a chat`; one picked is copied into a new chat (`chat.harness.adopt`), which is then carried on the same way. |
+| `/resume` | Lists the chats of this directory that are not archived, newest first, by title, as the daemon's `chat.list` answers them, the chat on the screen among them with `✔` and the cursor; picking that one leaves it on the screen, and `m` on any opens [its menu](#resume). Another one picked is read where it is while a host holds it, and otherwise drawn with what was said in it and carried on, the same chat (`chat.start` with `resume` its id), by the next line you say: `say something to continue chat <id>`. With [`harness_sessions`](/reference/settings#harness-sessions) on, the [sessions each CLI had of its own](/user/chat#harness-sessions) here follow the chats, each `<cli> session, read-only: a copy goes on as a chat`; one picked is copied into a new chat (`chat.harness.adopt`), which is then carried on the same way; such a row is read-only and has no menu. |
 | `/epics` | Lists no chat of this machine. An epic an earlier hmz recorded for a chat is listed as an epic named `chat`, read as any other, with no `Exomyth` row and no way to carry it on. |
 | `!` lines | A `!` line and its output are drawn dim, in the style of a shell. |
 
@@ -395,8 +395,25 @@ machine's (`@local`) until another is turned to -- or on `@<daemon>`, one of tho
 ### `/resume` {#resume}
 
 Outside a [chat](#chat), see [`/resume`](#carrying-the-last-one-on-outright). In a chat, opens a
-pick list of this directory's earlier chats, newest first, and carries on the one picked, the
-same [chat](#chat).
+pick list of this directory's chats, newest first, titled `Resume a chat`, and carries on the one
+picked, the same [chat](#chat). With no chat here at all: `hmz: no chat has been had here, so
+there is nothing to resume`.
+
+`m` on a chat opens its menu, each row done by the daemon ([`chat.*`](/reference/daemon#chats))
+and what became of it said on the line under the list, a refusal in red:
+
+| Row | Does | Says |
+| --- | --- | --- |
+| `rename` | opens the form `Rename the chat`, one row `title` holding the chat's own, which the first letter typed replaces; **done** calls `chat.rename` | `renamed <title>`; a blank title, on the form: `a chat's title says something` |
+| `fork` | `chat.fork`, then closes the list on the new chat, drawn with what was said in it, `say something to continue chat <id>` | the daemon's refusal where a turn is open or the conversation is kept elsewhere |
+| `archive` | `chat.archive`; the chat leaves the list | `archived <title>; /settings workspace puts it back` |
+| `upload` | offered where a backup target exists: `chat.backup`, to the chat's targets or the defaults, not waited on | `backing up to <targets>` |
+| `delete` | opens the box `Delete <title>?`, `Permanent: the chat and the conversation kept with it are removed, and cannot be brought back.`, buttons **keep** (focused) and **delete**; **delete** calls `chat.delete`, and the chat leaves the list | `deleted <title>`; for one still going, `Chat <id> is going on; delete it once it rests.` |
+| `copy id` | copies the chat's id | `id copied` |
+
+Where the chat on the screen was archived or deleted, closing the list starts a new chat, as
+[`/clear`](#chat) does. There is no command for any of these: in a chat a `/` line Humanize
+does not keep is the harness's own.
 
 ### `/env [role]` {#env-command}
 
@@ -2032,7 +2049,7 @@ keeps the minutes. Saved as `backup` ([Settings](/reference/settings#backup)); t
 save: `<n> backup target(s) saved`, or `hmz: <why>` where settings refused them.
 
 **Download…** opens `hmz › /settings › Backup › Download from <target>` on the first saved
-target, intro `Every epic the target holds, by machine and directory, newest first; enter
+target, intro `Every epic and chat the target holds, by machine and directory, newest first; enter
 downloads one here, as an import does.` It fetches the target off the drawing path
 (`fetching <target>…`), then lists under a heading per machine and a dim line per directory (`~` for home),
 newest first: `<YYYY-MM-DD HH:MM> · <flow>[ ✔]  <task> · <how>[ · here]`, `✔` and `here` on an
@@ -2042,6 +2059,11 @@ here says `<epic> is here already: open it on /epics`; otherwise `downloading <e
 `downloaded <epic> into <directory>; open it on /epics[; it cannot be resumed here: <why>]`,
 also dim in the transcript on leaving. A refusal is said in red, with any credential hidden.
 Empty: `<target> holds no epic`.
+
+A [chat](#chat) the target holds is listed among the epics with `chat` where an epic has its
+flow, and its first message as its task. Enter downloads it into this machine's chats:
+`downloaded <id> into <directory>; carry it on with /resume in a chat`, and one here already
+says `<id> is here already: carry it on with /resume in a chat`.
 
 ### Usage page {#usage-page}
 
@@ -2069,6 +2091,7 @@ first column.
 | --- | --- | --- | --- |
 | Flow | **Default flow** `configured with <n> agent(s); chosen with /flow` | the flow, or `none` | read-only |
 | Chat | **Chat agent** ▸ `the agent a new chat here talks to` | `cli[@account]/model:effort`, or `not set` | `enter` opens the [agent sheet](#what-each-agent-is) titled `Set up the chat's agent`; saved as `workspaces.<path>.chat.agent` |
+| Chat | **Archived chats** ▸ `the chats archived here; one picked is put back among the others` | — | `enter` opens the pick list `Archived chats`: this directory's archived chats, newest first, by title (`chat.list` with `archived`), `reading the archived chats…` until read, `no chat of this directory is archived` where none is. `enter` on one calls `chat.unarchive` at once, held for no save: `put back <title>`, and it leaves the list |
 | Reset | **Forget** `clear saved settings here, across <n> flow(s)` | `on` (`clear saved settings here`), `off` (`keep them`); starts off | ▾; on save deletes this directory's entry |
 
 ### First start {#first-start}

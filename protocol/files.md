@@ -1729,7 +1729,8 @@ going; `sessions/`, as Section 6.9.5 and Section 6.9.6 specify it for an epic di
 `host.log`, as Section 6.9 specifies it.
 
 **6.12.4** The chat record MUST be a JSON Lines file of events (Section 6.2.6), appended and never
-rewritten, and MUST contain no events other than those of Section 6.12.5 to Section 6.12.8.
+rewritten, and MUST contain no events other than those of Section 6.12.5 to Section 6.12.8 and
+of Section 6.12.13.
 
 **6.12.5** The first event of a chat record MUST be `began`, with the keys:
 
@@ -1790,6 +1791,13 @@ keeps a session in whose path under the harness's own home holds the session id,
 path; and a chat record of a `began` whose `task` and `title` are the title of the new chat
 (Section 8.11.4 of [CORE]), with `adopted`; an `opened` that gives that harness, that session id and the `where`
 `sessions/<harness>`; and an `ended` whose `how` is `stopped`.
+
+**6.12.13** `hmz` MUST place a **chat** downloaded from a backup target (Section 8.3.14 of [CORE])
+at `<home>/chats/<ws>/<chat name>/`, as Section 6.11.2 to Section 6.11.7 state for an imported
+**epic**, `<home>/chats/` in place of `<home>/epics/` and the chat record in place of the epic
+record. It MUST write `imported` into the chat record as Section 6.5.16 specifies it, a reader MUST
+read the chat record as Section 6.5.17 states for an epic record, and the chat directory MUST then
+hold `manifest.json` as Section 6.9.11 specifies it.
 
 ## 7. This Machine
 

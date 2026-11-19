@@ -282,7 +282,7 @@ async def test_what_an_earlier_hmz_kept_of_a_chat_is_an_epic_read_and_never_carr
         await opened(pilot)
         # No chat to carry on, though it reads as one had here.
         await typed(pilot, "/resume")
-        await shows(pilot, "no other chat has been had here")
+        await shows(pilot, "no chat has been had here")
 
         await typed(pilot, "/epics")
         await on(pilot, Epics)

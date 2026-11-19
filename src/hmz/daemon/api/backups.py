@@ -1,5 +1,7 @@
 """The epics a backup target holds, and one fetched back: `backups.*` (Section 4.16.8 of daemon.md).
 
+And the chats it holds, each said to be one, which are fetched back among this machine's chats.
+
 Each asks the target's git repository afresh, which can take a while, on the call's own
 thread; what the repository said is told without a credential its URL carried.
 """
@@ -8,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from hmz.daemon.api.runs import RUNS, Runs, reason, resolved
+from hmz.daemon.api.runs import CHATS, RUNS, Runs, reason, resolved
 from hmz.rpc import Code, RpcError
 
 if TYPE_CHECKING:
@@ -19,12 +21,13 @@ if TYPE_CHECKING:
 __all__ = ["METHODS", "pulled", "stored"]
 
 
-def stored(runs: Runs, target: str) -> dict[str, Any]:
-    """The epics a target holds, newest first, as `backups.epics` answers it.
+def stored(runs: Runs, target: str, chats: Runs | None = None) -> dict[str, Any]:
+    """The epics and chats a target holds, newest first, as `backups.epics` answers it.
 
     Args:
       runs: The runs here, which say which of those this machine holds.
       target: The target, by name.
+      chats: The chats here, which say the same of the chats it holds, or None for none.
 
     Raises:
       RpcError: 400 for a target there is not, 502 where it cannot be reached.
@@ -32,7 +35,10 @@ def stored(runs: Runs, target: str) -> dict[str, Any]:
     hmz = runs.hmz()
     held = _fetched(hmz, target, lambda: hmz.backups.listed(target))
     # Here is an epic of that name run in that workspace, as a download would land it.
-    here = {(resolved(one.workspace), one.name) for one in runs.all()}
+    here = {
+        (resolved(one.workspace), one.name)
+        for one in [*runs.all(), *(chats.all() if chats is not None else ())]
+    }
     return {
         "epics": [
             one._asdict() | {"here": (resolved(one.workspace), one.epic) in here}
@@ -42,7 +48,7 @@ def stored(runs: Runs, target: str) -> dict[str, Any]:
 
 
 def pulled(runs: Runs, target: str, key: str) -> dict[str, Any]:
-    """One epic downloaded from a target, as `backups.pull` answers it.
+    """One epic or chat downloaded from a target, as `backups.pull` answers it.
 
     Args:
       runs: The runs here.
@@ -69,7 +75,7 @@ def _fetched[T](hmz: Any, target: str, fetch: Callable[[], T]) -> T:
 
 
 def _epics(call: Call) -> dict[str, Any]:
-    return stored(RUNS, call.params["target"])
+    return stored(RUNS, call.params["target"], CHATS)
 
 
 def _pull(call: Call) -> dict[str, Any]:

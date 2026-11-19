@@ -360,6 +360,7 @@ The events of `chat.jsonl`:
 | `reopened` | the chat is carried on; never another `began` | `task`, the message that carried it on |
 | `usage`, `backed` | as an epic's, `usage` each time the chat ends | as an epic's; what a chat spent is the sum of its `usage` events |
 | `ended` | the chat ends: it folds away or is said an empty next message, or its first turn fails | `how`: `stopped` or `failed`. A chat has ended only where an `ended` follows its last `reopened` |
+| `imported` | the chat was downloaded from a [backup target](/user/backups#chats), into `chats/<workspace>/<id>/` with its `manifest.json` | as an epic's: `from`, `head`; the `backup` of `began` and every `backed` before it are another machine's, and are not read |
 
 A chat is removed only by [`chat.delete`](/reference/daemon#chats), which removes the directory
 whole and never the worktree a `workdir` names, or by you, while the chat is not going. A fork

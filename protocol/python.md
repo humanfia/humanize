@@ -3213,12 +3213,14 @@ a target's repository.
 
 **4.13.6** `Backups.listed(name)` MUST fetch the target afresh and return every epic it holds, of
 every machine and workspace, oldest first; it MUST raise `ValueError` for an unknown target and
-`OSError` where git fails or exceeds its timeout.
+`OSError` where git fails or exceeds its timeout. A chat the target holds (Section 8.3.14 of [CORE])
+MUST be returned among them, its `chat` true, which is false for an epic.
 
 **4.13.7** `Backups.pulled(name, key)` MUST download the epic at `key` into this machine's epics as
 an import does and return its epic directory; it MUST raise `ValueError` for an unknown target, a
 key naming no epic, an epic not laid out as one, and an epic already present, and `OSError` where
-git fails.
+git fails. A chat at `key` MUST be downloaded into this machine's chats the same way, its chat
+directory returned.
 
 ### 4.14. The daemon registry
 

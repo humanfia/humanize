@@ -59,10 +59,17 @@ class Held(Protocol):
     def began(self) -> str: ...
     @property
     def how(self) -> str: ...
+    @property
+    def chat(self) -> bool: ...
 
 
 #: The button another target is picked from, where there is more than one.
 _ACT_TARGET = "target"
+
+
+def _opened(one: Held) -> str:
+    """Where what was downloaded is opened: an epic on `/epics`, a chat from `/resume`."""
+    return "carry it on with /resume in a chat" if one.chat else "open it on /epics"
 
 
 class Stored(Sheet[tuple[str, ...]]):
@@ -95,8 +102,8 @@ class Stored(Sheet[tuple[str, ...]]):
     def _ask(self) -> None:
         """Says what this is, and fetches the target."""
         self.query_one("#about", Label).update(
-            "Every epic the target holds, by machine and directory, newest first; "
-            "enter downloads one here, as an import does."
+            "Every epic and chat the target holds, by machine and directory, newest "
+            "first; enter downloads one here, as an import does."
         )
         self._fetches()
 
@@ -109,12 +116,19 @@ class Stored(Sheet[tuple[str, ...]]):
         self._fill()
 
         def fetched() -> tuple[Sequence[Held], set[str]]:
-            from hmz.runtime.epic import under
+            from hmz.runtime.epic import chats, under
 
             held = _hmz().backups.listed(target)
-            # Here as a download would land it: that epic, under the directory it ran in.
+            # Here as a download would land it: that epic, under the directory it ran in,
+            # or that chat among the chats of the directory it was had in.
             return held, {
-                one.key for one in held if (under(one.workspace) / one.epic).is_dir()
+                one.key
+                for one in held
+                if (
+                    any(each.name == one.epic for each in chats(one.workspace))
+                    if one.chat
+                    else (under(one.workspace) / one.epic).is_dir()
+                )
             }
 
         try:
@@ -215,7 +229,7 @@ class Stored(Sheet[tuple[str, ...]]):
                 Option(
                     self._row(
                         0,
-                        f"{_when(one.began)}{_DOT}{one.flow}",
+                        f"{_when(one.began)}{_DOT}{'chat' if one.chat else one.flow}",
                         about,
                         here=f"={one.key}" == landing,
                         inforce=one.key in self._here,
@@ -247,7 +261,7 @@ class Stored(Sheet[tuple[str, ...]]):
         if one is None:
             return
         if one.key in self._here:
-            self._said = f"{escape(one.epic)} is here already: open it on /epics"
+            self._said = f"{escape(one.epic)} is here already: {_opened(one)}"
             self._fill()
             return
         self._pulls(one)
@@ -277,8 +291,8 @@ class Stored(Sheet[tuple[str, ...]]):
         finally:
             self.opened()
         self._here.add(one.key)
-        said = f"downloaded {at.name} into {_homed(one.workspace)}; open it on /epics"
-        if why:
+        said = f"downloaded {at.name} into {_homed(one.workspace)}; {_opened(one)}"
+        if why and not one.chat:
             said += f"; it cannot be resumed here: {why}"
         self._said = escape(said)
         self._told.append(f"[dim]{escape(said)}[/dim]")

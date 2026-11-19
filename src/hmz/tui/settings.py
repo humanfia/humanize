@@ -44,6 +44,7 @@ from hmz.runtime.kept import Runs, read_back, written
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 from hmz.runtime.watching.notices import KINDS, prefer, preferences
 
+from .chats import Archived
 from .dropdown import Dropdown, Value
 from .pick import (
     _ACCOUNTS,
@@ -182,6 +183,7 @@ _PREFER = "prefer"
 _HARNESS = "harness_sessions"
 _RUNS = "flow"
 _CHAT_AGENT = "chat-agent"
+_ARCHIVED = "archived"
 _FORGET = "forget"
 _SYSTEM = "system"
 
@@ -642,6 +644,14 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
                     group="Chat",
                 ),
                 _Setting(
+                    _ARCHIVED,
+                    "Archived chats",
+                    "",
+                    "the chats archived here; one picked is put back among the others",
+                    _SAYS,
+                    group="Chat",
+                ),
+                _Setting(
                     _FORGET,
                     "Forget",
                     _word(self._forget),
@@ -870,6 +880,8 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
             self._chooses_ai_chan()
         elif held == _CHAT_AGENT:
             self._sets_chat_agent()
+        elif held == _ARCHIVED:
+            self._opens_archived()
 
     def drops(self, row: str) -> bool:
         """Whether a row of the general or workspace page has its values dropped under it.
@@ -1007,6 +1019,23 @@ class Adjusts(Providers, Machines, NousPage, Backups, Daemons, Spends):
         self._chat_agent, self._said = chosen, ""
         self.changed()
         self._fill()
+
+    @work
+    async def _opens_archived(self) -> None:
+        """Opens the archived chats of this directory, where one picked is put back.
+
+        Written by the daemon as each is picked (Section 19.11.2 of [TUI]): nothing of it is
+        held for the save.
+        """
+        if self.opening():
+            return
+        try:
+            await cast(
+                "App[None]",
+                self.app,  # pyright: ignore[reportUnknownMemberType]
+            ).push_screen_wait(Archived(self._workspace))
+        finally:
+            self.opened()
 
     async def _agent_set_up(self, named: str, runs: Runs) -> Runs | None:
         """Sets one agent up on the sheet every agent is set up on, and answers it.

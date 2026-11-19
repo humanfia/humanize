@@ -418,7 +418,8 @@ first, and MUST carry on the one picked (Section 8.9.8 of [CORE]).
 
 **7.12.5.1** The pick list MUST be the chats of this directory that are not archived, as this
 machine's daemon lists them (`chat.list` with `workspace`, Section 4.25 of [DAEMON]), each by its
-title, without the chat of this frontend.
+title, the chat of this frontend among them as the choice in force (Section 15.1.6); picking that
+one MUST leave it on the screen.
 
 **7.12.5.2** A chat picked that a host holds (the `slot` of its row) MUST be put on the screen as it
 stands, by attaching to that host; any other MUST be carried on by the next line said (`chat.start`
@@ -433,6 +434,21 @@ then, the pick list MUST hold, after the chats, the harness sessions of this dir
 [DAEMON]), each by its title, or by its id where it has none, with a line that names its harness
 and says it is read-only. Picking one MUST continue it as a chat (`chat.harness.adopt`) and MUST
 then go to that chat as Section 7.12.5.2 states for a chat no host holds; a refusal MUST be said.
+
+**7.12.5.5** `m` on a chat of the pick list MUST open its menu (Section 15.2.7) with these rows,
+each done by this machine's daemon (Section 4.25.7 of [DAEMON]): `rename`, which asks for a title
+on a form that opens on the chat's own (`chat.rename`); `fork` (`chat.fork`), which closes the list
+and goes on with the new chat as Section 7.12.5.2 states for a chat no host holds; `archive`
+(`chat.archive`); `upload`, offered where a backup target exists, which queues a backup of the chat
+to the targets it was started with, else the defaults, without waiting for it (`chat.backup`);
+`delete`, which asks in a box saying that the deletion is permanent, whose first answer keeps the
+chat, and deletes on the other (`chat.delete`); and `copy id`. The row of a harness session
+(Section 7.12.5.4) MUST have no menu.
+
+**7.12.5.6** A chat archived or deleted MUST leave the pick list at once, and the list's message
+line MUST say what became of each thing done from a menu, what the daemon refused included. Where
+the chat of this frontend was archived or deleted, closing the list MUST start a new chat as
+`/clear` does (Section 7.14.2).
 
 ### 7.13. `/settings [page]`
 
@@ -1360,11 +1376,20 @@ hidden, its branch, when it is used, and whether it is a default.
 by machine and then by directory, newest first, the ones already here marked, and `enter` MUST
 download one as an import does, saying where it landed and, where it cannot be resumed here, why.
 
+**19.10.4** **Download…** MUST list the chats a saved target holds among its epics, each named
+`chat` where an epic names its flow, and `enter` on one MUST download it into this machine's chats
+(Section 8.3.14 of [CORE]), saying that it is carried on with `/resume` in a chat.
+
 ### 19.11. Workspace
 
 **19.11.1** The Workspace page MUST name this directory, show the flow last set up in it, offer
 **Chat agent**, the chat agent it remembers (Section 8.3.8 of [CORE]), set on the agent sheet, and
 offer **Forget**, which on save clears what this directory remembers from the next launch.
+
+**19.11.2** The Workspace page MUST offer **Archived chats**, which opens a pick list of the
+archived chats of this directory, newest first, each by its title (`chat.list` with `workspace` and
+`archived`, Section 4.25 of [DAEMON]). `enter` on one MUST put it back among the others at once
+(`chat.unarchive`), not held for the save, MUST say so, and the chat MUST leave the list.
 
 ### 19.12. Usage
 
