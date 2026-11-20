@@ -99,6 +99,8 @@ export function registry(indexedDB = globalThis.indexedDB) {
   function kept(name, mode, act) {
     base ||= new Promise((resolve, reject) => {
       const asked = indexedDB.open('hmz-daemons', 2)
+      /** Whether whoever asked was already told it could not be opened. */
+      let refused = false
       asked.onupgradeneeded = (event) => {
         if (event.oldVersion < 1) {
           asked.result.createObjectStore('daemons', { keyPath: 'name' })
@@ -121,7 +123,24 @@ export function registry(indexedDB = globalThis.indexedDB) {
           }
         }
       }
-      asked.onsuccess = () => resolve(asked.result)
+      // Another tab holds it as an earlier version kept it, and does not let go: said, where it
+      // would otherwise be waited for with nothing shown, and asked for again by whoever asks next.
+      asked.onblocked = () => {
+        refused = true
+        base = null
+        reject(new Error(t('Another tab of this page is open on an earlier version: close or reload it.')))
+      }
+      asked.onsuccess = () => {
+        const db = asked.result
+        // Opened after all, once that tab went: nobody waits for this one any more.
+        if (refused) return db.close()
+        // A later version asks for it from another tab: let go, and opened again by the next use.
+        db.onversionchange = () => {
+          db.close()
+          base = null
+        }
+        resolve(db)
+      }
       asked.onerror = () => reject(asked.error)
     })
     return base.then(

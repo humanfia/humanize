@@ -218,6 +218,7 @@ export default {
   '{name} is not the daemon it was paired with.': '{name} 不是當初配對的那個 Daemon。',
   '{route} did not open within 30 seconds.': '{route} 未能在 30 秒內開啟。',
   'Closed.': '已關閉。',
+  'Another tab of this page is open on an earlier version: close or reload it.': '此頁面的另一個分頁仍在使用較早的版本：請關閉或重新載入它。',
   'The call was cancelled.': '呼叫已取消。',
   'A frame of {count} bytes cannot be sent.': '無法傳送 {count} 位元組的訊框。',
   'A frame of {count} bytes is not read.': '不讀取 {count} 位元組的訊框。',

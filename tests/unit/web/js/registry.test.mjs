@@ -134,6 +134,58 @@ test('the servers version 1 kept for every daemon move onto each daemon with a w
   assert.deepEqual([...(await versionOne(empty, [], {})).stores.get('keys').data.keys()], [])
 })
 
+test('a database another tab holds on an earlier version is said, not waited for, and is let go of for a later one', async () => {
+  const real = fakeIndexedDB()
+  /** The requests to open it, held until `answer` lets one through; the bases opened, and how many were closed. */
+  const requests = []
+  const bases = []
+  let closed = 0
+  const held = {
+    open(name, version) {
+      const asked = /** @type {any} */ ({})
+      asked.answer = () =>
+        new Promise((done) => {
+          const inner = real.open(name, version)
+          inner.onupgradeneeded = (event) => {
+            asked.result = inner.result
+            asked.transaction = inner.transaction
+            asked.onupgradeneeded?.(event)
+          }
+          inner.onsuccess = () => {
+            const base = inner.result
+            asked.result = { transaction: (...given) => base.transaction(...given), close: () => closed++, onversionchange: null }
+            bases.push(asked.result)
+            asked.onsuccess?.()
+            done()
+          }
+        })
+      requests.push(asked)
+      return asked
+    },
+  }
+  const store = registry(held)
+  // Blocked: whoever asked is told why, at once.
+  const first = store.list()
+  requests[0].onblocked()
+  await assert.rejects(first, /Another tab of this page is open on an earlier version: close or reload it\./)
+  // The next use asks again; the request given up on, opened once the other tab went, is closed.
+  const second = store.list()
+  assert.equal(requests.length, 2)
+  await requests[0].answer()
+  assert.equal(closed, 1)
+  await requests[1].answer()
+  assert.deepEqual(await second, [])
+  await store.add({ name: 'box', id: ID, routes: ['tcp://box:1'] })
+  assert.equal(requests.length, 2)
+  // A later version asks for it from another tab: it is let go of, and opened again by the next use.
+  bases[1].onversionchange()
+  assert.equal(closed, 2)
+  const third = store.list()
+  assert.equal(requests.length, 3)
+  await requests[2].answer()
+  assert.deepEqual((await third).map((one) => one.name), ['box'])
+})
+
 test('the DTLS certificate is made once and kept until it expires', async () => {
   const store = registry(fakeIndexedDB())
   let made = 0
