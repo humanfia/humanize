@@ -55,7 +55,7 @@ export function mount(app, where) {
   const panel = sidePanel('Ai-chan', { key: 'hmz-aichan', open: false, hmz: 'aichan', kind: 'aichan', told: (open) => opened(open) })
   panel.node.id = 'aichan'
   const fresh = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'aichan-new' }, icon('plus'), t('New'))
-  fill(panel.body, dragged(h('header', { class: 'aichan-head' }, h('h2', {}, 'Ai-chan'), fresh), 'deep', 'wide'), body)
+  fill(panel.body, dragged(h('header', { class: 'aichan-head' }, h('h2', {}, 'Ai-chan'), fresh), 'deep'), body)
   app.append(panel.node)
 
   fresh.addEventListener('click', () => show({ kind: 'new' }))

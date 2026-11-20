@@ -12,7 +12,7 @@ import { fill, h, problem } from './dom.js'
 import { pieces, t } from './i18n.js'
 import { dismiss } from './layers.js'
 import { mountSidebar } from './sidebar.js'
-import { kept, settlePanel, toggleSidebar } from './shell.js'
+import { bar, kept, settlePanel, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
 import './importing.js'
@@ -276,7 +276,8 @@ async function view(mine, parts, query, key) {
   } catch (error) {
     // Said where it happened, and to the console, where whoever is debugging the page looks.
     console.error(error)
-    fill(page, h('div', { class: 'view' }, problem(t('This view failed to open: {why}', { why: error.message }))))
+    // Under a bar, as every view is: the window is moved by it, and Ai-chan's button ends it.
+    fill(page, h('div', { class: 'view' }, bar(), h('div', { class: 'view-scroll' }, problem(t('This view failed to open: {why}', { why: error.message })))))
   }
 }
 
@@ -423,6 +424,7 @@ window.addEventListener('hmz:out', () => {
     h(
       'div',
       { class: 'view' },
+      bar(),
       h(
         'div',
         { class: 'empty' },

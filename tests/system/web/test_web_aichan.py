@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 
     from playwright.sync_api import FloatRect, Locator, Page
 
+    from tests.integration.doubles_web import Site
+
 pytestmark = [
     pytest.mark.parametrize("engine", ENGINES),
     pytest.mark.usefixtures("daemon"),
@@ -183,6 +185,45 @@ def test_ai_chans_button_ends_the_bar_of_every_view(project: Path, engine: str) 
         # No avatar over the drawer itself: her name, and New.
         expect(drawer.locator(".aichan-head img")).to_have_count(0)
         expect(drawer.locator(".aichan-head h2")).to_have_text("Ai-chan")
+
+
+def _fails_to_open(site: Site, engine: str) -> None:
+    """Opens a view whose module is not served, in the macOS app's narrow window."""
+    app = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
+        " (KHTML, like Gecko) humanize-desktop/0.0.0"
+    )
+    with opened(
+        site,
+        engine=engine,
+        width=700,
+        user_agent=app,
+        routed=lambda page: page.route(
+            "**/views/flows.js*", lambda route: route.abort()
+        ),
+    ) as page:
+        page.evaluate("() => { location.hash = '#/flows' }")
+        view = page.locator("[data-hmz=page] .view")
+        expect(view).to_contain_text("This view failed to open")
+        bar = view.locator("[data-hmz=bar]")
+        expect(bar).to_have_attribute("data-tauri-drag-region", "deep")
+        assert _box(bar)["height"] == 44
+        # On a narrow window the sidebar is shown from it, clear of the window's own buttons.
+        assert _box(bar.locator(".bar-side"))["x"] >= 76
+        expect(bar.locator(".bar-actions > *").last).to_have_attribute(
+            "data-hmz", "aichan-toggle"
+        )
+        # Nothing said stands under the bar's row.
+        assert _box(view.locator("[role=alert]").first)["y"] >= 44
+
+
+def test_a_view_that_failed_to_open_is_under_a_bar_with_her_button(
+    project: Path, engine: str
+) -> None:
+    """The one state no view draws: the window is still moved by its bar, which she ends."""
+    # The page says what failed to the console too, which is all that went wrong here.
+    with served() as site, pytest.raises(AssertionError, match="the page went wrong"):
+        _fails_to_open(site, engine)
 
 
 def test_the_new_form_asks_the_scope_and_picks_her_nous_on_a_chip(
@@ -560,6 +601,10 @@ def test_in_the_macos_app_a_narrow_drawers_head_keeps_clear_of_the_lights(
         # Nothing of its head stands under the window's own buttons, and it is the bar's height.
         assert _box(drawer.locator(".aichan-head h2"))["x"] >= lights
         assert _box(drawer.locator(".aichan-head"))["height"] == 44
+        # It is the window's top row there, over the view's bar: the window is moved by it.
+        expect(drawer.locator(".aichan-head")).to_have_attribute(
+            "data-tauri-drag-region", "deep"
+        )
         drawer.get_by_role("button", name="Close panel").click()
     # Beside the view of a wide window it is at the right, and starts where it stands.
     with served() as site, opened(site, engine=engine, user_agent=app) as page:
@@ -567,3 +612,6 @@ def test_in_the_macos_app_a_narrow_drawers_head_keeps_clear_of_the_lights(
         drawer = _drawer(page)
         head = _box(drawer.locator(".aichan-head"))
         assert _box(drawer.locator(".aichan-head h2"))["x"] - head["x"] == 16
+        expect(drawer.locator(".aichan-head")).to_have_attribute(
+            "data-tauri-drag-region", "deep"
+        )
