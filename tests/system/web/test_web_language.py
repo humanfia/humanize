@@ -143,6 +143,73 @@ def test_with_none_chosen_the_page_follows_what_the_browser_asks_for(
         expect(page.locator(".settings-head h3")).to_have_text(heading)
 
 
+@pytest.mark.parametrize(
+    ("asked", "skip", "sidebar", "effort", "gone", "out"),
+    [
+        (
+            "en-US",
+            "Skip to the page",
+            "Chats and epics",
+            "Extra high",
+            "The folder ghost is no longer on this machine. Pick another folder.",
+            "This browser is not let in.",
+        ),
+        (
+            "zh-CN",
+            "跳到页面内容",
+            "聊天与 Epic",
+            "超高",
+            "文件夹 ghost 已不在这台机器上。请另选一个文件夹。",
+            "此浏览器未获准进入。",
+        ),
+        (
+            "zh-TW",
+            "跳至頁面內容",
+            "聊天與 Epic",
+            "超高",
+            "資料夾 ghost 已不在這台機器上。請另選一個資料夾。",
+            "此瀏覽器未獲准進入。",
+        ),
+    ],
+)
+def test_what_every_view_shares_is_said_in_the_pages_language(
+    project: Path,
+    engine: str,
+    asked: str,
+    skip: str,
+    sidebar: str,
+    effort: str,
+    gone: str,
+    out: str,
+) -> None:
+    with served() as site, opened(site, engine=engine, locale=asked) as page:
+        # What index.html says in English before any script runs is said in the language.
+        expect(page.locator("a.skip")).to_have_text(skip)
+        expect(page.locator("#sidebar")).to_have_attribute("aria-label", sidebar)
+        # An effort is the page's own word; a harness and a model keep their vendor's name.
+        said = page.evaluate(
+            """async () => {
+              const names = await import('/names.js')
+              const places = await import('/places.js')
+              return [names.effortName('xhigh'), names.harnessName('claude'),
+                names.modelName('claude-fable-5-2'), places.goneSaid('/work/ghost')]
+            }"""
+        )
+        assert said == [effort, "Claude Code", "Fable 5.2", gone]
+
+        # A browser that is not let in is told so in its language too.
+        browser = page.context.browser
+        assert browser is not None
+        stranger = browser.new_context(locale=asked)
+        try:
+            shut = stranger.new_page()
+            shut.goto(site.address.split("?")[0])
+            expect(shut.locator("#page .empty strong")).to_have_text(out)
+            expect(shut.locator("#page .empty code")).to_have_text("hmz web")
+        finally:
+            stranger.close()
+
+
 def test_a_language_chosen_in_one_tab_is_every_tabs(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         other = page.context.new_page()

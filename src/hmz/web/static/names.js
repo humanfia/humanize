@@ -1,8 +1,12 @@
 // The one table the page names a harness, a model and an effort by (Section 3.4.4.11 of
-// protocol/web.md): each as its vendor writes it, where its id is what `-a` spells -- `claude` is
-// `Claude Code`, `claude-fable-5-2` is `Fable 5.2`, `xhigh` is `Extra high`. An id the table does
-// not hold is said as it is written. Nothing here is drawn and nothing is imported, so that every
-// part of the page says the same name and the table is tested alone.
+// protocol/web.md): a harness and a model as its vendor writes it, where its id is what `-a`
+// spells -- `claude` is `Claude Code`, `claude-fable-5-2` is `Fable 5.2` -- and an effort by the
+// page's own word for it, said in the page's language as every text of the page is: `xhigh` is
+// `Extra high`. An id the table does not hold is said as it is written. Nothing here is drawn
+// and nothing but the page's languages is imported, so that every part of the page says the
+// same name and the table is tested alone.
+
+import { t } from './i18n.js'
 
 /** Every harness Humanize drives, by the name its vendor gives the product. */
 export const HARNESSES = {
@@ -25,20 +29,20 @@ export const HARNESSES = {
 /** The other ids a harness is asked for by (`aliases`, src/hmz/coganchor/backends.py). */
 const ALIASES = { antigravity: 'agy', 'claude-code': 'claude', 'cursor-cli': 'cursor-agent' }
 
-/** Every rung of every harness's ladder; `xhigh` and Cursor's `extra-high` are one name. */
+/** Every rung of every harness's ladder, in the page's language; `xhigh` and Cursor's `extra-high` are one name. `Ultracode` is a product's name, kept as written. */
 export const EFFORTS = {
   ultracode: 'Ultracode',
-  ultra: 'Ultra',
-  max: 'Max',
-  xhigh: 'Extra high',
-  'extra-high': 'Extra high',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-  minimal: 'Minimal',
-  none: 'None',
-  off: 'Off',
-  'as configured': 'As configured',
+  ultra: t('Ultra'),
+  max: t('Max'),
+  xhigh: t('Extra high'),
+  'extra-high': t('Extra high'),
+  high: t('High'),
+  medium: t('Medium'),
+  low: t('Low'),
+  minimal: t('Minimal'),
+  none: t('None@@effort'),
+  off: t('Off'),
+  'as configured': t('As configured'),
 }
 
 /** What an effort is prefixed with to ask for a fleet of subagents: `swarmmax` is `Max swarm`. */
@@ -90,7 +94,7 @@ const MODELS = [
   [/^composer-([0-9.]+)$/, (m) => `Composer ${m[1]}`],
   [/^muse-spark-([0-9.]+)$/, (m) => `Muse Spark ${m[1]}`],
   [/^auto$/, () => 'Auto'],
-  [/^as configured$/, () => 'As configured'],
+  [/^as configured$/, () => t('As configured')],
 ]
 
 /** A harness by its vendor's name for it: `claude` is `Claude Code`; one unknown, as written. */
@@ -141,11 +145,11 @@ export function modelName(id) {
 
 /** An effort by its name: none, or `auto` as an epic writes none down, is the model's own. */
 export function effortName(id) {
-  if (!id || id === 'auto') return 'Default'
+  if (!id || id === 'auto') return t('Default')
   if (Object.hasOwn(EFFORTS, id)) return EFFORTS[id]
   const rung = id.startsWith(SWARM) ? id.slice(SWARM.length) : ''
-  return Object.hasOwn(EFFORTS, rung) ? `${EFFORTS[rung]} swarm` : id
+  return Object.hasOwn(EFFORTS, rung) ? t('{effort} swarm', { effort: EFFORTS[rung] }) : id
 }
 
 /** A flowverse as the page names it: Humanize's own with a capital, another as it was called. */
-export const verseName = (name) => (name === 'official' ? 'Official' : name)
+export const verseName = (name) => (name === 'official' ? t('Official') : name)

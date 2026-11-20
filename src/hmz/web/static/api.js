@@ -6,6 +6,7 @@
 
 import { bridge, claim, connect, ERRORS, local, registry, RpcError, tauri, webrtc } from './rpc/index.js'
 import { fromBase64, toBase64 } from './rpc/pipe.js'
+import { t } from './i18n.js'
 
 /** Where the page is shown: the desktop application's web view, or a browser. */
 const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
@@ -95,7 +96,7 @@ const stateWatchers = new Set()
 export async function client(name = daemon()) {
   if (clients.has(name)) return clients.get(name)
   const entry = name === 'local' ? local() : (await daemons.list()).find((one) => one.name === name)
-  if (!entry) throw new Refused(`There is no daemon ${name}.`, ERRORS.NOT_FOUND)
+  if (!entry) throw new Refused(t('There is no daemon {name}.', { name }), ERRORS.NOT_FOUND)
   if (clients.has(name)) return clients.get(name)
   const made = connect(entry, providers, {
     client: CLIENT,
@@ -169,7 +170,7 @@ export function kindOf(entry) {
   const first = entry.routes[0] || ''
   if (first.startsWith('stdio:ssh')) return 'SSH'
   if (first.startsWith('easytier:')) return 'P2P'
-  return 'Paired'
+  return t('Paired')
 }
 
 /**
@@ -187,13 +188,17 @@ export async function pair(name, code, first, ice = []) {
   }
 }
 
+/** How a daemon is reached, as a failure to reach it says it. */
+const STATES = { idle: t('idle'), connecting: t('connecting'), installing: t('installing'), up: t('up'), failed: t('failed') }
+
 /** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
 function refused(error, name) {
   if (error instanceof Refused) return error
   if (error instanceof RpcError) {
     if (error.code === ERRORS.UNAVAILABLE && name !== 'local') {
-      const { state, detail } = stateOf(name)
-      return new Refused(`${name} is unavailable, ${state}${detail ? `: ${detail}` : '.'}`, error.code, error.data)
+      const { state: now, detail } = stateOf(name)
+      const state = Object.hasOwn(STATES, now) ? STATES[now] : now
+      return new Refused(detail ? t('{name} is unavailable, {state}: {detail}', { name, state, detail }) : t('{name} is unavailable, {state}.', { name, state }), error.code, error.data)
     }
     return new Refused(error.message, error.code, error.data)
   }

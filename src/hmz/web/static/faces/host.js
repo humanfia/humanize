@@ -19,6 +19,7 @@
 // the same name is another session, with a frame of its own.
 
 import { h } from '../dom.js'
+import { t } from '../i18n.js'
 import { PATIENCE_MS, SHOWN, TOKENS, askOf, cached, hashOf, heightOf, jsonOf, mountOf, outcome, overflow, rootRule, sessionOf, titleOf, tokenFor, tokensOf } from './logic.js'
 
 const FRAME = new URL('./frame.html', import.meta.url).href
@@ -34,7 +35,7 @@ const fetched = cached()
 /** Mounts a question's face, or tells the session's mounted one its next ask. */
 export function mountFace(question, { fetchFace, submit, theme, plain, shown, where } = {}) {
   const hash = hashOf(question)
-  if (!hash) throw new Error('This question has no face.')
+  if (!hash) throw new Error(t('This question has no face.'))
   if (typeof fetchFace !== 'function' || typeof submit !== 'function') throw new TypeError('mountFace needs fetchFace and submit.')
   const session = mountOf(where, question.run, sessionOf(question))
   let mount = mounts.get(session)
@@ -134,10 +135,10 @@ class Mount {
     this.timer = 0
     this.sending = false
     this.pongs = new Map()
-    this.label = h('span', { class: 'face-title', 'data-hmz': 'face-title' }, title || 'Custom view')
+    this.label = h('span', { class: 'face-title', 'data-hmz': 'face-title' }, title || t('Custom view'))
     this.note = h('p', { class: 'face-note', role: 'status', 'data-hmz': 'face-note', hidden: true })
-    this.retry = h('button', { type: 'button', class: 'btn quiet small', 'data-hmz': 'face-retry', hidden: true, onclick: () => this.start() }, 'Try again')
-    this.switch = h('button', { type: 'button', class: 'btn quiet small face-switch', 'aria-pressed': 'false', 'data-hmz': 'face-plain', onclick: () => this.choose(!this.plain) }, 'Plain form')
+    this.retry = h('button', { type: 'button', class: 'btn quiet small', 'data-hmz': 'face-retry', hidden: true, onclick: () => this.start() }, t('Try again'))
+    this.switch = h('button', { type: 'button', class: 'btn quiet small face-switch', 'aria-pressed': 'false', 'data-hmz': 'face-plain', onclick: () => this.choose(!this.plain) }, t('Plain form'))
     this.skeleton = h(
       'div',
       { class: 'face-skeleton', 'aria-hidden': 'true', 'data-hmz': 'face-skeleton' },
@@ -148,7 +149,7 @@ class Mount {
     this.stage = h('div', { class: 'face-stage', 'data-hmz': 'face-stage', 'aria-busy': 'true' }, this.skeleton)
     this.el = h(
       'section',
-      { class: 'face', 'data-hmz': 'face', 'data-state': 'loading', 'data-session': session, 'aria-label': title || 'Custom view' },
+      { class: 'face', 'data-hmz': 'face', 'data-state': 'loading', 'data-session': session, 'aria-label': title || t('Custom view') },
       h('header', { class: 'face-bar' }, h('span', { class: 'face-mark', 'aria-hidden': 'true' }, '◇'), this.label, h('span', { class: 'face-gap' }), this.retry, this.switch),
       this.note,
       this.stage,
@@ -203,17 +204,17 @@ class Mount {
       src: FRAME,
       sandbox: 'allow-scripts allow-forms',
       referrerpolicy: 'no-referrer',
-      title: this.title || 'Custom view',
+      title: this.title || t('Custom view'),
       'data-hmz': 'face-frame',
       onload: () => this.loaded(),
     })
     this.frame.style.height = `${heightOf()}px`
     this.stage.append(this.frame)
-    this.timer = setTimeout(() => this.fail('timeout', 'This view took too long to open.'), PATIENCE_MS)
+    this.timer = setTimeout(() => this.fail('timeout', t('This view took too long to open.')), PATIENCE_MS)
     const html = fetched(this.hash, (hash) => this.options.fetchFace(hash))
     this.html = html
     html.catch((error) => {
-      if (this.html === html) this.fail('failed', `This view could not be fetched: ${error instanceof Error ? error.message : error}`)
+      if (this.html === html) this.fail('failed', t('This view could not be fetched: {why}', { why: error instanceof Error ? error.message : error }))
     })
   }
 
@@ -230,7 +231,7 @@ class Mount {
       this.set('loading')
       this.expecting = true
       this.frame.src = FRAME
-      this.timer = setTimeout(() => this.fail('timeout', 'This view took too long to open.'), PATIENCE_MS)
+      this.timer = setTimeout(() => this.fail('timeout', t('This view took too long to open.')), PATIENCE_MS)
       return
     }
     this.expecting = false
@@ -295,14 +296,14 @@ class Mount {
         this.choose(false, 'ready')
       }
     } else if (message.type === 'failed') {
-      if (this.state === 'loading') this.fail('failed', `This view stopped with an error: ${String(message.message || '').slice(0, 200)}`)
+      if (this.state === 'loading') this.fail('failed', t('This view stopped with an error: {why}', { why: String(message.message || '').slice(0, 200) }))
     } else if (message.type === 'height') {
       if (this.frame) this.frame.style.height = `${heightOf(message.height)}px`
     } else if (message.type === 'submit') {
       const id = message.id
       let result
-      if (this.state !== 'ready') result = { ok: false, errors: [{ path: [], message: 'This view is not ready to answer.' }] }
-      else if (this.sending) result = { ok: false, errors: [{ path: [], message: 'An answer is on its way already.' }] }
+      if (this.state !== 'ready') result = { ok: false, errors: [{ path: [], message: t('This view is not ready to answer.') }] }
+      else if (this.sending) result = { ok: false, errors: [{ path: [], message: t('An answer is on its way already.') }] }
       else {
         this.sending = true
         try {
@@ -332,7 +333,7 @@ class Mount {
     this.frame?.remove()
     this.frame = null
     this.stage.removeAttribute('aria-busy')
-    this.note.textContent = `${sentence} The plain form is below.`
+    this.note.textContent = t('{why} The plain form is below.', { why: sentence })
     this.note.hidden = false
     this.retry.hidden = false
     this.switch.hidden = true
@@ -347,7 +348,7 @@ class Mount {
     this.reason = plain ? reason : ''
     this.el.dataset.plain = plain ? 'true' : 'false'
     this.switch.setAttribute('aria-pressed', plain ? 'true' : 'false')
-    this.switch.textContent = plain ? `Back to ${this.title || 'the custom view'}` : 'Plain form'
+    this.switch.textContent = plain ? (this.title ? t('Back to {name}', { name: this.title }) : t('Back to the custom view')) : t('Plain form')
     this.stage.hidden = plain
     if (!changed) return
     try {

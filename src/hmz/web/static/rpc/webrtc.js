@@ -4,6 +4,7 @@
 // the daemon's answer is checked: its certificate must have the daemon id pinned, and its
 // signature over both DTLS fingerprints must verify under that certificate's key.
 
+import { t } from '../i18n.js'
 import { NotPinned } from './client.js'
 import { Pipe, fromBase64, onAbort, toBase32 } from './pipe.js'
 import { routeKind } from './routes.js'
@@ -50,11 +51,11 @@ export function webrtc({
           if (pipe) pipe.end(error.message)
           else reject(error)
         }
-        const stop = onAbort(signal, () => fail(new Error('Given up.')))
+        const stop = onAbort(signal, () => fail(new Error(t('Given up.'))))
 
         relay.onopen = () => relay.send(JSON.stringify({ t: 'join', id, kind: 'webrtc' }))
         relay.onclose = () => {
-          if (!pipe) fail(new Error(`${route} closed.`))
+          if (!pipe) fail(new Error(t('{route} closed.', { route })))
         }
         relay.onmessage = async (event) => {
           let message
@@ -66,7 +67,7 @@ export function webrtc({
           try {
             if (message.t === 'error') fail(new Error(message.why))
             else if (message.t === 'joined') {
-              state('connecting', 'Joined the relay.')
+              state('connecting', t('Joined the relay.'))
               const offer = await peer.createOffer()
               await peer.setLocalDescription(offer)
               offered = peer.localDescription?.sdp ?? offer.sdp ?? ''
@@ -87,7 +88,7 @@ export function webrtc({
           }
         }
         peer.onconnectionstatechange = () => {
-          if (peer.connectionState === 'failed') fail(new Error(`${route} could not connect.`))
+          if (peer.connectionState === 'failed') fail(new Error(t('{route} could not connect.', { route })))
         }
         peer.onicecandidate = (event) => {
           const candidate = event.candidate
@@ -115,10 +116,10 @@ export function webrtc({
           resolve(pipe)
         }
         channel.onmessage = (event) => {
-          if (typeof event.data === 'string') fail(new Error('The daemon sent text.'))
+          if (typeof event.data === 'string') fail(new Error(t('The daemon sent text.')))
           else pipe?.feed(new Uint8Array(event.data))
         }
-        channel.onclose = () => fail(new Error(`${route} closed.`))
+        channel.onclose = () => fail(new Error(t('{route} closed.', { route })))
       })
     },
   }
@@ -136,9 +137,9 @@ const SHA256 = /^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){31}$/
 export function fingerprint(sdp) {
   const lines = [...sdp.matchAll(/^a=fingerprint:(\S+)[ \t]+(\S+)[ \t]*\r?$/gm)]
   const values = new Set(lines.filter(([, name]) => name.toLowerCase() === 'sha-256').map(([, , value]) => value))
-  if (values.size !== 1) throw new Error('A description must say exactly one sha-256 fingerprint.')
+  if (values.size !== 1) throw new Error(t('A description must say exactly one sha-256 fingerprint.'))
   const [value] = values
-  if (!SHA256.test(value)) throw new Error(`${value} is not a sha-256 fingerprint.`)
+  if (!SHA256.test(value)) throw new Error(t('{value} is not a sha-256 fingerprint.', { value }))
   return value
 }
 
@@ -179,7 +180,7 @@ export function publicKeyInfo(der) {
       for (let i = 0; i < count; i++) length = length * 256 + der[start + i]
       start += count
     }
-    if (start + length > der.length) throw new Error('That certificate is not DER.')
+    if (start + length > der.length) throw new Error(t('That certificate is not DER.'))
     return { tag: der[at], start, end: start + length }
   }
   const certificate = element(0)
@@ -188,6 +189,6 @@ export function publicKeyInfo(der) {
   if (element(at).tag === 0xa0) at = element(at).end
   for (let skipped = 0; skipped < 5; skipped++) at = element(at).end
   const spki = element(at)
-  if (spki.tag !== 0x30) throw new Error('That certificate is not DER.')
+  if (spki.tag !== 0x30) throw new Error(t('That certificate is not DER.'))
   return der.slice(at, spki.end)
 }

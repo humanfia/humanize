@@ -3,6 +3,7 @@
 // `webrtc:` routes are opened with, beside the browser's DTLS certificate (Section 4.7.2 of
 // protocol/wire.md). And pairing codes (Section 4.5), read and claimed to add a daemon.
 
+import { t } from '../i18n.js'
 import { fromBase64 } from './pipe.js'
 import { reach } from './client.js'
 import { routeKind } from './routes.js'
@@ -19,14 +20,14 @@ const ID = /^[a-z2-7]{52}$/
  * @param {string} name
  */
 function named(name) {
-  if (typeof name !== 'string' || !NAME.test(name)) throw new Error(`${name} is not a daemon's name: start with a letter or a digit, then letters, digits, ., _ and -.`)
-  if (name === 'local') throw new Error('local is Local\'s name.')
+  if (typeof name !== 'string' || !NAME.test(name)) throw new Error(t('{name} is not a daemon\'s name: start with a letter or a digit, then letters, digits, ., _ and -.', { name }))
+  if (name === 'local') throw new Error(t('local is Local\'s name.'))
 }
 
 /** Refuses an entry whose routes are not routes. */
 function routed(routes) {
-  if (!Array.isArray(routes)) throw new Error('A daemon\'s routes are a list.')
-  for (const route of routes) if (typeof route !== 'string' || !routeKind(route)) throw new Error(`${route} is not a route.`)
+  if (!Array.isArray(routes)) throw new Error(t('A daemon\'s routes are a list.'))
+  for (const route of routes) if (typeof route !== 'string' || !routeKind(route)) throw new Error(t('{route} is not a route.', { route }))
 }
 
 /** A STUN or TURN server's URL, as WebRTC takes one. */
@@ -38,12 +39,12 @@ const ICE = /^(stun|stuns|turn|turns):\S+$/
  * writes them.
  */
 function iced(servers) {
-  if (!Array.isArray(servers)) throw new Error('A daemon\'s STUN and TURN servers are a list.')
+  if (!Array.isArray(servers)) throw new Error(t('A daemon\'s STUN and TURN servers are a list.'))
   for (const one of servers) {
     const urls = one === null || typeof one !== 'object' ? [] : [].concat(one.urls ?? [])
-    if (!urls.length) throw new Error('A STUN or TURN server needs its URL.')
-    for (const url of urls) if (typeof url !== 'string' || !ICE.test(url)) throw new Error(`${url} is not a STUN or TURN server.`)
-    for (const key of ['username', 'credential']) if (one[key] !== undefined && typeof one[key] !== 'string') throw new Error(`A STUN or TURN server's ${key} is text.`)
+    if (!urls.length) throw new Error(t('A STUN or TURN server needs its URL.'))
+    for (const url of urls) if (typeof url !== 'string' || !ICE.test(url)) throw new Error(t('{url} is not a STUN or TURN server.', { url }))
+    for (const key of ['username', 'credential']) if (one[key] !== undefined && typeof one[key] !== 'string') throw new Error(t('A STUN or TURN server\'s {key} is text.', { key }))
   }
 }
 
@@ -158,7 +159,7 @@ export function registry(indexedDB = globalThis.indexedDB) {
       iced(ice)
       return kept('daemons', 'readwrite', (store, done, refuse) =>
         asked(store.get(name), (got) => {
-          if (got) refuse(new Error(`There is already a daemon ${name}.`))
+          if (got) refuse(new Error(t('There is already a daemon {name}.', { name })))
           else asked(store.add(entered({ name, id: id ?? '', routes: [...routes], ice })), done)
         }),
       )
@@ -176,14 +177,14 @@ export function registry(indexedDB = globalThis.indexedDB) {
       if (changes.ice !== undefined) iced(changes.ice)
       return kept('daemons', 'readwrite', (store, done, refuse) =>
         asked(store.get(name), (got) => {
-          if (!got) return refuse(new Error(`There is no daemon ${name}.`))
+          if (!got) return refuse(new Error(t('There is no daemon {name}.', { name })))
           const now = entered({ ...got, ...changes })
           const put = () => {
             if (now.name !== name) store.delete(name)
             asked(store.put(now), done)
           }
           if (now.name === name) put()
-          else asked(store.get(now.name), (taken) => (taken ? refuse(new Error(`There is already a daemon ${now.name}.`)) : put()))
+          else asked(store.get(now.name), (taken) => (taken ? refuse(new Error(t('There is already a daemon {name}.', { name: now.name }))) : put()))
         }),
       )
     },
@@ -228,7 +229,7 @@ function dtls() {
  * @returns {{v: 1, id: string, routes: string[], token: string, expires: number}}
  */
 export function parsePairing(code) {
-  const bad = new Error('That is not a pairing code.')
+  const bad = new Error(t('That is not a pairing code.'))
   const text = code.trim()
   if (!text.startsWith('hmz-pair:')) throw bad
   let read
@@ -262,13 +263,13 @@ export async function claim(store, { name, code, device, first, ice = [] }, prov
   named(name)
   iced(ice)
   const { id, routes, token } = parsePairing(code)
-  if ((await store.list()).some((one) => one.name === name)) throw new Error(`There is already a daemon ${name}.`)
+  if ((await store.list()).some((one) => one.name === name)) throw new Error(t('There is already a daemon {name}.', { name }))
   const entry = entered({ name, id, routes: first ? [first, ...routes.filter((one) => routeKind(one) !== routeKind(first))] : routes, ice })
   const session = await reach(entry, providers, { client })
   try {
     await session.peer.call('pair.claim', { token, name: device })
   } finally {
-    session.peer.close('Claimed.')
+    session.peer.close(t('Claimed.'))
   }
   await store.add(entry)
   return entry

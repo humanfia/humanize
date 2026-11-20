@@ -4,6 +4,8 @@
 // on the page -- and never in any daemon's settings; no list of them is kept. What a notice is
 // of, where it opens, what the system shows of it, and whether it is shown at all, is said here too.
 
+import { t } from './i18n.js'
+
 /** Every kind the user can switch on or off, by its word, as `Notifications` names it. */
 export const KINDS = /** @type {const} */ (['done', 'failed', 'stopped', 'asked', 'listening'])
 
@@ -11,7 +13,7 @@ export const KINDS = /** @type {const} */ (['done', 'failed', 'stopped', 'asked'
 export const STALE = 600
 
 /** What each kind is called. */
-const LABELS = { done: 'Done', failed: 'Failed', stopped: 'Stopped', asked: 'Question', listening: 'Waiting' }
+const LABELS = { done: t('Done'), failed: t('Failed'), stopped: t('Stopped'), asked: t('Question'), listening: t('Waiting') }
 
 /**
  * Which of the user's kinds a notice is: a chat's turn done is a chat turn, as is a flow waiting
@@ -67,7 +69,7 @@ export function preferred(said) {
  * @returns {{title: string, body: string, address: string, tag: string}}
  */
 export function shownAs(item) {
-  const daemon = !item.daemon || item.daemon === 'local' ? 'Local' : item.daemon
+  const daemon = !item.daemon || item.daemon === 'local' ? t('Local') : item.daemon
   const task = String(item.task || '').trim().split('\n')[0]
   const said = lineOf(item.text) || task || of(item)
   const from = item.chat ? task : item.flow

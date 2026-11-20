@@ -475,9 +475,11 @@ the agent that directory last chatted with. It opens a menu:
   list is typed; the **Account** it runs as (**Local** is this machine's own sign-in; **Add
   account…** opens Settings); and **Refresh models**, which asks that harness what it runs again.
 
-Harnesses, models and efforts are named everywhere on the page as their vendors name them --
-`claude` is **Claude Code**, `claude-haiku-4-5` is **Haiku 4.5**, `xhigh` is **Extra high** --
-and one the page has no name for is shown as it is written.
+Harnesses and models are named everywhere on the page as their vendors name them -- `claude` is
+**Claude Code**, `claude-haiku-4-5` is **Haiku 4.5** -- and an effort by the page's own word for
+it, `xhigh` being **Extra high**; one the page has no name for is shown as it is written. The
+word for an effort follows the page's [language](#language); a harness's and a model's name
+never does.
 
 What is picked is an agent as `-a` spells one, `cli[@account]/model[:effort]`; resting the
 pointer on the chip says it in full.
@@ -938,7 +940,8 @@ kept by this browser and the same for every daemon; another browser starts on **
 Some things stay as they were written, whatever the language:
 
 - **Names.** Humanize, Ai-chan, Nous, Epic, Flow, Flowverse, Harness, Daemon, Exomyth, Agent and
-  Worktree, and the names of harnesses and models, are written in Latin script.
+  Worktree, and the names of harnesses and models, are written in Latin script. An effort is
+  translated: **Extra high** is **超高**.
 - **What the page did not write.** Tasks, what agents answer, a flow's own description and
   options, paths, and what a daemon refuses with are shown as they are.
 - **A text not translated yet** is shown in English.
