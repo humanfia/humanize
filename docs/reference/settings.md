@@ -145,7 +145,7 @@ inherits the setup of the installed flow it shadows.
 | `budget` | `{duration, cost, output_tokens, graceful}` | the budget as `Budget.model_dump_json` writes it (`duration` ISO 8601, `cost` `"Infinity"` for unlimited, `graceful` a `bool` or `{duration, cost, output_tokens}` of `bool`s) | validated as a `Budget`; a failure reads as absent |
 | `profile_flow` | `bool`, written only as `true` | whether a run of the flow started from the TUI or the web profiles the flow's own Python, set on the `/flow` menu's **profile flow** row | anything but `true` reads as off |
 | `profile_environment` | `bool`, written only as `true` | whether a run of the flow started from the TUI or the web [profiles](/reference/tracing#profiling-a-run) the programs its agents start, set on the `/flow` menu's **profile environment** row | anything but `true` reads as off |
-| `backup` | `[str]` | the [backup targets](#backup) an epic of the flow goes to, by name, as **Options → Backup** in `hmz web` saved them; `[]` is none | anything but a list reads as absent, which is the defaults; a name settings has no target of is dropped by whoever starts the epic |
+| `backup` | `[str]` | the [backup targets](#backup) an epic of the flow goes to, by name, as **Backup** on the **New epic** form of `hmz web` was started with; `[]` is none | anything but a list reads as absent, which is the defaults; a name settings has no target of is dropped by whoever starts the epic |
 
 **Writing.** Saving `/flow` replaces the flow's whole entry and sets `flow`. `agents` is always
 written; `envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `backup` are

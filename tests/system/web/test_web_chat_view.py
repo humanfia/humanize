@@ -707,8 +707,7 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
             "all => all.map((one) => (one.matches('button, a') ? one :"
             " one.querySelector('button')).getAttribute('aria-label'))"
         ) == [
-            "Environment: Local",
-            "Folder: project",
+            "Environment: Local, project",
             "Nous: Claude Code Haiku 4.5 Default",
             "Permissions: Edit this folder",
             "Usage",
@@ -915,11 +914,12 @@ def test_a_new_epic_with_no_flow_says_so_where_it_is_read(
         # hmz ships no flow: the middle of the page says so, and where one is installed.
         lacking = page.locator("[data-hmz=no-flow]")
         expect(lacking).to_be_visible()
-        expect(lacking).to_contain_text("No flow here yet.")
+        expect(lacking).to_contain_text("No flow installed yet.")
         assert _box(page, "[data-hmz=no-flow]")["height"] > 40
         opens = lacking.locator("[data-hmz=no-flow-open]")
         expect(opens).to_have_text("Open Flows")
-        expect(opens).to_have_attribute("href", re.compile(r"#/flows\?workspace="))
+        # Flows is of no folder: where one is installed, its flowverses.
+        expect(opens).to_have_attribute("href", re.compile(r"#/flows\?tab=verses$"))
         # What picks the flow says there is none, and offers the same.
         picker = page.locator("[data-hmz=flow-picker]")
         expect(picker.locator("b")).to_have_text("None")
@@ -928,7 +928,13 @@ def test_a_new_epic_with_no_flow_says_so_where_it_is_read(
             page.get_by_role("menu", name="Flows").get_by_role("menuitem")
         ).to_have_text(["Open Flows"])
         page.keyboard.press("Escape")
-        expect(page.get_by_role("button", name="Options")).to_be_disabled()
+        # Of what a flow is set up with there is where it runs alone, and no Options.
+        expect(page.get_by_role("button", name="Options", exact=True)).to_have_count(0)
+        expect(page.locator("[data-hmz=options] > *:visible")).to_have_count(1)
+        expect(
+            page.locator("[data-hmz=options] [data-hmz=setup-environment]")
+        ).to_be_visible()
+        expect(page.locator("[data-hmz=options] [data-hmz=role-row]")).to_have_count(0)
         # Started all the same, it is refused with what to do first.
         text = page.locator("[data-hmz=composer-text]")
         text.fill("do it")

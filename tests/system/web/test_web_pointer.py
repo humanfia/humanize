@@ -288,7 +288,8 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
 ) -> None:
     """Opening one popup closes the others; a press outside, Escape or leaving closes it."""
     with served() as site, opened(site, engine=engine, width=1296, height=792) as page:
-        go(page, "/new/chat")
+        # A new epic keeps the daemon and the folder a control each, one by the other.
+        go(page, "/new")
         folders = page.locator("[data-hmz=workspace-picker]")
         where = page.locator("[data-hmz=environment]")
         folders.click()
@@ -333,7 +334,7 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
         folders.click()
         page.get_by_role("menuitem", name="Open folder…").click()
         expect(form).to_be_visible()
-        page.mouse.click(640, 300)
+        page.mouse.click(1000, 600)
         expect(form).to_be_hidden()
         folders.click()
         page.get_by_role("menuitem", name="Open folder…").click()

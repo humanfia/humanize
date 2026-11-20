@@ -173,13 +173,12 @@ async def talk(
 '''
 
 
-#: A new epic of the project's own `talk`: a chat is of no flow, and a flow's epic has options.
+#: A new epic of the project's own `talk`: a chat is of no flow, and a flow's epic is set up.
 _NEW = "/new?flow=%40local%2Ftalk"
 
 
 def _options(page: Page) -> None:
-    """Opens a new epic's options and gives it a budget, without which no flow starts."""
-    page.get_by_role("button", name="Options").click()
+    """Gives a new epic a budget, without which no flow starts: its set-up is in sight."""
     page.get_by_label("Most it may cost, in dollars").fill("5")
 
 
@@ -209,24 +208,46 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
-        role = page.locator("[data-role=assistant]")
-        expect(role.locator("[data-hmz=pick-cli]")).to_have_value("claude")
-        expect(role.locator("[data-hmz=pick-account] option").first).to_have_text(
-            "Local"
+        # The role is a row of the page's middle, in sight with nothing pressed: its
+        # name, and the nous that fills it on a chip.
+        row = page.locator(
+            "[data-hmz=options] [data-hmz=role-row][data-role=assistant]"
         )
-        models = role.locator("[data-hmz=pick-model] option")
-        expect(models).to_have_text(["Haiku 4.5", "Opus 4.1", "Other…"])
-
-        role.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
-        efforts = role.locator("[data-hmz=pick-effort] option")
+        expect(row).to_be_visible()
+        expect(row.locator(".setup-role")).to_have_text("assistant")
+        chip = row.locator("[data-hmz=pick-model]")
+        expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
+        expect(chip).to_have_attribute(
+            "aria-label", "Nous: Claude Code Haiku 4.5 Default"
+        )
+        chip.click()
+        menu = page.get_by_role("menu", name="Nous")
+        # The harnesses that can fill the role, a row a model each runs.
+        expect(menu.locator(".nous-list [data-cli=claude]")).to_have_text(
+            ["Claude Code - Haiku 4.5", "Claude Code - Opus 4.1"]
+        )
+        # Under the chip, its left edge on the chip's: never over the page's bar.
+        chip_box, menu_box = chip.bounding_box(), menu.bounding_box()
+        assert chip_box
+        assert menu_box
+        assert menu_box["y"] >= chip_box["y"] + chip_box["height"]
+        assert abs(menu_box["x"] - chip_box["x"]) <= 1
+        menu.locator("[data-value=claude-opus-4-1]").click()
+        expect(chip).to_have_text("Claude Code Opus 4.1 Default")
+        chip.click()
+        menu.get_by_role("menuitem", name="Effort").click()
+        efforts = page.locator("[data-hmz=pick-effort] [role=menuitem]")
         expect(efforts).to_have_text(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
-        role.locator("[data-hmz=pick-effort]").select_option("max")
-        expect(page.locator(".composer-summary")).to_contain_text(
-            "assistant: Claude Code Opus 4.1 Max"
-        )
+        efforts.nth(2).click()
+        expect(chip).to_have_text("Claude Code Opus 4.1 Max")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
+        # What is set is said where it is set, and nowhere under the box.
+        expect(page.locator(".composer-summary")).to_have_count(0)
+        expect(
+            page.locator("[data-hmz=start] [data-hmz=composer-under] button")
+        ).to_have_count(0)
 
 
 def _centre(node: Locator) -> dict[str, float]:
@@ -384,16 +405,16 @@ def test_a_model_no_cli_would_list_is_typed(
     monkeypatch.setattr(hmz.coganchor.models, "ask", refused)
     with served() as site, opened(site, engine=engine) as page:
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
-        role = page.locator("[data-role=assistant]")
-        expect(role.locator("[data-hmz=agent-picker] .hint")).to_contain_text(
-            "claude is not answering"
-        )
-        typed = role.locator("[data-hmz=pick-model-typed]")
+        chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        chip.click()
+        menu = page.get_by_role("menu", name="Nous")
+        expect(menu).to_contain_text("claude is not answering")
+        menu.get_by_role("menuitem", name="More").click()
+        typed = menu.locator("[data-hmz=pick-model-typed]")
         typed.fill("claude-sonnet-4-5")
-        expect(page.locator(".composer-summary")).to_contain_text(
-            "assistant: Claude Code Sonnet 4.5 Default"
-        )
+        typed.press("Enter")
+        expect(chip).to_have_text("Claude Code Sonnet 4.5 Default")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
 
 
 def _at(page: Page, selector: str) -> FloatRect:
@@ -477,12 +498,16 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         chips = view.locator("[data-hmz=composer-under] button:visible")
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
             "environment",
-            "workspace-picker",
             "pick-model",
             "permission",
             "new-usage",
         ]
-        for at in range(5):
+        # At the left the one chip, and nothing else: no folder control, no box to tick.
+        expect(view.locator("[data-hmz=composer-under] .under-left > *")).to_have_count(
+            1
+        )
+        expect(view.locator("[data-hmz=workspace-picker]")).to_have_count(0)
+        for at in range(4):
             box = chips.nth(at).bounding_box()
             assert box
             assert box["height"] == 24
@@ -510,30 +535,39 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
                 ".scrollWidth <= document.querySelector('[data-hmz=start]"
                 " [data-hmz=composer-under]').clientWidth"
             )
-        expect(view.locator("[data-hmz=environment]")).to_have_text("Local")
+        # Environment is where it runs: the daemon the page shows, then the folder.
+        expect(view.locator("[data-hmz=environment]")).to_have_text(
+            f"Local · {project.name}"
+        )
         # Said, to whoever cannot see it, with what it picks.
         expect(view.locator("[data-hmz=environment]")).to_have_attribute(
-            "aria-label", "Environment: Local"
+            "aria-label", f"Environment: Local, {project.name}"
         )
-        expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
 
-        # Environment is the daemon the page shows, and offers the others.
+        # One menu holds both, each under its heading, and then the worktree.
         view.locator("[data-hmz=environment]").click()
         offered = page.get_by_role("menu", name="Environment")
-        expect(offered.get_by_role("menuitem")).to_have_text(
-            [re.compile("Local"), "New environment"]
-        )
+        expect(offered.locator(".popover-head")).to_have_text(["Runs on", "Folder"])
+        expect(offered.locator("[data-daemon]")).to_have_text([re.compile("Local")])
         expect(offered.locator("[data-daemon=local]")).to_have_class(
             re.compile("chosen")
         )
+        rows = offered.locator("[role=menuitem], [role=menuitemcheckbox]")
+        expect(rows.nth(1)).to_have_text("New environment")
+        # The folder: the ones there are, then opening one, then none; then Worktree.
+        expect(offered.locator("[data-folder].chosen")).to_have_text(project.name)
+        expect(rows.nth(-3)).to_contain_text("Open folder…")
+        expect(rows.nth(-2)).to_contain_text("No folder")
+        expect(rows.nth(-1)).to_have_text("Worktree")
+        # Of the two in force, it opens on the folder.
+        expect(offered.locator("[data-folder].chosen")).to_be_focused()
         # A menu of the desk is a chat app's: a choice of one line is a row of 28px.
         assert _at(page, "[role=menu] [data-daemon=local]")["height"] == 28
-        page.keyboard.press("Escape")
-        # The folder: the recent ones, then opening one, then none.
-        view.locator("[data-hmz=workspace-picker]").click()
-        folders = page.get_by_role("menu", name="Folders").get_by_role("menuitem")
-        expect(folders.nth(-2)).to_contain_text("Open folder…")
-        expect(folders.nth(-1)).to_contain_text("No folder")
+        assert _at(page, "[role=menu] [data-hmz=new-worktree]")["height"] == 28
+        # Over the chip, its lower edge by the chip's upper edge.
+        chip_box, menu_box = _at(page, "[data-hmz=environment]"), offered.bounding_box()
+        assert menu_box
+        assert menu_box["y"] + menu_box["height"] <= chip_box["y"]
         page.keyboard.press("Escape")
 
         # Before there is a chat, Add offers the one prefix the page completes by
@@ -608,33 +642,75 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         picker = _at(page, "[data-hmz=flow-picker]")
         assert 0 <= picker["x"] - (heading["x"] + heading["width"]) <= 12
         # The box docked at the foot, as a new chat's: Add, what is typed and the button
-        # that sends in it, where it runs under it at the left, Options and what is set
-        # at the right.
+        # that sends in it, and nothing under it at either end.
         pane = _at(page, "[data-hmz=new-epic]")
         boxed = _at(page, "[data-hmz=start] .composer-box")
         under = _at(page, "[data-hmz=start] [data-hmz=composer-under]")
         expect(view.locator(".composer-box > *")).to_have_count(3)
         assert under["y"] >= boxed["y"] + boxed["height"]
         assert pane["y"] + pane["height"] - (under["y"] + under["height"]) == 8
-        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + 12
+        expect(view.locator("[data-hmz=composer-under] .under-left > *")).to_have_count(
+            0
+        )
+        expect(
+            view.locator("[data-hmz=composer-under] .under-right > *")
+        ).to_have_count(0)
         # Add offers the files of the folder alone, which `@` completes in a task too.
         view.locator("[data-hmz=composer-add]").click()
         expect(
             page.get_by_role("menu", name="Add").get_by_role("menuitem")
         ).to_have_text(["Add files"])
         page.keyboard.press("Escape")
-        assert _at(page, "[data-hmz=workspace-picker]")["x"] < boxed["x"] + 200
-        options = page.get_by_role("button", name="Options")
-        chip = options.bounding_box()
-        assert chip
-        assert chip["height"] == 24
-        assert abs(chip["x"] + chip["width"] - (boxed["x"] + boxed["width"] - 12)) <= 1
-        # Options opens in the middle of the page, over the box.
-        expect(page.locator("[data-hmz=options]")).to_be_hidden()
-        options.click()
+        # What the flow is set up with is in the middle of the page, over the box, with
+        # nothing pressed: no Options, no Save, and nothing said of it under the box.
+        expect(page.get_by_role("button", name="Options", exact=True)).to_have_count(0)
+        expect(page.get_by_role("button", name="Save")).to_have_count(0)
+        expect(page.locator(".composer-summary")).to_have_count(0)
+        expect(page.locator("[data-hmz=options]")).to_be_visible()
         opened_ = _at(page, "[data-hmz=options]")
         assert opened_["y"] >= 44
         assert opened_["y"] < boxed["y"]
+        # Environment first: the daemon it runs on, then the folder, a row each, the
+        # names in one column and what each picks in the next.
+        first = view.locator("[data-hmz=options] > *").first
+        expect(first).to_have_attribute("data-hmz", "setup-environment")
+        expect(first.locator("h3")).to_have_text("Environment")
+        expect(first.locator(".setup-row > .setup-name")).to_have_text(
+            ["Runs on", "Folder"]
+        )
+        runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=environment]")
+        folder = _at(page, "[data-hmz=setup-folder] [data-hmz=workspace-picker]")
+        assert runs["x"] == folder["x"]
+        assert folder["y"] >= runs["y"] + runs["height"]
+        assert (runs["height"], folder["height"]) == (24, 24)
+        expect(
+            view.locator("[data-hmz=setup-daemon] [data-hmz=environment]")
+        ).to_have_text("Local")
+        expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
+        # Their menus open under them.
+        view.locator("[data-hmz=setup-daemon] [data-hmz=environment]").click()
+        daemons = page.get_by_role("menu", name="Environment")
+        expect(daemons.get_by_role("menuitem")).to_have_text(
+            [re.compile("Local"), "New environment"]
+        )
+        box = daemons.bounding_box()
+        assert box
+        assert box["y"] >= runs["y"] + runs["height"]
+        page.keyboard.press("Escape")
+        view.locator("[data-hmz=workspace-picker]").click()
+        folders = page.get_by_role("menu", name="Folders")
+        expect(folders.get_by_role("menuitem").nth(-2)).to_contain_text("Open folder…")
+        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("No folder")
+        box = folders.bounding_box()
+        assert box
+        assert box["y"] >= folder["y"] + folder["height"]
+        page.keyboard.press("Escape")
+        # Each role of the flow is a line of its own, under the one before it.
+        tops = view.locator("[data-hmz=role-row]").evaluate_all(
+            "all => all.map((one) => one.getBoundingClientRect().top)"
+        )
+        assert tops
+        assert tops == sorted(set(tops))
         expect(view.locator(".greeting, .home-mark")).to_have_count(0)
 
 
@@ -652,7 +728,7 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         )
         assert len(set(inks)) == 3
         expect(chip).to_have_attribute("data-agent", "claude/claude-haiku-4-5")
-        expect(page.get_by_role("button", name="Options")).to_have_count(0)
+        expect(page.get_by_role("button", name="Options", exact=True)).to_have_count(0)
         # Under the box, at its right, before what the chat may touch: never in it.
         chip_box, send_box = chip.bounding_box(), page.locator(".send").bounding_box()
         boxed = page.locator("[data-hmz=start] .composer-box").bounding_box()
@@ -1074,7 +1150,6 @@ def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
     with served() as site, opened(site, engine=engine) as page:
         go(page, f"/epics/{origin}")
         page.get_by_role("link", name="Resume").first.click()
-        page.get_by_role("button", name="Options", exact=True).click()
         minutes = page.get_by_label("Longest it may take, in minutes")
         expect(minutes).to_have_value("525600")
         page.locator("[data-hmz=composer-text]").press("Enter")
@@ -1087,7 +1162,6 @@ def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
 
         # Kept for the flow as settings says a year, and a new epic of it opens on it.
         go(page, "/new?flow=flame_chase")
-        page.get_by_role("button", name="Options", exact=True).click()
         expect(minutes).to_have_value("525600")
 
 
@@ -1631,8 +1705,6 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
         for address in (_NEW, "/flows", "/search", *settings):
             go(page, address)
             page.wait_for_timeout(300)
-            if address.startswith("/new"):
-                page.get_by_role("button", name="Options").click()
             said += page.locator(
                 "button:visible, [role=tab]:visible, [role=menuitem]:visible, "
                 "h2:visible:not(.greeting), h3:visible, .field > .label:visible, "
@@ -1652,24 +1724,58 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
 
 
 @pytest.mark.usefixtures("talking")
-def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -> None:
+def test_a_setup_is_kept_by_starting_an_epic_and_by_nothing_else(
+    project: Path, engine: str
+) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, _NEW)
         _options(page)
-        role = page.locator("[data-role=assistant]")
-        expect(role.locator("[data-hmz=pick-model] option").first).to_have_text(
-            "Haiku 4.5"
-        )
-        role.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
-        page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
-        expect(
-            page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
-        ).to_be_visible()
-
+        chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
+        chip.click()
+        page.get_by_role("menu", name="Nous").locator(
+            "[data-value=claude-opus-4-1]"
+        ).click()
+        expect(chip).to_have_text("Claude Code Opus 4.1 Default")
+        # Nothing saves it but a start: the form holds no Save.
+        expect(page.get_by_role("button", name="Save")).to_have_count(0)
         page.reload()
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
-        expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
+        expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
+        expect(page.get_by_label("Most it may cost, in dollars")).to_have_value("")
+
+        # Started with, it is what a new epic of that flow opens on there.
+        _options(page)
+        chip.click()
+        page.get_by_role("menu", name="Nous").locator(
+            "[data-value=claude-opus-4-1]"
+        ).click()
+        page.locator("[data-hmz=composer-text]").fill("keep this")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(_EPIC)
+        stop(page)
+        go(page, _NEW)
+        expect(chip).to_have_text("Claude Code Opus 4.1 Default")
+        expect(page.get_by_label("Most it may cost, in dollars")).to_have_value("5")
+
+
+@pytest.mark.usefixtures("talking")
+def test_a_start_with_nothing_bounding_it_is_refused_where_the_budget_is_set(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, _NEW)
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_text("Claude Code Haiku 4.5 Default")
+        page.locator("[data-hmz=composer-text]").fill("spend what you like")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        expect(page.locator("[data-hmz=start] .composer-said")).to_contain_text(
+            "Set at least one limit of the budget."
+        )
+        # The keys are where what is missing is set.
+        expect(page.get_by_label("Most it may cost, in dollars")).to_be_focused()
+        assert "#/new" in page.url
 
 
 @pytest.mark.usefixtures("talking")
@@ -1683,7 +1789,7 @@ def test_a_start_says_it_is_starting_until_the_epic_opens(
         _options(page)
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("hold on")
         page.locator("[data-hmz=composer-text]").press("Enter")
         box = page.locator("[data-hmz=start]")
@@ -1734,15 +1840,17 @@ def test_the_flow_and_its_environment_are_profiled_apart(
         expect(environment).not_to_be_checked()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_text("Claude Code Haiku 4.5 Default")
         flow.check()
-        page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
-        expect(
-            page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
-        ).to_be_visible()
+        page.locator("[data-hmz=composer-text]").fill("profile the flow")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(_EPIC)
+        (said,) = wire.params("epic.start")
+        assert (said["profile_flow"], said["profile_environment"]) == (True, False)
+        stop(page)
+        # Kept by the start, each apart.
         page.reload()
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
         expect(flow).to_be_checked()
         expect(environment).not_to_be_checked()
         environment.check()
@@ -1750,7 +1858,7 @@ def test_the_flow_and_its_environment_are_profiled_apart(
         page.locator("[data-hmz=composer-text]").fill("profile me")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(_EPIC)
-        (said,) = wire.params("epic.start")
+        *_, said = wire.params("epic.start")
         assert (said["profile_flow"], said["profile_environment"]) == (True, True)
         stop(page)
 
@@ -1855,7 +1963,7 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         expect(page.locator("[data-hmz=backup] input[value=t]")).to_be_checked()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("back me up")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(_EPIC)

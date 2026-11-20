@@ -78,7 +78,7 @@ The epic remembers which targets it was started with. In `hmz`, the same targets
 written on the [Backup page](/user/settings#backup) of `/settings` -- `/settings backup`
 -- and a flow's **backup** row on `/flow` switches on the ones its epics go to. In
 [`hmz web`](/user/web), add and change targets under **Settings → Backup**, and pick an
-epic's under **Options → Backup** as you start it. Either way the defaults are chosen until
+epic's under **Backup** on the **New epic** form as you start it. Either way the defaults are chosen until
 you save or start the flow with others, and from then on what you chose for that flow in
 that directory is.
 

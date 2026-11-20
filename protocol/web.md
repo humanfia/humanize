@@ -1023,12 +1023,13 @@ ran.
 **3.8.2** The user MUST be able to pick any workspace the daemon shown serves, or to open one by its
 path with completion as it is typed, or to pick no workspace, `No folder`.
 
-**3.8.2.1** The form MUST offer that choice under the box of Section 3.8.5, at its left, as a
-control naming the workspace picked, and MUST NOT offer it in the bar over the form.
+**3.8.2.1** The form MUST offer that choice as `Folder`, a control naming the workspace picked,
+in `Environment` in the middle of the page (Section 3.8.24), and MUST NOT offer it under the box
+of Section 3.8.5 or in the bar over the form.
 
 **3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves whose
-directories are there, each one row named by the last part of its path and saying its path where
-it is pointed at, and after them `Open folder…` and `No folder`.
+directories are there, each one row named by the last part of its path and saying its path, and
+after them `Open folder…` and `No folder`.
 
 **3.8.2.3** The form MUST go on reading which directories are there while it is shown. A workspace
 picked whose directory is not there -- named by the address, or gone since -- MUST stay picked,
@@ -1045,23 +1046,32 @@ alone in the system's temporary directory.
 **3.8.4** The user MUST be able to pick any flow on offer in that workspace.
 
 **3.8.4.1** Where no flow is on offer there, the form MUST say so in the middle of the page, with
-`Open Flows`, which opens the flows of that workspace (Section 3.9); what picks the flow MUST
-offer the same, `Options` MUST be disabled, and starting MUST be refused saying that a flow is
-installed first.
+`Open Flows`, which opens `Flows` (Section 3.9), the one page of every workspace, on its
+flowverses, where a flow is installed from; what picks the flow MUST offer the same, the form MUST then show of what a flow is set up with `Environment`
+alone, and starting MUST be refused saying that a flow is installed first.
 
 **3.8.5** The form MUST offer a box for the task; Enter in it MUST start the epic.
 
-**3.8.6** `Options` MUST hold what the flow is set up with, as that workspace last set it up: for
-each agent role an agent, for each environment role an environment, the parameters, the budget, the
-backup targets, `Profile flow` and `Profile environment`.
+**3.8.6** The form MUST show, in the middle of the page, what the flow is set up with, as that
+workspace last started it: `Environment` first, holding `Runs on`, `Folder` (Section 3.8.2.1) and
+for each environment role an environment; then for each agent role an agent, the parameters, the
+budget, the backup targets, `Profile flow` and `Profile environment`. All of it MUST be in sight
+without a control being pressed: the form MUST NOT hold a control named `Options`, or any other
+that shows or hides what the flow is set up with.
 
-**3.8.7** The form MUST show beside `Options` what is set, bar on a screen as narrow as a phone's,
-where `Options` alone says it once opened.
+**3.8.7** The form MUST NOT say what is set anywhere but where it is set: the row under the box
+MUST NOT name an agent, a role or the budget.
 
 **3.8.8** An agent MUST be set up a part at a time, as Section 4 of [CORE] specifies: a harness
 installed here that can fill the role; the account it runs as, this machine's own or one made, with
 a way to make one; a model known runnable as that account, asking the harness where none is known
 yet and accepting a typed model where it cannot say; and an effort that model takes.
+
+**3.8.8.1** Each agent role MUST be one row of the form, a row a role however many the flow has:
+the role's name at its left, saying `Optional` where the flow does not require it, and beside it
+the chip of Section 3.8.19, which MUST offer only the harnesses installed here that can fill that
+role and whose menu MUST open under the chip, aligned with its left edge. Where no harness
+installed here can fill the role the menu MUST say so.
 
 **3.8.9** An environment MUST be set up a part at a time, as Section 7 of [CORE] specifies: its
 backend, a runtime of that backend saved or made there, and its directory, completed as it is typed
@@ -1070,14 +1080,17 @@ where it is on this machine.
 **3.8.10** Each agent and each environment set up on the form MUST come to what `-a` and `-e` spell,
 as [CLI] specifies.
 
-**3.8.11** The backup targets MUST default to the default targets until a choice is saved.
+**3.8.11** The backup targets MUST default to the default targets until an epic is started with
+another choice.
 
-**3.8.12** `Save` MUST write down what the form holds for that workspace without starting an epic.
+**3.8.12** The form MUST NOT offer to write down what it holds without starting an epic: it MUST
+NOT hold a `Save` button.
 
-**3.8.13** Starting an epic MUST write down what the form holds for that workspace, as `Save` does.
+**3.8.13** Starting an epic MUST write down what the form holds for that workspace (`remember`,
+Section 4.8.2.3 of [DAEMON]), which is what the form next opens on there.
 
-**3.8.14** The form MUST refuse to save or start where a role has no agent, or where no limit bounds
-what the epic spends.
+**3.8.14** The form MUST refuse to start where a required role has no agent, or where no limit
+bounds what the epic spends, and MUST then put the focus where what is missing is set.
 
 **3.8.15** Once the epic starts, the page MUST go to it; for a chat, to its conversation.
 
@@ -1118,21 +1131,28 @@ pixels high holding the heading `New chat` at its left; the box of Section 3.6.6
 foot of the page, in the column a conversation is read in; and between them nothing but the list
 of Section 3.8.23. It MUST NOT draw a greeting, a mark, or a box in the middle of the page.
 
-**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, `Environment`,
-then the workspace control of Section 3.8.2.1 and then `Worktree` (Section 3.8.22.1), and at its
-right the chips of Section 3.8.19 and
+**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, one chip,
+`Environment`, and nothing else, and at its right the chips of Section 3.8.19 and
 Section 3.8.20 and then `Usage`, drawn as the chip of Section 3.6.6.17 is, which MUST open the
 popup of Section 3.6.6.17.1 with no chat's figures: what the workspace picked has used -- every
-workspace's where none is picked -- and the link to `Usage` (Section 3.11.2.12). `Environment` MUST name the daemon the page shows and MUST open a menu of Local and
-every remote daemon this browser keeps, with the one shown marked, and `New environment`, which
-opens the daemons' settings (Section 3.13); picking another daemon MUST switch the page to it
-(Section 3.4.2.4), on the same form.
+workspace's where none is picked -- and the link to `Usage` (Section 3.11.2.12). `Environment`
+MUST name the daemon the page shows and then the workspace picked, as `Local · project`, and
+`No folder` where none is; it is the control of Section 3.8.2 on this form, and what Section
+3.8.2.3 has that control say MUST be said on it. It MUST open one menu holding, in this order:
+under the heading `Runs on`, Local and every remote daemon this browser keeps, with the one shown
+marked, and `New environment`, which opens the daemons' settings (Section 3.13); under the heading
+`Folder`, the workspaces the daemon shown serves whose directories are there, each one row named
+by the last part of its path and saying its path where it is pointed at, with the one picked
+marked, and after them `Open folder…` and `No folder`; and `Worktree` (Section 3.8.22.1). Picking
+another daemon MUST switch the page to it (Section 3.4.2.4), on the same form. The menu MUST open
+with the focus on the workspace picked.
 
-**3.8.22.1** `Worktree` MUST be a checkbox, clear until the user ticks it; ticked, the chat MUST be
-started with `worktree` `true` (Section 4.25.1.8 of [DAEMON]). It MUST be disabled, clear, and say
-why, under `No folder` and where `paths.list` finds `.git` neither in the workspace picked nor in
-any directory over it; where that cannot be told it MUST stay enabled, and a refusal of the start
-MUST be said as any other is (Section 3.4.4.9).
+**3.8.22.1** `Worktree` MUST be a row of that menu that is ticked, clear until the user ticks it,
+and ticking it MUST NOT close the menu; ticked, the chat MUST be started with `worktree` `true`
+(Section 4.25.1.8 of [DAEMON]). It MUST be drawn as switched off, clear, and say why where it is
+pointed at, under `No folder` and where `paths.list` finds `.git` neither in the workspace picked
+nor in any directory over it; where that cannot be told it MUST stay on offer, and a refusal of
+the start MUST be said as any other is (Section 3.4.4.9).
 
 **3.8.23** The form of a new chat MUST list, in the middle of the page, in a list named `Next
 steps` under no heading, each chat marked `asking` (Section 3.5.10) among the 200 newest chats of
@@ -1144,11 +1164,15 @@ list.
 
 **3.8.24** The form of a new epic of a flow MUST be drawn in the frame of Section 3.8.21: the
 heading `New epic`, or `Resume epic`, in the bar with the flow of Section 3.8.4 beside it; what the
-flow is for and `Options` (Section 3.8.6) in the middle of the page; and the box of Section 3.8.5
-docked at the foot, holding only the `Add` button of Section 3.6.6.16, what is typed and the button
-that sends. The row under that box
-MUST hold, at its left, `Environment` (Section 3.8.22) and the workspace control of Section
-3.8.2.1, and at its right what is set (Section 3.8.7) and the button that opens `Options`.
+flow is for and, under it, what it is set up with (Section 3.8.6) in the middle of the page; and
+the box of Section 3.8.5 docked at the foot, holding only the `Add` button of Section 3.6.6.16,
+what is typed and the button that sends. The row under that box MUST hold nothing, neither at its
+left nor at its right. `Environment` MUST be the first part of what the flow is set up with, shown
+whatever flow is picked and where none is: a row `Runs on`, a chip that names the daemon the page
+shows and opens the menu Section 3.8.22 puts under `Runs on`; a row `Folder`, the control of
+Section 3.8.2.1; and then a row for each environment role of the flow picked, named by the role,
+whose directory on this machine, while none is typed, MUST say the workspace picked, where such a
+role left blank works. The menus of `Runs on` and of `Folder` MUST open under their controls.
 
 ### 3.9. Flows
 

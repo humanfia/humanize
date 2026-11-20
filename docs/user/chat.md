@@ -109,7 +109,7 @@ your checkout:
 hmz chat --worktree -a claude/claude-opus-5:high "Try the other parser."
 ```
 
-In `hmz web` it is the **Worktree** box under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
+In `hmz web` it is the **Worktree** row of **Environment**, the chip under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
 a new worktree of the repository holding the directory, detached at its `HEAD` and on no
 branch, under [`envs/`](/reference/files#environments) in Humanize's home, and the agent works
 there in place of the directory. The chat is still a chat of the directory it was started in:

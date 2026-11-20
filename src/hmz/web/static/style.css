@@ -2044,25 +2044,6 @@ input[type='checkbox']:disabled {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
 }
 
-.role {
-  display: grid;
-  gap: var(--space-8);
-  padding: var(--space-12);
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-.role h3 {
-  margin: 0;
-  font: 500 var(--text-sm)/16px var(--sans);
-  color: var(--ink-3);
-  display: flex;
-  gap: var(--space-8);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .check {
   display: inline-flex;
   gap: var(--space-8);
@@ -2952,35 +2933,6 @@ pre.block {
 
 .composer:has(> .composer-bar > .composer-tools:empty) > .composer-said {
   grid-column: 1 / -1;
-}
-
-/* How a flow is set up, said beside what opens its options: each part a tag as high as a chip
-   and quieter than one pressed, cut short where the row has no room for the whole of it. What
-   opens the options after them is never cut. */
-.composer-summary {
-  flex: 0 1 auto;
-  display: flex;
-  gap: var(--space-4);
-  min-width: 0;
-  overflow: hidden;
-}
-
-.composer-summary .chip {
-  flex: 0 1 auto;
-  display: block;
-  min-width: 0;
-  height: var(--control-h-xs);
-  max-width: 260px;
-  border-radius: var(--radius-sm);
-  padding-block: var(--space-4);
-  background: var(--quiet);
-  font: var(--text-xs) / 16px var(--mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.composer-summary ~ .chip-btn {
-  flex: none;
 }
 
 .options.stale {
@@ -5632,10 +5584,6 @@ body:has(> .overlay > .dialog-settings) {
   .settings-nav a {
     height: var(--control-h-sm);
     font-size: var(--text-md);
-  }
-
-  .composer-summary {
-    display: none;
   }
 
   /* What is said for a moment while a dialog fills the window is said at the window's foot,
