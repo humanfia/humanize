@@ -6,13 +6,15 @@
 //
 // `#/envs/live?workspace=…&slot=…&env=<id>&tab=<panel>` is the envs of whichever epic a host
 // holds, at the address of that host, `#/live`, with `envs/` before it (Section 3.16 of
-// protocol/web.md). The same frame, without its list, stands in a chat's side panel (`frame`).
+// protocol/web.md). A chat's says the chat too (`chat=<id>`): where the host it names has gone,
+// the chat is brought up again with nothing said, and its address goes on to the host it is on
+// now. The same frame, without its list, stands in a chat's side panel (`frame`).
 //
 // Each panel is a module of its own, loaded when first opened and kept, hidden, while another is
 // shown -- an editor's tabs and a terminal's screen stay as they were -- and left once another
 // environment is picked. It is given the frame's `ctx` (views/envs/tree.js works out the rest).
 
-import { hash } from '../api.js'
+import { call, hash } from '../api.js'
 import { stays } from '../app.js'
 import { pathOf } from '../chats.js'
 import { empty, fill, h, headline, icon, pathText, problem } from '../dom.js'
@@ -73,8 +75,8 @@ export function confirmed(text, { yes = t('OK'), no = t('Cancel') } = {}) {
 }
 
 /** Why there are no environments to show, as what is followed says it; '' where there may be. */
-function why(seen, name) {
-  if (!name && seen.none) return t('Nothing is going here.')
+function why(seen, name, chat) {
+  if (!name && seen.none) return chat ? t('This chat is no longer at this address.') : t('Nothing is going here.')
   if (name && seen.error && !seen.detail) return seen.error.message
   if (name && seen.detail && !seen.detail.held && !seen.going) return t('This epic is not running: its environments are open only while it runs.')
   return ''
@@ -82,7 +84,7 @@ function why(seen, name) {
 
 export function mount(root, { query }) {
   const name = ''
-  const wanted = { workspace: query.get('workspace') || '', slot: query.get('slot') || '' }
+  const wanted = { workspace: query.get('workspace') || '', slot: query.get('slot') || '', chat: query.get('chat') || '' }
   const head = h('div', { class: 'bar-holder' })
   const body = h('div', { class: 'envs-holder' })
   fill(root, h('div', { class: 'view view-envs', 'data-hmz': 'envs-view' }, head, body))
@@ -92,22 +94,66 @@ export function mount(root, { query }) {
     if (key === titled) return
     titled = key
     const back = detail ? hash(pathOf(detail)) : hash(`/live?${new URLSearchParams(Object.entries(wanted).filter(([, value]) => value))}`)
-    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : wanted.slot.startsWith('chat:') ? t('The chat going') : t('The epic going'))]
+    const sub = [h('a', { href: back, 'data-hmz': 'envs-epic' }, detail ? headline(detail.task) : wanted.slot.startsWith('chat:') ? t('The chat') : t('The epic going'))]
     fill(head, bar({ title: t('Environments'), sub }))
   }
   titling(null)
+  /** Whether the view was left, after which nothing it asked for is taken up. */
+  let left = false
+  /** The environment and panel shown, as the address says them. */
+  let shown = { env: query.get('env') || '', tab: query.get('tab') || '' }
   const made = frame(body, {
-    follow: (told) =>
-      watch(name, wanted, (seen) => {
-        titling(seen.detail)
-        told(seen.held, why(seen, name))
-      }),
-    env: query.get('env') || '',
-    tab: query.get('tab') || '',
-    moved: ({ env, tab }) => stays({ ...wanted, env, tab }),
+    follow: (told) => {
+      /** Whether the chat was brought up again, once, and why it could not be. */
+      let woken = false
+      let asking = false
+      let refused = ''
+      let stop = () => {}
+      const follows = () => {
+        stop = watch(name, { workspace: wanted.workspace, slot: wanted.slot }, (seen) => {
+          titling(seen.detail)
+          // A chat whose host has gone, or goes, is brought up again, with nothing said, where
+          // it is named: once for each host its address comes to.
+          const over = Boolean(wanted.chat) && (seen.none || Boolean(seen.held && seen.held.gone))
+          if (over && !woken) {
+            woken = asking = true
+            call('chat.start', { workspace: wanted.workspace, slot: 'chat:', task: '', resume: wanted.chat }).then(
+              (started) => {
+                asking = false
+                if (left) return
+                // On another host now, or on the one it was on, which let this page go: followed
+                // again there, and brought up again once more should that one go too.
+                woken = started.slot === wanted.slot
+                wanted.slot = started.slot
+                stays({ ...wanted, ...shown })
+                stop()
+                follows()
+              },
+              (error) => {
+                asking = false
+                refused = error.message
+                told(seen.held, refused)
+              },
+            )
+          }
+          const waking = over && asking
+          told(waking ? null : seen.held, waking ? '' : refused || why(seen, name, wanted.slot.startsWith('chat:')))
+        })
+      }
+      follows()
+      return () => stop()
+    },
+    ...shown,
+    moved: (now) => {
+      shown = now
+      stays({ ...wanted, ...now })
+    },
   })
   return {
-    leave: made.leave,
+    leave() {
+      left = true
+      made.leave()
+    },
     /** Another environment, or panel, of the same epic: picked without drawing it all again. */
     moved({ parts: next, query: asked }) {
       if (next[0] !== 'envs') return false
@@ -500,7 +546,7 @@ export function frame(el, { follow, env: askedEnv = '', tab: askedTab = '', move
           ? problem(state.gone)
           : reading
             ? h('p', { class: 'loading', role: 'status' }, nothing)
-            : empty(nothing, t(' Environments are listed here while the epic or chat that opened them runs.')),
+            : empty(nothing, note ? '' : t(' Environments are listed here while the epic that opened them runs.')),
       )
       head.hidden = tabs.hidden = panes.hidden = true
       return

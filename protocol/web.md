@@ -408,7 +408,8 @@ browser which questions were seen.
 
 **3.5.10** An epic that another process is going with, outside any host, MUST be marked as going and
 MUST NOT be marked `live`. A chat MUST be marked only `running` while a turn is open, `asking`,
-`failed`, or otherwise `stopped`, and MUST NOT be marked `live`. A chat that folds away while this
+`failed`, or otherwise `stopped`, and MUST NOT be marked `live`: whether a host holds a chat MUST
+NOT be shown, and a chat MUST NOT be counted among the epics going. A chat that folds away while this
 browser has not seen what it last waited on MUST stay `asking` until that is seen, and the page MUST
 remember in this browser what each chat last waited on until a turn of it opens.
 
@@ -494,10 +495,11 @@ too, unless it says otherwise. The page MUST NOT ask `runs.*` for a chat.
 epic's.
 
 **3.5.20.2** A chat's row MUST be marked (3.5.10) from its `state`: a turn open while it is `turn`
-or `asking`, between turns while it is `going`, `failed` where it is `failed`, and `stopped`
-otherwise. What a chat a host holds waits on MUST be read from `hosts.running`, by the chat's id,
+or `asking`, `failed` where it is `failed`, and `stopped` otherwise, `going` and `resting` alike.
+What a chat a host holds waits on MUST be read from `hosts.running`, by the chat's id,
 so that what it waits on between turns is marked `asking` until this browser has seen it. Sorted
-by `Last updated` (3.5.17.2), a chat that rests MUST stand by its `updated`.
+by `Last updated` (3.5.17.2), a chat MUST stand by its `updated`, whether or not a host holds it,
+and a host holding a chat MUST NOT put its folder before another.
 
 **3.5.20.3** A chat an earlier hmz recorded as an epic is a chat as any other once the daemon has
 moved it (Section 8.7.10 of [CORE]), under the name that epic had: the page MUST list, find and
@@ -638,16 +640,23 @@ conversation.
 **3.6.6.3** The page MUST NOT draw what a chat waits for between turns as a question.
 
 **3.6.6.4** The page MUST NOT offer, for a chat, a graph, its agents or sessions, its Exomyth, its
-people, or a way to end it; its open turn is stopped as Section 3.6.6.21 states. It MUST offer, beside the conversation of a chat a host holds, a side
+people, or a way to end it; its open turn is stopped as Section 3.6.6.21 states. It MUST offer, beside the conversation of every chat, whether or not a host holds it, a side
 panel `Environment` that the user can hide and show, holding the Environments view of the chat's
-envs (Section 3.17) and a link to that view on its own.
+envs (Section 3.17) and a link to that view on its own. Shown for a chat no host holds, the panel
+MUST carry the chat on with nothing said (`chat.start` with `resume` the chat's id and an empty
+`task`, Section 4.25.1.9 of [DAEMON]), saying nothing of it but that it is opening, and MUST then
+show the chat's envs as that host lists them; where the daemon refuses -- the chat's folder is
+gone, say -- the panel MUST say why, and MUST ask again when a pane of it is next asked for.
 
 **3.6.6.5** Each chat MUST go on a host of its own, beside every other chat and every flow of its
 workspace; starting a chat or an epic MUST NOT end another.
 
-**3.6.6.6** A chat that has folded away MUST be carried on, the same chat, when the user says
-something in it -- by `chat.start` with `resume` the chat's id -- with what was said before drawn
-above.
+**3.6.6.6** The page MUST offer the box of every chat, whatever its `state`, and MUST NOT say of a
+chat that it is going, at rest, or cannot be continued. A chat no host holds MUST be carried on,
+the same chat, when the user says something in it -- by `chat.start` with `resume` the chat's id
+-- with what was said before drawn above; one a host holds, the one Section 3.6.6.4 brought up
+among them, MUST be said it by `chat.say`. What the daemon refuses MUST be said in the daemon's
+own sentence.
 
 **3.6.6.7** The box under a chat MUST complete `/`, `$` and `@` from the chat's catalogue, the names
 hmz keeps and the flows (`chat.commands`, Section 4 of [DAEMON]), each tagged with where it comes
@@ -664,8 +673,8 @@ The page MUST NOT draw that choice on the bar itself.
 **3.6.6.10** The bar of a chat MUST hold, at its left, the chat's title as a button that renames
 the chat (Section 3.6.6.23), and right after it one menu, `More options`; and at its far right the buttons
 of Section 3.6.6.19, with which the bar MUST end (Section 3.16.1). The menu MUST offer what the
-chat's right-click menu offers (Section 3.4.4.1), the chat's `Environment` (Section 3.6.6.4) where
-its host has one, and the choice of Section 3.6.6.9. The bar MUST NOT say how the chat stands
+chat's right-click menu offers (Section 3.4.4.1), the chat's `Environment` (Section 3.6.6.4),
+and the choice of Section 3.6.6.9. The bar MUST NOT say how the chat stands
 (Section 3.6.6.18).
 
 **3.6.6.11** The panel beside a chat MUST show one pane at a time, picked on the chat's bar
@@ -751,9 +760,9 @@ options` holding `Side questions` and `Board` while the chat keeps one (Section 
 while it is the one shown, and last Ai-chan's button (Section 3.16.1). `Details`, `Side
 questions` and `Board` MUST open the panel beside the chat on that pane (Section 3.6.6.11); `Terminal`, `Changes` and
 `Files` MUST open it on the chat's
-`Environment` (Section 3.6.6.4) at that panel (Section 3.17), and MUST be disabled while the chat
-has no such panel, saying whether that is for want of a host or of such a panel in its
-environment. A button MUST say whether its pane is the one open, and pressing the one open MUST
+`Environment` (Section 3.6.6.4) at that panel (Section 3.17), whether or not a host holds the
+chat, and MUST be disabled only where the chat's environment, once read, keeps no such panel,
+saying so. A button MUST say whether its pane is the one open, and pressing the one open MUST
 shut the panel. Where the panel stands beside the chat, the bar MUST run over both, so that a
 button stays where it is as its pane opens and shuts.
 
@@ -1274,7 +1283,7 @@ either set, `All` MUST list epics alone. The counts by how it went MUST be of th
 
 **3.10.7** Each epic found MUST be one line: its task, then quietly how it stands, its workspace and
 when it began. How it stands MUST be said in the words its row in the sidebar says it in (Section
-3.5.15 for a chat, which says nothing while it rests, and `Awaiting input` in words while it
+3.5.15 for a chat, which says nothing between turns, and `Awaiting input` in words while it
 waits on the user), there and wherever else `Search` says it.
 What was found MUST stand under a quiet heading, `Recents` where nothing narrows the list and
 `Results` otherwise, with which of how many are listed; under it MUST stand `Actions`: `New chat`
@@ -1529,7 +1538,8 @@ one MUST fail.
 `Daemon` settings pages MUST be of the daemon shown.
 
 **3.13.13** The daemon bar MUST show the daemon shown, its host, whether it is reached, and how many
-chats and epics are going on it, an Ai-chan conversation (Section 14 of [CORE]) not counted.
+epics are going on it, a chat (Section 3.5.10) and an Ai-chan conversation (Section 14 of [CORE])
+not counted.
 
 **3.13.14** A click on the daemon bar MUST open its menu: `Daemon`, which opens beside it every
 daemon and its state; then `Settings` and `Usage`; and `Update` where a newer release of hmz is out.
@@ -1698,7 +1708,10 @@ button MUST close it.
 **3.17.1.1** The page MUST offer, for every epic a host holds, the Environments view of its envs, as
 Section 7.13 of [CORE] specifies, at the address of the epic's host, `#/live?workspace=…&slot=…`,
 with `envs/` before `live` and the query parameters `env`, the `id` of the env shown (Section
-4.24.2 of [DAEMON]), and `tab`, the panel shown: `files`, `terminal` or `changes`.
+4.24.2 of [DAEMON]), and `tab`, the panel shown: `files`, `terminal` or `changes`. A chat's address
+MUST also carry `chat`, the chat's id: where the host it names has gone, the view MUST carry the
+chat on with nothing said (Section 3.6.6.4), MUST show its envs on the host that then holds it,
+and MUST put that host in the address.
 
 **3.17.1.2** The view MUST list the envs of the snapshot `envs` as a tree: grouped by role, each
 derived env under the env it was derived from, each named by its chain and marked where it is

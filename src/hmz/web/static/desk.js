@@ -111,18 +111,17 @@ export function chipNamed(what, value = '') {
 }
 
 /**
- * What a pane's button says where pointed at: its name, or why it cannot be opened -- no host
- * holds the chat, so it has no environment now, or the environment it has keeps no such panel.
+ * What a pane's button says where pointed at: its name, or why it cannot be opened -- the
+ * environment the chat works in keeps no such panel. Whether a host holds the chat is never
+ * why: its environment is brought up as a pane of it is opened.
  *
  * @param {string} key The pane, by its key in `PANES`.
- * @param {boolean} has Whether the chat has that pane now.
- * @param {boolean} held Whether a host holds the chat.
+ * @param {boolean} has Whether the chat's environment keeps that pane, as far as is known.
  */
-export function paneSaid(key, has, held) {
+export function paneSaid(key, has) {
   const pane = PANES.find((one) => one.key === key)
   if (!pane) return ''
-  if (has) return pane.label
-  return UNOPENED[key][held ? 0 : 1]
+  return has ? pane.label : UNOPENED[key]
 }
 
 /** A count of tokens short enough for a narrow column, as the runs' own figures cut one short. */
@@ -233,13 +232,13 @@ export const PANES = [
 
 /**
  * Why a pane cannot be opened, by its key in `PANES`: the environment the chat has keeps no such
- * panel, or no host holds the chat.
+ * panel. `Details` is the chat's own, and always opens.
  */
 const UNOPENED = {
-  details: [t('No details in this environment'), t('Details opens once the chat goes on')],
-  terminal: [t('No terminal in this environment'), t('Terminal opens once the chat goes on')],
-  changes: [t('No changes in this environment'), t('Changes opens once the chat goes on')],
-  files: [t('No files in this environment'), t('Files opens once the chat goes on')],
+  details: '',
+  terminal: t('No terminal in this environment'),
+  changes: t('No changes in this environment'),
+  files: t('No files in this environment'),
 }
 
 /**

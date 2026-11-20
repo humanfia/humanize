@@ -348,7 +348,7 @@ export function mount(root, { query }) {
                   option(
                     h(
                       'a',
-                      { class: ['result', run.held && 'held'], href: hash(pathOf(run)), 'data-hmz': 'epic', 'data-kind': run.kind },
+                      { class: ['result', run.held && run.kind !== 'chat' && 'held'], href: hash(pathOf(run)), 'data-hmz': 'epic', 'data-kind': run.kind },
                       // Said whole where pointed at, where its one line is not all of it.
                       h('span', { class: 'result-task', title: run.task }, headline(run.task)),
                       // Toned as the sidebar's row says it: one that waits on its person stands out.

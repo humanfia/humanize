@@ -73,11 +73,12 @@ test('a chip is called by what it picks and what is picked', () => {
   assert.equal(chipNamed('Usage', ''), 'Usage')
 })
 
-test('a pane that cannot be opened says which of the two reasons it is', () => {
-  assert.equal(paneSaid('terminal', true, true), 'Terminal')
-  assert.equal(paneSaid('terminal', false, true), 'No terminal in this environment')
-  assert.equal(paneSaid('changes', false, false), 'Changes opens once the chat goes on')
-  assert.equal(paneSaid('nothing', false, false), '')
+test('a pane that cannot be opened says its environment keeps none, and never that the chat is not going', () => {
+  assert.equal(paneSaid('terminal', true), 'Terminal')
+  assert.equal(paneSaid('terminal', false), 'No terminal in this environment')
+  assert.equal(paneSaid('changes', false), 'No changes in this environment')
+  assert.equal(paneSaid('files', false), 'No files in this environment')
+  assert.equal(paneSaid('nothing', false), '')
 })
 
 test('what is dismissed is kept once, the latest last, and no more than asked', () => {

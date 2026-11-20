@@ -336,25 +336,39 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             assert _call(page, "chat.list", {"archived": True})["chats"] == []
 
 
-def test_what_the_daemon_refuses_of_a_chat_going_is_said_in_its_words(
+def test_a_chat_is_deleted_between_turns_and_refused_only_while_its_turn_is_open(
     project: Path, engine: str
 ) -> None:
     with served() as site:
-        name = _chatted(site, "still going", stopped=False)
+        name = _chatted(site, "still here", stopped=False)
         with opened(site, engine=engine, width=1280, height=800) as page:
             go(page, f"/chats/{name}")
-            expect(_title(page)).to_have_text("still going")
+            expect(_title(page)).to_have_text("still here")
+            # A turn open: what the daemon refuses is said in its words.
+            button = page.locator("[data-hmz=say] .send")
+            say = page.locator("[data-hmz=say] textarea")
+            say.fill('run: [["sleep", "60"]]')
+            say.press("Enter")
+            expect(button).to_have_attribute("aria-label", "Stop")
             _bar_menu(page).get_by_role("menuitem", name="Delete").click()
             dialog = page.locator("[data-hmz=dialog-delete]")
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog.locator(".delete-said")).to_have_text(
-                f"Chat {name} is going on; delete it once it rests."
+                f"Chat {name} has a turn open; delete it once it is done."
             )
             # The chat stays, and so does the dialog, to be cancelled.
             dialog.locator("[data-hmz=delete-cancel]").click()
             expect(dialog).to_have_count(0)
             assert _call(page, "chat.get", {"chat": name})["id"] == name
-            stop(page)
+
+            # Between turns, a host holding it is no reason to keep it: it is deleted.
+            button.click()
+            expect(button).to_have_attribute("aria-label", "Send")
+            assert _call(page, "chat.get", {"chat": name})["slot"]
+            _bar_menu(page).get_by_role("menuitem", name="Delete").click()
+            dialog.locator("[data-hmz=delete-confirm]").click()
+            expect(page.locator("div[data-hmz=new-chat]")).to_be_visible()
+            assert _call(page, "chat.list")["chats"] == []
 
 
 def _git(at: Path, *argv: str) -> None:

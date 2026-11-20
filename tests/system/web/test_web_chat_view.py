@@ -311,12 +311,12 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         assert bar.locator(".bar-actions > *").last.get_attribute("data-hmz") == (
             "aichan-toggle"
         )
-        # Its host holds no environment for it: its three panes are said, cannot open,
-        # and say why.
+        # Its host has listed no environment for it yet: its three panes are said and
+        # open all the same, for want of a host or of a listing shuts none.
         for pane in ("terminal", "changes", "files"):
-            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_be_disabled()
+            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_be_enabled()
             expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_have_attribute(
-                "title", f"No {pane} in this environment"
+                "title", pane.capitalize()
             )
 
         # Nothing is said over its box of how it stands while it only answers: neither
@@ -703,6 +703,43 @@ def test_the_button_of_a_chats_box_stops_the_turn_open(
         wire.event(_SUB, _run("done"))
         expect(button).to_have_attribute("aria-label", "Send")
         expect(button).to_have_attribute("data-hmz", "send")
+
+
+def test_a_chat_whose_folder_has_gone_says_so_in_the_pane_asked_for(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    wire.faked["chat.start"] = lambda _: {
+        "error": {"code": 404, "message": f"There is no directory {_FAKE}."}
+    }
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, f"/chats/{_OLD}")
+        bar = page.locator("[data-hmz=bar]")
+        expect(bar.locator("[data-hmz=chat-title]")).to_have_text("an old chat")
+        # No host holds it, and nothing says so: every pane is offered.
+        for pane in ("terminal", "changes", "files"):
+            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_be_enabled()
+        expect(page.locator("[data-hmz=dock] textarea")).to_have_count(1)
+
+        # Its folder is asked for with nothing said, and why it is not there is said.
+        bar.locator("[data-hmz=pane-terminal]").click()
+        pane = page.locator("[data-hmz=inspector]")
+        expect(pane.locator("[data-hmz=pane-title]")).to_have_text("Terminal")
+        expect(pane).to_contain_text(
+            "The folder fake-workspace is no longer on this machine."
+        )
+        asked = wire.params("chat.start")
+        assert [(one["task"], one["resume"], one["slot"]) for one in asked] == [
+            ("", _OLD, "chat:")
+        ]
+        # Asked for again, it is tried again; its buttons stay as they were.
+        bar.locator("[data-hmz=pane-files]").click()
+        expect(pane).to_contain_text(
+            "The folder fake-workspace is no longer on this machine."
+        )
+        assert len(wire.params("chat.start")) == 2
+        for one in ("terminal", "changes", "files"):
+            expect(bar.locator(f"[data-hmz=pane-{one}]")).to_be_enabled()
 
 
 def test_an_address_of_the_epic_a_chat_was_recorded_as_opens_the_chat(

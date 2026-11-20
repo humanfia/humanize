@@ -62,12 +62,12 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back** and **Forward**; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark at its far end -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Failed** where it failed, a small dot -- the one an unread row has, said as `Awaiting input` where you point at it -- while it waits on you, and nothing once it rests; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
+| **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back** and **Forward**; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark at its far end -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Failed** where it failed, a small dot -- the one an unread row has, said as `Awaiting input` where you point at it -- while it waits on you, and nothing between turns; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
 | **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A plain heading at the top, the chats that wait on you listed in the middle, and at the foot a box for the first message or the task. A chat keeps where it runs under the box at the left, on one chip, **Environment**; an epic has the flow picked beside the heading and everything it is set up with in the middle of the page, its **Environment** first | Start it; a chat's model and what it may touch are picked from the chips under the box at its right, and an epic's set-up is in sight over its box. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer -- those installed from a flowverse and your own, whatever the directory -- its release and any newer one, and, one chosen, what it declares under the cards. The page is the daemon's and no folder's: it lists no folder's own flows, which [a new epic](#starting-an-epic) in that folder offers. Where none is installed yet it says so, with **Browse Flowverses**. **Flowverses**: a tab for each index flows are installed from, **Official** first and open at once, showing where it is fetched from and every release it lists | Start one, update or uninstall it; install, switch or uninstall a release; fetch a flowverse again with the arrow after its name, add one with **+** after the tabs, or remove one. A row of tabs is one stop of <kbd>Tab</kbd>: <kbd>←</kbd> <kbd>→</kbd>, <kbd>Home</kbd> and <kbd>End</kbd> move among its tabs, <kbd>Enter</kbd> picks |
-| **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | A box over the middle of the window: the field, the tabs **All**, **Chats** and **Epics**, then every chat and epic a line apiece, newest first, each saying how it stands in the words its row in the sidebar says it in -- a chat that rests says nothing -- and under them **Actions**, which stay in sight however many were found. Once you move to one, by key or pointer, a line over the foot says the rest of it: its folder, flow, agents, what it spent and how long it took; on a phone or a touch screen that stands under each | Type a word of the task; <kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens (what you typed, even before it is listed), <kbd>Alt</kbd> <kbd>Enter</kbd> (<kbd>⌥</kbd> on a Mac) or the menu key opens the menu of the one you are on, <kbd>Esc</kbd> closes, and gives the keys back to where they were -- the box you were typing into; <kbd>Tab</kbd> stays within it; <kbd>←</kbd> <kbd>→</kbd> change the tab and <kbd>/</kbd> opens **Filters** -- how it went, folder, and, off **Chats**, flow -- while the field is empty; **New chat** or **Import** under **Actions**. Search leaves no step behind: **Back** after it is closed goes to what was open before, and from a chat it opened to the view it was opened over. See [Importing an epic](#importing-an-epic) |
+| **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | A box over the middle of the window: the field, the tabs **All**, **Chats** and **Epics**, then every chat and epic a line apiece, newest first, each saying how it stands in the words its row in the sidebar says it in -- a chat between turns says nothing -- and under them **Actions**, which stay in sight however many were found. Once you move to one, by key or pointer, a line over the foot says the rest of it: its folder, flow, agents, what it spent and how long it took; on a phone or a touch screen that stands under each | Type a word of the task; <kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens (what you typed, even before it is listed), <kbd>Alt</kbd> <kbd>Enter</kbd> (<kbd>⌥</kbd> on a Mac) or the menu key opens the menu of the one you are on, <kbd>Esc</kbd> closes, and gives the keys back to where they were -- the box you were typing into; <kbd>Tab</kbd> stays within it; <kbd>←</kbd> <kbd>→</kbd> change the tab and <kbd>/</kbd> opens **Filters** -- how it went, folder, and, off **Chats**, flow -- while the field is empty; **New chat** or **Import** under **Actions**. Search leaves no step behind: **Back** after it is closed goes to what was open before, and from a chat it opened to the view it was opened over. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar is one row: the [daemon bar](#daemon-bar) and, beside it, a gear that
@@ -104,7 +104,7 @@ A heading is always there to hold it: with nothing to show, a group says **Nothi
 | Choice | What it does |
 | --- | --- |
 | **Group by** | **Folder** (as it starts): a heading per directory, and **No folder** last for what has none. **Date**: **Today**, **Yesterday**, **Last 7 days**, **Last 30 days**, **Older**. **None**: one list. By date or as one list, the directories stand last under **Folders**, a row each: click one for a new chat there, and right-click it, or press **More options**, for what a directory's heading offers |
-| **Sort by** | **Last updated** (as it starts): what is going first, then by when each ended. **Created**: by when each began |
+| **Sort by** | **Last updated** (as it starts): an epic going first, then by when each ended -- a chat by when it was last said to or answered, whether or not the daemon holds it now. **Created**: by when each began |
 | **Show** | **Chats** and **Epics**, each on or off: off, the list leaves them out |
 | **Reset to defaults** | By folder, last updated first, chats and epics both |
 
@@ -246,12 +246,16 @@ between turns it is your next turn, and while the agent asks something mid-turn 
 that, the answers it offers buttons under its question, at the end of the conversation. It has no graph, no agents
 or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and nothing
 that ends it: it is `running` while its agent answers and `stopped` once the turn ends -- asking,
-blinking, until you have looked at it, even once it has folded away. A chat is no epic: it is
+blinking, until you have looked at it. A chat is never shown as going or at rest: it is
+always ready, to be said something and for its terminal, its changes and its files to be opened.
+A chat is no epic: it is
 kept as a record of its own, listed beside the epics, and its address is `#/chats/<id>`. Every
 chat is its own, beside every other chat and flow of its directory: a new chat, or a new epic,
-leaves the last one going, as a chat app's new chat does. A chat nobody has looked at for a
-minute between turns folds away; say something in it and it carries on, the same chat, with what
-was said before still above and an agent that remembers it. A turn that could not be taken
+leaves the last one as it is, as a chat app's new chat does. Behind the page, the daemon lets
+go of a chat nobody has looked at for a minute between turns and brings it back as it is asked
+for, and nothing on the page says which it is: say something in it and it carries on, the same
+chat, with what was said before still above and an agent that remembers it; open a pane of its
+environment and its folder is brought up with nothing said, and nothing written into the chat. A turn that could not be taken
 says so in the conversation, with why, and the chat waits for your next line. Where the
 conversation itself cannot be carried on, the chat says why and answers what you said in a
 new one. A chat an earlier Humanize wrote down as an epic is
@@ -288,7 +292,10 @@ A chat reads as a chat app's session. Its bar holds its title -- a button: press
 conversation and shuts it again -- the bar runs over the pane too, so the button stays where
 you pressed it: **Details** is what the chat is, and the other three are the
 terminal, the changes and the files of the [environment](/features/environments) it works in, there
-while a host holds the chat; one that cannot open says why where you point at it. **View
+for every chat, however long ago it was last said to: the folder is brought up as the pane opens,
+and the pane says why where it cannot be -- the chat's folder is no longer on this machine, say.
+A button is off only where the environment keeps no such panel -- **Changes** in a folder that is
+no git repository -- and says so where you point at it. **View
 options** holds **Side questions**, and **Board** while the chat keeps one. The pane open is headed by its name and has no tabs of its own:
 the bar picks it. No pane is open until you open one. **Details** says what the chat has
 used, its first message, where it works and what it is; it counts no sessions and names none.
@@ -298,8 +305,7 @@ of how it stands but that it failed. While a turn is open the button that sends 
 the chat stays, waiting for your next line; what you type and send with <kbd>Enter</kbd>
 meanwhile is still delivered to that turn. The menu holds what a right click on the chat offers
 -- **Rename**, a new chat like it, **Fork**, copying its link, **Upload**, **Archive** and
-**Delete** -- with **Environment** while a host
-holds it, and **Skill or flow**: whether a `$` name that is both a skill and a flow uses the
+**Delete** -- with **Environment**, and **Skill or flow**: whether a `$` name that is both a skill and a flow uses the
 skill or starts the flow, with a mark on the one in force and whether that comes from the
 settings or from this chat. Picking the other sets this chat's own
 [preference](/user/chat#a-name-that-is-both), as `/prefer` does.
@@ -319,14 +325,14 @@ a right click on it, and the `⋯` menu of its bar.
 | | What it does |
 | --- | --- |
 | **Rename** | Turns the title into a field, where it stands: on the chat's bar -- pressing the title there does the same -- or in its row of the sidebar. <kbd>Enter</kbd>, or clicking away, saves it; <kbd>Esc</kbd> leaves it as it was. The bar and the row both follow |
-| **Fork** | Makes a new chat from a copy of the conversation so far and opens it; it rests until you say something in it. Refused while a turn is open, in the daemon's own words |
+| **Fork** | Makes a new chat from a copy of the conversation so far and opens it, ready to be said something. Refused while a turn is open, in the daemon's own words |
 | **Archive** | Takes the chat off the sidebar and out of Search, and changes nothing else of it. Still open, or opened again by its address, it reads as before, with **Unarchive** on its bar (in a narrow window, in its menu alone) and in its menu. The archived chats of a directory are listed in [Settings](#settings) under **Workspace**, each with **Unarchive** and **Delete** |
-| **Delete** | Asks first, in a dialog: deleting permanently removes the chat's record and the sessions kept with it, cannot be undone, and leaves a worktree the chat worked in on disk. **Cancel**, <kbd>Esc</kbd> or **Delete**. A chat still going -- a host holds it, between turns included -- is refused, in the daemon's own words: delete it once it has folded away. Deleted from its own view, the page opens a new chat |
+| **Delete** | Asks first, in a dialog: deleting permanently removes the chat's record and the sessions kept with it, cannot be undone, and leaves a worktree the chat worked in on disk. **Cancel**, <kbd>Esc</kbd> or **Delete**. A chat whose turn is open is refused, in the daemon's own words: stop the turn, or delete it once the turn is done. Deleted from its own view, the page opens a new chat |
 
 The next chip under the box names what the chat's agent may touch -- **Read only**, **Edit
 this folder** or **Full access** -- and opens a menu of the three, the one in force checked.
 Picking another sets the chat's [permission](/user/chat#permission) from your next message; on
-a chat that has folded away, it is what the chat is carried on with. The last is **Usage**, a
+a chat the daemon has let go of, it is what the chat is carried on with. The last is **Usage**, a
 ring with no figure beside it: click it for a small popup by the ring -- what this chat has spent, its tokens and
 how long it has run, with a bar for each kind of token while it runs; what the chat's folder
 has spent today and over the last 7 days, with the output tokens written, over how many chats

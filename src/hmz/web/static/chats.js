@@ -10,15 +10,16 @@ import { t } from './i18n.js'
 
 /**
  * A chat as `chat.list` rows it, as a row of the page's lists: named by its id, told by its
- * title, of the kind `chat`, going while a host or another process holds it, with its turn as
- * its state says it. What it waits on is what its host says it does (`hosts.running`), where
- * one holds it: its reply between turns among them, which the row leaves out.
+ * title, of the kind `chat`, with its turn as its state says it. A chat is never going or at
+ * rest: whether a host holds it now is not how it stands, only where what is asked of it is
+ * asked (`held`, its `slot`), and it stands by when it was last heard of. What it waits on is
+ * what its host says it does (`hosts.running`), where one holds it: its reply between turns
+ * among them, which the row leaves out.
  *
  * @param {object} chat The row.
  * @param {{chat?: string, asking?: string[]}[]} [running] What each host runs.
  */
 export function chatRow(chat, running = []) {
-  const held = chat.state !== 'resting' && chat.state !== 'failed'
   const open = chat.state === 'turn' || chat.state === 'asking'
   const host = chat.slot ? running.find((one) => one.chat === chat.id) : null
   return {
@@ -27,9 +28,9 @@ export function chatRow(chat, running = []) {
     kind: 'chat',
     flow: '',
     task: chat.title,
-    // When it was last heard of, by which a chat resting is sorted.
-    ended: held ? '' : chat.updated,
-    how: held ? 'running' : chat.state === 'failed' ? 'failed' : 'stopped',
+    // When it was last heard of, by which a chat is sorted.
+    ended: chat.updated,
+    how: chat.state === 'failed' ? 'failed' : 'stopped',
     turn: chat.slot ? (open ? 'running' : 'done') : '',
     held: Boolean(chat.slot),
     asking: host ? host.asking || [] : chat.asking || [],
@@ -40,7 +41,7 @@ export function chatRow(chat, running = []) {
 
 /**
  * A chat as `chat.get` answers it, as the view of a conversation reads an epic: its row, its
- * first message as its task, and carried on by saying something in it while it rests.
+ * first message as its task, and always one to say something in.
  */
 export function chatDetail(chat) {
   return {
@@ -48,7 +49,7 @@ export function chatDetail(chat) {
     task: chat.task,
     agents: chat.agents,
     sessions: chat.sessions,
-    picks_up: chat.state === 'resting',
+    picks_up: true,
     foreign: '',
     used: [],
     calls: [],

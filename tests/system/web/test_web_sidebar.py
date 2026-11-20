@@ -80,6 +80,17 @@ def _answers(runs: list[dict[str, Any]], total: int | None = None) -> dict[str, 
     }
 
 
+def _now() -> str:
+    """This moment, as a chat's row says when it was last written."""
+    import datetime
+
+    return datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")
+
+
+#: When every chat a host holds here was last heard of: one moment, so their order stays.
+_NOW = _now()
+
+
 def _chat(row: dict[str, Any]) -> dict[str, Any]:
     """A chat's row as `chat.list` answers it: what it waits on between turns its host says."""
     held = row["held"]
@@ -93,7 +104,8 @@ def _chat(row: dict[str, Any]) -> dict[str, Any]:
         "agent": row["agents"][0]["runs"],
         "model": "sonnet",
         "began": row["began"],
-        "updated": row["ended"] or row["began"],
+        # One a host holds was heard of just now, which is all that stands it first.
+        "updated": row["ended"] or (_NOW if held else row["began"]),
         "state": "failed"
         if how == "failed"
         else "turn"

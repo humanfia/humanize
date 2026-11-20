@@ -4,9 +4,11 @@
 // `/exomyth` is its timeline, drawn by views/exomyth. `#/chats/<id>` is a chat, which is no
 // epic, read by `chat.get`. `#/live` is whichever run is going on a host: a workspace's own, or
 // a chat's by its `slot`. A chat is only its conversation, as a chat app draws one: never a
-// graph or its agents -- its box's button stops the turn open, never the chat -- and one folded
-// away is carried on by saying something in it, on a host of its own, with what was said before
-// it still above. Every line of a chat goes by `chat.say`; its box completes its harness's
+// graph or its agents -- its box's button stops the turn open, never the chat -- and is always
+// ready: it is never drawn as going or at rest, and one no host holds is carried on by saying
+// something in it, or with nothing said by opening its terminal, its changes or its files, on
+// a host of its own, with what was said before it still above. Every line of a chat goes by
+// `chat.say`; its box completes its harness's
 // native input, the names hmz keeps and the flows, and serves those hmz keeps and the flows
 // itself. Under
 // the view, while the run goes, are the questions it waits on a person for and the box that
@@ -16,7 +18,7 @@
 
 import { asides, board, outworlders, question, saying } from '../acting.js'
 import { settle } from '../asking/card.js'
-import { call, exported, given, hash } from '../api.js'
+import { call, exported, given, hash, refresh } from '../api.js'
 import { go, renamed } from '../app.js'
 import { confirming } from '../confirm.js'
 import { acting, ago, badge, flowName, pathText, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
@@ -44,6 +46,9 @@ import { panelsOf, usedLine } from './envs/tree.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
 const LINES = 3000
+
+/** How long, in milliseconds, before a chat's host is brought up again once it has been. */
+const WAKES = 5000
 
 export function mount(root, { parts, query }) {
   if (parts[0] === 'epics' && parts[2] === 'exomyth') return exomyth(root, parts[1], query)
@@ -82,8 +87,14 @@ export function mount(root, { parts, query }) {
       return (held() && held().slot) || ''
     },
   }
-  /** The box that carries a chat folded away on, once there is one to carry on. */
+  /** The box of a chat no host is followed for: what is said in it carries the chat on. */
   let carry = null
+  /** The host a chat no host holds is being brought up on, with nothing said: its slot, once it is. */
+  let waking = null
+  /** Why it could not be brought up, said in the pane that asked for it until one is asked for again. */
+  let wakeError = null
+  /** When it was last brought up, so that one that will not stay up is not asked for without end. */
+  let wokeAt = 0
   /** Whether a line said in that box is carrying the chat on, until it is followed going. */
   let carryingOn = false
   /** The card of each question waiting, kept while it waits as it was asked of whom it was. */
@@ -118,7 +129,7 @@ export function mount(root, { parts, query }) {
         const starting = held && held.standing.run && held.standing.run.state === 'running'
         // A chat's host is on a slot of its own, which says it is one before it is written down.
         const chat = wanted.slot.startsWith('chat:')
-        region('head', ['none', starting], () => fill(head, bar({ title: starting ? (chat ? t('Starting the chat…') : t('Starting the epic…')) : chat ? t('No chat is going') : t('No epic is going') })))
+        region('head', ['none', starting], () => fill(head, bar({ title: starting ? (chat ? t('Starting the chat…') : t('Starting the epic…')) : chat ? t('No chat here') : t('No epic is going') })))
         region('main', ['none', starting, none], () =>
           fill(
             main,
@@ -128,7 +139,7 @@ export function mount(root, { parts, query }) {
               starting || !none
                 ? h('p', { class: 'loading', role: 'status' }, chat ? t('Waiting for the chat to start…') : t('Waiting for the epic to be written down…'))
                 : chat
-                  ? empty(t('No chat is going here.'), t(' Start one, or open a chat from the sidebar.'), h('a', { class: 'btn primary', href: hash('/new/chat') }, t('New chat')))
+                  ? empty(t('This chat is no longer at this address.'), t(' Start one, or open a chat from the sidebar.'), h('a', { class: 'btn primary', href: hash('/new/chat') }, t('New chat')))
                   : empty(t('No epic is going here.'), t(' Start one, or open an epic from the sidebar.'), h('a', { class: 'btn primary', href: hash('/new') }, t('New epic'))),
             ),
           ),
@@ -157,7 +168,7 @@ export function mount(root, { parts, query }) {
     // A chat is its one conversation, and is opened on it wherever it is opened, as a chat app
     // opens on one: the one going, or the last it opened, which a chat carried on goes on from.
     // Its address is the chat's alone: a chat has no session to name in it.
-    const conversation = chat && (run ? run.records.find((one) => one.type === 'opened' && !one.person) : sessionsOf(detail).at(-1))
+    const conversation = chat && ((run && run.records.find((one) => one.type === 'opened' && !one.person)) || sessionsOf(detail).at(-1))
     if (conversation && mode.session !== conversation.key) mode = { session: conversation.key, focus: '', log: '' }
     const model = run ? live(held, run, detail) : written(detail, traced)
     const agentOfSession = mode.session ? mode.session.split('/')[0] : mode.log || ''
@@ -187,7 +198,7 @@ export function mount(root, { parts, query }) {
     const asked = pending.map((one) => `${one.run}:${one.question}`)
     // A question is looked at once it is waiting while this page is looked at.
     if (!document.hidden && document.hasFocus()) lookedAt(detail.name, asked)
-    const how = chat ? (going ? 'running' : detail.how) : run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
+    const how = chat ? detail.how : run ? (run.ended ? run.ended.how : run.state === 'stopping' ? 'stopping' : run.live ? 'running' : detail.how) : detail.how
     const state = markOf(how, { chat, turn, asked, epic: detail.name })
     const spent = run && held().figures && held().figures.tally && held().figures.tally[1] ? held().figures.tally[1].split(' · ')[0] : detail.spent ? detail.spent.money : ''
     const stopWaits = Date.now() - (stopsAsked.get(detail.name) || 0) < STOP_WAITS
@@ -232,11 +243,15 @@ export function mount(root, { parts, query }) {
   /** The panel of the chat's environment shown, or asked for: the one it opens on where never picked. */
   let envTab = ''
 
-  /** Says, on the chat's bar, which pane is open and which the chat has now. */
+  /**
+   * Says, on the chat's bar, which pane is open and which the chat's environment keeps: every
+   * one until its environment is read, which opening one brings up, and never fewer for want
+   * of a host.
+   */
   function sayPanes() {
     const env = chatNow && chatNow.going ? chatEnv() : null
-    const has = new Set(env ? panelsOf(env).map((one) => one.key) : [])
-    panes.said(paneOf({ open: !panel.node.hidden, tab, env: envTab }), (key) => key === 'details' || has.has(key), Boolean(chatNow && chatNow.going))
+    const has = env ? new Set(panelsOf(env).map((one) => one.key)) : null
+    panes.said(paneOf({ open: !panel.node.hidden, tab, env: envTab }), (key) => key === 'details' || !has || has.has(key))
     const title = panel.body.querySelector('.pane-title')
     if (title) title.textContent = paneTitle()
   }
@@ -255,6 +270,8 @@ export function mount(root, { parts, query }) {
   function pressPane(key) {
     const then = toggled({ open: !panel.node.hidden, tab, env: envTab }, key)
     if (!then.open) return panel.set(false)
+    // Asked for again: what could not be brought up before is tried again.
+    wakeError = null
     showPane(then.tab, then.env)
   }
 
@@ -440,9 +457,11 @@ export function mount(root, { parts, query }) {
         fill(box)
         cut.hidden = true
       }
-      // A chat carried on: what was said before, read out of the last session it opened then,
-      // above what is said now.
-      const before = chat && detail.earlier ? sessionsOf(detail)[detail.earlier - 1] : null
+      // A chat carried on: what was said before, read out of the last session it had opened
+      // by then, above what is said now. By when its host began where that is told, which a
+      // chat carried on with nothing said has written nothing down of yet; else as it wrote.
+      const since = chat && run.started.type === 'started' && run.started.resume ? run.started.at : 0
+      const before = !chat ? null : since ? sessionsOf(detail).findLast((one) => !(Date.parse(one.at) / 1000 >= since)) : detail.earlier ? sessionsOf(detail)[detail.earlier - 1] : null
       if (before && !traced && !tracing && !traceError) readTrace()
       // A thread read at its end stays at its end as it grows, over it as under it.
       const stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
@@ -593,28 +612,40 @@ export function mount(root, { parts, query }) {
         sayToKey = to
       }
     }
-    // A chat folded away is carried on by saying something in it, as one going is.
+    // A chat always has its box: one no host is followed for is carried on by saying something
+    // in it, as one a host holds is said it.
     // Until the host carrying it on is followed, what was said is on its way: no second box.
     if (going) carryingOn = false
-    const carried = !going && chat && detail.picks_up && !detail.held && !carryingOn
+    const carried = !going && chat && !carryingOn
     if (carried && !carry) carry = carrying(detail)
-    // Every line of a chat going is said to it, an answer to what it asks included.
+    // Every line of a chat a host holds is said to it, an answer to what it asks included.
     if (chat && going && !talk) talk = chatBox(detail, (text) => chatAsk(here, 'say', { text }), permits, true)
     talk?.model.again()
     // While a turn is open, the button of the box stops it: the chat stays, between turns.
     talk?.stops(going && stoppable(standing.run && standing.run.turn) ? () => chatAsk(here, 'stop') : null)
-    const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry : null
+    const composer = going ? (chat ? talk.node : reading(mode) && sayToKey ? sayTo.node : say.node) : carried ? carry.node : null
     region('dock-composer', [going, carried, mode.session, mode.log, detail.picks_up, detail.foreign], () => {
+      // A chat's box gives way to its other as its host comes or goes: what was being typed is
+      // typed still, where it was typed, unless it is on its way already.
+      const [from, to] = going ? [carry, talk] : [talk, carry]
+      const typing = chat && from && to && from.node.isConnected
+      const focused = typing && document.activeElement === from.text
       dock.querySelector('.composer, .dock-note')?.remove()
       drawn['dock-standing'] = undefined
       if (composer) dock.append(composer)
+      if (typing && from.text.value && !to.text.value && !from.node.classList.contains('busy')) {
+        const caret = [from.text.selectionStart, from.text.selectionEnd]
+        to.text.value = from.text.value
+        from.text.value = ''
+        for (const one of [to.text, from.text]) one.dispatchEvent(new Event('input', { bubbles: true }))
+        to.text.setSelectionRange(...caret)
+      }
+      if (focused) to.text.focus()
       // A chat is carried on by saying something in it, never by resuming it.
       else if (detail.picks_up && !chat)
         dock.append(h('p', { class: 'dock-note' }, pieces('Ended · {resume}', { resume: h('a', { href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, t('Resume')) })))
       // Imported from a workspace this machine has not got as it was: why it is not picked up here.
-      else if (detail.foreign) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'foreign' }, chat ? t('Imported · cannot be continued here: {why}', { why: detail.foreign }) : t('Imported · not resumable here: {why}', { why: detail.foreign })))
-      // A chat that kept nothing to carry on from, as the terminal interface says it.
-      else if (chat && !going && !detail.picks_up) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'not-carried' }, t('This chat cannot be continued here.')))
+      else if (detail.foreign && !chat) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'foreign' }, t('Imported · not resumable here: {why}', { why: detail.foreign })))
     })
     if (chat) drawStanding(detail, going)
   }
@@ -624,7 +655,7 @@ export function mount(root, { parts, query }) {
    * otherwise; and what it has used, in the popup of the chip under its box while that is open.
    */
   function drawStanding(detail, going) {
-    const state = markOf(going ? 'running' : detail.how, { chat: true, turn: going && held().standing.run ? held().standing.run.turn : '', asked: [], epic: detail.name })
+    const state = markOf(detail.how, { chat: true, turn: going && held().standing.run ? held().standing.run.turn : '', asked: [], epic: detail.name })
     const said = standingSaid(state)
     region('dock-standing', [said, state], () => {
       dock.querySelector('[data-hmz=chat-status]')?.remove()
@@ -646,8 +677,9 @@ export function mount(root, { parts, query }) {
     // A chat's person is whoever is typing to it: nobody else to hand it to.
     const people = going && !chat ? run.started.outworlders || [] : []
     const env = chat && going ? chatEnv() : null
-    // A chat's panel says what it is in a chat's words: nothing in it is called an epic.
-    const tabs = [['epic', chat ? t('Details') : t('Epic')], ['aside', chat ? t('Side questions') : t('Aside')], items ? ['board', t('Board')] : null, people.length ? ['people', t('People')] : null, env ? ['env', t('Environment')] : null].filter(Boolean)
+    // A chat's panel says what it is in a chat's words: nothing in it is called an epic. Its
+    // environment is always one of its panes, whether or not a host holds it now.
+    const tabs = [['epic', chat ? t('Details') : t('Epic')], ['aside', chat ? t('Side questions') : t('Aside')], items ? ['board', t('Board')] : null, people.length ? ['people', t('People')] : null, chat ? ['env', t('Environment')] : null].filter(Boolean)
     if (!tabs.some(([key]) => key === tab)) tab = 'epic'
     panel.node.setAttribute('aria-label', chat ? t('the chat') : t('the epic'))
     // The environment is worked in, which wants the room an editor does.
@@ -691,6 +723,12 @@ export function mount(root, { parts, query }) {
       })
     } else if (tab === 'board') {
       region('panel-board', [items], () => fill(pane, board(here, items || [])))
+    } else if (tab === 'env' && !env) {
+      // No host holds the chat, or its host has not listed its workspace yet: it is brought
+      // up with nothing said, and the pane says so, or why it could not be.
+      leaveEnv()
+      if (!going) wake(detail)
+      region('panel-env', ['opening', wakeError && wakeError.message], () => fill(pane, wakeError ? problem(wakeError) : h('p', { class: 'loading', role: 'status', 'data-hmz': 'env-opening' }, t('Opening…'))))
     } else if (tab === 'env') {
       const host = { workspace: here.workspace, slot: here.slot }
       region('panel-env', [host], () => {
@@ -717,7 +755,7 @@ export function mount(root, { parts, query }) {
                 if (panes) sayPanes()
               },
               compact: true,
-              full: (id, panel) => envsAddress(host, { env: id, tab: panel }),
+              full: (id, panel) => envsAddress(host, { env: id, tab: panel, chat: detail.name }),
             })
           },
           (error) => {
@@ -786,9 +824,10 @@ export function mount(root, { parts, query }) {
     )
     if (figures && figures.spending && figures.spending.length) parts.push(section(t('Spending'), spendingOf(figures)))
     const places = placesOf(detail, run, chat)
-    // While it goes, where each session works opens that environment, and every one is a click away.
+    // While a host holds it, where each session works opens that environment, and every one is
+    // a click away; a chat's opens beside it whether or not one does.
     const envs = going ? envsOf() : []
-    const envsAt = (query) => envsAddress({ workspace: here.workspace, slot: here.slot }, query || {})
+    const envsAt = (query) => envsAddress({ workspace: here.workspace, slot: here.slot }, { ...query, chat: chat ? detail.name : '' })
     const placeOf = (key, where, harness, role, workdir) => {
       // Its role's environment that works where it does, else its role's latest at the top.
       const roles = role ? envs.filter((one) => one.role === role).sort((a, b) => (b.run || 0) - (a.run || 0)) : []
@@ -805,12 +844,16 @@ export function mount(root, { parts, query }) {
         harness ? h('div', { class: 'dim' }, t('harness on {where}', { where: harness })) : null,
       )
     }
-    if (places.length || envs.length) {
+    if (places.length || envs.length || chat) {
       parts.push(
         section(
           t('Environments'),
           places.length ? h('ul', { class: 'links', 'data-hmz': 'environments' }, places.map(([key, where, harness, role, workdir]) => placeOf(key, where, harness, role, workdir))) : null,
-          envs.length ? h('p', {}, h('a', { href: envsAt(null), 'data-hmz': 'envs-open' }, envs.length === 1 ? t('Open its environment') : t('Open its {n} environments', { n: envs.length }))) : null,
+          envs.length
+            ? h('p', {}, h('a', { href: envsAt(null), 'data-hmz': 'envs-open' }, envs.length === 1 ? t('Open its environment') : t('Open its {n} environments', { n: envs.length })))
+            : chat
+              ? h('p', {}, h('button', { class: 'btn small', type: 'button', 'data-hmz': 'envs-open', onclick: () => showPane('env') }, t('Open its environment')))
+              : null,
         ),
       )
     }
@@ -880,12 +923,48 @@ export function mount(root, { parts, query }) {
   }
 
   /**
-   * The box a chat folded away is carried on in: what is said in it starts the chat again on a
-   * host of its own, going on in the same chat, named by its id, with the agent it had and the
-   * preference set for it, and the page follows that host.
+   * Brings a chat no host holds up on a host of its own with nothing said, for its environment
+   * to be reached: asked once at a time, and the chat read again once it is, so that its host
+   * is followed as any that holds it is. A folder that went is said as the box says it.
+   */
+  function wake(detail) {
+    if (waking || carryingOn || detail.held || wakeError || Date.now() - wokeAt < WAKES) return
+    wokeAt = Date.now()
+    const asked = call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: '', resume: detail.name, prefer: preferring, permission: carry ? carry.permission.picked() : null }).then(
+      (started) => {
+        refresh('chat.get')
+        return started.slot
+      },
+      (error) => {
+        wakeError = unplaced(error, detail.workspace, lostSaid)
+        return ''
+      },
+    )
+    waking = asked
+    asked.then(() => {
+      if (waking === asked) waking = null
+      draw()
+    })
+  }
+
+  /**
+   * The box of a chat no host is followed for: what is said in it is said to the host that
+   * holds the chat, where one does, and else starts the chat again on a host of its own, going
+   * on in the same chat, named by its id, with the agent it had and the preference set for it,
+   * and the page follows that host.
    */
   function carrying(detail) {
     const box = chatBox(detail, async (text) => {
+      // A host brought up for its environment, or one not followed yet, holds it already.
+      const slot = (waking && (await waking)) || (seen && seen.detail && seen.detail.slot) || ''
+      if (slot) {
+        try {
+          return await chatAsk({ workspace: detail.workspace, slot }, 'say', { text })
+        } catch (error) {
+          // Its host went meanwhile: carried on as one no host holds.
+          if (error.status !== 404 && error.status !== 409) throw error
+        }
+      }
       // A folder that went is said as the forms that start in one say it, with no other to pick.
       const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.name, prefer: preferring, permission: box.permission.picked() }).catch((error) => {
         throw unplaced(error, detail.workspace, lostSaid)
@@ -898,7 +977,7 @@ export function mount(root, { parts, query }) {
       stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told, { chat: true })
       // No host holds it: the permission picked is kept for the chat to be carried on with.
     }, () => null)
-    return box.node
+    return box
   }
 
   // ------------------------------------------------------------------ a chat's native input
@@ -995,12 +1074,11 @@ export function mount(root, { parts, query }) {
 
   /**
    * What a chat's menu holds: what its right click offers, save opening the chat that is open;
-   * its environment, where its host has one; and what a `$` name that is both a skill and a flow
+   * its environment; and what a `$` name that is both a skill and a flow
    * does, with a mark on the one in force and where that comes from.
    */
   function chatMenu(close) {
     const { detail, going } = chatNow
-    const env = going ? chatEnv() : null
     const base = hash(pathOf(detail))
     const made = []
     for (const one of epicMenu({ ...detail, held: going }, { rename: retitle })) {
@@ -1016,11 +1094,9 @@ export function mount(root, { parts, query }) {
     }
     if (made.length && made.at(-1).tagName !== 'HR') made.push(h('hr'))
     // A chat's workspace, opened beside it: its files, a terminal in it and its changes.
-    if (env) {
-      const opens = choice({ label: t('Environment'), glyph: 'folder', close, act: () => showPane('env') })
-      opens.dataset.hmz = 'env-open'
-      made.push(opens)
-    }
+    const opens = choice({ label: t('Environment'), glyph: 'folder', close, act: () => showPane('env') })
+    opens.dataset.hmz = 'env-open'
+    made.push(opens)
     const { prefer, from } = preference(detail)
     const picks = (key, label, about) => {
       const item = choice({ label, about, chosen: prefer === key, close, act: () => prefer !== key && prefers(detail, key).catch((error) => toast(error.message)) })
@@ -1242,9 +1318,12 @@ function exomyth(root, name, query) {
   }
 }
 
-/** The address of the Environments view of a host's envs, `#/envs/live?workspace=…&slot=…&env=…&tab=…`. */
-function envsAddress(host, { env = '', tab = '' } = {}) {
-  const query = new URLSearchParams(Object.entries({ workspace: host.workspace, slot: host.slot, env, tab }).filter(([, value]) => value))
+/**
+ * The address of the Environments view of a host's envs, `#/envs/live?workspace=…&slot=…&env=…&tab=…`,
+ * and for a chat's with `chat`, its id, by which it is found again once that host has gone.
+ */
+function envsAddress(host, { env = '', tab = '', chat = '' } = {}) {
+  const query = new URLSearchParams(Object.entries({ workspace: host.workspace, slot: host.slot, chat, env, tab }).filter(([, value]) => value))
   return hash(`/envs/live?${query}`)
 }
 

@@ -1111,31 +1111,6 @@ def test_a_chat_is_listed_renamed_stopped_and_carried_on_by_its_id(
         stop(page)
 
 
-@pytest.mark.skip(
-    reason="`chat.get` does not say whether a chat kept what carries it on: the page "
-    "offers the box of every chat that rests, and the daemon refuses what cannot be"
-)
-def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
-    project: Path, engine: str
-) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        _start_chat(page, "hello there")
-        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: hello there")
-        stop(page)
-        # A chat whose conversation was never kept: nothing in its record to carry on from.
-        kept = list(project.parent.glob("humanize-home/chats/*/*/sessions"))
-        assert kept
-        for one in kept:
-            shutil.rmtree(one)
-        page.reload()
-
-        expect(page.locator("[data-hmz=not-carried]")).to_have_text(
-            "This chat cannot be continued here."
-        )
-        expect(page.locator("[data-hmz=composer], [data-hmz=say]")).to_have_count(0)
-        expect(page.get_by_role("link", name="Resume")).to_have_count(0)
-
-
 @pytest.mark.usefixtures("loops")
 def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
     project: Path, engine: str
@@ -2853,6 +2828,114 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         row.click()
         expect(state).to_have_count(0)
         expect(status).to_have_count(0)
+
+
+def test_a_chat_no_host_holds_opens_its_terminal_changes_and_files_and_is_said_to(
+    project: Path, engine: str
+) -> None:
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-c", "user.name=Ada", "-c", "user.email=ada@example.com", *args],
+            cwd=project,
+            check=True,
+            capture_output=True,
+        )
+
+    (project / "kept.txt").write_text("kept\n")
+    git("init", "-q")
+    git("add", "kept.txt")
+    git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "one")
+    (project / "kept.txt").write_text("kept\nand changed\n")
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "remember teal")
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: remember teal")
+        name = page.url.rsplit("/", 1)[1]
+        # Its host goes: an old chat, opened afresh.
+        stop(page)
+        page.reload()
+        expect(thread).to_contain_text("did: remember teal")
+        chat = _call(page, "chat.get", {"chat": name})
+        assert (chat["slot"], chat["state"]) == ("", "resting")
+        record = Path(chat["at"]) / "chat.jsonl"
+        wrote = record.read_bytes()
+
+        # Nothing says it is not going: its row and its box say nothing of how it
+        # stands, its box is there, and every pane of it is offered.
+        row = page.locator("[data-hmz=sidebar] [data-hmz=epic]", has_text="remember")
+        expect(row.locator("[data-hmz=chat-state]")).to_have_count(0)
+        expect(page.locator("[data-hmz=chat-status]")).to_have_count(0)
+        expect(page.locator("[data-hmz=not-carried]")).to_have_count(0)
+        say = page.locator("[data-hmz=say] textarea")
+        expect(say).to_be_visible()
+        bar = page.locator("[data-hmz=bar]")
+        for pane in ("details", "terminal", "changes", "files"):
+            button = bar.locator(f"[data-hmz=pane-{pane}]")
+            expect(button).to_be_enabled()
+            expect(button).to_have_attribute("title", pane.capitalize())
+
+        # Its files: its folder is brought up with nothing said, and nothing written.
+        bar.locator("[data-hmz=pane-files]").click()
+        frame_ = page.locator("[data-hmz=inspector] [data-hmz=envs]")
+        expect(frame_.locator("[data-hmz=envs-tab-files]")).to_have_attribute(
+            "aria-selected", "true"
+        )
+        expect(frame_.locator("[data-hmz=files-tree]")).to_contain_text("kept.txt")
+        expect(bar.locator("[data-hmz=pane-files]")).to_have_attribute(
+            "aria-pressed", "true"
+        )
+        assert record.read_bytes() == wrote
+        expect(thread).to_contain_text("did: remember teal")
+        expect(row.locator("[data-hmz=chat-state]")).to_have_count(0)
+        expect(page.locator("[data-hmz=chat-status]")).to_have_count(0)
+
+        # Its changes, and a terminal in it.
+        bar.locator("[data-hmz=pane-changes]").click()
+        expect(
+            frame_.locator("[data-hmz=change][data-path='kept.txt']")
+        ).to_be_visible()
+        bar.locator("[data-hmz=pane-terminal]").click()
+        expect(frame_.locator("[data-hmz=term-host]").first).to_be_visible()
+        for pane in ("terminal", "changes", "files"):
+            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_be_enabled()
+        assert record.read_bytes() == wrote
+
+        # Said something, it is carried on, the same chat, what was said before above.
+        expect(say).to_be_visible()
+        say.fill("what was it")
+        say.press("Enter")
+        expect(thread).to_contain_text("did: what was it")
+        expect(thread).to_contain_text("did: remember teal")
+        assert page.url.endswith(f"#/chats/{name}")
+        assert [one["id"] for one in _call(page, "chat.list")["chats"]] == [name]
+        # Its terminal is still the one open beside it.
+        expect(frame_.locator("[data-hmz=term-host]").first).to_be_visible()
+
+    # One whose host has gone again is brought up again as a pane of it is opened.
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, f"/chats/{name}")
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: what was it")
+        stop(page)
+        page.reload()
+        page.locator("[data-hmz=chat-menu]").click()
+        page.locator("[data-hmz=env-open]").click()
+        frame_ = page.locator("[data-hmz=inspector] [data-hmz=envs]")
+        expect(frame_.locator("[data-hmz=files-tree]")).to_contain_text("kept.txt")
+
+        # Its environment's own view, at the address of a host that has gone, finds the
+        # chat again, and goes on to the address of the host it is on now.
+        slot = _call(page, "chat.get", {"chat": name})["slot"]
+        assert slot
+        stop(page)
+        was = {"workspace": str(project.resolve()), "slot": slot, "chat": name}
+        go(page, f"/envs/live?{urllib.parse.urlencode(was)}")
+        whole = page.locator("[data-hmz=envs-view]")
+        expect(whole.locator("[data-hmz=files-tree]")).to_contain_text("kept.txt")
+        now = _call(page, "chat.get", {"chat": name})["slot"]
+        assert now not in ("", slot)
+        assert urllib.parse.quote(now, safe="") in page.url
 
 
 @pytest.mark.usefixtures("talking")

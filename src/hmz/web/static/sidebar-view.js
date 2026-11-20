@@ -50,8 +50,8 @@ export function viewText(view) {
 /** Whether a row is a chat, as its row says it. */
 const byKind = (run) => run.kind === 'chat'
 
-/** Whether a row is going, by a host or by another process. */
-const going = (run) => Boolean(run.held) || run.how === 'running'
+/** Whether a row is going, by a host or by another process: an epic's alone, a chat never is. */
+const going = (run) => !byKind(run) && (Boolean(run.held) || run.how === 'running')
 
 /** When a row was last heard of: when it ended, else when it began. */
 const last = (run) => Date.parse(run.ended) || Date.parse(run.began) || 0
@@ -134,7 +134,7 @@ export function arranged({ workspaces = [], runs = [], view, pinned = new Set(),
     if (!folders.has(path)) folders.set(path, { key: path || NOWHERE, kind: 'folder', label: path ? '' : NO_FOLDER, path, runs: [] })
     folders.get(path).runs.push(run)
   }
-  const rank = (group) => (group.runs.some((one) => one.held) ? 1e14 : 0) + Math.max(0, ...group.runs.map((run) => (view.sort === 'created' ? Date.parse(run.began) || 0 : last(run))))
+  const rank = (group) => (group.runs.some((one) => one.held && !byKind(one)) ? 1e14 : 0) + Math.max(0, ...group.runs.map((run) => (view.sort === 'created' ? Date.parse(run.began) || 0 : last(run))))
   const ordered = [...folders.values()].sort((a, b) => Number(!a.path) - Number(!b.path) || rank(b) - rank(a))
   // A list with no folder and nothing to show keeps the group of none, so that a heading, and
   // `Group and sort` on it, is always there.

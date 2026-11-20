@@ -281,11 +281,12 @@ export function mountSidebar(root, context, where) {
   }
   watchPlaces()
   // How many epics are going on the daemon shown, as its hosts say.
-  // An Ai-chan conversation is hers, listed in her drawer, and no epic of the sidebar's to count.
+  // An Ai-chan conversation is hers, listed in her drawer, and no epic of the sidebar's to count;
+  // and a chat is never going, whether or not a host holds it.
   poll('hosts.running', {}, 4000, (answer) => {
     if (!answer) return
     running = answer.running
-    bar.going(running.filter((one) => !String(one.slot || '').startsWith('ai:')).length)
+    bar.going(running.filter((one) => !/^(ai|chat):/.test(String(one.slot || ''))).length)
     gather()
     if (data) draw()
   })

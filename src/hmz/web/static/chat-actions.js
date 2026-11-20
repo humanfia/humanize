@@ -80,7 +80,7 @@ export function retitling(shown, chat, { saves = (title) => call('chat.rename', 
   field.select()
 }
 
-/** Forks a chat and opens the fork, which rests until something is said in it. */
+/** Forks a chat and opens the fork, a chat as any other. */
 export async function forking(chat) {
   try {
     const { chat: fork } = await call('chat.fork', { chat: chat.name })
