@@ -1174,7 +1174,11 @@ export function mount(root, { parts, query }) {
       looked = true
       call('chat.get', { chat: name }).then(
         () => location.replace(hash(`/chats/${encodeURIComponent(name)}`)),
-        () => {},
+        // Only an answer that there is no such chat ends the looking: a daemon not reached
+        // yet is asked again the next time it refuses the epic.
+        (error) => {
+          if (error.status !== 404) looked = false
+        },
       )
     }
     draw()

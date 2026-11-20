@@ -666,6 +666,53 @@ def test_an_address_of_the_epic_a_chat_was_recorded_as_opens_the_chat(
         expect(page).to_have_url(re.compile(r"#/epics/20200101T000000\.000Z-111111$"))
 
 
+def test_an_address_of_that_epic_opened_before_the_daemon_answers_opens_the_chat_once_it_does(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    was = dict(wire.faked)
+    down = {"error": {"code": 503, "message": "The daemon is not reached."}}
+    wire.faked["runs.get"] = lambda _: down
+    wire.faked["chat.get"] = lambda _: down
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, f"/epics/{_OLD}")
+        expect(page.locator(".view-epic")).to_contain_text("The daemon is not reached.")
+        assert wire.params("chat.get")
+        # The daemon up, the epic is refused as no epic and the chat is asked for again.
+        wire.faked.update(was)
+        expect(page).to_have_url(
+            re.compile(rf"#/chats/{re.escape(_OLD)}$"), timeout=30_000
+        )
+        expect(page.locator("[data-hmz=bar] [data-hmz=chat-title]")).to_have_text(
+            "an old chat"
+        )
+
+
+def test_a_chat_kept_as_an_epic_imported_by_its_path_opens_as_the_chat(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    wire.faked["runs.import"] = lambda _: {
+        "result": {"name": _OLD, "workspace": _FAKE, "resumable": True, "why": ""}
+    }
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, "/new/chat")
+        go(page, "/epics/import?path=/somewhere/old.hmzepic")
+        page.locator("[data-hmz=importing]").get_by_role("button", name="Import").click()
+        # A chat has no Exomyth: it is opened as the chat it was read back in as.
+        expect(page).to_have_url(re.compile(rf"#/chats/{re.escape(_OLD)}$"))
+        expect(page.locator("[data-hmz=bar] [data-hmz=chat-title]")).to_have_text(
+            "an old chat"
+        )
+        assert [one["path"] for one in wire.params("runs.import")] == [
+            "/somewhere/old.hmzepic"
+        ]
+        # Going back never imports it again.
+        page.go_back()
+        expect(page).to_have_url(re.compile(r"#/new/chat$"))
+        assert len(wire.params("runs.import")) == 1
+
+
 def test_search_closed_over_a_chat_just_started_leaves_it_as_it_was(
     project: Path, engine: str
 ) -> None:
