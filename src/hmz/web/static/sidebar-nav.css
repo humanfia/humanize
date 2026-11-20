@@ -47,7 +47,7 @@
   height: 100%;
 }
 
-:root[data-shell='macos']:not([data-fullscreen]) .side-top .brand img {
+:root[data-shell='macos']:not([data-fullscreen]) .side-top .brand .brand-mark {
   margin: 0 var(--space-8) 0 var(--space-4);
 }
 

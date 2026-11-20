@@ -14,7 +14,7 @@ import { harnessName } from './names.js'
 import { pick } from './importing.js'
 import { chain } from './layers.js'
 import { copy, menuButton, menuOn, posted, toast } from './ui.js'
-import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
+import { ago, fill, flowName, h, headline, icon, iconButton, svg, tone, when } from './dom.js'
 import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
@@ -123,6 +123,20 @@ function splitter() {
 }
 
 /**
+ * The mark, `>_` cut from flat planes, drawn in the page: its chevron in the ink of the side
+ * shown -- a picture of it would take the system's, whichever side the page shows -- and its
+ * wedge in the mark's green.
+ */
+function brandMark() {
+  return svg(
+    'svg',
+    { class: 'brand-mark', viewBox: '0 0 100 100', width: '24', height: '24', 'aria-hidden': 'true' },
+    svg('polygon', { class: 'ink', points: '12,16 32,16 62,50 32,84 12,84 42,50' }),
+    svg('polygon', { class: 'green', points: '60,84 94,84 94,64 60,74' }),
+  )
+}
+
+/**
  * @param {HTMLElement} root The sidebar.
  * @param {{here: string}} context Where `hmz web` started, which Local offers first.
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
@@ -156,7 +170,7 @@ export function mountSidebar(root, context, where) {
         'div',
         { class: 'side-top' },
         // The mark first, then what a desktop app's title row holds, in its order.
-        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': t('Humanize, a new chat') }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': t('Humanize, a new chat') }, brandMark(), h('strong', {}, 'humanize')),
         iconButton('sidebar', t('Hide sidebar'), { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
         iconButton('back', t('Back@@history'), { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
         iconButton('forward', t('Forward'), { class: 'side-forward', 'data-hmz': 'forward', onclick: () => history.forward() }),

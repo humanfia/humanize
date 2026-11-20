@@ -1511,7 +1511,7 @@ def test_a_theme_is_made_of_the_one_in_use_written_out_and_read_back(
 
 
 def test_the_side_shown_is_the_one_chosen_and_under_auto_the_systems(
-    project: Path, engine: str
+    project: Path, engine: str, tmp_path: Path
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/themes")
@@ -1535,6 +1535,26 @@ def test_the_side_shown_is_the_one_chosen_and_under_auto_the_systems(
             page.wait_for_timeout(150)
             expect(root).to_have_attribute("data-theme", "dark")
             assert "#151019" in _paints(page, "--paper")
+            # The mark's chevron is in the ink of the side shown, whatever the system's is,
+            # and its wedge in the theme's green.
+            chevron, ink, wedge, green = page.evaluate(
+                """() => {
+                    const mark = document.querySelector('.side-top .brand-mark')
+                    const probe = document.createElement('i')
+                    document.body.append(probe)
+                    const painted = (token) => {
+                        probe.style.color = `var(${token})`
+                        return getComputedStyle(probe).color
+                    }
+                    const fill = (part) => getComputedStyle(mark.querySelector(part)).fill
+                    const said = [fill('.ink'), painted('--ink'), fill('.green'), painted('--green')]
+                    probe.remove()
+                    return said
+                }"""
+            )
+            assert chevron == ink != "rgb(20, 26, 31)"
+            assert wedge == green
+            page.screenshot(path=str(tmp_path / f"mark-dark-on-{scheme}.png"))
 
         # Another theme used is drawn on the same side.
         page.locator("[data-hmz=theme][data-key=devoted-pink]").get_by_role(
@@ -1837,7 +1857,7 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
             " return row.getBoundingClientRect().right"
             " - parseFloat(getComputedStyle(row).paddingRight) })()"
         )
-        mark = box(page, ".side-top .brand img")
+        mark = box(page, ".side-top .brand .brand-mark")
         side = box(page, "[data-hmz=sidebar] .side-top")
         assert (mark["width"], mark["height"]) == (24, 24)
         assert mark["y"] == row - mark["y"] - mark["height"] == 10

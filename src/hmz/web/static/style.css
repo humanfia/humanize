@@ -402,10 +402,19 @@ code {
   text-decoration: none;
 }
 
-.brand img {
+.brand .brand-mark {
   flex: none;
   width: 24px;
   height: 24px;
+}
+
+/* The chevron in the ink of the side shown, the wedge in the mark's own green. */
+.brand-mark .ink {
+  fill: currentColor;
+}
+
+.brand-mark .green {
+  fill: var(--green);
 }
 
 /* Its name is said, not drawn. */
