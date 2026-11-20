@@ -10,6 +10,7 @@ import pytest
 
 from hmz.daemon import reach as reaching
 from hmz.daemon.reach import Conversations, Held, Links, Reach
+from hmz.rpc import Code, RpcError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -475,9 +476,23 @@ def test_what_she_last_answered_is_written_down_as_she_answers_it(
     # Carried on, her host waits on what she answered last: nothing new was said.
     again = _followed(kept, [{"chat": "c", "pending": [listening]}])
     assert again["updated"] == "t1"
-    # And her next answer is the latest from then on.
+    # Nor is why it could not be carried on, which its host waits on as it comes up: no
+    # turn of hers ended on it.
+    notice = {"mode": "listen", "question": "q0", "text": "This could not be carried on."}
+    again = _followed(kept, [{"chat": "c", "turn": "done", "pending": [notice]}])
+    assert (again["latest"], again["updated"]) == (conversation["latest"], "t1")
+    # And her next answer, a turn of hers since open, is the latest from then on.
     after = _followed(
-        kept, [{"chat": "c", "pending": [{"mode": "listen", "text": "Done."}]}]
+        kept,
+        [
+            {"chat": "c", "turn": "done", "pending": [notice]},
+            {"chat": "c", "turn": "running", "pending": []},
+            {
+                "chat": "c",
+                "turn": "done",
+                "pending": [{"mode": "listen", "question": "q1", "text": "Done."}],
+            },
+        ],
     )
     assert (after["latest"], after["updated"]) == ("Done.", "t2")
 
@@ -488,17 +503,51 @@ def test_what_a_reach_names_is_a_chat_or_an_epic_by_its_name(
     import hmz.runtime.epic
 
     chat, epic = tmp_path / "chats" / "w" / "c1", tmp_path / "epics" / "w" / "e1"
+    old = tmp_path / "epics" / "w" / "old"
 
     def chats() -> list[Path]:
         return [chat]
 
     def every() -> list[Path]:
-        return [epic]
+        return [epic, old]
+
+    def chatted(at: Path) -> bool:
+        return at == old
 
     monkeypatch.setattr(hmz.runtime.epic, "chats", chats)
     monkeypatch.setattr(hmz.runtime.epic, "every", every)
+    monkeypatch.setattr(hmz.runtime.epic, "chatted", chatted)
 
     assert reaching.epic_at("c1") == chat
     # An epic is found as a chat is: where it was run is what a reach asks of either.
     assert reaching.epic_at("e1") == epic
     assert reaching.epic_at("none") is None
+    # A chat an earlier hmz kept as an epic is neither until the daemon has moved it.
+    assert reaching.epic_at("old") is None
+    assert reaching.ran_in("old") == ""
+
+
+def test_a_conversation_kept_as_an_epic_is_not_carried_on_or_begun_anew(
+    kept: Conversations, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import hmz.runtime.epic
+
+    old = tmp_path / "epics" / "w" / "old"
+    monkeypatch.setattr(hmz.runtime.epic, "chats", list)
+    monkeypatch.setattr(hmz.runtime.epic, "every", lambda: [old])
+    monkeypatch.setattr(hmz.runtime.epic, "chatted", lambda at: at == old)
+    links = Links(mock.Mock(), mock.Mock())
+    links.kept = kept
+    made = kept.made({"slot": "ai:1", "nous": "claude/opus"})
+    kept.changed(made["id"], record="old")
+    hosted = mock.Mock(slot="ai:1")
+
+    with pytest.raises(RpcError, match="There is no chat old") as refused:
+        links.after(hosted)
+
+    assert refused.value.code == Code.NOT_FOUND
+    # Nothing was started: a chat begun anew would be written down in its place.
+    hosted.chat.assert_not_called()
+    conversation = kept.of("ai:1")
+    assert conversation is not None
+    assert conversation["record"] == "old"

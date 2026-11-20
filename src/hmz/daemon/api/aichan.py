@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
-from hmz.daemon.reach import PRESETS, ROLE, SCOPES, preview, ran_in
+from hmz.daemon.reach import PRESETS, ROLE, SCOPES, preview, ran_in, turning
 from hmz.rpc import Code, RpcError
 
 if TYPE_CHECKING:
@@ -143,15 +143,7 @@ def _state(router: Router, conversation: Mapping[str, Any]) -> str:
     hosted = router.hosts.get(str(conversation["workspace"]), str(conversation["slot"]))
     if hosted is None:
         return "folded"
-    status = hosted.status()
-    if "turn" in status:
-        return "running" if status["turn"] == "running" else "waiting"
-    # Her turn is open while her epic runs and asks nobody what to say next.
-    pending = cast("list[dict[str, Any]]", status.get("pending") or [])
-    listening = any(one.get("mode") == "listen" for one in pending)
-    return (
-        "running" if status.get("state") == "running" and not listening else "waiting"
-    )
+    return "running" if turning(hosted.status()) else "waiting"
 
 
 def _said(router: Router, conversation: dict[str, Any]) -> dict[str, Any]:
@@ -161,20 +153,23 @@ def _said(router: Router, conversation: dict[str, Any]) -> dict[str, Any]:
     is read out of its record, once, and written down with when it was made.
     """
     if "latest" not in conversation:
-        said = {
-            "latest": _recorded(str(conversation.get("record") or "")),
-            "updated": conversation.get("created"),
-        }
-        router.links.kept.changed(int(conversation["id"]), **said)
-        conversation |= said
+        read = _recorded(str(conversation.get("record") or ""))
+        said = {"latest": read or "", "updated": conversation.get("created")}
+        if read is not None:
+            router.links.kept.changed(int(conversation["id"]), **said)
+        conversation = conversation | said
     return {
         "latest": str(conversation["latest"] or ""),
         "updated": conversation.get("updated") or conversation.get("created"),
     }
 
 
-def _recorded(record: str) -> str:
-    """The last thing a chat's assistant said, read out of its record, or its task; "" for none."""
+def _recorded(record: str) -> str | None:
+    """The last thing a chat's assistant said, read out of its record, or its task.
+
+    "" for a conversation written in nothing, and None for one whose record could not be read
+    this time: one an earlier hmz kept as an epic that is not yet moved among the chats, say.
+    """
     from hmz.daemon.api.chats import CHATS
 
     if not record:
@@ -187,8 +182,8 @@ def _recorded(record: str) -> str:
             for action in cast("list[dict[str, Any]]", session["actions"])
             if action.get("category") == "message"
         ]
-    except Exception:  # noqa: BLE001 -- a record that cannot be read says nothing
-        return ""
+    except Exception:  # noqa: BLE001 -- a record that cannot be read now is read the next time
+        return None
     return preview(max(said)[1] if said else ran.task)
 
 

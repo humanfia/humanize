@@ -1924,7 +1924,9 @@ characters; and `updated` MUST be when that was said, as `created` is written.
 `updated` down each time Ai-chan ends a turn on another answer. For a conversation whose entry
 keeps no `latest`, one an earlier hmz made, `aichan.list` MUST read the last thing its chat's
 assistant said out of its record, else its task, else `""`, and MUST write that down as its
-`latest`, with its `created` as its `updated`.
+`latest`, with its `created` as its `updated`; where it names a record that cannot be read, one
+not yet moved among the chats (Section 8.7.10 of [CORE]), `aichan.list` MUST answer `""` and its
+`created`, and MUST write neither down.
 
 **4.22.3.2** `state` MUST be `running` while a host holds the conversation and its turn is open,
 `waiting` while a host holds it between turns, and `folded` while no host holds it.

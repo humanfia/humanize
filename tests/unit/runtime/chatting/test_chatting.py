@@ -1081,6 +1081,10 @@ def test_a_chat_an_earlier_humanize_wrote_as_the_flow_chat_is_carried_on_once_mo
         {"event": "ended", "how": "done"},
     ]
     (at / epic.JOURNAL).write_text("".join(json.dumps(one) + "\n" for one in written))
+    # Until it is moved it is no chat to carry on, and nothing is written beside its record.
+    with pytest.raises(Refused, match="is not a chat"):
+        _had(wired, Person(), task="go", resume=at)
+    assert [one.name for one in at.iterdir()] == [epic.JOURNAL]
     # Moved among the chats, as the daemon moves it as it starts, it is a chat as any other.
     assert epic.migrated() == ([at.name], {})
     (at,) = epic.chats(wired.workspace)

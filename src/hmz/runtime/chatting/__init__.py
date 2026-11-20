@@ -1109,13 +1109,14 @@ def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | N
       Refused: For one that is not a chat or is going on already, and for one that cannot be
         continued here: another workspace's.
     """
-    from hmz.runtime.epic import going, read
+    from hmz.runtime.epic import CHATTED, going, journal, read
     from hmz.runtime.runner import Refused
 
     if resume is None:
         return None, None
     ran = read(resume)
-    if ran is None or not ran.chat:
+    # One an earlier hmz kept as an epic is no chat until it is moved (Section 8.7.10).
+    if ran is None or not ran.chat or journal(resume).name != CHATTED:
         raise Refused(f"{resume.name} is not a chat, so there is no chat to carry on")
     if Path(ran.workspace).resolve() != workspace:
         raise Refused(

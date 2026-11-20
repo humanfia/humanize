@@ -120,8 +120,6 @@ def test_a_conversation_says_what_was_last_said_in_it_and_when() -> None:
         ),
         # She never answered: what it was made with.
         ("c1", [], "the task"),
-        # A record that is not there says nothing, and is not read again.
-        ("gone", [], ""),
     ],
 )
 def test_a_conversation_of_an_earlier_hmz_reads_its_latest_once_out_of_its_record(
@@ -145,6 +143,29 @@ def test_a_conversation_of_an_earlier_hmz_reads_its_latest_once_out_of_its_recor
 
     assert (listed["latest"], listed["updated"]) == (latest, "then")
     changed.assert_called_once_with(1, latest=latest, updated="then")
+
+
+def test_a_record_that_cannot_be_read_says_nothing_and_is_read_the_next_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # One an earlier hmz kept as an epic, which the daemon has not moved among the chats yet.
+    chats = mock.Mock()
+    chats.named.side_effect = RpcError(Code.NOT_FOUND, "There is no chat old.")
+    chats.traced.return_value = []
+    monkeypatch.setattr("hmz.daemon.api.chats.CHATS", chats)
+
+    listed, changed = _listed({"record": "old"})
+
+    assert (listed["latest"], listed["updated"]) == ("", "then")
+    changed.assert_not_called()
+
+    # Moved since: what it says is read, and written down once.
+    chats.named.side_effect = None
+    chats.named.return_value = mock.Mock(task="the task")
+    listed, changed = _listed({"record": "old"})
+
+    assert listed["latest"] == "the task"
+    changed.assert_called_once_with(1, latest="the task", updated="then")
 
 
 def _made(

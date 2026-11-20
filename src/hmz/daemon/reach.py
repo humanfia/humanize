@@ -392,11 +392,20 @@ def epic_at(name: str) -> Path | None:
     """The directory of a chat or an epic, by its name, or None where there is none.
 
     An Ai-chan conversation is kept as a chat is, one an earlier hmz began as an epic among
-    them once the daemon has moved it (Section 6.12.14 of files.md).
+    them once the daemon has moved it (Section 6.12.14 of files.md): until then it is
+    neither, and is not read or carried on (Section 8.7.10 of core.md).
     """
-    from hmz.runtime.epic import chats, every
+    from hmz.runtime.epic import chats, chatted, every
 
-    return next((at for at in (*chats(), *every()) if at.name == name), None)
+    kept = (one for one in every() if one.name == name and not chatted(one))
+    return next((at for at in (*chats(), *kept) if at.name == name), None)
+
+
+def _left(name: str) -> bool:
+    """Whether a name is that of a chat an earlier hmz kept as an epic, not yet moved."""
+    from hmz.runtime.epic import chatted, every
+
+    return any(at.name == name and chatted(at) for at in every())
 
 
 def preview(text: object) -> str:
@@ -423,6 +432,16 @@ def heard(status: Mapping[str, Any]) -> tuple[str, str]:
         ),
         ("", ""),
     )
+
+
+def turning(status: Mapping[str, Any]) -> bool:
+    """Whether Ai-chan's turn is open, as her host says it (Section 4.22.3.2 of daemon.md)."""
+    if "turn" in status:
+        return status["turn"] == "running"
+    # Her turn is open while her epic runs and asks nobody what to say next.
+    pending = cast("list[dict[str, Any]]", status.get("pending") or [])
+    listening = any(one.get("mode") == "listen" for one in pending)
+    return status.get("state") == "running" and not listening
 
 
 class Conversations:
@@ -626,6 +645,13 @@ class Links:
             )
         record = str(conversation.get("record") or "")
         picked = epic_at(record) if record else None
+        if record and picked is None and _left(record):
+            # Not begun anew either, which would name another record and lose this one.
+            raise RpcError(
+                Code.NOT_FOUND,
+                f"There is no chat {record}: an earlier hmz kept it as an epic, and it is "
+                "moved among the chats the next time the daemon starts.",
+            )
         task = "" if picked else self.tasks.get(hosted.slot, "")
         reach = {
             key: conversation[key]
@@ -682,8 +708,9 @@ class Links:
           named: Whether its entry names what it is written in already.
         """
         ident = int(conversation["id"])
-        # What its host waits on as it comes up, carried on, is what was written already.
-        latest = str(conversation.get("latest") or "")
+        # Whether a turn of hers was open in this host's life. Carried on, it comes up waiting
+        # on what was written already, or on why it could not be carried on: no answer of hers.
+        turned = not named
         # Which wait she was last heard on: another one is another answer, the same words or not.
         waited: str | None = None
         while hosted.peer is not None and not hosted.peer.closed:
@@ -693,13 +720,11 @@ class Links:
             if not named and epic:
                 said["record"] = epic
                 named = True
+            turned = turned or turning(status)
             wait, answered = heard(status)
-            if answered and wait != waited:
-                carried = waited is None and answered == latest
+            if turned and answered and wait != waited:
                 waited = wait
-                if not carried:
-                    latest = answered
-                    said |= {"latest": answered, "updated": where.now()}
+                said |= {"latest": answered, "updated": where.now()}
             if said:
                 self.kept.changed(ident, **said)
             time.sleep(_FOLLOWING if named else _NAMING)
