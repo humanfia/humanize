@@ -1128,8 +1128,9 @@ class Humanize(App[None]):
         #: The chat the next line typed carries on, by its id, as `/resume` or `/chat` went
         #: back to it, or None for a line that starts a conversation of its own.
         self._continuing: str | None = None
-        #: What `/env` named of a chat no host held yet, opened once its host lists its envs.
-        self._env_wanted: str | None = None
+        #: What `/env` named of a chat no host held yet, and that chat: opened once its host
+        #: lists its envs, and forgotten where it is not carried on.
+        self._env_wanted: tuple[str, str] | None = None
         #: Whether a flow is on the screen rather than this interface's chat: from the moment
         #: one is started or found running on the host attached to, until the chat is put
         #: back on it. The chat is what this opens on (Section 3.1 of [TUI]).
@@ -3175,8 +3176,13 @@ class Humanize(App[None]):
           named: A role, a chain of roles or an environment's id, or "" for all of them.
         """
         if not self._opened_envs and self._continuing is not None:
-            self._env_wanted = named
+            chat = self._continuing
             self._chat_starts("")
+            if self._starting:
+                self._env_wanted = named, chat
+            else:
+                # Not asked for: it is still the chat the next line carries on.
+                self._continuing = chat
             return
         if why := opens_env(self, self._reach, named):
             self.show(f"hmz: {why}", "red")
@@ -5410,6 +5416,10 @@ class Humanize(App[None]):
     def _not_started(self) -> None:
         """Takes a start that was refused as nothing starting, which the refusal has said."""
         self._starting = False
+        if self._env_wanted is not None:
+            # A chat `/env` could not bring up is still the one the next line carries on,
+            # and its environments are not opened over whatever starts next.
+            self._continuing, self._env_wanted = self._env_wanted[1], None
         self._draw()
 
     def _told(self, message: dict[str, Any], by: Link | None = None) -> None:
@@ -5559,7 +5569,7 @@ class Humanize(App[None]):
             self._reach.moved()
             if self._env_wanted is not None and self._opened_envs:
                 # Asked for before its host was up: opened now that it lists them.
-                named, self._env_wanted = self._env_wanted, None
+                (named, _), self._env_wanted = self._env_wanted, None
                 self.action_env(named)
         elif kind == "clients":
             self._frontends = {

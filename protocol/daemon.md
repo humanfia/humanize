@@ -2285,9 +2285,15 @@ chat being recorded.
 said (Section 8.7.4 of [CORE]): its host MUST hold the chat's workspace open (Section 4.24.2.1)
 and wait between turns, and what `chat.say` then says MUST be the turn that carries it on. Where
 a host already holds that chat, `chat.start` MUST start nothing and MUST be answered with that
-host's `slot` and the chat's name; two such calls made at once MUST be answered the one host.
-With `resume` and a `task` that is not empty, `chat.start` MUST be refused 400 with `<resume> is
-going on already` where a host holds that chat.
+host's `slot` and the chat's name. With `resume` and a `task` that is not empty, where a host
+holds that chat and nothing has been said to it since it was so carried on, `chat.start` MUST
+start nothing, MUST set the `prefer` and the `permission` it gives, MUST say `task` to that host
+as `chat.say` says it (Section 4.25.2), which carries the chat on, and MUST be answered with that
+host's `slot` and the chat's name; where `agent` names another agent than that host's, the daemon
+MUST instead first end the chat there as an empty `chat.say` does and start it as though no host
+had held it. Where a host holds that chat and something has been said to it, `chat.start` with a
+`task` that is not empty MUST be refused 400 with `<resume> is going on already`. Calls with one
+`resume` made at once MUST be answered as though made one after another.
 
 #### 4.25.2. `chat.say`
 

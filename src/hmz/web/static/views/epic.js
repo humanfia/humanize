@@ -95,6 +95,8 @@ export function mount(root, { parts, query }) {
   let wakeError = null
   /** When it was last brought up, so that one that will not stay up is not asked for without end. */
   let wokeAt = 0
+  /** The look taken again once it may be brought up again, while one is waited for. */
+  let wakeLater = 0
   /** Whether a line said in that box is carrying the chat on, until it is followed going. */
   let carryingOn = false
   /** The card of each question waiting, kept while it waits as it was asked of whom it was. */
@@ -258,6 +260,9 @@ export function mount(root, { parts, query }) {
 
   /** Opens the panel beside the chat on one of its tabs, and for the environment on one of its panels. */
   function showPane(key, env = '') {
+    // Asked for again: what could not be brought up before is tried again, now.
+    wakeError = null
+    wokeAt = 0
     tab = key
     if (env) envTab = env
     for (const one of Object.keys(drawn)) if (one.startsWith('panel')) drawn[one] = undefined
@@ -270,8 +275,6 @@ export function mount(root, { parts, query }) {
   function pressPane(key) {
     const then = toggled({ open: !panel.node.hidden, tab, env: envTab }, key)
     if (!then.open) return panel.set(false)
-    // Asked for again: what could not be brought up before is tried again.
-    wakeError = null
     showPane(then.tab, then.env)
   }
 
@@ -641,8 +644,10 @@ export function mount(root, { parts, query }) {
         to.text.setSelectionRange(...caret)
       }
       if (focused) to.text.focus()
+      // A note stands only where no box does.
+      if (composer) return
       // A chat is carried on by saying something in it, never by resuming it.
-      else if (detail.picks_up && !chat)
+      if (detail.picks_up && !chat)
         dock.append(h('p', { class: 'dock-note' }, pieces('Ended · {resume}', { resume: h('a', { href: hash(`/new?flow=${encodeURIComponent(detail.flow)}&resume=${encodeURIComponent(detail.name)}`) }, t('Resume')) })))
       // Imported from a workspace this machine has not got as it was: why it is not picked up here.
       else if (detail.foreign && !chat) dock.append(h('p', { class: 'dock-note', 'data-hmz': 'foreign' }, t('Imported · not resumable here: {why}', { why: detail.foreign })))
@@ -928,7 +933,13 @@ export function mount(root, { parts, query }) {
    * is followed as any that holds it is. A folder that went is said as the box says it.
    */
   function wake(detail) {
-    if (waking || carryingOn || detail.held || wakeError || Date.now() - wokeAt < WAKES) return
+    if (waking || carryingOn || detail.held || wakeError) return
+    const wait = wokeAt + WAKES - Date.now()
+    if (wait > 0) {
+      // Too soon after the last: looked at again once it may be asked for.
+      if (!wakeLater) wakeLater = setTimeout(() => ((wakeLater = 0), draw()), wait)
+      return
+    }
     wokeAt = Date.now()
     const asked = call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: '', resume: detail.name, prefer: preferring, permission: carry ? carry.permission.picked() : null }).then(
       (started) => {
@@ -1278,6 +1289,7 @@ export function mount(root, { parts, query }) {
       stop()
       leaveEnv()
       clearInterval(ticking)
+      clearTimeout(wakeLater)
       removeEventListener('focus', draw)
       document.removeEventListener('visibilitychange', draw)
     },

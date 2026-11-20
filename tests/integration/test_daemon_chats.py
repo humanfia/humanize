@@ -1332,10 +1332,8 @@ def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_noth
     woke = user.call("chat.start", carried, timeout=60)
     assert woke["chat"] == name
     assert woke["slot"].startswith("chat:")
-    # Asked again, it is the one host; said to by chat.start, it is going there already.
+    # Asked again, it is the one host.
     assert user.call("chat.start", carried, timeout=60) == woke
-    code, why = _refused(user, "chat.start", **{**carried, "task": "twice"})
-    assert (code, why) == (400, f"{name} is going on already")
     row = _row(user, name)
     assert (row["state"], row["slot"]) == ("going", woke["slot"])
     # Nothing is written into it, and no conversation is opened for it.
@@ -1355,9 +1353,14 @@ def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_noth
         assert heard.of("started")[-1]["task"] == ""
         assert (at / CHATTED).read_bytes() == wrote
 
-        # What is said then carries it on: the same chat, in the conversation it had.
-        again.chat_say("what was the word?")
+        # What is said then carries it on: the same chat, in the conversation it had. Said
+        # by chat.start, as one who follows no host says it, it is said to the host standing by.
+        said = {**carried, "task": "what was the word?"}
+        assert user.call("chat.start", said, timeout=60) == woke
         assert until(_asked(heard, "did: what was the word?"))
+        # Once something is said there, it is going there already.
+        code, why = _refused(user, "chat.start", **{**carried, "task": "twice"})
+        assert (code, why) == (400, f"{name} is going on already")
         first, then = started(tmp_path)
         assert then["argv"][then["argv"].index("--resume") + 1] == first["session"]
         events = [one["event"] for one in _events(at)]
@@ -1365,6 +1368,41 @@ def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_noth
         assert written_chats() == [at]
     finally:
         again.close()
+
+
+def test_a_chat_standing_by_gives_way_to_another_agent_and_is_one_host_to_two_at_once(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    link, _, _, name = _chat(project, "the word is papaya")
+    _ended(link, user, name)
+    carried = {"workspace": str(project), "task": "", "resume": name}
+
+    # One who brings it up and one who says something, at once, are answered the one host.
+    with ThreadPoolExecutor(2) as both:
+        asked = [
+            both.submit(user.call, "chat.start", one, timeout=60)
+            for one in (carried, {**carried, "task": "what was the word?"})
+        ]
+        woke, said = (one.result() for one in asked)
+    assert woke == said
+    assert until(lambda: len(started(tmp_path)) == 2)
+    assert user.call("chat.start", carried, timeout=60) == woke
+    named = {"workspace": str(project), "slot": woke["slot"]}
+    assert until(lambda: _row(user, name)["state"] == "going")
+    assert user.call("chat.say", {**named, "text": ""}, timeout=30) == {}
+    assert until(lambda: _row(user, name)["state"] == "resting")
+
+    # Carried on with another agent while a host stands by with it, that host ends as it
+    # was and the chat goes on with the agent named, on a host of its own.
+    woke = user.call("chat.start", carried, timeout=60)
+    other = "claude/claude-sonnet-4-5"
+    went = user.call(
+        "chat.start", {**carried, "task": "and now?", "agent": other}, timeout=60
+    )
+    assert (went["chat"], went["slot"] != woke["slot"]) == (name, True)
+    assert until(lambda: _row(user, name)["slot"] == went["slot"])
 
 
 def test_a_chat_carried_on_with_nothing_said_ends_as_it_was_and_is_deleted_between_turns(

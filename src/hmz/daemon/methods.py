@@ -19,6 +19,7 @@ import socket
 import tempfile
 import threading
 import time
+from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -175,9 +176,10 @@ class _Methods:
     def __init__(self, router: Router, families: Mapping[str, Handler]) -> None:
         self._router = router
         self._families = families
-        #: Held while a chat is carried on with nothing said, so that two who ask at once
-        #: are answered the one host.
-        self._carrying = threading.Lock()
+        #: Held, one of each chat, while that chat is carried on, so that two who ask at
+        #: once are answered the one host.
+        self._carrying: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._carried = threading.Lock()
 
     # -- sessions and pairing
 
@@ -480,16 +482,31 @@ class _Methods:
         resumed = Path(checked["resume"] or "").name
         if resumed in self._router.links.kept.epics():
             raise _refused(404, f"{resumed} is not a chat of {named}.")
-        if resumed and not checked["task"]:
-            # Carried on with nothing said, for its workspace to be reached: by one caller
-            # at a time, and by none where a host holds it already (Section 4.25.1.7).
-            with self._carrying:
-                return self._held_or(resumed) or self._chat_started(
-                    call, named, slotted, checked, resumed
-                )
-        if resumed and self._held_or(resumed):
-            raise _refused(400, f"{resumed} is going on already")
-        return self._chat_started(call, named, slotted, checked, resumed)
+        if not resumed:
+            return self._chat_started(call, named, slotted, checked, resumed)
+        with self._carried:
+            carrying = self._carrying[resumed]
+        # Carried on by one caller at a time, so that two who ask at once are answered the
+        # one host (Section 4.25.1.9).
+        with carrying:
+            holding = self._holding(resumed)
+            if holding is not None and checked["task"]:
+                # Said to the host standing by with it, nothing said yet, as its first turn;
+                # one of another agent ends as it was first.
+                first = {key: checked[key] for key in ("agent", "prefer", "permission")}
+                said = {"do": "say", "text": checked["task"], "first": first}
+                if not self._chatted(call, holding[0], said).get("ended"):
+                    return {"slot": holding[0].slot, "chat": resumed}
+                self._let_go(resumed)
+            elif holding is not None:
+                return {"slot": holding[0].slot, "chat": resumed}
+            return self._chat_started(call, named, slotted, checked, resumed)
+
+    def _let_go(self, chat: str) -> None:
+        """Waits a while for the host that held a chat to have ended."""
+        ended = time.monotonic() + _ENDING
+        while self._holding(chat) is not None and time.monotonic() < ended:
+            time.sleep(0.05)
 
     def _holding(self, chat: str) -> tuple[Hosted, dict[str, Any]] | None:
         """The host going with a chat, by the chat's name, and how it stands; else None."""
@@ -502,11 +519,6 @@ class _Methods:
                     return hosted, status
         return None
 
-    def _held_or(self, chat: str) -> dict[str, Any] | None:
-        """The slot and name of a chat a host holds, as `chat.start` answers; else None."""
-        holding = self._holding(chat)
-        return None if holding is None else {"slot": holding[0].slot, "chat": chat}
-
     def chat_delete(self, call: Call) -> dict[str, Any]:
         """Deletes a chat, ending first the host that holds it between turns (4.25.7.6).
 
@@ -518,9 +530,7 @@ class _Methods:
         if holding is not None and holding[1].get("turn") == "done":
             with contextlib.suppress(Exception):
                 holding[0].chat({"do": "say", "text": ""})
-            ended = time.monotonic() + _ENDING
-            while self._holding(name) is not None and time.monotonic() < ended:
-                time.sleep(0.05)
+            self._let_go(name)
         return self._families["chat.delete"](call)
 
     def _chat_started(

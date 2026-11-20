@@ -539,6 +539,8 @@ class _Run:
     stopped_by: str = ""
     #: Of a chat, whether an empty next message was said, which its next wait answers.
     ending: bool = False
+    #: Of a chat, whether anything has been said to it since it started.
+    spoken: bool = False
     #: The role each session was opened for and where it works, which says whose turn is
     #: open in an environment.
     placed: weakref.WeakKeyDictionary[SessionBase, tuple[str, Placement]] = (
@@ -1604,8 +1606,22 @@ class Host:
             return going
         current, run = going
         line = text.strip()
+        first = said.get("first")
+        if isinstance(first, dict):
+            # The message that carries on a chat standing by with nothing said, handed here
+            # by `chat.start` (Section 4.25.1.9 of daemon.md): once, and as that start set it.
+            first = cast("dict[str, Any]", first)
+            with self._lock:
+                if current.started["task"] or current.spoken or current.ending:
+                    return _no(f"{_epic_of(current, 'chat')} is going on already", 400)
+                if first.get("agent") != current.started["agents"]["assistant"]:
+                    # Another agent's to go on with: this host ends as it was, for a new one.
+                    line = ""
+        else:
+            first = None
         if not line:
-            return self._chat_ends(current, by, client)
+            ended = self._chat_ends(current, by, client)
+            return ended if first is None else ended | {"ended": True}
         # Only what a line's sigil asks for is read: prose is said, and only a `$` names a flow.
         sigiled, named = line[0] in "/$!@", line[0] == "$"
         read = resolve(
@@ -1623,6 +1639,11 @@ class Host:
             return _no(f"{typed} names a flow, which the frontend starts", 400)
         if read.kind == "refused":
             return _no(f"{typed} cannot be said here: {read.why}", 400)
+        if first is not None:
+            if first.get("permission") is not None:
+                run.chat.permits(first["permission"])
+            if first.get("prefer") is not None:
+                run.chat.prefers(first["prefer"])
         with self._lock:
             if self._current is not current:
                 return _no(_ENDED, 409)
@@ -1640,6 +1661,7 @@ class Host:
                 return _ok()
             # A native line is a turn of its own, and never words put into the turn open.
             to = _NATIVE if read.kind == "native" else ""
+            current.spoken = True
             self._queue.append(_Line(text, by, client, to))
             self._snap_waiting()
             self._spoke.notify_all()

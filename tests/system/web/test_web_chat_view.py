@@ -741,6 +741,23 @@ def test_a_chat_whose_folder_has_gone_says_so_in_the_pane_asked_for(
         for one in ("terminal", "changes", "files"):
             expect(bar.locator(f"[data-hmz=pane-{one}]")).to_be_enabled()
 
+        # And so it is from its menu and from its details, at once: what is said is what
+        # the daemon says now, never what it said before.
+        for said, opens in (
+            ("no room for it", "env-open"),
+            ("still none", "envs-open"),
+        ):
+            wire.faked["chat.start"] = lambda _, said=said: {
+                "error": {"code": 400, "message": said}
+            }
+            if opens == "env-open":
+                page.locator("[data-hmz=chat-menu]").click()
+            else:
+                bar.locator("[data-hmz=pane-details]").click()
+            page.locator(f"[data-hmz={opens}]").click()
+            expect(pane).to_contain_text(said)
+        assert len(wire.params("chat.start")) == 4
+
 
 def test_an_address_of_the_epic_a_chat_was_recorded_as_opens_the_chat(
     project: Path, engine: str

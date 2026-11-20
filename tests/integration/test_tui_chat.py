@@ -270,6 +270,40 @@ async def test_an_ai_chan_conversation_is_not_among_the_chats_to_resume(
             await until(pilot, lambda: len(app.screen_stack) == 1, "the list to close")
 
 
+async def test_an_env_asked_of_a_chat_that_is_refused_opens_over_nothing_later(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folds_fast(monkeypatch)
+    held = Chats().install(monkeypatch)
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await typed(pilot, "hello")
+        await shows(pilot, "heard hello", "◉ done")
+        await typed(pilot, "/clear")
+        await until(pilot, lambda: len(chats(workspace)) == 1, "the chat")
+        (chat,) = chats(workspace)
+        await until(pilot, lambda: bool((read(chat) or Ran(chat)).ended), "it to fold")
+        await typed(pilot, "/resume")
+        await shows(pilot, "Resume a chat", "hello")
+        await opens(pilot, chat.name)
+        await shows(pilot, "say something to continue")
+
+        # Bringing it up for its environment is refused, and said so.
+        held.starting, held.refusing = threading.Event(), True
+        held.starting.set()
+        await typed(pilot, "/env")
+        await shows(pilot, "no room to start")
+
+        # The next line still carries that chat on, and no sheet opens over it uninvited.
+        held.starting = None
+        await typed(pilot, "more")
+        await shows(pilot, "heard more", "◉ done")
+        await pilot.pause(0.5)
+        assert not isinstance(app.screen, Envs)
+    assert [one["resume"] for one in held.started()] == [None, chat.name, chat.name]
+
+
 async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
