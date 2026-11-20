@@ -414,7 +414,8 @@ here at the same path, holding the commit its archive says; otherwise it says wh
 `Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
 machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
 under its path, and opens on its [Exomyth](#exomyth) -- as [Humanize Desktop](/user/desktop#opening-a-hmzepic)
-opens one you double-click. Where `hmz` runs in WSL, a Windows path, `C:\…` or `\\wsl$\…`, is
+opens one you double-click. One an earlier Humanize exported of a chat is read back in as a
+chat, and opens as that chat. Where `hmz` runs in WSL, a Windows path, `C:\…` or `\\wsl$\…`, is
 read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}

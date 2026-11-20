@@ -1,5 +1,6 @@
 // `#/epics/import?path=<file>`: an epic read back in from a `.hmzepic` already on this machine,
-// by its path, and its Exomyth opened in place of this address -- what Humanize Desktop opens a
+// by its path, and its Exomyth opened in place of this address, or the chat where it is one an
+// earlier hmz kept as an epic -- what Humanize Desktop opens a
 // file with, the page reading it from the app and sending it to the daemon shown.
 // In a browser it is asked first: any page elsewhere can link here, and the page would carry
 // its key.
@@ -24,8 +25,15 @@ export function mount(root, { query }) {
       (answer) => {
         if (left) return
         refresh('runs.list')
-        // In place of this address, so that going back never imports it again.
-        location.replace(hash(`/epics/${encodeURIComponent(answer.name)}/exomyth`))
+        refresh('chat.list')
+        const name = encodeURIComponent(answer.name)
+        // In place of this address, so that going back never imports it again. A chat an
+        // earlier hmz kept as an epic is imported as a chat, which has no Exomyth (Section
+        // 3.5.20.3 of protocol/web.md).
+        call('chat.get', { chat: answer.name }).then(
+          () => left || location.replace(hash(`/chats/${name}`)),
+          () => left || location.replace(hash(`/epics/${name}/exomyth`)),
+        )
       },
       (error) => {
         if (!left) fill(body, refusal(error))

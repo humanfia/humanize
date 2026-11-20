@@ -837,7 +837,8 @@ machine; where Local runs in WSL, that path MAY be a Windows path, read as WSL n
 **3.6.8.2** In a browser, the import address MUST import only once the user presses `Import`.
 
 **3.6.8.3** An imported epic MUST be imported into the daemon shown, under the workspace it ran in,
-and MUST then open on its Exomyth.
+and MUST then open on its Exomyth; one imported as a chat (Section 3.5.20.3) MUST open as that
+chat, at `#/chats/<id>`.
 
 **3.6.8.4** An epic already present MUST be refused, naming it, and the page MUST offer `Open` to go
 to it.
