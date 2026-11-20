@@ -11,7 +11,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
@@ -32,7 +32,7 @@ def test_a_conversation_left_as_an_epic_is_not_carried_on_until_it_is_moved(
     workspace.mkdir()
     at = epic.under(workspace) / "20260101T000000.000Z-0ldc4a"
     at.mkdir(parents=True)
-    began = {
+    began: dict[str, Any] = {
         "event": "began",
         "kind": "chat",
         "task": "hi",
@@ -40,7 +40,10 @@ def test_a_conversation_left_as_an_epic_is_not_carried_on_until_it_is_moved(
         "agents": [],
     }
     (at / epic.JOURNAL).write_text(
-        json.dumps(began) + "\n" + json.dumps({"event": "ended", "how": "stopped"}) + "\n"
+        json.dumps(began)
+        + "\n"
+        + json.dumps({"event": "ended", "how": "stopped"})
+        + "\n"
     )
     kept = Conversations()
     made = kept.made(

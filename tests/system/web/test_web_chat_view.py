@@ -698,7 +698,9 @@ def test_a_chat_kept_as_an_epic_imported_by_its_path_opens_as_the_chat(
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/new/chat")
         go(page, "/epics/import?path=/somewhere/old.hmzepic")
-        page.locator("[data-hmz=importing]").get_by_role("button", name="Import").click()
+        page.locator("[data-hmz=importing]").get_by_role(
+            "button", name="Import"
+        ).click()
         # A chat has no Exomyth: it is opened as the chat it was read back in as.
         expect(page).to_have_url(re.compile(rf"#/chats/{re.escape(_OLD)}$"))
         expect(page.locator("[data-hmz=bar] [data-hmz=chat-title]")).to_have_text(

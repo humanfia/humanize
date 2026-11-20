@@ -478,7 +478,11 @@ def test_what_she_last_answered_is_written_down_as_she_answers_it(
     assert again["updated"] == "t1"
     # Nor is why it could not be carried on, which its host waits on as it comes up: no
     # turn of hers ended on it.
-    notice = {"mode": "listen", "question": "q0", "text": "This could not be carried on."}
+    notice = {
+        "mode": "listen",
+        "question": "q0",
+        "text": "This could not be carried on.",
+    }
     again = _followed(kept, [{"chat": "c", "turn": "done", "pending": [notice]}])
     assert (again["latest"], again["updated"]) == (conversation["latest"], "t1")
     # And her next answer, a turn of hers since open, is the latest from then on.
@@ -533,9 +537,16 @@ def test_a_conversation_kept_as_an_epic_is_not_carried_on_or_begun_anew(
     import hmz.runtime.epic
 
     old = tmp_path / "epics" / "w" / "old"
+
+    def every() -> list[Path]:
+        return [old]
+
+    def chatted(at: Path) -> bool:
+        return at == old
+
     monkeypatch.setattr(hmz.runtime.epic, "chats", list)
-    monkeypatch.setattr(hmz.runtime.epic, "every", lambda: [old])
-    monkeypatch.setattr(hmz.runtime.epic, "chatted", lambda at: at == old)
+    monkeypatch.setattr(hmz.runtime.epic, "every", every)
+    monkeypatch.setattr(hmz.runtime.epic, "chatted", chatted)
     links = Links(mock.Mock(), mock.Mock())
     links.kept = kept
     made = kept.made({"slot": "ai:1", "nous": "claude/opus"})
