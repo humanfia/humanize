@@ -247,6 +247,10 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         # Reached, it lists this machine among its devices, paired as it is called.
         row.get_by_role("button", name="Connect").click()
         expect(row.locator("[data-hmz=daemon-state]")).to_contain_text("up")
+        # Reached, it offers no Connect; Local, up from the start, never did.
+        expect(row.get_by_role("button", name="Connect")).to_have_count(0)
+        local = page.locator("[data-hmz=daemon][data-name=local]")
+        expect(local.get_by_role("button", name="Connect")).to_have_count(0)
         expect(devices.locator("[data-hmz=device] b")).to_contain_text(
             [socket.gethostname().split(".")[0]]
         )

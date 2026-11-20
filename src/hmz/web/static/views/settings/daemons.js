@@ -93,6 +93,7 @@ export function draw(holder) {
   let editing = null
   let gone = false
   const states = new Map()
+  const connects = new Map()
   // Where Local is: this machine, or the WSL distribution hmz runs in there.
   const where = h('td', { class: 'mono dim' }, 'this machine')
   hello('local').then((said) => fill(where, said.wsl ? `${said.wsl} (WSL)` : said.machine || 'this machine'), () => {})
@@ -109,11 +110,22 @@ export function draw(holder) {
   const unwatch = onState((name, now) => {
     if (gone) return
     if (states.has(name)) fill(states.get(name), shownState(now))
+    // A daemon that is reached offers no Connect.
+    if (connects.has(name)) connects.get(name).hidden = now.state === 'up'
     if (under.has(name)) drawDevices(under.get(name))
   })
 
+  /** The Connect of one daemon's line, drawn only while the daemon is not reached. */
+  function connect(name) {
+    const button = acting('Connect', () => reconnect(name), { kind: 'btn small quiet', busy: 'Connecting…' })
+    button.hidden = stateOf(name).state === 'up'
+    connects.set(name, button)
+    return button
+  }
+
   function drawListing() {
     states.clear()
+    connects.clear()
     const kept = new Map()
     const rows = entries.map((one) => {
       const local = one.name === 'local'
@@ -133,11 +145,11 @@ export function draw(holder) {
           'td',
           {},
           local
-            ? acting('Connect', () => reconnect('local'), { kind: 'btn small quiet', busy: 'Connecting…' })
+            ? connect('local')
             : h(
                 'div',
                 { class: 'row' },
-                acting('Connect', () => reconnect(one.name), { kind: 'btn small quiet', busy: 'Connecting…' }),
+                connect(one.name),
                 h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
                 confirming({
                   label: 'Remove',
