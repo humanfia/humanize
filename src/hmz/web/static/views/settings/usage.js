@@ -124,7 +124,7 @@ export function draw(holder, query, parts, scope) {
                     h(
                       'tr',
                       {},
-                      h('td', {}, h('a', { href: hash(`/search?flow=${encodeURIComponent(one.flow)}`), title: one.flow }, flowName(one.flow))),
+                      h('td', {}, h('a', { href: hash(`/search?flow=${encodeURIComponent(one.flow)}`), title: one.flow === 'chat' ? t('chat') : one.flow }, one.flow === 'chat' ? t('chat') : flowName(one.flow))),
                       h('td', { class: 'num' }, one.runs),
                       h('td', { class: 'num' }, one.money),
                       h('td', {}, h('div', { class: 'share', title: share(one.cost, whole.cost) }, h('span', { style: { width: share(one.cost, whole.cost) } }))),

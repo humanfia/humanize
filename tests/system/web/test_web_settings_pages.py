@@ -252,6 +252,34 @@ def test_a_range_shown_stays_busy_until_the_next_is_read(
         expect(usage).not_to_have_attribute("aria-busy", "true")
 
 
+def test_what_the_chats_spent_is_named_in_the_pages_language(
+    project: Path, engine: str
+) -> None:
+    spent = {"runs": 1, "cost": 0.5, "money": "$0.50", "tokens": "1.2k", "worked": "3m"}
+    wire = Wire(
+        faked={
+            "runs.usage": lambda _: {
+                "result": {
+                    "days_back": 30,
+                    "days": [{"day": "2026-01-01", **spent}],
+                    # The chats are summed as of the flow `chat`: a word of the page's.
+                    "flows": [{"flow": "chat", **spent}, {"flow": "goal", **spent}],
+                    "ended": {"done": 2},
+                    "whole": {**spent, "runs": 2},
+                }
+            }
+        }
+    )
+    with (
+        served() as site,
+        opened(site, engine=engine, locale="zh-TW", routed=wire.routes) as page,
+    ):
+        go(page, "/settings/usage")
+        named = page.locator("[data-hmz=usage] tbody td:first-child a")
+        expect(named).to_have_text(["聊天", "goal"])
+        expect(named.first).to_have_attribute("title", "聊天")
+
+
 def test_a_settings_list_with_nothing_in_it_offers_what_adds_to_it(
     project: Path, engine: str
 ) -> None:
