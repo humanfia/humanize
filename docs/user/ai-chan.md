@@ -47,7 +47,7 @@ as it was.
 | --- | --- | --- | --- |
 | **Scope** | what she may reach | `epic`: one epic, and the directory it ran in · `workspace`: one directory and every epic run there · `daemon`: every directory and every epic on this machine's daemon | the epic you are looking at, else the directory, else the daemon |
 | **Nous** | what she thinks with | any [nous](/user/settings#nous), or an agent: a CLI, an account, a model and an effort | the one the last conversation was made with |
-| **Permission** | what she may change | a **preset**, `read-only` or `danger-full-access`, and **network**, off or on | `read-only`, network off |
+| **Permission** | what she may change | a **preset**, `read-only` or `danger-full-access` | `read-only` |
 
 What she may do follows from the preset, and from the scope reaching what she acts on:
 
@@ -69,8 +69,8 @@ account or touch its credentials, or see another conversation with Ai-chan, her 
 Her CLI never stops to ask you for approval: what she cannot do is refused as she tries it, not
 put to you.
 
-**Network** off cuts the network for her CLI and every command it runs, except what her model
-and its sign-in need. Turn it on when she must fetch something, such as a page or a package.
+Her CLI and every command it runs may always reach the network, whatever the scope and the
+preset: she can fetch a page or a package without being set up for it.
 
 She talks as a chat does: she answers each thing you say in a turn, and
 she shows each tool she calls -- what she asked Humanize for, and how it was answered -- as a
@@ -89,12 +89,12 @@ under **New**:
   New                                                                         ①
     a conversation of its own scope, nous and permission
   Ai-chan#2 · check the reviewer's last round                                 ②
-    epic 0912-a1b2c3 · claude/claude-opus-5:high · read-only · network off · between turns
+    epic 0912-a1b2c3 · claude/claude-opus-5:high · read-only · between turns
   Ai-chan#1 · what did the benchmark score
-    daemon · claude/claude-opus-5:high · read-only · network off · folded away
+    daemon · claude/claude-opus-5:high · read-only · folded away
 ```
 
-Pick **New**. A form asks for the scope, the nous, the preset and the network, each set to its
+Pick **New**. A form asks for the scope, the nous and the preset, each set to its
 default. Nothing has run here, so the scope is `workspace`, this directory. Press **Done**: the
 first line you say is the task that starts the conversation.
 
@@ -112,7 +112,7 @@ What to look at, by number:
 
 1. **New** makes a conversation. Every one you made is listed under it, newest first.
 2. **Each conversation**, `Ai-chan#<n>` and its title, says its scope, its nous, its preset,
-   whether its network is on, and how it stands: `answering`, `between turns` or `folded away`.
+   and how it stands: `answering`, `between turns` or `folded away`.
 3. **Each tool she calls** is a tool line of her turn, as an agent's is, even with
    [Details](/user/settings#details) off: what she asked Humanize for, and how it was answered.
 4. **`Ai-chan#3 · workspace shop`** at the front of the status line is the conversation you
@@ -178,7 +178,7 @@ Each is a first line, with the scope and permission it needs.
 | "Ask actor/2 why it skipped the migration." | `epic` | `read-only` |
 | "Run `pytest -x` in the env `repo` of this epic and tell me what fails." | `epic`, while it runs | `danger-full-access` |
 | "Start ralph_loop here on the open issue about coupons." | `workspace` | `danger-full-access` |
-| "Read the new release notes of pytest: does anything in them break us?" | `workspace` | `read-only`, network on |
+| "Read the new release notes of pytest: does anything in them break us?" | `workspace` | `read-only` |
 
 To steer a session, she says the line to it as you would by typing into its transcript: see
 [Talking to a running turn](/user/steering). To run tests in an env, she runs the command

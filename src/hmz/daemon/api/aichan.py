@@ -1,4 +1,6 @@
-"""`aichan.*`: making, listing and forgetting Ai-chan conversations (Section 4.22 of daemon.md).
+"""`aichan.*`: making, listing, renaming and forgetting Ai-chan conversations.
+
+Section 4.22 of daemon.md.
 
 Each conversation is recorded in `<home>/ai/<machine>/conversations.yaml`, held on a host of an
 `ai:` slot of its own in the workspace of its scope -- `<home>/ai/<machine>` itself for the scope
@@ -25,8 +27,9 @@ if TYPE_CHECKING:
 
 __all__ = ["served"]
 
-#: How long a title taken from the task is, at most.
+#: How long a title taken from the task is, at most, and one given by `aichan.rename`.
 _TITLE = 80
+_RENAMED = 240
 
 #: What `aichan.list` says of each conversation, beside its `state`.
 _LISTED = (
@@ -37,7 +40,6 @@ _LISTED = (
     "epic",
     "nous",
     "preset",
-    "network",
     "slot",
 )
 
@@ -108,17 +110,16 @@ def _create(router: Router, call: Call) -> dict[str, Any]:
         workspace = placed(workspace)
     if epic and ran_in(epic) != workspace:
         raise RpcError(Code.NOT_FOUND, f"There is no epic {epic} in {workspace}.")
-    first = task.strip().splitlines()[0]
+    first = task.strip().splitlines()[0].rstrip()
     slot = where.chat("ai")
     made = links.kept.made(
         {
-            "title": str(params.get("title") or "") or first[:_TITLE],
+            "title": first[:_TITLE],
             "scope": scope,
             "workspace": workspace,
             "epic": epic,
             "nous": nous,
             "preset": preset,
-            "network": params.get("network") is True,
             "slot": slot,
             # What was last said in it is, until she answers, what it was made with.
             "latest": preview(task),
@@ -199,12 +200,32 @@ def _list(router: Router, call: Call) -> dict[str, Any]:
     }
 
 
-def _forget(router: Router, call: Call) -> dict[str, Any]:
+def _held(router: Router, call: Call) -> dict[str, Any]:
+    """The conversation a call names by its `id`.
+
+    Raises:
+      RpcError: 404 for an `id` of no conversation.
+    """
     ident = int(call.params["id"])
+    for one in router.links.kept.all():
+        if one["id"] == ident:
+            return one
+    raise RpcError(Code.NOT_FOUND, f"There is no Ai-chan #{ident}.")
+
+
+def _rename(router: Router, call: Call) -> dict[str, Any]:
+    conversation = _held(router, call)
+    title = " ".join(str(call.params["title"]).split())
+    if not title:
+        raise _refused("A conversation's title says something.")
+    router.links.kept.changed(int(conversation["id"]), title=title[:_RENAMED])
+    return {}
+
+
+def _forget(router: Router, call: Call) -> dict[str, Any]:
+    conversation = _held(router, call)
+    ident = int(conversation["id"])
     kept = router.links.kept
-    conversation = next((one for one in kept.all() if one["id"] == ident), None)
-    if conversation is None:
-        raise RpcError(Code.NOT_FOUND, f"There is no Ai-chan #{ident}.")
     hosted = router.hosts.get(str(conversation["workspace"]), str(conversation["slot"]))
     # Forgotten before its host is closed: a frontend attached to it that attaches again as
     # it goes finds no conversation to start it again for. Its epic as its host names it,
@@ -221,5 +242,6 @@ def served(router: Router) -> dict[str, Handler]:
     return {
         "aichan.create": functools.partial(_create, router),
         "aichan.list": functools.partial(_list, router),
+        "aichan.rename": functools.partial(_rename, router),
         "aichan.forget": functools.partial(_forget, router),
     }

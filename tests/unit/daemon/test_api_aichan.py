@@ -203,7 +203,11 @@ def test_a_conversation_made_is_listed_by_its_task_and_remembers_its_nous(
 ) -> None:
     settings, made = _made(monkeypatch, was="")
 
-    assert made.call_args.args[0]["latest"] == "look around"
+    kept = made.call_args.args[0]
+    assert kept["latest"] == "look around"
+    # Titled by the first line of what was first said, and made with no network to keep.
+    assert kept["title"] == "look"
+    assert "network" not in kept
     assert settings.ai_chan == "fast"
 
 
@@ -213,3 +217,44 @@ def test_a_conversation_refused_remembers_no_nous(
     settings, _ = _made(monkeypatch, was="slow", refused=True)
 
     assert settings.ai_chan == "slow"
+
+
+def test_a_conversation_is_renamed_with_its_white_space_made_single() -> None:
+    router = mock.Mock()
+    router.links.kept.all.return_value = [{"id": 3, "title": "hi"}]
+    rename = served(router)["aichan.rename"]
+
+    assert rename(mock.Mock(params={"id": 3, "title": "  The \n plan  "})) == {}
+
+    router.links.kept.changed.assert_called_once_with(3, title="The plan")
+    with pytest.raises(RpcError) as refused:
+        rename(mock.Mock(params={"id": 3, "title": " \t "}))
+    assert (refused.value.code, refused.value.message) == (
+        400,
+        "A conversation's title says something.",
+    )
+
+
+def test_a_title_is_cut_at_what_a_title_holds() -> None:
+    router = mock.Mock()
+    router.links.kept.all.return_value = [{"id": 3, "title": "hi"}]
+
+    served(router)["aichan.rename"](mock.Mock(params={"id": 3, "title": "x" * 300}))
+
+    assert router.links.kept.changed.call_args.kwargs == {"title": "x" * 240}
+
+
+def test_no_conversation_is_renamed_or_forgotten_by_an_id_none_has() -> None:
+    router = mock.Mock()
+    router.links.kept.all.return_value = []
+
+    for method, params in (
+        ("aichan.rename", {"id": 9, "title": "x"}),
+        ("aichan.forget", {"id": 9}),
+    ):
+        with pytest.raises(RpcError) as refused:
+            served(router)[method](mock.Mock(params=params))
+        assert (refused.value.code, refused.value.message) == (
+            404,
+            "There is no Ai-chan #9.",
+        )

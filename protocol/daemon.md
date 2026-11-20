@@ -1862,9 +1862,9 @@ as though the entries kept were all there are, counts and totals included:
 
 #### 4.21.5. Ai-chan conversations
 
-**4.21.5.1** `aichan.create`, `aichan.list` and `aichan.forget` MUST carry the `scope` `never`, and
-no reach MUST reach a host of an `ai:` slot (Section 4.21.1.6): Ai-chan neither makes, lists,
-watches, talks to nor forgets an Ai-chan conversation, her own included.
+**4.21.5.1** `aichan.create`, `aichan.list`, `aichan.rename` and `aichan.forget` MUST carry the
+`scope` `never`, and no reach MUST reach a host of an `ai:` slot (Section 4.21.1.6): Ai-chan neither
+makes, lists, renames, watches, talks to nor forgets an Ai-chan conversation, her own included.
 
 ### 4.22. Ai-chan conversations
 
@@ -1887,9 +1887,9 @@ whatever name its `session.hello` says (Section 4.7.1.5).
 **4.22.2.1** `aichan.create` MUST take `scope` (text, required: `daemon`, `workspace` or `epic`),
 `workspace` (required for the scopes `workspace` and `epic`, and absent for `daemon`), `epic` (an
 epic name, required for the scope `epic`, and absent otherwise), `nous` (text, default `""` for the
-nous the last conversation was made with, the `ai_chan` setting), `preset` (default `read-only`), `network` (boolean, default `false`), `title`
-(text, default `""` for the first line of `task`, cut at 80 characters) and `task` (text, required,
-not empty), and MUST be a write.
+nous the last conversation was made with, the `ai_chan` setting), `preset` (default `read-only`)
+and `task` (text, required, not empty), and MUST be a write. The conversation's title MUST be the
+first line of `task`, cut at 80 characters, until `aichan.rename` gives it another.
 
 **4.22.2.2** `aichan.create` MUST record the conversation, make its scratch directory (Section 4.16.3
 of [FILES]), start its host as Section 4.22.5.1 states, and, once that host has taken the start,
@@ -1912,8 +1912,8 @@ run in that workspace, and 409 with the host's `why` where its host refuses the 
 
 **4.22.3.1** `aichan.list` MUST take no parameter and MUST answer `conversations`, one per
 conversation, newest first, each with `id`, `title`, `scope`, `workspace` (the workspace of its
-host), `epic` (the epic name of an `epic` scope, else `""`), `nous`, `preset`, `network`, `slot`,
-`state`, `created` (`YYYY-MM-DDTHH:MM:SSZ`, in UTC), `latest` and `updated`.
+host), `epic` (the epic name of an `epic` scope, else `""`), `nous`, `preset`, `slot`, `state`,
+`created` (`YYYY-MM-DDTHH:MM:SSZ`, in UTC), `latest` and `updated`.
 
 **4.22.3.1.1** `latest` MUST be what was last said in the conversation as its entry keeps it
 (Section 4.16.2 of [FILES]): the `task` it was made with until Ai-chan has answered, and from then
@@ -1949,8 +1949,8 @@ assistant the conversation's `nous`, and `HUMANIZE_AICHAN_LINK` naming the socke
 (Section 3.11.2.17 of [FILES]): anew, with the task of `aichan.create` as the first message, the
 first time; and carrying on its recorded chat, waiting between turns, every later time.
 
-**4.22.5.2** `epic.attach` naming the `ai:` slot of a conversation whose host has gone MUST start
-that host as Section 4.22.5.1 states and attach to it; `epic.attach` and `hosts.open` naming an
+**4.22.5.2** `epic.attach` naming the `ai:` slot of a conversation whose host has gone, or is going
+as it is attached to, MUST start that host as Section 4.22.5.1 states and attach to it; `epic.attach` and `hosts.open` naming an
 `ai:` slot of no conversation MUST be refused 404, `There is no Ai-chan conversation <slot>.`
 
 **4.22.5.3** `epic.stop` and `chat.stop` on an Ai-chan host MUST interrupt Ai-chan's open turn and
@@ -1973,6 +1973,16 @@ refused 403, `Only Ai-chan says hello as ai-chan.`
 
 **4.22.6.3** The daemon MUST stop listening on a scoped link, and close every session over it, when
 the host of its conversation goes.
+
+#### 4.22.7. `aichan.rename`
+
+**4.22.7.1** `aichan.rename` MUST take `id` (integer, required) and `title` (text, 1 to 240
+characters), MUST be a write, MUST record `title` as the conversation's title with its white space
+runs collapsed to single spaces, whether or not a host holds the conversation, and MUST answer
+`{}`.
+
+**4.22.7.2** A `title` of white space alone MUST be refused 400, `A conversation's title says
+something.`, and an `id` of no conversation 404, `There is no Ai-chan #<id>.`
 
 ### 4.23. Envs of an epic
 

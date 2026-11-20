@@ -1,8 +1,8 @@
 """Ai-chan's reach: what the session of one Ai-chan conversation may call, and see.
 
 Every Ai-chan conversation is fixed, when it is made, to a scope -- the daemon, one workspace or
-one epic -- and a permission: a preset, `read-only` or `danger-full-access`, and a network
-(Section 14 of core.md). Its host is told the socket of a link of its own, its scoped link, and
+one epic -- and a permission: a preset, `read-only` or `danger-full-access` (Section 14 of
+core.md). Its host is told the socket of a link of its own, its scoped link, and
 every session over it carries the conversation's reach (Section 4.21 of daemon.md): each call is
 held to it by the method's `x-hmz-reach` and `x-hmz-writes` in the OpenRPC document, refused 403
 by the first of four rules that holds, and the lists it is answered are cut to what it reaches.
@@ -101,7 +101,6 @@ class Reach:
       workspace: The workspace of its host: of its scope, or `<home>/ai/<machine>`.
       epic: The epic name of an `epic` scope, else "".
       preset: `read-only` or `danger-full-access`.
-      network: Whether its harness may reach the network.
     """
 
     id: int
@@ -109,7 +108,6 @@ class Reach:
     workspace: str
     epic: str
     preset: str
-    network: bool
 
     @classmethod
     def of(cls, conversation: Mapping[str, Any]) -> Reach:
@@ -120,7 +118,6 @@ class Reach:
             str(conversation["workspace"]),
             str(conversation.get("epic") or ""),
             str(conversation["preset"]),
-            conversation.get("network") is True,
         )
 
 
@@ -655,7 +652,7 @@ class Links:
         task = "" if picked else self.tasks.get(hosted.slot, "")
         reach = {
             key: conversation[key]
-            for key in ("id", "scope", "workspace", "epic", "preset", "network")
+            for key in ("id", "scope", "workspace", "epic", "preset")
         }
         if FLOW:
             answer = hosted.started(

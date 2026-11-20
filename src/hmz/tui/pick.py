@@ -13565,7 +13565,7 @@ _AI_PRESETS = ("read-only", "danger-full-access")
 
 #: The rows of the form a new conversation is asked on, in the order Section 7.19.3 of
 #: tui.md asks them.
-_AI_SCOPE, _AI_NOUS, _AI_PRESET, _AI_NETWORK = "scope", "nous", "preset", "network"
+_AI_SCOPE, _AI_NOUS, _AI_PRESET = "scope", "nous", "preset"
 
 #: How each state of a conversation is said on its row (Section 4.22.3.2 of daemon.md).
 _AI_STATES = {
@@ -13637,7 +13637,6 @@ def _ai_row(one: Mapping[str, Any]) -> str:
             ai_scope(one),
             str(one.get("nous") or ""),
             str(one.get("preset") or ""),
-            "network on" if one.get("network") else "network off",
             _AI_STATES.get(state, state),
         ]
     )
@@ -13778,7 +13777,6 @@ class AiAsked(NamedTuple):
       epic: The epic of an `epic` scope, else "".
       nous: What Ai-chan thinks with: a nous's name or an agent spec.
       preset: `read-only` or `danger-full-access`.
-      network: Whether her harness may reach the network.
     """
 
     scope: str
@@ -13786,7 +13784,6 @@ class AiAsked(NamedTuple):
     epic: str
     nous: str
     preset: str
-    network: bool
 
     def made(self, task: str) -> dict[str, Any]:
         """What `aichan.create` takes for this conversation, `task` its first message.
@@ -13803,13 +13800,12 @@ class AiAsked(NamedTuple):
             **({"epic": self.epic} if self.scope == "epic" else {}),
             "nous": self.nous,
             "preset": self.preset,
-            "network": self.network,
             "task": task,
         }
 
 
 class AiChanNew(Form[AiAsked]):
-    """A new Ai-chan conversation: its scope, its nous, its preset and its network.
+    """A new Ai-chan conversation: its scope, its nous and its preset.
 
     Asked as Section 7.19.3 of tui.md orders them, each defaulting as Section 14.3 of core.md
     says; the task is the first line said once the form is done.
@@ -13833,14 +13829,13 @@ class AiChanNew(Form[AiAsked]):
             _AI_SCOPE: "epic" if epic else "workspace",
             _AI_NOUS: nous,
             _AI_PRESET: _AI_PRESETS[0],
-            _AI_NETWORK: _NO,
         }
         self._nouses = list(nouses)
         if nous and nous not in self._nouses:
             self._nouses.insert(0, nous)
 
     def asked(self) -> list[Question]:
-        """The scope, the nous, the preset and the network."""
+        """The scope, the nous and the preset."""
         typed = self._typed_in
         return [
             Question(
@@ -13858,12 +13853,6 @@ class AiChanNew(Form[AiAsked]):
             Question(
                 _AI_PRESET, "preset", self.means(_AI_PRESET, typed[_AI_PRESET]), _STEPS
             ),
-            Question(
-                _AI_NETWORK,
-                "network",
-                "whether her harness may reach the network",
-                _STEPS,
-            ),
         ]
 
     def choices(self, held: str) -> Sequence[str]:
@@ -13879,9 +13868,7 @@ class AiChanNew(Form[AiAsked]):
             return _AI_SCOPES if self._epic else _AI_SCOPES[:2]
         if held == _AI_NOUS:
             return self._nouses
-        if held == _AI_PRESET:
-            return _AI_PRESETS
-        return (_YES, _NO)
+        return _AI_PRESETS
 
     def means(self, held: str, value: str) -> str:
         """What a scope reaches, and what a preset lets her change.
@@ -13934,6 +13921,5 @@ class AiChanNew(Form[AiAsked]):
                 epic=self._epic if scope == "epic" else "",
                 nous=typed[_AI_NOUS],
                 preset=typed[_AI_PRESET],
-                network=typed[_AI_NETWORK] == _YES,
             )
         )

@@ -547,8 +547,7 @@ seconds to finish, saying so where it waits and where one was left unfinished.
 
 **7.19.1** `/ai` MUST open a menu (Section 15) listing, under an entry **New**, every Ai-chan
 conversation of the daemon (Section 4.22.3 of [DAEMON]), newest first, each with its title, its
-scope, its nous, its preset, whether its network is on, and whether a turn is open, it is between
-turns or it has folded away.
+scope, its nous, its preset, and whether a turn is open, it is between turns or it has folded away.
 
 **7.19.2** Choosing a conversation MUST follow its host in the log screen, carrying it on where it
 has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 states.
@@ -557,9 +556,7 @@ has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 s
 or `epic`, defaulting to `epic`, of the epic going or last on the host this interface follows, where
 there is one, and otherwise to `workspace`, of this directory; the nous, offering every nous
 `nous.list` answers and defaulting to the nous last used, the `ai_chan` setting (Section 14.3.2 of
-[CORE]); the preset,
-`read-only` or `danger-full-access`, defaulting to `read-only`; and the network, `off` or `on`,
-defaulting to `off`.
+[CORE]); and the preset, `read-only` or `danger-full-access`, defaulting to `read-only`.
 
 **7.19.4** **Done** on the form of Section 7.19.3 MUST leave the menu with the log screen waiting
 on a new conversation, and the first line said MUST make it by `aichan.create`, that line being its

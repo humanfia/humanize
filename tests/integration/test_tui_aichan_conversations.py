@@ -74,7 +74,6 @@ class Params(FlowParams):
     workspace: str = ""
     epic: str = ""
     preset: str = ""
-    network: bool = False
 
 
 @flow(agents=Agents, envs=Envs, params=Params, name="ai_chan", resumable=True)
@@ -117,7 +116,7 @@ def workspace(
 _YOURS = "\N{HEAVY RIGHT-POINTING ANGLE QUOTATION MARK ORNAMENT}"
 
 #: What a conversation is kept with that the interface chose.
-_KEPT = ("id", "title", "scope", "workspace", "epic", "nous", "preset", "network")
+_KEPT = ("id", "title", "scope", "workspace", "epic", "nous", "preset")
 
 
 def _made(daemon: Private) -> list[dict[str, Any]]:
@@ -150,7 +149,9 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
         await opened(pilot)
         await _new(pilot)
         # Nothing has been run here, so the scope is this directory; the nous the setting.
-        await shows(pilot, "scope", "workspace", "nous", RUNS, "read-only", "off")
+        drawn = await shows(pilot, "scope", "workspace", "nous", RUNS, "read-only")
+        # Her network is hers always: the form asks nothing of it.
+        assert "network" not in drawn
         await _done(pilot)
         await shows(pilot, "Ai-chan · new · workspace", "Ai-chan: the next line")
         assert _made(daemon) == []
@@ -170,8 +171,9 @@ async def test_new_asks_the_scope_nous_and_permission_and_the_first_line_makes_i
         "epic": "",
         "nous": RUNS,
         "preset": "read-only",
-        "network": False,
     }
+    # Hers always, and so no conversation keeps one.
+    assert "network" not in made
     assert heard(workspace) == ["hello there", "go on"]
 
 
@@ -239,7 +241,6 @@ async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_dae
         await shows(pilot, "the epic ")
         await picks(pilot, "scope", "daemon")
         await picks(pilot, "preset", "danger-full-access")
-        await picks(pilot, "network", "on")
         await shows(pilot, "every workspace and epic of this daemon")
         await _done(pilot)
         await typed(pilot, "look around")
@@ -254,7 +255,6 @@ async def test_the_scope_defaults_to_the_epic_last_on_the_host_and_takes_the_dae
         "epic": "",
         "nous": RUNS,
         "preset": "danger-full-access",
-        "network": True,
     }
 
 
@@ -293,7 +293,9 @@ async def test_a_conversation_is_carried_on_from_the_list_and_forgotten_there(
 
         await typed(pilot, "/ai")
         await on(pilot, AiChans)
-        await shows(pilot, "Ai-chan#1 · hello there", "between turns")
+        # Wherever its row is broken, which the workspace's own length says.
+        drawn = await shows(pilot, "Ai-chan#1 · hello there", "between")
+        assert "network" not in drawn
         await onto(pilot, "1")
         await pilot.press("enter")
         await shows(pilot, "heard hello there", "Ai-chan#1 · workspace")

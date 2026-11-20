@@ -1707,7 +1707,7 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
     host = Host(cast("Any", where), "ai:1")
     try:
         alice = Told(host, "alice")
-        ai = {"id": 1, "scope": "daemon", "preset": "read-only", "network": False}
+        ai = {"id": 1, "scope": "daemon", "preset": "read-only"}
         # Hers is the daemon's to start, with the reach it keeps: no frontend's.
         assert alice.asks("chat.start", agent="claude/opus:high", task="hi", ai=ai) == {
             "ok": False,

@@ -52,7 +52,7 @@ def _held(
     subs: dict[str, Any] | None = None,
 ) -> Held:
     hosts = _Hosts({("/w", ""): "e1", ("/x", ""): "e2", ("/w", "ai:1"): "her"})
-    reach = Reach(1, scope, "/w", epic, preset, network=False)
+    reach = Reach(1, scope, "/w", epic, preset)
     return Held(reach, _Session(subs), hosts, kept)  # pyright: ignore[reportArgumentType]
 
 
@@ -229,7 +229,7 @@ def test_a_chat_a_host_holds_is_reached_as_the_epic_of_one_is(
             return hosted
 
     hosts = Chatting({("/w", "chat:1"): "c1", ("/w", "chat:2"): "c2"})
-    reach = Reach(1, "epic", "/w", "c1", "danger-full-access", network=False)
+    reach = Reach(1, "epic", "/w", "c1", "danger-full-access")
     held = Held(reach, _Session(), hosts, kept)  # pyright: ignore[reportArgumentType]
 
     # Scoped to a chat by its name, she reaches the host that holds it, and no other's.
@@ -355,6 +355,7 @@ def test_her_host_has_her_chat_anew_then_carried_on(
             "epic": "",
             "nous": "claude/opus",
             "preset": "read-only",
+            # As an earlier hmz wrote it: her host is told of no network, which she always has.
             "network": False,
         }
     )
@@ -367,7 +368,6 @@ def test_her_host_has_her_chat_anew_then_carried_on(
         "workspace": "/w",
         "epic": "",
         "preset": "read-only",
-        "network": False,
     }
 
     links.after(hosted)
@@ -406,7 +406,6 @@ def _followed(kept: Conversations, statuses: list[dict[str, Any]]) -> dict[str, 
                 "epic": "",
                 "nous": "claude/opus",
                 "preset": "read-only",
-                "network": False,
                 "latest": "hi",
             }
         )

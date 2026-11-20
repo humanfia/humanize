@@ -634,7 +634,7 @@ question fails is not kept.
 Each [Ai-chan](/user/ai-chan) conversation is a [chat](/user/chat) whose one agent plays
 her role, held by a host of its own on the slot `ai:<hex>`: in the workspace of its scope, or,
 for the scope `daemon`, in `H/ai/<machine>/`. Only the daemon starts it, with the
-conversation's own scope, preset and network; `epic.stop` there stops her open turn only. Its harness runs with approvals bypassed, confined: `/` denied, the scope
+conversation's own scope and preset; `epic.stop` there stops her open turn only. Its harness runs with approvals bypassed and the network granted, confined: `/` denied, the scope
 root (`/` for `daemon`, the workspace otherwise) read-only under `read-only` and writable under
 `danger-full-access`, its scratch directory `H/ai/<machine>/<id>/` writable, and this machine's
 directory -- the daemon's socket and every scoped link -- denied beneath all of it. A
@@ -645,8 +645,9 @@ budget.
 
 | Method | Fields (default) | Answer | Refusals |
 | --- | --- | --- | --- |
-| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the nous the last conversation was made with, the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `network` (`false`), `title` (`""`: the task's first line, cut at 80), `task` (required) | `id`, `workspace`, `slot`, once its host has taken the start; its `nous` is then written as the `ai_chan` setting, which a conversation refused leaves as it was | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
-| `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `state` (`running`, `waiting`, `folded`), `created`, `latest` (what was last said in it, on one line of at most 120 characters: the task it was made with until she has answered, then her last answer) and `updated` (when that was said). The daemon writes both down each time she ends a turn on another answer; for a conversation an earlier Humanize made, the first `aichan.list` reads `latest` out of its record and takes `created` as `updated` | — |
+| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the nous the last conversation was made with, the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `task` (required), whose first line, cut at 80, is the conversation's title | `id`, `workspace`, `slot`, once its host has taken the start; its `nous` is then written as the `ai_chan` setting, which a conversation refused leaves as it was | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
+| `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `slot`, `state` (`running`, `waiting`, `folded`), `created`, `latest` (what was last said in it, on one line of at most 120 characters: the task it was made with until she has answered, then her last answer) and `updated` (when that was said). The daemon writes both down each time she ends a turn on another answer; for a conversation an earlier Humanize made, the first `aichan.list` reads `latest` out of its record and takes `created` as `updated` | — |
+| `aichan.rename` (write) | `id` (required), `title` (1 to 240 characters; required) | `{}`; records the title, its runs of white space made single spaces, whether or not a host holds the conversation | 400 `A conversation's title says something.` for one of white space alone, 404 `There is no Ai-chan #<id>.` |
 | `aichan.forget` (write) | `id` (required) | `{}`; closes its host, removes its entry and scratch directory, keeps its conversation's record and writes that record's name in `forgotten.yaml` | 404 `There is no Ai-chan #<id>.` |
 
 `id` counts from 1. Conversations are kept in `H/ai/<machine>/conversations.yaml` across the
@@ -684,7 +685,7 @@ says hello as ai-chan.`
 ### Reach {#reach}
 
 A session over a scoped link carries its conversation's **reach**: `scope`, `workspace`,
-`epic`, `preset`, `network`. Every call it makes is held to it before it is carried out, by the
+`epic`, `preset`. Every call it makes is held to it before it is carried out, by the
 `x-hmz-reach` and `x-hmz-writes` extensions each method carries in `openrpc.json`:
 
 | `x-hmz-reach` `scope` | The method acts on | Reached by |

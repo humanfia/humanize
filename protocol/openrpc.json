@@ -4342,18 +4342,6 @@
           }
         },
         {
-          "name": "network",
-          "schema": {
-            "type": "boolean"
-          }
-        },
-        {
-          "name": "title",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
           "name": "task",
           "required": true,
           "schema": {
@@ -4476,6 +4464,75 @@
         "scope": "never"
       },
       "x-hmz-writes": false
+    },
+    {
+      "name": "aichan.rename",
+      "summary": "Change an Ai-chan conversation's title.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "rename",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/Forbidden"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "never"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "aichan.forget",
@@ -10880,7 +10937,6 @@
           "epic",
           "nous",
           "preset",
-          "network",
           "slot",
           "state",
           "created",
@@ -10916,9 +10972,6 @@
               "read-only",
               "danger-full-access"
             ]
-          },
-          "network": {
-            "type": "boolean"
           },
           "slot": {
             "$ref": "#/components/schemas/Slot"

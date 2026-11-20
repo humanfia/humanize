@@ -1169,12 +1169,14 @@ the workspace of the host of every conversation of the scope `daemon`.
 
 **4.16.2** `conversations.yaml` in it MUST be a YAML list of mappings, one per conversation not
 forgotten, in the order made, each with exactly the keys `id` (integer), `title`, `scope`,
-`workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the name of the
-conversation's own chat, Section 6.12.11, `""` before it has one), `created` (a UTC timestamp),
+`workspace`, `epic`, `nous`, `preset`, `slot`, `record` (the name of the conversation's own chat,
+Section 6.12.11, `""` before it has one), `created` (a UTC timestamp),
 `latest` (what was last said in it, cut short) and `updated` (a UTC timestamp, when that was said),
 the others as `aichan.list` answers them (Section 4.22.3 of [DAEMON]), with mode `0600`, written by
 atomic replacement by the daemon alone. An entry an earlier hmz wrote MAY lack `latest` and
-`updated` until `aichan.list` writes them (Section 4.22.3.1.2 of [DAEMON]).
+`updated` until `aichan.list` writes them (Section 4.22.3.1.2 of [DAEMON]), and MAY hold a key
+`network`, which a reader MUST ignore: the network is granted to every conversation (Section
+14.5.3 of [CORE]).
 
 **4.16.3** `<home>/ai/<machine>/<id>/` MUST be the scratch directory (Section 14.2.7 of [CORE]) of
 the conversation whose `id` is `<id>`, with mode `0700`, made when the conversation is made.

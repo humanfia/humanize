@@ -3888,8 +3888,8 @@ class Humanize(App[None]):
         """Opens the Ai-chan conversations of the daemon and New, which is what `/ai` is.
 
         A conversation chosen is followed in the log screen; New asks for a conversation's
-        scope, nous, preset and network, and leaves the log screen waiting for the first line
-        said, which makes it (Section 7.19 of tui.md).
+        scope, nous and preset, and leaves the log screen waiting for the first line said,
+        which makes it (Section 7.19 of tui.md).
         """
         try:
             listed = await asyncio.to_thread(ai_chan, "list")

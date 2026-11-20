@@ -198,7 +198,7 @@ def test_an_ai_slot_of_no_conversation_is_refused_404() -> None:
 def test_an_epic_scoped_ai_chan_is_let_go_once_another_epic_starts() -> None:
     from hmz.daemon.reach import Reach
 
-    session = _Session(Reach(1, "epic", "/w", "mine", "read-only", network=False))
+    session = _Session(Reach(1, "epic", "/w", "mine", "read-only"))
     sub = Subscription(session, "s1", mock.Mock(), figures=False)  # pyright: ignore[reportArgumentType]
     session.subs["s1"] = sub
     # Replayed before the sub is answered: the host's history is no epic starting.
