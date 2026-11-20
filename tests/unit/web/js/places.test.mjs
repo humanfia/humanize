@@ -311,3 +311,57 @@ test('Environment of a daemon alone names it, and its menu opens under it where 
     made.node.remove()
   }
 })
+
+/** A hosted picker bound to a button of another's, which holds its form beside it. */
+function hosting(chosen) {
+  const made = workspacePicker(chosen, () => {}, { hosted: true })
+  const button = el('button')
+  const holder = el('div')
+  holder.append(button, made.node)
+  body.append(holder)
+  const told = []
+  made.bind(button, { align: 'start', up: true }, (now) => told.push(now))
+  return { ...made, button, holder, told, form: made.node }
+}
+
+test('a hosted picker’s form is its host’s button’s: closed, the focus goes back to it, and a press on it only shuts the form', async () => {
+  const made = hosting('/w/app')
+  const pick = () => [made.rows(() => {})].flat(Infinity).find((one) => one && one.textContent === 'Open folder…').click()
+  try {
+    pick()
+    assert.equal(made.form.hidden, false)
+    assert.equal(document.activeElement, made.form.querySelector('input'))
+    key('Escape')
+    assert.equal(made.form.hidden, true)
+    assert.equal(document.activeElement, made.button)
+    // A press on the button is a press inside: the form stands until the click, which shuts it
+    // before anything else of the button's hears of it.
+    pick()
+    let heard = 0
+    made.button.addEventListener('click', () => heard++)
+    press(made.button)
+    assert.equal(made.form.hidden, false)
+    made.button.click()
+    assert.equal(made.form.hidden, true)
+    assert.equal(heard, 0)
+    assert.equal(chain().length, 0)
+    made.button.click()
+    assert.equal(heard, 1)
+  } finally {
+    dismiss('route')
+    made.leave()
+    made.holder.remove()
+  }
+})
+
+test('a hosted picker says the folder not read yet as the button does, never as an empty name', async () => {
+  const made = hosting('')
+  try {
+    assert.deepEqual(made.told.map((now) => now.name), ['…'])
+    await until(() => made.value() === '/w/app')
+    assert.equal(made.told.at(-1).name, 'app')
+  } finally {
+    made.leave()
+    made.holder.remove()
+  }
+})

@@ -183,7 +183,8 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
   /** The folder chosen as it is said: its name, and what is said where it is pointed at. */
   const now = () => ({
     path,
-    name: path === null ? NONE : lost ? t('{name} (missing)', { name: nameOf(path) }) : nameOf(path),
+    // Not read yet, where it is opened on wherever `hmz web` started: said as the button says it until then.
+    name: path === null ? NONE : path === '' ? '…' : lost ? t('{name} (missing)', { name: nameOf(path) }) : nameOf(path),
     tip: path === null ? NOWHERE : lost ? t('This folder is no longer on this machine: {path}', { path }) : path,
     lost,
   })
@@ -231,6 +232,9 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
   /** Gives a hosted one its button: called before the button is given the menu the rows are in. */
   function bind(on, at, told) {
     button = on
+    // The form is the button's as a menu is: closed, the focus goes back to it, and a press on it
+    // is no press outside the form.
+    layer.anchor = on
     where = at
     say = told
     stands(on)
