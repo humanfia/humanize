@@ -330,6 +330,24 @@ def test_each_daemon_keeps_its_own_webrtc_servers(project: Path, engine: str) ->
         save.click()
         expect(save).to_have_text("Saved")
         assert _kept(page) == [_LAB, {**_RELAYED, "ice": _SERVERS[1:]}]
+        # Its URLs edited and the credential left as shown, the credential is kept still.
+        both = "turn:turn.example:3478,turns:turn.example:5349"
+        lines.fill(f"{both} ann ••••")
+        save.click()
+        expect(save).to_have_text("Saved")
+        wider = {**_SERVERS[1], "urls": both.split(",")}
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": [wider]}]
+        # A mask where no credential is kept is asked for again, and nothing is kept without one.
+        lines.fill(f"{both} ann ••••\nturn:other.example:3478 bob ••••")
+        save.click()
+        expect(own.locator(".error")).to_contain_text(
+            "Write the credential of turn:other.example:3478 again"
+        )
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": [wider]}]
+        lines.fill(masked)
+        save.click()
+        expect(save).to_have_text("Saved")
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": _SERVERS[1:]}]
 
         # Opened again, they are that daemon's still; its routes edited, they stay.
         again(page)

@@ -797,7 +797,8 @@ Each remote daemon has its own, under its line in the list: **WebRTC servers**, 
 unless one of its routes is a `webrtc:` route. Write one server a line -- its URL, as
 `stun:host:port` or `turn:host:port`, then for a TURN server its username and its credential
 -- and **Save**. A credential is shown as `••••` from then on, and is kept where you leave it
-so. They are used for that daemon's `webrtc:` routes only; a daemon reached another way never
+so, also where you edit the URLs of its line; a `••••` written where no credential is kept is
+refused, and you write the credential again. They are used for that daemon's `webrtc:` routes only; a daemon reached another way never
 uses them. For a new **Code** daemon they are asked under **Advanced**, before the code is
 claimed.
 

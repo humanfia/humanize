@@ -684,17 +684,29 @@ function shownIce(servers) {
 
 /**
  * The STUN and TURN servers written, a line each: the URL, or several with commas between, then
- * the username and the credential. A credential left as it was shown is the one `was` kept.
+ * the username and the credential. A credential left as it was shown is the one `was` kept: of
+ * the server of that username written with these URLs, or with one of them where they were
+ * edited, or else on this line -- and where there is none, it is asked for again, never dropped.
  */
 function readIce(text, was = []) {
+  const urlsOf = (one) => [].concat(one.urls)
   return text
     .split('\n')
     .map((line) => line.trim().split(/\s+/))
     .filter((words) => words[0])
-    .map(([urls, username, credential]) => {
+    .map(([urls, username, credential], at) => {
       const each = urls.split(',').filter(Boolean)
       for (const url of each) if (!ICE.test(url)) throw new Error(t('{url} is not a STUN or TURN server: write one as stun:host:port or turn:host:port.', { url }))
-      const kept = credential === MASKED ? was.find((one) => [].concat(one.urls).join(',') === urls)?.credential : credential
+      // What was kept for a server of this username, the only ones a mask was shown for -- and a
+      // credential kept with no username, which no line shows, stays with the URLs it was under.
+      const mine = (one) => one && one.credential && (one.username || '') === (username || '')
+      const same = was.find((one) => mine(one) && urlsOf(one).join(',') === urls)
+      let kept = credential
+      if (credential === MASKED) {
+        const from = same ?? was.find((one) => mine(one) && urlsOf(one).some((url) => each.includes(url))) ?? (mine(was[at]) ? was[at] : null)
+        if (!from) throw new Error(t('Write the credential of {urls} again: none is kept for it.', { urls }))
+        kept = from.credential
+      } else if (!username && same) kept = same.credential
       return { urls: each.length === 1 ? each[0] : each, ...(username ? { username } : {}), ...(kept ? { credential: kept } : {}) }
     })
 }

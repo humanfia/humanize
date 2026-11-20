@@ -163,6 +163,7 @@ export default {
   'Making…': '正在生成…',
   'Starts with hmz-pair: and is made on the other machine.': '以 hmz-pair: 开头，在另一台机器上生成。',
   '{url} is not a STUN or TURN server: write one as stun:host:port or turn:host:port.': '{url} 不是 STUN 或 TURN 服务器：请写作 stun:host:port 或 turn:host:port。',
+  'Write the credential of {urls} again: none is kept for it.': '请重新填写 {urls} 的凭据：没有为它保存凭据。',
   'Route': '路由',
   'Move up': '上移',
   'Option': '选项',
