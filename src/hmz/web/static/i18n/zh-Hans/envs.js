@@ -34,8 +34,6 @@ export default {
   '{n} CPUs': '{n} 个 CPU',
   '{size} memory': '{size} 内存',
   '{n} GPUs': '{n} 个 GPU',
-  'someone': '有人',
-  'in {name}': '位于 {name}',
 
   // views/envs/changes_logic.js: the groups of changed files, what each letter means, a commit refused, how long ago.
   'Merge Changes': '合并更改',

@@ -172,7 +172,7 @@ export function factsOf(env) {
 export function usedLine(record, envs) {
   const env = (Array.isArray(envs) ? envs : []).find((one) => one.id === record.env)
   const where = env ? env.role || nameOf(env) : record.env
-  return [record.by || t('someone'), record.what, record.path, where ? t('in {name}', { name: where }) : ''].filter(Boolean).join(' ')
+  return [record.by || 'someone', record.what, record.path, where ? `in ${where}` : ''].filter(Boolean).join(' ')
 }
 
 /** The methods that name a terminal rather than an environment, which are not told `env`. */
