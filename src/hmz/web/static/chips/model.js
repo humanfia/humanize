@@ -94,6 +94,23 @@ function redrawn(listed, items) {
 const rowsOf = (...rows) => h('div', { class: 'nous-list' }, rows)
 
 /**
+ * The chip of a nous that is not picked here -- what an Ai-chan conversation was made with --
+ * said as one picked is, and opening nothing: `why` is said where it is pointed at.
+ *
+ * @param {string} spec The nous, as `-a` spells an agent, or by its name.
+ * @param {string} why Why it is not picked here.
+ * @returns {{node: HTMLElement}}
+ */
+export function nousSaidChip(spec, why) {
+  const made = chip('nous-said')
+  say(made, spec, spec)
+  made.button.disabled = true
+  made.button.removeAttribute('title')
+  made.button.dataset.tip = why
+  return { node: h('span', { class: 'model-pick' }, made.button) }
+}
+
+/**
  * The agent that fills a role, picked from its chip: the one that answers a new chat, or one a
  * flow asks for.
  *

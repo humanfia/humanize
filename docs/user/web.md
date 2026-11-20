@@ -554,24 +554,31 @@ Pins and what you have read are kept in this browser, for each daemon; another b
 without them. The drawer is the only place her conversations are listed: none is in the
 sidebar, nor counted among a workspace's epics, while it lasts or once deleted.
 
-**New** asks what the conversation is fixed to:
+**New** opens a conversation as a chat with nothing said in it yet -- no form to fill in. Under
+its box are the two chips a new chat has, which say what the conversation is fixed to:
 
-- **Scope.** **Daemon** -- every workspace and epic --, **Workspace** -- one workspace and its
-  epics --, or **Epic** -- one epic. It starts on the epic the view shows, else the workspace,
-  else the daemon.
-- **Preset.** `read-only`, the default, or `danger-full-access`; and **Network**, off by default.
-  Neither is remembered: each conversation starts on the defaults.
-- **Title**, from the task where left empty.
-- **Nous**, on the chip under the box you type the task in, as on a new chat: it starts on the
-  one you used last, and its menu offers every model the harnesses here run. There is no
-  setting for it: the one you start a conversation with is the one the next form opens on.
+- **Nous**, as on a new chat: it starts on the one you used last, and its menu offers every
+  model the harnesses here run. There is no setting for it: the one you start a conversation
+  with is the one the next opens on.
+- **Permission**, which says the preset and the scope, as `Read only · Workspace`. Its menu
+  holds the two presets -- **Read only**, the default, and **Full access** -- and under them
+  the **Scope**: **Daemon** -- every workspace and epic --, **Workspace** -- the folder the
+  view shows, and its epics --, or **Epic** -- the epic the view shows. It starts on the epic
+  the view shows, else the workspace, else the daemon; **Epic** cannot be picked while the
+  view shows none. Neither is remembered: each conversation starts on the defaults.
 
-Type the task and press <kbd>Enter</kbd>: the conversation opens as a chat -- her answers in
-bubbles at the left beside her face, yours at the right, and each tool she calls a quiet line
-to open. While she answers, three dots stand in a bubble of hers and **Stop** stops her turn,
-leaving the conversation ready for your next line. One the daemon put away meanwhile is carried
-on by opening it and saying something. Nothing in the drawer names an agent or a session, or
-says what a conversation cost.
+She may always reach the network, so nothing asks about it, and nothing asks for a title.
+Type what you want and press <kbd>Enter</kbd>: that line makes the conversation, which goes on
+where you typed it -- her answers in bubbles at the left beside her face, yours at the right,
+and each tool she calls a quiet line to open. From then on the two chips say what it was made
+with, and open nothing. While she answers, three dots stand in a bubble of hers and the box's
+button stops her turn, leaving the conversation ready for your next line. One the daemon put
+away meanwhile is carried on by opening it and saying something. Nothing in the drawer names a
+session, or says what a conversation cost.
+
+A conversation is titled by the first line you said. To give it another title, press the
+pencil beside the title, type, and press <kbd>Enter</kbd> or click elsewhere;
+<kbd>Escape</kbd> leaves it as it was. The list shows the new title.
 
 ### Settings {#settings}
 

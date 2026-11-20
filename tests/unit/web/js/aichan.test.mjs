@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { FACES, PRESETS, SCOPES, actionsOf, created, earlierOf, faceOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../../../../src/hmz/web/static/aichan.js'
+import { FACES, PRESETS, SCOPES, actionsOf, created, earlierOf, faceOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, scopeSaid, scopesOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../../../../src/hmz/web/static/aichan.js'
+import { MODES, modeOf, offered } from '../../../../src/hmz/web/static/chips/permission-modes.js'
 import { HOLD, SLOP, axisOf, offsetOf, restsOpen } from '../../../../src/hmz/web/static/swipe.js'
 
 const at = (path) => {
@@ -10,7 +11,7 @@ const at = (path) => {
   return [url.pathname.split('/').filter(Boolean).map(decodeURIComponent), url.searchParams]
 }
 
-const FORM = { scope: 'workspace', workspace: '/w', epic: '', nous: 'claude/claude-opus-5', preset: 'read-only', network: false, title: '', task: 'look around' }
+const FORM = { scope: 'workspace', workspace: '/w', epic: '', nous: 'claude/claude-opus-5', preset: 'read-only', task: 'look around' }
 const NOUS = FORM.nous
 
 test('the scope defaults to the epic shown, else the workspace shown, else the daemon', () => {
@@ -26,34 +27,63 @@ test('the scope defaults to the epic shown, else the workspace shown, else the d
   assert.deepEqual(scopeOf(...at('/epics/import')), { scope: 'daemon', workspace: '', epic: '' })
 })
 
-test('the form offers every scope and preset, read-only first', () => {
+test('her chip offers every scope, and her two presets as a chat names its permissions, read-only first', () => {
   assert.deepEqual(SCOPES.map(([value]) => value), ['daemon', 'workspace', 'epic'])
-  assert.equal(PRESETS[0], 'read-only')
-  assert.deepEqual(PRESETS, ['read-only', 'danger-full-access'])
+  assert.deepEqual(PRESETS.map((one) => one.value), ['read-only', 'danger-full-access'])
+  // Named as a chat's permissions are, each with its own line of what it lets her do.
+  for (const one of PRESETS) {
+    assert.equal(one.label, MODES.find((mode) => mode.value === one.value).label)
+    assert.ok(one.about)
+  }
+  // The chip of a conversation is the chat's chip over these two: the first where none is picked.
+  assert.equal(modeOf(null, PRESETS).value, 'read-only')
+  assert.equal(modeOf('workspace-write', PRESETS).value, 'read-only')
+  assert.deepEqual(offered('danger-full-access', PRESETS).map((one) => one.chosen), [false, true])
+  // A chat's own are as they were.
+  assert.equal(modeOf(null).value, 'workspace-write')
+  assert.equal(scopeSaid('workspace'), 'Workspace')
+  assert.equal(scopeSaid('room'), 'room')
 })
 
-test('aichan.create is sent only what the scope takes, always with the nous picked, and leaves a title out', () => {
-  assert.deepEqual(created({ ...FORM, scope: 'daemon', workspace: '/w', epic: 'e' }), { scope: 'daemon', nous: NOUS, preset: 'read-only', network: false, task: 'look around' })
-  assert.deepEqual(created({ ...FORM, epic: 'e' }), { scope: 'workspace', workspace: '/w', nous: NOUS, preset: 'read-only', network: false, task: 'look around' })
-  assert.deepEqual(created({ ...FORM, scope: 'epic', epic: ' e ', nous: ' fast ', title: ' T ', preset: 'danger-full-access', network: true, task: ' go \n' }), {
+test('a scope is offered with what it reaches, and is not picked with nothing to hold her to', () => {
+  const said = (picked) => scopesOf(picked).map((one) => [one.value, one.about, one.chosen, Boolean(one.why)])
+  assert.deepEqual(said({ scope: 'epic', workspace: '/home/me/atlas/', epic: 'brave-otter' }), [
+    ['daemon', 'Every workspace and epic here', false, false],
+    ['workspace', 'atlas', false, false],
+    ['epic', 'brave-otter', true, false],
+  ])
+  // No epic shown, none to hold her to; nor a workspace where the daemon has none.
+  assert.deepEqual(said({ scope: 'daemon', workspace: '', epic: '' }), [
+    ['daemon', 'Every workspace and epic here', true, false],
+    ['workspace', '', false, true],
+    ['epic', '', false, true],
+  ])
+})
+
+test('nothing of a new conversation asks for its network or its title', () => {
+  const sources = ['aichan.js', 'views/aichan.js'].map((name) => readFileSync(new URL(`../../../../src/hmz/web/static/${name}`, import.meta.url), 'utf8'))
+  for (const source of sources) assert.doesNotMatch(source, /network|aichan-title-field|t\('Title'\)/i)
+})
+
+test('aichan.create is sent only what the scope takes, always with the nous picked, and no title or network', () => {
+  assert.deepEqual(created({ ...FORM, scope: 'daemon', workspace: '/w', epic: 'e' }), { scope: 'daemon', nous: NOUS, preset: 'read-only', task: 'look around' })
+  assert.deepEqual(created({ ...FORM, epic: 'e' }), { scope: 'workspace', workspace: '/w', nous: NOUS, preset: 'read-only', task: 'look around' })
+  assert.deepEqual(created({ ...FORM, scope: 'epic', epic: ' e ', nous: ' fast ', title: ' T ', network: true, preset: 'danger-full-access', task: ' go \n' }), {
     scope: 'epic',
     workspace: '/w',
     epic: 'e',
     nous: 'fast',
-    title: 'T',
     preset: 'danger-full-access',
-    network: true,
     task: 'go',
   })
 })
 
-test('the form says what it lacks before it makes a conversation: a nous is picked each time', () => {
-  assert.equal(missing({ ...FORM, workspace: '' }), 'Pick the workspace she works in.')
-  assert.equal(missing({ ...FORM, scope: 'epic' }), 'Name the epic she works on.')
+test('a conversation is not made before a nous is picked and something is said', () => {
   assert.equal(missing({ ...FORM, nous: ' ' }), 'Pick a nous for Ai-chan.')
   assert.equal(missing({ ...FORM, task: '  ' }), 'Tell Ai-chan something to start with.')
   assert.equal(missing(FORM), '')
-  assert.equal(missing({ ...FORM, scope: 'daemon', workspace: '' }), '')
+  // What the scope lacks is the daemon's to refuse: it cannot be picked without it.
+  assert.equal(missing({ ...FORM, workspace: '' }), '')
 })
 
 test('a conversation has one of her sixteen faces, its own wherever it is drawn', () => {
@@ -78,7 +108,7 @@ test('a row says its title and one line: that she is typing, else what was last 
   assert.equal(previewOf({ state: 'folded', latest: 'All three are done.' }), 'All three are done.')
   assert.equal(previewOf({ state: 'running', latest: 'All three are done.' }), 'typing…')
   // Nothing of how it stands, what it reaches or what it thinks with.
-  const row = { id: 3, title: 'T', state: 'folded', scope: 'daemon', nous: 'claude/opus', preset: 'read-only', network: false, latest: '' }
+  const row = { id: 3, title: 'T', state: 'folded', scope: 'daemon', nous: 'claude/opus', preset: 'read-only', latest: '' }
   assert.equal(previewOf(row), '')
   assert.doesNotMatch(`${titleOf(row)} ${previewOf(row)}`, /daemon|folded|waiting|opus|read-only|network/i)
 })

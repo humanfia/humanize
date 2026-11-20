@@ -243,10 +243,12 @@ of one daemon. The drawer lists that daemon's conversations (`aichan.list`, read
 seconds while it is open), each a row of one of the faces `ai-chan/face-01.webp` to
 `face-16.webp` -- picked by the conversation's `id`, so the same in every browser --, its
 `title` and its `latest`, or `typing…` while its `state` is `running`; pinned rows first, then
-by `updated`. It makes one (`aichan.create`, always with the `nous` its chip holds, which
-starts on `settings.get`'s `ai_chan`) from its **New** form, deletes one (`aichan.forget`) from
-the row's menu after asking, and draws one as a chat attached to its `ai:` slot
-(`epic.attach`), its **Stop** being `epic.stop`. On a phone's width it covers the view, and a
+by `updated`. **New** draws a conversation not made yet as a chat with nothing said in it;
+the first line said there makes it (`aichan.create`, with the `nous` its nous chip holds,
+which starts on `settings.get`'s `ai_chan`, and the `preset` and `scope` its permission chip
+holds). It deletes one (`aichan.forget`) from the row's menu after asking, renames one
+(`aichan.rename`) from the pencil beside its title, and draws one as a chat attached to its
+`ai:` slot (`epic.attach`), the box's **Stop** being `epic.stop`. On a phone's width it covers the view, and a
 row swiped left shows its menu's three choices beside it.
 
 ### What the page keeps {#kept}

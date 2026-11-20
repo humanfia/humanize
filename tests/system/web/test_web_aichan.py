@@ -70,7 +70,6 @@ def _conversation(ident: int, title: str, latest: str, **said: Any) -> dict[str,
         "epic": "",
         "nous": "claude/claude-opus-4-1",
         "preset": "read-only",
-        "network": False,
         "slot": f"ai:{ident}",
         "state": "folded",
         "created": f"2026-01-0{ident}T00:00:00Z",
@@ -227,41 +226,100 @@ def test_a_view_that_failed_to_open_is_under_a_bar_with_her_button(
         _fails_to_open(site, engine)
 
 
-def test_the_new_form_asks_the_scope_and_picks_her_nous_on_a_chip(
+def test_a_new_conversation_is_a_chat_with_her_nous_and_her_permission_under_its_box(
     project: Path, engine: str, tmp_path: Path
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        go(page, f"/new?workspace={project.resolve()}")
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, f"/new/chat?workspace={project.resolve()}")
         drawer = _drawer(page)
         # None yet: the drawer says so, and offers to make one.
         none = drawer.locator("[data-hmz=aichan-none]")
         expect(none).to_contain_text("No conversations yet")
         none.get_by_role("button", name="New conversation").click()
-        form = drawer.locator("[data-hmz=aichan-form]")
-        expect(form).to_be_visible()
-        # A new epic in a folder shows a workspace: the scope starts on it.
-        expect(form.locator("[data-hmz=aichan-scope]")).to_have_value("workspace")
-        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_visible()
-        expect(form.locator("[data-hmz=aichan-preset]")).to_have_value("read-only")
-        expect(form.locator("[data-hmz=aichan-network]")).not_to_be_checked()
-        expect(form.locator("[data-hmz=aichan-epic]")).to_be_hidden()
-        # Her nous is a chip under the box of the task, as a new chat's: no field to spell
-        # one in, and a menu of every nous the harnesses here run.
-        expect(form.locator("[data-hmz=aichan-nous] input")).to_have_count(0)
-        chip = form.locator("[data-hmz=composer-under] [data-hmz=pick-model]")
-        expect(chip).to_have_attribute("data-value", "claude-haiku-4-5")
-        chip.click()
-        menu = page.get_by_role("menu", name="Nous")
-        expect(menu.locator("[data-value=claude-opus-4-1]")).to_be_visible()
-        page.screenshot(path=str(tmp_path / "aichan-new.png"))
+        # A chat, with nothing said in it yet: no form, no tab, no field but its box.
+        chat = drawer.locator("[data-hmz=aichan-chat]")
+        expect(chat).to_be_visible()
+        expect(chat.locator("[data-hmz=aichan-title]")).to_have_text("New conversation")
+        expect(chat.locator("[data-hmz=aichan-log] .said")).to_have_count(0)
+        expect(drawer.locator("form.form, .form, select, [role=tab]")).to_have_count(0)
+        expect(drawer.locator("input, textarea")).to_have_count(1)
+        box = chat.locator("[data-hmz=aichan-say]")
+        typed = box.locator("textarea")
+        expect(typed).to_be_focused()
+        # No title to give before there is a conversation, nor a pencil to give one with;
+        # and nowhere a network to allow: hers always.
+        expect(chat.locator("[data-hmz=aichan-rename]")).to_be_hidden()
+        expect(drawer).not_to_contain_text(re.compile("network|title", re.IGNORECASE))
+
+        # Under the box, the two chips a new chat has under its own, drawn as they are there.
+        under = box.locator("[data-hmz=composer-under]")
+        nous = under.locator("[data-hmz=pick-model]")
+        permission = under.locator("[data-hmz=permission]")
+        expect(nous).to_have_attribute("data-value", "claude-haiku-4-5")
+        mine = page.locator("[data-hmz=page] [data-hmz=composer-under]")
+        for chip, same in (
+            (nous, mine.locator("[data-hmz=pick-model]")),
+            (permission, mine.locator("[data-hmz=permission]")),
+        ):
+            look = """(el) => {
+                const drawn = getComputedStyle(el)
+                return [el.className, drawn.height, drawn.font, drawn.color,
+                    drawn.backgroundColor, drawn.borderRadius]
+            }"""
+            assert chip.evaluate(look) == same.evaluate(look)
+        # Her permission starts read-only, on the scope the page shows: a folder's workspace.
+        expect(permission).to_have_text("Read only · Workspace")
+        expect(permission).to_have_attribute("data-permission", "read-only")
+        nous.click()
+        expect(
+            page.get_by_role("menu", name="Nous").locator(
+                "[data-value=claude-opus-4-1]"
+            )
+        ).to_be_visible()
         page.keyboard.press("Escape")
-        form.locator("[data-hmz=aichan-scope]").select_option("daemon")
-        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_hidden()
-        form.locator("[data-hmz=aichan-scope]").select_option("epic")
-        expect(form.locator("[data-hmz=aichan-epic]")).to_be_visible()
-        expect(form.locator("[data-hmz=aichan-task] textarea")).to_be_visible()
+
+        # Its menu: her two presets, as a chat's are named, and under them her scope.
+        permission.click()
+        menu = page.get_by_role("menu", name="Permissions")
+        items = menu.get_by_role("menuitem")
+        expect(items.locator(".choice-label")).to_have_text(
+            ["Read only", "Full access", "Daemon", "Workspace", "Epic"]
+        )
+        expect(menu).not_to_contain_text(re.compile("network", re.IGNORECASE))
+        expect(menu.locator("[data-scope=workspace]")).to_contain_text("project")
+        expect(menu.locator(".choice.chosen .choice-label")).to_have_text(
+            ["Read only", "Workspace"]
+        )
+        # No epic is shown: none to hold her to, which the row says and is not picked.
+        epic = menu.locator("[data-scope=epic]")
+        expect(epic).to_have_attribute("aria-disabled", "true")
+        epic.click(force=True)
+        expect(menu).to_be_visible()
+        expect(permission).to_have_text("Read only · Workspace")
+        page.screenshot(path=str(tmp_path / "aichan-new.png"))
+        menu.locator("[data-scope=daemon]").click()
+        expect(permission).to_have_text("Read only · Daemon")
+        permission.click()
+        menu.locator("[data-permission=danger-full-access]").click()
+        expect(permission).to_have_text("Full access · Daemon")
+        expect(permission).to_have_attribute("data-permission", "danger-full-access")
+
+        # Nothing was made by any of it: the first line said makes it.
+        assert wire.params("aichan.create") == []
         drawer.get_by_role("button", name="Close panel").click()
         expect(drawer).to_be_hidden()
+
+
+def test_a_new_conversation_on_a_view_of_no_folder_is_of_the_daemons_scope(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/flows")
+        drawer = _drawer(page)
+        drawer.locator("[data-hmz=aichan-new]").click()
+        permission = drawer.locator("[data-hmz=aichan-say] [data-hmz=permission]")
+        expect(permission).to_have_text("Read only · Daemon")
 
 
 def test_her_conversations_are_listed_as_a_chat_app_lists_them(
@@ -550,8 +608,8 @@ def test_a_delete_answered_late_leaves_what_was_opened_meanwhile_and_takes_a_slo
 
         # A new conversation begun before the daemon answers stays, with what was typed.
         drawer.locator("[data-hmz=aichan-new]").click()
-        form = drawer.locator("[data-hmz=aichan-form]")
-        typed = form.locator("[data-hmz=aichan-task] textarea")
+        form = drawer.locator("[data-hmz=aichan-chat]")
+        typed = form.locator("[data-hmz=aichan-say] textarea")
         typed.fill("what is running")
         forgets({"id": 1})
         wire.answer(page, "aichan.forget", {})
@@ -559,38 +617,65 @@ def test_a_delete_answered_late_leaves_what_was_opened_meanwhile_and_takes_a_slo
         expect(form).to_be_visible()
         expect(typed).to_have_value("what is running")
         expect(drawer.locator("[data-hmz=aichan-list]")).to_be_hidden()
+        # On a phone's width her permission is still said whole, her scope after it.
+        said = form.locator("[data-hmz=permission] .chip-value")
+        expect(said).to_have_text("Read only · Workspace")
+        assert said.evaluate("(el) => el.scrollWidth <= el.clientWidth")
 
 
 @pytest.mark.usefixtures("linked")
 def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
     project: Path, engine: str, tmp_path: Path
 ) -> None:
-    with served() as site, opened(site, engine=engine) as page:
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, "/new")
         drawer = _drawer(page)
         drawer.locator("[data-hmz=aichan-new]").click()
-        form = drawer.locator("[data-hmz=aichan-form]")
-        form.locator("[data-hmz=aichan-scope]").select_option("daemon")
+        chat = drawer.locator("[data-hmz=aichan-chat]")
         # Another nous than the one the chip starts on.
-        chip = form.locator("[data-hmz=pick-model]")
+        chip = chat.locator("[data-hmz=pick-model]")
         expect(chip).to_have_attribute("data-value", "claude-haiku-4-5")
         chip.click()
         page.get_by_role("menu", name="Nous").locator(
             "[data-value=claude-opus-4-1]"
         ).click()
         expect(chip).to_have_attribute("data-value", "claude-opus-4-1")
-        task = form.locator("[data-hmz=aichan-task] textarea")
-        task.fill("hello there")
+        # Of the daemon's scope, not the folder's the view shows.
+        chat.locator("[data-hmz=permission]").click()
+        page.get_by_role("menu", name="Permissions").locator(
+            "[data-scope=daemon]"
+        ).click()
+        # The view it is typed in is the one it goes on in: marked, to be found again.
+        chat.evaluate("(el) => { el.dataset.kept = 'yes' }")
+        task = chat.locator("[data-hmz=aichan-say] textarea")
+        task.fill("hello there\nand more of it")
         task.press("Enter")
 
-        # Opened as a chat: what was said at the right, her answer in a bubble at the
-        # left beside the conversation's face.
-        chat = drawer.locator("[data-hmz=aichan-chat]")
-        expect(chat).to_be_visible()
+        # Made by that line, with no title and no network said, and gone on in where it
+        # was typed: what was said at the right, her answer in a bubble at the left beside
+        # the conversation's face.
         expect(chat.locator("[data-hmz=aichan-title]")).to_have_text("hello there")
+        expect(chat).to_have_attribute("data-kept", "yes")
+        assert wire.params("aichan.create") == [
+            {
+                "scope": "daemon",
+                "nous": "claude/claude-opus-4-1",
+                "preset": "read-only",
+                "task": "hello there\nand more of it",
+                "idem": wire.params("aichan.create")[0]["idem"],
+            }
+        ]
+        # What it was made with is said under its box still, and picked no more.
+        fixed = chat.locator("[data-hmz=composer-under] button")
+        expect(fixed).to_have_count(2)
+        expect(fixed.nth(0)).to_contain_text("Opus 4.1")
+        expect(fixed.nth(1)).to_have_text("Read only · Daemon")
+        for at in range(2):
+            expect(fixed.nth(at)).to_be_disabled()
         log = chat.locator("[data-hmz=aichan-log]")
         mine = log.locator(".said.you .body").first
-        expect(mine).to_have_text("hello there")
+        expect(mine).to_have_text(re.compile(r"hello there\s+and more of it$"))
         hers = log.locator(".said.text").first
         expect(hers).to_be_visible()
         whole = _box(log)
@@ -634,7 +719,10 @@ def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
         assert (
             log.locator(":scope > *").last.get_attribute("data-hmz") == "aichan-typing"
         )
-        expect(chat.get_by_role("button", name="Stop")).to_be_visible()
+        # Stopped by her box's own button, as a chat's turn is.
+        expect(
+            chat.locator("[data-hmz=aichan-say]").get_by_role("button", name="Stop")
+        ).to_be_visible()
         expect(chat).to_have_attribute("data-state", "running")
         page.screenshot(path=str(tmp_path / "aichan-chat.png"))
         expect(typing).to_have_count(0, timeout=30000)
@@ -642,12 +730,54 @@ def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
             re.compile(r"^Worked for \d+s$")
         )
 
-        # In the list it is a row of the same face, and what she said last.
+        # Beside its title, a grey pencil: nothing else of the title is pressed to rename
+        # it. Escape leaves it as it was, Enter keeps what was typed, and so does leaving
+        # the field.
+        title = chat.locator("[data-hmz=aichan-title]")
+        pencil = chat.get_by_role("button", name="Rename")
+        expect(pencil).to_be_visible()
+        gap = _box(pencil)["x"] - (_box(title)["x"] + _box(title)["width"])
+        assert 0 <= gap <= 12
+        grey, ink = (
+            one.evaluate("(el) => getComputedStyle(el).color")
+            for one in (pencil, title)
+        )
+        assert grey != ink
+        title.click()
+        field = chat.locator("[data-hmz=title-edit]")
+        expect(field).to_have_count(0)
+        pencil.click()
+        expect(field).to_be_focused()
+        expect(field).to_have_value("hello there")
+        expect(title).to_be_hidden()
+        field.fill("never kept")
+        page.keyboard.press("Escape")
+        expect(field).to_have_count(0)
+        expect(title).to_have_text("hello there")
+        expect(drawer).to_be_visible()
+        assert wire.params("aichan.rename") == []
+        pencil.click()
+        field.fill("  What   happened ")
+        page.keyboard.press("Enter")
+        expect(title).to_have_text("What happened")
+        expect(pencil).to_be_focused()
+        pencil.click()
+        field.fill("What happened today")
+        say.click()
+        expect(title).to_have_text("What happened today")
+        assert [one["title"] for one in wire.params("aichan.rename")] == [
+            "What happened",
+            "What happened today",
+        ]
+        page.screenshot(path=str(tmp_path / "aichan-renamed.png"))
+
+        # In the list it is a row of the same face, under its new title, and what she said
+        # last.
         drawer.locator("[data-hmz=aichan-back]").click()
         row = drawer.locator("[data-hmz=aichan-conversation]")
         expect(row).to_have_count(1)
         assert (row.locator("img").get_attribute("src") or "") in shown
-        expect(row.locator(".aichan-title")).to_have_text("hello there")
+        expect(row.locator(".aichan-title")).to_have_text("What happened today")
         expect(row.locator("[data-hmz=aichan-latest]")).not_to_have_text("")
         expect(row.locator("[data-hmz=aichan-unread]")).to_have_count(0)
         # Nor once the list says when she last answered, which the daemon writes down a
@@ -672,10 +802,15 @@ def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
             assert asked.call("settings.get")["ai_chan"] == "claude/claude-opus-4-1"
             (listed,) = asked.call("aichan.list")["conversations"]
         assert listed["nous"] == "claude/claude-opus-4-1"
+        assert listed["title"] == "What happened today"
+        assert "network" not in listed
         drawer.locator("[data-hmz=aichan-new]").click()
         expect(
-            drawer.locator("[data-hmz=aichan-form] [data-hmz=pick-model]")
+            drawer.locator("[data-hmz=aichan-chat] [data-hmz=pick-model]")
         ).to_have_attribute("data-value", "claude-opus-4-1")
+        expect(drawer.locator("[data-hmz=aichan-title]")).to_have_text(
+            "New conversation"
+        )
         go(page, "/settings/general")
         expect(page.locator("[data-hmz=harness-sessions]")).to_be_visible()
         expect(page.locator("[data-hmz=ai-chan-setting]")).to_have_count(0)
@@ -769,7 +904,9 @@ def test_a_conversation_whose_host_went_is_opened_again_and_carried_on(
         expect(chat).to_have_attribute("data-state", "waiting")
         # Hers alone is what the person said, not what she was told of herself ahead of it
         # (which the stand-in says back); and nothing names the model she thought with.
-        expect(chat).not_to_contain_text(re.compile(r"Opus|think ·"))
+        expect(chat.locator(".aichan-scroll")).not_to_contain_text(
+            re.compile(r"Opus|think ·")
+        )
         expect(chat.locator("[data-hmz=aichan-opening]")).to_have_count(0)
         page.screenshot(path=str(tmp_path / "aichan-reopened.png"))
         # And what is said next carries her on.

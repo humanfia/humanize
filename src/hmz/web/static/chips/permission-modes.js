@@ -17,15 +17,19 @@ export const MODES = [
 /** What the menu says under them: why none of them asks before acting. */
 export const NOTE = t('The assistant acts without asking first. What it may touch is what holds it.')
 
-/** The mode a permission names, or the default's for one that names none. */
-export function modeOf(permission) {
-  return MODES.find((one) => one.value === permission) || MODES.find((one) => one.value === DEFAULT)
+/**
+ * The mode a permission names, or the default's for one that names none: among a chat's, or
+ * among `modes`, the ones something else is held to, whose first is its default where a chat's
+ * is not among them.
+ */
+export function modeOf(permission, modes = MODES) {
+  return modes.find((one) => one.value === permission) || modes.find((one) => one.value === DEFAULT) || modes[0]
 }
 
 /** The modes as a menu offers them, the one in force marked. */
-export function offered(permission) {
-  const now = modeOf(permission).value
-  return MODES.map((one) => ({ ...one, chosen: one.value === now }))
+export function offered(permission, modes = MODES) {
+  const now = modeOf(permission, modes).value
+  return modes.map((one) => ({ ...one, chosen: one.value === now }))
 }
 
 /**

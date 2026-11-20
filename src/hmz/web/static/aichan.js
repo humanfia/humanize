@@ -1,20 +1,50 @@
 // Ai-chan's conversations as the drawer says and makes them, nothing drawn: the scope a new one
-// defaults to from what the page shows (Section 14.3.4 of protocol/core.md), what `aichan.create`
-// is sent from the form, how each conversation stands in the list -- its face, the line under its
+// defaults to from what the page shows (Section 14.3.4 of protocol/core.md), the presets and the
+// scopes its chip offers, what `aichan.create` is sent, how each conversation stands in the list -- its face, the line under its
 // title, whether it is pinned or unread in this browser, and where it stands among the others --
 // and what a line typed to her does: answer what she waits on, or say it into her turn.
 
 import { t } from './i18n.js'
 
-/** The scopes a conversation is made with, as the form offers them. */
+/** The scopes a conversation is made with, widest first, each as its chip names it. */
 export const SCOPES = [
   ['daemon', t('Daemon')],
   ['workspace', t('Workspace')],
   ['epic', t('Epic')],
 ]
 
-/** The presets a conversation is made with, the first the default. */
-export const PRESETS = ['read-only', 'danger-full-access']
+/**
+ * The presets a conversation is made with, the first the default: each as a chat's permission
+ * is named on its chip, with the one line that says what it lets her do.
+ */
+export const PRESETS = [
+  { value: 'read-only', label: t('Read only'), about: t('Reads, and changes nothing') },
+  { value: 'danger-full-access', label: t('Full access'), about: t('Changes what her scope reaches') },
+]
+
+/** What a scope is called on the chip, or the scope itself where it is none of them. */
+export function scopeSaid(scope) {
+  const found = SCOPES.find(([value]) => value === scope)
+  return found ? found[1] : scope
+}
+
+/**
+ * The scopes as the chip's menu offers them: each with what it reaches, whether it is the one
+ * picked, and why it cannot be -- a workspace's with no folder to hold her to, an epic's while
+ * the page shows no epic -- or '' where it can.
+ *
+ * @param {{scope: string, workspace: string, epic: string}} picked The scope picked, and the
+ *   workspace and the epic the page shows.
+ */
+export function scopesOf({ scope, workspace, epic }) {
+  const folder = workspace.replace(/\/+$/, '').split('/').pop() || workspace
+  const said = {
+    daemon: { about: t('Every workspace and epic here'), why: '' },
+    workspace: { about: folder, why: workspace ? '' : t('No folder to hold her to') },
+    epic: { about: epic, why: epic ? '' : t('Open an epic to hold her to it') },
+  }
+  return SCOPES.map(([value, label]) => ({ value, label, ...said[value], chosen: value === scope }))
+}
 
 /**
  * The scope a new conversation defaults to from where the page is: the epic it shows, else the
@@ -33,32 +63,33 @@ export function scopeOf(parts, query) {
 }
 
 /**
- * What `aichan.create` is sent from the form: what the scope does not take left out, the nous
- * picked, and a title "" left to the task's first line.
+ * What `aichan.create` is sent as the first line is said: what the scope does not take left
+ * out, the nous and the preset picked, and the line as its task. Its title is the daemon's to
+ * give, from that line.
  *
- * @param {{scope: string, workspace: string, epic: string, nous: string, preset: string, network: boolean, title: string, task: string}} form
+ * @param {{scope: string, workspace: string, epic: string, nous: string, preset: string, task: string}} picked
  */
-export function created({ scope, workspace, epic, nous, preset, network, title, task }) {
-  const said = { scope, nous: nous.trim(), preset, network, task: task.trim() }
+export function created({ scope, workspace, epic, nous, preset, task }) {
+  const said = { scope, nous: nous.trim(), preset, task: task.trim() }
   if (scope !== 'daemon') said.workspace = workspace
   if (scope === 'epic') said.epic = epic.trim()
-  if (title.trim()) said.title = title.trim()
   return said
 }
 
 /**
- * Why the form cannot make a conversation yet, or "" where it can: the daemon refuses the rest,
- * but a nous not picked is asked for here (Section 14.3.2 of protocol/core.md).
+ * Why a conversation cannot be made yet, or "" where it can: the daemon refuses the rest, but
+ * a nous not picked is asked for here (Section 14.3.2 of protocol/core.md).
  *
- * @param {object} form As `created` takes it.
+ * @param {{nous: string, task: string}} picked As `created` takes it.
  */
-export function missing({ scope, workspace, epic, nous, task }) {
-  if (scope !== 'daemon' && !workspace) return t('Pick the workspace she works in.')
-  if (scope === 'epic' && !epic.trim()) return t('Name the epic she works on.')
+export function missing({ nous, task }) {
   if (!nous.trim()) return t('Pick a nous for Ai-chan.')
   if (!task.trim()) return t('Tell Ai-chan something to start with.')
   return ''
 }
+
+/** How much of the first line said a conversation is titled by (Section 4.22.2.1 of protocol/daemon.md). */
+export const TITLED = 80
 
 /** How many faces she has: `ai-chan/face-01.webp` to `face-16.webp` among the page's files. */
 export const FACES = 16

@@ -28,8 +28,11 @@ const refused = (error) => toast(error.message, REFUSED)
  *
  * @param {HTMLElement} shown What shows the title, and has the focus back once the field is done with.
  * @param {{name: string, title: string}} chat The chat.
+ * @param {object} [how] Where it is not a chat's title: an Ai-chan conversation's.
+ * @param {(title: string) => Promise<unknown>} [how.saves] What records the title.
+ * @param {HTMLElement} [how.back] What has the focus back, where `shown` takes none.
  */
-export function retitling(shown, chat) {
+export function retitling(shown, chat, { saves = (title) => call('chat.rename', { chat: chat.name, title }).then(chatsChanged), back: focused = shown } = {}) {
   if (shown.hidden) return
   const field = h('input', { class: 'title-edit', type: 'text', 'aria-label': t('Chat title'), maxlength: TITLE_MOST, value: chat.title, 'data-hmz': 'title-edit' })
   let over = false
@@ -39,7 +42,7 @@ export function retitling(shown, chat) {
     over = true
     field.remove()
     shown.hidden = false
-    if (back) shown.focus()
+    if (back) focused.focus()
   }
   const save = async (back) => {
     if (over || saving) return
@@ -49,8 +52,7 @@ export function retitling(shown, chat) {
     saving = true
     field.readOnly = true
     try {
-      await call('chat.rename', { chat: chat.name, title })
-      chatsChanged()
+      await saves(title)
       end(back)
     } catch (error) {
       refused(error)

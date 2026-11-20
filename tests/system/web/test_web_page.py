@@ -1547,7 +1547,8 @@ def test_the_side_shown_is_the_one_chosen_and_under_auto_the_systems(
                         return getComputedStyle(probe).color
                     }
                     const fill = (part) => getComputedStyle(mark.querySelector(part)).fill
-                    const said = [fill('.ink'), painted('--ink'), fill('.green'), painted('--green')]
+                    const said = [fill('.ink'), painted('--ink')]
+                    said.push(fill('.green'), painted('--green'))
                     probe.remove()
                     return said
                 }"""
@@ -2507,7 +2508,7 @@ def test_a_new_view_read_under_ai_chans_drawer_takes_no_focus_out_of_it(
         page.locator("[data-hmz=aichan-toggle]").first.click()
         drawer = page.locator("[data-hmz=aichan]")
         drawer.locator("[data-hmz=aichan-new]").click()
-        task = drawer.locator("[data-hmz=aichan-task] textarea")
+        task = drawer.locator("[data-hmz=aichan-say] textarea")
         expect(task).to_be_focused()
         # The view is asked for from the sidebar, and what it reads is slow to come.
         wire.holds(held)

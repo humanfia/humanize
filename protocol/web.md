@@ -1628,8 +1628,8 @@ until it is closed.
 files `ai-chan/face-01.webp` to `ai-chan/face-16.webp` among the page's files, the same face for a
 conversation wherever and whenever it is drawn; its title; and under the title, on one line cut
 short with an ellipsis, its `latest`, or `typing…` while its turn is open. A row MUST NOT say the
-conversation's scope, its nous, its preset or its network, nor in words whether it is between turns
-or has folded away, and MUST hold no button of its own. The drawer MUST offer `New`, and with no
+conversation's scope, its nous or its preset, nor in words whether it is between turns or has
+folded away, and MUST hold no button of its own. The drawer MUST offer `New`, and with no
 conversation to list MUST say so and offer to make one.
 
 **3.16.2.1** Each row MUST offer a menu -- opened by the pointer's secondary button, by the menu key
@@ -1647,30 +1647,46 @@ chat the drawer has seen end failed a mark of that.
 **3.16.2.3** The pinned conversations MUST be listed first, and then every conversation by its
 `updated`, the latest first.
 
-**3.16.3** `New` MUST open a form in the drawer that asks for the scope -- `Daemon`, `Workspace` or
-`Epic`, defaulting as Section 14.3.4 of [CORE] states to the epic, else the workspace, the view
-shows --, the workspace and the epic the scope names, the preset (`read-only` or
-`danger-full-access`, defaulting to `read-only`), `Network` (off by default), the task and, under
-the box of the task, the nous, picked from the chip a new chat picks its own from (Section 3.8.19)
-and set to begin with to the nous last used, the `ai_chan` setting (Section 14.3.2 of [CORE]);
-Enter in the box for the task MUST make the conversation by `aichan.create`, with the nous picked,
-and open it. The page MUST NOT remember the preset or the network from one conversation to the
-next.
+**3.16.3** `New` MUST draw, in the drawer, a conversation not made yet as Section 3.16.4 draws one
+that is: a chat with nothing said in it, titled `New conversation`, and no form. Under its box, as
+under a new chat's (Section 3.8.19, Section 3.8.20), MUST stand two chips: the nous, picked from
+the chip a new chat picks its own from and set to begin with to the nous last used, the `ai_chan`
+setting (Section 14.3.2 of [CORE]); and the permission, the chip a chat's permission is picked from
+(Section 3.6.6.14), which MUST offer the two presets, `Read only` (`read-only`, the default) and
+`Full access` (`danger-full-access`), and under them the scope -- `Daemon`, `Workspace`, of the
+workspace the view shows, else the first the daemon lists, or `Epic`, of the epic the view shows,
+defaulting as Section 14.3.4 of [CORE] states --, and MUST say the scope picked after the preset.
+A scope with nothing to name, an `Epic` while the view shows none, MUST be shown and MUST NOT be
+picked. The drawer MUST NOT ask for a title or for the network, and the page MUST NOT remember the
+preset or the scope from one conversation to the next.
+
+**3.16.3.1** The first line said in that box MUST make the conversation by `aichan.create`, with
+the scope, the nous and the preset picked and that line as its `task`, and the drawer MUST go on
+drawing it in the same view, as Section 3.16.4 states.
 
 **3.16.4** Opening a conversation MUST draw it in the drawer as a chat (Section 8.8 of [CORE]),
 attached to its slot by `epic.attach`, carrying it on where it has folded away (Section 14.8.5 of
 [CORE]), as a chat app draws one: Ai-chan's answers in bubbles at the left, beside the face its row
 has, the user's lines in bubbles at the right, a bubble of hers holding three dots at its foot
 while her turn is open and she asks the user nothing in it, and a box that says the next line to
-her. The drawer MUST NOT name an agent
-or a session, MUST NOT say in words that the conversation waits on the user or has folded away, and
-MUST NOT show what it cost.
+her, under which the two chips of Section 3.16.3 MUST say the nous, the preset and the scope it was
+made with, and MUST NOT be picked from. The drawer MUST NOT name a session, MUST NOT say in words
+that the conversation waits on the user or has folded away, and MUST NOT show what it cost. Until
+the conversation's host has answered, the drawer MUST say that it is being opened, and, where
+attaching to it was refused, why; of a conversation carried on, what was said before MUST be drawn
+without what Ai-chan was told ahead of the user's first line (Section 14.6.4 of [CORE]).
+
+**3.16.4.1** Beside the conversation's title the drawer MUST offer a button drawn as a pencil,
+named `Rename`, quieter than the title. Pressing it, and nothing else, MUST put a field holding
+the title in the title's place: Enter and leaving the field MUST record what it holds by
+`aichan.rename` (Section 4.22.7 of [DAEMON]), Escape MUST leave the title as it was, and the list
+MUST show the title recorded.
 
 **3.16.5** The drawer MUST show each tool Ai-chan calls, with the method and how it was answered,
 on one line the user can open (Section 14.7.3 of [CORE]).
 
-**3.16.6** While Ai-chan's turn is open, the drawer MUST offer `Stop`, which stops that turn
-without asking for confirmation (Section 14.8.3 of [CORE]).
+**3.16.6** While Ai-chan's turn is open, the button of the drawer's box MUST be `Stop`, as a chat's
+is, which stops that turn without asking for confirmation (Section 14.8.3 of [CORE]).
 
 **3.16.7** On a screen as narrow as a phone's, the drawer MUST cover the view, and Escape and a
 button MUST close it.

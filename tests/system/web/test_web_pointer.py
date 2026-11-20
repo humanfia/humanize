@@ -176,7 +176,7 @@ def test_a_nous_is_picked_not_spelled(project: Path, engine: str) -> None:
         page.get_by_role("button", name="Save").click()
         expect(page.locator("[data-hmz=nous-row]")).to_have_count(1)
 
-        # Ai-chan's is no setting: it is picked on her drawer's form (test_web_aichan.py).
+        # Ai-chan's is no setting: it is picked on the chip of her box (test_web_aichan.py).
         go(page, "/settings/general")
         expect(page.locator("[data-hmz=harness-sessions]")).to_be_visible()
         expect(page.locator("[data-hmz=ai-chan-setting]")).to_have_count(0)

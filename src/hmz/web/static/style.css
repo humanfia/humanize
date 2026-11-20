@@ -7440,9 +7440,35 @@ pre.ask-plain {
   margin-left: calc(-1 * var(--space-8));
 }
 
+/* Its title, cut short where it is long, and straight after it the pencil that renames it: quiet
+   until it is pointed at. */
 .aichan-crumb .aichan-title {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aichan-crumb .aichan-rename {
+  flex: none;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  margin-left: calc(-1 * var(--space-4));
+  color: var(--ink-3);
+}
+
+.aichan-crumb .aichan-rename .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.aichan-crumb .aichan-rename:is(:hover, :focus-visible) {
+  color: var(--ink);
+}
+
+.aichan-crumb input.title-edit {
+  flex: 1;
 }
 
 .aichan-chat {
@@ -7591,10 +7617,31 @@ pre.ask-plain {
   }
 }
 
-/* The box a new conversation's task is typed into carries her nous under it, as a new chat's. */
-.aichan-nous {
-  display: inline-flex;
-  min-width: 0;
+/* Under her box, what a conversation was made with is said on the chips it was picked from,
+   which open nothing any more. */
+.aichan-chat .chip-btn:disabled {
+  cursor: default;
+  color: var(--ink-3);
+}
+
+.aichan-chat .chip-btn:disabled .icon-down {
+  display: none;
+}
+
+/* The drawer is narrow: where her nous and what she may do do not fit side by side, each is
+   said whole, one under the other, rather than her nous cut short. */
+.aichan-chat .under-right:has(> .model-pick) {
+  flex-wrap: wrap;
+}
+
+/* Her permission is said with her scope after it, whole: two names, as the chip of where a chat
+   runs holds two. */
+.aichan-chat .composer-under .permission-chip .chip-value {
+  max-width: none;
+}
+
+.aichan-chat .permission-chip .chip-part {
+  color: var(--ink-3);
 }
 
 .nous-field,

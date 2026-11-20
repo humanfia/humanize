@@ -3,23 +3,27 @@
 // conversations with the daemon shown as a chat app lists its own -- a face, a title and the
 // start of what was last said, the pinned first and then the latest said in --, with a menu on
 // each, under the pointer's other button, the menu key or a finger at rest, and under the row
-// swiped to the left: pin it, mark it read or unread, delete it. It makes one with `New` -- of
-// the scope the page shows, with the nous she last used unless another is picked -- and draws
-// one as a chat, attached to its slot: her answers in bubbles beside the conversation's face,
-// the person's at the right, each tool she calls a line to open, and a box that says the next
-// line to her, which carries a conversation folded away on.
+// swiped to the left: pin it, mark it read or unread, delete it. `New` opens a conversation not
+// made yet, drawn as one that is: a chat with nothing said in it, whose box has under it her
+// nous -- the one she last used unless another is picked -- and what she may do and reach, of
+// the scope the page shows, and whose first line makes it. One there is is drawn attached to its
+// slot: her answers in bubbles beside the conversation's face, the person's at the right, each
+// tool she calls a line to open, a box that says the next line to her, which carries a
+// conversation folded away on, and beside its title a pencil that renames it.
 
 import { call, daemon, onDaemon, poll, refresh } from '../api.js'
-import { PRESETS, SCOPES, actionsOf, created, earlierOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../aichan.js'
-import { modelChip } from '../chips/model.js'
+import { PRESETS, TITLED, actionsOf, created, earlierOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, scopeSaid, scopesOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../aichan.js'
+import { retitling } from '../chat-actions.js'
+import { modelChip, nousSaidChip } from '../chips/model.js'
+import { permissionChip } from '../chips/permission.js'
 import { composer } from '../composer.js'
-import { acting, empty, fill, h, icon, problem } from '../dom.js'
+import { acting, empty, fill, h, icon, iconButton, problem } from '../dom.js'
 import { sessionsOf, watch } from '../epic.js'
 import { ask, current, follow } from '../held.js'
 import { t } from '../i18n.js'
 import { readBackends } from '../pickers.js'
-import { firstWorkspace, goneSaid, workspacePicker } from '../places.js'
-import { dragged, keep, kept, sidePanel } from '../shell.js'
+import { firstWorkspace } from '../places.js'
+import { choice, dragged, keep, kept, section, sidePanel } from '../shell.js'
 import { swiped, unswiped } from '../swipe.js'
 import { line, saidTraced, sayer } from '../transcript.js'
 import { menuOf, menuOn } from '../ui.js'
@@ -46,13 +50,13 @@ const MARKS = 'hmz-aichan-marks'
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
  */
 export function mount(app, where) {
-  /** What the drawer shows: the list, the form that makes one, or one conversation. */
+  /** What the drawer shows: the list, a conversation not made yet, or one conversation. */
   let showing = { kind: 'list' }
   /** Every conversation, as `aichan.list` last answered, and what refused it. */
   let rows = null
   let refused = null
   let unlist = () => {}
-  /** What lets go of what is drawn now: the conversation followed, or the form. */
+  /** What lets go of what is drawn now: the conversation followed, or the one being made. */
   let leave = () => {}
   /** The rows drawn, by the conversation each is of, and the one whose deleting is asked. */
   const drawn = new Map()
@@ -146,9 +150,8 @@ export function mount(app, where) {
     leave = () => {}
     unswiped()
     showing = what
-    if (what.kind === 'new') leave = form()
-    else if (what.kind === 'chat') leave = chat(what)
-    else list()
+    if (what.kind === 'list') list()
+    else leave = chat(what)
   }
 
   /** The list's own frame, kept while the list is shown so that its rows are drawn once and then changed. */
@@ -324,125 +327,27 @@ export function mount(app, where) {
     }
   }
 
-  /** The form that makes a conversation, of the scope the page shows. */
-  function form() {
-    const { parts, query } = where()
-    const at = scopeOf(parts, query)
-    const scope = h('select', { 'aria-label': t('Scope'), 'data-hmz': 'aichan-scope' }, SCOPES.map(([value, label]) => h('option', { value, selected: value === at.scope }, label)))
-    const place = workspacePicker(at.workspace || '', () => epics())
-    const epic = h('input', { type: 'text', value: at.epic, placeholder: t('Epic name'), 'aria-label': t('Epic'), 'data-hmz': 'aichan-epic', list: 'aichan-epics', spellcheck: 'false', autocomplete: 'off' })
-    const named = h('datalist', { id: 'aichan-epics' })
-    const preset = h('select', { 'aria-label': t('Preset'), 'data-hmz': 'aichan-preset' }, PRESETS.map((one) => h('option', { value: one }, one)))
-    const network = h('input', { type: 'checkbox', 'data-hmz': 'aichan-network' })
-    const title = h('input', { type: 'text', placeholder: t('From the task'), 'aria-label': t('Title'), 'data-hmz': 'aichan-title' })
-    // Her nous, picked as a new chat's is, under the box: the one she last used until another is.
-    const nousHolder = h('span', { class: 'aichan-nous', 'data-hmz': 'aichan-nous' }, h('span', { class: 'hint' }, t('Reading the nous…')))
-    let chip = null
-    let left = false
-    const box = composer({
-      placeholder: t('Tell Ai-chan what to do'),
-      label: t('Task'),
-      busy: t('Starting…'),
-      desk: { right: [nousHolder] },
-      submit: async (task) => {
-        const said = { scope: scope.value, workspace: place.value() || '', epic: epic.value, nous: chip ? chip.value() : '', preset: preset.value, network: network.checked, title: title.value, task }
-        const why = missing(said)
-        if (why) {
-          // None picked: where one is, is opened.
-          if (!said.nous.trim() && said.task.trim()) chip?.open()
-          throw new Error(why)
-        }
-        // Nothing is made in a folder that went; the daemon's scope names none (`created`).
-        if (said.scope === 'workspace' && place.gone()) throw new Error(goneSaid(said.workspace))
-        const made = await call('aichan.create', created(said))
-        refresh('aichan.list')
-        // The daemon wrote her nous down as the one last used, which the next form opens on.
-        refresh('settings.get')
-        show({ kind: 'chat', title: said.title.trim() || said.task.trim().split('\n')[0], ...made })
-      },
-    })
-    box.node.dataset.hmz = 'aichan-task'
-    const where_ = h('div', { class: 'field', 'data-hmz': 'aichan-workspace' }, h('span', { class: 'label' }, t('Workspace')), place.node)
-    const which = h('div', { class: 'field' }, h('span', { class: 'label' }, t('Epic')), epic, named)
-    const scoped = () => {
-      where_.hidden = scope.value === 'daemon'
-      which.hidden = scope.value !== 'epic'
-    }
-    scope.addEventListener('change', scoped)
-    scoped()
-    /** The epics of the workspace picked, offered to name. */
-    function epics() {
-      const workspace = place.value()
-      if (!workspace) return
-      call('runs.list', { workspace, limit: 50 }).then(
-        (answer) => fill(named, answer.runs.map((one) => h('option', { value: one.name }, one.task.split('\n')[0]))),
-        () => {},
-      )
-    }
-    // The epic shown is of a workspace its address does not say: read off the epic.
-    if (at.scope === 'epic')
-      call('runs.get', { name: at.epic }).then(
-        (found) => {
-          place.set(found.workspace)
-          epics()
-        },
-        () => {},
-      )
-    else if (!at.workspace)
-      firstWorkspace().then(
-        (path) => {
-          if (!place.value()) place.set(path)
-          epics()
-        },
-        () => {},
-      )
-    else epics()
-    Promise.all([call('settings.get'), readBackends()]).then(
-      ([settings]) => {
-        if (left) return
-        chip = modelChip('ai_chan', settings.ai_chan || '')
-        fill(nousHolder, chip.node)
-      },
-      (error) => left || fill(nousHolder, problem(error)),
-    )
-    const back = h('button', { class: 'btn quiet small', type: 'button', onclick: () => show({ kind: 'list' }) }, t('Back'))
-    fill(
-      body,
-      h(
-        'div',
-        { class: 'form aichan-form', 'data-hmz': 'aichan-form' },
-        h('div', { class: 'aichan-crumb' }, back, h('b', {}, t('New conversation'))),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Scope')), scope),
-        where_,
-        which,
-        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Preset')), preset),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Network')), h('label', { class: 'check' }, network, t('Her harness may reach the network'))),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Title')), title),
-        box.node,
-      ),
-    )
-    box.text.focus()
-    return () => {
-      left = true
-      place.leave()
-      chip?.leave()
-    }
-  }
-
-  /** Names the conversation drawn as the list names it, once the list has it. */
+  /** Names the conversation drawn as the list names it, once the list has it; one not made yet is a new one. */
   function titled() {
     const shown = body.querySelector('[data-hmz=aichan-title]')
     if (!shown) return
+    if (showing.kind !== 'chat') return void (shown.textContent = t('New conversation'))
     const row = (rows || []).find((each) => each.id === showing.id)
     shown.textContent = titleOf(row && row.title ? row : showing)
   }
 
-  /** One conversation, drawn as a chat while its slot is followed. */
+  /**
+   * One conversation, drawn as a chat while its slot is followed -- or one not made yet, which
+   * is the same chat with nothing said in it: under its box her nous and what she may do and
+   * reach, picked as a new chat's are, and the first line said makes it, in this view.
+   */
   function chat(one) {
-    const host = { workspace: one.workspace, slot: one.slot }
+    /** The conversation, once there is one. */
+    let made = one.kind === 'chat' ? one : null
+    const host = () => ({ workspace: made.workspace, slot: made.slot })
     // Her words beside the face its row has in the list.
-    const log = h('div', { class: 'thread aichan-log', role: 'log', 'aria-live': 'polite', 'data-hmz': 'aichan-log', style: { '--aichan-face': `url("${faceUrl(one.id)}")` } })
-    const earlier = h('div', { class: 'thread thread-before aichan-log', style: { '--aichan-face': `url("${faceUrl(one.id)}")` } })
+    const log = h('div', { class: 'thread aichan-log', role: 'log', 'aria-live': 'polite', 'data-hmz': 'aichan-log' })
+    const earlier = h('div', { class: 'thread thread-before aichan-log' })
     // While her turn is open: three dots in a bubble of hers, at the foot of the conversation.
     const typing = h(
       'div',
@@ -451,7 +356,6 @@ export function mount(app, where) {
       h('div', { class: 'body', 'aria-hidden': 'true' }, h('i', {}), h('i', {}), h('i', {})),
     )
     const options = h('div', { class: 'row aichan-options', 'data-hmz': 'aichan-options' })
-    const stopHolder = h('span', {})
     const whole = h('div', { class: 'aichan-chat', 'data-hmz': 'aichan-chat' })
     let held = null
     let saidBy = null
@@ -465,28 +369,153 @@ export function mount(app, where) {
     let rested = false
     /** Whether her host has answered this drawing of the conversation. */
     let met = false
+    /** Whether the view was left: what is still being read or made draws nothing. */
+    let away = false
+    let unwatch = () => {}
+
+    // What it is made with: the scope the page shows, until another is picked.
+    const { parts, query } = where()
+    const picked = made ? { scope: made.scope, workspace: made.workspace, epic: made.epic || '' } : scopeOf(parts, query)
+    /** The scopes, under the permissions of the chip's menu. */
+    const scopes = (close) => [
+      section(t('Scope')),
+      scopesOf(picked).map((each) => {
+        const row = choice({
+          label: each.label,
+          about: each.about,
+          chosen: each.chosen,
+          act: () => {
+            if (each.why) return
+            picked.scope = each.value
+            permission.again()
+          },
+          // One that cannot be picked says why, and leaves the menu as it is.
+          close: each.why ? () => {} : close,
+        })
+        row.dataset.scope = each.value
+        if (each.why) {
+          row.setAttribute('aria-disabled', 'true')
+          row.dataset.tip = each.why
+        }
+        return row
+      }),
+    ]
+    const permission = permissionChip({ up: true, value: made ? made.preset : null, modes: PRESETS, beside: () => scopeSaid(picked.scope), rows: scopes })
+    permission.node.dataset.hmz = 'aichan-permission'
+    /** The chip her nous is picked from, once what there is to pick was read. */
+    let chip = null
+
     const box = composer({
       placeholder: t('Say something to Ai-chan'),
       label: t('What to say to Ai-chan'),
+      desk: { right: [permission.node] },
       submit: async (text) => {
+        if (!made) return makes(text)
         // Her chat failed: no line carries it on (Section 8.4.9 of protocol/core.md).
         if (failed) throw new Error(t('This conversation failed. Start a new one.'))
         // Folded away: attached again, which carries her on, and what she then waits on answered.
         let now = held
-        if (!now || !now.connected) now = (await carried(host)) || now
+        if (!now || !now.connected) now = (await carried(host())) || now
         const pending = now && now.standing.pending ? now.standing.pending.pending : []
         const [what, said] = told(pending, now ? now.me : '', text)
-        await ask(host, what, said)
+        await ask(host(), what, said)
       },
     })
     box.node.dataset.hmz = 'aichan-say'
+
+    /** Makes the conversation of what is picked, the line its first, and goes on in it here. */
+    async function makes(task) {
+      const said = { ...picked, nous: chip ? chip.value() : '', preset: permission.value(), task }
+      const why = missing(said)
+      if (why) {
+        // None picked: where one is, is opened.
+        if (!said.nous.trim() && task.trim()) chip?.open()
+        throw new Error(why)
+      }
+      const answer = await call('aichan.create', created(said))
+      refresh('aichan.list')
+      // The daemon wrote her nous down as the one last used, which the next opens on.
+      refresh('settings.get')
+      if (away) return
+      // Titled by the daemon from the line's first, as the list will say it.
+      made = { kind: 'chat', ...answer, scope: said.scope, epic: said.scope === 'epic' ? said.epic : '', nous: said.nous, preset: said.preset, title: task.trim().split('\n')[0].trimEnd().slice(0, TITLED) }
+      showing = made
+      begun()
+    }
+
+    const title = h('b', { class: 'aichan-title', 'data-hmz': 'aichan-title' })
+    const pencil = iconButton('pencil', t('Rename'), {
+      class: 'aichan-rename',
+      'data-hmz': 'aichan-rename',
+      hidden: !made,
+      onclick: () => {
+        const row = (rows || []).find((each) => each.id === made.id)
+        retitling(title, { title: (row && row.title) || made.title || '' }, {
+          back: pencil,
+          saves: async (next) => {
+            await call('aichan.rename', { id: made.id, title: next })
+            // Named so at once, here and in the list; the list read again says so of the daemon.
+            made.title = next
+            rows = (rows || []).map((each) => (each.id === made.id ? { ...each, title: next } : each))
+            titled()
+            refresh('aichan.list')
+          },
+        })
+      },
+    })
     const back = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'aichan-back', onclick: () => show({ kind: 'list' }) }, t('Back'))
-    fill(body, fill(whole, h('div', { class: 'aichan-crumb' }, back, h('b', { class: 'aichan-title', 'data-hmz': 'aichan-title' }), stopHolder), h('div', { class: 'aichan-scroll' }, earlier, log), options, box.node))
+    fill(body, fill(whole, h('div', { class: 'aichan-crumb' }, back, title, pencil), h('div', { class: 'aichan-scroll' }, earlier, log), options, box.node))
     box.text.focus()
-    titled()
-    // Opened, it is read.
-    const row = (rows || []).find((each) => each.id === one.id)
-    if (row) remember(read(marks(), row))
+
+    /** What a conversation there is has that one not made yet has not: its face, what it was made with, and its host. */
+    function begun() {
+      for (const each of [log, earlier]) each.style.setProperty('--aichan-face', `url("${faceUrl(made.id)}")`)
+      // Neither changes while it lasts (Section 14.3.1 of protocol/core.md): said, and picked no more.
+      const fixed = t('Set when the conversation was made')
+      permission.fixed(fixed)
+      const nous = nousSaidChip(made.nous || '', fixed).node
+      if (chip) {
+        chip.leave()
+        chip.node.replaceWith(nous)
+        chip = null
+      } else box.tray.prepend(nous)
+      pencil.hidden = false
+      titled()
+      // Opened, it is read.
+      const row = (rows || []).find((each) => each.id === made.id)
+      if (row) remember(read(marks(), row))
+      unwatch = watch('', host(), draw)
+    }
+
+    if (made) begun()
+    else {
+      titled()
+      log.append(h('p', { class: 'dim thread-empty', 'data-hmz': 'aichan-hello' }, t('Ask Ai-chan what your epics did, have her steer a session, or run something for you.')))
+      // The epic shown is of a workspace its address does not say: read off the epic.
+      if (picked.scope === 'epic')
+        call('runs.get', { name: picked.epic }).then(
+          (found) => (picked.workspace = found.workspace),
+          () => {
+            // No epic of this daemon's: she is held to nothing narrower than it.
+            Object.assign(picked, { scope: 'daemon', epic: '' })
+            permission.again()
+          },
+        )
+      else if (!picked.workspace)
+        firstWorkspace().then(
+          (path) => (picked.workspace = picked.workspace || path),
+          () => {},
+        )
+      // Her nous, picked as a new chat's is: the one she last used until another is.
+      Promise.all([call('settings.get'), readBackends()]).then(
+        ([settings]) => {
+          if (away || made) return
+          chip = modelChip('ai_chan', settings.ai_chan || '')
+          box.tray.prepend(chip.node)
+        },
+        (error) => away || fill(box.said, problem(error)),
+      )
+    }
 
     function draw(seen) {
       held = seen.held
@@ -537,22 +566,23 @@ export function mount(app, where) {
         log.querySelector(':scope > .thread-empty')?.remove()
         log.append(line('failed', stands.why))
         // And marked so in the list, which the daemon's own does not say.
-        remember(marked(marks(), 'failed', one.id, true))
+        remember(marked(marks(), 'failed', made.id, true))
       }
       failed = stands.why
       // How it stands is said by no word: the dots while she answers, the failure in the log.
       whole.dataset.state = stands.state
-      // Her turn open: stopped at once, without asking (Section 14.8.3 of protocol/core.md).
+      // Her turn open: the box's button stops it at once, without asking (Section 14.8.3 of
+      // protocol/core.md), as a chat's does.
       const answering = held.connected && turn === 'running' && !failed
       rested = held.connected && Boolean(turn) && turn !== 'running'
-      if (answering !== Boolean(stopHolder.firstChild)) fill(stopHolder, answering ? acting(t('Stop'), () => ask(host, 'stop'), { kind: 'btn small danger', busy: t('Stopping…') }) : null)
+      box.stops(answering ? () => ask(host(), 'stop') : null)
       // What she asks mid-turn, with the answers she offers, answered by a press.
       const pending = (held.standing.pending && held.standing.pending.pending) || []
       const asked = pending.find((each) => each.options && each.options.length && (!each.owner || each.owner === held.me))
       const shown = asked ? JSON.stringify([asked.question, asked.options]) : ''
       if (options.dataset.shown !== shown) {
         options.dataset.shown = shown
-        fill(options, asked ? asked.options.map((option, index) => acting(option, () => ask(host, 'answer', { question: asked.question, text: String(index + 1) }), { kind: 'btn small', busy: t('Answering…') })) : null)
+        fill(options, asked ? asked.options.map((option, index) => acting(option, () => ask(host(), 'answer', { question: asked.question, text: String(index + 1) }), { kind: 'btn small', busy: t('Answering…') })) : null)
       }
       if (!typingOf(answering, pending, held.me)) typing.remove()
       else if (log.lastElementChild !== typing) log.append(typing)
@@ -566,10 +596,11 @@ export function mount(app, where) {
       if (stuck) scroller.scrollTop = scroller.scrollHeight
     }
 
-    const unwatch = watch('', host, draw)
     return () => {
+      away = true
       unwatch()
-      if (rested) left(one.id)
+      chip?.leave()
+      if (made && rested) left(made.id)
     }
   }
 
