@@ -54,14 +54,13 @@ export const PAGE = 50
 const MOST = 200
 
 /**
- * What an address asks Search for: its tab, and the filters under it. An address of before the
- * tabs named chats as the flow `chat`, which is the tab `Chats` now. A flow named with no tab is
+ * What an address asks Search for: its tab, and the filters under it. A flow named with no tab is
  * on `All`, where only that flow's epics are of it; one named with `Chats` is dropped, as the
  * tab pressed drops it, and so is how it went, which no chat is filtered by.
  */
 export function chosenOf(query) {
   const said = (name) => query.get(name) || ''
-  const kind = said('flow') === 'chat' ? 'chat' : TABS.some(([kind]) => kind === said('kind')) ? said('kind') : ''
+  const kind = TABS.some(([kind]) => kind === said('kind')) ? said('kind') : ''
   return {
     kind,
     status: kind === 'chat' ? '' : said('status'),

@@ -276,7 +276,8 @@ export function mount(root, { query }) {
       said ? h('span', { class: `badge tone-${tone(how)}`, 'data-hmz': 'result-state' }, said) : null,
       h('span', { class: 'mono', title: run.workspace }, nameOf(run.workspace)),
       run.flow ? h('span', { class: 'mono', title: run.flow }, flowName(run.flow)) : null,
-      run.agents.map((one) => h('span', { class: 'chip', title: `${one.role} · ${one.runs}` }, one.name, h('span', { class: 'dim' }, nousSaid(one.runs).model ? `${nousSaid(one.runs).harness} ${nousSaid(one.runs).model}` : one.runs))),
+      // A chat's agent has no name or role to say: what it runs says which it is.
+      run.agents.map((one) => h('span', { class: 'chip', title: chatting(run) ? one.runs : `${one.role} · ${one.runs}` }, chatting(run) ? null : one.name, h('span', { class: chatting(run) ? '' : 'dim' }, nousSaid(one.runs).model ? `${nousSaid(one.runs).harness} ${nousSaid(one.runs).model}` : one.runs))),
       h('span', { class: 'mono' }, run.spent ? t('{money} · {tokens} out', { money: run.spent.money || '—', tokens: run.spent.tokens }) : '—'),
       // A chat is never over: when it was last heard of is no end to have taken until.
       run.ended && !chatting(run) ? h('span', { class: 'mono' }, t('took {time}', { time: lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000) })) : null,
@@ -326,8 +327,7 @@ export function mount(root, { query }) {
     // How many went each way, of the tab's kind (Section 4.16.1.2 of protocol/daemon.md).
     const all = Object.values(data.counts).reduce((sum, one) => sum + one, 0)
     for (const [how, { count }] of statusOf) count.textContent = String(how ? data.counts[how] || 0 : all)
-    // A chat is of no flow: the tab `Chats` finds them, not this.
-    const names = [...new Set([...data.flows, chosen.flow].filter((name) => name && name !== 'chat'))].sort()
+    const names = [...new Set([...data.flows, chosen.flow].filter(Boolean))].sort()
     fill(flows, h('option', { value: '' }, t('All flows')), names.map((name) => h('option', { value: name, selected: name === chosen.flow }, name)))
     runs = new Map(data.runs.map((run) => [run.name, run]))
     // Only what the arrows move along is in the list: what is said beside it stands over it.

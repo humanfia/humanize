@@ -138,10 +138,12 @@ test('an address says its tab, and one that is no tab is everything', () => {
   assert.equal(chosen('kind=session').kind, '')
 })
 
-test('an address of before the tabs, with chats as a flow, is the tab of the chats', () => {
-  const old = chosen('flow=chat&q=hello')
-  assert.deepEqual([old.kind, old.flow, old.q], ['chat', '', 'hello'])
-  assert.deepEqual(asked(old), [['chat.list', { workspace: '', q: 'hello', offset: 0, limit: PAGE }]])
+test('a flow named chat is a flow as any other, not the tab of the chats', () => {
+  const named = chosen('flow=chat&q=hello')
+  assert.deepEqual([named.kind, named.flow, named.q], ['', 'chat', 'hello'])
+  assert.deepEqual(asked(named).map(([method]) => method), ['runs.list'])
+  assert.equal(asked(named)[0][1].flow, 'chat')
+  assert.deepEqual([chosen('kind=flow&flow=chat').kind, chosen('kind=flow&flow=chat').flow], ['flow', 'chat'])
 })
 
 test('an address that names a flow is on everything, and with the chats the flow is dropped', () => {
