@@ -8,13 +8,13 @@
 import { confirming } from '../../confirm.js'
 import { nousNamed } from '../../chips/agent.js'
 import { acting, empty, fill, h, iconButton, lasting, problem } from '../../dom.js'
-import { t } from '../../i18n.js'
+import { pieces, t } from '../../i18n.js'
 import { effortName } from '../../names.js'
 import { batched, concrete, freshId, graphSaid, held, removed, renamed, withEffort, written } from '../../nous.js'
 import { parted, readBackends } from '../../pickers.js'
 
 export function draw(holder, query, parts, scope) {
-  const listing = h('section', { class: 'panel', 'data-hmz': 'nous' }, h('p', { class: 'loading', role: 'status' }, 'Reading the nous…'))
+  const listing = h('section', { class: 'panel', 'data-hmz': 'nous' }, h('p', { class: 'loading', role: 'status' }, t('Reading the nous…')))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-nous' })
   const offered = h('datalist', { id: 'nous-offered' })
   fill(holder, offered, listing, writing)
@@ -67,7 +67,7 @@ export function draw(holder, query, parts, scope) {
           h(
             'div',
             { 'data-hmz': 'nous-node', title: graphSaid(graph).find((each) => each.id === one.id).text },
-            h('span', { class: 'dim' }, `${one.id}${one.start ? ' (start)' : ''}: `),
+            h('span', { class: 'dim' }, one.start ? t('{id} (start): ', { id: one.id }) : `${one.id}: `),
             h('span', {}, worded(one.text)),
             one.edges ? h('span', { class: 'dim' }, ` · ${one.edges}`) : null,
           ),
@@ -79,19 +79,19 @@ export function draw(holder, query, parts, scope) {
       h(
         'tr',
         { 'data-hmz': 'nous-row', 'data-name': one.name },
-        h('td', {}, h('div', { title: one.name }, worded(nousNamed(one.name))), h('span', { class: 'chip', 'data-hmz': 'nous-kind' }, one.virtual ? 'virtual' : 'concrete')),
-        h('td', { 'data-label': 'Tried' }, one.tries ? `${one.tries} more ${one.tries === 1 ? 'go' : 'goes'}, ${one.policy}` : h('span', { class: 'dim' }, 'once'), h('div', { class: 'dim' }, one.timeout ? `at most ${lasting(one.timeout)}` : 'no limit')),
-        h('td', { 'data-label': 'Graph' }, graphCell(one.graph, '—')),
-        h('td', { 'data-label': 'Then' }, graphCell(one.then, 'nowhere')),
+        h('td', {}, h('div', { title: one.name }, worded(nousNamed(one.name))), h('span', { class: 'chip', 'data-hmz': 'nous-kind' }, one.virtual ? t('virtual') : t('concrete'))),
+        h('td', { 'data-label': t('Tried') }, one.tries ? t('{n} more goes, {policy}', { n: one.tries, policy: one.policy }) : h('span', { class: 'dim' }, t('once')), h('div', { class: 'dim' }, one.timeout ? t('at most {time}', { time: lasting(one.timeout) }) : t('no limit'))),
+        h('td', { 'data-label': t('Graph') }, graphCell(one.graph, '—')),
+        h('td', { 'data-label': t('Then') }, graphCell(one.then, t('nowhere'))),
         h('td', {}, renaming === one.name ? renameForm(one) : actions(one)),
       ),
     )
     fill(
       listing,
       // Each nous written whole over the one of its name there, or added; none there taken away.
-      h('header', {}, h('h2', {}, 'Nous'), scope.batch(() => batched(data.nous))),
+      h('header', {}, h('h2', {}, t('Nous')), scope.batch(() => batched(data.nous))),
       rows.length
-        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Nous'), h('th', {}, 'Tried'), h('th', {}, 'Graph'), h('th', {}, 'Then'), h('th', {}, ''))), h('tbody', {}, rows)))
+        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t('Nous')), h('th', {}, t('Tried')), h('th', {}, t('Graph')), h('th', {}, t('Then')), h('th', {}, ''))), h('tbody', {}, rows)))
         : empty(
             t('No nous yet.'),
             t(' A nous retries a failed turn, on the same model or on another. Without one, a failed turn fails where it ran.'),
@@ -105,12 +105,12 @@ export function draw(holder, query, parts, scope) {
     return h(
       'div',
       { class: 'row' },
-      h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'nous-edit', onclick: () => edit(one) }, 'Edit'),
-      one.virtual ? h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'nous-rename', onclick: () => ((renaming = one.name), drawListing()) }, 'Rename') : null,
+      h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'nous-edit', onclick: () => edit(one) }, t('Edit')),
+      one.virtual ? h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'nous-rename', onclick: () => ((renaming = one.name), drawListing()) }, t('Rename')) : null,
       confirming({
-        label: 'Remove',
-        ask: `Remove ${nousNamed(one.name)}?`,
-        yes: 'Remove',
+        label: t('Remove'),
+        ask: t('Remove {name}?', { name: nousNamed(one.name) }),
+        yes: t('Remove'),
         small: true,
         act: async () => {
           const answer = await scope.call('nous.clear', { name: one.name })
@@ -122,18 +122,18 @@ export function draw(holder, query, parts, scope) {
   }
 
   function renameForm(one) {
-    const to = h('input', { type: 'text', value: one.name, 'aria-label': `New name for ${one.name}`, 'data-hmz': 'nous-rename-to', spellcheck: 'false' })
+    const to = h('input', { type: 'text', value: one.name, 'aria-label': t('New name for {name}', { name: one.name }), 'data-hmz': 'nous-rename-to', spellcheck: 'false' })
     return h(
       'div',
       { class: 'row' },
       to,
-      acting('Rename', async () => {
+      acting(t('Rename'), async () => {
         const answer = await scope.call('nous.rename', { name: one.name, to: to.value.trim() })
         if (editing && editing.name === one.name) editing = null
         renaming = null
         shown(answer)
-      }, { kind: 'btn small primary', busy: 'Renaming…' }),
-      h('button', { class: 'btn small quiet', type: 'button', onclick: () => ((renaming = null), drawListing()) }, 'Cancel'),
+      }, { kind: 'btn small primary', busy: t('Renaming…') }),
+      h('button', { class: 'btn small quiet', type: 'button', onclick: () => ((renaming = null), drawListing()) }, t('Cancel')),
     )
   }
 
@@ -155,21 +155,21 @@ export function draw(holder, query, parts, scope) {
 
   /** The name of a new nous: a concrete one picked, or typed, with an effort; or a virtual name. */
   function nameField() {
-    const kind = h('select', { id: 'nous-kind', 'data-hmz': 'nous-kind-pick' }, h('option', { value: 'concrete' }, 'Concrete'), h('option', { value: 'virtual' }, 'Virtual'))
-    const spec = h('select', { id: 'nous-spec', 'data-hmz': 'nous-spec' }, data.concrete.map((one) => h('option', { value: one, title: one }, nousNamed(one))), h('option', { value: '…' }, 'Other…'))
-    const typed = h('input', { type: 'text', 'aria-label': 'Concrete nous', placeholder: 'HARNESS[@ACCOUNT]/MODEL', 'data-hmz': 'nous-spec-typed', spellcheck: 'false', hidden: data.concrete.length > 0 })
+    const kind = h('select', { id: 'nous-kind', 'data-hmz': 'nous-kind-pick' }, h('option', { value: 'concrete' }, t('Concrete')), h('option', { value: 'virtual' }, t('Virtual')))
+    const spec = h('select', { id: 'nous-spec', 'data-hmz': 'nous-spec' }, data.concrete.map((one) => h('option', { value: one, title: one }, nousNamed(one))), h('option', { value: '…' }, t('Other…')))
+    const typed = h('input', { type: 'text', 'aria-label': t('Concrete nous'), placeholder: 'HARNESS[@ACCOUNT]/MODEL', 'data-hmz': 'nous-spec-typed', spellcheck: 'false', hidden: data.concrete.length > 0 })
     if (!data.concrete.length) spec.hidden = true
     const effort = h('select', { id: 'nous-effort', 'data-hmz': 'nous-effort' })
     const graphHolder = h('div', {})
-    const virtual = h('input', { type: 'text', id: 'nous-name', placeholder: 'A name, as fast or careful', 'data-hmz': 'nous-name', spellcheck: 'false' })
+    const virtual = h('input', { type: 'text', id: 'nous-name', placeholder: t('A name, as fast or careful'), 'data-hmz': 'nous-name', spellcheck: 'false' })
     const picked = () => (spec.hidden || spec.value === '…' ? typed.value.trim() : spec.value)
     const efforts = () => {
       const offered = effortsOf(picked())
-      fill(effort, h('option', { value: '' }, 'Default'), offered.map((one) => h('option', { value: one }, effortName(one))))
+      fill(effort, h('option', { value: '' }, t('Default')), offered.map((one) => h('option', { value: one }, effortName(one))))
       effort.disabled = !offered.length
     }
-    const concreteFields = h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'nous-spec' }, 'Nous'), spec, typed), h('div', { class: 'field' }, h('label', { for: 'nous-effort' }, 'Effort'), effort))
-    const virtualFields = h('div', { class: 'field' }, h('label', { for: 'nous-name' }, 'Name'), virtual)
+    const concreteFields = h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'nous-spec' }, t('Nous')), spec, typed), h('div', { class: 'field' }, h('label', { for: 'nous-effort' }, t('Effort')), effort))
+    const virtualFields = h('div', { class: 'field' }, h('label', { for: 'nous-name' }, t('Name')), virtual)
     const switched = () => {
       concreteFields.hidden = kind.value !== 'concrete'
       virtualFields.hidden = kind.value !== 'virtual'
@@ -183,7 +183,7 @@ export function draw(holder, query, parts, scope) {
     kind.addEventListener('change', switched)
     efforts()
     return {
-      node: h('div', { class: 'form' }, h('div', { class: 'field' }, h('label', { for: 'nous-kind' }, 'Kind'), kind), concreteFields, virtualFields),
+      node: h('div', { class: 'form' }, h('div', { class: 'field' }, h('label', { for: 'nous-kind' }, t('Kind')), kind), concreteFields, virtualFields),
       graphHolder,
       switched,
       value: () => (kind.value === 'virtual' ? virtual.value.trim() : withEffort(picked(), effort.value)),
@@ -193,8 +193,8 @@ export function draw(holder, query, parts, scope) {
   function drawWriting() {
     const was = editing || { name: '', virtual: false, tries: 0, policy: data.default, timeout: 0, graph: null, then: null }
     const name = editing ? null : nameField()
-    const graph = graphForm('Graph', 'graph', held(was.graph))
-    const then = graphForm('Then', 'then', held(was.then))
+    const graph = graphForm(t('Graph'), 'graph', held(was.graph))
+    const then = graphForm(t('Then'), 'then', held(was.then))
     const tries = h('input', { type: 'number', id: 'nous-tries', min: '0', step: '1', value: String(was.tries) })
     const policy = h(
       'select',
@@ -205,13 +205,13 @@ export function draw(holder, query, parts, scope) {
     const form = h(
       'form',
       { class: 'form' },
-      name ? name.node : h('div', { class: 'field' }, h('span', { class: 'label' }, editing.virtual ? 'Virtual nous' : 'Concrete nous'), h('span', { title: editing.name }, nousNamed(editing.name))),
+      name ? name.node : h('div', { class: 'field' }, h('span', { class: 'label' }, editing.virtual ? t('Virtual nous') : t('Concrete nous')), h('span', { title: editing.name }, nousNamed(editing.name))),
       h(
         'div',
         { class: 'row' },
-        h('div', { class: 'field' }, h('label', { for: 'nous-tries' }, 'Tries'), tries),
-        h('div', { class: 'field' }, h('label', { for: 'nous-policy' }, 'Wait'), policy),
-        h('div', { class: 'field' }, h('label', { for: 'nous-timeout' }, 'Limit, s'), timeout),
+        h('div', { class: 'field' }, h('label', { for: 'nous-tries' }, t('Tries')), tries),
+        h('div', { class: 'field' }, h('label', { for: 'nous-policy' }, t('Wait')), policy),
+        h('div', { class: 'field' }, h('label', { for: 'nous-timeout' }, t('Limit, s')), timeout),
       ),
       name ? fill(name.graphHolder, graph.node) : editing.virtual ? graph.node : null,
       then.node,
@@ -219,7 +219,7 @@ export function draw(holder, query, parts, scope) {
         'div',
         { class: 'row' },
         acting(
-          'Save',
+          t('Save'),
           async () => {
             const virtual = name ? !concrete(name.value()) : editing.virtual
             const answer = await scope.call('nous.set', {
@@ -233,14 +233,14 @@ export function draw(holder, query, parts, scope) {
             editing = null
             shown(answer)
           },
-          { kind: 'btn primary', busy: 'Saving…' },
+          { kind: 'btn primary', busy: t('Saving…') },
         ),
-        editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'New nous') : null,
+        editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, t('New nous')) : null,
       ),
     )
     if (name) name.switched()
     form.addEventListener('submit', (event) => event.preventDefault())
-    fill(writing, h('h2', {}, editing ? `Edit ${nousNamed(editing.name)}` : 'New nous'), form)
+    fill(writing, h('h2', {}, editing ? t('Edit {name}', { name: nousNamed(editing.name) }) : t('New nous')), form)
   }
 
   /**
@@ -258,23 +258,23 @@ export function draw(holder, query, parts, scope) {
       return el
     }
     const nousInput = (value, aria, changed) => {
-      const el = h('input', { type: 'text', value, list: 'nous-offered', placeholder: 'A nous', 'aria-label': aria, 'data-hmz': 'graph-nous', spellcheck: 'false', autocomplete: 'off' })
+      const el = h('input', { type: 'text', value, list: 'nous-offered', placeholder: t('A nous'), 'aria-label': aria, 'data-hmz': 'graph-nous', spellcheck: 'false', autocomplete: 'off' })
       el.addEventListener('input', () => changed(el.value))
       return el
     }
     const redraw = () => {
       const ids = form.nodes.map((one) => one.id)
-      const start = select(ids.map((one) => [one, one]), form.start, { 'aria-label': `${label} start`, 'data-hmz': 'graph-start' }, (value) => (form.start = value))
+      const start = select(ids.map((one) => [one, one]), form.start, { 'aria-label': t('{graph} start', { graph: label }), 'data-hmz': 'graph-start' }, (value) => (form.start = value))
       fill(
         node,
         h('span', { class: 'label' }, label),
-        form.nodes.length ? h('div', { class: 'row' }, h('span', { class: 'dim' }, 'Start'), start) : h('span', { class: 'hint' }, label === 'Then' ? 'None: a turn whose tries are spent fails.' : 'No node yet.'),
+        form.nodes.length ? h('div', { class: 'row' }, h('span', { class: 'dim' }, t('Start')), start) : h('span', { class: 'hint' }, key === 'then' ? t('None: a turn whose tries are spent fails.') : t('No node yet.')),
         form.nodes.map((one) => nodeRow(one, ids)),
         h(
           'div',
           { class: 'row' },
-          h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-use', onclick: () => add('use') }, 'Add use node'),
-          h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-balance', onclick: () => add('balance') }, 'Add balance node'),
+          h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-use', onclick: () => add('use') }, t('Add use node')),
+          h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-balance', onclick: () => add('balance') }, t('Add balance node')),
         ),
       )
     }
@@ -285,7 +285,7 @@ export function draw(holder, query, parts, scope) {
       redraw()
     }
     const nodeRow = (one, ids) => {
-      const id = h('input', { type: 'text', value: one.id, 'aria-label': 'Node id', 'data-hmz': 'graph-node-id', spellcheck: 'false', size: '6' })
+      const id = h('input', { type: 'text', value: one.id, 'aria-label': t('Node id'), 'data-hmz': 'graph-node-id', spellcheck: 'false', size: '6' })
       id.addEventListener('change', () => {
         const to = id.value.trim()
         if (!to || form.nodes.some((other) => other !== one && other.id === to)) {
@@ -295,7 +295,7 @@ export function draw(holder, query, parts, scope) {
         renamed(form, one.id, to)
         redraw()
       })
-      const kind = select([['use', 'Use'], ['balance', 'Balance']], one.kind, { 'aria-label': `Kind of node ${one.id}`, 'data-hmz': 'graph-node-kind' }, (value) => {
+      const kind = select([['use', t('Use')], ['balance', t('Balance')]], one.kind, { 'aria-label': t('Kind of node {id}', { id: one.id }), 'data-hmz': 'graph-node-kind' }, (value) => {
         one.kind = value
         if (value === 'balance') {
           if (!one.balance && data.strategies.length) one.balance = data.strategies[0].name
@@ -305,7 +305,7 @@ export function draw(holder, query, parts, scope) {
       })
       const what =
         one.kind === 'use'
-          ? h('div', { class: 'row' }, nousInput(one.use, `Nous of node ${one.id}`, (value) => (one.use = value)))
+          ? h('div', { class: 'row' }, nousInput(one.use, t('Nous of node {id}', { id: one.id }), (value) => (one.use = value)))
           : h(
               'div',
               { class: 'form' },
@@ -315,43 +315,43 @@ export function draw(holder, query, parts, scope) {
                 select(
                   data.strategies.map((strategy) => [strategy.name, `${strategy.name} — ${strategy.about}`]),
                   one.balance,
-                  { 'aria-label': `Strategy of node ${one.id}`, 'data-hmz': 'graph-strategy' },
+                  { 'aria-label': t('Strategy of node {id}', { id: one.id }), 'data-hmz': 'graph-strategy' },
                   (value) => (one.balance = value),
                 ),
-                h('label', {}, 'Spread ', number(one.spread, 0, `Spread of node ${one.id}`, 'graph-spread', (value) => (one.spread = value))),
+                h('label', {}, pieces('Spread {count}', { count: number(one.spread, 0, t('Spread of node {id}', { id: one.id }), 'graph-spread', (value) => (one.spread = value)) })),
               ),
               one.among.map((member) =>
                 h(
                   'div',
                   { class: 'row', 'data-hmz': 'graph-member' },
-                  nousInput(member.nous, `Member of node ${one.id}`, (value) => (member.nous = value)),
-                  h('label', {}, '× ', number(member.weight, 1, `Weight of ${member.nous || 'member'}`, 'graph-weight', (value) => (member.weight = value))),
-                  iconButton('close', 'Remove member', { class: 'small', onclick: () => ((one.among = one.among.filter((other) => other !== member)), redraw()) }),
+                  nousInput(member.nous, t('Member of node {id}', { id: one.id }), (value) => (member.nous = value)),
+                  h('label', {}, '× ', number(member.weight, 1, member.nous ? t('Weight of {name}', { name: member.nous }) : t('Weight of member'), 'graph-weight', (value) => (member.weight = value))),
+                  iconButton('close', t('Remove member'), { class: 'small', onclick: () => ((one.among = one.among.filter((other) => other !== member)), redraw()) }),
                 ),
               ),
-              h('div', {}, h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-member', onclick: () => (one.among.push({ nous: '', weight: 1 }), redraw()) }, 'Add member')),
+              h('div', {}, h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-member', onclick: () => (one.among.push({ nous: '', weight: 1 }), redraw()) }, t('Add member'))),
             )
       const others = ids.filter((other) => other !== one.id)
       const edges = one.on.map((edge) =>
         h(
           'div',
           { class: 'row', 'data-hmz': 'graph-edge' },
-          h('span', { class: 'dim' }, 'On'),
-          select(data.faults.map((fault) => [fault, fault === '*' ? '* (any other)' : fault]), edge.fault, { 'aria-label': `Fault of an edge of node ${one.id}`, 'data-hmz': 'graph-edge-fault' }, (value) => (edge.fault = value)),
-          h('span', { class: 'dim' }, 'go to'),
-          select([['', '—'], ...others.map((other) => [other, other])], edge.to, { 'aria-label': `Node an edge of node ${one.id} goes to`, 'data-hmz': 'graph-edge-to' }, (value) => (edge.to = value)),
-          iconButton('close', 'Remove edge', { class: 'small', onclick: () => ((one.on = one.on.filter((other) => other !== edge)), redraw()) }),
+          h('span', { class: 'dim' }, t('On@@fault')),
+          select(data.faults.map((fault) => [fault, fault === '*' ? t('* (any other)') : fault]), edge.fault, { 'aria-label': t('Fault of an edge of node {id}', { id: one.id }), 'data-hmz': 'graph-edge-fault' }, (value) => (edge.fault = value)),
+          h('span', { class: 'dim' }, t('go to')),
+          select([['', '—'], ...others.map((other) => [other, other])], edge.to, { 'aria-label': t('Node an edge of node {id} goes to', { id: one.id }), 'data-hmz': 'graph-edge-to' }, (value) => (edge.to = value)),
+          iconButton('close', t('Remove edge'), { class: 'small', onclick: () => ((one.on = one.on.filter((other) => other !== edge)), redraw()) }),
         ),
       )
       const unused = data.faults.filter((fault) => !one.on.some((edge) => edge.fault === fault))
       return h(
         'div',
         { class: 'graph-node', 'data-hmz': 'graph-node', 'data-id': one.id },
-        h('div', { class: 'row' }, id, kind, iconButton('close', 'Remove node', { class: 'small', 'data-hmz': 'graph-remove-node', onclick: () => (removed(form, one.id), redraw()) })),
+        h('div', { class: 'row' }, id, kind, iconButton('close', t('Remove node'), { class: 'small', 'data-hmz': 'graph-remove-node', onclick: () => (removed(form, one.id), redraw()) })),
         what,
         edges,
         others.length && unused.length
-          ? h('div', {}, h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-edge', onclick: () => (one.on.push({ fault: unused.includes('*') ? '*' : unused[0], to: others[0] }), redraw()) }, 'Add edge'))
+          ? h('div', {}, h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'graph-add-edge', onclick: () => (one.on.push({ fault: unused.includes('*') ? '*' : unused[0], to: others[0] }), redraw()) }, t('Add edge')))
           : null,
       )
     }

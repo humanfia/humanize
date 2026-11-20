@@ -27,11 +27,14 @@ const STATES = {
   idle: '○',
 }
 
+/** How far reaching has got, as the page says it. */
+const SAID = { up: t('up'), connecting: t('connecting'), installing: t('installing'), failed: t('failed'), idle: t('idle') }
+
 /** The kinds a daemon is of, as the page names them. */
-const KINDS = { code: 'Code', ssh: 'SSH', p2p: 'P2P' }
+const KINDS = { code: t('Code@@pairing'), ssh: 'SSH', p2p: 'P2P' }
 
 /** How a daemon is reached: its kind, and the mode's name under it. */
-const MODES = { code: ['code', 'Code'], config: ['ssh', 'SSH Config'], stored: ['ssh', 'Custom'], easytier: ['p2p', 'EasyTier'] }
+const MODES = { code: ['code', t('Code@@pairing')], config: ['ssh', t('SSH Config')], stored: ['ssh', t('Custom')], easytier: ['p2p', 'EasyTier'] }
 
 /**
  * What each kind is and what the other machine needs for it, said beside the form: what it is
@@ -84,7 +87,7 @@ const networks = easytier((method, params) => call(method, params, { on: 'local'
 const NODE = /^(tcp|udp|ws|wss|quic|wg):\/\/\S+:(\d{1,5})$/
 
 export function draw(holder) {
-  const listing = h('section', { class: 'panel', 'data-hmz': 'daemons' }, h('p', { class: 'loading', role: 'status' }, 'Reading the daemons…'))
+  const listing = h('section', { class: 'panel', 'data-hmz': 'daemons' }, h('p', { class: 'loading', role: 'status' }, t('Reading the daemons…')))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-daemon' })
   fill(holder, listing, writing)
   let entries = []
@@ -95,8 +98,8 @@ export function draw(holder) {
   const states = new Map()
   const connects = new Map()
   // Where Local is: this machine, or the WSL distribution hmz runs in there.
-  const where = h('td', { class: 'mono dim' }, 'this machine')
-  hello('local').then((said) => fill(where, said.wsl ? `${said.wsl} (WSL)` : said.machine || 'this machine'), () => {})
+  const where = h('td', { class: 'mono dim' }, t('this machine'))
+  hello('local').then((said) => fill(where, said.wsl ? `${said.wsl} (WSL)` : said.machine || t('this machine')), () => {})
 
   /** Reads the daemons again, and draws them. */
   async function read() {
@@ -117,7 +120,7 @@ export function draw(holder) {
 
   /** The Connect of one daemon's line, drawn only while the daemon is not reached. */
   function connect(name) {
-    const button = acting('Connect', () => reconnect(name), { kind: 'btn small quiet', busy: 'Connecting…' })
+    const button = acting(t('Connect'), () => reconnect(name), { kind: 'btn small quiet', busy: t('Connecting…') })
     button.hidden = stateOf(name).state === 'up'
     connects.set(name, button)
     return button
@@ -137,7 +140,7 @@ export function draw(holder) {
       const line = h(
         'tr',
         { 'data-hmz': 'daemon', 'data-name': one.name },
-        h('td', {}, h('b', {}, local ? 'Local' : one.name)),
+        h('td', {}, h('b', {}, local ? t('Local') : one.name)),
         h('td', { 'data-hmz': 'daemon-via' }, local ? '' : kindOf(one)),
         local ? where : h('td', { class: 'mono' }, reached(one)),
         states.get(one.name),
@@ -150,11 +153,11 @@ export function draw(holder) {
                 'div',
                 { class: 'row' },
                 connect(one.name),
-                h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
+                h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, t('Edit')),
                 confirming({
-                  label: 'Remove',
-                  ask: `Remove ${one.name}?`,
-                  yes: 'Remove',
+                  label: t('Remove'),
+                  ask: t('Remove {name}?', { name: one.name }),
+                  yes: t('Remove'),
                   small: true,
                   act: async () => {
                     // How to reach it is all that goes: its machine keeps everything as it is.
@@ -172,14 +175,14 @@ export function draw(holder) {
     under = kept
     fill(
       listing,
-      h('h2', {}, 'Daemons'),
+      h('h2', {}, t('Daemons')),
       h(
         'p',
         { class: 'dim', 'data-hmz': 'daemons-about' },
         t('Every machine this page reaches. Under each are its devices: the browsers and machines paired with it, which may reach it. Pair a device makes a one-time code to enter under New daemon › Code on the other device.'),
       ),
       entries.length > 1 ? null : h('p', { class: 'dim', 'data-hmz': 'daemons-none' }, t('Only Local so far. Add another machine under New daemon.')),
-      h('div', { class: 'table-wrap' }, h('table', { class: 'daemons-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Kind'), h('th', {}, 'Address'), h('th', {}, 'State'), h('th', {}, ''))), h('tbody', {}, rows))),
+      h('div', { class: 'table-wrap' }, h('table', { class: 'daemons-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('Name')), h('th', {}, t('Kind')), h('th', {}, t('Address')), h('th', {}, t('State')), h('th', {}, ''))), h('tbody', {}, rows))),
     )
   }
 
@@ -198,8 +201,8 @@ export function draw(holder) {
     // The hosts of Local's ssh config, read once a mode asks for them.
     const offered = () => (hosts ||= call('runtimes.hosts', {}, { on: 'local' }).then((said) => said.hosts || []))
     const name = text('daemon-name', was.name, 'gpu-box', { required: true })
-    const kinds = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Kind', 'data-hmz': 'daemon-kind' })
-    const modes = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Mode', 'data-hmz': 'daemon-mode' })
+    const kinds = h('div', { class: 'segmented', role: 'group', 'aria-label': t('Kind'), 'data-hmz': 'daemon-kind' })
+    const modes = h('div', { class: 'segmented', role: 'group', 'aria-label': t('Mode'), 'data-hmz': 'daemon-mode' })
     const body = h('div', { class: 'grid' })
     const about = h('aside', { class: 'daemon-about', 'data-hmz': 'daemon-about', 'aria-live': 'polite' })
     // Every route of a paired daemon, or those after the one its kind writes, in the order tried.
@@ -227,7 +230,7 @@ export function draw(holder) {
       made = { code: drawCode, config: drawConfig, stored: drawStored, easytier: drawEasyTier }[chosen]()
       fill(
         routes,
-        editing ? part(chosen === 'code' ? 'Routes' : 'More routes', 'daemon-routes', more.node, true, t('Tried in this order, each as tcp://host:port, relay:wss://…, webrtc:wss://… or another route.')) : null,
+        editing ? part(chosen === 'code' ? t('Routes') : t('More routes'), 'daemon-routes', more.node, true, t('Tried in this order, each as tcp://host:port, relay:wss://…, webrtc:wss://… or another route.')) : null,
       )
       // One paired already has no code to paste: what is said is what is left to change.
       const [title, ...said] = editing && kind === 'code' ? [t('Paired with a code'), t('Paired with a one-time code that machine made, and held to that machine’s id since. What is left to change is what this page calls it and the routes it is reached by.')] : ABOUT[kind]()
@@ -252,7 +255,7 @@ export function draw(holder) {
           // Not a code yet.
         }
       })
-      fill(body, part('Pairing code', 'daemon-code', code, true, CODE_ABOUT()), advanced)
+      fill(body, part(t('Pairing code'), 'daemon-code', code, true, CODE_ABOUT()), advanced)
       return () => ({ code: code.value.trim(), ice: readIce(servers.value) })
     }
 
@@ -261,22 +264,22 @@ export function draw(holder) {
       const taken = new Set(entries.flatMap((one) => one.routes))
       const own = mode === 'config' ? [fields.host] : []
       const options = (list, first) => [h('option', { value: '' }, first), list.map((one) => h('option', { value: one, selected: one === fields.host && mode === 'config' }, one))]
-      const alias = h('select', { id: 'daemon-alias' }, options(own, 'Reading SSH config…'))
+      const alias = h('select', { id: 'daemon-alias' }, options(own, t('Reading SSH config…')))
       const said = h('div')
       offered().then(
         (found) => {
           // Those not added yet, and an edited daemon's own.
           const list = [...own, ...found.map((one) => one.alias).filter((one) => !own.includes(one) && !taken.has(sshRoute({ host: one })))]
-          fill(alias, options(list, list.length ? 'Pick a host' : 'Every host is added already'))
+          fill(alias, options(list, list.length ? t('Pick a host') : t('Every host is added already')))
         },
         (error) => (fill(alias, options(own, '')), fill(said, problem(error))),
       )
       alias.addEventListener('change', () => {
         if (alias.value && !name.value.trim()) name.value = alias.value.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^[._-]+/, '')
       })
-      fill(body, part('Host', 'daemon-alias', h('div', {}, alias, said), false, t('Hosts come from ~/.ssh/config.')))
+      fill(body, part(t('Host'), 'daemon-alias', h('div', {}, alias, said), false, t('Hosts come from ~/.ssh/config.')))
       return () => {
-        if (!alias.value) throw new Error('Pick a host of your SSH config.')
+        if (!alias.value) throw new Error(t('Pick a host of your SSH config.'))
         return { route: sshRoute({ host: alias.value }) }
       }
     }
@@ -287,20 +290,20 @@ export function draw(holder) {
       const host = text('daemon-host', stored.host, 'box.example')
       const user = text('daemon-user', stored.user, 'me')
       const port = h('input', { type: 'number', id: 'daemon-port', min: '1', max: '65535', step: '1', value: stored.port ? String(stored.port) : '', placeholder: '22' })
-      const key = pathPicker({ value: stored.identity || '', files: true, label: 'Identity file', id: 'daemon-identity', placeholder: '~/.ssh/id_ed25519', from: 'local' })
+      const key = pathPicker({ value: stored.identity || '', files: true, label: t('Identity file'), id: 'daemon-identity', placeholder: '~/.ssh/id_ed25519', from: 'local' })
       const jump = text('daemon-jump', stored.jump, 'user@jump')
       const options = pairs(stored.options || [], 'daemon-options')
-      const from = h('select', { id: 'daemon-import' }, h('option', { value: '' }, 'Reading SSH config…'))
+      const from = h('select', { id: 'daemon-import' }, h('option', { value: '' }, t('Reading SSH config…')))
       const said = h('div')
       let list = []
       offered().then(
         (found) => {
           list = found
-          fill(from, h('option', { value: '' }, list.length ? 'Pick a host' : 'No host to import'), list.map((one) => h('option', { value: one.alias }, one.alias)))
+          fill(from, h('option', { value: '' }, list.length ? t('Pick a host') : t('No host to import')), list.map((one) => h('option', { value: one.alias }, one.alias)))
         },
         (error) => (fill(from, h('option', { value: '' }, '')), fill(said, problem(error))),
       )
-      const importing = h('button', { class: 'btn quiet', type: 'button', 'data-hmz': 'daemon-import' }, 'Import')
+      const importing = h('button', { class: 'btn quiet', type: 'button', 'data-hmz': 'daemon-import' }, t('Import'))
       importing.addEventListener('click', () => {
         const one = list.find((each) => each.alias === from.value)
         if (!one) return
@@ -313,16 +316,16 @@ export function draw(holder) {
       })
       fill(
         body,
-        part('Import from SSH config', 'daemon-import', h('div', {}, h('div', { class: 'row' }, from, importing), said), true, t('Hosts come from ~/.ssh/config.')),
-        part('Host', 'daemon-host', host),
-        part('User', 'daemon-user', user),
-        part('Port', 'daemon-port', port),
-        part('Identity file', 'daemon-identity', key.node),
-        part('Proxy jump', 'daemon-jump', jump),
-        part('SSH options', 'daemon-options', options.node, true),
+        part(t('Import from SSH config'), 'daemon-import', h('div', {}, h('div', { class: 'row' }, from, importing), said), true, t('Hosts come from ~/.ssh/config.')),
+        part(t('Host'), 'daemon-host', host),
+        part(t('User'), 'daemon-user', user),
+        part(t('Port'), 'daemon-port', port),
+        part(t('Identity file'), 'daemon-identity', key.node),
+        part(t('Proxy jump'), 'daemon-jump', jump),
+        part(t('SSH options'), 'daemon-options', options.node, true),
       )
       return () => {
-        if (!host.value.trim()) throw new Error('Say the host.')
+        if (!host.value.trim()) throw new Error(t('Say the host.'))
         return { route: sshRoute({ host: host.value.trim(), user: user.value.trim(), port: port.value, identity: key.value(), jump: jump.value.trim(), options: options.read() }) }
       }
     }
@@ -330,10 +333,10 @@ export function draw(holder) {
     /** P2P › EasyTier: the secret, never shown again, and the shared nodes its network meets on. */
     function drawEasyTier() {
       const keeps = mode === 'easytier'
-      const secret = h('input', { type: 'password', id: 'daemon-secret', autocomplete: 'new-password', placeholder: keeps ? 'Left empty, kept as it is' : 'At least 16 bytes' })
+      const secret = h('input', { type: 'password', id: 'daemon-secret', autocomplete: 'new-password', placeholder: keeps ? t('Left empty, kept as it is') : t('At least 16 bytes') })
       const community = h('div', { class: 'list-rows', 'data-hmz': 'daemon-community' })
       const own = h('div', { class: 'list-rows', 'data-hmz': 'daemon-own-nodes' })
-      const said = h('div', { class: 'loading', role: 'status' }, 'Reading the community nodes…')
+      const said = h('div', { class: 'loading', role: 'status' }, t('Reading the community nodes…'))
       const typed = text('daemon-node', '', 'tcp://node.example:11010')
       const wrong = h('div')
       const boxes = () => [...community.querySelectorAll('input'), ...own.querySelectorAll('input')]
@@ -365,20 +368,20 @@ export function draw(holder) {
             node(
               community,
               one.url,
-              h('span', { class: ['daemon-state', one.up ? 'daemon-up' : 'daemon-failed'] }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, one.up ? '●' : '✕'), one.up ? 'up' : 'down'),
+              h('span', { class: ['daemon-state', one.up ? 'daemon-up' : 'daemon-failed'] }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, one.up ? '●' : '✕'), one.up ? t('up') : t('down')),
               one.name ? h('span', { class: 'dim' }, one.name) : null,
-              one.uptime === undefined || one.uptime === '' ? null : h('span', { class: 'dim' }, `${typeof one.uptime === 'number' ? `${one.uptime}%` : one.uptime} up in 24h`),
+              one.uptime === undefined || one.uptime === '' ? null : h('span', { class: 'dim' }, t('{uptime} up in 24h', { uptime: typeof one.uptime === 'number' ? `${one.uptime}%` : one.uptime })),
             )
             if (there?.checked) tick(one.url)
           }
         },
-        (error) => fill(said, problem(error), h('span', { class: 'dim' }, 'Add the nodes by their URL instead.')),
+        (error) => fill(said, problem(error), h('span', { class: 'dim' }, t('Add the nodes by their URL instead.'))),
       )
       const add = () => {
         const url = typed.value.trim()
         fill(wrong)
         const port = Number((NODE.exec(url) || [])[2])
-        if (!(port >= 1 && port <= 65535)) return fill(wrong, problem('Say a node as tcp://host:port, or udp, ws, wss, quic or wg.'))
+        if (!(port >= 1 && port <= 65535)) return fill(wrong, problem(t('Say a node as tcp://host:port, or udp, ws, wss, quic or wg.')))
         if (!boxes().some((box) => box.value === url)) node(own, url)
         tick(url)
         typed.value = ''
@@ -388,21 +391,21 @@ export function draw(holder) {
       const code = editing ? null : h('input', { type: 'password', id: 'daemon-code', autocomplete: 'off', spellcheck: 'false', placeholder: 'hmz-pair:…' })
       fill(
         body,
-        part('Secret', 'daemon-secret', secret, false, t('The secret the other machine’s EasyTier entry holds.')),
-        code ? part('Pairing code', 'daemon-code', code, true, CODE_ABOUT()) : null,
+        part(t('Secret'), 'daemon-secret', secret, false, t('The secret the other machine’s EasyTier entry holds.')),
+        code ? part(t('Pairing code'), 'daemon-code', code, true, CODE_ABOUT()) : null,
         part(
-          'Nodes',
+          t('Nodes'),
           'daemon-node',
-          h('div', { class: 'list-editor', 'data-hmz': 'daemon-nodes' }, said, community, own, h('div', { class: 'list-row' }, typed, h('button', { class: 'btn small quiet', type: 'button', onclick: add }, icon('plus'), 'Add node')), wrong),
+          h('div', { class: 'list-editor', 'data-hmz': 'daemon-nodes' }, said, community, own, h('div', { class: 'list-row' }, typed, h('button', { class: 'btn small quiet', type: 'button', onclick: add }, icon('plus'), t('Add node'))), wrong),
           true,
           t('Where the two machines meet: tick at least one the other machine uses too.'),
         ),
       )
       return () => {
         const value = secret.value
-        if (value ? new TextEncoder().encode(value).length < SECRET : !keeps) throw new Error('A secret must be at least 16 bytes.')
+        if (value ? new TextEncoder().encode(value).length < SECRET : !keeps) throw new Error(t('A secret must be at least 16 bytes.'))
         const nodes = [...new Set(boxes().filter((box) => box.checked).map((box) => box.value))]
-        if (!nodes.length) throw new Error('An EasyTier daemon needs at least one node.')
+        if (!nodes.length) throw new Error(t('An EasyTier daemon needs at least one node.'))
         // Refused before the entry is written, where it is no pairing code.
         if (code) parsePairing(code.value)
         return { easytier: { ...(value ? { secret: value } : {}), nodes }, ...(code ? { code: code.value.trim() } : {}) }
@@ -415,7 +418,7 @@ export function draw(holder) {
       const called = name.value.trim()
       if (said.easytier) {
         // A secret written is never read back: one renamed is written anew under its name.
-        if (editing && editing.name !== called && !said.easytier.secret) throw new Error('Say the secret again to rename a P2P daemon.')
+        if (editing && editing.name !== called && !said.easytier.secret) throw new Error(t('Say the secret again to rename a P2P daemon.'))
         // The entry of that name is what its route opens with: Local's through `hmz web`
         // (Section 4.8.7 of protocol/web.md), the app's in the desktop application (Section
         // 3.12.6 of protocol/desktop.md); the page is never handed the secret again.
@@ -426,7 +429,7 @@ export function draw(holder) {
         await pair(called, said.code, said.route, said.ice)
       } else {
         const routes = said.route ? [said.route, ...more.read().filter((one) => one !== said.route)] : said.routes
-        if (!routes.length) throw new Error('A daemon needs at least one route.')
+        if (!routes.length) throw new Error(t('A daemon needs at least one route.'))
         if (editing) {
           await daemons.update(editing.name, { name: called, routes })
           // Reached afresh, by its new name or routes.
@@ -443,7 +446,7 @@ export function draw(holder) {
 
     fill(
       writing,
-      h('h2', {}, editing ? `Edit ${editing.name}` : 'New daemon'),
+      h('h2', {}, editing ? t('Edit {name}', { name: editing.name }) : t('New daemon')),
       h(
         'div',
         { class: 'daemon-write' },
@@ -451,14 +454,14 @@ export function draw(holder) {
           'form',
           { class: 'form', onsubmit: (event) => event.preventDefault() },
           h('div', { class: 'row' }, kinds, modes),
-          h('div', { class: 'grid' }, part('Name', 'daemon-name', name, false, t('What this page calls it: letters, digits, ., _ and -.'))),
+          h('div', { class: 'grid' }, part(t('Name'), 'daemon-name', name, false, t('What this page calls it: letters, digits, ., _ and -.'))),
           body,
           routes,
           h(
             'div',
             { class: 'row' },
-            acting(editing ? 'Save' : 'Add', save, { kind: 'btn primary', busy: 'Saving…' }),
-            editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'New daemon') : null,
+            acting(editing ? t('Save') : t('Add'), save, { kind: 'btn primary', busy: t('Saving…') }),
+            editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, t('New daemon')) : null,
           ),
         ),
         about,
@@ -579,7 +582,7 @@ export function draw(holder) {
   }
 
   read()
-    .catch((error) => fill(listing, h('h2', {}, 'Daemons'), problem(error)))
+    .catch((error) => fill(listing, h('h2', {}, t('Daemons')), problem(error)))
     .then(() => {
       if (holder.contains(writing)) drawWriting()
     })
@@ -594,7 +597,7 @@ function shownState({ state, detail = '' }) {
     'div',
     { class: ['daemon-state', `daemon-${state}`], 'data-hmz': 'daemon-state' },
     h('span', { class: 'glyph', 'aria-hidden': 'true' }, STATES[state] || '·'),
-    h('span', {}, state),
+    h('span', {}, SAID[state] || state),
     detail ? h('div', { class: 'dim daemon-detail' }, detail) : null,
   )
 }
@@ -704,14 +707,14 @@ function reached(one) {
 /** Routes, one a row, in the order tried: one more added, any taken away or moved up. */
 function routeList(values, id) {
   const rows = h('div', { class: 'list-rows', id, 'data-hmz': 'route-editor' })
-  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), 'Add')
+  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), t('Add'))
   const row = (value) => {
     const line = h(
       'div',
       { class: 'list-row' },
-      h('input', { type: 'text', value, placeholder: 'tcp://host:port', 'aria-label': 'Route', class: 'route', spellcheck: 'false' }),
-      iconButton('up', 'Move up', { class: 'small', onclick: () => line.previousElementSibling && line.previousElementSibling.before(line) }),
-      iconButton('close', 'Remove', { class: 'small', onclick: () => line.remove() }),
+      h('input', { type: 'text', value, placeholder: 'tcp://host:port', 'aria-label': t('Route'), class: 'route', spellcheck: 'false' }),
+      iconButton('up', t('Move up'), { class: 'small', onclick: () => line.previousElementSibling && line.previousElementSibling.before(line) }),
+      iconButton('close', t('Remove'), { class: 'small', onclick: () => line.remove() }),
     )
     rows.append(line)
   }
@@ -729,14 +732,14 @@ function routeList(values, id) {
 /** SSH options, a name and its value a row, in order and any name more than once: one more added, any taken away. */
 function pairs(values, id) {
   const rows = h('div', { class: 'list-rows', id, 'data-hmz': 'pair-editor' })
-  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), 'Add')
+  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), t('Add'))
   const row = (key, value) => {
     const line = h(
       'div',
       { class: 'list-row' },
-      h('input', { type: 'text', value: key, placeholder: 'Name', 'aria-label': 'Option', class: 'pair-key' }),
-      h('input', { type: 'text', value, placeholder: 'Value', 'aria-label': 'Value', class: 'pair-value' }),
-      iconButton('close', 'Remove', { class: 'small', onclick: () => line.remove() }),
+      h('input', { type: 'text', value: key, placeholder: t('Name'), 'aria-label': t('Option'), class: 'pair-key' }),
+      h('input', { type: 'text', value, placeholder: t('Value'), 'aria-label': t('Value'), class: 'pair-value' }),
+      iconButton('close', t('Remove'), { class: 'small', onclick: () => line.remove() }),
     )
     rows.append(line)
   }

@@ -946,6 +946,10 @@ Some things stay as they were written, whatever the language:
   options, paths, and what a daemon refuses with are shown as they are.
 - **A text not translated yet** is shown in English.
 
+The presets' names are translated with the rest of the page: in Chinese **Temperate Gold** is
+**节制金色** or **節制金色**, and so on down the list, while **Humanize Green** keeps `Humanize`. A
+theme you made keeps the name you gave it.
+
 `hmz` in the terminal, and the desktop app's own menu and update windows, are in English.
 
 ## From another machine {#over-ssh}
