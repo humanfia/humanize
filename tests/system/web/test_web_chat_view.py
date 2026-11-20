@@ -529,6 +529,8 @@ def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
     project: Path, engine: str
 ) -> None:
     wire, _ = _wired()
+    # Its turns still being read, so that what says so is what is measured.
+    wire.faked["runs.trace"] = lambda _: None
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, f"/epics/{_EPIC}")
         bar = page.locator("[data-hmz=bar]")
@@ -559,6 +561,58 @@ def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
         panel.get_by_role("tab", name="Aside").click()
         expect(panel).to_contain_text("Side questions never reach the epic.")
         expect(panel.locator("[data-hmz=btw-tab]")).to_have_text("New aside")
+
+
+def test_an_ended_epics_turns_are_read_on_their_own_and_the_note_goes_once_read(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    wire.faked["runs.trace"] = lambda _: None
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, f"/epics/{_EPIC}")
+        # Read with nothing pressed: the note says so, and offers nothing to press.
+        note = page.locator(".graph-note")
+        expect(note).to_contain_text("Reading handovers and turns")
+        expect(note.get_by_role("button")).to_have_count(0)
+
+        wire.answer(page, "runs.trace", {"sessions": []})
+        expect(note).to_have_count(0)
+        # Drawn again, it is not read again.
+        page.locator(".shape-switch").get_by_role("button", name="List").click()
+        page.locator(".shape-switch").get_by_role("button", name="Graph").click()
+        expect(page.locator(".shape-switch")).to_be_visible()
+        expect(note).to_have_count(0)
+        assert wire.params("runs.trace") == [{"name": _EPIC}]
+
+
+def test_read_turns_is_offered_only_once_an_ended_epics_turns_could_not_be_read(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    answers = iter(
+        [
+            {"error": {"code": -32000, "message": "no logs"}},
+            {"result": {"sessions": []}},
+        ]
+    )
+    wire.faked["runs.trace"] = lambda _: next(answers)
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, f"/epics/{_EPIC}")
+        note = page.locator(".graph-note")
+        again = note.get_by_role("button", name="Read turns")
+        expect(note).to_contain_text("no logs")
+        expect(again).to_be_visible()
+        expect(note).not_to_contain_text("Reading handovers and turns")
+        # What failed is not read again by being drawn again, in either shape.
+        page.locator(".shape-switch").get_by_role("button", name="List").click()
+        expect(page.locator("[data-hmz=agent-list]")).to_be_visible()
+        page.locator(".shape-switch").get_by_role("button", name="Graph").click()
+        expect(again).to_be_visible()
+        assert len(wire.params("runs.trace")) == 1
+
+        again.click()
+        expect(note).to_have_count(0)
+        assert len(wire.params("runs.trace")) == 2
 
 
 def test_an_ended_epic_kept_as_a_list_reads_its_turns_as_its_graph_does(
