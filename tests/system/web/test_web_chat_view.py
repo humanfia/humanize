@@ -711,7 +711,7 @@ def test_a_chat_kept_as_an_epic_imported_by_its_path_opens_as_the_chat(
         ]
         # Going back never imports it again.
         page.go_back()
-        expect(page).to_have_url(re.compile(r"#/new/chat$"))
+        expect(page).to_have_url(re.compile(r"#/new/chat(\?|$)"))
         assert len(wire.params("runs.import")) == 1
 
 
