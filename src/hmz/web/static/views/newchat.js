@@ -85,21 +85,21 @@ export function mount(root, { query }) {
   // A chat of no folder works in a directory made as it starts, which holds nothing to name yet.
   const files = folderFiles(() => (scratch ? '' : workspace))
   // What the folder has used, where a chat begun says what it has (Section 3.8.22 of protocol/web.md).
-  const usage = usageChip({ hmz: 'new-usage', tip: 'What this folder has used', workspace: () => (scratch ? '' : workspace || '') })
+  const usage = usageChip({ hmz: 'new-usage', tip: t('What this folder has used'), workspace: () => (scratch ? '' : workspace || '') })
   const box = composer({
-    placeholder: 'Message',
-    label: 'First message',
-    busy: 'Starting…',
+    placeholder: t('Message'),
+    label: t('First message'),
+    busy: t('Starting…'),
     submit: (task) => start(task),
     complete: files.complete,
     // So Add offers the files alone: what `/`, `$` and `!` start is the chat's host's to say.
     desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new/chat', { place, rows: worktreeRow }).node], right: [permission.node, usage.node] },
   })
   box.node.dataset.hmz = 'start'
-  const steps = h('section', { class: 'next-steps', 'aria-label': 'Next steps', 'data-hmz': 'next-steps', hidden: true })
+  const steps = h('section', { class: 'next-steps', 'aria-label': t('Next steps'), 'data-hmz': 'next-steps', hidden: true })
   fill(
     root,
-    h('div', { class: 'view view-new view-desk', 'data-hmz': 'new-chat' }, bar({ title: 'New chat' }), h('div', { class: 'desk-body' }, steps), h('div', { class: 'dock desk-dock' }, box.node)),
+    h('div', { class: 'view view-new view-desk', 'data-hmz': 'new-chat' }, bar({ title: t('New chat') }), h('div', { class: 'desk-body' }, steps), h('div', { class: 'dock desk-dock' }, box.node)),
   )
 
   // The chats of this daemon that wait on their person, each opened by its row, and dismissed
@@ -137,8 +137,8 @@ export function mount(root, { query }) {
           h(
             'li',
             { class: 'next-step', 'data-hmz': 'next-step', 'data-epic': run.name },
-            h('a', { href: hash(pathOf(run)), title: run.task }, h('span', { class: 'dot waiting', role: 'img', 'aria-label': 'Waiting' }), h('span', { class: 'next-title' }, headline(run.task)), h('span', { class: 'next-state' }, 'Asked a question')),
-            iconButton('close', 'Dismiss', {
+            h('a', { href: hash(pathOf(run)), title: run.task }, h('span', { class: 'dot waiting', role: 'img', 'aria-label': t('Waiting') }), h('span', { class: 'next-title' }, headline(run.task)), h('span', { class: 'next-state' }, t('Asked a question'))),
+            iconButton('close', t('Dismiss'), {
               'data-hmz': 'next-dismiss',
               onclick: () => {
                 keep(DISMISSED, JSON.stringify(dismissing(dismissed(), keyOf(run))))
@@ -231,7 +231,7 @@ export function mount(root, { query }) {
     const agent = picker ? picker.value() : ''
     if (!agent) {
       picker?.open()
-      throw new Error('Pick a nous for the chat.')
+      throw new Error(t('Pick a nous for the chat.'))
     }
     // A new chat's own host, beside every epic here; the agent is remembered for the next.
     const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), worktree: inWorktree && !unoffered, remember: !scratch, scratch }).catch((error) => {

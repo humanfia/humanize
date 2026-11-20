@@ -8,9 +8,9 @@ import { t } from './i18n.js'
 
 /** The scopes a conversation is made with, as the form offers them. */
 export const SCOPES = [
-  ['daemon', 'Daemon'],
-  ['workspace', 'Workspace'],
-  ['epic', 'Epic'],
+  ['daemon', t('Daemon')],
+  ['workspace', t('Workspace')],
+  ['epic', t('Epic')],
 ]
 
 /** The presets a conversation is made with, the first the default. */
@@ -53,10 +53,10 @@ export function created({ scope, workspace, epic, nous, preset, network, title, 
  * @param {object} form As `created` takes it.
  */
 export function missing({ scope, workspace, epic, nous, task }) {
-  if (scope !== 'daemon' && !workspace) return 'Pick the workspace she works in.'
-  if (scope === 'epic' && !epic.trim()) return 'Name the epic she works on.'
+  if (scope !== 'daemon' && !workspace) return t('Pick the workspace she works in.')
+  if (scope === 'epic' && !epic.trim()) return t('Name the epic she works on.')
   if (!nous.trim()) return t('Pick a nous for Ai-chan.')
-  if (!task.trim()) return 'Tell Ai-chan something to start with.'
+  if (!task.trim()) return t('Tell Ai-chan something to start with.')
   return ''
 }
 
@@ -184,7 +184,7 @@ export function actionsOf(row, marks) {
  */
 export function stateOf({ connected, turn, records }) {
   const ended = records.findLast((one) => one.type === 'ended')
-  if (ended && ended.how === 'failed') return { state: 'failed', why: ended.why || 'Her chat failed.' }
+  if (ended && ended.how === 'failed') return { state: 'failed', why: ended.why || t('Her chat failed.') }
   return { state: connected ? (turn === 'running' ? 'running' : 'waiting') : 'folded', why: '' }
 }
 

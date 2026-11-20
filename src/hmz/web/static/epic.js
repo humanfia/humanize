@@ -17,6 +17,7 @@ import { call, daemon, poll } from './api.js'
 import { chatDetail } from './chats.js'
 import { agentLabel } from './chips/agent.js'
 import { flowName, lane, lasting } from './dom.js'
+import { t } from './i18n.js'
 import { current, follow, placed } from './held.js'
 import { harnessName, modelName } from './names.js'
 import { keep, kept } from './shell.js'
@@ -315,9 +316,9 @@ export function live(held, run, detail) {
       person,
       color: lane(person ? -1 : index),
       spec: person ? '' : specs[name] || given,
-      said: person ? 'a person' : runsSaid(specs[name] || given),
+      said: person ? t('a person') : runsSaid(specs[name] || given),
       working: Boolean(figure && figure.working),
-      status: figure ? (figure.working ? `working ${figure.lasting}` : `idle ${figure.lasting}`) : person ? '' : 'not started',
+      status: figure ? (figure.working ? t('working {time}', { time: figure.lasting }) : t('idle {time}', { time: figure.lasting })) : person ? '' : t('not started'),
       turns: figure ? figure.turns : sessions.filter((one) => one.agent === name).reduce((sum, one) => sum + one.turns.length, 0),
       tokens: figure ? figure.tokens : '',
       under: figure ? figure.under : [],
@@ -368,7 +369,7 @@ export function written(detail, traced) {
       spec: given[name] ? given[name].runs : '',
       said: runsSaid(given[name] ? given[name].runs : ''),
       working: false,
-      status: traced ? `${count} turn${count === 1 ? '' : 's'}` : `${mine.length} session${mine.length === 1 ? '' : 's'}`,
+      status: traced ? t('{n} turns', { n: count }) : t('{n} sessions', { n: mine.length }),
       // Its status says them already.
       turns: null,
       tokens: '',
