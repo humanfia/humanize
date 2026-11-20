@@ -4,6 +4,8 @@
 // flows on offer -- each tagged with where it comes from. Kept apart from the page, as plain
 // functions of what they are given, so that they are read the same everywhere and tested alone.
 
+import { t } from './i18n.js'
+
 /** The `/` names every frontend keeps for hmz in a chat (Section 8.9.7 of protocol/core.md). */
 export const RESERVED = ['btw', 'chat', 'clear', 'epics', 'exit', 'flow', 'prefer', 'quit', 'resume', 'settings']
 
@@ -16,13 +18,13 @@ const SIGILS = '/$!@'
  * what it is -- its commands, or by its sigil, its skills and what it can mention.
  */
 export const SOURCES = [
-  ['native', 'Commands'],
+  ['native', t('Commands')],
   ['hmz', 'Humanize'],
-  ['flow', 'Flows'],
+  ['flow', t('Flows')],
 ]
 
 /** What the CLI's own entries are called under a sigil that is not for its commands. */
-const NATIVE = { $: 'Skills', '@': 'Mentions' }
+const NATIVE = { $: t('Skills'), '@': t('Mentions') }
 
 /**
  * The word a completion would replace: the name being typed after a sigil, where the caret is.
@@ -66,13 +68,13 @@ export function both(entries, name) {
  */
 export function bothHint(name, prefer) {
   return prefer === 'flow'
-    ? `$${name} starts the flow here; pick Use the skill in the chat's menu for the skill`
-    : `$${name} uses the skill here; /flow ${name} starts the flow`
+    ? t('${name} starts the flow here; pick Use the skill in the chat\'s menu for the skill', { name })
+    : t('${name} uses the skill here; /flow {name} starts the flow', { name })
 }
 
 /** What a chat's preference does, and where it comes from, as the chat's menu says it. */
 export function preferSaid(prefer, from) {
-  return `${prefer === 'flow' ? 'Starts the flow' : 'Uses the skill'} · ${from === 'chat' ? 'set for this chat' : 'from settings'}`
+  return `${prefer === 'flow' ? t('Starts the flow') : t('Uses the skill')} · ${from === 'chat' ? t('set for this chat') : t('from settings')}`
 }
 
 /**
@@ -181,12 +183,12 @@ export function shellParts({ command, out, err, status }) {
   const parts = [{ part: 'input', text: `$ ${command.replace(/^!/, '')}` }]
   if (out.replace(/\n+$/, '')) parts.push({ part: 'stdout', text: out.replace(/\n+$/, '') })
   if (err.replace(/\n+$/, '')) parts.push({ part: 'stderr', text: err.replace(/\n+$/, '') })
-  if (status) parts.push({ part: 'status', text: `exit ${status}` })
+  if (status) parts.push({ part: 'status', text: t('exit {status}', { status }) })
   return parts
 }
 
 /** A line the chat refused, with why, as the conversation says it. */
 export function refusedSaid(record) {
   const because = String(record.because || '').trim()
-  return because ? `${record.text} -- refused: ${because}` : `${record.text} -- refused`
+  return because ? t('{text} -- refused: {why}', { text: record.text, why: because }) : t('{text} -- refused', { text: record.text })
 }

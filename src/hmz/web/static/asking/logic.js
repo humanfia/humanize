@@ -4,6 +4,8 @@
 // of, how much is left to say, an answer said back in one line, and the one-line summary each
 // block of context is folded behind.
 
+import { t } from '../i18n.js'
+
 /** How many values a choice offers before it is a list to search rather than buttons. */
 export const FEW = 5
 
@@ -132,8 +134,8 @@ export function yesNo(name, node = {}) {
   // A short sentence saying what yes does reads best as the yes: "Yes, write tests".
   const said = about && about.length <= 48 && !/\?$/.test(node.description || '') ? about : label
   const lower = said.charAt(0).toLowerCase() + said.slice(1)
-  if (lower.split(/\s+/).length > 7) return { yes: 'Yes', no: 'No' }
-  return { yes: `Yes, ${lower}`, no: 'No' }
+  if (lower.split(/\s+/).length > 7) return { yes: t('Yes'), no: t('No') }
+  return { yes: t('Yes, {what}', { what: lower }), no: t('No') }
 }
 
 /** Whether a value is nothing said yet. */
@@ -166,13 +168,13 @@ export function pathKey(path) {
 }
 
 const FORMATS = {
-  email: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'an email address, like name@example.com'],
-  uri: [/^[a-z][a-z0-9+.-]*:\S+$/i, 'a full address, like https://example.com'],
-  url: [/^[a-z][a-z0-9+.-]*:\S+$/i, 'a full address, like https://example.com'],
-  date: [/^\d{4}-\d{2}-\d{2}$/, 'a date, like 2026-01-31'],
-  'date-time': [/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/, 'a date and time'],
-  time: [/^\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/, 'a time, like 14:30'],
-  uuid: [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'a UUID'],
+  email: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, t('This needs an email address, like name@example.com.')],
+  uri: [/^[a-z][a-z0-9+.-]*:\S+$/i, t('This needs a full address, like https://example.com.')],
+  url: [/^[a-z][a-z0-9+.-]*:\S+$/i, t('This needs a full address, like https://example.com.')],
+  date: [/^\d{4}-\d{2}-\d{2}$/, t('This needs a date, like 2026-01-31.')],
+  'date-time': [/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/, t('This needs a date and time.')],
+  time: [/^\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/, t('This needs a time, like 14:30.')],
+  uuid: [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, t('This needs a UUID.')],
 }
 
 /** A value said back in a message: a short string quoted, anything else as JSON. */
@@ -190,50 +192,50 @@ export function problems(node, value, root = node, path = []) {
   const said = []
   const wrong = (message) => said.push({ path, message })
   if (value === undefined || value === null) {
-    if (value === null && !nullable && kindOf(at) !== 'json') wrong('This needs an answer.')
+    if (value === null && !nullable && kindOf(at) !== 'json') wrong(t('This needs an answer.'))
     return said
   }
   const kind = kindOf(at)
   if (kind === 'choice') {
     const offered = choicesOf(at)
-    if (!offered.some((one) => same(one, value))) wrong(`Pick one of ${offered.map(quoted).join(', ')}.`)
+    if (!offered.some((one) => same(one, value))) wrong(t('Pick one of {choices}.', { choices: offered.map(quoted).join(', ') }))
     return said
   }
-  if (kind === 'boolean' && typeof value !== 'boolean') wrong('Pick yes or no.')
+  if (kind === 'boolean' && typeof value !== 'boolean') wrong(t('Pick yes or no.'))
   if (kind === 'integer' || kind === 'number') {
-    if (typeof value !== 'number' || Number.isNaN(value)) wrong('This needs a number.')
-    else if (kind === 'integer' && !Number.isInteger(value)) wrong('This needs a whole number.')
-    else if (typeof at.minimum === 'number' && value < at.minimum) wrong(`At least ${at.minimum}.`)
-    else if (typeof at.maximum === 'number' && value > at.maximum) wrong(`At most ${at.maximum}.`)
-    else if (typeof at.exclusiveMinimum === 'number' && value <= at.exclusiveMinimum) wrong(`More than ${at.exclusiveMinimum}.`)
-    else if (typeof at.exclusiveMaximum === 'number' && value >= at.exclusiveMaximum) wrong(`Less than ${at.exclusiveMaximum}.`)
-    else if (typeof at.multipleOf === 'number' && Math.abs(value / at.multipleOf - Math.round(value / at.multipleOf)) > 1e-9) wrong(`A multiple of ${at.multipleOf}.`)
+    if (typeof value !== 'number' || Number.isNaN(value)) wrong(t('This needs a number.'))
+    else if (kind === 'integer' && !Number.isInteger(value)) wrong(t('This needs a whole number.'))
+    else if (typeof at.minimum === 'number' && value < at.minimum) wrong(t('At least {bound}.', { bound: at.minimum }))
+    else if (typeof at.maximum === 'number' && value > at.maximum) wrong(t('At most {bound}.', { bound: at.maximum }))
+    else if (typeof at.exclusiveMinimum === 'number' && value <= at.exclusiveMinimum) wrong(t('More than {bound}.', { bound: at.exclusiveMinimum }))
+    else if (typeof at.exclusiveMaximum === 'number' && value >= at.exclusiveMaximum) wrong(t('Less than {bound}.', { bound: at.exclusiveMaximum }))
+    else if (typeof at.multipleOf === 'number' && Math.abs(value / at.multipleOf - Math.round(value / at.multipleOf)) > 1e-9) wrong(t('A multiple of {step}.', { step: at.multipleOf }))
   }
   if (kind === 'string') {
-    if (typeof value !== 'string') wrong('This needs text.')
+    if (typeof value !== 'string') wrong(t('This needs text.'))
     else {
       const length = [...value].length
-      if (typeof at.minLength === 'number' && length < at.minLength) wrong(at.minLength === 1 ? 'This needs an answer.' : `At least ${at.minLength} characters.`)
-      else if (typeof at.maxLength === 'number' && length > at.maxLength) wrong(`At most ${at.maxLength} characters (${length} now).`)
-      else if (at.pattern && !safePattern(at.pattern).test(value)) wrong(`This is not in the form asked for (${at.pattern}).`)
-      else if (FORMATS[at.format] && !FORMATS[at.format][0].test(value)) wrong(`This needs ${FORMATS[at.format][1]}.`)
+      if (typeof at.minLength === 'number' && length < at.minLength) wrong(at.minLength === 1 ? t('This needs an answer.') : t('At least {n} characters.', { n: at.minLength }))
+      else if (typeof at.maxLength === 'number' && length > at.maxLength) wrong(t('At most {n} characters ({now} now).', { n: at.maxLength, now: length }))
+      else if (at.pattern && !safePattern(at.pattern).test(value)) wrong(t('This is not in the form asked for ({pattern}).', { pattern: at.pattern }))
+      else if (FORMATS[at.format] && !FORMATS[at.format][0].test(value)) wrong(FORMATS[at.format][1])
     }
   }
   if (kind === 'array') {
-    if (!Array.isArray(value)) wrong('This needs a list.')
+    if (!Array.isArray(value)) wrong(t('This needs a list.'))
     else {
-      if (typeof at.minItems === 'number' && value.length < at.minItems) wrong(`At least ${at.minItems} ${at.minItems === 1 ? 'item' : 'items'}.`)
-      else if (typeof at.maxItems === 'number' && value.length > at.maxItems) wrong(`At most ${at.maxItems} ${at.maxItems === 1 ? 'item' : 'items'}.`)
-      else if (at.uniqueItems && new Set(value.map((one) => JSON.stringify(one))).size < value.length) wrong('Each item only once.')
+      if (typeof at.minItems === 'number' && value.length < at.minItems) wrong(t('At least {n} items.', { n: at.minItems }))
+      else if (typeof at.maxItems === 'number' && value.length > at.maxItems) wrong(t('At most {n} items.', { n: at.maxItems }))
+      else if (at.uniqueItems && new Set(value.map((one) => JSON.stringify(one))).size < value.length) wrong(t('Each item only once.'))
       value.forEach((one, index) => said.push(...problems(at.items, one, root, [...path, index])))
     }
   }
   if (kind === 'object') {
-    if (typeof value !== 'object' || Array.isArray(value)) wrong('This needs an object.')
+    if (typeof value !== 'object' || Array.isArray(value)) wrong(t('This needs an object.'))
     else
       for (const field of fieldsOf(at, root)) {
         const one = value[field.name]
-        if (field.required && (one === undefined || (one === '' && kindOf(field.node) !== 'json'))) said.push({ path: [...path, field.name], message: 'This needs an answer.' })
+        if (field.required && (one === undefined || (one === '' && kindOf(field.node) !== 'json'))) said.push({ path: [...path, field.name], message: t('This needs an answer.') })
         else said.push(...problems(field.raw, one, root, [...path, field.name]))
       }
   }
@@ -267,8 +269,8 @@ export function requiredLeft(node, value, root = node) {
 }
 
 /** The words on a form's send button: what is left to say, or that it can go. */
-export function sendLabel(left, ready = 'Send answer') {
-  return left ? `${left} required left` : ready
+export function sendLabel(left, ready = t('Send answer')) {
+  return left ? t('{n} required left', { n: left }) : ready
 }
 
 /**
@@ -299,10 +301,10 @@ export function summaryOf(value, node = null, root = node, most = 90) {
       parts.push(`${labelOf(field.name, field.node).toLowerCase()}: ***`)
       return
     }
-    if (typeof one === 'boolean') parts.push(field ? `${labelOf(field.name, field.node).toLowerCase()}: ${one ? 'yes' : 'no'}` : one ? 'yes' : 'no')
+    if (typeof one === 'boolean') parts.push(field ? `${labelOf(field.name, field.node).toLowerCase()}: ${one ? t('yes') : t('no')}` : one ? t('yes') : t('no'))
     else if (typeof one === 'string') parts.push(field && kindOf(field.node) === 'choice' ? one : `‘${oneLine(one, 40)}’`)
     else if (typeof one === 'number') parts.push(field ? `${labelOf(field.name, field.node).toLowerCase()}: ${one}` : String(one))
-    else if (Array.isArray(one)) parts.push(one.every((each) => typeof each !== 'object') ? one.join(', ') : `${one.length} items`)
+    else if (Array.isArray(one)) parts.push(one.every((each) => typeof each !== 'object') ? one.join(', ') : t('{count} items', { count: one.length }))
     else parts.push(oneLine(JSON.stringify(one), 40))
   }
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -311,7 +313,7 @@ export function summaryOf(value, node = null, root = node, most = 90) {
     for (const field of fields) add(value[field.name], field)
     for (const [name, one] of Object.entries(value)) if (!named.has(name)) add(one, { name, node: {} })
   } else add(value, null)
-  return oneLine(parts.join(' · ') || '(nothing)', most)
+  return oneLine(parts.join(' · ') || t('(nothing)'), most)
 }
 
 /** Text on one line, cut at `most` characters. */
@@ -322,9 +324,9 @@ export function oneLine(text, most = 90) {
 
 /** Why a question went away without being answered here, as a person says it. */
 export function withdrawnWhy(why, role = '') {
-  if (why === 'away') return `${role || 'The person'} went away`
-  if (why === 'over') return 'the run ended'
-  return why ? String(why) : 'it is no longer asked'
+  if (why === 'away') return role ? t('{role} went away', { role }) : t('The person went away')
+  if (why === 'over') return t('the run ended')
+  return why ? String(why) : t('it is no longer asked')
 }
 
 // ------------------------------------------------------------------ context blocks
@@ -387,8 +389,6 @@ export function chartRows(spec) {
   return { columns, rows: values.map((row) => columns.map((key) => (row && typeof row === 'object' ? row[key] : row))) }
 }
 
-const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-
 /** What a block holds, in one line, as it is folded behind. */
 export function blockSummary(block) {
   switch (block.kind) {
@@ -396,36 +396,36 @@ export function blockSummary(block) {
       return oneLine(String(block.text || '').replace(/^\s*([-*+]|\d+\.)\s+/gm, '').replace(/[#>*_`]+/g, ''), 80)
     case 'code': {
       const lines = String(block.text || '').split('\n').length
-      return [block.language, plural(lines, 'line')].filter(Boolean).join(' · ')
+      return [block.language, t('{n} lines', { n: lines })].filter(Boolean).join(' · ')
     }
     case 'diff': {
       const { added, removed, files } = diffStats(block.patch)
-      return `+${added} −${removed} in ${plural(files, 'file')}`
+      return t('+{added} −{removed} in {n} files', { added, removed, n: files })
     }
     case 'table':
-      return `table · ${plural((block.rows || []).length, 'row')}`
+      return t('table · {n} rows', { n: (block.rows || []).length })
     case 'image':
-      return ['image', block.alt].filter(Boolean).join(' · ')
+      return [t('image'), block.alt].filter(Boolean).join(' · ')
     case 'json': {
       const value = block.value
-      if (Array.isArray(value)) return `json · ${plural(value.length, 'item')}`
-      if (value && typeof value === 'object') return `json · ${plural(Object.keys(value).length, 'key')}`
+      if (Array.isArray(value)) return t('json · {n} items', { n: value.length })
+      if (value && typeof value === 'object') return t('json · {n} keys', { n: Object.keys(value).length })
       return `json · ${oneLine(JSON.stringify(value), 60)}`
     }
     case 'chart': {
       const spec = block.spec || {}
       const mark = typeof spec.mark === 'string' ? spec.mark : (spec.mark && spec.mark.type) || ''
       const rows = chartRows(spec).rows.length
-      return ['chart', mark, rows ? plural(rows, 'point') : ''].filter(Boolean).join(' · ')
+      return [t('chart'), mark, rows ? t('{n} points', { n: rows }) : ''].filter(Boolean).join(' · ')
     }
     default:
-      return String(block.kind || 'block')
+      return String(block.kind || t('block'))
   }
 }
 
 /** The word a block's kind is named by on its fold. */
 export function kindWord(kind) {
-  return { markdown: 'Note', code: 'Code', diff: 'Diff', table: 'Table', image: 'Image', json: 'Data', chart: 'Chart' }[kind] || 'Context'
+  return { markdown: t('Note'), code: t('Code'), diff: t('Diff'), table: t('Table'), image: t('Image'), json: t('Data'), chart: t('Chart') }[kind] || t('Context')
 }
 
 /** Whether a block is long enough to fold behind its summary until it is asked for. */

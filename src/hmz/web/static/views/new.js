@@ -27,7 +27,7 @@ import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
   const resume = query.get('resume') || ''
-  const picker = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'flow-picker' }, h('span', {}, 'flow'), h('b', {}, '…'), icon('down'))
+  const picker = h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'flow-picker' }, h('span', {}, t('flow')), h('b', {}, '…'), icon('down'))
   const pickerHolder = h('div', { class: 'menu-holder' }, picker)
   // Where the epic runs: the workspace the address names, or the one an epic picked up ran in --
   // or none, a directory of its own made as it starts, set up as where `hmz web` started is.
@@ -68,16 +68,16 @@ export function mount(root, { query }) {
   /** Where a flow is installed from: Flows, which is of no folder, on its flowverses. */
   const flowsAt = () => hash('/flows?tab=verses')
   const box = composer({
-    placeholder: 'Describe the task',
-    label: 'Task',
+    placeholder: t('Describe the task'),
+    label: t('Task'),
     empty: true,
-    busy: 'Starting…',
+    busy: t('Starting…'),
     submit: (task) => start(task),
     complete: files.complete,
     desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : '') },
   })
   box.node.dataset.hmz = 'start'
-  const top = bar({ title: resume ? 'Resume epic' : 'New epic' })
+  const top = bar({ title: resume ? t('Resume epic') : t('New epic') })
   // The flow, beside the heading, as a chat's bar keeps what can be done beside its title.
   top.querySelector('.bar-title').append(h('div', { class: 'pickers' }, pickerHolder))
   fill(
@@ -118,7 +118,7 @@ export function mount(root, { query }) {
         list.map((one) => choice({ label: one.name, about: one.about, chosen: picked && picked.name === one.name, act: () => choose(one.name, null), close })),
       ])
     },
-    { label: 'Flows' },
+    { label: t('Flows') },
   )
 
   /** Which workspace was read last: one read after another was picked draws nothing. */
@@ -126,7 +126,7 @@ export function mount(root, { query }) {
 
   /** Says the flow drawn is being read again, rather than leave the last one standing as if current. */
   function reading(on) {
-    fill(about, on ? h('span', { class: 'loading', role: 'status' }, 'Reading…') : picked ? picked.description || '' : '')
+    fill(about, on ? h('span', { class: 'loading', role: 'status' }, t('Reading…')) : picked ? picked.description || '' : '')
     options.classList.toggle('stale', on)
     options.toggleAttribute('aria-busy', on)
   }
@@ -162,7 +162,7 @@ export function mount(root, { query }) {
         flows = []
         reading(false)
         lacking.hidden = true
-        fill(picker.querySelector('b'), 'None')
+        fill(picker.querySelector('b'), t('None'))
         fill(resumed)
         undrawn()
         fill(box.said, goneNote(workspace))
@@ -186,7 +186,7 @@ export function mount(root, { query }) {
         picked = null
         setup = null
         reading(false)
-        fill(picker.querySelector('b'), 'None')
+        fill(picker.querySelector('b'), t('None'))
         fill(resumed)
         undrawn()
         fill(lacking, empty(t('No flow installed yet.'), t(' A new epic runs a flow. Install one from Flows, then start it here.'), h('a', { class: 'btn primary', href: flowsAt(), 'data-hmz': 'no-flow-open' }, t('Open Flows'))))
@@ -220,9 +220,9 @@ export function mount(root, { query }) {
     if (choosing !== name || at !== workspace) return
     picked = read
     reading(false)
-    fill(resumed, ran ? h('p', { class: 'note' }, `Picks up ${ran.name}, carrying on from where it stopped.`) : null)
+    fill(resumed, ran ? h('p', { class: 'note' }, t('Picks up {name}, carrying on from where it stopped.', { name: ran.name })) : null)
     // What the page asked in the middle, asked in the box.
-    box.text.placeholder = ran ? 'Describe the task' : `What should ${name} do?`
+    box.text.placeholder = ran ? t('Describe the task') : t('What should {name} do?', { name })
     setup = drawOptions(picked, ran)
     if (ran && !box.text.value) {
       box.text.value = ran.task
@@ -305,18 +305,18 @@ export function mount(root, { query }) {
     fill(
       rest,
       roles.length ? h('section', { class: 'option-group', 'data-hmz': 'setup-agents' }, h('h3', {}, t('Agents')), h('div', { class: 'setup-rows' }, roles)) : null,
-      params.fields.length ? h('section', { class: 'option-group' }, h('h3', {}, 'Parameters'), h('div', { class: 'grid' }, params.fields)) : null,
-      h('section', { class: 'option-group' }, h('h3', {}, 'Budget'), budget.fields, h('span', { class: 'hint' }, 'At least one limit.')),
-      targets.length ? h('section', { class: 'option-group', 'data-hmz': 'backup' }, h('h3', {}, 'Backup'), h('div', { class: 'row' }, targets)) : null,
-      h('div', { class: 'row' }, h('label', { class: 'check' }, profileFlow, 'Profile flow'), h('label', { class: 'check' }, profileEnvironment, 'Profile environment')),
+      params.fields.length ? h('section', { class: 'option-group' }, h('h3', {}, t('Parameters')), h('div', { class: 'grid' }, params.fields)) : null,
+      h('section', { class: 'option-group' }, h('h3', {}, t('Budget')), budget.fields, h('span', { class: 'hint' }, t('At least one limit.'))),
+      targets.length ? h('section', { class: 'option-group', 'data-hmz': 'backup' }, h('h3', {}, t('Backup')), h('div', { class: 'row' }, targets)) : null,
+      h('div', { class: 'row' }, h('label', { class: 'check' }, profileFlow, t('Profile flow')), h('label', { class: 'check' }, profileEnvironment, t('Profile environment'))),
     )
     return { read: readAll }
   }
 
   async function start(task) {
     if (gone) throw new Error(goneSaid(workspace))
-    if (!flows.length) throw new Error('Install a flow first, from Flows.')
-    if (!picked || !setup) throw new Error('Pick a flow first.')
+    if (!flows.length) throw new Error(t('Install a flow first, from Flows.'))
+    if (!picked || !setup) throw new Error(t('Pick a flow first.'))
     let read
     try {
       read = setup.read()
@@ -359,9 +359,9 @@ export function newOf(kind, { workspace = '', scratch = false } = {}) {
  * and for each whether the turn under way when it is reached may finish.
  */
 function budgetFields(kept) {
-  const cost = h('input', { type: 'number', min: '0', step: '0.01', value: kept.cost === 'Infinity' ? '' : kept.cost ?? '', placeholder: 'dollars', 'aria-label': 'Most it may cost, in dollars' })
-  const minutes = h('input', { type: 'number', min: '0', step: '1', value: minutesOf(kept.duration), placeholder: 'minutes', 'aria-label': 'Longest it may take, in minutes' })
-  const tokens = h('input', { type: 'number', min: '0', step: '1000', value: kept.output_tokens ?? '', placeholder: 'output tokens', 'aria-label': 'Most output tokens it may write' })
+  const cost = h('input', { type: 'number', min: '0', step: '0.01', value: kept.cost === 'Infinity' ? '' : kept.cost ?? '', placeholder: t('dollars'), 'aria-label': t('Most it may cost, in dollars') })
+  const minutes = h('input', { type: 'number', min: '0', step: '1', value: minutesOf(kept.duration), placeholder: t('minutes'), 'aria-label': t('Longest it may take, in minutes') })
+  const tokens = h('input', { type: 'number', min: '0', step: '1000', value: kept.output_tokens ?? '', placeholder: t('output tokens'), 'aria-label': t('Most output tokens it may write') })
   // Graceful is one flag for every limit, or one apiece; a box apiece either way.
   const graces = Object.fromEntries(
     ['cost', 'duration', 'output_tokens'].map((limit) => [
@@ -373,12 +373,12 @@ function budgetFields(kept) {
     fields: h(
       'div',
       { class: 'row' },
-      h('label', { class: 'field' }, h('span', { class: 'label' }, 'Cost, $'), cost),
-      h('label', { class: 'field' }, h('span', { class: 'label' }, 'Time, min'), minutes),
-      h('label', { class: 'field' }, h('span', { class: 'label' }, 'Output tokens'), tokens),
-      h('label', { class: 'check' }, graces.cost, 'Cost graceful'),
-      h('label', { class: 'check' }, graces.duration, 'Time graceful'),
-      h('label', { class: 'check' }, graces.output_tokens, 'Tokens graceful'),
+      h('label', { class: 'field' }, h('span', { class: 'label' }, t('Cost, $')), cost),
+      h('label', { class: 'field' }, h('span', { class: 'label' }, t('Time, min')), minutes),
+      h('label', { class: 'field' }, h('span', { class: 'label' }, t('Output tokens')), tokens),
+      h('label', { class: 'check' }, graces.cost, t('Cost graceful')),
+      h('label', { class: 'check' }, graces.duration, t('Time graceful')),
+      h('label', { class: 'check' }, graces.output_tokens, t('Tokens graceful')),
     ),
     read() {
       const said = {}
