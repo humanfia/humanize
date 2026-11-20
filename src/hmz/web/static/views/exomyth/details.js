@@ -2,6 +2,7 @@
 // read when it is picked -- and of a stretch of time.
 
 import { h, problem } from '../../dom.js'
+import { locale, t } from '../../i18n.js'
 import { modelName } from '../../names.js'
 import { clock, counted, lasted, locate, within } from './model.js'
 
@@ -21,8 +22,8 @@ function facts(pairs) {
 }
 
 /** A moment of the epic, as how far into it and as the clock on the wall said it. */
-function at(model, t) {
-  return `${clock(t, 1000)} · ${new Date((model.origin + t / 1e6) * 1000).toLocaleTimeString()}`
+function at(model, time) {
+  return `${clock(time, 1000)} · ${new Date((model.origin + time / 1e6) * 1000).toLocaleTimeString(locale())}`
 }
 
 function categories(by, model) {
@@ -33,7 +34,7 @@ function categories(by, model) {
     h(
       'table',
       { class: 'spending exo-cats', 'data-hmz': 'exomyth-categories' },
-      h('thead', {}, h('tr', {}, h('th', {}, 'Category'), h('th', { class: 'num' }, 'Spans'), h('th', { class: 'num' }, 'Time'), h('th', { class: 'num' }, 'In'), h('th', { class: 'num' }, 'Out'))),
+      h('thead', {}, h('tr', {}, h('th', {}, t('Category')), h('th', { class: 'num' }, t('Spans')), h('th', { class: 'num' }, t('Time')), h('th', { class: 'num' }, t('In')), h('th', { class: 'num' }, t('Out')))),
       h(
         'tbody',
         {},
@@ -51,19 +52,19 @@ export function overview(model, pick) {
   const by = new Map(Object.entries(model.summary.categories))
   return [
     section(
-      'Epic',
+      t('Epic'),
       facts([
-        ['name', h('span', { class: 'mono' }, model.epic || '—')],
-        ['state', model.live ? 'running' : 'ended'],
-        ['began', new Date(model.origin * 1000).toLocaleString()],
-        ['lasted', lasted(model.end)],
-        ['spans', counted(model.summary.spans)],
-        ['processes', counted(model.summary.processes)],
+        [t('name'), h('span', { class: 'mono' }, model.epic || '—')],
+        [t('state'), model.live ? t('running') : t('ended')],
+        [t('began'), new Date(model.origin * 1000).toLocaleString(locale())],
+        [t('lasted'), lasted(model.end)],
+        [t('spans'), counted(model.summary.spans)],
+        [t('processes'), counted(model.summary.processes)],
       ]),
     ),
-    section('Categories', categories(by, model)),
+    section(t('Categories'), categories(by, model)),
     section(
-      'Processes',
+      t('Processes'),
       h(
         'ul',
         { class: 'links exo-processes', 'data-hmz': 'exomyth-processes' },
@@ -87,25 +88,25 @@ export function processOf(model, id, act) {
   const parent = model.processes[one.parent]
   return [
     section(
-      'Process',
+      t('Process'),
       h('p', { class: 'exo-name selectable' }, one.name),
       facts([
-        ['kind', one.kind],
-        ['key', one.key ? h('span', { class: 'mono' }, one.key) : ''],
-        ['agent', one.agent],
-        ['role', one.role],
-        ['backend', one.backend],
-        ['model', named(one.model)],
-        ['label', one.label],
+        [t('kind'), one.kind],
+        [t('key'), one.key ? h('span', { class: 'mono' }, one.key) : ''],
+        [t('agent'), one.agent],
+        [t('role'), one.role],
+        [t('backend'), one.backend],
+        [t('model'), named(one.model)],
+        [t('label'), one.label],
         ['pid', one.pid || ''],
-        ['parent', parent ? parent.name : ''],
-        ['record', one.record ? h('span', { class: 'mono' }, one.record) : ''],
-        ['start', at(model, one.start)],
-        ['lasted', lasted(one.end - one.start)],
-        ['tracks', String(one.tracks.length)],
-        ['spans', counted(one.spans)],
+        [t('parent'), parent ? parent.name : ''],
+        [t('record'), one.record ? h('span', { class: 'mono' }, one.record) : ''],
+        [t('start'), at(model, one.start)],
+        [t('lasted'), lasted(one.end - one.start)],
+        [t('tracks'), String(one.tracks.length)],
+        [t('spans'), counted(one.spans)],
       ]),
-      h('p', { class: 'row' }, h('button', { type: 'button', class: 'btn small', onclick: act.zoom }, 'Zoom')),
+      h('p', { class: 'row' }, h('button', { type: 'button', class: 'btn small', onclick: act.zoom }, t('Zoom'))),
     ),
   ]
 }
@@ -124,28 +125,28 @@ export function spanOf(model, id, read, act) {
   const process = model.processes[track.process]
   return [
     section(
-      'Span',
+      t('Span'),
       h('p', { class: 'exo-name selectable', 'data-hmz': 'exomyth-span-name' }, said(track.name_[i]) || '—'),
       facts([
-        ['category', said(track.cat[i])],
-        ['start', at(model, track.start[i])],
-        ['lasted', lasted(track.dur[i])],
-        ['model', named(said(track.model[i]))],
-        ['tokens', track.in[i] || track.out[i] ? `${counted(track.in[i])} in · ${counted(track.out[i])} out` : ''],
-        ['process', h('button', { type: 'button', class: 'exo-link', onclick: () => act.pick({ process: process.id }) }, process.name)],
-        ['track', track.name],
-        ['depth', String(track.depth[i])],
+        [t('category'), said(track.cat[i])],
+        [t('start'), at(model, track.start[i])],
+        [t('lasted'), lasted(track.dur[i])],
+        [t('model'), named(said(track.model[i]))],
+        [t('tokens'), track.in[i] || track.out[i] ? t('{in} in · {out} out', { in: counted(track.in[i]), out: counted(track.out[i]) }) : ''],
+        [t('process'), h('button', { type: 'button', class: 'exo-link', onclick: () => act.pick({ process: process.id }) }, process.name)],
+        [t('track'), track.name],
+        [t('depth'), String(track.depth[i])],
         ['id', h('span', { class: 'mono' }, String(id))],
       ]),
-      h('p', { class: 'row' }, h('button', { type: 'button', class: 'btn small', onclick: act.zoom }, 'Zoom')),
+      h('p', { class: 'row' }, h('button', { type: 'button', class: 'btn small', onclick: act.zoom }, t('Zoom'))),
     ),
     section(
-      'Arguments',
+      t('Arguments'),
       read.error
         ? problem(read.error)
         : read.args
           ? h('pre', { class: 'block exo-args', 'data-hmz': 'exomyth-args' }, JSON.stringify(read.args, null, 2))
-          : h('p', { class: 'loading', role: 'status' }, 'Reading…'),
+          : h('p', { class: 'loading', role: 'status' }, t('Reading…')),
     ),
   ]
 }
@@ -155,16 +156,16 @@ export function rangeOf(model, range, act) {
   const held = within(model, range.from, range.to)
   return [
     section(
-      'Range',
+      t('Range'),
       facts([
-        ['from', at(model, range.from)],
-        ['to', at(model, range.to)],
-        ['lasted', h('span', { 'data-hmz': 'exomyth-range' }, lasted(range.to - range.from))],
-        ['spans', counted(held.count)],
-        ['tokens', `${counted(held.in)} in · ${counted(held.out)} out`],
+        [t('from'), at(model, range.from)],
+        [t('to'), at(model, range.to)],
+        [t('lasted'), h('span', { 'data-hmz': 'exomyth-range' }, lasted(range.to - range.from))],
+        [t('spans'), counted(held.count)],
+        [t('tokens'), t('{in} in · {out} out', { in: counted(held.in), out: counted(held.out) })],
       ]),
-      h('p', { class: 'row' }, h('button', { type: 'button', class: 'btn small', onclick: act.zoom }, 'Zoom'), h('button', { type: 'button', class: 'btn small quiet', onclick: act.clear }, 'Clear')),
+      h('p', { class: 'row' }, h('button', { type: 'button', class: 'btn small', onclick: act.zoom }, t('Zoom')), h('button', { type: 'button', class: 'btn small quiet', onclick: act.clear }, t('Clear'))),
     ),
-    section('Categories', categories(held.categories, model)),
+    section(t('Categories'), categories(held.categories, model)),
   ]
 }
