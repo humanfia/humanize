@@ -1497,7 +1497,7 @@ Storage keys are in [Settings](/reference/settings).
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
-  │    this machine: what epics show, Ai-chan's nous, chat $, error reports  │
+  │    this machine: what epics show, chat $, error reports                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
@@ -1530,7 +1530,7 @@ Storage keys are in [Settings](/reference/settings).
 
 | Card | Summary | `● unsaved` when |
 | --- | --- | --- |
-| ⚙ General | `details on\|off · reports on\|off\|not set` | details, Ai-chan's nous or reports changed |
+| ⚙ General | `details on\|off · reports on\|off\|not set` | details or reports changed |
 | ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
 | ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
@@ -1588,7 +1588,6 @@ in force.
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
 | Notifications | at once on save: the next notice of a kind is told or not | — |
-| Ai-chan | the next Ai-chan conversation made | `takes effect on the next Ai-chan conversation` |
 | Chat prefers for $ | at once on save: the next `$` line of every chat that does not say for itself | — |
 | Chat agent | the next chat started in this directory | `takes effect on next chat` |
 | Forget | next launch | `takes effect on next launch` |
@@ -1605,7 +1604,6 @@ order done, including things done at once, even after a discard), then:
 | --- | --- |
 | Error reports on / off | `error reporting enabled` / `error reporting disabled` |
 | Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
-| Ai-chan | `the next Ai-chan conversation thinks with <spec>`, or with none `/ai will ask which nous each new Ai-chan conversation thinks with` |
 | Forget | `cleared saved settings for this directory; Humanize will open without them on next launch` |
 
 ### General page {#general-page}
