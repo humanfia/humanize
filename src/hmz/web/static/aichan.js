@@ -191,6 +191,29 @@ export function stateOf({ connected, turn, records }) {
   return { state: connected ? (turn === 'running' ? 'running' : 'waiting') : 'folded', why: '' }
 }
 
+/** What ends what she is told ahead of the first line of a conversation (`briefing`, runtime/doing/aichan.py). */
+const TOLD = '\n\nThe user says:\n\n'
+
+/**
+ * What a conversation carried on did before, as its trace kept it, for the drawer to draw: each
+ * turn opened by the line the person said, without what she was told of herself ahead of it,
+ * and no line that only names the model she thought with.
+ *
+ * @param {{category: string, name?: string, args?: object}[]} actions One session's, as `chat.get` answers them.
+ */
+export function earlierOf(actions) {
+  return actions
+    .filter((one) => one.category !== 'llm' || (one.args && one.args.thinking))
+    .map((one) => {
+      const args = one.args || {}
+      if (one.category === 'llm') return { ...one, args: { ...args, model: '' } }
+      if (one.category !== 'turn') return one
+      const prompt = String(args.prompt ?? one.name ?? '')
+      const at = prompt.startsWith('You are Ai-chan') ? prompt.indexOf(TOLD) : -1
+      return at < 0 ? one : { ...one, args: { ...args, prompt: prompt.slice(at + TOLD.length) } }
+    })
+}
+
 /**
  * Ai-chan's session among what her host recorded: the first conversation it opened that is not
  * a person's, or "" before she has opened one.

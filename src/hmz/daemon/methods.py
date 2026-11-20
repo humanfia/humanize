@@ -344,7 +344,8 @@ class _Methods:
     # -- epics
 
     def attach(self, call: Call) -> dict[str, Any]:
-        from hmz.daemon.hosts import Subscription
+        from hmz.daemon.hosts import CLOSED, Subscription
+        from hmz.rpc import RpcError
 
         router = self._router
         session = router.session(call)
@@ -359,25 +360,37 @@ class _Methods:
                 named = workspace(params["workspace"])
         else:
             raise _refused(-32602, "epic.attach needs workspace.")
-        hosted = router.hosts.opened(named, slot(params.get("slot"), new=True))
-        sub = Subscription(
-            session, session.named(), hosted, figures=params.get("figures") is True
-        )
-        with session.lock:
-            session.subs[sub.sub] = sub
+        slotted = slot(params.get("slot"), new=True)
         since = params.get("since")
-        try:
-            sub.client = hosted.attach(
-                sub,
-                replay=params.get("replay", True) is not False,
-                since=cast("dict[str, Any]", since)
-                if isinstance(since, dict)
-                else None,
+        while True:
+            hosted = router.hosts.opened(named, slotted)
+            sub = Subscription(
+                session, session.named(), hosted, figures=params.get("figures") is True
             )
-        except BaseException:
             with session.lock:
-                session.subs.pop(sub.sub, None)
-            raise
+                session.subs[sub.sub] = sub
+            try:
+                sub.client = hosted.attach(
+                    sub,
+                    replay=params.get("replay", True) is not False,
+                    since=cast("dict[str, Any]", since)
+                    if isinstance(since, dict)
+                    else None,
+                )
+            except BaseException as why:
+                with session.lock:
+                    session.subs.pop(sub.sub, None)
+                # Her host going as it is attached to is gone once its link has closed, and
+                # is then started again (Section 4.22.5.2).
+                if (
+                    slotted.startswith("ai:")
+                    and isinstance(why, RpcError)
+                    and why.message == CLOSED
+                    and router.hosts.outwaited(hosted)
+                ):
+                    continue
+                raise
+            break
         if session.closed:
             sub.dropped()
             raise _refused(409, "the frontend went while it was saying hello")

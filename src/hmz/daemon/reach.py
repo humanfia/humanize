@@ -708,8 +708,9 @@ class Links:
           named: Whether its entry names what it is written in already.
         """
         ident = int(conversation["id"])
-        # Whether a turn of hers was open in this host's life. Carried on, it comes up waiting
-        # on what was written already, or on why it could not be carried on: no answer of hers.
+        # Whether a turn of hers was seen open in this host's life. Carried on, it comes up
+        # waiting on what was written already, or on why it could not be carried on: no answer
+        # of hers, which the first wait it is heard on is taken for until a turn was seen.
         turned = not named
         # Which wait she was last heard on: another one is another answer, the same words or not.
         waited: str | None = None
@@ -722,9 +723,11 @@ class Links:
                 named = True
             turned = turned or turning(status)
             wait, answered = heard(status)
-            if turned and answered and wait != waited:
-                waited = wait
-                said |= {"latest": answered, "updated": where.now()}
+            if (wait or answered) and wait != waited:
+                if turned and answered:
+                    said |= {"latest": answered, "updated": where.now()}
+                # A turn too short to be seen open is still one: every wait after this one.
+                waited, turned = wait, True
             if said:
                 self.kept.changed(ident, **said)
             time.sleep(_FOLLOWING if named else _NAMING)

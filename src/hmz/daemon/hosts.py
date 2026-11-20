@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from hmz.daemon.sessions import Session
     from hmz.rpc import Call, Peer
 
-__all__ = ["Hosted", "Hosts", "Subscription"]
+__all__ = ["CLOSED", "Hosted", "Hosts", "Subscription"]
 
 #: How long a host is given to come up.
 _PATIENCE = 10.0
@@ -40,6 +40,9 @@ _LEFT = 200
 
 #: How often a subscription that asked for figures has them worked out again, at most.
 _FIGURING = 1.0
+
+#: What a host that is going, or has gone, refuses what it is asked with.
+CLOSED = "this host has closed"
 
 #: Why a subscription ends whose host process ended without closing.
 WENT_AWAY = "the host went away"
@@ -366,11 +369,11 @@ class Hosted:
         from hmz.rpc import Closed, Code, RpcError
 
         if self.peer is None:
-            raise RpcError(Code.CONFLICT, "this host has closed")
+            raise RpcError(Code.CONFLICT, CLOSED)
         try:
             return self.peer.call(method, params, timeout=timeout)
         except Closed:
-            raise RpcError(Code.CONFLICT, "this host has closed") from None
+            raise RpcError(Code.CONFLICT, CLOSED) from None
         except RpcError as why:
             raise RpcError(Code.CONFLICT, _why(why.message)) from None
 
@@ -597,6 +600,18 @@ class Hosts:
             self.ai.went(hosted.slot)
         hosted.went()
         self._changed()
+
+    def outwaited(self, hosted: Hosted) -> bool:
+        """Whether a host that said it has closed is gone, waited for a while.
+
+        Its link closes a moment after it lets its frontends go; until then it is held still.
+        """
+        ended = time.monotonic() + _ANSWERING
+        while self.get(hosted.workspace, hosted.slot) is hosted:
+            if time.monotonic() > ended:
+                return False
+            time.sleep(0.05)
+        return True
 
     def stop_all(self) -> None:
         """Closes every host, as the daemon goes."""

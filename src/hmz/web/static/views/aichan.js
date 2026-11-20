@@ -10,7 +10,7 @@
 // line to her, which carries a conversation folded away on.
 
 import { call, daemon, onDaemon, poll, refresh } from '../api.js'
-import { PRESETS, SCOPES, actionsOf, created, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../aichan.js'
+import { PRESETS, SCOPES, actionsOf, created, earlierOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../aichan.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
 import { acting, empty, fill, h, icon, problem } from '../dom.js'
@@ -463,6 +463,8 @@ export function mount(app, where) {
     let failed = ''
     /** Whether she rests, as last drawn: what she said is all in view. */
     let rested = false
+    /** Whether her host has answered this drawing of the conversation. */
+    let met = false
     const box = composer({
       placeholder: t('Say something to Ai-chan'),
       label: t('What to say to Ai-chan'),
@@ -522,7 +524,7 @@ export function mount(app, where) {
           (got) => {
             const before = sessionsOf(detail)[detail.earlier - 1]
             const found = before && got.trace.find((each) => each.key === before.traced)
-            if (found && found.actions.length) fill(earlier, saidTraced({ ...found, chat: true }))
+            if (found && found.actions.length) fill(earlier, saidTraced({ ...found, actions: earlierOf(found.actions), chat: true }))
           },
           () => {},
         )
@@ -554,8 +556,13 @@ export function mount(app, where) {
       }
       if (!typingOf(answering, pending, held.me)) typing.remove()
       else if (log.lastElementChild !== typing) log.append(typing)
-      if (log.querySelector(':scope > .said, :scope > .aichan-typing')) log.querySelector(':scope > .thread-empty')?.remove()
-      else if (!log.childElementCount) log.append(h('p', { class: 'dim thread-empty' }, t('Opening her conversation…')))
+      // Until her host answers, the log says it is being opened; refused, it says why instead,
+      // and once it has answered nothing stands in the place of what is said next.
+      met = met || held.connected
+      const note = met ? '' : held.gone || t('Opening her conversation…')
+      const noted = log.querySelector(':scope > .thread-empty')
+      if (noted && (noted.textContent !== note || log.querySelector(':scope > .said, :scope > .aichan-typing'))) noted.remove()
+      if (note && !log.childElementCount) log.append(h('p', { class: 'dim thread-empty', role: 'status', 'data-hmz': 'aichan-opening' }, note))
       if (stuck) scroller.scrollTop = scroller.scrollHeight
     }
 

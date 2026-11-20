@@ -499,6 +499,19 @@ def test_what_she_last_answered_is_written_down_as_she_answers_it(
         ],
     )
     assert (after["latest"], after["updated"]) == ("Done.", "t2")
+    # As is one of a turn too short to be seen open: another wait than it came up on.
+    quick = _followed(
+        kept,
+        [
+            {"chat": "c", "turn": "done", "pending": [notice]},
+            {
+                "chat": "c",
+                "turn": "done",
+                "pending": [{"mode": "listen", "question": "q2", "text": "Again."}],
+            },
+        ],
+    )
+    assert (quick["latest"], quick["updated"]) == ("Again.", "t3")
 
 
 def test_what_a_reach_names_is_a_chat_or_an_epic_by_its_name(

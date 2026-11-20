@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { FACES, PRESETS, SCOPES, actionsOf, created, faceOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../../../../src/hmz/web/static/aichan.js'
+import { FACES, PRESETS, SCOPES, actionsOf, created, earlierOf, faceOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../../../../src/hmz/web/static/aichan.js'
 import { HOLD, SLOP, axisOf, offsetOf, restsOpen } from '../../../../src/hmz/web/static/swipe.js'
 
 const at = (path) => {
@@ -232,4 +232,26 @@ test('her avatar and her sixteen faces are WebP files of the page, and the docs 
     assert.ok(file.length < 64 * 1024, name)
     assert.ok(file.equals(readFileSync(new URL(name, docs))), name)
   }
+})
+
+test('what a conversation carried on did before is drawn without what she was told of herself, or the model she thought with', () => {
+  const told = 'You are Ai-chan, through whom the user operates hmz.\n\nYour scope is the whole daemon.\n\nThe user says:\n\nhello\nthere'
+  const actions = [
+    { category: 'llm', name: 'think', args: { model: 'claude-opus-5' } },
+    { category: 'turn', name: 'turn', args: { prompt: told } },
+    { category: 'llm', name: 'think', args: { model: 'claude-opus-5', thinking: 'hm' } },
+    { category: 'message', name: 'hi', args: { text: 'hi' } },
+    { category: 'turn', name: 'turn', args: { prompt: 'The user says:\n\nnot hers' } },
+    { category: 'turn', name: 'go on' },
+    { category: 'tool', name: 'runs.list', args: { input: {} } },
+  ]
+  assert.deepEqual(earlierOf(actions), [
+    { category: 'turn', name: 'turn', args: { prompt: 'hello\nthere' } },
+    { category: 'llm', name: 'think', args: { model: '', thinking: 'hm' } },
+    actions[3],
+    // A line of the person's own that only reads like it is left as it was said.
+    actions[4],
+    actions[5],
+    actions[6],
+  ])
 })

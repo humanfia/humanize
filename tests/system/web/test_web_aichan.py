@@ -717,3 +717,104 @@ def test_in_the_macos_app_a_narrow_drawers_head_keeps_clear_of_the_lights(
         expect(drawer.locator(".aichan-head")).to_have_attribute(
             "data-tauri-drag-region", "deep"
         )
+
+
+@pytest.mark.usefixtures("linked")
+def test_a_conversation_whose_host_went_is_opened_again_and_carried_on(
+    project: Path, engine: str, tmp_path: Path
+) -> None:
+    """Opened from the list once her host has gone: what was said is there, and she goes on."""
+    with served() as site, opened(site, engine=engine) as page:
+        browser = Browser(site)
+        browser.signs_in()
+        with browser.session() as asked:
+            made = asked.call(
+                "aichan.create",
+                scope="daemon",
+                nous="claude/claude-opus-4-1",
+                task="hello there",
+            )
+            host = {"workspace": made["workspace"], "slot": made["slot"]}
+
+            def listed() -> dict[str, Any]:
+                (one,) = asked.call("aichan.list")["conversations"]
+                return one
+
+            # She answered, and her host went: the conversation is folded away.
+            for _ in range(300):
+                if (
+                    listed()["state"] == "waiting"
+                    and listed()["latest"] != "hello there"
+                ):
+                    break
+                page.wait_for_timeout(100)
+            asked.call("hosts.stop", **host)
+            for _ in range(300):
+                if listed()["state"] == "folded":
+                    break
+                page.wait_for_timeout(100)
+            assert listed()["state"] == "folded"
+            answered = listed()["latest"]
+
+        go(page, "/new")
+        drawer = _drawer(page)
+        row = drawer.locator("[data-hmz=aichan-conversation]")
+        expect(row.locator("[data-hmz=aichan-latest]")).to_have_text(answered)
+        row.locator(".aichan-pick").click()
+        chat = drawer.locator("[data-hmz=aichan-chat]")
+        log = chat.locator("[data-hmz=aichan-log]")
+        # What was said before is drawn, and nothing says it is still being opened.
+        expect(chat.locator(".said.you .body").first).to_have_text("hello there")
+        expect(chat.locator(".said.text").first).to_be_visible()
+        expect(chat).to_have_attribute("data-state", "waiting")
+        # Hers alone is what the person said, not what she was told of herself ahead of it
+        # (which the stand-in says back); and nothing names the model she thought with.
+        expect(chat).not_to_contain_text(re.compile(r"Opus|think ·"))
+        expect(chat.locator("[data-hmz=aichan-opening]")).to_have_count(0)
+        page.screenshot(path=str(tmp_path / "aichan-reopened.png"))
+        # And what is said next carries her on.
+        say = chat.locator("[data-hmz=aichan-say] textarea")
+        say.fill("and again")
+        say.press("Enter")
+        expect(log.locator(".said.you .body").last).to_have_text(
+            re.compile("and again$")
+        )
+        expect(log.locator(".said.text").last).to_contain_text("and again")
+        expect(chat).to_have_attribute("data-state", "waiting")
+        # Read again by a page that is another client to her host, she still takes a line.
+        page.reload()
+        drawer = page.locator("[data-hmz=aichan]")
+        drawer.locator("[data-hmz=aichan-conversation] .aichan-pick").click()
+        say = chat.locator("[data-hmz=aichan-say] textarea")
+        say.fill("a third")
+        say.press("Enter")
+        expect(log.locator(".said.text").last).to_contain_text("a third")
+        expect(chat).to_have_attribute("data-state", "waiting")
+        # Her host gone while the conversation is open, the very next line carries her on.
+        with browser.session() as asked:
+            asked.call("hosts.stop", **host)
+        expect(chat).to_have_attribute("data-state", "folded")
+        say.fill("a fourth")
+        say.press("Enter")
+        expect(log.locator(".said.text").last).to_contain_text(
+            "a fourth", timeout=60000
+        )
+        expect(chat).to_have_attribute("data-state", "waiting")
+        expect(chat.locator("[data-hmz=aichan-say] [role=alert]")).to_have_count(0)
+
+
+def test_a_conversation_that_cannot_be_opened_says_why(
+    project: Path, engine: str
+) -> None:
+    """Refused by the daemon, the drawer says so in place of that it is being opened."""
+    held = [_conversation(1, "Gone wrong", "hi")]
+    wire = _wire(held)
+    wire.faked["epic.attach"] = lambda _: {
+        "error": {"code": 409, "message": "Ai-chan could not start: no link"}
+    }
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, "/new/chat")
+        drawer = _drawer(page)
+        drawer.locator("[data-hmz=aichan-conversation] .aichan-pick").click()
+        note = drawer.locator("[data-hmz=aichan-chat] [data-hmz=aichan-opening]")
+        expect(note).to_have_text("Ai-chan could not start: no link")
