@@ -419,7 +419,10 @@ def _row(chat: dict[str, Any]) -> str:
     """One chat on one line: its id, how it stands and its title (Section 15.4 of cli.md)."""
     title = " ".join(str(chat.get("title") or "").split())
     title = title if len(title) <= _TITLE else f"{title[: _TITLE - 1]}…"
-    return f"{chat.get('id')}  {chat.get('state')}  {title}"
+    # Whether a host holds it is not said: a chat no turn of which is open is ready.
+    state = chat.get("state")
+    stands = state if state in ("turn", "asking", "failed") else "ready"
+    return f"{chat.get('id')}  {stands}  {title}"
 
 
 def _sure(chat: dict[str, Any]) -> bool:

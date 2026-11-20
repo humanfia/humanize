@@ -314,8 +314,8 @@ the screen is there too, ticked -- for its menu:
 | `delete` | a box asks first and says it is permanent; **keep** is the answer under the cursor, **delete** removes the chat for good |
 | `copy id` | copies the chat's [id](#where-a-chat-is-kept) |
 
-The line under the list says how each went, a refusal included: a chat that is still going
-cannot be deleted, and one whose turn is open cannot be forked.
+The line under the list says how each went, a refusal included: a chat whose turn is
+open can be neither deleted nor forked.
 
 **Archived chats are put back in the directory's settings**: `/settings workspace`, then
 **Archived chats**, lists them newest first, and <kbd>enter</kbd> on one puts it back on
@@ -420,24 +420,25 @@ As the chat starts, its id is written to stderr -- `hmz chat: chat <id>` -- whic
 
 ```console
 $ hmz chat --list
-20261117T100000.123Z-ab12cd  resting  What does this repository do?
+20261117T100000.123Z-ab12cd  ready  What does this repository do?
 $ hmz chat --rename 20261117T100000.123Z-ab12cd "The tour"
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --fork 20261117T100000.123Z-ab12cd
 20261119T091500.456Z-4d5e6f
 $ hmz chat --archive 20261117T100000.123Z-ab12cd
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --list --archived
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --unarchive 20261117T100000.123Z-ab12cd
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --delete 20261119T091500.456Z-4d5e6f
-hmz chat: delete 20261119T091500.456Z-4d5e6f  resting  The tour
+hmz chat: delete 20261119T091500.456Z-4d5e6f  ready  The tour
 for good? It cannot be brought back. [y/N] y
 ```
 
-`--list` says the chats of this directory, newest first: id, how it stands (`resting`,
-`going`, `turn`, `asking` or `failed`) and title. `--delete` asks unless `--yes` is given, and
+`--list` says the chats of this directory, newest first: id, how it stands (`turn`
+while a turn is open, `asking` while it waits on an answer mid-turn, `failed`, and otherwise
+`ready`) and title. `--delete` asks unless `--yes` is given, and
 deletes nothing where nobody is at a terminal to answer. `hmz backup <chat id>` backs a chat
 up ([Backing epics up](/user/backups#chats)).
 

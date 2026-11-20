@@ -1353,9 +1353,10 @@ named for it, starting the daemon where none runs, `<chat>` being a chat's id; `
 read or write a chat's files for any of them.
 
 **15.4.3** `hmz chat --list` MUST write to standard output one line per chat of the current
-workspace that is not archived (`chat.list` with `workspace`), newest first: its id, its state
-(Section 4.25.5.3 of [DAEMON]) and its title with white space runs collapsed and cut to 60
-characters, separated by two spaces. With `--archived` it MUST write the archived chats alone.
+workspace that is not archived (`chat.list` with `workspace`), newest first: its id, how it stands
+and its title with white space runs collapsed and cut to 60 characters, separated by two spaces.
+How it stands MUST be its state (Section 4.25.5.3 of [DAEMON]) where that is `turn`, `asking` or
+`failed`, and `ready` otherwise, `going` and `resting` alike (Section 8.5.3 of [CORE]). With `--archived` it MUST write the archived chats alone.
 
 **15.4.4** `hmz chat --rename <chat> <title>` MUST give the chat that title (`chat.rename`),
 `<title>` being the one positional argument and saying something, else a usage error; `--archive
