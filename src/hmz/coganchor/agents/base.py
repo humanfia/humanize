@@ -5910,7 +5910,8 @@ class AgentBase(ABC):
         answering a provider's paths is inside the wall with the CLI it supervises, and the
         wall is put up before anything of the turn has run. What it is told is
         :meth:`natively`'s rest of :meth:`fenced`, with the programs the CLI is made of
-        added to read -- the CLI itself, its interpreter, and the install trees of both.
+        added to read -- the CLI itself, its interpreter, and the install trees of both --
+        and that supervisor, where there is one.
 
         Args:
           argv: The backend's own command for this turn.
@@ -5942,10 +5943,16 @@ class AgentBase(ABC):
         rest = self.natively(fence)
         if rest.open:
             return wrapped
+        from hmz.coganchor import binary
         from hmz.coganchor.fence import wrapper
 
         _ready(rest)
-        return [*wrapper(rest.granting(read=_programs(argv[0]))), *wrapped]
+        read = _programs(argv[0])
+        if wrapped[0] == str(binary.found()):
+            # The supervisor, which is `coganchor` again and is started inside the wall: a
+            # fence that reads less than `/` has to let it be read as the CLI's programs are.
+            read.append(wrapped[0])
+        return [*wrapper(rest.granting(read=read)), *wrapped]
 
     def _wrapped(
         self,

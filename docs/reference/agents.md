@@ -496,7 +496,9 @@ The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's 
 sign-in directories and its session directory to write, and on macOS `~/Library/Keychains`,
 where Claude Code keeps its sign-in and rewrites it as it refreshes; the account's directory;
 the hosts its model and sign-in are at under the account ([Network hosts](#network-hosts)); the
-skills it carries; its programs and their install trees to read. Never Humanize's own home
+skills it carries; its programs and their install trees to read, and `coganchor` itself where
+the turn is supervised by it inside the wall (a turn whose sessions the run keeps, or one under
+an account kept in files). Never Humanize's own home
 (`~/.hmz`) or cache (`~/.cache/humanize`, which holds the mirror records), beyond a CLI's own
 state directory under it (`litellm`'s `~/.cache/humanize/litellm`).
 

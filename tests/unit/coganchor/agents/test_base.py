@@ -737,6 +737,33 @@ def test_a_fenced_agent_may_not_write_humanizes_own_cache(
     assert fence.allows(tmp_path / "user" / ".claude" / "x", write=True)
 
 
+@pytest.mark.usefixtures("supervised")
+def test_a_fence_lets_the_supervisor_started_inside_it_be_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ours = tmp_path / "built" / "coganchor"
+    ours.parent.mkdir()
+    ours.touch()
+    monkeypatch.setattr("hmz.coganchor.binary.found", lambda: ours)
+
+    def walled(agent: Scripted) -> tuple[list[str], Fence]:
+        line = agent.spawned(["claude"])
+        (policy,) = [word for word in line if word.startswith("--policy=")]
+        return line, Fence.loads(policy.removeprefix("--policy="))
+
+    # Nothing supervises a turn whose sessions stay where its CLI keeps them.
+    line, fence = walled(_walled(tmp_path / "left", monkeypatch))
+    assert line.count(str(ours)) == 1
+    assert str(ours) not in fence.read
+    # One whose sessions a run keeps is supervised, by `coganchor` again inside the wall,
+    # which a fence that reads its workdir alone has to let be read.
+    agent = _walled(tmp_path / "kept", monkeypatch)
+    agent.keeps = tmp_path / "epic"
+    line, fence = walled(agent)
+    assert line.count(str(ours)) == 2
+    assert str(ours) in fence.read
+
+
 def test_stopping_a_fenced_agent_takes_its_scratch_and_its_homes_away(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

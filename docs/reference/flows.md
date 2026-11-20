@@ -667,7 +667,8 @@ as the other rules say. Independently of the rules, the CLI may:
 - read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
   (on macOS `/System`, `/private/var/select` and the developer tools `xcode-select` chose,
   which the `xcrun` shims in `/usr/bin` load, instead of `/lib*` and `/sys`), its own
-  programs and install trees, and the Python running Humanize;
+  programs and install trees, the Python running Humanize, and the `coganchor` that supervises
+  its turn inside the fence;
 - write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU and RDMA nodes;
   on macOS `/dev/ttys*`), `/proc` on Linux (CUDA names a thread through
   `/proc/self/task/<tid>/comm` as it starts), its own state and sign-in directories (on macOS also the login keychain,
