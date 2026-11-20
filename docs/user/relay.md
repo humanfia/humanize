@@ -47,6 +47,9 @@ A device then asks the relay for that daemon id:
   between the browser and the daemon; the data channel they open goes directly between them
   where the network allows, and the daemon signs its side of it with its device key. A daemon
   that will not answer says why, and the relay tells the browser and closes its connection.
+  Where the network allows no direct path, the two need STUN or TURN servers: the browser's are
+  [set daemon by daemon](/user/web#webrtc-servers) in **Settings → Daemons**, and the daemon's
+  are its machine's `ice_servers` setting.
 
 The relay keeps nothing on disk and reads nothing of the machine it runs on: no settings, no
 home, no identity. A room goes when its daemon disconnects.

@@ -1,7 +1,7 @@
 // The remote daemons the page keeps (Section 3.13 of protocol/web.md), in the browser's IndexedDB:
-// each its name, the daemon id it pins and its routes in order, beside the STUN and TURN servers
-// for WebRTC and the browser's DTLS certificate (Section 4.7.2 of protocol/wire.md). And pairing
-// codes (Section 4.5), read and claimed to add a daemon.
+// each its name, the daemon id it pins, its routes in order and the STUN and TURN servers its
+// `webrtc:` routes are opened with, beside the browser's DTLS certificate (Section 4.7.2 of
+// protocol/wire.md). And pairing codes (Section 4.5), read and claimed to add a daemon.
 
 import { fromBase64 } from './pipe.js'
 import { reach } from './client.js'
@@ -27,6 +27,29 @@ function named(name) {
 function routed(routes) {
   if (!Array.isArray(routes)) throw new Error('A daemon\'s routes are a list.')
   for (const route of routes) if (typeof route !== 'string' || !routeKind(route)) throw new Error(`${route} is not a route.`)
+}
+
+/** A STUN or TURN server's URL, as WebRTC takes one. */
+const ICE = /^(stun|stuns|turn|turns):\S+$/
+
+/**
+ * Refuses STUN and TURN servers that are not ones: each its `urls`, one or a list, and for a TURN
+ * server the `username` and `credential` it is used with, as Section 3.4.9.1 of protocol/files.md
+ * writes them.
+ */
+function iced(servers) {
+  if (!Array.isArray(servers)) throw new Error('A daemon\'s STUN and TURN servers are a list.')
+  for (const one of servers) {
+    const urls = one === null || typeof one !== 'object' ? [] : [].concat(one.urls ?? [])
+    if (!urls.length) throw new Error('A STUN or TURN server needs its URL.')
+    for (const url of urls) if (typeof url !== 'string' || !ICE.test(url)) throw new Error(`${url} is not a STUN or TURN server.`)
+    for (const key of ['username', 'credential']) if (one[key] !== undefined && typeof one[key] !== 'string') throw new Error(`A STUN or TURN server's ${key} is text.`)
+  }
+}
+
+/** An entry as it is kept: its STUN and TURN servers only where it has any. */
+function entered({ ice, ...rest }) {
+  return ice?.length ? { ...rest, ice: ice.map((one) => ({ ...one })) } : rest
 }
 
 /** Local's one route, by where the page is shown (Section 4.9.1 and 4.9.2 of protocol/web.md). */
@@ -74,10 +97,28 @@ export function registry(indexedDB = globalThis.indexedDB) {
    */
   function kept(name, mode, act) {
     base ||= new Promise((resolve, reject) => {
-      const asked = indexedDB.open('hmz-daemons', 1)
-      asked.onupgradeneeded = () => {
-        asked.result.createObjectStore('daemons', { keyPath: 'name' })
-        asked.result.createObjectStore('keys')
+      const asked = indexedDB.open('hmz-daemons', 2)
+      asked.onupgradeneeded = (event) => {
+        if (event.oldVersion < 1) {
+          asked.result.createObjectStore('daemons', { keyPath: 'name' })
+          asked.result.createObjectStore('keys')
+          return
+        }
+        // Version 1 kept one list of STUN and TURN servers for every daemon, under `ice` among the
+        // keys: each daemon with a `webrtc:` route keeps it as its own from here on (Section
+        // 3.13.1 of protocol/web.md), and the one list is gone.
+        const keys = asked.transaction.objectStore('keys')
+        const daemons = asked.transaction.objectStore('daemons')
+        const read = keys.get('ice')
+        read.onsuccess = () => {
+          const servers = read.result
+          keys.delete('ice')
+          if (!Array.isArray(servers) || !servers.length) return
+          const all = daemons.getAll()
+          all.onsuccess = () => {
+            for (const one of all.result) if (!one.ice?.length && one.routes.some((route) => routeKind(route) === 'webrtc')) daemons.put({ ...one, ice: servers })
+          }
+        }
       }
       asked.onsuccess = () => resolve(asked.result)
       asked.onerror = () => reject(asked.error)
@@ -111,30 +152,32 @@ export function registry(indexedDB = globalThis.indexedDB) {
     list: () => kept('daemons', 'readonly', (store, done) => asked(store.getAll(), done)),
 
     /** Keeps a new remote daemon, refusing a name already kept. @param {import('./client.js').DaemonEntry} entry */
-    async add({ name, id, routes }) {
+    async add({ name, id, routes, ice = [] }) {
       named(name)
       routed(routes)
+      iced(ice)
       return kept('daemons', 'readwrite', (store, done, refuse) =>
         asked(store.get(name), (got) => {
           if (got) refuse(new Error(`There is already a daemon ${name}.`))
-          else asked(store.add({ name, id: id ?? '', routes: [...routes] }), done)
+          else asked(store.add(entered({ name, id: id ?? '', routes: [...routes], ice })), done)
         }),
       )
     },
 
     /**
-     * Changes a remote daemon: its id, its routes, or its name.
+     * Changes a remote daemon: its id, its routes, its STUN and TURN servers, or its name.
      *
      * @param {string} name
-     * @param {{name?: string, id?: string, routes?: string[]}} changes
+     * @param {{name?: string, id?: string, routes?: string[], ice?: RTCIceServer[]}} changes
      */
     async update(name, changes) {
       if (changes.name !== undefined) named(changes.name)
       if (changes.routes !== undefined) routed(changes.routes)
+      if (changes.ice !== undefined) iced(changes.ice)
       return kept('daemons', 'readwrite', (store, done, refuse) =>
         asked(store.get(name), (got) => {
           if (!got) return refuse(new Error(`There is no daemon ${name}.`))
-          const now = { ...got, ...changes }
+          const now = entered({ ...got, ...changes })
           const put = () => {
             if (now.name !== name) store.delete(name)
             asked(store.put(now), done)
@@ -147,12 +190,6 @@ export function registry(indexedDB = globalThis.indexedDB) {
 
     /** Forgets how to reach a remote daemon. @param {string} name */
     remove: (name) => kept('daemons', 'readwrite', (store, done) => asked(store.delete(name), done)),
-
-    /** The STUN and TURN servers WebRTC uses. @returns {Promise<RTCIceServer[]>} */
-    iceServers: () => kept('keys', 'readonly', (store, done) => asked(store.get('ice'), (got) => done(got ?? []))),
-
-    /** Keeps the STUN and TURN servers WebRTC uses. @param {RTCIceServer[]} servers */
-    setIceServers: (servers) => kept('keys', 'readwrite', (store, done) => asked(store.put(servers, 'ice'), done)),
 
     /**
      * The browser's DTLS certificate: the one kept until it expires, else one made with `make`
@@ -212,19 +249,21 @@ export function parsePairing(code) {
  * code's routes pinning the code's id, claims the code as `device`, and keeps the daemon as
  * `name` only once the claim succeeds. A P2P daemon's is claimed over `first`, its `easytier:`
  * route as this machine names it, in place of the code's own (Section 3.13.6 of protocol/web.md).
+ * It is reached with `ice`, the STUN and TURN servers it is then kept with (Section 3.13.21).
  *
  * @param {ReturnType<typeof registry>} store
- * @param {{name: string, code: string, device: string, first?: string}} asked `device` the name
- *   this browser is paired as.
+ * @param {{name: string, code: string, device: string, first?: string, ice?: RTCIceServer[]}} asked
+ *   `device` the name this browser is paired as.
  * @param {import('./client.js').Provider[]} providers
  * @param {{name: string, kind: string}} [client] As `session.hello` says it.
  * @returns {Promise<import('./client.js').DaemonEntry>}
  */
-export async function claim(store, { name, code, device, first }, providers, client = { name: '', kind: 'web' }) {
+export async function claim(store, { name, code, device, first, ice = [] }, providers, client = { name: '', kind: 'web' }) {
   named(name)
+  iced(ice)
   const { id, routes, token } = parsePairing(code)
   if ((await store.list()).some((one) => one.name === name)) throw new Error(`There is already a daemon ${name}.`)
-  const entry = { name, id, routes: first ? [first, ...routes.filter((one) => routeKind(one) !== routeKind(first))] : routes }
+  const entry = entered({ name, id, routes: first ? [first, ...routes.filter((one) => routeKind(one) !== routeKind(first))] : routes, ice })
   const session = await reach(entry, providers, { client })
   try {
     await session.peer.call('pair.claim', { token, name: device })

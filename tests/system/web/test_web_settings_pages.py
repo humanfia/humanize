@@ -84,6 +84,10 @@ def test_a_daemon_is_removed_once_confirmed(project: Path, engine: str) -> None:
         kept(page, _BOX)
         go(page, "/settings/daemons")
         row = page.locator("[data-hmz=daemon][data-name=box]")
+        # Local's devices, listed over it, are read: nothing over it is still to be drawn.
+        expect(
+            page.locator("[data-hmz=daemon-devices][data-name=local] .loading")
+        ).to_have_count(0)
         # Its button stays as it is, and asks by itself: nothing beside it moves.
         remove = row.locator("button[aria-haspopup=dialog]")
         expect(remove).to_have_text("Remove")

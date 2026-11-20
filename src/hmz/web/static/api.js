@@ -13,11 +13,11 @@ const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
 /** What this page is to a daemon, as `session.hello` says it. */
 const CLIENT = { name: '', kind: DESKTOP ? 'desktop' : 'web' }
 
-/** The remote daemons this browser keeps, and its WebRTC certificate and ICE servers. */
+/** The remote daemons this browser keeps, each with its STUN and TURN servers, and its WebRTC certificate. */
 export const daemons = registry()
 
 /** What opens a carrier for the page: the server's `/rpc` and `/dial`, or the app's pipes; and WebRTC. */
-export const providers = [DESKTOP ? tauri() : bridge(), webrtc({ certificate: () => daemons.certificate(), iceServers: () => daemons.iceServers() })]
+export const providers = [DESKTOP ? tauri() : bridge(), webrtc({ certificate: () => daemons.certificate() })]
 
 /** The daemon the address names, or '' where it names none. */
 function named(address) {
@@ -175,12 +175,13 @@ export function kindOf(entry) {
 /**
  * Adds a daemon from a pairing code, claiming it at once (Section 3.13.4 of protocol/web.md), as
  * the machine the page is served from is called; a P2P daemon over `first`, its `easytier:` route
- * (Section 3.13.6).
+ * (Section 3.13.6); reached with, and then kept with, `ice`, its STUN and TURN servers (Section
+ * 3.13.21).
  */
-export async function pair(name, code, first) {
+export async function pair(name, code, first, ice = []) {
   const device = (await hello('local').catch(() => null))?.machine || 'browser'
   try {
-    return await claim(daemons, { name, code, device, first }, providers, CLIENT)
+    return await claim(daemons, { name, code, device, first, ice }, providers, CLIENT)
   } catch (error) {
     throw refused(error, name)
   }
