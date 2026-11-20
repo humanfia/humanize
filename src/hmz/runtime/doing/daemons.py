@@ -130,10 +130,7 @@ def carried(hmz: Any, pages: Sequence[str]) -> list[tuple[str, dict[str, Any]]]:
     settings = hmz.settings
     sent: list[tuple[str, dict[str, Any]]] = []
     if "general" in pages:
-        general: dict[str, Any] = {
-            "ai_chan": settings.ai_chan,
-            "details": settings.details,
-        }
+        general: dict[str, Any] = {"details": settings.details}
         if settings.enable_sentry is not None:
             general["reports"] = settings.enable_sentry
         sent.append(("settings.set", general))

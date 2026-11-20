@@ -297,6 +297,8 @@ def test_conversations_are_numbered_kept_and_forgotten(kept: Conversations) -> N
     assert (first["id"], second["id"]) == (1, 2)
     assert first["record"] == ""
     assert first["created"].endswith("Z")
+    # Made is the last that was said in it, until something is.
+    assert first["updated"] == first["created"]
     assert kept.scratch(1).is_dir()
     assert (kept.at / "conversations.yaml").stat().st_mode & 0o777 == 0o600
     assert kept.of("ai:2") == second
@@ -390,41 +392,94 @@ def test_her_host_has_her_chat_anew_then_carried_on(
     assert (said["task"], said["resume"]) == ("", "/e/20260101-chat")
 
 
-def test_her_conversation_is_named_by_the_chat_its_host_writes(
-    kept: Conversations,
-) -> None:
+def _followed(kept: Conversations, statuses: list[dict[str, Any]]) -> dict[str, Any]:
+    """A conversation as its entry stands once its host said each of `statuses` and went."""
     links = Links(mock.Mock(), mock.Mock())
     links.kept = kept
-    kept.made(
-        {
-            "slot": "ai:1",
-            "scope": "daemon",
-            "workspace": "/w",
-            "epic": "",
-            "nous": "claude/opus",
-            "preset": "read-only",
-            "network": False,
-        }
-    )
-    links.tasks["ai:1"] = "hi"
+    if kept.of("ai:1") is None:
+        kept.made(
+            {
+                "slot": "ai:1",
+                "scope": "daemon",
+                "workspace": "/w",
+                "epic": "",
+                "nous": "claude/opus",
+                "preset": "read-only",
+                "network": False,
+                "latest": "hi",
+            }
+        )
+        links.tasks["ai:1"] = "hi"
     hosted = mock.Mock(slot="ai:1")
     hosted.peer.closed = False
     hosted.chat.return_value = {"ok": True}
-    # Her host names no epic: she is kept as a chat is, and says which by `chat`.
-    hosted.status.side_effect = [
-        {"epic": "", "chat": ""},
-        {"epic": "", "chat": "20260101-hers"},
-    ]
+    left = list(statuses)
+
+    def status() -> dict[str, Any]:
+        said = left.pop(0)
+        # Its host goes once it has said the last of them.
+        hosted.peer.closed = not left
+        return said
+
+    hosted.status.side_effect = status
 
     links.after(hosted)
 
     for one in threading.enumerate():
         if one.name == "hmz-ai-epic":
             one.join(10)
+    assert not left
     conversation = kept.of("ai:1")
     assert conversation is not None
+    return conversation
+
+
+def test_her_conversation_is_named_by_the_chat_its_host_writes(
+    kept: Conversations,
+) -> None:
+    # Her host names no epic: she is kept as a chat is, and says which by `chat`.
+    conversation = _followed(
+        kept, [{"epic": "", "chat": ""}, {"epic": "", "chat": "20260101-hers"}]
+    )
+
     assert conversation["record"] == "20260101-hers"
     assert kept.epics() == {"20260101-hers"}
+
+
+def test_what_she_last_answered_is_written_down_as_she_answers_it(
+    kept: Conversations, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(reaching, "_FOLLOWING", 0)
+    monkeypatch.setattr(reaching, "epic_at", "/e/{}".format)
+    stamps = iter(["t0", "t1", "t2", "t3"])
+    monkeypatch.setattr(reaching.where, "now", lambda: next(stamps))
+    listening = {"mode": "listen", "text": "All  three epics\nare done. " + "x" * 200}
+
+    conversation = _followed(
+        kept,
+        [
+            # Her turn open: nothing she said yet, and what it was made with stays.
+            {"chat": "c", "pending": []},
+            # What she asks mid-turn is no answer of hers.
+            {"chat": "c", "pending": [{"mode": "ask", "text": "Which one?"}]},
+            {"chat": "c", "pending": [listening]},
+            # Said again, it is written once.
+            {"chat": "c", "pending": [listening]},
+        ],
+    )
+
+    assert conversation["record"] == "c"
+    assert (conversation["created"], conversation["updated"]) == ("t0", "t1")
+    assert conversation["latest"] == ("All three epics are done. " + "x" * 200)[:120]
+
+    # Carried on, her host waits on what she answered last: nothing new was said.
+    again = _followed(kept, [{"chat": "c", "pending": [listening]}])
+    assert again["updated"] == "t1"
+    # And her next answer is the latest from then on.
+    after = _followed(
+        kept, [{"chat": "c", "pending": [{"mode": "listen", "text": "Done."}]}]
+    )
+    assert (after["latest"], after["updated"]) == ("Done.", "t2")
 
 
 def test_what_a_reach_names_is_a_chat_or_an_epic_by_its_name(

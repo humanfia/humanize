@@ -80,6 +80,13 @@ PRESETS = ("read-only", "danger-full-access")
 #: How often the host of a conversation is asked whether it has named its epic yet.
 _NAMING = 0.2
 
+#: How often a conversation's host is asked what was last said in it, once it is named, in
+#: seconds.
+_FOLLOWING = 1.0
+
+#: How much of what was last said in a conversation is kept as its `latest`, in characters.
+_LATEST = 120
+
 #: How often a scoped link looks at whether it has been closed.
 _TICK = 0.5
 
@@ -392,6 +399,28 @@ def epic_at(name: str) -> Path | None:
     return next((at for at in (*chats(), *every()) if at.name == name), None)
 
 
+def preview(text: object) -> str:
+    """What a conversation's `latest` is of something said in it: one line, cut short.
+
+    Its whitespace made single spaces, and cut at 120 characters (Section 4.22.3.1 of
+    daemon.md).
+    """
+    return " ".join(str(text or "").split())[:_LATEST]
+
+
+def heard(status: Mapping[str, Any]) -> str:
+    """What Ai-chan last answered, as her host says it: what it waits between turns on, or ""."""
+    pending = cast("list[dict[str, Any]]", status.get("pending") or [])
+    return next(
+        (
+            preview(one.get("text"))
+            for one in reversed(pending)
+            if one.get("mode") == "listen"
+        ),
+        "",
+    )
+
+
 class Conversations:
     """Every Ai-chan conversation not forgotten, as `conversations.yaml` keeps them.
 
@@ -443,16 +472,18 @@ class Conversations:
         """Records a new conversation, its `id` the next, and makes its scratch directory.
 
         Args:
-          said: Every key of its entry but `id`, `record` and `created`.
+          said: Every key of its entry but `id`, `record`, `created` and `updated`.
         """
         with self._lock:
             held = self.all()
             ident = max((int(one["id"]) for one in held), default=0) + 1
+            now = where.now()
             made = {
                 "id": ident,
                 **said,
                 "record": "",
-                "created": where.now(),
+                "created": now,
+                "updated": now,
             }
             self._writes([*held, made])
             self.scratch(ident).mkdir(mode=0o700, exist_ok=True)
@@ -576,7 +607,8 @@ class Links:
         """Starts the chat of a conversation's host, which has just come up (Section 4.22.5).
 
         Anew, its task the first message, the first time; carrying it on every later time.
-        Its name is written down once the host has named it.
+        Its name is written down once the host has named it, and what she last answered as
+        she answers it, for as long as the host is up.
 
         Raises:
           RpcError: 404 where the conversation was forgotten, and 409 where the host refused.
@@ -623,23 +655,45 @@ class Links:
         self.tasks.pop(hosted.slot, None)
         if not answer.get("ok"):
             raise RpcError(Code.CONFLICT, str(answer.get("why") or "refused"))
-        if picked is None:
-            threading.Thread(
-                target=self._names,
-                args=(hosted, int(conversation["id"])),
-                name="hmz-ai-epic",
-                daemon=True,
-            ).start()
+        threading.Thread(
+            target=self._follows,
+            args=(hosted, conversation),
+            kwargs={"named": bool(picked)},
+            name="hmz-ai-epic",
+            daemon=True,
+        ).start()
 
-    def _names(self, hosted: Hosted, ident: int) -> None:
-        """Writes down what a conversation's host writes it in, once it has named it."""
+    def _follows(
+        self, hosted: Hosted, conversation: Mapping[str, Any], *, named: bool
+    ) -> None:
+        """Writes down what a conversation's host says of it, until that host goes.
+
+        What it writes it in, once it has named it, and what Ai-chan last answered with when
+        she did, each time she has (Section 4.16.2 of files.md): what `aichan.list` says of a
+        conversation no host holds.
+
+        Args:
+          hosted: Its host.
+          conversation: Its entry, as the host came up.
+          named: Whether its entry names what it is written in already.
+        """
+        ident = int(conversation["id"])
+        # What its host waits on as it comes up, carried on, is what was written already.
+        latest = str(conversation.get("latest") or "")
         while hosted.peer is not None and not hosted.peer.closed:
             status = hosted.status()
+            said: dict[str, Any] = {}
             epic = str(status.get("chat") or status.get("epic") or "")
-            if epic:
-                self.kept.changed(ident, record=epic)
-                return
-            time.sleep(_NAMING)
+            if not named and epic:
+                said["record"] = epic
+                named = True
+            answered = heard(status)
+            if answered and answered != latest:
+                latest = answered
+                said |= {"latest": answered, "updated": where.now()}
+            if said:
+                self.kept.changed(ident, **said)
+            time.sleep(_FOLLOWING if named else _NAMING)
 
     def went(self, slot: str) -> None:
         """Stops listening on a slot's scoped link, and closes every session over it."""

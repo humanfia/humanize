@@ -94,7 +94,7 @@ def test_the_daemon_picked_is_the_one_read_and_written(
         expect(picker).to_have_value("local")
 
         picker.select_option("gpu")
-        expect(page.locator("[data-hmz=ai-chan-nous]")).to_be_visible()
+        expect(page.locator("[data-hmz=harness-sessions]")).to_be_visible()
         assert "daemon=gpu" in page.url
         expect(page.locator(".settings-nav a", has_text="Backup")).to_have_attribute(
             "href", "#/settings/backup?daemon=gpu"

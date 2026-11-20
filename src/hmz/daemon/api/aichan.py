@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.daemon import where
-from hmz.daemon.reach import PRESETS, ROLE, SCOPES, ran_in
+from hmz.daemon.reach import PRESETS, ROLE, SCOPES, preview, ran_in
 from hmz.rpc import Code, RpcError
 
 if TYPE_CHECKING:
@@ -47,10 +47,10 @@ def _refused(message: str) -> RpcError:
 
 
 def _nous(said: object) -> str:
-    """The nous a conversation is made with: the one given, or the `ai_chan` setting's.
+    """The nous a conversation is made with: the one given, or the one last used, `ai_chan`.
 
     Raises:
-      RpcError: 400 where none is given or set, or it names no agent.
+      RpcError: 400 where none is given or was used yet, or it names no agent.
     """
     from hmz.runtime import Hmz
     from hmz.runtime.flowing import parse_agents
@@ -89,6 +89,7 @@ def _checked(params: Mapping[str, Any]) -> tuple[str, str, str]:
 
 def _create(router: Router, call: Call) -> dict[str, Any]:
     from hmz.daemon.methods import workspace as placed
+    from hmz.runtime import Hmz
 
     params = call.params
     scope, workspace, epic = _checked(params)
@@ -119,6 +120,8 @@ def _create(router: Router, call: Call) -> dict[str, Any]:
             "preset": preset,
             "network": params.get("network") is True,
             "slot": slot,
+            # What was last said in it is, until she answers, what it was made with.
+            "latest": preview(task),
         }
     )
     links.tasks[slot] = task
@@ -128,6 +131,10 @@ def _create(router: Router, call: Call) -> dict[str, Any]:
         links.tasks.pop(slot, None)
         links.kept.forgot(made["id"])
         raise
+    # Her host took the start: its nous is the one the next conversation is offered.
+    settings = Hmz(Path.home()).settings
+    if settings.ai_chan != nous:
+        settings.ai_chan = nous
     return {"id": made["id"], "workspace": workspace, "slot": slot}
 
 
@@ -147,12 +154,51 @@ def _state(router: Router, conversation: Mapping[str, Any]) -> str:
     )
 
 
+def _said(router: Router, conversation: dict[str, Any]) -> dict[str, Any]:
+    """What was last said in a conversation, and when: its `latest` and its `updated`.
+
+    As its entry keeps them. One an earlier hmz made kept neither: what its chat last said
+    is read out of its record, once, and written down with when it was made.
+    """
+    if "latest" not in conversation:
+        said = {
+            "latest": _recorded(str(conversation.get("record") or "")),
+            "updated": conversation.get("created"),
+        }
+        router.links.kept.changed(int(conversation["id"]), **said)
+        conversation |= said
+    return {
+        "latest": str(conversation["latest"] or ""),
+        "updated": conversation.get("updated") or conversation.get("created"),
+    }
+
+
+def _recorded(record: str) -> str:
+    """The last thing a chat's assistant said, read out of its record, or its task; "" for none."""
+    from hmz.daemon.api.chats import CHATS
+
+    if not record:
+        return ""
+    try:
+        ran = CHATS.named(record)
+        said = [
+            (float(action.get("start") or 0), str(action["args"].get("text") or ""))
+            for session in CHATS.traced(ran)
+            for action in cast("list[dict[str, Any]]", session["actions"])
+            if action.get("category") == "message"
+        ]
+    except Exception:  # noqa: BLE001 -- a record that cannot be read says nothing
+        return ""
+    return preview(max(said)[1] if said else ran.task)
+
+
 def _list(router: Router, call: Call) -> dict[str, Any]:
     del call
     return {
         "conversations": [
             {key: one.get(key) for key in _LISTED}
             | {"state": _state(router, one), "created": one.get("created")}
+            | _said(router, one)
             for one in reversed(router.links.kept.all())
         ]
     }

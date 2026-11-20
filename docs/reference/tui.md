@@ -632,7 +632,7 @@ where it is one, else on the view being read:
 | Menu | `/ai` lists **New**, then every conversation `aichan.list` answers, newest first: `Ai-chan#<n> · <title>`, and beside it its scope (`daemon`, `workspace <dir>`, `epic <name>`), nous, preset, `network on\|off`, and `answering`, `between turns` or `folded away`. |
 | Carrying one on | `enter` on a conversation follows its host (`epic.attach` on its `ai:` slot), which carries on one that folded away. |
 | Forgetting one | `m` on a conversation offers **forget**, which asks `Forget Ai-chan#<n>?` and then calls `aichan.forget`. |
-| New | A form: **scope** ▾ (`epic`, of the epic going or last on this directory's host, where there is one, else `workspace`, of this directory; or `daemon`), **nous** ▾ (every nous `nous.list` answers, written as `-a` spells an agent where there is none; defaulting to the `ai_chan` setting of the [General page](#general-page); required), **preset** ▾ (`read-only`, `danger-full-access`), **network** ▾ (`off`, `on`). **Done** leaves the menu, prints `Ai-chan: the next line you say starts the conversation; /clear to drop it`, and the next line said is the task of `aichan.create`; its conversation is then followed. A refusal is `hmz: /ai: <why>`. |
+| New | A form: **scope** ▾ (`epic`, of the epic going or last on this directory's host, where there is one, else `workspace`, of this directory; or `daemon`), **nous** ▾ (every nous `nous.list` answers, written as `-a` spells an agent where there is none; defaulting to the nous the last conversation was made with, the [`ai_chan` setting](/reference/settings#ai-chan); required), **preset** ▾ (`read-only`, `danger-full-access`), **network** ▾ (`off`, `on`). **Done** leaves the menu, prints `Ai-chan: the next line you say starts the conversation; /clear to drop it`, and the next line said is the task of `aichan.create`; its conversation is then followed. A refusal is `hmz: /ai: <why>`. |
 | Drawn | As a [chat](#chat), with `Ai-chan#<n> · <scope>` (a workspace by its last part) at the front of the [status line](#status-left). Every tool she calls is shown as a tool line, [details](#general-page) on or off. |
 | Lines | A line said is her next turn. `/stop` interrupts her open turn, leaving the conversation between turns. `/btw` is refused. |
 | Leaving | [`/clear`](#clear-command) leaves her to her host and follows this directory's own host again. |
@@ -1616,7 +1616,6 @@ in this order, under the heading in the first column.
 | Heading | Row | Values (description) | Default | Stored as |
 | --- | --- | --- | --- | --- |
 | Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
-| Agents | **Ai-chan** ▾ `the nous a new Ai-chan conversation defaults to` | `none` (`ask for one each time`), the current choice (`chosen`), each nous (`a nous`), `another…` (`set an agent up`: the [agent sheet](#what-each-agent-is) titled `Set up Ai-chan`) | none | `ai_chan` (a nous's name or `cli[@account]/model:effort`); takes effect on the next [Ai-chan conversation](#ai-chan) made |
 | Chat | **Chat prefers for $** ▾ `what $<name> starts in a chat where a native skill and a flow share it` | `native` (`the harness's own skill of that name`), `flow` (`the flow of that name; the skill stays $ in the harness`) | native | `chat.prefer` |
 | Privacy | **Error reports** ▾ `send error reports to Humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
 | Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
@@ -2359,7 +2358,7 @@ and when the width changes. The status line says `· copied` for 2 s.
 | --- | --- | --- |
 | `enable_sentry` | machine | Error reports, the first-start question |
 | `details` | machine | Details |
-| `ai_chan` | machine | Ai-chan |
+| `ai_chan` | machine | making an [Ai-chan conversation](#ai-chan): the nous it was made with |
 | `chat.prefer` | machine | Chat prefers for `$` |
 | `workspaces.<dir>.chat.agent` | directory | starting a chat, `/model` or `/effort` in one, Chat agent |
 | `backup` | machine | the Backup page |

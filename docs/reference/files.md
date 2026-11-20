@@ -107,7 +107,7 @@ workspace of every conversation of the scope `daemon`.
 | Property | Value |
 | --- | --- |
 | Mode | `0700`, and `0700` for each `<id>/` |
-| `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the name of the conversation's own [chat](#chats), `""` before it has one; one an earlier Humanize began as an epic keeps the name that epic had), `created` (UTC). Mode `0600`, replaced atomically, written by the daemon alone |
+| `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the name of the conversation's own [chat](#chats), `""` before it has one; one an earlier Humanize began as an epic keeps the name that epic had), `created` (UTC), `latest` (what was last said in it, cut short) and `updated` (UTC, when that was said), which an entry an earlier Humanize wrote lacks until [`aichan.list`](/reference/daemon#aichan-methods) writes them. Mode `0600`, replaced atomically, written by the daemon alone |
 | `forgotten.yaml` | a YAML list of the `record` of each conversation forgotten, in the order forgotten, which keeps each off every list of chats and of epics. Mode `0600`, replaced atomically, written by the daemon alone |
 | `<id>/` | that conversation's scratch directory, where her CLI works; made with the conversation |
 | Removed | an entry and its `<id>/` by `aichan.forget`, never what its `record` names; the whole of `H/ai/` by you, while no daemon of this home runs, forgets every conversation, and the chat of each is then listed as any other |

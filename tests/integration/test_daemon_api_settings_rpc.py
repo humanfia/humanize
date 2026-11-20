@@ -127,11 +127,14 @@ def test_settings_are_written_read_back_and_never_echo_a_secret(
     }
     turn = {"urls": ["turn:t.lab:3478"], "username": "me", "credential": _TURN}
 
+    # Not a setting to set: the nous Ai-chan last used is written by `aichan.create`.
+    with pytest.raises(RpcError, match=r"settings\.set takes no ai_chan\."):
+        _call(client, "settings.set", workspace=workspace, ai_chan="claude/opus")
+
     said = _call(
         client,
         "settings.set",
         workspace=workspace,
-        ai_chan="claude/opus",
         details=True,
         reports=False,
         backup={"targets": [{"name": "t", "url": "https://me:pw@x.lab/e.git"}]},
@@ -141,11 +144,8 @@ def test_settings_are_written_read_back_and_never_echo_a_secret(
     )
 
     file = _file()
-    assert (file["ai_chan"], file["details"], file["enable_sentry"]) == (
-        "claude/opus",
-        True,
-        False,
-    )
+    assert "ai_chan" not in file
+    assert (file["details"], file["enable_sentry"]) == (True, False)
     assert file["listen"] == ["tcp://127.0.0.1:0", "easytier:lab"]
     assert file["ice_servers"] == [turn]
     assert file["easytier"]["lab"]["secret"] == _SECRET

@@ -12,8 +12,8 @@ steer a session, or run the tests in an epic's environment.
 - **Use it when** a question spans several epics, or a job is easier said than clicked:
   "summarize what my epics did today", "tell the actor to stop refactoring", "run the tests in
   the env of epic X".
-- **You need** an agent for her to think with, chosen as **Ai-chan** on the
-  [General page of the settings](/user/settings#general) or when you open her.
+- **You need** an agent for her to think with, chosen when you open her: a new conversation
+  starts on the one you used last.
 :::
 
 <style>
@@ -46,7 +46,7 @@ as it was.
 | | What it is | Choices | Default |
 | --- | --- | --- | --- |
 | **Scope** | what she may reach | `epic`: one epic, and the directory it ran in · `workspace`: one directory and every epic run there · `daemon`: every directory and every epic on this machine's daemon | the epic you are looking at, else the directory, else the daemon |
-| **Nous** | what she thinks with | any [nous](/user/settings#nous), or an agent: a CLI, an account, a model and an effort | the **Ai-chan** setting |
+| **Nous** | what she thinks with | any [nous](/user/settings#nous), or an agent: a CLI, an account, a model and an effort | the one the last conversation was made with |
 | **Permission** | what she may change | a **preset**, `read-only` or `danger-full-access`, and **network**, off or on | `read-only`, network off |
 
 What she may do follows from the preset, and from the scope reaching what she acts on:
@@ -212,8 +212,8 @@ unless you mean it.
 
 ### `Name Ai-chan's nous: the ai_chan setting names none.` {#no-nous}
 
-No nous was given, and the **Ai-chan** setting names none. Pick one on the form, or set
-**Ai-chan** on the [General page](/user/settings#general).
+No nous was given, and no conversation was made on this machine yet for a new one to take
+its nous from. Pick one on the form: the next conversation starts on it.
 
 ### `Tell Ai-chan something to start with.`
 
@@ -249,6 +249,6 @@ directory, or `daemon`.
 - [Side questions (`/btw`)](/user/btw): ask one session of an epic, read-only, without the
   epic hearing it.
 - [Talking to a running turn](/user/steering): say something to an agent yourself.
-- [Settings](/user/settings#general): the nous a new conversation thinks with.
+- [Nous](/user/settings#nous): what she can think with.
 - [TUI reference](/reference/tui#ai-chan): `/ai`, its menu and its form.
 - [Daemon reference](/reference/daemon#ai-chan): every method she may call, and what refuses it.

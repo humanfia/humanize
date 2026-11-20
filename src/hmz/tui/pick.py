@@ -11571,8 +11571,6 @@ class Adjusted(NamedTuple):
       forget: Whether to forget what this workspace was set up to run.
       told: What the pages that write for themselves -- the accounts, the runtimes and the
         nous -- did, as lines for the transcript.
-      ai_chan: The nous a new Ai-chan conversation defaults to, as a nous's name or an agent
-        spec, or "" for none, or None where that was not touched.
       corrected: The accounts corrected, as `(cli, name)`, whose models are to be asked for
         again: what an account runs follows from where it signs in, and a gateway moved is a
         list of models from the one it left.
@@ -11582,7 +11580,6 @@ class Adjusted(NamedTuple):
     details: bool | None = None
     forget: bool = False
     told: tuple[str, ...] = ()
-    ai_chan: str | None = None
     corrected: tuple[tuple[str, str], ...] = ()
 
 
@@ -13827,7 +13824,8 @@ class AiChanNew(Form[AiAsked]):
           nouses: Every nous, by name, as `nous.list` answers them.
           workspace: The workspace this interface follows.
           epic: The epic going or last on the host this interface follows, or "" for none.
-          nous: The `ai_chan` setting, or "" where it names none.
+          nous: The nous the last conversation was made with, the `ai_chan` setting, or ""
+            where none was made yet.
         """
         super().__init__()
         self._workspace, self._epic = workspace, epic
@@ -13851,7 +13849,6 @@ class AiChanNew(Form[AiAsked]):
             Question(
                 _AI_NOUS,
                 "nous",
-                # An agent of its own is set up as the `ai_chan` setting, on /settings.
                 "what Ai-chan thinks with"
                 if self._nouses
                 else "what Ai-chan thinks with, as -a spells an agent",

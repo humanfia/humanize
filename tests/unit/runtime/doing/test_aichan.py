@@ -15,7 +15,6 @@ import pytest
 import hmz
 from hmz.flows import Access, HarnessSandboxed
 from hmz.runtime.doing import aichan
-from hmz.runtime.flowing import parse_agents
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -192,7 +191,7 @@ def test_a_refusal_is_the_tool_failing(client: mock.Mock) -> None:
     )
 
     with pytest.raises(Refused, match="read-only"):
-        use(client, "settings_set", values={"ai_chan": "claude"})
+        use(client, "settings_set", values={"details": True})
 
 
 def test_epics_are_listed_in_her_workspace_where_none_is_named(
@@ -306,7 +305,7 @@ def test_the_methods_listed_are_those_she_may_be_able_to_call(
     assert said[0]["params"] == {"limit": {"type": "integer"}}
 
 
-def test_the_setting_she_is_shown_to_write_is_one_a_conversation_can_start_on(
+def test_the_setting_she_is_shown_to_write_is_one_settings_set_takes(
     client: mock.Mock,
 ) -> None:
     tools, _ = aichan.offered(aichan.Link("/w", lambda: client))
@@ -316,9 +315,8 @@ def test_the_setting_she_is_shown_to_write_is_one_a_conversation_can_start_on(
     shown = re.search(r"\{.*\}", told)
     assert shown is not None
 
-    (spec,) = parse_agents([f"ai_chan={json.loads(shown.group())['ai_chan']}"])
-
-    assert spec.model
+    # Not the nous she was last made with, `ai_chan`, which only making her writes.
+    assert json.loads(shown.group()) == {"details": True}
 
 
 def test_a_long_answer_is_cut_and_says_so(client: mock.Mock) -> None:

@@ -443,6 +443,8 @@ def test_a_conversation_is_made_only_as_said(workspace: tuple[Path, Path]) -> No
             scope="epic", workspace=str(project), epic="none", nous=AGENT
         ) == (f"404 There is no epic none in {where.workspace(project)}.")
         assert user.call("aichan.list", {}, timeout=30) == {"conversations": []}
+        # None was made: no nous is remembered as the one last used.
+        assert user.call("settings.get", {}, timeout=30)["ai_chan"] == ""
 
         # A daemon scope lives in the daemon's own directory under the home.
         made = user.call(
@@ -451,6 +453,16 @@ def test_a_conversation_is_made_only_as_said(workspace: tuple[Path, Path]) -> No
             timeout=60,
         )
         assert "/humanize-home/ai/" in made["workspace"]
+        # Its nous is the one the next conversation is made with, where it names none.
+        assert user.call("settings.get", {}, timeout=30)["ai_chan"] == AGENT
+        (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        assert (listed["latest"], listed["updated"]) == ("hi", listed["created"])
+        again = user.call("aichan.create", {"scope": "daemon", "task": "x"}, timeout=60)
+        assert [
+            one["nous"]
+            for one in user.call("aichan.list", {}, timeout=30)["conversations"]
+        ] == [AGENT, AGENT]
+        user.call("aichan.forget", {"id": again["id"]}, timeout=30)
         with pytest.raises(RpcError, match="There is no Ai-chan conversation ai:0"):
             user.call(
                 "hosts.open",

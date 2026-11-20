@@ -110,7 +110,7 @@ straight into the one named, and the word is offered as you type it:
 
 | Page | `/settings …` | What it holds |
 | --- | --- | --- |
-| [**General**](#general) | `general` | whether the screen [shows the working](#details), what [Ai-chan](/user/ai-chan) thinks with by default, and whether Humanize reports what goes wrong |
+| [**General**](#general) | `general` | whether the screen [shows the working](#details), what `$` means in a chat, and whether Humanize reports what goes wrong |
 | [**Notifications**](#notifications) | `notifications` | which epics on this machine you are told of, and whether the terminal's bell and your system tell you too |
 | [**Daemons**](#daemons) | `daemons` | this machine's daemon and other machines', reached over ssh or EasyTier, and how each stands |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
@@ -211,7 +211,7 @@ switch on [Details](#details), so every tool call and every line of thinking sho
 
   <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
   <span class="sel"> ⚙  <b>General</b>                                    details off · reports off </span> <span class="n">1</span>
-     <span class="m">this machine: details, Ai-chan's nous, chat $, error reports</span>
+     <span class="m">this machine: what epics show, chat $, error reports</span>
    ────────────────────────────────────────────────────────────────────────
    ◉  <b>Accounts</b>                                                0 accounts
      <span class="m">what agents sign in as, under each CLI</span>
@@ -248,9 +248,9 @@ switch on [Details](#details), so every tool call and every line of thinking sho
   <span class="sel"> <b>Details</b>                                                         ○ off ▾ </span> <span class="n">3</span>
      <span class="m">show every tool call and all of the thinking</span>
                                       <span class="p">╭─ Details ────────────────────────╮</span>
-   <span class="p">Agents</span>                             <span class="p">│</span><span class="sel"> on  show tool calls and thinking </span><span class="p">│</span> <span class="n">4</span>
-   <b>Ai-chan</b>                            <span class="p">│</span> off ✔  show turn responses only  <span class="p">│</span>
-     <span class="m">the nous a new conversation</span>     <span class="p">╰──────────────────────────────────╯</span>
+   <span class="p">Chat</span>                               <span class="p">│</span><span class="sel"> on  show tool calls and thinking </span><span class="p">│</span> <span class="n">4</span>
+   <b>Chat prefers for $</b>                 <span class="p">│</span> off ✔  show turn responses only  <span class="p">│</span>
+     <span class="m">what $&lt;name&gt; starts in a</span>        <span class="p">╰──────────────────────────────────╯</span>
 
    <span class="p">Privacy</span>
    <b>Error reports</b>                                               <span class="m">○ off ▾</span>
@@ -316,7 +316,6 @@ about.
 | Heading | Row | What it is |
 | --- | --- | --- |
 | Display | Details | whether the screen [shows the working](#details): every tool call and all of the thinking |
-| Agents | Ai-chan | the nous a new conversation with [Ai-chan](/user/ai-chan) thinks with unless you pick another: `none`, the one you chose, another [nous](#nous), or `another…`, which chooses its CLI, account, model and effort. With `none`, each new conversation asks for one. It takes effect from the next conversation made; one already made keeps its own. |
 | Chat | Chat prefers for $ | what `$<name>` in a chat starts where the chat's agent has a skill of that name and a flow is called it too: `native`, the skill (the default), or `flow`, the flow. A chat can say otherwise for itself with `/prefer`. |
 | Chat | Harness sessions | whether `/resume` in a chat also lists the [sessions each CLI had of its own](/user/chat#harness-sessions) in this directory, to continue as chats. Off by default. The same setting as **Settings › General › Harness sessions** in `hmz web`. |
 | Privacy | Error reports | whether Humanize [reports what goes wrong](/user/reporting) to its developers |

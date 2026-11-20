@@ -6917,12 +6917,6 @@
           }
         },
         {
-          "name": "ai_chan",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
           "name": "details",
           "schema": {
             "type": "boolean"
@@ -10889,7 +10883,9 @@
           "network",
           "slot",
           "state",
-          "created"
+          "created",
+          "latest",
+          "updated"
         ],
         "properties": {
           "id": {
@@ -10935,6 +10931,13 @@
             ]
           },
           "created": {
+            "type": "string"
+          },
+          "latest": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "updated": {
             "type": "string"
           }
         }

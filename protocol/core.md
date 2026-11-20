@@ -4989,9 +4989,10 @@ harness works (Section 4.16 of [FILES]).
 of which MUST change while the conversation lasts; to change one, the user makes another
 conversation.
 
-**14.3.2** The nous of a conversation MUST default to the `ai_chan` setting (Section 3.4.3 of
-[FILES]); where that setting names none, a frontend MUST ask the user for one and MUST NOT make the
-conversation without one.
+**14.3.2** A frontend MUST let the user pick the nous of a conversation as it is made, and the
+nous MUST default to the one the last conversation was made with, the `ai_chan` setting (Section
+3.4.3 of [FILES]); where that setting names none, a frontend MUST ask the user for one and MUST NOT
+make the conversation without one.
 
 **14.3.3** The preset MUST default to `read-only`, and the network to off.
 

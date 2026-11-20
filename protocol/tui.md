@@ -556,7 +556,8 @@ has folded away (Section 14.8.5 of [CORE]), and MUST draw it as Section 7.19.6 s
 **7.19.3** **New** MUST open a form (Section 2.17) asking, in order: the scope, `daemon`, `workspace`
 or `epic`, defaulting to `epic`, of the epic going or last on the host this interface follows, where
 there is one, and otherwise to `workspace`, of this directory; the nous, offering every nous
-`nous.list` answers and defaulting to the `ai_chan` setting (Section 14.3.2 of [CORE]); the preset,
+`nous.list` answers and defaulting to the nous last used, the `ai_chan` setting (Section 14.3.2 of
+[CORE]); the preset,
 `read-only` or `danger-full-access`, defaulting to `read-only`; and the network, `off` or `on`,
 defaulting to `off`.
 
@@ -1246,17 +1247,14 @@ return to the landing screen with the cursor on that page's card.
 
 **19.1.6** Each saved setting MUST take effect at once where it can; otherwise the interface MUST
 say beside its row while held and in the transcript when it lands: account changes from the next
-agent session, forgetting a directory from the next launch, the `ai_chan` setting from the next
-Ai-chan conversation made.
+agent session, forgetting a directory from the next launch.
 
 **19.1.7** Leaving `/settings` MUST write one dim line per change into the transcript.
 
 ### 19.2. General
 
 **19.2.1** The General page MUST hold, for this machine: **Details**, whether turns show tool calls,
-thinking and harness output; **Ai-chan**, the nous a new Ai-chan conversation defaults to (Section
-14.3.2 of [CORE]): `none`, the current one, another nous, or an agent set up on the agent sheet
-titled `Set up Ai-chan`; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
+thinking and harness output; **Chat prefers for `$`**, `native` or `flow`, the preference of every chat
 whose own is not overridden (Section 8.9.10 of [CORE]); **Harness sessions**, whether `/resume` in a
 chat lists them (Section 7.12.5.4); **Error reports**, on or off; and **What is sent**, which says
 what error reports include and exclude.

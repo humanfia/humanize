@@ -1561,13 +1561,13 @@ where never answered),
 `branch`, `policies`, `every`; and `defaults`), `listen` and `ice_servers`.
 
 **4.18.1.2** `settings.set` MUST take `workspace` and any of `chat` (an agent spec), `prefer`
-(`native` or `flow`), `ai_chan` (text), `details` (boolean), `harness_sessions` (boolean),
+(`native` or `flow`), `details` (boolean), `harness_sessions` (boolean),
 `reports` (boolean), `backup` (`{targets, defaults}`, every target), `listen` (a list of listener
 specs) and `ice_servers` (a list of `{urls, username, credential}`), MUST be a write, and MUST
 answer as `settings.get` does.
 
 **4.18.1.3** `settings.set` MUST write `chat` as `chat.agent` of the workspace, `prefer` as
-`chat.prefer`, and `ai_chan`, `details`, `harness_sessions`, `backup`, `listen` and `ice_servers`
+`chat.prefer`, and `details`, `harness_sessions`, `backup`, `listen` and `ice_servers`
 as Section 3 of [FILES] defines them, and `reports` as the key `enable_sentry` of Section 3 of
 [FILES];
 a change of `listen` MUST open and close listeners at once.
@@ -1887,13 +1887,15 @@ whatever name its `session.hello` says (Section 4.7.1.5).
 **4.22.2.1** `aichan.create` MUST take `scope` (text, required: `daemon`, `workspace` or `epic`),
 `workspace` (required for the scopes `workspace` and `epic`, and absent for `daemon`), `epic` (an
 epic name, required for the scope `epic`, and absent otherwise), `nous` (text, default `""` for the
-`ai_chan` setting), `preset` (default `read-only`), `network` (boolean, default `false`), `title`
+nous the last conversation was made with, the `ai_chan` setting), `preset` (default `read-only`), `network` (boolean, default `false`), `title`
 (text, default `""` for the first line of `task`, cut at 80 characters) and `task` (text, required,
 not empty), and MUST be a write.
 
 **4.22.2.2** `aichan.create` MUST record the conversation, make its scratch directory (Section 4.16.3
-of [FILES]), start its host as Section 4.22.5.1 states, and, once that host has taken the start, be
-answered with `id`, `workspace` (the workspace of its host) and `slot`.
+of [FILES]), start its host as Section 4.22.5.1 states, and, once that host has taken the start,
+write its `nous` as the `ai_chan` setting (Section 3.4.3 of [FILES]) and be answered with `id`,
+`workspace` (the workspace of its host) and `slot`. A conversation refused MUST NOT change that
+setting.
 
 **4.22.2.3** `aichan.create` MUST be refused 400 with `An Ai-chan's scope is daemon, workspace or
 epic.` for another `scope`; `A <scope> scope names its workspace.` for a `workspace` missing; `A
@@ -1911,7 +1913,18 @@ run in that workspace, and 409 with the host's `why` where its host refuses the 
 **4.22.3.1** `aichan.list` MUST take no parameter and MUST answer `conversations`, one per
 conversation, newest first, each with `id`, `title`, `scope`, `workspace` (the workspace of its
 host), `epic` (the epic name of an `epic` scope, else `""`), `nous`, `preset`, `network`, `slot`,
-`state` and `created` (`YYYY-MM-DDTHH:MM:SSZ`, in UTC).
+`state`, `created` (`YYYY-MM-DDTHH:MM:SSZ`, in UTC), `latest` and `updated`.
+
+**4.22.3.1.1** `latest` MUST be what was last said in the conversation as its entry keeps it
+(Section 4.16.2 of [FILES]): the `task` it was made with until Ai-chan has answered, and from then
+on her last answer, in either case with every run of whitespace made one space and cut at 120
+characters; and `updated` MUST be when that was said, as `created` is written.
+
+**4.22.3.1.2** While a host holds a conversation, the daemon MUST write its `latest` and its
+`updated` down each time Ai-chan ends a turn on another answer. For a conversation whose entry
+keeps no `latest`, one an earlier hmz made, `aichan.list` MUST read the last thing its chat's
+assistant said out of its record, else its task, else `""`, and MUST write that down as its
+`latest`, with its `created` as its `updated`.
 
 **4.22.3.2** `state` MUST be `running` while a host holds the conversation and its turn is open,
 `waiting` while a host holds it between turns, and `folded` while no host holds it.

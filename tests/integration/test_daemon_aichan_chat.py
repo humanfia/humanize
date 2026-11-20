@@ -77,6 +77,14 @@ def _pending(user: Peer, made: dict[str, Any]) -> list[dict[str, Any]]:
     return list(status.get("pending") or [])
 
 
+def _heard(user: Peer, made: dict[str, Any]) -> str:
+    """What she waits between turns on, her last answer, or "" while her turn is open."""
+    return next(
+        (str(one["text"]) for one in _pending(user, made) if one["mode"] == "listen"),
+        "",
+    )
+
+
 def _said(user: Peer, made: dict[str, Any]) -> str:
     return "\n".join(str(one.get("text", "")) for one in _pending(user, made))
 
@@ -257,8 +265,20 @@ def test_an_ai_chan_conversation_is_said_to_and_asked_as_a_chat_is(
         "aichan.create", {"scope": "daemon", "nous": AGENT, "task": "hello"}, timeout=60
     )
     host = {"workspace": made["workspace"], "slot": made["slot"]}
+
+    def latest() -> str:
+        (listed,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        assert len(listed["latest"]) <= 120
+        return listed["latest"]
+
+    # What was last said in it is what it was made with, until she answers.
+    assert latest() in ("hello", " ".join(_heard(user, made).split())[:120])
     assert until(lambda: _pending(user, made), 120), _said(user, made)
     (waiting,) = _pending(user, made)
+    # And then what she answered, written down as she did.
+    answered = " ".join(str(waiting["text"]).split())[:120]
+    assert answered
+    assert until(lambda: latest() == answered, 30), latest()
 
     # Her catalogue, with no permission of a chat's: she keeps her role's.
     read = user.call("chat.commands", host, timeout=30)

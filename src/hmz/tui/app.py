@@ -3959,6 +3959,8 @@ class Humanize(App[None]):
                 self._ai_new = asked
                 self._draw()
             return
+        # The daemon wrote its nous down as the one last used: the next form opens on it.
+        self.settings.ai_chan = asked.nous
         one = {
             **asked._asdict(),
             "id": made["id"],
@@ -4584,17 +4586,6 @@ class Humanize(App[None]):
                 else "[dim]showing turn responses only, without details[/dim]"
             )
             self._draw()  # and the status line says which mode this is in from now on
-        if said.ai_chan is not None:
-            self.settings.ai_chan = said.ai_chan
-            # Not the ones made already: a conversation keeps its nous (Section 14.3.1 of
-            # core.md).
-            self.show(
-                f"[dim]the next Ai-chan conversation thinks with {escape(said.ai_chan)}"
-                "[/dim]"
-                if said.ai_chan
-                else "[dim]/ai will ask which nous each new Ai-chan conversation thinks "
-                "with[/dim]"
-            )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.

@@ -246,10 +246,13 @@ call and all reasoning of a turn rather than its responses alone.
 **3.4.3.1** `ai_chan` MUST be a string holding an agent spec,
 `<harness>[@<account>]/<model>[:<effort>]`, the name of a nous (Section 3.6), or the empty string.
 
-**3.4.3.2** `ai_chan` MUST name the nous a new Ai-chan conversation defaults to (Section 14.3.2 of
-[CORE]); a change of it MUST NOT change a conversation already made.
+**3.4.3.2** `ai_chan` MUST name the nous the last Ai-chan conversation made on this machine was
+made with, which a new one defaults to (Section 14.3.2 of [CORE]); the daemon MUST write it as it
+makes a conversation (Section 4.22.2.2 of [DAEMON]), no setting of a frontend's MUST set it, and a
+change of it MUST NOT change a conversation already made.
 
-**3.4.3.3** An absent, empty or non-string `ai_chan` MUST mean that no nous is the default.
+**3.4.3.3** An absent, empty or non-string `ai_chan` MUST mean that no conversation was made yet,
+and that no nous is the default.
 
 **3.4.3.4** `hmz` MUST NOT read the key `btw`, which an earlier release wrote.
 
@@ -1167,9 +1170,11 @@ the workspace of the host of every conversation of the scope `daemon`.
 **4.16.2** `conversations.yaml` in it MUST be a YAML list of mappings, one per conversation not
 forgotten, in the order made, each with exactly the keys `id` (integer), `title`, `scope`,
 `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the name of the
-conversation's own chat, Section 6.12.11, `""` before it has one) and `created` (a UTC timestamp), the others as
-`aichan.list` answers them (Section 4.22.3 of [DAEMON]), with mode `0600`, written by atomic
-replacement by the daemon alone.
+conversation's own chat, Section 6.12.11, `""` before it has one), `created` (a UTC timestamp),
+`latest` (what was last said in it, cut short) and `updated` (a UTC timestamp, when that was said),
+the others as `aichan.list` answers them (Section 4.22.3 of [DAEMON]), with mode `0600`, written by
+atomic replacement by the daemon alone. An entry an earlier hmz wrote MAY lack `latest` and
+`updated` until `aichan.list` writes them (Section 4.22.3.1.2 of [DAEMON]).
 
 **4.16.3** `<home>/ai/<machine>/<id>/` MUST be the scratch directory (Section 14.2.7 of [CORE]) of
 the conversation whose `id` is `<id>`, with mode `0700`, made when the conversation is made.
