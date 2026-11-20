@@ -5,6 +5,8 @@
 // is read the same by the views and by their tests (Sections 3.6.6.15 to 3.6.6.21 and 3.8.21
 // to 3.8.24 of protocol/web.md).
 
+import { t } from './i18n.js'
+
 /**
  * What the Add menu of a chat's box offers, in its order: each a prefix the box reads a line by
  * (Section 8.9 of protocol/core.md), under a name that says what it is for.
@@ -102,7 +104,7 @@ export function dismissing(dismissed, key, kept = 200) {
 
 /**
  * What a chip under a box is called by whoever cannot see it: what it picks, then what is picked
- * -- `Environment: Local`, `Usage: $0.42` -- or what it picks alone while nothing is.
+ * -- `Environment: Local` -- or what it picks alone while nothing is.
  */
 export function chipNamed(what, value = '') {
   return value ? `${what}: ${value}` : what
@@ -121,23 +123,6 @@ export function paneSaid(key, has, held) {
   if (!pane) return ''
   if (has) return pane.label
   return held ? `No ${pane.label.toLowerCase()} in this environment` : `${pane.label} opens once the chat goes on`
-}
-
-/**
- * What a chat's Usage chip says beside its ring: what it has spent where that is priced, else
- * the tokens it has written, else nothing -- and then the ring stands alone.
- *
- * @param {{tally?: string[]} | null} figures A chat going's figures, as its host says them.
- * @param {{money?: string, tokens?: string} | null} spent What a chat written down spent.
- */
-export function usageSaid(figures, spent) {
-  const [tokens = '', money = ''] = (figures && figures.tally) || []
-  const priced = money.split(' · ')[0]
-  if (priced.startsWith('$')) return priced
-  if (tokens) return tokens.split(' · ')[0]
-  if (spent && spent.money && spent.money !== '$0.00') return spent.money
-  if (spent && spent.tokens && spent.tokens !== '0') return `${spent.tokens} tokens`
-  return ''
 }
 
 /** A count of tokens short enough for a narrow column, as the runs' own figures cut one short. */
@@ -205,16 +190,14 @@ export function usedLately(data) {
 }
 
 /**
- * How a chat stands, said in a line over its box only while there is something to say: who is
- * answering while a turn is open, that it waits on its person, or that it failed.
+ * What is said of how a chat stands in a line over its box: that it failed, and nothing else.
+ * That a turn is open its button says, which stops it, and that it waits on its person the
+ * conversation says, which ends on what was answered.
  *
  * @param {string} state The chat's mark (`markOf`).
- * @param {string} model The model answering it, as a person reads it, or ''.
  */
-export function standing(state, model = '') {
-  if (state === 'running') return `${model || 'The assistant'} is responding`
-  if (state === 'asking') return 'Waiting for you'
-  return ['failed', 'refused', 'crashed'].includes(state) ? 'The chat failed' : ''
+export function standing(state) {
+  return ['failed', 'refused', 'crashed'].includes(state) ? t('The chat failed') : ''
 }
 
 /**

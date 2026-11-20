@@ -1910,9 +1910,12 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: fit me")
         _details(page)
         inspector = page.locator("[data-hmz=inspector]")
-        # What it works in said whole after its session, its path under them, whole on hover.
-        works = inspector.locator("[data-hmz=environments] li").first
-        expect(works).to_contain_text(re.compile(r"\w+/1 local"))
+        # What it works in said whole, with no session or role named before it, its path
+        # under it, whole on hover.
+        works = inspector.locator("[data-hmz=environments] li")
+        expect(works).to_have_count(1)
+        expect(works).to_contain_text("local")
+        expect(works).not_to_contain_text(re.compile(r"\w+/1|assistant"))
         expect(works.locator(".path")).to_have_attribute(
             "title", re.compile(rf"{re.escape(project.name)}$")
         )
@@ -1941,25 +1944,81 @@ def _asks_of(page: Page, session: str) -> None:
     expect(page.locator("[data-hmz=btw-to]")).to_contain_text(session)
 
 
-def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
-    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _slow_asides(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Makes a side question that says `slowly` take long enough to be seen answering."""
     from hmz.runtime.watching.btw import Btw, FlowSnapshot
 
     asks = Btw.ask
 
     def slowly(self: Btw, question: str, snapshot: FlowSnapshot) -> str:
-        # Long enough to be seen answering.
         if "slowly" in question:
             time.sleep(3)
         return asks(self, question, snapshot)
 
     monkeypatch.setattr(Btw, "ask", slowly)
+
+
+def test_a_side_question_about_a_chat_names_no_session_and_picks_none(
+    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _slow_asides(monkeypatch)
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "remember papaya")
-        thread = page.locator("[data-hmz=thread]")
-        expect(thread).to_contain_text("did: remember papaya")
+        expect(page.locator("[data-hmz=thread]")).to_contain_text(
+            "did: remember papaya"
+        )
         _side_questions(page)
+        aside = page.locator("[data-hmz=btw]")
+        ask = page.locator("[data-hmz=btw-to]")
+        tabs = page.locator("[data-hmz=btw-tab]")
+        log = page.locator("[data-hmz=btw-log]")
+
+        # A chat is one conversation: nothing to pick, and it is asked at once.
+        expect(ask).to_be_hidden()
+        expect(tabs).to_have_text(["New question"])
+        aside.locator("textarea").fill("what now")
+        aside.locator("textarea").press("Enter")
+        expect(log.locator(".said.btw")).to_have_count(1)
+        expect(aside).not_to_contain_text("Pick the conversation")
+        expect(ask).to_be_hidden()
+        # The side conversation goes by what it first asked, and names no session.
+        expect(tabs).to_have_text(["what now"])
+
+        page.locator("[data-hmz=btw-new]").click()
+        expect(ask).to_be_hidden()
+        aside.locator("textarea").fill("and you, slowly")
+        aside.locator("textarea").press("Enter")
+        working = page.locator("[data-hmz=btw-working]")
+        expect(working).to_have_text("Thinking…")
+        expect(page.locator("[data-hmz=btw-tab].busy")).to_have_count(1)
+        expect(log.locator(".said.btw")).to_have_count(1)
+        expect(working).to_have_count(0)
+        expect(tabs).to_have_text(["what now", "and you, slowly"])
+        # Nor does what was asked say whom it was asked of.
+        expect(log.locator(".said.you .body")).to_have_text("and you, slowly")
+        expect(log.locator(".said.you .who")).to_have_count(0)
+
+        # Opened again, both are read back, each with what was said in it.
+        page.reload()
+        _side_questions(page)
+        expect(tabs).to_have_text(["what now", "and you, slowly"])
+        expect(log).to_contain_text("and you, slowly")
+        tabs.first.click()
+        expect(log).to_contain_text("what now")
+        expect(log.locator(".said.you .body")).to_have_text("what now")
+        page.locator("[data-hmz=btw-close]").click()
+        expect(tabs).to_have_count(1)
+        stop(page)
+
+
+@pytest.mark.usefixtures("talking")
+def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
+    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _slow_asides(monkeypatch)
+    with served() as site, opened(site, engine=engine) as page:
+        _start_talk(page, "remember papaya")
+        page.get_by_role("tab", name="Aside").click()
         aside = page.locator("[data-hmz=btw]")
         ask = page.locator("[data-hmz=btw-to]")
 
@@ -1991,6 +2050,11 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         aside.locator("textarea").press("Enter")
         expect(aside).to_contain_text("Pick the conversation to ask first.")
         expect(ask).to_be_visible()
+        # Whom it asks is picked above the box, outside it, and covers none of it.
+        above, box = ask.bounding_box(), aside.locator("textarea").bounding_box()
+        assert above is not None
+        assert box is not None
+        assert above["y"] + above["height"] <= box["y"]
         _asks_of(page, "/1")
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
@@ -2020,7 +2084,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 
         # Opened again, both are read back, each with what was said in it.
         page.reload()
-        _side_questions(page)
+        page.get_by_role("tab", name="Aside").click()
         expect(tabs).to_have_count(2)
         expect(log).to_contain_text("and you, slowly")
         tabs.first.click()
@@ -2202,13 +2266,11 @@ def test_a_composer_built_before_it_is_shown_is_a_line_tall_once_shown(
         expect(text).to_be_visible()
         line = text.evaluate("t => parseFloat(getComputedStyle(t).lineHeight)")
         box = text.bounding_box()
-        ask = page.locator(".ask-to").bounding_box()
         assert box is not None
-        assert ask is not None
         assert box["height"] >= line
-        # Whom it asks is picked above the box, outside it, and covers none of it.
+        # A chat has nobody to pick to ask: nothing stands in the box but what is typed.
         expect(page.locator("[data-hmz=btw] .ask-to")).to_have_count(0)
-        assert ask["y"] + ask["height"] <= box["y"]
+        expect(page.locator(".ask-to")).to_be_hidden()
         stop(page)
 
 
@@ -2233,7 +2295,6 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
 
         _side_questions(page)
         aside = page.locator("[data-hmz=btw]")
-        _asks_of(page, "/1")
         aside.locator("textarea").fill("what was the word")
         aside.locator("textarea").press("Enter")
         expect(page.locator("[data-hmz=btw-log]")).to_contain_text(
@@ -2406,10 +2467,12 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         # Not looked at, as a page behind another window is not, while the chat answers.
         page.evaluate("document.hasFocus = () => false")
         _start_chat(page, "remember teal")
-        # A chat says how it stands over its box; a flow's epic, on its bar.
+        # A chat that answered and waits says nothing of it over its box; a flow's epic
+        # says how it stands on its bar.
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: remember teal")
         status = page.locator("[data-hmz=chat-status]")
-        expect(status).to_have_attribute("data-state", "asking")
-        expect(status).to_have_text("Waiting for you")
+        expect(status).to_have_count(0)
+        expect(page.locator("[data-hmz=dock]")).not_to_contain_text("Waiting for you")
 
         # Looked away from, it folds -- and still asks, as nobody has read what it said.
         page.locator("[data-hmz=epic]", has_text="a flow beside").click()
@@ -2429,7 +2492,10 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         row = page.locator("[data-hmz=epic]", has_text="remember teal")
         state = row.locator("[data-hmz=chat-state]")
         expect(state).to_have_attribute("data-state", "asking")
-        expect(state).to_have_text("Awaiting input")
+        # Marked by a dot, as a row unread is, which says so to whoever cannot see it.
+        expect(state).to_have_text("")
+        expect(state).to_have_attribute("aria-label", "Awaiting input")
+        expect(row).not_to_contain_text("Awaiting input")
 
         # Read, it is stopped: its row says nothing beside what was asked.
         row.click()

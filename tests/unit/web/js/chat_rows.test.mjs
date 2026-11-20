@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { chatDetail, chatRow, epicRow, harnessRow, pathOf } from '../../../../src/hmz/web/static/chats.js'
+import { chatDetail, chatRow, harnessRow, pathOf } from '../../../../src/hmz/web/static/chats.js'
 import { GROUP_ROWS, paged, sorted } from '../../../../src/hmz/web/static/sidebar-view.js'
 
 /** A chat as `chat.list` rows one. */
@@ -53,15 +53,10 @@ test('a chat read whole is told by its first message, keeps its title, and is ca
   assert.deepEqual([detail.used, detail.calls, detail.params, detail.budget, detail.foreign], [[], [], {}, null, ''])
 })
 
-test('an epic an earlier hmz recorded for a chat is an epic of the flow chat, at an epic address, only read', () => {
-  const old = epicRow({ name: 'e1', kind: 'chat', flow: '', task: 'hello', resumable: true, picks_up: true })
-  assert.deepEqual([old.kind, old.flow, old.resumable, old.picks_up], ['flow', 'chat', false, false])
-  assert.equal(pathOf(old), '/epics/e1')
-  // A row of a list says nothing of picking up, and an epic of a flow is left as it is.
-  assert.equal('picks_up' in epicRow({ name: 'e1', kind: 'chat', flow: '' }), false)
-  const flow = { name: 'e2', kind: 'flow', flow: 'ralph', resumable: true }
-  assert.equal(epicRow(flow), flow)
+test('an epic is at an epic address, and a chat at a chat address by the same name', () => {
   assert.equal(pathOf({ name: 'a b', kind: 'flow' }), '/epics/a%20b')
+  // A chat an earlier hmz kept as an epic keeps its name, and is a chat as any other.
+  assert.equal(pathOf(chatRow(chat({ id: 'a b' }))), '/chats/a%20b')
 })
 
 /** A harness session as `chat.harness.list` rows one. */

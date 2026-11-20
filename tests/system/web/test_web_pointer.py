@@ -77,7 +77,6 @@ def test_a_workdir_says_its_whole_path_on_hover_and_offers_it_on_a_right_click(
             [
                 "New chat here",
                 "New epic here",
-                "Flows here",
                 "Search here",
                 "Copy path",
                 "Collapse",

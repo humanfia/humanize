@@ -125,7 +125,7 @@
   display: flex;
 }
 
-/* How the chat stands, said quietly over its box, on the edge the chips under the box keep. */
+/* That the chat failed, said quietly over its box, on the edge the chips under the box keep. */
 .chat-status {
   width: min(100%, var(--column));
   margin: 0 0 calc(-1 * var(--space-4));
@@ -143,30 +143,18 @@
   color: var(--fail);
 }
 
-.chat-status.chat-running .dot {
-  animation: pulse 1.2s ease-in-out infinite;
-}
-
 /* What the word being typed could become floats over that line too, not on it: the line, the
    room it keeps from the box, and the room a menu keeps from what it floats over. */
 .chat-status + .composer > .composer-complete {
   bottom: calc(100% + 16px + var(--space-4) + var(--space-8));
 }
 
-/* What the chat has used: a ring 24px square, as a chat app keeps one there, and beside it what
-   the chat has spent once there is something to say. */
+/* What the chat has used: a ring 24px square, as a chat app keeps one there, with nothing
+   beside it. */
 .composer-under .chip-btn.usage-chip {
   min-width: var(--control-h-xs);
   justify-content: center;
   padding: 0 var(--space-4);
-}
-
-.usage-chip .chip-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.usage-chip .chip-value:empty {
-  display: none;
 }
 
 @media (max-width: 860px) {

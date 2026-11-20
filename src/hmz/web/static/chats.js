@@ -2,9 +2,9 @@
 // chat is no epic: it is listed and read by `chat.*`, by its id, and an epic by `runs.*`, by its
 // name (Section 3.5.20 of protocol/web.md). Each is read here into one shape of row, marked by
 // its `kind`, so that the sidebar, Search and the view of a conversation draw the two alike
-// where they are alike. An epic an earlier hmz recorded for a chat is an epic like any other, of
-// the flow `chat`, and only read. Nothing here touches the page, so it is read the same by the
-// views and by their tests.
+// where they are alike. A chat an earlier hmz recorded as an epic is a chat as any other: the
+// daemon moves it among the chats as it starts (Section 3.5.20.3). Nothing here touches the
+// page, so it is read the same by the views and by their tests.
 
 /**
  * A chat as `chat.list` rows it, as a row of the page's lists: named by its id, told by its
@@ -54,15 +54,6 @@ export function chatDetail(chat) {
     budget: null,
     picked_up: '',
   }
-}
-
-/**
- * An epic as `runs.list` and `runs.get` answer it. One an earlier hmz recorded for a chat is of
- * no flow there: it is an epic of the flow `chat` here, and is only read.
- */
-export function epicRow(row) {
-  if (row.kind !== 'chat') return row
-  return { ...row, kind: 'flow', flow: 'chat', resumable: false, ...('picks_up' in row ? { picks_up: false } : {}) }
 }
 
 /**

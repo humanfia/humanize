@@ -183,9 +183,11 @@ test('the Usage chip opens a popup that is read, drawn again as the chat spends,
     // What is read, not chosen from: a dialog, to whoever cannot see it.
     assert.equal(button.getAttribute('aria-haspopup'), 'dialog')
     assert.equal(button.getAttribute('aria-expanded'), 'false')
-    made.said('$0.10')
-    assert.equal(button.textContent, '$0.10')
-    assert.equal(button.getAttribute('aria-label'), 'Usage: $0.10')
+    // The ring alone: no figure stands beside it, however much the chat has spent.
+    made.read()
+    assert.equal(button.textContent, '')
+    assert.equal(button.querySelector('.chip-value'), null)
+    assert.equal(button.getAttribute('aria-label'), 'Usage')
     button.click()
     const pop = made.node.querySelector('[role=dialog]')
     assert.equal(pop.getAttribute('aria-label'), 'Usage')
@@ -205,8 +207,9 @@ test('the Usage chip opens a popup that is read, drawn again as the chat spends,
     const mine = () => pop.querySelector('.usage-mine').querySelectorAll('.usage-value').map((one) => one.textContent)
     assert.deepEqual(mine(), ['$0.10'])
     rows = [{ label: 'Spent', value: '$0.25' }]
-    made.said('$0.25')
+    made.read()
     assert.deepEqual(mine(), ['$0.25'])
+    assert.equal(button.textContent, '')
     // Tab past its last stop closes it, and the chip has the focus, from where Tab goes on.
     assert.equal(document.activeElement, link)
     const tab = pressed(pop, 'Tab', link)

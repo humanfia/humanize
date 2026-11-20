@@ -16,7 +16,11 @@ export function chatState(how) {
   return ['failed', 'refused', 'crashed'].includes(how) ? 'failed' : ''
 }
 
-/** A chat's state in the words its row says it in, as a chat app's does. */
+/**
+ * A chat's state in words, as a chat app's says it. The sidebar's row writes `Running` and
+ * `Failed`; one that waits on its person it marks with a dot, which says `Awaiting input` only
+ * to whoever cannot see it or points at it.
+ */
 export const CHAT_SAID = { working: 'Running', asking: 'Awaiting input', failed: 'Failed' }
 
 /**
