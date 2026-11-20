@@ -266,14 +266,16 @@ export function where({ backend, provider, workdir }) {
  * @param {string} kept Where it works now, as `-e` spells it.
  * @param {{envs: string[]}} offered The backends there are.
  * @param {{backend: string, name: string, workdir?: string}[]} runtimes The runtimes saved.
+ * @param {{folder?: string}} [how] The folder the epic is started in, which a directory on this
+ *   machine left blank comes to: said in that field while nothing is typed in it.
  */
-export function envPicker(role, kept, offered, runtimes) {
+export function envPicker(role, kept, offered, runtimes, { folder = '' } = {}) {
   const chosen = placed(kept)
   const backend = h('select', { 'aria-label': `Backend for ${role.name}`, 'data-hmz': 'pick-backend' })
   const machine = h('select', { 'aria-label': `Runtime for ${role.name}`, 'data-hmz': 'pick-runtime' })
   const host = h('input', { type: 'text', placeholder: 'user@host', 'aria-label': `Host for ${role.name}`, hidden: true })
   // A directory on this machine is browsed for; one on another machine is written.
-  const here = pathPicker({ value: chosen.workdir, label: `Directory for ${role.name}`, placeholder: '~/project', changed: (to) => (chosen.workdir = to) })
+  const here = pathPicker({ value: chosen.workdir, label: `Directory for ${role.name}`, placeholder: folder || '~/project', changed: (to) => (chosen.workdir = to) })
   here.input.dataset.hmz = 'pick-dir'
   const there = h('input', { type: 'text', value: chosen.workdir, placeholder: '/srv/project', 'aria-label': `Directory for ${role.name} there`, 'data-hmz': 'pick-dir-there' })
   there.addEventListener('input', () => (chosen.workdir = there.value.trim()))

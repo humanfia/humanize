@@ -374,23 +374,33 @@ def test_a_new_chat_is_started_in_a_worktree_of_a_repository(
     with served() as site, opened(site, engine=engine, width=width, height=800) as page:
         # A folder in no repository offers no worktree, and says why.
         go(page, "/new/chat")
+        where = page.locator("[data-hmz=start] [data-hmz=environment]")
         box = page.locator("[data-hmz=new-worktree]")
-        label = page.locator("[data-hmz=start] .desk-check")
-        expect(label).to_have_text("Worktree")
-        expect(box).to_be_disabled()
-        expect(label).to_have_attribute(
-            "data-tip", "This folder is not a git repository"
+        # Not under the box: a row of Environment's menu, the last, that is ticked.
+        expect(box).to_have_count(0)
+        expect(page.locator("[data-hmz=start] .desk-check")).to_have_count(0)
+        expect(where).to_contain_text(project.name)
+        where.click()
+        menu = page.get_by_role("menu", name="Environment")
+        expect(box).to_have_text("Worktree")
+        expect(box).to_have_attribute("role", "menuitemcheckbox")
+        assert menu.locator("[role=menuitem], [role=menuitemcheckbox]").last.evaluate(
+            "(el) => el.dataset.hmz === 'new-worktree'"
         )
-        # After the folder, in the row's left group.
-        assert label.evaluate(
-            "(el) => el.previousElementSibling.matches('.menu-holder, .flow-picker')"
-            " || Boolean(el.previousElementSibling.querySelector('[data-hmz=workspace-picker]'))"
-        )
+        expect(box).to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("aria-checked", "false")
+        expect(box).to_have_attribute("data-tip", "This folder is not a git repository")
+        # Pressed all the same, it ticks nothing.
+        box.click(force=True)
+        expect(box).to_have_attribute("aria-checked", "false")
+        page.keyboard.press("Escape")
 
         # Nor does no folder.
         go(page, "/new/chat?scratch=1")
-        expect(box).to_be_disabled()
-        expect(label).to_have_attribute("data-tip", "A worktree needs a folder")
+        where.click()
+        expect(box).to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("data-tip", "A worktree needs a folder")
+        page.keyboard.press("Escape")
 
         # In a repository it is on offer; ticked, the chat works in a worktree of it.
         _git(project, "init", "-q")
@@ -398,10 +408,16 @@ def test_a_new_chat_is_started_in_a_worktree_of_a_repository(
         _git(project, "add", ".")
         _git(project, "commit", "-q", "-m", "first")
         go(page, f"/new/chat?workspace={urllib.parse.quote(str(project))}")
-        expect(box).to_be_enabled()
-        expect(box).not_to_be_checked()
-        label.click()
-        expect(box).to_be_checked()
+        where.click()
+        expect(box).not_to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("aria-checked", "false")
+        box.click()
+        # Ticked, the menu stays and says so on the row, which keeps the keys.
+        expect(menu).to_be_visible()
+        expect(box).to_have_attribute("aria-checked", "true")
+        expect(box).to_be_focused()
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
         ).to_have_attribute("data-value", "claude-haiku-4-5")

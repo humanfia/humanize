@@ -2,12 +2,15 @@
 // effort, each by its name (names.js) and told from the next by its colour. On a new chat it
 // opens a menu of every nous the harnesses here are known to run, a row a harness and a model,
 // with the efforts the model chosen takes beside it and, under More, a typed model and the account
-// (Section 3.8.19 of protocol/web.md). On a chat begun it says what the chat runs, and changes
-// what the chat's own `/model` and `/effort` change (Section 3.6.6.13).
+// (Section 3.8.19 of protocol/web.md). A new epic picks the agent of each role of its flow from
+// the same chip, in the middle of the page, offering the harnesses that can fill that role alone
+// (Section 3.8.8). On a chat begun it says what the chat runs, and changes what the chat's own
+// `/model` and `/effort` change (Section 3.6.6.13).
 
 import { hash } from '../api.js'
 import { chipNamed } from '../desk.js'
 import { fill, h, icon } from '../dom.js'
+import { t } from '../i18n.js'
 import { effortName, harnessName } from '../names.js'
 import { agentChoice, anyCli, offeredTo, readFor } from '../pickers.js'
 import { choice, menu, section, submenu } from '../shell.js'
@@ -91,24 +94,30 @@ function redrawn(listed, items) {
 const rowsOf = (...rows) => h('div', { class: 'nous-list' }, rows)
 
 /**
- * The agent that answers a new chat, picked from its chip.
+ * The agent that fills a role, picked from its chip: the one that answers a new chat, or one a
+ * flow asks for.
  *
- * @param {string} name The role it fills.
+ * @param {string | {name: string, clis: string[]}} role The role it fills: by its name alone, one
+ *   any harness here could fill; with `clis`, one only those harnesses can.
  * @param {string} kept What fills it to begin with, as `-a` spells it.
  * @param {() => void} [changed] Told whenever the choice changes.
+ * @param {{up?: boolean, align?: 'start' | 'end'}} [where] Where its menu opens: over the chip and
+ *   at its end, as under a box, unless said otherwise -- under it, `up: false`, in the middle of a
+ *   page.
  * @returns {{node: HTMLElement, value: () => string, open: () => void, leave: () => void}} The
  *   chip; the agent picked, as `-a` spells it, or '' while none is; a way to open its menu; and
  *   what to call once it is left.
  */
-export function modelChip(name, kept, changed = () => {}) {
+export function modelChip(role, kept, changed = () => {}, { up = true, align = 'end' } = {}) {
+  const who = typeof role === 'string' ? anyCli(role) : role
   const made = chip('pick-model')
   const { button } = made
-  const node = h('span', { class: 'model-pick', 'data-hmz': 'role', 'data-role': name }, button)
+  const node = h('span', { class: 'model-pick', 'data-hmz': 'role', 'data-role': who.name }, button)
   /** What picking offers now, the menu's body while it is open, and what its rows are searched for. */
   let offered = null
   let listed = null
   let sought = ''
-  const picked = agentChoice(anyCli(name), kept, (now) => {
+  const picked = agentChoice(who, kept, (now) => {
     offered = now
     const row = picked.nous().flatMap((group) => group.rows).find((one) => one.chosen)
     say(made, picked.value(), now.asking ? 'Asking…' : 'Pick a nous', row ? row.named : '')
@@ -190,7 +199,8 @@ export function modelChip(name, kept, changed = () => {}) {
     // As a chat app's menu of models: a nous a row, then the effort, then everything else of the
     // agent behind one row, `More`.
     return [
-      nous(close),
+      // None installed that could fill it: said, with where an account of one is made under More.
+      picked.nous().length ? nous(close) : h('p', { class: 'hint', role: 'status', 'data-hmz': 'pick-none' }, t('No harness installed here can fill it.')),
       offered.asking ? h('p', { class: 'hint', role: 'status' }, `Asking ${harnessName(chosen.cli)} for models…`) : offered.failed ? h('p', { class: 'hint' }, `No models: ${offered.failed}`) : null,
       offered.efforts.length
         ? [
@@ -233,7 +243,7 @@ export function modelChip(name, kept, changed = () => {}) {
       listed = h('div', { class: 'model-menu' }, items(close))
       return [listed]
     },
-    { align: 'end', up: true, label: 'Nous' },
+    { align, up, label: 'Nous' },
   )
   picked.again()
   return {

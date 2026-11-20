@@ -75,13 +75,6 @@
   justify-content: flex-end;
 }
 
-/* What says how a new epic is set up takes the room the row has left, and no row of its own. */
-.under-right:has(> .composer-summary) {
-  flex: 1 1 0;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-}
-
 .composer-under .menu-holder,
 .composer-under .model-pick {
   display: inline-flex;
@@ -94,45 +87,39 @@
   display: none;
 }
 
-/* A box ticked under the box of a new chat, drawn as the chips beside it are. */
-.composer-under .desk-check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: var(--control-h-xs);
-  padding: 0 var(--space-6);
-  border-radius: var(--radius-sm);
-  font: 400 var(--text-md) / 20px var(--sans);
-  color: var(--ink-2);
-  cursor: pointer;
-  user-select: none;
-  transition:
-    background-color var(--dur) var(--ease),
-    color var(--dur) var(--ease);
+/* Environment under a new chat's box names two things, the daemon and the folder: wider than a
+   chip of one name, the folder the part that is cut short, and said as a name is. */
+.chip-btn.environment-chip .chip-value {
+  display: flex;
+  max-width: min(40ch, 60vw);
+  white-space: pre;
 }
 
-.composer-under .desk-check:hover:not(.disabled) {
-  background: var(--hover);
-  color: var(--ink);
+.environment-chip .chip-value > * {
+  flex: none;
 }
 
-.composer-under .desk-check input {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  margin: 0;
-  accent-color: var(--primary);
-  outline: none;
+.environment-chip .chip-part {
+  color: var(--ink-3);
 }
 
-/* It is the chip, not the box in it, that says the keyboard is on it. */
-.composer-under .desk-check:has(:focus-visible) {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
+.environment-chip .chip-value > b {
+  flex: 0 1 auto;
+  min-width: 2ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: inherit;
 }
 
-.composer-under .desk-check.disabled {
+/* A row of a menu that is ticked and cannot be now says why where it is pointed at, and is
+   drawn as one switched off. */
+.choice[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
+}
+
+.choice[aria-disabled='true']:hover {
+  background: none;
 }
 
 /* ------------------------------------------------------------------ the menus of the desk */
@@ -194,6 +181,126 @@
 
 .desk-column .options {
   margin-bottom: var(--space-8);
+}
+
+/* ------------------------------------------------------------------ how a new epic is set up */
+
+/* Where it runs stands first and whatever flow is picked; the rest of what the flow is set up
+   with under it, a line between them as between every two of its parts. */
+.options > .form:not(:empty) {
+  margin-top: var(--space-16);
+  padding-top: var(--space-16);
+  border-top: var(--border);
+}
+
+/* What a name picks, a row a name: the names in one column, as wide in every part of the set-up,
+   what each picks beside it, at the same edge. However many roles a flow has, each is a line of
+   its own. */
+.setup-rows {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: var(--space-4) var(--space-12);
+}
+
+.setup-rows:empty {
+  display: none;
+}
+
+.setup-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: var(--control-h-sm);
+}
+
+.setup-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  min-width: 0;
+  font: var(--text-md) / 20px var(--sans);
+  color: var(--ink-2);
+}
+
+.setup-name .dim {
+  flex: none;
+  font-size: var(--text-sm);
+}
+
+/* A role's name longer than its column is cut short, and said whole where it is pointed at. */
+.setup-role {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A chip in a row starts at the row's own edge: its text set in from it by a chip's padding. */
+.setup-row > .model-pick,
+.setup-row > .menu-holder {
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+
+/* The folder is picked from a chip, as the daemon over it and a nous under it are. */
+.setup-row .flow-picker {
+  height: var(--control-h-xs);
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-sm);
+  font: 400 var(--text-md) / 20px var(--sans);
+  color: var(--ink-2);
+}
+
+.setup-row .flow-picker b {
+  max-width: min(40ch, 60vw);
+  font: inherit;
+}
+
+.setup-row .flow-picker .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.setup-row .flow-picker .icon-down {
+  width: 12px;
+  height: 12px;
+  color: var(--ink-3);
+}
+
+.setup-row .flow-picker.gone,
+.setup-row .flow-picker.gone b {
+  color: var(--budget-ink);
+}
+
+/* An environment role is picked a part at a time, each part under its own name: the role's
+   name stands by the fields, not by what names them. */
+.setup-row > .picker {
+  min-width: 0;
+}
+
+.setup-row:has(> .picker) {
+  align-items: end;
+  padding-top: var(--space-4);
+}
+
+.setup-row:has(> .picker) > .setup-name {
+  min-height: var(--control-h);
+  align-items: center;
+}
+
+/* On a phone a name stands over what it picks. */
+@media (max-width: 860px) {
+  .setup-rows {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .setup-row {
+    gap: var(--space-2);
+  }
 }
 
 /* The chats that wait on their person, in the middle of a new chat's page: the list alone, each
@@ -277,6 +384,7 @@
    and so does the bar of the flows listed for it. */
 .flow-picker.gone,
 .flow-picker.gone:hover,
+.environment-chip.gone b,
 .bar-sub .folder-missing,
 .choice[data-missing] .choice-about {
   color: var(--budget-ink);
@@ -293,5 +401,9 @@
   .composer-under .chip-btn .chip-value,
   .composer-under .flow-picker b {
     max-width: 14ch;
+  }
+
+  .composer-under .chip-btn.environment-chip .chip-value {
+    max-width: 24ch;
   }
 }

@@ -63,7 +63,7 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
 | **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back** and **Forward**; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark at its far end -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Failed** where it failed, a small dot -- the one an unread row has, said as `Awaiting input` where you point at it -- while it waits on you, and nothing once it rests; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
-| **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A plain heading at the top, the chats that wait on you listed in the middle, and at the foot a box for the first message or the task, with where it runs under it at the left and, for an epic, the flow picked beside the heading | Start it; a chat's model and what it may touch are picked from the chips under the box at its right, and **Options** under an epic's box sets the rest up. See [Starting an epic](#starting-an-epic) |
+| **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A plain heading at the top, the chats that wait on you listed in the middle, and at the foot a box for the first message or the task. A chat keeps where it runs under the box at the left, on one chip, **Environment**; an epic has the flow picked beside the heading and everything it is set up with in the middle of the page, its **Environment** first | Start it; a chat's model and what it may touch are picked from the chips under the box at its right, and an epic's set-up is in sight over its box. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
 | **Flows** | **Installed**: a card for each flow on offer -- those installed from a flowverse and your own, whatever the directory -- its release and any newer one, and, one chosen, what it declares under the cards. The page picks no directory. **Flowverses**: a tab for each index flows are installed from, **Official** first and open at once, showing where it is fetched from and every release it lists | Start one, update or uninstall it, and, opened on a folder, copy it into that folder -- unless its directory was deleted, which the bar says as **missing**; install, switch or uninstall a release; fetch a flowverse again with the arrow after its name, add one with **+** after the tabs, or remove one. A row of tabs is one stop of <kbd>Tab</kbd>: <kbd>←</kbd> <kbd>→</kbd>, <kbd>Home</kbd> and <kbd>End</kbd> move among its tabs, <kbd>Enter</kbd> picks |
@@ -414,23 +414,31 @@ read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 A new chat and a new epic of a flow are two forms, each opened from the sidebar, in one
 frame: a plain heading at the top, and the box you type into docked at the foot of the page.
-Both keep where they run under that box, at its left, as two quiet chips. **Environment** names
-the [daemon](#daemons) the page shows -- **Local**, or a remote one -- and picks another,
-as the daemon bar at the foot of the sidebar does; **New environment** opens the daemons'
-settings. The folder chip names the directory: click it to pick another by its name -- point at
-one for its whole path -- **Open folder…**, or **No folder**.
+Both say where they run as an **Environment**: the [daemon](#daemons) and, on it, the folder.
+
+A new chat keeps it under the box, at its left, on one quiet chip that reads the daemon and
+then the folder, as `Local · project`. Its menu has both. **Runs on** lists **Local** and every
+remote daemon, and picks another as the daemon bar at the foot of the sidebar does; **New
+environment** opens the daemons' settings. **Folder** lists the directories: pick another by its
+name -- point at one for its whole path -- **Open folder…**, or **No folder**. The last row is
+**Worktree**.
+
+A new epic has nothing under its box. **Environment** is the first part of what it is set up
+with, in the middle of the page: a row **Runs on** with the daemon, a row **Folder** with the
+directory, each picked from its own chip, and under them a row for each environment the flow
+asks you to place.
 
 The forms follow which directories still exist, and keep looking while they are open. They open
 on the directory `hmz web` was started in while it is there, else on the one worked in last that
-is, else on your home; the chip's menu lists only directories that are there. A directory that
+is, else on your home; the menu lists only directories that are there. A directory that
 is deleted while it is picked -- or named by an address you kept -- stays picked: the chip reads
 `<name> (missing)`, and over the box the form says **The folder `<name>` is no longer on this
 machine. Pick another folder.** Nothing is started there; put the directory back and the form
 reads it again by itself.
 
-A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from the folder chip; the
+A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from **Environment**; the
 nous -- a harness and a model -- from the chip under the box at its right; and type the first
-message. Tick **Worktree**, after the folder chip, to start it in [a git worktree of its
+message. Tick **Worktree**, the last row of **Environment**'s menu, to start it in [a git worktree of its
 own](/user/chat#worktree): it cannot be ticked with **No folder**, nor in a directory that is in
 no git repository, and says which where you point at it. <kbd>Enter</kbd> starts the chat, and the page goes to its conversation. There is no
 flow, budget or params to set. **+** in the box offers **Add files**, which types `@` and
@@ -474,29 +482,37 @@ none is picked -- with **Usage settings** for the whole page.
 
 **New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
 picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory
-last ran; pick another flow beside the **New epic** heading, and another directory from the folder chip under the box.
+last ran; pick another flow beside the **New epic** heading, and another directory from **Folder**, under **Environment**.
 **+** in the box offers **Add files**, as on a new chat.
 A chat is not among the flows. Where no flow is installed -- Humanize ships none -- the middle
 of the page says so, and **Open Flows** there, as in the flow's menu, goes to
-**Flows** to install one; until then nothing starts. **Open folder…**
+**Flows**, on its flowverses, to install one; until then nothing starts. **Open folder…**
 takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
 folder** works in none of yours: each epic started so gets a new directory of its own in the
 temporary directory, made as it starts, and set up as the directory `hmz web` started in is; the
 epic then shows in the sidebar under that directory. Type the
-task and press <kbd>Enter</kbd>. **Options**, under the box at its right, opens what the flow is set up with, as that
-directory last set it up:
+task and press <kbd>Enter</kbd>. What the flow is set up with is in the middle of the page, under what the
+flow is for, always in sight -- nothing opens or hides it -- as that directory last started it:
 
-- **Agents.** Per role: the **CLI** (installed ones that can fill it), the **Account** it runs
-  as (**Local** is this machine's own sign-in; **Add account…** opens Settings), the **Model**
-  and the **Effort**. A CLI never asked what it runs is asked the first time it is picked, which
-  can take a while; the refresh button asks again. Where it cannot say, pick **Other…** and type
-  the model.
-- **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
-  for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
+- **Environment.** **Runs on** and **Folder**, as above; then, per environment role, the
+  **Backend**, the **Runtime** of it (or **Add runtime…**, or for ssh **Other host…**), and the
+  **Directory**, completed as you type on this machine. A directory left blank is the folder
+  picked, which the field says while it is empty.
+- **Agents.** A row per role: its name, and beside it a chip that says the nous filling it --
+  harness, model and effort. The chip opens the menu a new chat's does, holding only the
+  harnesses installed that can fill that role: pick a row, an **Effort**, or under **More** a
+  typed model, the **Account** it runs as (**Local** is this machine's own sign-in; **Add
+  account…** opens Settings) and **Refresh models**. A harness never asked what it runs is
+  asked the first time it is picked, which can take a while. Point at a role's name for what
+  it is held to.
 - **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
-  up to, the defaults ticked until a choice is saved -- and **Profile flow** and **Profile environment**. **Save** keeps them all for that directory
-  without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set, where the window has the room: on a phone **Options** alone does, once opened. Every flow
-needs at least one limit. The page goes to the epic once it starts.
+  up to, the defaults ticked until you start with another choice -- and **Profile flow** and
+  **Profile environment**.
+
+There is nothing to save: starting the epic keeps the whole set-up for that directory, and the
+next new epic of that flow there opens on it. Every flow needs at least one limit, and each
+required role an agent; started without one, the form says so and puts you where it is set.
+The page goes to the epic once it starts.
 
 ### Ai-chan {#ai-chan}
 
