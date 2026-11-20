@@ -286,11 +286,13 @@ and MUST NOT hide it.
 still stands, save a menu the user opened from a chip of the row under the box (Section 3.6.6.15),
 which stands by its chip.
 
-**3.4.4.11** Wherever the page names a harness, a model or an effort it MUST name it as its vendor
-does, from one table the page carries -- `claude` as `Claude Code`, `claude-fable-5-2` as
-`Fable 5.2`, `gpt-6.2-sol` as `GPT-6.2 Sol`, `medium` as `Medium` -- and one the table does not
-hold as it is written. An agent MUST be written as `-a` spells it only where it is typed, where it
-is copied, and where what names it is pointed at.
+**3.4.4.11** Wherever the page names a harness or a model it MUST name it as its vendor does, and
+wherever it names an effort it MUST name it by the page's own word for it, each from one table the
+page carries -- `claude` as `Claude Code`, `claude-fable-5-2` as `Fable 5.2`, `gpt-6.2-sol` as
+`GPT-6.2 Sol`, `medium` as `Medium` -- and one the table does not hold as it is written. The word
+for an effort is a text of the page's, said in the page's language as Section 3.4.4.13 has it. An
+agent MUST be written as `-a` spells it only where it is typed, where it is copied, and where what
+names it is pointed at.
 
 **3.4.4.12** The page MUST be written in one language at a time -- English, Simplified Chinese or
 Traditional Chinese -- and MUST say which as the `lang` of its document, `en`, `zh-Hans` or

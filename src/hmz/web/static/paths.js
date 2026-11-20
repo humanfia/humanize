@@ -4,6 +4,7 @@
 
 import { call } from './api.js'
 import { fill, h, icon, iconButton } from './dom.js'
+import { t } from './i18n.js'
 import { closed, opened } from './layers.js'
 import { follow } from './shell.js'
 
@@ -21,8 +22,8 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
   const list = `paths-${Math.random().toString(36).slice(2, 8)}`
   const input = h('input', { type: 'text', value, placeholder, 'aria-label': label, id, list, autocomplete: 'off', spellcheck: 'false', 'data-hmz': 'path-input' })
   const offered = h('datalist', { id: list })
-  const browse = iconButton('folder', `Browse for ${label}`, { class: 'path-browse', 'data-hmz': 'path-browse', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' })
-  const panel = h('div', { class: 'popover path-panel', role: 'dialog', 'aria-label': `Choose ${label}`, hidden: true, 'data-hmz': 'path-panel' })
+  const browse = iconButton('folder', t('Browse for {what}', { what: label }), { class: 'path-browse', 'data-hmz': 'path-browse', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' })
+  const panel = h('div', { class: 'popover path-panel', role: 'dialog', 'aria-label': t('Choose {what}', { what: label }), hidden: true, 'data-hmz': 'path-panel' })
   const node = h('div', { class: 'path-picker menu-holder' }, input, browse, offered, panel)
   let hidden = false
   let at = ''
@@ -54,7 +55,7 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     // While a directory is read -- over SSH, for a daemon elsewhere -- the listing shown stays,
     // plainly on its way out, or the panel says it is reading where it has none yet.
     if (panel.querySelector('.path-list')) panel.setAttribute('aria-busy', 'true')
-    else draw(h('p', { class: 'loading', role: 'status' }, 'Reading…'))
+    else draw(h('p', { class: 'loading', role: 'status' }, t('Reading…')))
     let read
     try {
       read = await call('paths.list', { at: dir, files, hidden }, { on: from || undefined })
@@ -86,23 +87,23 @@ export function pathPicker({ value = '', files = false, label, placeholder = fil
     const toggle = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: hidden, onchange: (event) => {
       hidden = event.target.checked
       show(at)
-    } }), 'Hidden')
+    } }), t('Hidden'))
     draw(
       h(
         'div',
         { class: 'path-head' },
-        iconButton('up', 'Up', { class: 'small', disabled: !read.up, onclick: () => read.up && show(read.up) }),
-        iconButton('home', 'Home', { class: 'small', onclick: () => show('~') }),
+        iconButton('up', t('Up'), { class: 'small', disabled: !read.up, onclick: () => read.up && show(read.up) }),
+        iconButton('home', t('Home'), { class: 'small', onclick: () => show('~') }),
         h('div', { class: 'crumbs-path' }, crumbs),
       ),
-      h('div', { class: 'path-list', role: 'list' }, rows.length ? rows : h('p', { class: 'dim' }, files ? 'Empty' : 'No folders'), read.more ? h('p', { class: 'dim' }, `${read.more} more`) : null),
+      h('div', { class: 'path-list', role: 'list' }, rows.length ? rows : h('p', { class: 'dim' }, files ? t('Empty') : t('No folders')), read.more ? h('p', { class: 'dim' }, t('{count} more', { count: read.more })) : null),
       h(
         'div',
         { class: 'path-foot' },
         toggle,
         h('span', { class: 'path-at mono', title: read.whole }, read.at),
-        files ? null : h('button', { class: 'btn small primary', type: 'button', 'data-hmz': 'path-choose', onclick: () => pick(read.at) }, 'Choose'),
-        h('button', { class: 'btn small quiet', type: 'button', onclick: closePanel }, 'Cancel'),
+        files ? null : h('button', { class: 'btn small primary', type: 'button', 'data-hmz': 'path-choose', onclick: () => pick(read.at) }, t('Choose')),
+        h('button', { class: 'btn small quiet', type: 'button', onclick: closePanel }, t('Cancel')),
       ),
     )
     panel.querySelector('.path-entry, .crumb:last-child')?.focus()

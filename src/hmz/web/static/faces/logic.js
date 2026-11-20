@@ -2,6 +2,8 @@
 // of, what of it the face is told, what the page's colours are said to it as, how tall its frame
 // may grow, and what a submission came to. Kept apart from host.js so that it is tested alone.
 
+import { t } from '../i18n.js'
+
 /** How long a face has to say it listens for asks, from its frame loading, before the plain form. */
 export const PATIENCE_MS = 5000
 
@@ -65,7 +67,7 @@ export function askOf(question) {
 }
 
 /** Refusals the bridge passes on: each `{path, message}`, whatever shape they came in. */
-export function errorsOf(errors, otherwise = 'The answer was not taken.') {
+export function errorsOf(errors, otherwise = t('The answer was not taken.')) {
   const listed = Array.isArray(errors) ? errors : []
   const said = listed
     .filter((one) => one && typeof one === 'object')
@@ -146,7 +148,7 @@ export function cached(store = new Map()) {
       const asked = Promise.resolve()
         .then(() => fetchFace(hash))
         .then((face) => {
-          if (!face || typeof face.html !== 'string' || !face.html.trim()) throw new Error(`The view ${hash.slice(0, 8)} is empty.`)
+          if (!face || typeof face.html !== 'string' || !face.html.trim()) throw new Error(t('The view {hash} is empty.', { hash: hash.slice(0, 8) }))
           return { html: face.html, title: typeof face.title === 'string' ? face.title : '' }
         })
       asked.catch(() => store.delete(hash))

@@ -271,8 +271,10 @@ module that opens one:
 without a document, so `tests/unit/web/js/layers.test.mjs` tests it under `node --test`.
 
 A harness, a model and an effort are named on the page by `web/static/names.js` alone
-(`harnessName`, `modelName`, `effortName`): each harness and each rung by its vendor's name, a
-model by its family's row, and an id the table does not hold as it is written. Draw a name
+(`harnessName`, `modelName`, `effortName`): each harness by its vendor's name, a model by its
+family's row, each rung of an effort by the page's own word for it -- a `t('…')` of the table,
+so it is said in the page's [language](#web-languages) -- and an id the table does not hold as
+it is written. Draw a name
 through it and keep the id where it is data -- a `data-` attribute, a tip, an agent as `-a`
 spells it. A harness added to `DRIVEN` gets a row there; `tests/unit/web/js/names.test.mjs`
 lists the ids.

@@ -7,6 +7,7 @@
 import { call, daemon, given, onDaemon, poll, refresh, started } from './api.js'
 import { chipNamed } from './desk.js'
 import { h, icon } from './dom.js'
+import { t } from './i18n.js'
 import { closed, opened } from './layers.js'
 import { pathItems, pathParts, typing } from './natives.js'
 import { pathPicker } from './paths.js'
@@ -65,12 +66,12 @@ export async function firstWorkspace() {
 
 /** What is said of a folder whose directory is gone, where there is no other to pick: of a chat carried on there. */
 export function lostSaid(path) {
-  return `The folder ${nameOf(path)} is no longer on this machine.`
+  return t('The folder {name} is no longer on this machine.', { name: nameOf(path) })
 }
 
 /** What is said of a folder picked whose directory is gone, on the form and where starting is refused. */
 export function goneSaid(path) {
-  return `${lostSaid(path)} Pick another folder.`
+  return t('The folder {name} is no longer on this machine. Pick another folder.', { name: nameOf(path) })
 }
 
 /** That sentence as a form says it over its box, in place of the daemon's refusal. */
@@ -84,10 +85,10 @@ export function unplaced(error, path, said = goneSaid) {
 }
 
 /** What picking no workspace is called, as the sidebar calls the group of what has none. */
-const NONE = 'No folder'
+const NONE = t('No folder')
 
 /** Where an epic of no workspace works. */
-const NOWHERE = 'A new directory of its own, in the temporary directory'
+const NOWHERE = t('A new directory of its own, in the temporary directory')
 
 /** The choice of no folder, marked as the folders are by what each picks. */
 function folderless(item) {
@@ -122,7 +123,7 @@ export function folderFiles(folder) {
       const key = `${workspace}\n${hidden}\n${dir}`
       if (!listed.has(key)) listed.set(key, call('paths.list', { at: `${workspace.replace(/\/+$/, '')}/${dir}`, files: true, hidden }).then((read) => read.entries, () => []))
       const items = pathItems(dir, base, await listed.get(key))
-      return { from: typed.from, to: typed.to, groups: items.length ? [{ source: 'path', label: 'Files', items }] : [] }
+      return { from: typed.from, to: typed.to, groups: items.length ? [{ source: 'path', label: t('Files'), items }] : [] }
     },
   }
 }
@@ -157,11 +158,11 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
   if (hosted) plain = true
   const said = h('b', {}, '…')
   let button = hosted ? null : h('button', { class: 'flow-picker', type: 'button', 'data-hmz': 'workspace-picker', 'data-tip': chosen }, icon('folder'), said, icon('down'))
-  const folder = pathPicker({ label: 'Folder', placeholder: '~/project' })
+  const folder = pathPicker({ label: t('Folder'), placeholder: '~/project' })
   const typed = folder.input
   typed.dataset.hmz = 'workspace-path'
   const problem_ = h('span', { class: 'hint' })
-  const opening = dragged(h('form', { class: 'popover workdir-open', hidden: true }, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Folder'), folder.node), h('div', { class: 'row' }, h('button', { class: 'btn small primary', type: 'submit' }, 'Open'), h('button', { class: 'btn small quiet', type: 'button', onclick: () => shut() }, 'Cancel')), problem_), 'false')
+  const opening = dragged(h('form', { class: 'popover workdir-open', hidden: true }, h('div', { class: 'field' }, h('span', { class: 'label' }, t('Folder')), folder.node), h('div', { class: 'row' }, h('button', { class: 'btn small primary', type: 'submit' }, t('Open')), h('button', { class: 'btn small quiet', type: 'button', onclick: () => shut() }, t('Cancel'))), problem_), 'false')
   const node = hosted ? opening : h('div', { class: 'menu-holder' }, button, opening)
   let list = []
   let path = chosen
@@ -177,13 +178,13 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
     if (lost) button.setAttribute('aria-invalid', 'true')
     else button.removeAttribute('aria-invalid')
     // Said with what it picks, as every chip under a box is: its text alone is only a name.
-    button.setAttribute('aria-label', chipNamed('Folder', name))
+    button.setAttribute('aria-label', chipNamed(t('Folder'), name))
   }
   /** The folder chosen as it is said: its name, and what is said where it is pointed at. */
   const now = () => ({
     path,
-    name: path === null ? NONE : lost ? `${nameOf(path)} (missing)` : nameOf(path),
-    tip: path === null ? NOWHERE : lost ? `This folder is no longer on this machine: ${path}` : path,
+    name: path === null ? NONE : lost ? t('{name} (missing)', { name: nameOf(path) }) : nameOf(path),
+    tip: path === null ? NOWHERE : lost ? t('This folder is no longer on this machine: {path}', { path }) : path,
     lost,
   })
 
@@ -206,25 +207,25 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
 
   /** The choices of the menu: the folders there are, opening one by its path, and none. */
   const rows = (close) => [
-    plain ? null : section('Recent'),
+    plain ? null : section(t('Recent')),
     // Only what is there to work in -- and the one chosen, said to be missing, so that the
     // menu still shows what the button names.
     list.filter((one) => there(one) || one.path === path).map((one) => {
       const gone = !there(one)
-      const item = choice({ label: one.name, about: gone ? 'Missing' : plain ? '' : one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })
+      const item = choice({ label: one.name, about: gone ? t('Missing') : plain ? '' : one.path, chosen: one.path === path, glyph: 'folder', act: () => pick(one.path), close })
       item.dataset.folder = one.path
       if (gone) item.dataset.missing = ''
-      if (plain || gone) item.dataset.tip = gone ? `This folder is no longer on this machine: ${one.path}` : one.path
+      if (plain || gone) item.dataset.tip = gone ? t('This folder is no longer on this machine: {path}', { path: one.path }) : one.path
       return item
     }),
     h('hr'),
-    choice({ label: 'Open folder…', glyph: 'plus', act: () => open(), close }),
+    choice({ label: t('Open folder…'), glyph: 'plus', act: () => open(), close }),
     none ? tipped(folderless(choice({ label: NONE, about: plain ? '' : NOWHERE, chosen: path === null, glyph: 'file', act: () => pick(null), close })), plain ? NOWHERE : '') : null,
   ]
 
   if (!hosted) {
     stands(button)
-    menu(button, rows, { label: 'Folders', ...where })
+    menu(button, rows, { label: t('Folders'), ...where })
   }
 
   /** Gives a hosted one its button: called before the button is given the menu the rows are in. */
@@ -269,7 +270,7 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
     event.preventDefault()
     if (openButton.disabled) return
     openButton.disabled = true
-    openButton.textContent = 'Opening…'
+    openButton.textContent = t('Opening…')
     problem_.textContent = ''
     try {
       const answer = await call('workspaces.add', { workspace: typed.value.trim(), ...(await mine()) })
@@ -284,7 +285,7 @@ export function workspacePicker(chosen, changed, { none = false, plain = false, 
       problem_.textContent = error.message
     } finally {
       openButton.disabled = false
-      openButton.textContent = 'Open'
+      openButton.textContent = t('Open')
     }
   })
 

@@ -4,6 +4,7 @@
 // open is this browser's own, kept between visits.
 
 import { h, icon, iconButton } from './dom.js'
+import { t } from './i18n.js'
 import { EDGE, GAP, closed, dismiss, follow, opened } from './layers.js'
 
 // Where a popup is put is the chain's own (layers.js), offered here with the menus placed by it.
@@ -118,7 +119,7 @@ export function bar({ title = '', sub = null, actions = [], lead = null } = {}) 
     h(
       'header',
       { class: 'bar', 'data-hmz': 'bar' },
-      iconButton('sidebar', 'Show sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
+      iconButton('sidebar', t('Show sidebar'), { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
       lead,
       h('div', { class: 'bar-title' }, title ? h('h1', {}, title) : null, sub ? h('div', { class: 'bar-sub' }, sub) : null),
       h('div', { class: 'bar-actions' }, actions, aiChanButton()),
@@ -382,9 +383,9 @@ export function settlePanel() {
  */
 export function sidePanel(label, { key = 'hmz-panel', open: first = true, hmz = 'inspector', kind = '', told = () => {} } = {}) {
   const body = h('div', { class: 'panel-body' })
-  const shut = iconButton('close', 'Close panel', { class: 'panel-close' })
+  const shut = iconButton('close', t('Close panel'), { class: 'panel-close' })
   const node = h('aside', { class: ['inspector', kind], 'aria-label': label, 'data-hmz': hmz }, shut, body)
-  const toggle = iconButton('panel', 'Toggle panel', { class: 'panel-toggle' })
+  const toggle = iconButton('panel', t('Toggle panel'), { class: 'panel-toggle' })
   const show = (open) => {
     node.hidden = !open
     toggle.setAttribute('aria-pressed', String(open))

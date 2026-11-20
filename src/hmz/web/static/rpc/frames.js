@@ -2,6 +2,8 @@
 // big-endian integer, then the payload, one JSON object in UTF-8. A reader is fed bytes as they
 // come, however they are cut, and hands out each whole frame once, in order.
 
+import { t } from '../i18n.js'
+
 /** The longest payload a frame may carry, in bytes. */
 export const MAX = 33554432
 
@@ -19,7 +21,7 @@ export class FrameError extends Error {}
  */
 export function encode(value) {
   const payload = encoder.encode(JSON.stringify(value))
-  if (!payload.length || payload.length > MAX) throw new FrameError(`A frame of ${payload.length} bytes cannot be sent.`)
+  if (!payload.length || payload.length > MAX) throw new FrameError(t('A frame of {count} bytes cannot be sent.', { count: payload.length }))
   const frame = new Uint8Array(4 + payload.length)
   new DataView(frame.buffer).setUint32(0, payload.length)
   frame.set(payload, 4)
@@ -56,7 +58,7 @@ export class Frames {
         const header = this.#take(4)
         this.#wanted = new DataView(header.buffer, header.byteOffset, 4).getUint32(0)
         if (!this.#wanted || this.#wanted > MAX) {
-          this.broken = `A frame of ${this.#wanted} bytes is not read.`
+          this.broken = t('A frame of {count} bytes is not read.', { count: this.#wanted })
           break
         }
       }

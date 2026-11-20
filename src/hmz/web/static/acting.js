@@ -54,15 +54,15 @@ export function question(workspace, one, me, clients) {
  * on another view of the run than the session's own.
  */
 export function saying(workspace, session = '', { asked = () => null, to: into = session } = {}) {
-  const to = h('select', { 'aria-label': 'Say it to' })
+  const to = h('select', { 'aria-label': t('Say it to') })
   const box = composer({
-    placeholder: session ? `Message ${session.replace(/^outworlder:/, '')}` : 'Message the epic',
-    label: 'What to say',
+    placeholder: session ? t('Message {name}', { name: session.replace(/^outworlder:/, '') }) : t('Message the epic'),
+    label: t('What to say'),
     submit: (text) => {
       const one = asked()
       return one ? ask(workspace, 'answer', { question: one.question, text }) : ask(workspace, 'say', { text, to: into || to.value })
     },
-    tools: session ? [] : [chipSelect('To', to)],
+    tools: session ? [] : [chipSelect(t('To'), to)],
   })
   box.node.dataset.hmz = 'say'
   return {
@@ -72,10 +72,10 @@ export function saying(workspace, session = '', { asked = () => null, to: into =
       const picked = to.value
       fill(
         to,
-        h('option', { value: '' }, 'Next turn'),
+        h('option', { value: '' }, t('Next turn')),
         agents.map((name) => h('option', { value: name }, name)),
-        sessions.map((key) => h('option', { value: key }, `${key}${working.includes(key) ? ' (working)' : ''}`)),
-        outworlders.map((role) => h('option', { value: `outworlder:${role}` }, `${role} (person)`)),
+        sessions.map((key) => h('option', { value: key }, working.includes(key) ? t('{name} (working)', { name: key }) : key)),
+        outworlders.map((role) => h('option', { value: `outworlder:${role}` }, t('{name} (person)', { name: role }))),
       )
       if ([...to.options].some((option) => option.value === picked)) to.value = picked
     },
@@ -87,11 +87,11 @@ export function board(workspace, items) {
   const lines = h('div', { class: 'board', 'data-hmz': 'board' })
   for (const one of items) {
     const value = h('div', {}, one.value, one.about ? h('div', { class: 'dim' }, one.about) : null, h('div', { class: 'dim mono' }, [one.by, one.whose].filter(Boolean).join(' · ')))
-    const edit = h('button', { class: 'btn quiet small', type: 'button' }, 'Edit')
+    const edit = h('button', { class: 'btn quiet small', type: 'button' }, t('Edit'))
     edit.addEventListener('click', () => {
-      const field = h('input', { type: 'text', value: one.value, 'aria-label': `New value of ${one.key}` })
-      const form = h('form', { class: 'row' }, field, h('button', { class: 'btn small primary', type: 'submit' }, 'Save'))
-      sending(form, 'Saving…', () => ask(workspace, 'board', { key: one.key, value: field.value }))
+      const field = h('input', { type: 'text', value: one.value, 'aria-label': t('New value of {key}', { key: one.key }) })
+      const form = h('form', { class: 'row' }, field, h('button', { class: 'btn small primary', type: 'submit' }, t('Save')))
+      sending(form, t('Saving…'), () => ask(workspace, 'board', { key: one.key, value: field.value }))
       fill(value, form)
       field.focus()
     })
@@ -103,29 +103,29 @@ export function board(workspace, items) {
         value,
         // A line the flow owns is the flow's to change, as the terminal interface refuses it.
         one.whose === 'flow'
-          ? h('span', { class: 'node-tag', title: 'Only the flow changes this line' }, 'Flow')
+          ? h('span', { class: 'node-tag', title: t('Only the flow changes this line') }, 'Flow')
           : h(
               'span',
               { class: 'row' },
               edit,
-              confirming({ label: 'Remove', ask: '', yes: 'Remove', no: 'Cancel', small: true, act: () => ask(workspace, 'board', { key: one.key, value: '' }) }),
+              confirming({ label: t('Remove'), ask: '', yes: t('Remove'), no: t('Cancel'), small: true, act: () => ask(workspace, 'board', { key: one.key, value: '' }) }),
             ),
       ),
     )
   }
-  const key = h('input', { type: 'text', placeholder: 'Key', 'aria-label': 'Key', size: '12' })
-  const value = h('input', { type: 'text', placeholder: 'Value', 'aria-label': 'Value' })
-  const adding = h('form', { class: 'row' }, key, value, h('button', { class: 'btn small', type: 'submit' }, 'Add'))
+  const key = h('input', { type: 'text', placeholder: t('Key'), 'aria-label': t('Key'), size: '12' })
+  const value = h('input', { type: 'text', placeholder: t('Value'), 'aria-label': t('Value') })
+  const adding = h('form', { class: 'row' }, key, value, h('button', { class: 'btn small', type: 'submit' }, t('Add')))
   sending(
     adding,
-    'Adding…',
+    t('Adding…'),
     async () => {
       await ask(workspace, 'board', { key: key.value.trim(), value: value.value })
       key.value = value.value = ''
     },
     () => key.value.trim() && value.value.trim(),
   )
-  return [items.length ? lines : h('p', { class: 'dim' }, 'Nothing is on the board yet.'), adding]
+  return [items.length ? lines : h('p', { class: 'dim' }, t('Nothing is on the board yet.')), adding]
 }
 
 /** The roles a person fills: who holds each, and whether anybody is there for it. */
@@ -140,19 +140,19 @@ export function outworlders(workspace, roles, { claims, away, me, clients }) {
       'div',
       { class: 'row', 'data-hmz': 'outworlder' },
       h('b', { class: 'mono' }, role),
-      h('span', { class: 'dim' }, holder ? (holding ? 'You' : named[holder] || holder) : 'Anyone'),
+      h('span', { class: 'dim' }, holder ? (holding ? t('You') : named[holder] || holder) : t('Anyone')),
       holding
-        ? acting('Release', () => ask(workspace, 'release', { role }), { kind: 'btn small quiet' })
-        : acting(holder ? 'Take over' : 'Claim', () => ask(workspace, 'claim', { role, take: Boolean(holder) }), { kind: 'btn small' }),
-      acting(absent ? 'Back' : 'Away', () => ask(workspace, 'afk', { on: !absent, role }), { kind: 'btn small quiet' }),
+        ? acting(t('Release'), () => ask(workspace, 'release', { role }), { kind: 'btn small quiet' })
+        : acting(holder ? t('Take over') : t('Claim'), () => ask(workspace, 'claim', { role, take: Boolean(holder) }), { kind: 'btn small' }),
+      acting(absent ? t('Back@@present') : t('Away'), () => ask(workspace, 'afk', { on: !absent, role }), { kind: 'btn small quiet' }),
     )
   })
-  const all = acting(everybody ? 'Back for all' : 'Away for all', () => ask(workspace, 'afk', { on: !everybody }), { kind: 'btn small quiet' })
-  return [rows, h('p', { class: 'dim' }, 'Away, a question a person is asked is answered at once with nothing, and the epic carries on.'), all]
+  const all = acting(everybody ? t('Back for all') : t('Away for all'), () => ask(workspace, 'afk', { on: !everybody }), { kind: 'btn small quiet' })
+  return [rows, h('p', { class: 'dim' }, t('Away, a question a person is asked is answered at once with nothing, and the epic carries on.')), all]
 }
 
 /** What the control that picks an aside's conversation says until one is picked. */
-const UNPICKED = 'Pick a conversation'
+const UNPICKED = t('Pick a conversation')
 
 /** How often an aside answering is read again, in milliseconds. */
 const WATCHED = 1000
@@ -170,7 +170,7 @@ const WATCHED = 1000
  */
 export function asides(workspace, epic = '', { chat = false } = {}) {
   /** What an aside not yet asked is called: beside a chat, in a chat's words. */
-  const unasked = chat ? 'New question' : 'New aside'
+  const unasked = chat ? t('New question') : t('New aside')
   /** The epic's agents: `{name, role, sessions: [{key, about}]}`, as its graph has them. */
   let agents = []
   /** Every aside, in the order opened: the one not yet asked, if any, last. */
@@ -193,22 +193,22 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
     let target = ''
     const named = h('span', { class: 'chip-value' })
     const tab = h('button', { class: 'chip-btn aside-tab', type: 'button', 'data-hmz': 'btw-tab', onclick: () => show(one) }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), named)
-    const leave = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'btw-close' }, 'Close')
+    const leave = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'btw-close' }, t('Close'))
     const log = h('div', { class: 'thread aside-log', 'data-hmz': 'btw-log', role: 'log', 'aria-live': 'polite' })
     const picked = h('span', { class: 'chip-value' }, UNPICKED)
-    const picker = h('button', { class: 'chip-btn ask-to', type: 'button', 'aria-label': 'Ask it of', 'data-hmz': 'btw-to' }, h('span', { class: 'chip-label' }, 'Ask'), picked, icon('down'))
+    const picker = h('button', { class: 'chip-btn ask-to', type: 'button', 'aria-label': t('Ask it of'), 'data-hmz': 'btw-to' }, h('span', { class: 'chip-label' }, t('Ask')), picked, icon('down'))
     const pick = (key) => {
       target = key
       picked.textContent = key || UNPICKED
       picker.dataset.value = key
     }
     const box = composer({
-      placeholder: chat ? 'Ask a side question' : 'Ask about the epic',
-      label: 'Side question',
+      placeholder: chat ? t('Ask a side question') : t('Ask about the epic'),
+      label: t('Side question'),
       submit: async (question) => {
         // A chat is one conversation, and is asked about as that: the last it opened, unpicked.
         if (one.to === null && chat) target = agents.flatMap((agent) => agent.sessions).at(-1)?.key || ''
-        if (one.to === null && !target) throw new Error(chat ? t('This chat has said nothing to ask about yet.') : 'Pick the conversation to ask first.')
+        if (one.to === null && !target) throw new Error(chat ? t('This chat has said nothing to ask about yet.') : t('Pick the conversation to ask first.'))
         if (one.to === null) one.to = target
         Object.assign(one, { question: question.trim(), posting: true })
         changed += 1
@@ -228,18 +228,18 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
     })
     box.node.dataset.hmz = 'btw'
     // The menu opens clear of the box under its button: what is typed there stays in sight.
-    menu(picker, (close) => whom(target, close, pick), { by: box.node, label: 'Ask it of' })
+    menu(picker, (close) => whom(target, close, pick), { by: box.node, label: t('Ask it of') })
     const node = h('div', { class: 'aside-one', 'data-hmz': 'btw-aside' }, h('div', { class: 'aside-head' }, leave), log, h('div', { class: 'aside-to' }, picker), box.node)
     leave.addEventListener('click', async () => {
       leave.disabled = true
-      leave.textContent = 'Closing…'
+      leave.textContent = t('Closing…')
       try {
         await call('btw.leave', { workspace, aside: id })
         forget(one)
       } catch (error) {
         box.said.replaceChildren(problem(error))
         leave.disabled = false
-        leave.textContent = 'Close'
+        leave.textContent = t('Close')
       }
     })
     let was = ''
@@ -261,7 +261,7 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
         one.question
           ? [
               line('you', one.question, { who }),
-              h('div', { class: 'aside-working', 'data-hmz': 'btw-working', role: 'status' }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), chat ? t('Thinking…') : `${one.to} is thinking…`),
+              h('div', { class: 'aside-working', 'data-hmz': 'btw-working', role: 'status' }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), chat ? t('Thinking…') : t('{name} is thinking…', { name: one.to })),
             ]
           : null,
       )
@@ -286,19 +286,19 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
     const laid = () =>
       agents.length
         ? [
-            section('Conversations'),
+            section(t('Conversations')),
             ...agents.map((agent) =>
               submenu({ label: agent.name, glyph: 'agent', about: [agent.role, `${agent.sessions.length}`].filter(Boolean).join(' · '), hmz: 'btw-agent', items: () => newest(agent).map((one) => conversation(agent, one)) }),
             ),
           ]
         : h('p', { class: 'dim ask-none' }, t('No conversation yet. One opens as an agent of this epic starts.'))
     const list = h('div', { class: 'ask-list' }, laid())
-    const narrow = h('input', { class: 'menu-filter', type: 'search', placeholder: 'Find whom to ask', 'aria-label': 'Find whom to ask', 'data-hmz': 'btw-find' })
+    const narrow = h('input', { class: 'menu-filter', type: 'search', placeholder: t('Find whom to ask'), 'aria-label': t('Find whom to ask'), 'data-hmz': 'btw-find' })
     narrow.addEventListener('input', () => {
       const wanted = narrow.value.trim().toLowerCase()
       if (!wanted) return fill(list, laid())
       const found = agents.flatMap((agent) => newest(agent).filter((one) => [agent.name, agent.role, one.key, one.about].some((said) => String(said || '').toLowerCase().includes(wanted))).map((one) => conversation(agent, one)))
-      fill(list, found.length ? found : h('p', { class: 'dim ask-none' }, 'Nobody matches.'))
+      fill(list, found.length ? found : h('p', { class: 'dim ask-none' }, t('Nobody matches.')))
     })
     return [narrow, list]
   }
