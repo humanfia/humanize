@@ -503,7 +503,7 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
         bar.locator("[data-hmz=chat-view]").click()
         expect(
             page.get_by_role("menu", name="View options").get_by_role("menuitem")
-        ).to_have_text(["Side questions", "Board", "Ai-chan"])
+        ).to_have_text(["Side questions", "Board"])
         page.keyboard.press("Escape")
         expect(frame_).to_have_attribute("data-marked", "yes")
 

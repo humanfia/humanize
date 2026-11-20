@@ -7170,12 +7170,12 @@ pre.ask-plain {
 /* Her avatar: a round face. */
 .aichan-avatar {
   display: block;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
 }
 
 .aichan-btn .aichan-avatar {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Beside the view the drawer keeps the width its lines are read at: where the window has not
@@ -7202,11 +7202,6 @@ pre.ask-plain {
   border-bottom: var(--border);
 }
 
-.aichan-head .aichan-avatar {
-  width: 24px;
-  height: 24px;
-}
-
 .aichan-head h2 {
   flex: 1;
   margin: 0;
@@ -7222,72 +7217,203 @@ pre.ask-plain {
   padding: var(--gutter);
 }
 
-.aichan-body > :is(.loading, .aichan-none) {
+.aichan-body > .loading {
   margin: 0;
+}
+
+/* The list runs the drawer's whole width, a row to each edge, as a chat app's does. */
+.aichan-listing {
+  margin: calc(-1 * var(--gutter));
+}
+
+.aichan-listing > div:not(:empty),
+.aichan-none {
+  margin: var(--gutter);
 }
 
 .aichan-list {
-  display: grid;
-  gap: var(--space-8);
   margin: 0;
-  padding: 0;
+  padding: var(--space-4) 0;
   list-style: none;
 }
 
-/* One conversation: a card picked whole, and under it what forgets it. */
+/* One conversation: her face, its title, and under it one line of what was last said. What can
+   be done to it stands past its right edge, and comes in with the row a finger swipes left. */
 .aichan-row {
-  display: grid;
-  gap: var(--space-8);
-  padding: var(--space-12);
-  background: var(--raised);
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  transition: border-color var(--dur) var(--ease);
-}
-
-.aichan-row:hover {
-  border-color: var(--line-strong);
-}
-
-.aichan-row > .confirm {
-  justify-self: start;
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
 }
 
 .aichan-pick {
+  position: relative;
+  z-index: 1;
   display: grid;
-  gap: var(--space-2);
-  padding: 0;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-rows: 20px 18px;
+  align-items: center;
+  gap: 0 var(--space-12);
+  width: 100%;
+  padding: var(--space-8) var(--gutter);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   background: none;
   color: inherit;
   text-align: left;
   cursor: pointer;
   font: inherit;
+  transform: translateX(var(--swipe, 0));
+  transition: transform var(--dur-slow) var(--ease);
+  -webkit-touch-callout: none;
+}
+
+.aichan-pick:hover,
+.aichan-row.swiped > .aichan-pick {
+  background: var(--hover);
+}
+
+.aichan-pick:focus-visible {
+  outline-offset: -2px;
+}
+
+.aichan-row.is-pinned > .aichan-pick {
+  background: var(--selected);
+}
+
+.aichan-face {
+  grid-row: 1 / 3;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--selected);
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .aichan-title {
-  font: 600 var(--text)/20px var(--sans);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--text)/20px var(--sans);
 }
 
-.aichan-about {
-  font-size: var(--text-sm);
-  line-height: 16px;
+.aichan-row.is-unread .aichan-title {
+  font-weight: 700;
+}
+
+.aichan-latest {
+  grid-column: 2 / 4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--text-sm)/18px var(--sans);
   color: var(--ink-3);
-  overflow-wrap: anywhere;
 }
 
-.aichan-state {
-  font: var(--text-xs)/16px var(--mono);
-  color: var(--ink-2);
-}
-
-.aichan-state.running {
+.aichan-row.is-typing .aichan-latest {
   color: var(--live-ink);
 }
 
-.aichan-state.failed {
+/* At the title's end: that it is pinned, that it failed, that it is unread. */
+.aichan-signs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--ink-3);
+}
+
+.aichan-signs .icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.aichan-failed {
+  color: var(--fail);
+}
+
+.aichan-unread {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--pink);
+}
+
+/* Past the row's right edge: the same three as its menu, each a column a finger can press.
+   Nothing of them is there until the row is dragged, nor once it has slid shut. */
+.aichan-swipe {
+  position: absolute;
+  inset: 0 auto 0 100%;
+  display: flex;
+  visibility: hidden;
+  transform: translateX(var(--swipe, 0));
+  transition:
+    transform var(--dur-slow) var(--ease),
+    visibility 0s var(--dur-slow);
+}
+
+.aichan-row:is(.swiped, .swiping) > .aichan-swipe {
+  visibility: visible;
+  transition: transform var(--dur-slow) var(--ease);
+}
+
+.aichan-row.swiping > :is(.aichan-pick, .aichan-swipe) {
+  transition: none;
+}
+
+.aichan-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 68px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-left: var(--border);
+  background: var(--raised);
+  color: var(--ink-2);
+  font: 500 var(--text-xs)/14px var(--sans);
+  text-align: center;
+  cursor: pointer;
+}
+
+.aichan-act .icon {
+  width: var(--icon);
+  height: var(--icon);
+}
+
+.aichan-act.danger {
+  background: var(--fail);
+  border-left-color: transparent;
+  color: var(--on-ink);
+}
+
+/* What asks before a conversation is deleted: over its row, in the row's own room. */
+.aichan-ask {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 0 var(--gutter);
+  background: var(--surface);
+}
+
+.aichan-asked {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font: 500 var(--text-md)/18px var(--sans);
+}
+
+.aichan-wrong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  font-size: var(--text-sm);
   color: var(--fail);
 }
 
@@ -7322,28 +7448,142 @@ pre.ask-plain {
   overflow-y: auto;
 }
 
+/* A conversation with her, as a chat app draws one: what she says in bubbles at the left, beside
+   the conversation's face; what the person says in bubbles at the right; and what she did on the
+   way, a quiet line between them. */
 .aichan-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   font-size: var(--text-md);
   line-height: 20px;
 }
 
-.aichan-note {
-  margin: var(--space-8) 0 0;
-  font-size: var(--text-sm);
+.aichan-log:empty {
+  display: none;
 }
 
-/* Her words beside her avatar, in place of the bullet. */
-.aichan-log .said:is(.text, .result, .asks, .notice) > .g {
-  width: 20px;
-  height: 20px;
-  align-self: start;
-  margin-top: 0;
+.aichan-log .said,
+.aichan-typing {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: end;
+  gap: 0 var(--space-8);
+}
+
+/* Nobody is named in it: there is her, and there is you. */
+.aichan-log .who {
+  display: none;
+}
+
+.aichan-log .said:is(.text, .result, .asks, .notice) > .g,
+.aichan-typing > .g {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border-radius: var(--radius-full);
   color: transparent;
-  background: url('ai-chan/avatar.webp') center / contain no-repeat;
+  overflow: hidden;
+  background: var(--selected) var(--aichan-face, url('ai-chan/avatar.webp')) center / cover no-repeat;
 }
 
-.aichan-log .said {
-  grid-template-columns: 20px minmax(0, 1fr);
+/* Of several of hers one after another, the last has the face. */
+.aichan-log .said:is(.text, .result, .asks, .notice):has(+ :is(.said.text, .said.result, .said.asks, .said.notice, .aichan-typing)) > .g {
+  visibility: hidden;
+  height: 0;
+}
+
+.aichan-log .said:is(.text, .result, .asks, .notice) > .body,
+.aichan-typing > .body {
+  justify-self: start;
+  max-width: 100%;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-xs);
+  background: var(--raised);
+  border: var(--border);
+}
+
+.aichan-log .said.asks > .body {
+  background: color-mix(in srgb, var(--budget) 10%, var(--raised));
+}
+
+.aichan-log .said.you {
+  display: flex;
+  padding: 0;
+}
+
+.aichan-log .said.you .body {
+  padding: var(--space-8) var(--space-12);
+  border-bottom-right-radius: var(--radius-xs);
+}
+
+/* What she did on the way, and how long a turn took: said small, clear of the faces. */
+.aichan-log .said:is(.tool, .reasoning, .subagent, .subagent-ends, .ends, .failed, .refused, .shell) > .g {
+  display: none;
+}
+
+.aichan-log .said:is(.tool, .reasoning, .subagent, .subagent-ends, .ends, .failed, .refused, .shell) > .body {
+  grid-column: 2;
+}
+
+.aichan-log .said.ends {
+  margin-bottom: var(--space-8);
+}
+
+/* She is typing: three dots that rise in turn. */
+.aichan-typing > .body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 36px;
+}
+
+.aichan-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-3);
+  animation: aichan-typing 1.2s var(--ease) infinite;
+}
+
+.aichan-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.aichan-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes aichan-typing {
+  0%,
+  60%,
+  100% {
+    transform: none;
+    opacity: 0.5;
+  }
+
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aichan-typing i {
+    animation: none;
+  }
+
+  .aichan-pick,
+  .aichan-swipe {
+    transition: none;
+  }
+}
+
+/* The box a new conversation's task is typed into carries her nous under it, as a new chat's. */
+.aichan-nous {
+  display: inline-flex;
+  min-width: 0;
 }
 
 .nous-field,
@@ -7354,6 +7594,14 @@ pre.ask-plain {
 
 .aichan-options:empty {
   display: none;
+}
+
+/* In the macOS app's narrow window the drawer covers the view from the window's left edge: its
+   head keeps clear of the window's own buttons. */
+@media (max-width: 860px) {
+  :root[data-shell='macos']:not([data-fullscreen]) .inspector.aichan .aichan-head {
+    padding-left: var(--lights);
+  }
 }
 
 /* In the Windows app's window the drawer, open, is the top right, beside the view or over it:

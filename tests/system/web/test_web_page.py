@@ -897,8 +897,12 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(row.locator("[data-hmz=epic]")).to_have_attribute("data-kind", "chat")
         expect(page.get_by_role("tab", name="People")).to_have_count(0)
         # Nothing on it is called an epic, a flow or native: its bar holds its title, one
-        # menu and a button for each pane, and its panel says what it is in a chat's words.
-        expect(bar.locator(".bar-actions button")).to_have_count(5)
+        # menu, a button for each pane and, as every view's, Ai-chan's at its end, and its
+        # panel says what it is in a chat's words.
+        expect(bar.locator(".bar-actions button")).to_have_count(6)
+        expect(bar.locator(".bar-actions > *").last).to_have_attribute(
+            "data-hmz", "aichan-toggle"
+        )
         expect(bar.locator("[data-hmz=prefer]")).to_have_count(0)
         expect(bar).not_to_contain_text(re.compile("epic|flow|native", re.IGNORECASE))
         expect(page.locator("[data-hmz=inspector]")).to_be_hidden()
@@ -2366,49 +2370,6 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         expect(tabs).to_have_count(1)
         expect(log).to_contain_text("and you, slowly")
         stop(page)
-
-
-def test_ai_chan_drawer_opens_from_every_view_with_her_avatar_and_new_form(
-    project: Path, engine: str, tmp_path: Path
-) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        go(page, "/new")
-        drawer = page.locator("[data-hmz=aichan]")
-        expect(drawer).to_be_hidden()
-        toggle = page.locator("[data-hmz=aichan-toggle]").first
-        expect(toggle).to_have_attribute("aria-pressed", "false")
-        toggle.click()
-        expect(drawer).to_be_visible()
-        expect(toggle).to_have_attribute("aria-pressed", "true")
-        # Her avatar, loaded and drawn in hard pixels.
-        avatar = drawer.locator(".aichan-head img")
-        expect(avatar).to_have_attribute("src", "/ai-chan/avatar.png")
-        assert avatar.evaluate("(img) => img.complete && img.naturalWidth") == 512
-        assert (
-            avatar.evaluate("(img) => getComputedStyle(img).imageRendering")
-            == "pixelated"
-        )
-        # Open from view to view, until closed.
-        go(page, f"/new?workspace={project.resolve()}")
-        expect(drawer).to_be_visible()
-        # New: the scope the page shows, a preset, the network off, and the task.
-        drawer.locator("[data-hmz=aichan-new]").click()
-        form = drawer.locator("[data-hmz=aichan-form]")
-        expect(form).to_be_visible()
-        # A new epic in a folder shows a workspace: the scope starts on it.
-        expect(form.locator("[data-hmz=aichan-scope]")).to_have_value("workspace")
-        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_visible()
-        expect(form.locator("[data-hmz=aichan-preset]")).to_have_value("read-only")
-        expect(form.locator("[data-hmz=aichan-network]")).not_to_be_checked()
-        expect(form.locator("[data-hmz=aichan-epic]")).to_be_hidden()
-        page.screenshot(path=str(tmp_path / "aichan-drawer.png"))
-        form.locator("[data-hmz=aichan-scope]").select_option("daemon")
-        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_hidden()
-        form.locator("[data-hmz=aichan-scope]").select_option("epic")
-        expect(form.locator("[data-hmz=aichan-epic]")).to_be_visible()
-        expect(form.locator("[data-hmz=aichan-task] textarea")).to_be_visible()
-        drawer.get_by_role("button", name="Close panel").click()
-        expect(drawer).to_be_hidden()
 
 
 @pytest.mark.usefixtures("talking")

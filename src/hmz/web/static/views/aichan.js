@@ -1,30 +1,37 @@
 // Ai-chan's drawer (Section 3.16 of protocol/web.md): beside every view of the page, opened and
 // closed by her avatar on the view's bar, and left as it was from view to view. It lists her
-// conversations with the daemon shown, newest first, makes one with `New` -- of the scope the
-// page shows, with the nous Settings name for her -- and draws one as a chat, attached to its
-// slot: her answers beside her avatar, each tool she calls a line to open, and a box that says
-// the next line to her, which carries a conversation folded away on.
+// conversations with the daemon shown as a chat app lists its own -- a face, a title and the
+// start of what was last said, the pinned first and then the latest said in --, with a menu on
+// each, under the pointer's other button, the menu key or a finger at rest, and under the row
+// swiped to the left: pin it, mark it read or unread, delete it. It makes one with `New` -- of
+// the scope the page shows, with the nous she last used unless another is picked -- and draws
+// one as a chat, attached to its slot: her answers in bubbles beside the conversation's face,
+// the person's at the right, each tool she calls a line to open, and a box that says the next
+// line to her, which carries a conversation folded away on.
 
-import { call, onDaemon, poll, refresh } from '../api.js'
-import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateOf, stateSaid, told } from '../aichan.js'
+import { call, daemon, onDaemon, poll, refresh } from '../api.js'
+import { PRESETS, SCOPES, actionsOf, created, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, unreadOf } from '../aichan.js'
+import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
-import { confirming } from '../confirm.js'
-import { acting, fill, h, icon, problem } from '../dom.js'
+import { acting, empty, fill, h, icon, problem } from '../dom.js'
 import { sessionsOf, watch } from '../epic.js'
 import { ask, current, follow } from '../held.js'
-import { nousField } from '../pickers.js'
+import { t } from '../i18n.js'
+import { readBackends } from '../pickers.js'
 import { firstWorkspace, goneSaid, workspacePicker } from '../places.js'
-import { dragged, sidePanel } from '../shell.js'
+import { dragged, keep, kept, sidePanel } from '../shell.js'
+import { swiped, unswiped } from '../swipe.js'
 import { line, saidTraced, sayer } from '../transcript.js'
-
-/** Her avatar, as drawn beside what she says and over her drawer. */
-const AVATAR = '/ai-chan/avatar.webp'
+import { menuOf, menuOn } from '../ui.js'
 
 /** How often her conversations are read again while the drawer is open, in milliseconds. */
 const EVERY = 3000
 
 /** How long a line said to a conversation folded away waits for her to be carried on. */
 const CARRYING = 30000
+
+/** What this browser keeps of her conversations, by daemon: the pinned, the unread, those seen failed, and up to when each was read. */
+const MARKS = 'hmz-aichan-marks'
 
 /**
  * Mounts the drawer beside the page, once.
@@ -41,18 +48,40 @@ export function mount(app, where) {
   let unlist = () => {}
   /** What lets go of what is drawn now: the conversation followed, or the form. */
   let leave = () => {}
+  /** The rows drawn, by the conversation each is of, and the one whose deleting is asked. */
+  const drawn = new Map()
+  let asking = null
   const body = h('div', { class: 'aichan-body' })
   const panel = sidePanel('Ai-chan', { key: 'hmz-aichan', open: false, hmz: 'aichan', kind: 'aichan', told: (open) => opened(open) })
   panel.node.id = 'aichan'
   const fresh = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'aichan-new' }, icon('plus'), 'New')
-  fill(
-    panel.body,
-    dragged(h('header', { class: 'aichan-head' }, h('img', { class: 'aichan-avatar', src: AVATAR, alt: '', width: '32', height: '32' }), h('h2', {}, 'Ai-chan'), fresh), 'deep', 'wide'),
-    body,
-  )
+  fill(panel.body, dragged(h('header', { class: 'aichan-head' }, h('h2', {}, 'Ai-chan'), fresh), 'deep', 'wide'), body)
   app.append(panel.node)
 
   fresh.addEventListener('click', () => show({ kind: 'new' }))
+
+  /** What this browser keeps of the conversations of the daemon shown. */
+  function marks() {
+    let all = null
+    try {
+      all = JSON.parse(kept(MARKS, '{}'))
+    } catch {
+      // Unreadable, it keeps nothing.
+    }
+    return marksOf(all, daemon())
+  }
+
+  /** Keeps it, beside what is kept of every other daemon's. */
+  function remember(now) {
+    let all = {}
+    try {
+      all = JSON.parse(kept(MARKS, '{}')) || {}
+    } catch {
+      // Unreadable, it is written anew.
+    }
+    if (JSON.stringify(marksOf(all, daemon())) === JSON.stringify(now)) return
+    keep(MARKS, JSON.stringify({ ...all, [daemon()]: now }))
+  }
 
   function opened(open) {
     app.classList.toggle('aichan-open', open)
@@ -66,7 +95,11 @@ export function mount(app, where) {
     }
     unlist = poll('aichan.list', {}, EVERY, (answer, error) => {
       refused = error
-      if (answer) rows = answer.conversations
+      if (answer) {
+        rows = answer.conversations
+        // Read again: what is gone is forgotten here, and the one open is read as it is said in.
+        remember(settled(marks(), rows, showing.kind === 'chat' ? showing.id : null))
+      }
       if (showing.kind === 'list') list()
       else if (showing.kind === 'chat') titled()
     })
@@ -77,48 +110,178 @@ export function mount(app, where) {
   function show(what) {
     leave()
     leave = () => {}
+    unswiped()
     showing = what
     if (what.kind === 'new') leave = form()
     else if (what.kind === 'chat') leave = chat(what)
     else list()
   }
 
+  /** The list's own frame, kept while the list is shown so that its rows are drawn once and then changed. */
+  const refusal = h('div', {})
+  const listed = h('ul', { class: 'aichan-list', role: 'list', 'data-hmz': 'aichan-list' })
+  const none = empty(
+    t('No conversations yet'),
+    t('Ask Ai-chan what your epics did, have her steer a session, or run something for you.'),
+    h('button', { class: 'btn small', type: 'button', 'data-hmz': 'aichan-first', onclick: () => show({ kind: 'new' }) }, icon('plus'), t('New conversation')),
+  )
+  none.classList.add('aichan-none')
+  none.dataset.hmz = 'aichan-none'
+  const listing = h('div', { class: 'aichan-listing' }, refusal, listed, none)
+
   function list() {
     if (!rows) return fill(body, refused ? problem(refused) : h('p', { class: 'loading', role: 'status' }, 'Reading her conversations…'))
-    fill(
-      body,
-      refused ? problem(refused) : null,
-      rows.length
-        ? h(
-            'ul',
-            { class: 'aichan-list', role: 'list', 'data-hmz': 'aichan-list' },
-            rows.map((one) =>
-              h(
-                'li',
-                { class: 'aichan-row', 'data-hmz': 'aichan-conversation' },
-                h(
-                  'button',
-                  { class: 'aichan-pick', type: 'button', onclick: () => show({ kind: 'chat', ...one }) },
-                  h('span', { class: 'aichan-title' }, one.title || `Ai-chan #${one.id}`),
-                  h('span', { class: 'aichan-about' }, scopeSaid(one)),
-                  h('span', { class: 'aichan-about mono' }, [one.nous, permissionSaid(one)].filter(Boolean).join(' · ')),
-                  h('span', { class: ['aichan-state', one.state], 'data-hmz': 'aichan-state' }, stateSaid(one.state)),
-                ),
-                confirming({
-                  label: 'Forget',
-                  ask: 'Forget her conversation?',
-                  yes: 'Forget',
-                  small: true,
-                  act: async () => {
-                    await call('aichan.forget', { id: one.id })
-                    refresh('aichan.list')
-                  },
-                }),
-              ),
+    if (listing.parentElement !== body) fill(body, listing)
+    fill(refusal, refused ? problem(refused) : null)
+    const now = marks()
+    const sorted = ordered(rows, now)
+    none.hidden = sorted.length > 0
+    listed.hidden = !sorted.length
+    for (const [id, one] of drawn) {
+      if (sorted.some((row) => row.id === id)) continue
+      one.node.remove()
+      drawn.delete(id)
+      if (asking === id) asking = null
+    }
+    for (const row of sorted) {
+      if (!drawn.has(row.id)) drawn.set(row.id, rowOf(row.id))
+      drawn.get(row.id).draw(row, now)
+    }
+    // Put in their order only where it changed: a row moved loses the focus and the finger on it.
+    const order = sorted.map((row) => drawn.get(row.id).node)
+    if (order.some((node, at) => listed.children[at] !== node)) {
+      const held = document.activeElement
+      listed.replaceChildren(...order)
+      if (held instanceof HTMLElement && listed.contains(held)) held.focus({ preventScroll: true })
+    }
+  }
+
+  /** Does what a conversation's menu, or the row under it, offers. */
+  function act(key, row, on) {
+    if (key === 'delete') {
+      asking = row.id
+      list()
+      drawn.get(row.id)?.node.querySelector('[data-hmz=aichan-keep]')?.focus()
+      return
+    }
+    const now = marks()
+    if (key === 'pin') remember(marked(now, 'pinned', row.id, on))
+    // Marked read, it is read up to what was last said in it; unread, until it is opened.
+    else remember(on ? read(now, row) : marked(now, 'unread', row.id, true))
+    list()
+  }
+
+  /** One conversation's row: drawn once, and changed as the list is read again. */
+  function rowOf(id) {
+    const title = h('span', { class: 'aichan-title' })
+    const latest = h('span', { class: 'aichan-latest', 'data-hmz': 'aichan-latest' })
+    const signs = h('span', { class: 'aichan-signs' })
+    const pick = h('button', { class: 'aichan-pick', type: 'button' }, h('img', { class: 'aichan-face', src: faceUrl(id), alt: '', width: '40', height: '40', draggable: 'false' }), title, signs, latest)
+    const tray = h('div', { class: 'aichan-swipe', 'data-hmz': 'aichan-swipe', inert: true })
+    const holder = h('div', {})
+    const node = h('li', { class: 'aichan-row', 'data-hmz': 'aichan-conversation', 'data-id': String(id) }, pick, tray, holder)
+    let row = null
+    let was = ''
+    const swipe = swiped(node, tray, { held: () => menuOf(node, pick) })
+    pick.addEventListener('click', () => {
+      // Open under a finger, a press of it shuts it: the row is opened by the next.
+      if (node.classList.contains('swiped')) return swipe.shut()
+      show({ kind: 'chat', ...row })
+    })
+    // The menu key, where a keyboard has one, and Alt and Enter where it has none.
+    pick.addEventListener('keydown', (event) => {
+      if (!(event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey) || (event.key === 'Enter' && event.altKey))) return
+      event.preventDefault()
+      menuOf(node, pick)
+    })
+    menuOn(node, () => (asking === id ? [] : actionsOf(row, marks()).map((one) => ({ label: one.label, glyph: one.glyph, danger: one.danger, act: () => act(one.key, row, one.on) }))))
+
+    /** What asks before the conversation is deleted, over its row. */
+    function confirm() {
+      const cancel = () => {
+        asking = null
+        list()
+        pick.focus()
+      }
+      const no = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'aichan-keep', onclick: cancel }, t('Cancel'))
+      const yes = h('button', { class: 'btn small danger', type: 'button', 'data-hmz': 'aichan-delete' }, t('Delete'))
+      const wrong = h('span', { class: 'aichan-wrong', role: 'alert' })
+      yes.addEventListener('click', async () => {
+        no.disabled = yes.disabled = true
+        yes.textContent = t('Deleting…')
+        try {
+          await call('aichan.forget', { id })
+        } catch (error) {
+          no.disabled = yes.disabled = false
+          yes.textContent = t('Delete')
+          wrong.textContent = error.message
+          return
+        }
+        // Gone at once, here; the list read again says so of the daemon.
+        rows = (rows || []).filter((one) => one.id !== id)
+        remember(settled(marks(), rows))
+        list()
+        refresh('aichan.list')
+      })
+      const question = t('Delete this conversation?')
+      const asked = h('div', { class: 'aichan-ask', role: 'alertdialog', 'aria-label': question, 'data-hmz': 'aichan-ask' }, h('span', { class: 'aichan-asked' }, question, wrong), no, yes)
+      asked.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return
+        // Taken back, and not the drawer's to close.
+        event.preventDefault()
+        cancel()
+      })
+      return asked
+    }
+
+    return {
+      node,
+      draw(next, now) {
+        row = next
+        const unread = unreadOf(row, now)
+        const pinned = now.pinned.includes(id)
+        const failed = now.failed.includes(id)
+        const is = JSON.stringify([titleOf(row), previewOf(row), row.state, unread, pinned, failed, asking === id])
+        if (is === was) return
+        was = is
+        title.textContent = titleOf(row)
+        latest.textContent = previewOf(row)
+        node.classList.toggle('is-unread', unread)
+        node.classList.toggle('is-pinned', pinned)
+        node.classList.toggle('is-typing', row.state === 'running')
+        fill(
+          signs,
+          pinned ? h('span', { class: 'aichan-pinned', role: 'img', 'aria-label': t('Pinned'), 'data-hmz': 'aichan-pinned' }, icon('pin')) : null,
+          failed ? h('span', { class: 'aichan-failed', role: 'img', 'aria-label': t('Failed'), 'data-hmz': 'aichan-failed' }, icon('close')) : null,
+          unread ? h('span', { class: 'aichan-unread', role: 'img', 'aria-label': t('Unread'), 'data-hmz': 'aichan-unread' }) : null,
+        )
+        // The same three as its menu, under the row for a finger that swipes it.
+        fill(
+          tray,
+          actionsOf(row, now).map((one) =>
+            h(
+              'button',
+              {
+                class: ['aichan-act', one.danger && 'danger'],
+                type: 'button',
+                'data-act': one.key,
+                onclick: () => {
+                  swipe.shut()
+                  act(one.key, row, one.on)
+                },
+              },
+              icon(one.glyph),
+              h('span', {}, one.label),
             ),
-          )
-        : h('p', { class: 'dim aichan-none' }, 'No conversation with Ai-chan yet. Start one with New.'),
-    )
+          ),
+        )
+        if (asking === id) {
+          swipe.shut()
+          if (!holder.firstChild) holder.append(confirm())
+        } else fill(holder)
+        pick.inert = asking === id
+      },
+    }
   }
 
   /** The form that makes a conversation, of the scope the page shows. */
@@ -132,22 +295,30 @@ export function mount(app, where) {
     const preset = h('select', { 'aria-label': 'Preset', 'data-hmz': 'aichan-preset' }, PRESETS.map((one) => h('option', { value: one }, one)))
     const network = h('input', { type: 'checkbox', 'data-hmz': 'aichan-network' })
     const title = h('input', { type: 'text', placeholder: 'From the task', 'aria-label': 'Title', 'data-hmz': 'aichan-title' })
-    const nousHolder = h('span', {}, h('span', { class: 'hint' }, 'Reading the nous…'))
-    let nous = null
-    let setting = ''
+    // Her nous, picked as a new chat's is, under the box: the one she last used until another is.
+    const nousHolder = h('span', { class: 'aichan-nous', 'data-hmz': 'aichan-nous' }, h('span', { class: 'hint' }, 'Reading the nous…'))
+    let chip = null
+    let left = false
     const box = composer({
       placeholder: 'Tell Ai-chan what to do',
       label: 'Task',
       busy: 'Starting…',
+      desk: { right: [nousHolder] },
       submit: async (task) => {
-        const said = { scope: scope.value, workspace: place.value() || '', epic: epic.value, nous: nous ? nous.input.value : '', preset: preset.value, network: network.checked, title: title.value, task }
-        const why = missing(said, setting)
-        if (why) throw new Error(why)
+        const said = { scope: scope.value, workspace: place.value() || '', epic: epic.value, nous: chip ? chip.value() : '', preset: preset.value, network: network.checked, title: title.value, task }
+        const why = missing(said)
+        if (why) {
+          // None picked: where one is, is opened.
+          if (!said.nous.trim() && said.task.trim()) chip?.open()
+          throw new Error(why)
+        }
         // Nothing is made in a folder that went; the daemon's scope names none (`created`).
         if (said.scope === 'workspace' && place.gone()) throw new Error(goneSaid(said.workspace))
         const made = await call('aichan.create', created(said))
         refresh('aichan.list')
-        show({ kind: 'chat', ...made })
+        // The daemon wrote her nous down as the one last used, which the next form opens on.
+        refresh('settings.get')
+        show({ kind: 'chat', title: said.title.trim() || said.task.trim().split('\n')[0], ...made })
       },
     })
     box.node.dataset.hmz = 'aichan-task'
@@ -186,13 +357,13 @@ export function mount(app, where) {
         () => {},
       )
     else epics()
-    Promise.all([call('settings.get'), call('nous.list').catch(() => null)]).then(
-      ([settings, offered]) => {
-        setting = settings.ai_chan || ''
-        nous = nousField(setting, offered, { label: 'Nous', hmz: 'aichan-nous', placeholder: 'Pick her nous' })
-        fill(nousHolder, nous.node)
+    Promise.all([call('settings.get'), readBackends()]).then(
+      ([settings]) => {
+        if (left) return
+        chip = modelChip('ai_chan', settings.ai_chan || '')
+        fill(nousHolder, chip.node)
       },
-      (error) => fill(nousHolder, problem(error)),
+      (error) => left || fill(nousHolder, problem(error)),
     )
     const back = h('button', { class: 'btn quiet small', type: 'button', onclick: () => show({ kind: 'list' }) }, 'Back')
     fill(
@@ -204,7 +375,6 @@ export function mount(app, where) {
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Scope'), scope),
         where_,
         which,
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Nous'), nousHolder),
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Preset'), preset),
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Network'), h('label', { class: 'check' }, network, 'Her harness may reach the network')),
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Title'), title),
@@ -212,7 +382,11 @@ export function mount(app, where) {
       ),
     )
     box.text.focus()
-    return () => place.leave()
+    return () => {
+      left = true
+      place.leave()
+      chip?.leave()
+    }
   }
 
   /** Names the conversation drawn as the list names it, once the list has it. */
@@ -220,18 +394,25 @@ export function mount(app, where) {
     const shown = body.querySelector('[data-hmz=aichan-title]')
     if (!shown) return
     const row = (rows || []).find((each) => each.id === showing.id)
-    shown.textContent = (row && row.title) || showing.title || `Ai-chan #${showing.id}`
+    shown.textContent = titleOf(row && row.title ? row : showing)
   }
 
   /** One conversation, drawn as a chat while its slot is followed. */
   function chat(one) {
     const host = { workspace: one.workspace, slot: one.slot }
-    const log = h('div', { class: 'thread aichan-log', role: 'log', 'aria-live': 'polite', 'data-hmz': 'aichan-log' })
-    const earlier = h('div', { class: 'thread-before' })
-    const note = h('p', { class: 'dim aichan-note', 'data-hmz': 'aichan-folded', hidden: true }, 'Folded away. What you say next carries her on.')
+    // Her words beside the face its row has in the list.
+    const log = h('div', { class: 'thread aichan-log', role: 'log', 'aria-live': 'polite', 'data-hmz': 'aichan-log', style: { '--aichan-face': `url("${faceUrl(one.id)}")` } })
+    const earlier = h('div', { class: 'thread thread-before aichan-log', style: { '--aichan-face': `url("${faceUrl(one.id)}")` } })
+    // While her turn is open: three dots in a bubble of hers, at the foot of the conversation.
+    const typing = h(
+      'div',
+      { class: 'aichan-typing', role: 'status', 'aria-label': t('Ai-chan is typing…'), 'data-hmz': 'aichan-typing' },
+      h('span', { class: 'g', 'aria-hidden': 'true' }),
+      h('div', { class: 'body', 'aria-hidden': 'true' }, h('i', {}), h('i', {}), h('i', {})),
+    )
     const options = h('div', { class: 'row aichan-options', 'data-hmz': 'aichan-options' })
     const stopHolder = h('span', {})
-    const state = h('span', { class: 'aichan-state', 'data-hmz': 'aichan-state' })
+    const whole = h('div', { class: 'aichan-chat', 'data-hmz': 'aichan-chat' })
     let held = null
     let saidBy = null
     let saidFor = ''
@@ -256,19 +437,12 @@ export function mount(app, where) {
     })
     box.node.dataset.hmz = 'aichan-say'
     const back = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'aichan-back', onclick: () => show({ kind: 'list' }) }, 'Back')
-    fill(
-      body,
-      h(
-        'div',
-        { class: 'aichan-chat', 'data-hmz': 'aichan-chat' },
-        h('div', { class: 'aichan-crumb' }, back, h('b', { class: 'aichan-title', 'data-hmz': 'aichan-title' }), state, stopHolder),
-        h('div', { class: 'aichan-scroll' }, earlier, log, note),
-        options,
-        box.node,
-      ),
-    )
+    fill(body, fill(whole, h('div', { class: 'aichan-crumb' }, back, h('b', { class: 'aichan-title', 'data-hmz': 'aichan-title' }), stopHolder), h('div', { class: 'aichan-scroll' }, earlier, log), options, box.node))
     box.text.focus()
     titled()
+    // Opened, it is read.
+    const row = (rows || []).find((each) => each.id === one.id)
+    if (row) remember(read(marks(), row))
 
     function draw(seen) {
       held = seen.held
@@ -289,8 +463,10 @@ export function mount(app, where) {
       for (const record of records) {
         if (record.seq <= upTo) continue
         upTo = record.seq
-        for (const line of saidBy(record)) {
-          log.append(line)
+        for (const said of saidBy(record)) {
+          // Over the dots, which stay at the foot while she goes on.
+          if (typing.parentElement === log) typing.before(said)
+          else log.append(said)
           added = true
         }
       }
@@ -301,10 +477,10 @@ export function mount(app, where) {
         traced = detail.earlier
         // Her conversation is a chat's record, read by the id her host says (`chat.get`).
         call('chat.get', { chat: detail.name, trace: true }).then(
-          (read) => {
+          (got) => {
             const before = sessionsOf(detail)[detail.earlier - 1]
-            const found = before && read.trace.find((each) => each.key === before.traced)
-            if (found && found.actions.length) fill(earlier, saidTraced({ ...found, label: before.key, chat: true }))
+            const found = before && got.trace.find((each) => each.key === before.traced)
+            if (found && found.actions.length) fill(earlier, saidTraced({ ...found, chat: true }))
           },
           () => {},
         )
@@ -316,23 +492,27 @@ export function mount(app, where) {
       if (stands.why && !failed) {
         log.querySelector(':scope > .thread-empty')?.remove()
         log.append(line('failed', stands.why))
+        // And marked so in the list, which the daemon's own does not say.
+        remember(marked(marks(), 'failed', one.id, true))
       }
       failed = stands.why
-      state.className = `aichan-state ${stands.state}`
-      fill(state, stateSaid(stands.state))
-      note.hidden = held.connected || !held.gone || Boolean(failed)
+      // How it stands is said by no word: the dots while she answers, the failure in the log.
+      whole.dataset.state = stands.state
       // Her turn open: stopped at once, without asking (Section 14.8.3 of protocol/core.md).
-      const answering = held.connected && turn === 'running'
+      const answering = held.connected && turn === 'running' && !failed
       if (answering !== Boolean(stopHolder.firstChild)) fill(stopHolder, answering ? acting('Stop', () => ask(host, 'stop'), { kind: 'btn small danger', busy: 'Stopping…' }) : null)
       // What she asks mid-turn, with the answers she offers, answered by a press.
       const pending = (held.standing.pending && held.standing.pending.pending) || []
-      const asking = pending.find((each) => each.options && each.options.length && (!each.owner || each.owner === held.me))
-      const shown = asking ? JSON.stringify([asking.question, asking.options]) : ''
+      const asked = pending.find((each) => each.options && each.options.length && (!each.owner || each.owner === held.me))
+      const shown = asked ? JSON.stringify([asked.question, asked.options]) : ''
       if (options.dataset.shown !== shown) {
         options.dataset.shown = shown
-        fill(options, asking ? asking.options.map((option, index) => acting(option, () => ask(host, 'answer', { question: asking.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' })) : null)
+        fill(options, asked ? asked.options.map((option, index) => acting(option, () => ask(host, 'answer', { question: asked.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' })) : null)
       }
-      if (!log.childElementCount) log.append(h('p', { class: 'dim thread-empty' }, held.connected ? 'Ai-chan is reading…' : 'Opening her conversation…'))
+      if (!answering || asked) typing.remove()
+      else if (log.lastElementChild !== typing) log.append(typing)
+      if (log.querySelector(':scope > .said, :scope > .aichan-typing')) log.querySelector(':scope > .thread-empty')?.remove()
+      else if (!log.childElementCount) log.append(h('p', { class: 'dim thread-empty' }, t('Opening her conversation…')))
       if (stuck) scroller.scrollTop = scroller.scrollHeight
     }
 
@@ -352,6 +532,9 @@ export function mount(app, where) {
   onDaemon(() => {
     rows = null
     refused = null
+    asking = null
+    for (const one of drawn.values()) one.node.remove()
+    drawn.clear()
     showing = { kind: 'list' }
     if (!panel.node.hidden) opened(true)
   })

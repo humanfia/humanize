@@ -2,14 +2,16 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateOf, stateSaid, told } from '../../../../src/hmz/web/static/aichan.js'
+import { FACES, PRESETS, SCOPES, actionsOf, created, faceOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, unreadOf } from '../../../../src/hmz/web/static/aichan.js'
+import { HOLD, SLOP, axisOf, offsetOf, restsOpen } from '../../../../src/hmz/web/static/swipe.js'
 
 const at = (path) => {
   const url = new URL(path, 'http://page')
   return [url.pathname.split('/').filter(Boolean).map(decodeURIComponent), url.searchParams]
 }
 
-const FORM = { scope: 'workspace', workspace: '/w', epic: '', nous: '', preset: 'read-only', network: false, title: '', task: 'look around' }
+const FORM = { scope: 'workspace', workspace: '/w', epic: '', nous: 'claude/claude-opus-5', preset: 'read-only', network: false, title: '', task: 'look around' }
+const NOUS = FORM.nous
 
 test('the scope defaults to the epic shown, else the workspace shown, else the daemon', () => {
   assert.deepEqual(scopeOf(...at('/epics/brave-otter/sessions/a%2F1')), { scope: 'epic', workspace: '', epic: 'brave-otter' })
@@ -30,9 +32,9 @@ test('the form offers every scope and preset, read-only first', () => {
   assert.deepEqual(PRESETS, ['read-only', 'danger-full-access'])
 })
 
-test('aichan.create is sent only what the scope takes, and leaves defaults out', () => {
-  assert.deepEqual(created({ ...FORM, scope: 'daemon', workspace: '/w', epic: 'e' }), { scope: 'daemon', preset: 'read-only', network: false, task: 'look around' })
-  assert.deepEqual(created({ ...FORM, epic: 'e' }), { scope: 'workspace', workspace: '/w', preset: 'read-only', network: false, task: 'look around' })
+test('aichan.create is sent only what the scope takes, always with the nous picked, and leaves a title out', () => {
+  assert.deepEqual(created({ ...FORM, scope: 'daemon', workspace: '/w', epic: 'e' }), { scope: 'daemon', nous: NOUS, preset: 'read-only', network: false, task: 'look around' })
+  assert.deepEqual(created({ ...FORM, epic: 'e' }), { scope: 'workspace', workspace: '/w', nous: NOUS, preset: 'read-only', network: false, task: 'look around' })
   assert.deepEqual(created({ ...FORM, scope: 'epic', epic: ' e ', nous: ' fast ', title: ' T ', preset: 'danger-full-access', network: true, task: ' go \n' }), {
     scope: 'epic',
     workspace: '/w',
@@ -45,24 +47,126 @@ test('aichan.create is sent only what the scope takes, and leaves defaults out',
   })
 })
 
-test('the form says what it lacks before it makes a conversation', () => {
-  assert.equal(missing({ ...FORM, workspace: '' }, 'fast'), 'Pick the workspace she works in.')
-  assert.equal(missing({ ...FORM, scope: 'epic' }, 'fast'), 'Name the epic she works on.')
-  assert.equal(missing(FORM, ''), 'Pick her nous: Settings name none for Ai-chan.')
-  assert.equal(missing({ ...FORM, task: '  ' }, 'fast'), 'Tell Ai-chan something to start with.')
-  assert.equal(missing({ ...FORM, nous: 'claude/claude-opus-5' }, ''), '')
-  assert.equal(missing({ ...FORM, scope: 'daemon', workspace: '' }, 'fast'), '')
+test('the form says what it lacks before it makes a conversation: a nous is picked each time', () => {
+  assert.equal(missing({ ...FORM, workspace: '' }), 'Pick the workspace she works in.')
+  assert.equal(missing({ ...FORM, scope: 'epic' }), 'Name the epic she works on.')
+  assert.equal(missing({ ...FORM, nous: ' ' }), 'Pick a nous for Ai-chan.')
+  assert.equal(missing({ ...FORM, task: '  ' }), 'Tell Ai-chan something to start with.')
+  assert.equal(missing(FORM), '')
+  assert.equal(missing({ ...FORM, scope: 'daemon', workspace: '' }), '')
 })
 
-test('a conversation is said by its state, its scope and its permission', () => {
-  assert.equal(stateSaid('running'), 'Answering')
-  assert.equal(stateSaid('waiting'), 'Waiting')
-  assert.equal(stateSaid('folded'), 'Folded away')
-  assert.equal(scopeSaid({ scope: 'daemon', workspace: '/home/me/ai/box', epic: '' }), 'Daemon')
-  assert.equal(scopeSaid({ scope: 'workspace', workspace: '/home/me/proj', epic: '' }), 'Workspace proj')
-  assert.equal(scopeSaid({ scope: 'epic', workspace: '/home/me/proj', epic: 'brave-otter' }), 'Epic brave-otter · proj')
-  assert.equal(permissionSaid({ preset: 'read-only', network: false }), 'read-only · network off')
-  assert.equal(permissionSaid({ preset: 'danger-full-access', network: true }), 'danger-full-access · network on')
+test('a conversation has one of her sixteen faces, its own wherever it is drawn', () => {
+  const faces = Array.from({ length: 200 }, (_, at) => faceOf(at + 1))
+  assert.ok(faces.every((face) => Number.isInteger(face) && face >= 1 && face <= FACES))
+  assert.equal(FACES, 16)
+  // The same each time it is asked, and of every face some conversation's.
+  assert.deepEqual(faces, Array.from({ length: 200 }, (_, at) => faceOf(at + 1)))
+  assert.equal(new Set(faces).size, 16)
+  // Conversations made one after another are told apart: the first sixteen share none.
+  assert.equal(new Set(faces.slice(0, 16)).size, 16)
+  assert.equal(faceUrl(1), `/ai-chan/face-${String(faceOf(1)).padStart(2, '0')}.webp`)
+  assert.match(faceUrl(7), /^\/ai-chan\/face-(0[1-9]|1[0-6])\.webp$/)
+  // One with no number yet is drawn all the same.
+  assert.ok(faceOf(undefined) >= 1)
+})
+
+test('a row says its title and one line: that she is typing, else what was last said', () => {
+  assert.equal(titleOf({ id: 3, title: 'Tidy the epics' }), 'Tidy the epics')
+  assert.equal(titleOf({ id: 3, title: '' }), 'Ai-chan #3')
+  assert.equal(previewOf({ state: 'waiting', latest: 'All three are done.' }), 'All three are done.')
+  assert.equal(previewOf({ state: 'folded', latest: 'All three are done.' }), 'All three are done.')
+  assert.equal(previewOf({ state: 'running', latest: 'All three are done.' }), 'typing…')
+  // Nothing of how it stands, what it reaches or what it thinks with.
+  const row = { id: 3, title: 'T', state: 'folded', scope: 'daemon', nous: 'claude/opus', preset: 'read-only', network: false, latest: '' }
+  assert.equal(previewOf(row), '')
+  assert.doesNotMatch(`${titleOf(row)} ${previewOf(row)}`, /daemon|folded|waiting|opus|read-only|network/i)
+})
+
+const NONE = { pinned: [], unread: [], failed: [], seen: {} }
+
+test('what this browser keeps of her conversations is kept by daemon, and unreadable is nothing', () => {
+  assert.deepEqual(marksOf(null, 'local'), NONE)
+  assert.deepEqual(marksOf('x', 'local'), NONE)
+  assert.deepEqual(marksOf({ gpu: { pinned: [1] } }, 'local'), NONE)
+  assert.deepEqual(marksOf({ local: { pinned: [1, 'two', 3], unread: 'no', failed: [2], seen: { 1: 'a' } }, gpu: { pinned: [9] } }, 'local'), { pinned: [1, 3], unread: [], failed: [2], seen: { 1: 'a' } })
+})
+
+test('a conversation is unread once something is said in it after it was read, or once marked so', () => {
+  const row = { id: 1, updated: '2026-01-01T10:00:00Z' }
+  // Never listed here: read up to now as it is first listed, and unread by what is said after.
+  const first = settled(NONE, [row])
+  assert.deepEqual(first.seen, { 1: '2026-01-01T10:00:00Z' })
+  assert.equal(unreadOf(row, first), false)
+  const answered = { ...row, updated: '2026-01-01T10:05:00Z' }
+  assert.equal(unreadOf(answered, settled(first, [answered])), true)
+  // Open in the drawer, it is read as it is said in.
+  assert.equal(unreadOf(answered, first, 1), false)
+  const open = settled(first, [answered], 1)
+  assert.equal(unreadOf(answered, open), false)
+  // Marked unread, until it is marked read or opened.
+  const marks = marked(open, 'unread', 1, true)
+  assert.equal(unreadOf(answered, marks), true)
+  assert.equal(unreadOf(answered, read(marks, answered)), false)
+  assert.equal(unreadOf(answered, settled(marks, [answered], 1)), false)
+  // Marked read, it is read up to what was last said.
+  assert.deepEqual(read(marked(first, 'unread', 1, true), answered), { ...NONE, seen: { 1: '2026-01-01T10:05:00Z' } })
+  // One an earlier daemon lists with no `updated` is never unread on its own.
+  assert.equal(unreadOf({ id: 2 }, settled(NONE, [{ id: 2 }])), false)
+})
+
+test('nothing is kept of a conversation that is gone, whose number the next may take', () => {
+  const marks = { pinned: [1, 2], unread: [2], failed: [2, 3], seen: { 1: 'a', 2: 'b' } }
+  assert.deepEqual(settled(marks, [{ id: 1, updated: 'c' }]), { pinned: [1], unread: [], failed: [], seen: { 1: 'a' } })
+  assert.deepEqual(marked(marks, 'pinned', 2, false).pinned, [1])
+  assert.deepEqual(marked(marks, 'pinned', 2, true).pinned, [1, 2])
+  assert.deepEqual(marked(marks, 'pinned', 5, true).pinned, [1, 2, 5])
+})
+
+test('the pinned are listed first, then each by when something was last said in it', () => {
+  const rows = [
+    { id: 4, created: '2026-01-04T00:00:00Z', updated: '2026-01-04T00:00:00Z' },
+    { id: 3, created: '2026-01-03T00:00:00Z', updated: '2026-01-09T00:00:00Z' },
+    { id: 2, created: '2026-01-02T00:00:00Z', updated: '2026-01-02T00:00:00Z' },
+    { id: 1, created: '2026-01-01T00:00:00Z' },
+  ]
+  assert.deepEqual(ordered(rows, NONE).map((one) => one.id), [3, 4, 2, 1])
+  assert.deepEqual(ordered(rows, { ...NONE, pinned: [1, 2] }).map((one) => one.id), [2, 1, 3, 4])
+  // Said in at once, the newer first; and what is given is left as it was.
+  assert.deepEqual(ordered([{ id: 1, updated: 'a' }, { id: 2, updated: 'a' }], NONE).map((one) => one.id), [2, 1])
+  assert.deepEqual(rows.map((one) => one.id), [4, 3, 2, 1])
+})
+
+test('a conversation offers three things: pinning it or not, marking it read or unread, deleting it', () => {
+  const row = { id: 1, updated: 'a' }
+  const said = (marks) => actionsOf(row, marks).map((one) => [one.key, one.label, Boolean(one.on), Boolean(one.danger)])
+  assert.deepEqual(said({ ...NONE, seen: { 1: 'a' } }), [
+    ['pin', 'Pin', true, false],
+    ['read', 'Mark as unread', false, false],
+    ['delete', 'Delete', false, true],
+  ])
+  assert.deepEqual(said({ ...NONE, pinned: [1], unread: [1] }), [
+    ['pin', 'Unpin', false, false],
+    ['read', 'Mark as read', true, false],
+    ['delete', 'Delete', false, true],
+  ])
+})
+
+test('a finger that moves swipes the row or scrolls its list, and the row stays open past its half', () => {
+  assert.equal(axisOf(3, 2), '')
+  assert.equal(axisOf(-SLOP, 0), 'x')
+  assert.equal(axisOf(-20, 6), 'x')
+  assert.equal(axisOf(6, -20), 'y')
+  assert.ok(HOLD >= 400)
+  // Drawn no further than what is under it is wide, and never to the right of where it lies.
+  assert.equal(offsetOf(-50, 204, false), -50)
+  assert.equal(offsetOf(-500, 204, false), -204)
+  assert.equal(offsetOf(40, 204, false), 0)
+  assert.equal(offsetOf(60, 204, true), -144)
+  assert.equal(offsetOf(-60, 204, true), -204)
+  assert.equal(restsOpen(-103, 204), true)
+  assert.equal(restsOpen(-102, 204), false)
+  assert.equal(restsOpen(0, 0), false)
 })
 
 test('her session is the first conversation her host opened that is not a person', () => {
@@ -83,7 +187,6 @@ test('a conversation whose chat ended failed stands failed, with what the harnes
   // Her host still holds the chat that failed, idle and between no turns: never `waiting`.
   assert.deepEqual(stateOf({ connected: true, turn: 'done', records: failed }), { state: 'failed', why: 'HarnessNotInstalled: codex is not installed here' })
   assert.deepEqual(stateOf({ connected: false, turn: '', records: failed }), { state: 'failed', why: 'HarnessNotInstalled: codex is not installed here' })
-  assert.equal(stateSaid('failed'), 'Failed')
   const open = [{ type: 'started', run: 1 }]
   assert.deepEqual(stateOf({ connected: true, turn: 'running', records: open }), { state: 'running', why: '' })
   assert.deepEqual(stateOf({ connected: true, turn: 'done', records: open }), { state: 'waiting', why: '' })

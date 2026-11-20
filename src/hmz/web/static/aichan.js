@@ -1,7 +1,10 @@
 // Ai-chan's conversations as the drawer says and makes them, nothing drawn: the scope a new one
 // defaults to from what the page shows (Section 14.3.4 of protocol/core.md), what `aichan.create`
-// is sent from the form, how each conversation is said in the list, and what a line typed to her
-// does: answer what she waits on, or say it into her turn.
+// is sent from the form, how each conversation stands in the list -- its face, the line under its
+// title, whether it is pinned or unread in this browser, and where it stands among the others --
+// and what a line typed to her does: answer what she waits on, or say it into her turn.
+
+import { t } from './i18n.js'
 
 /** The scopes a conversation is made with, as the form offers them. */
 export const SCOPES = [
@@ -30,38 +33,144 @@ export function scopeOf(parts, query) {
 }
 
 /**
- * What `aichan.create` is sent from the form: what the scope does not take left out, a nous ""
- * left to the `ai_chan` setting, and a title "" left to the task's first line.
+ * What `aichan.create` is sent from the form: what the scope does not take left out, the nous
+ * picked, and a title "" left to the task's first line.
  *
  * @param {{scope: string, workspace: string, epic: string, nous: string, preset: string, network: boolean, title: string, task: string}} form
  */
 export function created({ scope, workspace, epic, nous, preset, network, title, task }) {
-  const said = { scope, preset, network, task: task.trim() }
+  const said = { scope, nous: nous.trim(), preset, network, task: task.trim() }
   if (scope !== 'daemon') said.workspace = workspace
   if (scope === 'epic') said.epic = epic.trim()
-  if (nous.trim()) said.nous = nous.trim()
   if (title.trim()) said.title = title.trim()
   return said
 }
 
 /**
  * Why the form cannot make a conversation yet, or "" where it can: the daemon refuses the rest,
- * but a nous neither picked nor set is asked for here (Section 14.3.2 of protocol/core.md).
+ * but a nous not picked is asked for here (Section 14.3.2 of protocol/core.md).
  *
  * @param {object} form As `created` takes it.
- * @param {string} setting The `ai_chan` setting.
  */
-export function missing({ scope, workspace, epic, nous, task }, setting) {
+export function missing({ scope, workspace, epic, nous, task }) {
   if (scope !== 'daemon' && !workspace) return 'Pick the workspace she works in.'
   if (scope === 'epic' && !epic.trim()) return 'Name the epic she works on.'
-  if (!nous.trim() && !setting) return 'Pick her nous: Settings name none for Ai-chan.'
+  if (!nous.trim()) return t('Pick a nous for Ai-chan.')
   if (!task.trim()) return 'Tell Ai-chan something to start with.'
   return ''
 }
 
-/** How a conversation stands, in a word: her turn open, between turns, folded away, or failed. */
-export function stateSaid(state) {
-  return { running: 'Answering', waiting: 'Waiting', folded: 'Folded away', failed: 'Failed' }[state] || state
+/** How many faces she has: `ai-chan/face-01.webp` to `face-16.webp` among the page's files. */
+export const FACES = 16
+
+/**
+ * The face a conversation is drawn with, 1 to 16: its own for as long as it lasts, the same in
+ * every browser, and scattered so that conversations made one after another seldom share one.
+ *
+ * @param {number} id The conversation's `id`.
+ */
+export function faceOf(id) {
+  return (Math.imul(Number(id) || 0, 2654435761) >>> 28) % FACES + 1
+}
+
+/** The file of a conversation's face, among the page's. */
+export function faceUrl(id) {
+  return `/ai-chan/face-${String(faceOf(id)).padStart(2, '0')}.webp`
+}
+
+/** What a conversation is called: its title, or its number where it has none. */
+export function titleOf(row) {
+  return row.title || `Ai-chan #${row.id}`
+}
+
+/**
+ * The one line under a conversation's title: that she is typing while her turn is open, else
+ * the start of what was last said in it.
+ *
+ * @param {{state: string, latest?: string}} row As `aichan.list` answers it.
+ */
+export function previewOf(row) {
+  return row.state === 'running' ? t('typing…') : row.latest || ''
+}
+
+/**
+ * What this browser keeps of a daemon's conversations: which are pinned, which marked unread,
+ * which were seen to have failed, and up to when each was read.
+ *
+ * @typedef {{pinned: number[], unread: number[], failed: number[], seen: Record<string, string>}} Marks
+ */
+
+/** What is kept of one daemon's, out of what is kept of every daemon's: nothing, where that is unreadable. */
+export function marksOf(all, daemon) {
+  const mine = all && typeof all === 'object' && all[daemon] && typeof all[daemon] === 'object' ? all[daemon] : {}
+  const ids = (said) => (Array.isArray(said) ? said.filter(Number.isInteger) : [])
+  return { pinned: ids(mine.pinned), unread: ids(mine.unread), failed: ids(mine.failed), seen: mine.seen && typeof mine.seen === 'object' ? { ...mine.seen } : {} }
+}
+
+/**
+ * What is kept once the list was read again: nothing of a conversation that is gone, whose
+ * number the next one made may take; one never listed here before read up to now, so that only
+ * what is said from here on makes it unread; and the one open read, whatever was said in it.
+ *
+ * @param {Marks} marks
+ * @param {{id: number, updated?: string}[]} rows As `aichan.list` answers them.
+ * @param {number|null} [open] The conversation open in the drawer.
+ * @returns {Marks}
+ */
+export function settled(marks, rows, open = null) {
+  const here = new Set(rows.map((one) => one.id))
+  const still = (ids) => ids.filter((id) => here.has(id))
+  const seen = {}
+  for (const row of rows) seen[row.id] = row.id === open || !(row.id in marks.seen) ? row.updated || '' : marks.seen[row.id]
+  return { pinned: still(marks.pinned), unread: still(marks.unread).filter((id) => id !== open), failed: still(marks.failed), seen }
+}
+
+/** A mark put on a conversation, or taken off it: `pinned`, `unread` or `failed`. */
+export function marked(marks, kind, id, on) {
+  const others = marks[kind].filter((one) => one !== id)
+  return { ...marks, [kind]: on ? [...others, id] : others }
+}
+
+/** A conversation read up to what was last said in it, by opening it or by `Mark as read`. */
+export function read(marks, row) {
+  return { ...marked(marks, 'unread', row.id, false), seen: { ...marks.seen, [row.id]: row.updated || '' } }
+}
+
+/**
+ * Whether a conversation is unread here: marked so, or said something since it was last read.
+ * The one open in the drawer never is.
+ */
+export function unreadOf(row, marks, open = null) {
+  if (row.id === open) return false
+  if (marks.unread.includes(row.id)) return true
+  const seen = marks.seen[row.id]
+  return seen !== undefined && (row.updated || '') > seen
+}
+
+/**
+ * The conversations in the order the drawer lists them: the pinned first, then each by when
+ * something was last said in it, the latest first, and the newer first of two said in at once.
+ */
+export function ordered(rows, marks) {
+  const pinned = new Set(marks.pinned)
+  const when = (row) => row.updated || row.created || ''
+  return [...rows].sort((a, b) => pinned.has(b.id) - pinned.has(a.id) || (when(a) < when(b) ? 1 : when(a) > when(b) ? -1 : b.id - a.id))
+}
+
+/**
+ * What a conversation's menu offers, and the row it is swiped to: pinning it or not, marking it
+ * read or unread, and deleting it.
+ *
+ * @returns {{key: 'pin'|'read'|'delete', label: string, glyph: string, on?: boolean, danger?: boolean}[]}
+ */
+export function actionsOf(row, marks) {
+  const pinned = marks.pinned.includes(row.id)
+  const unread = unreadOf(row, marks)
+  return [
+    { key: 'pin', label: pinned ? t('Unpin') : t('Pin'), glyph: 'pin', on: !pinned },
+    { key: 'read', label: unread ? t('Mark as read') : t('Mark as unread'), glyph: 'bell', on: unread },
+    { key: 'delete', label: t('Delete'), glyph: 'trash', danger: true },
+  ]
 }
 
 /**
@@ -77,23 +186,6 @@ export function stateOf({ connected, turn, records }) {
   const ended = records.findLast((one) => one.type === 'ended')
   if (ended && ended.how === 'failed') return { state: 'failed', why: ended.why || 'Her chat failed.' }
   return { state: connected ? (turn === 'running' ? 'running' : 'waiting') : 'folded', why: '' }
-}
-
-/** The last part of a path, as a list names a workspace. */
-function last(path) {
-  return String(path || '').split('/').filter(Boolean).pop() || path || ''
-}
-
-/** What a conversation reaches, in a few words: the daemon, a workspace, or an epic of one. */
-export function scopeSaid({ scope, workspace, epic }) {
-  if (scope === 'epic') return `Epic ${epic} · ${last(workspace)}`
-  if (scope === 'workspace') return `Workspace ${last(workspace)}`
-  return 'Daemon'
-}
-
-/** What a conversation may do, in a few words: its preset, and whether it reaches the network. */
-export function permissionSaid({ preset, network }) {
-  return `${preset} · network ${network ? 'on' : 'off'}`
 }
 
 /**

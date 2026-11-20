@@ -236,12 +236,18 @@ to another daemon's address draws the view and the sidebar again, of that daemon
 what the page followed of the last. What is told, the daemons and the page's own settings
 are the same whichever daemon is shown.
 
-Every view's bar carries Ai-chan's avatar at its right, the page's file `ai-chan/avatar.webp`, a button that
+Every view's bar -- a chat's and a new chat's among them -- ends with Ai-chan's avatar, the
+page's file `ai-chan/avatar.webp`, a button that
 opens and closes the [Ai-chan drawer](/user/web#ai-chan) beside it, kept open from view to view
-of one daemon. The drawer lists that daemon's conversations (`aichan.list`), makes one
-(`aichan.create`) from its **New** form, forgets one (`aichan.forget`) after asking, and draws
-one as a chat attached to its `ai:` slot (`epic.attach`), its **Stop** being `epic.stop`. On a
-phone's width it covers the view.
+of one daemon. The drawer lists that daemon's conversations (`aichan.list`, read every 3
+seconds while it is open), each a row of one of the faces `ai-chan/face-01.webp` to
+`face-16.webp` -- picked by the conversation's `id`, so the same in every browser --, its
+`title` and its `latest`, or `typing…` while its `state` is `running`; pinned rows first, then
+by `updated`. It makes one (`aichan.create`, always with the `nous` its chip holds, which
+starts on `settings.get`'s `ai_chan`) from its **New** form, deletes one (`aichan.forget`) from
+the row's menu after asking, and draws one as a chat attached to its `ai:` slot
+(`epic.attach`), its **Stop** being `epic.stop`. On a phone's width it covers the view, and a
+row swiped left shows its menu's three choices beside it.
 
 ### What the page keeps {#kept}
 
@@ -253,7 +259,7 @@ origin -- which is why `hmz web` keeps its port:
 | IndexedDB `hmz-daemons` | The remote daemons, each its name, the daemon id it pins (`""` until it is first reached over a trusted route), its routes in order and, where it has any, the STUN and TURN servers its `webrtc:` routes are opened with; and the browser's own certificate, which a daemon paired with it knows it by. Version 2: version 1 kept one list of servers for every daemon, which is moved, the first time the page is opened, onto each daemon with a `webrtc:` route. |
 | IndexedDB `hmz-notifications` | Where each reached daemon's notices (`notices.subscribe`) are taken up again; and which kinds are told, and whether the system shows them. No list of notifications is kept. |
 | IndexedDB `hmz` | The pictures of the [themes](/user/web#themes) made here. |
-| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-pair` (absent for Humanize Green), the themes made here as `hmz-themes` and the colours of a preset in use as `hmz-painted`, the [language](/user/web#language) chosen as `hmz-language` (`en`, `zh-Hans` or `zh-Hant`; absent under **System**), a sidebar folded away as `hmz-sidebar` and how wide it was dragged as `hmz-side-wide`, how wide the lists of an [environment](/features/environments) were dragged as `hmz-envs-tree`, `hmz-files-side` and `hmz-changes-side`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which of its groups folded away as `hmz-shut`, how its list is grouped, sorted and filtered as `hmz-list`, which epics are pinned as `hmz-pinned` and which marked unread as `hmz-unread`, whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
+| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-pair` (absent for Humanize Green), the themes made here as `hmz-themes` and the colours of a preset in use as `hmz-painted`, the [language](/user/web#language) chosen as `hmz-language` (`en`, `zh-Hans` or `zh-Hant`; absent under **System**), a sidebar folded away as `hmz-sidebar` and how wide it was dragged as `hmz-side-wide`, how wide the lists of an [environment](/features/environments) were dragged as `hmz-envs-tree`, `hmz-files-side` and `hmz-changes-side`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which of its groups folded away as `hmz-shut`, how its list is grouped, sorted and filtered as `hmz-list`, which epics are pinned as `hmz-pinned` and which marked unread as `hmz-unread`, what is kept of [Ai-chan's](/user/web#ai-chan) conversations as `hmz-aichan-marks` (by daemon: the ids `pinned`, marked `unread` and seen `failed`, and `seen`, the `updated` each was read up to; an id `aichan.list` no longer answers is dropped), whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
 
 Another browser, or another port, starts with none of it: add the daemons there again.
 

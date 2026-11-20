@@ -128,24 +128,29 @@ What to look at, by number:
 | Where | Open | New | Stop her turn | Forget |
 | --- | --- | --- | --- | --- |
 | The prompt (`hmz`) | `/ai`, then <kbd>enter</kbd> on a conversation | `/ai` › **New**: a form, **Done**, then say the first line | `/stop` | `/ai`, <kbd>m</kbd> on a conversation, **forget** |
-| The page (`hmz web`) | Ai-chan's avatar, at the right of every view's bar, then a conversation | **New** in the drawer: a form, then type the task and press <kbd>enter</kbd> | **Stop**, while she answers | **Forget** on a conversation |
+| The page (`hmz web`) | Ai-chan's avatar, at the right of every view's bar, then a conversation | **New** in the drawer: a form, then type the task and press <kbd>enter</kbd> | **Stop**, while she answers | **Delete** in a conversation's menu: right-click it, or swipe it left on a phone |
 | Humanize Desktop | as on the page | as on the page | as on the page | as on the page |
 
 - **At the prompt**, the log screen follows the conversation you open, as it follows a chat:
   each line you say is her next turn. `/clear` leaves her conversation going and comes back to
   this directory's own. `/btw` is refused while you follow her: she is not a session of an
   epic.
-- **On the page**, the drawer stays open from view to view until you close it, and lists each
-  conversation as **Answering**, **Waiting** or **Folded away**. A conversation you open whose
-  first turn failed says **Failed**, with what her harness said, and takes no more lines: start
+- **On the page**, the drawer stays open from view to view until you close it, and lists your
+  conversations as a chat app does: one of her sixteen faces, the title, and the start of what
+  was last said -- `typing…` while she answers. Right-click a conversation, or swipe it left on
+  a phone, to **Pin** it to the top, **Mark as unread** or **Delete** it; pins and what you
+  have read are kept in that browser. Open one and it is a chat: her answers in bubbles beside
+  her face, yours at the right, three dots while she answers. A conversation whose
+  first turn failed says so, with what her harness said, and takes no more lines: start
   a new one. Its form also takes a **Title**, made from the task where you leave it empty. Where
   the window has no room for the drawer and a view's panel both, opening one closes the other.
   On a phone the drawer covers the view, and the sidebar's drawer closes as it opens;
   <kbd>esc</kbd> or its close button puts it away.
 - **Stopping** interrupts her turn and leaves the conversation between turns. It does not end
   it.
-- **Forgetting** removes the conversation from the list and deletes her scratch directory. It
-  asks first (`Forget Ai-chan#<n>?` at the prompt), and cannot be undone.
+- **Forgetting** -- **Delete** on the page -- removes the conversation from the list and
+  deletes her scratch directory. It asks first (`Forget Ai-chan#<n>?` at the prompt, **Delete
+  this conversation?** on the page), and cannot be undone.
 - **Her conversations are not your epics or chats.** None is listed in `/epics`, in the page's sidebar
   or among a directory's epics or chats, while it lasts or after you forget it; what it wrote down is
   kept on disk either way.

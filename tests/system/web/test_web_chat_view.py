@@ -271,8 +271,8 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
 
         # Its bar, as a chat app's session keeps its toolbar: 44px high, its title a
         # button with the one menu right after it, and at the far right a 28px button
-        # for each pane, then View options, with which it ends -- no word of hmz's own,
-        # and nothing saying how the chat stands.
+        # for each pane, then View options, and Ai-chan's button, which ends every view's
+        # bar -- no word of hmz's own, and nothing saying how the chat stands.
         expect(bar.locator("h1")).to_have_text("hello there")
         assert _box(page, "[data-hmz=bar]")["height"] == 44
         title = _box(page, "[data-hmz=chat-title]")
@@ -280,7 +280,7 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         assert 0 <= more_at["x"] - (title["x"] + title["width"]) <= 4
         assert bar.locator(".bar-actions button").evaluate_all(
             "all => all.map((one) => one.getAttribute('aria-label'))"
-        ) == ["Details", "Terminal", "Changes", "Files", "View options"]
+        ) == ["Details", "Terminal", "Changes", "Files", "View options", "Ai-chan"]
         toggles = [
             _box(page, f"[data-hmz={one}]")
             for one in (
@@ -290,6 +290,7 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
                 "pane-changes",
                 "pane-files",
                 "chat-view",
+                "aichan-toggle",
             )
         ]
         assert all((one["width"], one["height"]) == (28, 28) for one in toggles)
@@ -305,9 +306,11 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         whole = _box(page, ".view-epic")
         barred = _box(page, "[data-hmz=bar]")
         assert (barred["x"], barred["width"]) == (whole["x"], whole["width"])
-        ending = _box(page, "[data-hmz=chat-view]")
+        ending = _box(page, "[data-hmz=bar] [data-hmz=aichan-toggle]")
         assert whole["x"] + whole["width"] - (ending["x"] + ending["width"]) == 8
-        expect(bar.locator("[data-hmz=aichan-toggle]")).to_have_count(0)
+        assert bar.locator(".bar-actions > *").last.get_attribute("data-hmz") == (
+            "aichan-toggle"
+        )
         # Its host holds no environment for it: its three panes are said, cannot open,
         # and say why.
         for pane in ("terminal", "changes", "files"):
@@ -493,13 +496,11 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         # It counts no sessions, and names none.
         expect(panel).not_to_contain_text(re.compile("session", re.IGNORECASE))
         expect(panel.locator("dd").nth(4)).to_have_text("Claude Code Haiku 4.5 Default")
-        # Side questions are under View options, with Ai-chan, and no pane's button is
-        # theirs.
+        # Side questions are under View options, and no pane's button is theirs; Ai-chan
+        # is not among them, her button being on the bar.
         bar.locator("[data-hmz=chat-view]").click()
         offered = page.get_by_role("menu", name="View options")
-        expect(offered.get_by_role("menuitem")).to_have_text(
-            ["Side questions", "Ai-chan"]
-        )
+        expect(offered.get_by_role("menuitem")).to_have_text(["Side questions"])
         offered.get_by_role("menuitem", name="Side questions").click()
         expect(details).to_have_attribute("aria-pressed", "false")
         expect(panel.locator("[data-hmz=pane-title]")).to_have_text("Side questions")
@@ -511,19 +512,17 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         expect(panel).not_to_contain_text(re.compile("epic", re.IGNORECASE))
         # A chat is one conversation: there is none to pick to ask it of.
         expect(panel.locator("[data-hmz=btw-to]")).to_be_hidden()
-        # Ai-chan's drawer is opened from the same menu, which then marks it.
-        bar.locator("[data-hmz=chat-view]").click()
-        offered.get_by_role("menuitem", name="Ai-chan").click()
+        # Ai-chan's drawer is opened from the bar's end, as from any view's, and her
+        # button says so.
+        toggle = bar.locator("[data-hmz=aichan-toggle]")
+        expect(toggle).to_have_attribute("aria-pressed", "false")
+        toggle.click()
         expect(page.locator("[data-hmz=app]")).to_have_class(re.compile("aichan-open"))
+        expect(toggle).to_have_attribute("aria-pressed", "true")
         # Both would leave the conversation too narrow to read: the drawer takes the
         # pane's place, and the conversation keeps 480 at the least.
         expect(panel).to_be_hidden()
         assert _box(page, "[data-hmz=say]")["width"] >= 480
-        bar.locator("[data-hmz=chat-view]").click()
-        expect(offered.locator("[data-hmz=view-aichan]")).to_have_class(
-            re.compile("chosen")
-        )
-        page.keyboard.press("Escape")
 
 
 def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
@@ -541,7 +540,7 @@ def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
             expect(bar.get_by_role("button", name=label)).to_be_visible()
         expect(bar.locator("[data-hmz=exomyth-open]")).to_be_visible()
 
-        # Its bar ends with Ai-chan's button, as every view's but a chat's does.
+        # Its bar ends with Ai-chan's button, as every view's does.
         assert bar.locator(".bar-actions > *").last.get_attribute("data-hmz") == (
             "aichan-toggle"
         )

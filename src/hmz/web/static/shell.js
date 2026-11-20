@@ -112,11 +112,8 @@ function reach(el) {
   else el.removeAttribute('data-tauri-drag-region')
 }
 
-/**
- * The bar over a view: what it is, and what can be done to it. Ai-chan's button ends it, save
- * where the view offers her among its own -- a chat's, whose bar ends as a chat app's does.
- */
-export function bar({ title = '', sub = null, actions = [], lead = null, aichan = true } = {}) {
+/** The bar over a view: what it is, and what can be done to it. Ai-chan's button ends it, on every view. */
+export function bar({ title = '', sub = null, actions = [], lead = null } = {}) {
   return dragged(
     h(
       'header',
@@ -124,7 +121,7 @@ export function bar({ title = '', sub = null, actions = [], lead = null, aichan 
       iconButton('sidebar', 'Show sidebar', { class: 'bar-side', onclick: () => toggleSidebar(true), 'aria-controls': 'sidebar' }),
       lead,
       h('div', { class: 'bar-title' }, title ? h('h1', {}, title) : null, sub ? h('div', { class: 'bar-sub' }, sub) : null),
-      h('div', { class: 'bar-actions' }, actions, aichan ? aiChanButton() : null),
+      h('div', { class: 'bar-actions' }, actions, aiChanButton()),
     ),
   )
 }

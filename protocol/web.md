@@ -744,9 +744,9 @@ chat waits on the user.
 
 **3.6.6.19** The bar of a chat MUST hold, at its far right and in this order, a button each for
 `Details`, `Terminal`, `Changes` and `Files`, each 28 CSS pixels square, and then a menu `View
-options` holding `Side questions`, `Board` while the chat keeps one (Section 3.6.3), and `Ai-chan`
-(Section 3.16.1), each marked while it is the one shown. `Details`, `Side questions` and `Board`
-MUST open the panel beside the chat on that pane (Section 3.6.6.11); `Terminal`, `Changes` and
+options` holding `Side questions` and `Board` while the chat keeps one (Section 3.6.3), each marked
+while it is the one shown, and last Ai-chan's button (Section 3.16.1). `Details`, `Side
+questions` and `Board` MUST open the panel beside the chat on that pane (Section 3.6.6.11); `Terminal`, `Changes` and
 `Files` MUST open it on the chat's
 `Environment` (Section 3.6.6.4) at that panel (Section 3.17), and MUST be disabled while the chat
 has no such panel, saying whether that is for want of a host or of such a panel in its
@@ -1322,9 +1322,9 @@ another, MUST be part of the address, and picking it MUST change nothing else on
 #### 3.11.2. Daemon pages
 
 **3.11.2.1** `General` MUST let the user set whether a turn's working is shown, `Harness
-sessions`, whether the sidebar lists them (Section 3.5.21; off until set), `Ai-chan`, the nous a new
-Ai-chan conversation defaults to (none until one is picked), and whether errors are reported, as
-Section 14.3.2 of [CORE] and Section 12 of [CORE] specify.
+sessions`, whether the sidebar lists them (Section 3.5.21; off until set), and whether errors are
+reported, as Section 12 of [CORE] specifies. It MUST NOT offer the nous of Ai-chan, which is picked
+as each conversation is made (Section 3.16.3).
 
 **3.11.2.2** `Accounts` MUST list every account by its harness, way in and the names of the
 variables it sets, and MUST let the user ask again what it runs, correct it, copy it to another
@@ -1608,27 +1608,53 @@ about: its epic on its daemon, or its chat, at `#/chats/<id>`.
 
 ### 3.16. Ai-chan
 
-**3.16.1** Every view of the page MUST offer a button, drawn as Ai-chan's avatar, the file
-`ai-chan/avatar.webp` among the page's files (Section 4.5.3), that opens and closes the **Ai-chan
-drawer** beside the view; the view of a chat MUST offer it as `Ai-chan` in `View options` (Section
-3.6.6.19) in place of that button. The drawer MUST stay open, as it was, while the user goes from
-view to view of one daemon, until it is closed.
+**3.16.1** Every view of the page, the view of a chat and the form of a new chat among them, MUST
+offer, at the end of its bar, a button drawn as Ai-chan's avatar, the file `ai-chan/avatar.webp`
+among the page's files (Section 4.5.3), that opens and closes the **Ai-chan drawer** beside the
+view. The drawer MUST stay open, as it was, while the user goes from view to view of one daemon,
+until it is closed.
 
 **3.16.2** The drawer MUST list every Ai-chan conversation of the daemon shown (Section 4.22.3 of
-[DAEMON]), newest first, each with its title, its scope, its nous, its preset, whether its network
-is on, and whether a turn is open, it is between turns or it has folded away; and MUST offer `New`
-and, on each conversation, `Forget`, which asks for confirmation and then calls `aichan.forget`.
+[DAEMON]) as a chat app lists its conversations, each a row of: one of Ai-chan's sixteen faces, the
+files `ai-chan/face-01.webp` to `ai-chan/face-16.webp` among the page's files, the same face for a
+conversation wherever and whenever it is drawn; its title; and under the title, on one line cut
+short with an ellipsis, its `latest`, or `typing…` while its turn is open. A row MUST NOT say the
+conversation's scope, its nous, its preset or its network, nor in words whether it is between turns
+or has folded away, and MUST hold no button of its own. The drawer MUST offer `New`, and with no
+conversation to list MUST say so and offer to make one.
+
+**3.16.2.1** Each row MUST offer a menu -- opened by the pointer's secondary button, by the menu key
+and by a finger resting on the row -- of `Pin` or `Unpin`, `Mark as read` or `Mark as unread`, and
+`Delete`; and a row swiped to the left by a finger MUST show the same three beside it. `Delete`
+MUST ask for confirmation and then call `aichan.forget`.
+
+**3.16.2.2** The page MUST remember in this browser, by daemon, which conversations are pinned,
+which are marked unread, and up to when each was read, and MUST forget what it remembers of a
+conversation that is gone. A conversation MUST be unread while it is marked so, or while its
+`updated` is later than when it was last read, and MUST be read once it is opened or marked read.
+An unread row MUST show its title in bold and a dot; a pinned one a mark that it is; and one whose
+chat the drawer has seen end failed a mark of that.
+
+**3.16.2.3** The pinned conversations MUST be listed first, and then every conversation by its
+`updated`, the latest first.
 
 **3.16.3** `New` MUST open a form in the drawer that asks for the scope -- `Daemon`, `Workspace` or
 `Epic`, defaulting as Section 14.3.4 of [CORE] states to the epic, else the workspace, the view
-shows --, the workspace and the epic the scope names, the nous (defaulting to the `ai_chan`
-setting), the preset (`read-only` or `danger-full-access`, defaulting to `read-only`), `Network`
-(off by default) and the task; Enter in the box for the task MUST make the conversation by
-`aichan.create` and open it.
+shows --, the workspace and the epic the scope names, the preset (`read-only` or
+`danger-full-access`, defaulting to `read-only`), `Network` (off by default), the task and, under
+the box of the task, the nous, picked from the chip a new chat picks its own from (Section 3.8.19)
+and set to begin with to the nous last used, the `ai_chan` setting (Section 14.3.2 of [CORE]);
+Enter in the box for the task MUST make the conversation by `aichan.create`, with the nous picked,
+and open it. The page MUST NOT remember the preset or the network from one conversation to the
+next.
 
 **3.16.4** Opening a conversation MUST draw it in the drawer as a chat (Section 8.8 of [CORE]),
 attached to its slot by `epic.attach`, carrying it on where it has folded away (Section 14.8.5 of
-[CORE]), with Ai-chan's answers beside her avatar and a box that says the next line to her.
+[CORE]), as a chat app draws one: Ai-chan's answers in bubbles at the left, beside the face its row
+has, the user's lines in bubbles at the right, a bubble of hers holding three dots at its foot
+while her turn is open, and a box that says the next line to her. The drawer MUST NOT name an agent
+or a session, MUST NOT say in words that the conversation waits on the user or has folded away, and
+MUST NOT show what it cost.
 
 **3.16.5** The drawer MUST show each tool Ai-chan calls, with the method and how it was answered,
 on one line the user can open (Section 14.7.3 of [CORE]).

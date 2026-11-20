@@ -282,13 +282,13 @@ flows** `$` and **Run a shell command** `!` -- and what it offers as you type is
 A chat reads as a chat app's session. Its bar holds its title -- a button: press it to
 [rename the chat](#managing-a-chat) where it stands -- and, right after it, one
 **More options** menu (`⋯`); at the far right, a button each for **Details**, **Terminal**,
-**Changes** and **Files**, then **View options**. Each button opens its pane beside the
+**Changes** and **Files**, then **View options**, and last Ai-chan's avatar, which opens
+[her drawer](#ai-chan) as on every view. Each button opens its pane beside the
 conversation and shuts it again -- the bar runs over the pane too, so the button stays where
 you pressed it: **Details** is what the chat is, and the other three are the
 terminal, the changes and the files of the [environment](/features/environments) it works in, there
 while a host holds the chat; one that cannot open says why where you point at it. **View
-options** holds **Side questions**, **Board** while the chat keeps one, and **Ai-chan**, which
-opens [her drawer](#ai-chan). The pane open is headed by its name and has no tabs of its own:
+options** holds **Side questions**, and **Board** while the chat keeps one. The pane open is headed by its name and has no tabs of its own:
 the bar picks it. No pane is open until you open one. **Details** says what the chat has
 used, its first message, where it works and what it is; it counts no sessions and names none.
 **Side questions** asks about the chat as it stands, with nothing to pick first, and each
@@ -524,34 +524,50 @@ The page goes to the epic once it starts.
 ### Ai-chan {#ai-chan}
 
 Ai-chan is an agent you operate Humanize through by talking to her. Her avatar, at the right of
-every view's bar, opens and closes her drawer beside the view -- a chat's bar ends as a chat
-app's does, and offers her as **Ai-chan** under **View options** instead; it stays open as you go from view
-to view, until you close it. What you type in it stays in it: a new chat or a new epic that
+every view's bar -- a chat's and a new chat's too --, opens and closes her drawer beside the
+view; it stays open as you go from view to view, until you close it. What you type in it stays in it: a new chat or a new epic that
 finishes opening beside it meanwhile does not take the keys. Where opening it would leave the
 view under 480 pixels beside a panel already open, that panel closes for it, as hers does for a
 panel opened after. On a phone it covers the view:
 close it with its button or <kbd>Escape</kbd>.
 
-The drawer lists every conversation with her on the daemon shown, newest first: its title, what
-it reaches, its nous, its preset, whether its network is on, and whether she is **Answering**,
-**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm. The
-drawer is the only place her conversations are listed: none is in the sidebar, nor counted among
-a workspace's epics, while it lasts or once forgotten.
+The drawer lists every conversation with her on the daemon shown as a chat app lists its own:
+one of her sixteen faces -- a conversation keeps its own --, its title, and under it the start
+of what was last said, or `typing…` while she answers. Pinned conversations come first, then
+the one last said in. One that said something since you last opened it has a bold title and a
+dot. With none yet, the drawer says so and offers **New conversation**.
+
+Each conversation has a menu of three things -- right-click it, press the menu key (or
+<kbd>Alt</kbd>+<kbd>Enter</kbd>) on it, or rest a finger on it; on a phone, swiping it to the
+left shows the same three beside it:
+
+- **Pin** / **Unpin** keeps it at the top of the list.
+- **Mark as unread** / **Mark as read** puts the dot on it, or takes it off.
+- **Delete** forgets it, once you confirm: it leaves the list and her scratch directory is
+  removed.
+
+Pins and what you have read are kept in this browser, for each daemon; another browser starts
+without them. The drawer is the only place her conversations are listed: none is in the
+sidebar, nor counted among a workspace's epics, while it lasts or once deleted.
 
 **New** asks what the conversation is fixed to:
 
 - **Scope.** **Daemon** -- every workspace and epic --, **Workspace** -- one workspace and its
   epics --, or **Epic** -- one epic. It starts on the epic the view shows, else the workspace,
   else the daemon.
-- **Nous.** Starts on the one **Settings › General** names for her; with none named there,
-  pick one.
 - **Preset.** `read-only`, the default, or `danger-full-access`; and **Network**, off by default.
+  Neither is remembered: each conversation starts on the defaults.
 - **Title**, from the task where left empty.
+- **Nous**, on the chip under the box you type the task in, as on a new chat: it starts on the
+  one you used last, and its menu offers every model the harnesses here run. There is no
+  setting for it: the one you start a conversation with is the one the next form opens on.
 
-Type the task and press <kbd>Enter</kbd>: the conversation opens as a chat, her answers beside
-her avatar and each tool she calls a line to open. While she answers, **Stop** stops her turn and
-leaves the conversation waiting for your next line. One that folded away is carried on by opening
-it and saying something.
+Type the task and press <kbd>Enter</kbd>: the conversation opens as a chat -- her answers in
+bubbles at the left beside her face, yours at the right, and each tool she calls a quiet line
+to open. While she answers, three dots stand in a bubble of hers and **Stop** stops her turn,
+leaving the conversation ready for your next line. One the daemon put away meanwhile is carried
+on by opening it and saying something. Nothing in the drawer names an agent or a session, or
+says what a conversation cost.
 
 ### Settings {#settings}
 

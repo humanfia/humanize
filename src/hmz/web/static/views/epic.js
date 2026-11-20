@@ -109,6 +109,9 @@ export function mount(root, { parts, query }) {
     const { detail, error, going, held, none } = seen
     if (!detail) {
       if (name) {
+        // Its bar stands before anything is read of it, and where nothing could be: with the
+        // sidebar's button and Ai-chan's, as every view's.
+        region('head', ['reading'], () => fill(head, bar()))
         region('main', ['reading', String(error)], () => fill(main, h('div', { class: 'view-pad' }, error ? problem(error) : h('p', { class: 'loading', role: 'status' }, 'Opening…'))))
       } else {
         const starting = held && held.standing.run && held.standing.run.state === 'running'
@@ -269,8 +272,8 @@ export function mount(root, { parts, query }) {
       const view = barButton('view', 'View options', { 'data-hmz': 'chat-view' })
       menu(view, viewMenu, { align: 'end', label: 'View options' })
       panes = paneButtons(pressPane)
-      // The bar ends with `View options`, as a session's does: Ai-chan is offered in it.
-      const top = bar({ title: headline(detail.title), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)], aichan: false })
+      // The bar ends as every view's does, with Ai-chan's button, after `View options`.
+      const top = bar({ title: headline(detail.title), sub: [], actions: [panes.nodes, h('div', { class: 'menu-holder' }, view)] })
       top.classList.add('chat-bar')
       // The title is a button, as a session's is: pressed, it is edited where it stands.
       const named = top.querySelector('.bar-title')
@@ -301,7 +304,7 @@ export function mount(root, { parts, query }) {
 
   /**
    * What else a chat can show beside it: the side questions asked of it, which never reach it,
-   * its board while it keeps one, and Ai-chan's drawer.
+   * and its board while it keeps one.
    */
   function viewMenu(close) {
     const pane = (key, label, glyph) => {
@@ -311,10 +314,7 @@ export function mount(root, { parts, query }) {
       return item
     }
     const standing = held() ? held().standing : {}
-    const drawer = Boolean(document.querySelector('.app.aichan-open'))
-    const aichan = choice({ label: 'Ai-chan', glyph: 'agent', chosen: drawer, close, act: () => dispatchEvent(new CustomEvent('hmz:aichan')) })
-    aichan.dataset.hmz = 'view-aichan'
-    return [pane('aside', 'Side questions', 'thread'), chatNow && chatNow.going && standing.board ? pane('board', 'Board', 'menu') : null, h('hr'), aichan]
+    return [pane('aside', 'Side questions', 'thread'), chatNow && chatNow.going && standing.board ? pane('board', 'Board', 'menu') : null]
   }
 
   /** What the pane open beside a chat is headed by: the tab it is on, and for its environment the panel shown. */
