@@ -84,6 +84,10 @@ _NAMING = 0.2
 #: seconds.
 _FOLLOWING = 1.0
 
+#: The first question a host asks in its life, as a host numbers them (`q<n>`, Section 4.9.2
+#: of daemon.md): what a chat carried on with nothing said waits on as it comes up.
+_FIRST = "q1"
+
 #: How much of what was last said in a conversation is kept as its `latest`, in characters.
 _LATEST = 120
 
@@ -705,10 +709,10 @@ class Links:
           named: Whether its entry names what it is written in already.
         """
         ident = int(conversation["id"])
-        # Whether a turn of hers was seen open in this host's life. Carried on, it comes up
-        # waiting on what was written already, or on why it could not be carried on: no answer
-        # of hers, which the first wait it is heard on is taken for until a turn was seen.
-        turned = not named
+        # The wait a host carried on comes up on, the first it asks: on nothing, or on why it
+        # could not be carried on, and no answer of hers. Told by which wait it is and not by
+        # a turn seen open since, which a host asked this seldom may never be seen with.
+        came_up = _FIRST if named else None
         # Which wait she was last heard on: another one is another answer, the same words or not.
         waited: str | None = None
         while hosted.peer is not None and not hosted.peer.closed:
@@ -718,13 +722,10 @@ class Links:
             if not named and epic:
                 said["record"] = epic
                 named = True
-            turned = turned or turning(status)
             wait, answered = heard(status)
-            if (wait or answered) and wait != waited:
-                if turned and answered:
-                    said |= {"latest": answered, "updated": where.now()}
-                # A turn too short to be seen open is still one: every wait after this one.
-                waited, turned = wait, True
+            if answered and wait not in (waited, came_up):
+                waited = wait
+                said |= {"latest": answered, "updated": where.now()}
             if said:
                 self.kept.changed(ident, **said)
             time.sleep(_FOLLOWING if named else _NAMING)

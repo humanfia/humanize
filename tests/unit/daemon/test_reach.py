@@ -472,19 +472,22 @@ def test_what_she_last_answered_is_written_down_as_she_answers_it(
     assert (conversation["created"], conversation["updated"]) == ("t0", "t1")
     assert conversation["latest"] == ("All three epics are done. " + "x" * 200)[:120]
 
-    # Carried on, her host waits on what she answered last: nothing new was said.
-    again = _followed(kept, [{"chat": "c", "pending": [listening]}])
+    # Carried on, her host comes up on its first wait, with nothing said: nothing new was.
+    again = _followed(
+        kept,
+        [{"chat": "c", "pending": [{"mode": "listen", "question": "q1", "text": ""}]}],
+    )
     assert again["updated"] == "t1"
-    # Nor is why it could not be carried on, which its host waits on as it comes up: no
+    # Nor is why it could not be carried on, which that wait says where it could not: no
     # turn of hers ended on it.
     notice = {
         "mode": "listen",
-        "question": "q0",
+        "question": "q1",
         "text": "This could not be carried on.",
     }
     again = _followed(kept, [{"chat": "c", "turn": "done", "pending": [notice]}])
     assert (again["latest"], again["updated"]) == (conversation["latest"], "t1")
-    # And her next answer, a turn of hers since open, is the latest from then on.
+    # And her next answer, on another wait, is the latest from then on.
     after = _followed(
         kept,
         [
@@ -493,16 +496,17 @@ def test_what_she_last_answered_is_written_down_as_she_answers_it(
             {
                 "chat": "c",
                 "turn": "done",
-                "pending": [{"mode": "listen", "question": "q1", "text": "Done."}],
+                "pending": [{"mode": "listen", "question": "q2", "text": "Done."}],
             },
         ],
     )
     assert (after["latest"], after["updated"]) == ("Done.", "t2")
-    # As is one of a turn too short to be seen open: another wait than it came up on.
+    # As is one her host was never seen to come up before, nor to have a turn open for: asked
+    # how it stands only now and then, it is first heard waiting on her answer.
     quick = _followed(
         kept,
         [
-            {"chat": "c", "turn": "done", "pending": [notice]},
+            {"chat": "c", "turn": "done", "pending": []},
             {
                 "chat": "c",
                 "turn": "done",
