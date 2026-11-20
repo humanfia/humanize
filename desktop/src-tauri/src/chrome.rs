@@ -16,10 +16,11 @@ const WEBKIT: &str =
 
 /// Where the traffic lights stand, in points: 16 in from the window's left edge, so that they end
 /// within the 84 the page's top row keeps for them (`--lights`), and in a title bar taller than
-/// they are by 28, which for lights 16 high is the 44 of that row (`--bar-h`): AppKit centres
-/// them in it.
+/// they are by 24. AppKit does not centre them in it: it keeps them 9 above its bottom edge, so
+/// lights 14 high, as macOS 27 draws them, have their middle 22 below the window's
+/// top, which is the middle of that row's 44 (`--bar-h`).
 #[cfg(target_os = "macos")]
-const LIGHTS: (f64, f64) = (16.0, 28.0);
+const LIGHTS: (f64, f64) = (16.0, 24.0);
 
 /// Minimize, maximize and close, 46×32 px each as Windows draws them, in a shadow root the page's
 /// style never reaches, and outside its body, which may drag the window. Styled by a sheet built
