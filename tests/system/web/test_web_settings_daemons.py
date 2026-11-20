@@ -409,8 +409,11 @@ def test_the_servers_kept_for_every_daemon_become_each_daemons_own(
             })""",
             {"daemons": [_LAB, _RELAYED], "ice": _SERVERS},
         )
+        # Opened once, and left to draw: a page opened again while its first view loads has
+        # that view's files given up, which WebKit says as an error of the page.
         page.goto(root)
-        again(page)
+        page.wait_for_selector("[data-hmz=sidebar] .brand")
+        page.wait_for_selector("[data-hmz=page]:not([aria-busy])", state="attached")
         go(page, "/settings/daemons")
         own = page.locator("[data-hmz=daemon-ice][data-name=relayed]")
         expect(own.locator("textarea")).to_have_value(
