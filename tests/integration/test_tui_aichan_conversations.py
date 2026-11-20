@@ -11,12 +11,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from textual.widgets import OptionList
 
 from hmz.daemon import reach
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import Acts, AiChanNew, AiChans, AiForgets
 from tests.integration.doubles_tui import (
+    MODEL,
     OWN,
     RUNS,
     SIZE,
@@ -311,3 +313,65 @@ async def test_a_conversation_is_carried_on_from_the_list_and_forgotten_there(
         await shows(pilot, "no conversation yet")
     assert _made(daemon) == []
     assert heard(workspace)[-1] == "and again"
+
+
+
+async def _names(pilot: Pilot[None], nous: str) -> None:
+    """Writes the nous of the New form on the screen, which asks for one where none was used."""
+    pilot.app.screen.query_one("#choices", OptionList).focus()
+    await onto(pilot, "nous")
+    await pilot.press("enter", *nous, "enter")
+    await pilot.pause()
+
+
+async def test_the_next_form_opens_on_the_nous_the_last_conversation_was_made_with(
+    workspace: Path, daemon: Private
+) -> None:
+    del workspace
+    # No conversation was made yet: the setting names no nous, and the form asks for one.
+    Settings().ai_chan = ""
+    other = f"claude/{MODEL}:low"
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        form = await _new(pilot)
+        assert form.asked()[1].needed
+        await _names(pilot, other)
+        assert form.shown(form.asked()[1]) == other
+        await _done(pilot)
+        await typed(pilot, "hello there")
+        await shows(pilot, "heard hello there", "Ai-chan#1")
+        await typed(pilot, "/clear")
+        await until(pilot, lambda: "Ai-chan#1" not in screen(app), "her to be left")
+
+        # Made with it, it is the nous last used: the next form opens on it.
+        form = await _new(pilot)
+        assert form.shown(form.asked()[1]) == other
+        assert not form.asked()[1].needed
+
+    assert [one["nous"] for one in _made(daemon)] == [other]
+    assert Settings().ai_chan == other
+
+
+async def test_a_nous_the_daemon_refused_is_not_the_one_the_next_form_opens_on(
+    workspace: Path, daemon: Private
+) -> None:
+    del workspace
+    Settings().ai_chan = ""
+    app = Humanize()
+    async with app.run_test(size=SIZE) as pilot:
+        await opened(pilot)
+        await _new(pilot)
+        await _names(pilot, "no/such nous")
+        await _done(pilot)
+        await typed(pilot, "hello there")
+        await shows(pilot, "no/such nous is not a nous or an agent spec.")
+        await typed(pilot, "/clear")
+
+        # Nothing was made with it: the form still asks which nous she thinks with.
+        form = await _new(pilot)
+        assert form.shown(form.asked()[1]) == ""
+        assert form.asked()[1].needed
+
+    assert _made(daemon) == []
+    assert Settings().ai_chan == ""
