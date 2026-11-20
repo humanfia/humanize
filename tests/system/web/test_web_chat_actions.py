@@ -278,7 +278,7 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             expect(listed.locator(".archived-title")).to_have_text("first thing")
             listed.get_by_role("button", name="Unarchive").click()
             expect(listed).to_have_count(0)
-            expect(archived).to_contain_text("None")
+            expect(archived).to_contain_text("No archived chats.")
             assert not _call(page, "chat.get", {"chat": fork})["archived"]
             page.keyboard.press("Escape")
             expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
@@ -332,7 +332,7 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog).to_have_count(0)
             expect(page.locator("[data-hmz=dialog-settings]")).to_be_visible()
-            expect(archived).to_contain_text("None")
+            expect(archived).to_contain_text("No archived chats.")
             assert _call(page, "chat.list", {"archived": True})["chats"] == []
 
 

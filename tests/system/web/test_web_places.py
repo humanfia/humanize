@@ -238,7 +238,8 @@ def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
                     "There is no directory"
                 )
                 chip.click()
-                rows = page.get_by_role("menu", name="Folders")
+                # A new chat lists the folders in its `Environment`, a new epic in `Folders`.
+                rows = page.locator(".popover[role=menu]")
                 expect(rows.locator("[data-missing]")).to_have_text("otherMissing")
                 page.keyboard.press("Escape")
                 page.locator("[data-hmz=composer-text]").fill("anything")
@@ -252,6 +253,7 @@ def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
             expect(chip.locator("b")).to_have_text("other")
             # Gone again before the form reads so, the daemon's own refusal is said the same.
             go(page, f"/new/chat?workspace={other}")
+            chip = page.locator(_FOLDER["/new/chat"])
             expect(chip.locator("b")).to_have_text("other")
             page.locator("[data-hmz=composer-text]").fill("anything")
             shutil.rmtree(other)
