@@ -428,7 +428,7 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
 
 | Method | Fields | Answer | Refusals |
 | --- | --- | --- | --- |
-| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required, not empty), `resume` (the name of a chat of the workspace, or `null`), `prefer` (`native`, `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`), `worktree` (bool, `false`), `remember` (bool, `false`) | `slot`, `chat` (the chat's name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, `permission is read-only, workspace-write or danger-full-access`, `a chat carried on works where it worked` (`worktree` with `resume`), what `git` said where no worktree can be added, or why the agent is refused; 404 `<resume> is not a chat of <workspace>.`, an epic an earlier hmz recorded for a chat among them; 409 `a chat is already going on <slot>` |
+| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required; empty only with `resume`, which carries the chat on with nothing said: its host holds its workspace open and waits, nothing is opened or written until something is said, and a chat a host holds already is answered with that host's `slot`; with `resume` and a `task`, a host standing by so, nothing said to it yet, is said the `task` and answered, or ended first where `agent` names another agent), `resume` (the name of a chat of the workspace, or `null`), `prefer` (`native`, `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`), `worktree` (bool, `false`), `remember` (bool, `false`) | `slot`, `chat` (the chat's name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, `permission is read-only, workspace-write or danger-full-access`, `a chat carried on works where it worked` (`worktree` with `resume`), what `git` said where no worktree can be added, why the agent is refused, or `<resume> is going on already` where a host holds the chat and something has been said to it; 404 `<resume> is not a chat of <workspace>.`, an epic an earlier hmz recorded for a chat among them; 409 `a chat is already going on <slot>` |
 | `chat.say` | `workspace`, `slot`, `text` | `{}` | 400 naming the line, for a `$` line naming a flow or a name hmz keeps, which the frontend serves; 404 where no host holds the slot; 409 `this chat has folded away; carry it on with chat.start` |
 | `chat.stop` | `workspace`, `slot` | `{}` | 409 `no turn is open, so there is nothing to stop`; else as `chat.say` |
 | `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`), `permission` (the chat's [permission](/user/chat#permission), or `null` for an Ai-chan conversation), `listed` (whether the catalogue is all the CLI lists: once a turn was taken) | as `chat.say` |
@@ -477,7 +477,7 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
 | `chat.fork` | `chat` | `chat`, the new chat's name | 409 `Chat <name> has a turn open; fork it once it is done.`, also while a process that is no host holds it; 409 `<name> cannot be forked: its conversation is not kept in the chat.`; 404 |
 | `chat.archive`, `chat.unarchive` | `chat` | the chat row | 404 |
 | `chat.backup` | `chat`, `to` (target names; without it, the targets the chat was started with) | `queued`, as `runs.backup` | as `runs.backup`; 404 |
-| `chat.delete` | `chat` | `{}` | 409 `Chat <name> is going on; delete it once it rests.`; 404 |
+| `chat.delete` | `chat` | `{}` (a host that holds the chat between turns is ended first) | 409 `Chat <name> has a turn open; delete it once it is done.`, while its turn is open or another process holds it; 404 |
 
 404 is `There is no chat <name>.`, for a name no chat has.
 
@@ -496,8 +496,8 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
   directory in place of the epic's. A chat is not among the epics a target lists or downloads.
 - **`chat.delete`** removes the chat's directory, the sessions kept in it included, and nothing
   else: no epic, and no worktree the chat worked in. What is deleted is not recoverable through
-  hmz. It is refused while the chat is going: while a host holds it, between turns included, or
-  any other process does.
+  hmz. A host that holds the chat between turns is ended first, as an empty `chat.say` ends
+  it; it is refused only while the chat's turn is open, or a process that is no host holds it.
 
 The TUI and the web page call `chat.list`, `chat.get`, `chat.stop` and `chat.backup`. The TUI
 calls `chat.rename`, `chat.fork`, `chat.archive`, `chat.backup` and `chat.delete` from the menu
@@ -595,9 +595,14 @@ model.
 | `notices.subscribe` | Each notice has `chat` beside `epic`: the chat's name and `""` for a chat, `""` and the epic's name for an epic. |
 
 **An epic an earlier hmz recorded for a chat** -- an `epic.jsonl` whose `began` gives `kind`
-`chat` -- is not made a chat. It stays where it is and is answered by `runs.*` as any other
-epic that has ended, its row's `kind` `chat` and `flow` `""`; no `chat.*` method knows it, and
-`chat.start` refuses to carry it on, 404.
+`chat`, or no `kind` and the `flow` `chat` -- is made a chat: each time the daemon starts,
+before it accepts a session, it [moves](/reference/files#chats) every one no process holds
+among the chats, under the name it had, and logs how many it moved and each one it left.
+From then on `chat.*` answers it as any other chat. One left -- held by a process, or its
+name taken by a chat -- is moved at a later start; until then neither `runs.*` nor `chat.*`
+knows it, and `chat.start` refuses to carry it on, 404. An epic row's `kind` is always
+`flow`. `runs.import` and `backups.pull` place such an epic among the chats, and
+`backups.epics` lists it with `chat` true.
 
 ### Asides {#asides}
 
@@ -629,7 +634,7 @@ question fails is not kept.
 Each [Ai-chan](/user/ai-chan) conversation is a [chat](/user/chat) whose one agent plays
 her role, held by a host of its own on the slot `ai:<hex>`: in the workspace of its scope, or,
 for the scope `daemon`, in `H/ai/<machine>/`. Only the daemon starts it, with the
-conversation's own scope, preset and network; `epic.stop` there stops her open turn only. Its harness runs with approvals bypassed, confined: `/` denied, the scope
+conversation's own scope and preset; `epic.stop` there stops her open turn only. Its harness runs with approvals bypassed and the network granted, confined: `/` denied, the scope
 root (`/` for `daemon`, the workspace otherwise) read-only under `read-only` and writable under
 `danger-full-access`, its scratch directory `H/ai/<machine>/<id>/` writable, and this machine's
 directory -- the daemon's socket and every scoped link -- denied beneath all of it. A
@@ -640,14 +645,15 @@ budget.
 
 | Method | Fields (default) | Answer | Refusals |
 | --- | --- | --- | --- |
-| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `network` (`false`), `title` (`""`: the task's first line, cut at 80), `task` (required) | `id`, `workspace`, `slot`, once its host has taken the start | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
-| `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `state` (`running`, `waiting`, `folded`), `created` | — |
+| `aichan.create` (write) | `scope` (`daemon`, `workspace`, `epic`; required), `workspace` (for `workspace` and `epic`), `epic` (an epic name, for `epic`), `nous` (`""`: the nous the last conversation was made with, the [`ai_chan` setting](/reference/settings#ai-chan)), `preset` (`read-only`), `task` (required), whose first line, cut at 80, is the conversation's title | `id`, `workspace`, `slot`, once its host has taken the start; its `nous` is then written as the `ai_chan` setting, which a conversation refused leaves as it was | 400 `An Ai-chan's scope is daemon, workspace or epic.`, `A <scope> scope names its workspace.`, `A daemon scope names no workspace and no epic.`, `A workspace scope names no epic.`, `An epic scope names its epic.`, `An Ai-chan's preset is read-only or danger-full-access.`, `Name Ai-chan's nous: the ai_chan setting names none.`, `<nous> is not a nous or an agent spec.`, `Tell Ai-chan something to start with.`; 404 `There is no epic <epic> in <workspace>.`; 409 the host's `why` |
+| `aichan.list` | — | `conversations`, newest first: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `slot`, `state` (`running`, `waiting`, `folded`), `created`, `latest` (what was last said in it, on one line of at most 120 characters: the task it was made with until she has answered, then her last answer) and `updated` (when that was said). The daemon writes both down each time she ends a turn on another answer; for a conversation an earlier Humanize made, the first `aichan.list` reads `latest` out of its record and takes `created` as `updated` | — |
+| `aichan.rename` (write) | `id` (required), `title` (1 to 240 characters; required) | `{}`; records the title, its runs of white space made single spaces, whether or not a host holds the conversation | 400 `A conversation's title says something.` for one of white space alone, 404 `There is no Ai-chan #<id>.` |
 | `aichan.forget` (write) | `id` (required) | `{}`; closes its host, removes its entry and scratch directory, keeps its conversation's record and writes that record's name in `forgotten.yaml` | 404 `There is no Ai-chan #<id>.` |
 
 `id` counts from 1. Conversations are kept in `H/ai/<machine>/conversations.yaml` across the
 daemon's restarts. A conversation is recorded as a [chat](#chats) is, in a chat directory under
-its host's workspace -- one an earlier hmz began goes on in the epic directory it was recorded
-in -- and is on no list of chats or epics: for every session, `chat.list` and
+its host's workspace -- one an earlier hmz began as an epic is moved there as the daemon
+starts, as any chat of then is -- and is on no list of chats or epics: for every session, `chat.list` and
 `runs.list` leave out every conversation, kept or forgotten
 ([`forgotten.yaml`](/reference/files#h-ai)), and whatever the host of an `ai:` slot holds,
 and `workspaces.list` neither counts them, nor takes that host as running, nor lists a
@@ -679,7 +685,7 @@ says hello as ai-chan.`
 ### Reach {#reach}
 
 A session over a scoped link carries its conversation's **reach**: `scope`, `workspace`,
-`epic`, `preset`, `network`. Every call it makes is held to it before it is carried out, by the
+`epic`, `preset`. Every call it makes is held to it before it is carried out, by the
 `x-hmz-reach` and `x-hmz-writes` extensions each method carries in `openrpc.json`:
 
 | `x-hmz-reach` `scope` | The method acts on | Reached by |

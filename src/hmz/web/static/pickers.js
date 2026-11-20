@@ -6,6 +6,7 @@
 import { call, daemon, hash, onDaemon } from './api.js'
 import { nousOffered, offering, parted, spelled } from './chips/agent.js'
 import { fill, h, iconButton } from './dom.js'
+import { t } from './i18n.js'
 import { effortName, harnessName } from './names.js'
 import { pathPicker } from './paths.js'
 
@@ -69,7 +70,7 @@ function ask(cli, account) {
  * @param {{nous: {name: string, virtual: boolean}[], concrete: string[]} | null} nous
  * @param {{label: string, hmz: string, placeholder?: string}} how
  */
-export function nousField(value, nous, { label, hmz, placeholder = 'A nous' }) {
+export function nousField(value, nous, { label, hmz, placeholder = t('A nous') }) {
   const id = `nous-${Math.random().toString(36).slice(2, 10)}`
   const named = nous ? [...nous.nous.filter((one) => one.virtual).map((one) => one.name), ...nous.concrete] : []
   const offered = h('datalist', { id }, named.map((one) => h('option', { value: one })))
@@ -167,16 +168,16 @@ export function agentChoice(role, kept, draw, { effort: withEffort = true, chang
  * @param {() => void} changed Told whenever the choice changes.
  */
 export function agentPicker(role, kept, changed, { effort: withEffort = true } = {}) {
-  const cli = h('select', { 'aria-label': `CLI for ${role.name}`, 'data-hmz': 'pick-cli' })
-  const account = h('select', { 'aria-label': `Account for ${role.name}`, 'data-hmz': 'pick-account' })
-  const model = h('select', { 'aria-label': `Model for ${role.name}`, 'data-hmz': 'pick-model' })
-  const effort = h('select', { 'aria-label': `Effort for ${role.name}`, 'data-hmz': 'pick-effort' })
+  const cli = h('select', { 'aria-label': t('CLI for {role}', { role: role.name }), 'data-hmz': 'pick-cli' })
+  const account = h('select', { 'aria-label': t('Account for {role}', { role: role.name }), 'data-hmz': 'pick-account' })
+  const model = h('select', { 'aria-label': t('Model for {role}', { role: role.name }), 'data-hmz': 'pick-model' })
+  const effort = h('select', { 'aria-label': t('Effort for {role}', { role: role.name }), 'data-hmz': 'pick-effort' })
   // A model nobody could list is typed instead, as `-a` takes one.
-  const typed = h('input', { type: 'text', placeholder: 'Model', 'aria-label': `Model name for ${role.name}`, 'data-hmz': 'pick-model-typed', hidden: true })
-  const again = iconButton('resume', 'Refresh models', { class: 'small' })
+  const typed = h('input', { type: 'text', placeholder: t('Model'), 'aria-label': t('Model name for {role}', { role: role.name }), 'data-hmz': 'pick-model-typed', hidden: true })
+  const again = iconButton('resume', t('Refresh models'), { class: 'small' })
   const said = h('span', { class: 'hint', 'aria-live': 'polite' })
   // A place a turn goes to is a CLI, an account and a model: no effort is part of it.
-  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field('Account', account), field('Model', model, typed), withEffort ? field('Effort', effort) : null, again, said)
+  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field(t('Account'), account), field(t('Model'), model, typed), withEffort ? field(t('Effort'), effort) : null, again, said)
   let typing = false
 
   const picked = agentChoice(role, kept, draw, { effort: withEffort, changed })
@@ -185,25 +186,25 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
 
   function draw(offered) {
     fill(cli, options(offered.clis, chosen.cli))
-    fill(account, options(offered.accounts, chosen.account), h('option', { value: '+' }, 'Add account…'))
+    fill(account, options(offered.accounts, chosen.account), h('option', { value: '+' }, t('Add account…')))
     const none = offered.asking && !offered.models.length
     fill(
       model,
-      none ? h('option', { value: chosen.model }, 'Asking…') : null,
+      none ? h('option', { value: chosen.model }, t('Asking…')) : null,
       options(offered.models, chosen.model),
-      offered.unlisted && !none ? h('option', { value: chosen.model, selected: true }, `${chosen.model} (not listed)`) : null,
-      !offered.asking ? h('option', { value: '…', selected: typing }, 'Other…') : null,
+      offered.unlisted && !none ? h('option', { value: chosen.model, selected: true }, t('{model} (not listed)', { model: chosen.model })) : null,
+      !offered.asking ? h('option', { value: '…', selected: typing }, t('Other…')) : null,
     )
     model.disabled = none
     if (offered.typed) typing = true
     model.hidden = typing && !offered.models.length
     typed.hidden = !typing
     if (typing && typed.value !== chosen.model) typed.value = chosen.model
-    fill(effort, h('option', { value: '' }, 'Default'), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, effortName(one))))
+    fill(effort, h('option', { value: '' }, t('Default')), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, effortName(one))))
     effort.disabled = !offered.efforts.length
     again.disabled = !chosen.cli || offered.asking
     // One line, cut short where it is long: its tip says the whole of it.
-    said.textContent = said.dataset.tip = offered.asking ? `Asking ${harnessName(chosen.cli)} for models…` : offered.failed ? `No models: ${offered.failed}` : ''
+    said.textContent = said.dataset.tip = offered.asking ? t('Asking {harness} for models…', { harness: harnessName(chosen.cli) }) : offered.failed ? t('No models: {why}', { why: offered.failed }) : ''
   }
 
   cli.addEventListener('change', () => {
@@ -266,19 +267,21 @@ export function where({ backend, provider, workdir }) {
  * @param {string} kept Where it works now, as `-e` spells it.
  * @param {{envs: string[]}} offered The backends there are.
  * @param {{backend: string, name: string, workdir?: string}[]} runtimes The runtimes saved.
+ * @param {{folder?: string}} [how] The folder the epic is started in, which a directory on this
+ *   machine left blank comes to: said in that field while nothing is typed in it.
  */
-export function envPicker(role, kept, offered, runtimes) {
+export function envPicker(role, kept, offered, runtimes, { folder = '' } = {}) {
   const chosen = placed(kept)
-  const backend = h('select', { 'aria-label': `Backend for ${role.name}`, 'data-hmz': 'pick-backend' })
-  const machine = h('select', { 'aria-label': `Runtime for ${role.name}`, 'data-hmz': 'pick-runtime' })
-  const host = h('input', { type: 'text', placeholder: 'user@host', 'aria-label': `Host for ${role.name}`, hidden: true })
+  const backend = h('select', { 'aria-label': t('Backend for {role}', { role: role.name }), 'data-hmz': 'pick-backend' })
+  const machine = h('select', { 'aria-label': t('Runtime for {role}', { role: role.name }), 'data-hmz': 'pick-runtime' })
+  const host = h('input', { type: 'text', placeholder: 'user@host', 'aria-label': t('Host for {role}', { role: role.name }), hidden: true })
   // A directory on this machine is browsed for; one on another machine is written.
-  const here = pathPicker({ value: chosen.workdir, label: `Directory for ${role.name}`, placeholder: '~/project', changed: (to) => (chosen.workdir = to) })
+  const here = pathPicker({ value: chosen.workdir, label: t('Directory for {role}', { role: role.name }), placeholder: folder || '~/project', changed: (to) => (chosen.workdir = to) })
   here.input.dataset.hmz = 'pick-dir'
-  const there = h('input', { type: 'text', value: chosen.workdir, placeholder: '/srv/project', 'aria-label': `Directory for ${role.name} there`, 'data-hmz': 'pick-dir-there' })
+  const there = h('input', { type: 'text', value: chosen.workdir, placeholder: '/srv/project', 'aria-label': t('Directory for {role} there', { role: role.name }), 'data-hmz': 'pick-dir-there' })
   there.addEventListener('input', () => (chosen.workdir = there.value.trim()))
   const dir = h('span', { class: 'dir-holder' }, here.node, there)
-  const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field('Backend', backend), field('Runtime', machine, host), h('div', { class: 'field' }, h('span', { class: 'label' }, 'Directory'), dir))
+  const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field(t('Backend'), backend), field(t('Runtime'), machine, host), h('div', { class: 'field' }, h('span', { class: 'label' }, t('Directory')), dir))
 
   function draw() {
     fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, one)))
@@ -289,9 +292,9 @@ export function envPicker(role, kept, offered, runtimes) {
     fill(
       machine,
       mine.map((one) => h('option', { value: one.name, selected: one.name === chosen.provider }, one.name)),
-      chosen.backend === 'ssh' ? h('option', { value: '[', selected: typedHost }, 'Other host…') : null,
-      chosen.backend !== 'ssh' ? h('option', { value: '', selected: !chosen.provider }, 'This machine') : null,
-      h('option', { value: '+' }, 'Add runtime…'),
+      chosen.backend === 'ssh' ? h('option', { value: '[', selected: typedHost }, t('Other host…')) : null,
+      chosen.backend !== 'ssh' ? h('option', { value: '', selected: !chosen.provider }, t('This machine')) : null,
+      h('option', { value: '+' }, t('Add runtime…')),
     )
     if (!chosen.provider && mine.length && chosen.backend === 'ssh') chosen.provider = mine[0].name
     host.hidden = !typedHost

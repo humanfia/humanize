@@ -1,6 +1,8 @@
 // Routes (Section 3.3 of protocol/wire.md): the text naming one carrier to one daemon, which of
 // them are trusted (Section 3.5), and racing several routes to one daemon (Section 3.6.1).
 
+import { t } from '../i18n.js'
+
 const UNRESERVED = "[A-Za-z0-9._~-]"
 const PCT = '%[0-9A-Fa-f]{2}'
 const SUB = "[!$&'()*+,;=]"
@@ -59,7 +61,7 @@ export function trusted(route) {
 export function race(routes, attempt, discard) {
   return new Promise((resolve, reject) => {
     if (!routes.length) {
-      reject(new Error('There is no route to try.'))
+      reject(new Error(t('There is no route to try.')))
       return
     }
     const aborts = []

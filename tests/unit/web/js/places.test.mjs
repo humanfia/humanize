@@ -206,3 +206,162 @@ test('a picker opened on no folder names the first that is there', async () => {
     await lists(ONE)
   }
 })
+
+test('Environment names the daemon and the folder on one chip, whose menu holds both and what a form adds', async () => {
+  await lists({ here: '', workspaces: [row('app', true), row('lib', true)] })
+  const { environmentChip } = await import('../../../../src/hmz/web/static/chips/environment.js')
+  const picked = []
+  const place = workspacePicker('/w/app', (path) => picked.push(path), { none: true, hosted: true })
+  const extra = el('button', { role: 'menuitemcheckbox' })
+  extra.textContent = 'Worktree'
+  const made = environmentChip('/new/chat', { place, rows: () => extra })
+  body.append(made.node)
+  const button = made.node.querySelector('[data-hmz=environment]')
+  const items = () => made.node.querySelector('[role=menu]').querySelectorAll('[role=menuitem], [role=menuitemcheckbox]').map((one) => one.textContent)
+  const choose = (said) => made.node.querySelectorAll('[role=menuitem]').find((one) => one.textContent === said).click()
+  try {
+    // No button of the folders' own: the chip is the one control.
+    assert.equal(made.node.querySelector('[data-hmz=workspace-picker]'), null)
+    // Named from the first, before the folders are read; then read, as the menu lists them.
+    assert.equal(button.textContent, 'Local · app')
+    await until(() => place.rows(() => {}).flat(Infinity).some((one) => one && one.dataset.folder === '/w/lib'))
+    assert.equal(button.getAttribute('aria-label'), 'Environment: Local, app')
+    assert.equal(button.dataset.tip, '/w/app')
+    button.box = { left: 20, top: 800, width: 120, height: 24 }
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    assert.deepEqual(menu.querySelectorAll('.popover-head').map((one) => one.textContent), ['Runs on', 'Folder'])
+    assert.deepEqual(items(), ['Local', 'New environment', 'app', 'lib', 'Open folder…', 'No folder', 'Worktree'])
+    // Two choices are in force; the keys are on the folder.
+    assert.equal(document.activeElement.textContent, 'app')
+    assert.equal(document.activeElement.dataset.folder, '/w/app')
+    // Another folder picked: the chip names it, and whoever keeps the form is told.
+    choose('lib')
+    assert.deepEqual(picked, ['/w/lib'])
+    assert.equal(button.textContent, 'Local · lib')
+    assert.equal(made.node.querySelector('[role=menu]'), null)
+    // No folder is a folder picked too.
+    button.click()
+    choose('No folder')
+    assert.deepEqual(picked, ['/w/lib', null])
+    assert.equal(button.textContent, 'Local · No folder')
+    assert.equal(button.getAttribute('aria-label'), 'Environment: Local, No folder')
+    // The form a folder is opened by takes the menu's place, by the chip, which shuts it.
+    button.click()
+    choose('Open folder…')
+    const form = made.node.querySelector('form')
+    assert.equal(form.hidden, false)
+    assert.equal(made.node.querySelector('[role=menu]'), null)
+    assert.equal(button.getAttribute('aria-expanded'), 'true')
+    button.click()
+    assert.equal(form.hidden, true)
+    assert.equal(made.node.querySelector('[role=menu]'), null)
+  } finally {
+    dismiss('route')
+    place.leave()
+    made.node.remove()
+    await lists(ONE)
+  }
+})
+
+test('Environment says on its chip that the folder picked is gone', async () => {
+  await lists({ here: '', workspaces: [row('app', true), row('old', false)] })
+  const { environmentChip } = await import('../../../../src/hmz/web/static/chips/environment.js')
+  const place = workspacePicker('/w/old', () => {}, { none: true, hosted: true })
+  const made = environmentChip('/new/chat', { place })
+  body.append(made.node)
+  const button = made.node.querySelector('[data-hmz=environment]')
+  try {
+    await until(() => place.gone())
+    assert.equal(button.textContent, 'Local · old (missing)')
+    assert.equal(button.getAttribute('aria-invalid'), 'true')
+    assert.ok(button.classList.contains('gone'))
+    assert.equal(button.dataset.tip, 'This folder is no longer on this machine: /w/old')
+    button.click()
+    assert.ok('missing' in made.node.querySelectorAll('[role=menuitem]').find((one) => one.textContent === 'oldMissing').dataset)
+    dismiss('route')
+    place.set('/w/app')
+    assert.equal(button.textContent, 'Local · app')
+    assert.equal(button.getAttribute('aria-invalid'), null)
+    assert.ok(!button.classList.contains('gone'))
+  } finally {
+    dismiss('route')
+    place.leave()
+    made.node.remove()
+    await lists(ONE)
+  }
+})
+
+test('Environment of a daemon alone names it, and its menu opens under it where asked', async () => {
+  const { environmentChip } = await import('../../../../src/hmz/web/static/chips/environment.js')
+  const made = environmentChip('/new', { up: false })
+  body.append(made.node)
+  const button = made.node.querySelector('[data-hmz=environment]')
+  try {
+    assert.equal(button.textContent, 'Local')
+    assert.equal(button.getAttribute('aria-label'), 'Environment: Local')
+    button.box = { left: 300, top: 100, width: 80, height: 24 }
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    assert.deepEqual(menu.querySelectorAll('.popover-head'), [])
+    assert.deepEqual(menu.querySelectorAll('[role=menuitem]').map((one) => one.textContent), ['Local', 'New environment'])
+    assert.ok(parseFloat(menu.style.top) >= 124)
+  } finally {
+    dismiss('route')
+    made.node.remove()
+  }
+})
+
+/** A hosted picker bound to a button of another's, which holds its form beside it. */
+function hosting(chosen) {
+  const made = workspacePicker(chosen, () => {}, { hosted: true })
+  const button = el('button')
+  const holder = el('div')
+  holder.append(button, made.node)
+  body.append(holder)
+  const told = []
+  made.bind(button, { align: 'start', up: true }, (now) => told.push(now))
+  return { ...made, button, holder, told, form: made.node }
+}
+
+test('a hosted picker’s form is its host’s button’s: closed, the focus goes back to it, and a press on it only shuts the form', async () => {
+  const made = hosting('/w/app')
+  const pick = () => [made.rows(() => {})].flat(Infinity).find((one) => one && one.textContent === 'Open folder…').click()
+  try {
+    pick()
+    assert.equal(made.form.hidden, false)
+    assert.equal(document.activeElement, made.form.querySelector('input'))
+    key('Escape')
+    assert.equal(made.form.hidden, true)
+    assert.equal(document.activeElement, made.button)
+    // A press on the button is a press inside: the form stands until the click, which shuts it
+    // before anything else of the button's hears of it.
+    pick()
+    let heard = 0
+    made.button.addEventListener('click', () => heard++)
+    press(made.button)
+    assert.equal(made.form.hidden, false)
+    made.button.click()
+    assert.equal(made.form.hidden, true)
+    assert.equal(heard, 0)
+    assert.equal(chain().length, 0)
+    made.button.click()
+    assert.equal(heard, 1)
+  } finally {
+    dismiss('route')
+    made.leave()
+    made.holder.remove()
+  }
+})
+
+test('a hosted picker says the folder not read yet as the button does, never as an empty name', async () => {
+  const made = hosting('')
+  try {
+    assert.deepEqual(made.told.map((now) => now.name), ['…'])
+    await until(() => made.value() === '/w/app')
+    assert.equal(made.told.at(-1).name, 'app')
+  } finally {
+    made.leave()
+    made.holder.remove()
+  }
+})

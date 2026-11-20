@@ -3,6 +3,7 @@
 // the one pinned, the session tried again with backoff whenever it drops or fails, every
 // subscription attached again with `since` once it is back, and every write given an `idem`.
 
+import { t } from '../i18n.js'
 import { Dropped, ERRORS, Peer, RpcError } from './peer.js'
 import { onAbort, toBase64url } from './pipe.js'
 import { race, routeKind, trusted } from './routes.js'
@@ -29,13 +30,16 @@ export class NotPinned extends Error {}
  * @property {string} name
  * @property {string} id The daemon id pinned, '' until first reached over a trusted carrier.
  * @property {string[]} routes In the order they are tried.
+ * @property {RTCIceServer[]} [ice] The STUN and TURN servers its `webrtc:` routes are opened
+ *   with (Section 3.13.21 of protocol/web.md); none where absent.
  *
  * @typedef {object} Provider What opens carriers of some routes for the page.
  * @property {(route: string) => boolean} opens Whether it opens this route.
  * @property {(route: string, id: string, options: {state: (state: string, detail: string) => void,
- *   signal: AbortSignal}) => Promise<import('./pipe.js').Pipe>} open Opens one, telling `state`
- *   `connecting` or `installing` and what was said last until it is open; closes it and rejects
- *   once `signal` aborts.
+ *   signal: AbortSignal, iceServers: RTCIceServer[]}) => Promise<import('./pipe.js').Pipe>} open
+ *   Opens one, telling `state` `connecting` or `installing` and what was said last until it is
+ *   open; closes it and rejects once `signal` aborts. `iceServers` are the daemon's own STUN and
+ *   TURN servers, which a provider of `webrtc:` routes alone uses.
  *
  * @typedef {object} Session
  * @property {Peer} peer
@@ -60,15 +64,15 @@ export function idem() {
  * @returns {Promise<Session>}
  */
 export function reach(entry, providers, { client = { name: '', kind: 'web' }, state = () => {}, handlers } = {}) {
-  return race(entry.routes, attempt, (session) => session.peer.close('Another route was reached first.'))
+  return race(entry.routes, attempt, (session) => session.peer.close(t('Another route was reached first.')))
 
   /** @param {string} route @param {AbortSignal} signal */
   async function attempt(route, signal) {
-    if (!routeKind(route)) throw new Error(`${route} is not a route.`)
+    if (!routeKind(route)) throw new Error(t('{route} is not a route.', { route }))
     const provider = providers.find((one) => one.opens(route))
-    if (!provider) throw new Error(`${route} cannot be reached from here.`)
+    if (!provider) throw new Error(t('{route} cannot be reached from here.', { route }))
     // An id is pinned from a trusted carrier alone (Section 3.5.6 and 4.4.7 of protocol/wire.md).
-    if (!entry.id && !trusted(route)) throw new Error(`${route} needs the id of the daemon it reaches.`)
+    if (!entry.id && !trusted(route)) throw new Error(t('{route} needs the id of the daemon it reaches.', { route }))
     const late = new AbortController()
     let timer
     const arm = () => {
@@ -84,6 +88,7 @@ export function reach(entry, providers, { client = { name: '', kind: 'web' }, st
     try {
       const pipe = await provider.open(route, entry.id, {
         signal: both,
+        iceServers: entry.ice ?? [],
         state: (now, detail) => {
           // The 30 seconds wait while hmz is installed, and start afresh after.
           if (now === 'installing') clearTimeout(timer)
@@ -94,15 +99,15 @@ export function reach(entry, providers, { client = { name: '', kind: 'web' }, st
       })
       peer = new Peer(pipe, handlers ?? {})
       const opened = peer
-      stop = onAbort(both, () => opened.close('Given up.'))
+      stop = onAbort(both, () => opened.close(t('Given up.')))
       if (installing) arm()
       const hello = /** @type {{daemon_id: string}} */ (await peer.call('session.hello', { protocol: PROTOCOL, client }))
       if (entry.id && hello.daemon_id !== entry.id) throw new NotPinned()
       return { peer, hello, route, handlers: handlers ?? {} }
     } catch (error) {
-      peer?.close('Not reached.')
-      if (error instanceof NotPinned) throw new Error(`${entry.name} is not the daemon it was paired with.`)
-      if (late.signal.aborted) throw new Error(`${route} did not open within 30 seconds.`)
+      peer?.close(t('Not reached.'))
+      if (error instanceof NotPinned) throw new Error(t('{name} is not the daemon it was paired with.', { name: entry.name }))
+      if (late.signal.aborted) throw new Error(t('{route} did not open within 30 seconds.', { route }))
       throw error
     } finally {
       clearTimeout(timer)
@@ -233,9 +238,9 @@ export class Client {
     if (this.#closed) return
     this.#closed = true
     this.#wake()
-    this.#session?.peer.close('Closed.')
+    this.#session?.peer.close(t('Closed.'))
     this.#session = null
-    for (const waiter of this.#waiting) waiter.reject(new Dropped('Closed.'))
+    for (const waiter of this.#waiting) waiter.reject(new Dropped(t('Closed.')))
     this.#waiting.clear()
     this.#subs.clear()
     this.#set('idle', '')
@@ -255,7 +260,7 @@ export class Client {
           handlers,
         })
         if (this.#closed) {
-          session.peer.close('Closed.')
+          session.peer.close(t('Closed.'))
           return
         }
         if (!this.#entry.id) {
@@ -291,7 +296,7 @@ export class Client {
 
   /** @param {AbortSignal} [signal] @returns {Promise<Session>} */
   #ready(signal) {
-    if (this.#closed) return Promise.reject(new Dropped('Closed.'))
+    if (this.#closed) return Promise.reject(new Dropped(t('Closed.')))
     if (this.#session?.peer.open) return Promise.resolve(this.#session)
     if (this.#state.state === 'failed') return Promise.reject(new RpcError(ERRORS.UNAVAILABLE, this.#state.detail))
     return new Promise((resolve, reject) => {
@@ -301,7 +306,7 @@ export class Client {
       }
       const stop = onAbort(signal, () => {
         this.#waiting.delete(waiter)
-        reject(new RpcError(ERRORS.CANCELLED, 'The call was cancelled.'))
+        reject(new RpcError(ERRORS.CANCELLED, t('The call was cancelled.')))
       })
       this.#waiting.add(waiter)
     })

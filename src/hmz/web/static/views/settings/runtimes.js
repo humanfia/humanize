@@ -5,13 +5,14 @@
 
 import { call, onDaemon } from '../../api.js'
 import { confirming } from '../../confirm.js'
-import { acting, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { acting, empty, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { pathPicker } from '../../paths.js'
 
 const GIB = 2 ** 30
 
 export function draw(holder, query, parts, scope) {
-  const listing = h('section', { class: 'panel', 'data-hmz': 'runtimes' }, h('p', { class: 'loading', role: 'status' }, 'Reading the runtimes…'))
+  const listing = h('section', { class: 'panel', 'data-hmz': 'runtimes' }, h('p', { class: 'loading', role: 'status' }, t('Reading the runtimes…')))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-runtime' })
   const importing = h('section', { class: 'panel', 'data-hmz': 'import-runtimes' })
   fill(holder, listing, writing, importing)
@@ -33,8 +34,8 @@ export function draw(holder, query, parts, scope) {
         { 'data-hmz': 'runtime' },
         h('td', { class: 'mono' }, one.backend),
         h('td', {}, h('b', {}, one.name), h('div', { class: 'dim' }, one.made)),
-        h('td', { class: 'mono', 'data-label': 'Address' }, reached(one), one.workdir ? h('div', { class: 'dim' }, one.workdir) : null),
-        h('td', { 'data-label': 'Resources' }, checked[key] ? said(checked[key]) : h('span', { class: 'dim' }, 'not asked')),
+        h('td', { class: 'mono', 'data-label': t('Address') }, reached(one), one.workdir ? h('div', { class: 'dim' }, one.workdir) : null),
+        h('td', { 'data-label': t('Resources') }, checked[key] ? said(checked[key]) : h('span', { class: 'dim' }, t('not asked'))),
         h(
           'td',
           {},
@@ -42,15 +43,15 @@ export function draw(holder, query, parts, scope) {
             'div',
             { class: 'row' },
             acting(
-              'Check',
+              t('Check'),
               async () => {
                 checked[key] = await scope.call('runtimes.check', { backend: one.backend, name: one.name })
                 drawListing()
               },
-              { kind: 'btn small quiet', busy: 'Asking…' },
+              { kind: 'btn small quiet', busy: t('Asking…') },
             ),
-            h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, 'Edit'),
-            confirming({ label: 'Remove', ask: `Remove ${one.name}?`, yes: 'Remove', small: true, act: async () => shown(await scope.call('runtimes.remove', { backend: one.backend, name: one.name })) }),
+            h('button', { class: 'btn small quiet', type: 'button', onclick: () => edit(one) }, t('Edit')),
+            confirming({ label: t('Remove'), ask: t('Remove {name}?', { name: one.name }), yes: t('Remove'), small: true, act: async () => shown(await scope.call('runtimes.remove', { backend: one.backend, name: one.name })) }),
           ),
         ),
       )
@@ -58,10 +59,14 @@ export function draw(holder, query, parts, scope) {
     fill(
       listing,
       // Each runtime written over the one of its name there, or added; none there taken away.
-      h('header', {}, h('h2', {}, 'Runtimes'), scope.batch(() => data.runtimes.map(({ backend, name, made, ...fields }) => ['runtimes.set', { backend, name, fields, replace: true }]))),
+      h('header', {}, h('h2', {}, t('Runtimes')), scope.batch(() => data.runtimes.map(({ backend, name, made, ...fields }) => ['runtimes.set', { backend, name, fields, replace: true }]))),
       rows.length
-        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Backend'), h('th', {}, 'Name'), h('th', {}, 'Address'), h('th', {}, 'Resources'), h('th', {}, ''))), h('tbody', {}, rows)))
-        : h('p', { class: 'dim' }, 'None yet: every environment is this machine, or spelled out where it is named.'),
+        ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t('Backend')), h('th', {}, t('Name')), h('th', {}, t('Address')), h('th', {}, t('Resources')), h('th', {}, ''))), h('tbody', {}, rows)))
+        : empty(
+            t('No runtime yet.'),
+            t(' Every environment runs on this machine, or is spelled out where it is named, until you add one.'),
+            h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'runtime-add', onclick: () => edit(null) }, t('Add runtime')),
+          ),
     )
   }
 
@@ -69,6 +74,8 @@ export function draw(holder, query, parts, scope) {
     editing = one
     drawWriting()
     writing.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // A new one starts at its first field; one edited is read first.
+    if (!one) writing.querySelector('#runtime-name')?.focus({ preventScroll: true })
   }
 
   function drawWriting() {
@@ -91,17 +98,17 @@ export function draw(holder, query, parts, scope) {
     const said = h('div', { 'aria-live': 'polite' })
     fill(
       writing,
-      h('h2', {}, editing ? `Edit ${editing.name}` : 'New runtime'),
+      h('h2', {}, editing ? t('Edit {name}', { name: editing.name }) : t('New runtime')),
       h(
         'form',
         { class: 'form', onsubmit: (event) => event.preventDefault() },
-        h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'runtime-backend' }, 'Backend'), backend), h('div', { class: 'field' }, h('label', { for: 'runtime-name' }, 'Name'), name)),
+        h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'runtime-backend' }, t('Backend')), backend), h('div', { class: 'field' }, h('label', { for: 'runtime-name' }, t('Name')), name)),
         fields,
         h(
           'div',
           { class: 'row' },
           acting(
-            editing ? 'Save' : 'Add',
+            editing ? t('Save') : t('Add'),
             async () => {
               const given = {}
               for (const [key, read] of Object.entries(readers)) given[key] = read()
@@ -109,9 +116,9 @@ export function draw(holder, query, parts, scope) {
               editing = null
               shown(answer)
             },
-            { kind: 'btn primary', busy: 'Saving…' },
+            { kind: 'btn primary', busy: t('Saving…') },
           ),
-          editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'Add a new one') : null,
+          editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, t('Add a new one')) : null,
           said,
         ),
       ),
@@ -121,43 +128,43 @@ export function draw(holder, query, parts, scope) {
 
   function drawImporting() {
     const read = acting(
-      'Read SSH config',
+      t('Read SSH config'),
       async () => {
         const { hosts } = await scope.call('runtimes.hosts')
         const boxes = hosts.map((one) => ({ one, box: h('input', { type: 'checkbox', disabled: one.saved }) }))
         fill(
           importing,
-          h('h2', {}, 'SSH config'),
+          h('h2', {}, t('SSH config')),
           hosts.length
             ? [
                 h(
                   'div',
                   { class: 'form' },
                   boxes.map(({ one, box }) =>
-                    h('label', { class: 'check' }, box, h('b', { class: 'mono' }, one.alias), h('span', { class: 'dim' }, `${one.user ? `${one.user}@` : ''}${one.host}${one.port && one.port !== 22 ? `:${one.port}` : ''}${one.saved ? ' · saved' : ''}`)),
+                    h('label', { class: 'check' }, box, h('b', { class: 'mono' }, one.alias), h('span', { class: 'dim' }, one.saved ? t('{host} · saved', { host: hostSaid(one) }) : hostSaid(one))),
                   ),
                 ),
                 h(
                   'p',
                   { class: 'row' },
                   acting(
-                    'Import',
+                    t('Import'),
                     async () => {
                       const names = boxes.filter(({ box }) => box.checked).map(({ one }) => one.alias)
                       if (!names.length) return
                       shown(await scope.call('runtimes.import', { names }))
                       drawImporting()
                     },
-                    { kind: 'btn primary', busy: 'Importing…' },
+                    { kind: 'btn primary', busy: t('Importing…') },
                   ),
                 ),
               ]
-            : h('p', { class: 'dim' }, 'It names no host.'),
+            : h('p', { class: 'dim' }, t('It names no host.')),
         )
       },
-      { kind: 'btn', busy: 'Reading…' },
+      { kind: 'btn', busy: t('Reading…') },
     )
-    fill(importing, h('h2', {}, 'SSH config'), h('p', { class: 'dim' }, 'Import hosts from your SSH config as runtimes.'), read)
+    fill(importing, h('h2', {}, t('SSH config')), h('p', { class: 'dim' }, t('Import hosts from your SSH config as runtimes.')), read)
   }
 
   scope.call('runtimes.list')
@@ -168,29 +175,56 @@ export function draw(holder, query, parts, scope) {
     .catch((error) => fill(listing, problem(error)))
 }
 
+/** A host of an ssh config, as somebody would write it: its port where it is not ssh's own. */
+const hostSaid = (one) => `${one.user ? `${one.user}@` : ''}${one.host}${one.port && one.port !== 22 ? `:${one.port}` : ''}`
+
 /** Where a runtime is reached, as somebody would write it. */
 function reached(one) {
   if (one.backend === 'ssh') return `${one.user ? `${one.user}@` : ''}${one.host || one.alias}${one.port ? `:${one.port}` : ''}`
   if (one.backend === 'slurm') return ['sbatch', one.partition ? `-p ${one.partition}` : '', one.account ? `-A ${one.account}` : ''].filter(Boolean).join(' ')
-  return one.endpoint || 'this Mac'
+  return one.endpoint || t('this Mac')
 }
 
 /** What a runtime said when it was asked what it has. */
 function said(answer) {
-  if (!answer.reached) return h('span', { class: 'bad' }, answer.said || 'it did not answer')
+  if (!answer.reached) return h('span', { class: 'bad' }, answer.said || t('it did not answer'))
   const has = [
-    answer.cpus ? `${answer.cpus} cpu` : '',
+    answer.cpus ? t('{n} cpu', { n: answer.cpus }) : '',
     answer.memory ? `${Math.round(answer.memory / GIB)} GiB` : '',
-    answer.gpus.length ? `${answer.usable ? `${answer.usable.length} of ` : ''}${answer.gpus.length} gpu` : '',
-    answer.nodes.length ? `${answer.nodes.length} node${answer.nodes.length === 1 ? '' : 's'}` : '',
+    answer.gpus.length ? (answer.usable ? t('{usable} of {n} gpu', { usable: answer.usable.length, n: answer.gpus.length }) : t('{n} gpu', { n: answer.gpus.length })) : '',
+    answer.nodes.length ? t('{n} nodes', { n: answer.nodes.length }) : '',
     answer.version,
   ].filter(Boolean)
-  return h('div', {}, h('span', { class: 'ok' }, '✔ '), has.join(' · ') || 'answered', answer.short.length ? h('div', { class: 'bad' }, `short of: ${answer.short.join(', ')}`) : null)
+  return h('div', {}, h('span', { class: 'ok' }, '✔ '), has.join(' · ') || t('answered@@probe'), answer.short.length ? h('div', { class: 'bad' }, t('short of: {what}', { what: answer.short.join(', ') })) : null)
 }
 
 /** What a runtime's field is called on its form: its name, as words. */
 function labelOf(key) {
-  const named = { identity_file: 'Identity file', proxy_jump: 'Proxy jump', tls_dir: 'TLS directory', run_args: 'Run arguments', gpu_memory: 'GPU memory, GiB', gpus: 'GPUs', cpus: 'CPUs', config: 'SSH config', workdir: 'Workdir', harness: 'Harness runs on', fallback: 'Falls back to', options: 'SSH options' }
+  const named = {
+    identity_file: t('Identity file'),
+    proxy_jump: t('Proxy jump'),
+    tls_dir: t('TLS directory'),
+    run_args: t('Run arguments'),
+    gpu_memory: t('GPU memory, GiB'),
+    gpus: t('GPUs'),
+    cpus: t('CPUs'),
+    config: t('SSH config'),
+    workdir: t('Workdir'),
+    harness: t('Harness runs on'),
+    fallback: t('Falls back to'),
+    options: t('SSH options'),
+    alias: t('Alias'),
+    host: t('Host'),
+    user: t('User'),
+    port: t('Port'),
+    endpoint: t('Endpoint'),
+    image: t('Image@@container'),
+    container: t('Container'),
+    memory: t('Memory, GiB'),
+    account: t('Account'),
+    partition: t('Partition'),
+    nodes: t('Nodes'),
+  }
   if (named[key]) return named[key]
   const words = key.replace(/_/g, ' ')
   return `${words.slice(0, 1).toUpperCase()}${words.slice(1)}${key.endsWith('memory') ? ', GiB' : ''}`
@@ -219,7 +253,7 @@ function field(key, empty, value, { backend, name, runtimes, from }) {
   }
   if (key === 'fallback') {
     const others = runtimes.filter((one) => one.backend === backend && one.name !== name).map((one) => one.name)
-    const listed = listing(value || [], { id, options: () => others, none: 'No other runtime of this backend' })
+    const listed = listing(value || [], { id, options: () => others, none: t('No other runtime of this backend') })
     return [listed.node, listed.read]
   }
   if (key === 'harness') {
@@ -242,12 +276,12 @@ function field(key, empty, value, { backend, name, runtimes, from }) {
   }
   if (typeof empty === 'boolean') {
     const input = h('input', { id, type: 'checkbox', checked: Boolean(value) })
-    return [h('label', { class: 'check' }, input, 'On'), () => input.checked]
+    return [h('label', { class: 'check' }, input, t('On')), () => input.checked]
   }
   if (key === 'alias' || key === 'proxy_jump' || (key === 'host' && backend === 'ssh')) {
     // A host your SSH config names, picked; any other written.
     const offered = h('datalist', { id: `${id}-hosts` })
-    const input = h('input', { id, type: 'text', value: value || '', list: offered.id, autocomplete: 'off', placeholder: key === 'alias' ? 'A host in your SSH config' : key === 'host' ? 'box.example' : 'user@jump' })
+    const input = h('input', { id, type: 'text', value: value || '', list: offered.id, autocomplete: 'off', placeholder: key === 'alias' ? t('A host in your SSH config') : key === 'host' ? 'box.example' : 'user@jump' })
     sshHosts(from).then((names) => fill(offered, names.map((one) => h('option', { value: one }))))
     return [h('div', { class: 'row' }, input, offered), () => input.value.trim()]
   }
@@ -261,19 +295,19 @@ function field(key, empty, value, { backend, name, runtimes, from }) {
  */
 function listing(values, { id, options = null, placeholder = '', none = '' }) {
   const rows = h('div', { class: 'list-rows', id, 'data-hmz': 'list-editor' })
-  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), 'Add')
+  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), t('Add'))
   const node = h('div', { class: 'list-editor' }, rows, add)
   const row = (value) => {
     const choices = options ? options() : null
     const input = choices
-      ? h('select', { 'aria-label': 'Value' }, [...new Set([...choices, value].filter(Boolean))].map((one) => h('option', { value: one, selected: one === value }, one)))
-      : h('input', { type: 'text', value, placeholder, 'aria-label': 'Value' })
+      ? h('select', { 'aria-label': t('Value') }, [...new Set([...choices, value].filter(Boolean))].map((one) => h('option', { value: one, selected: one === value }, one)))
+      : h('input', { type: 'text', value, placeholder, 'aria-label': t('Value') })
     const line = h(
       'div',
       { class: 'list-row' },
       input,
-      iconButton('down', 'Move down', { class: 'small', onclick: () => line.nextElementSibling && line.nextElementSibling.after(line) }),
-      iconButton('close', 'Remove', { class: 'small', onclick: () => line.remove() }),
+      iconButton('down', t('Move down'), { class: 'small', onclick: () => line.nextElementSibling && line.nextElementSibling.after(line) }),
+      iconButton('close', t('Remove'), { class: 'small', onclick: () => line.remove() }),
     )
     rows.append(line)
   }
@@ -292,14 +326,14 @@ function listing(values, { id, options = null, placeholder = '', none = '' }) {
 /** Names and their values, a pair a row: one more added, any taken away. */
 function pairing(values, id) {
   const rows = h('div', { class: 'list-rows', id, 'data-hmz': 'pair-editor' })
-  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), 'Add')
+  const add = h('button', { class: 'btn small quiet', type: 'button' }, icon('plus'), t('Add'))
   const row = (key, value) => {
     const line = h(
       'div',
       { class: 'list-row' },
-      h('input', { type: 'text', value: key, placeholder: 'Name', 'aria-label': 'Name', class: 'pair-key' }),
-      h('input', { type: 'text', value, placeholder: 'Value', 'aria-label': 'Value', class: 'pair-value' }),
-      iconButton('close', 'Remove', { class: 'small', onclick: () => line.remove() }),
+      h('input', { type: 'text', value: key, placeholder: t('Name'), 'aria-label': t('Name'), class: 'pair-key' }),
+      h('input', { type: 'text', value, placeholder: t('Value'), 'aria-label': t('Value'), class: 'pair-value' }),
+      iconButton('close', t('Remove'), { class: 'small', onclick: () => line.remove() }),
     )
     rows.append(line)
   }

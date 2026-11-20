@@ -77,7 +77,6 @@ def test_a_workdir_says_its_whole_path_on_hover_and_offers_it_on_a_right_click(
             [
                 "New chat here",
                 "New epic here",
-                "Flows here",
                 "Search here",
                 "Copy path",
                 "Collapse",
@@ -162,7 +161,7 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
         assert saved["harness"] == "local"
 
 
-def test_a_nous_and_ai_chans_are_picked_not_spelled(project: Path, engine: str) -> None:
+def test_a_nous_is_picked_not_spelled(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
         # What a backend runs is asked as a new chat offers it, and offered here once it said.
         expect(
@@ -177,26 +176,19 @@ def test_a_nous_and_ai_chans_are_picked_not_spelled(project: Path, engine: str) 
         page.get_by_role("button", name="Save").click()
         expect(page.locator("[data-hmz=nous-row]")).to_have_count(1)
 
+        # Ai-chan's is no setting: it is picked on the chip of her box (test_web_aichan.py).
         go(page, "/settings/general")
-        # Ai-chan's nous is offered from every nous there is, none until one is picked.
-        setting = page.locator("[data-hmz=ai-chan-setting]")
-        field = setting.locator("[data-hmz=ai-chan-nous]")
-        expect(field).to_have_value("")
-        expect(setting.locator("datalist option").first).to_be_attached()
-        field.fill("claude/claude-opus-4-1")
-        page.get_by_role("button", name="Save").click()
-        expect(page.get_by_role("button", name="Saved")).to_be_visible()
+        expect(page.locator("[data-hmz=harness-sessions]")).to_be_visible()
+        expect(page.locator("[data-hmz=ai-chan-setting]")).to_have_count(0)
 
         browser = Browser(site)
         browser.signs_in()
         with browser.session() as asked:
             (nous,) = asked.call("nous.list")["nous"]
-            ai_chan = asked.call("settings.get")["ai_chan"]
         assert nous["name"] == "claude/claude-opus-4-1"
         assert [one["use"] for one in nous["then"]["nodes"]] == [
             "claude/claude-haiku-4-5"
         ]
-        assert ai_chan == "claude/claude-opus-4-1"
 
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:
@@ -224,22 +216,6 @@ def _whole(page: Page, popup: Locator) -> None:
 def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -> None:
     """A menu opens on the side of its button there is room on, however far down a list it is."""
     with served() as site, opened(site, engine=engine, width=900, height=420) as page:
-        # The last of a list that scrolls, in a dialog: its menu opens over the button.
-        go(page, "/settings/themes")
-        last = page.locator("[data-hmz=pair]").last
-        last.evaluate("(row) => row.scrollIntoView({ block: 'end' })")
-        last.get_by_role("button", name="Export").click()
-        menu = page.get_by_role("menu", name="Export")
-        expect(menu.get_by_role("menuitem")).to_have_text(["Pair", "Light", "Dark"])
-        _whole(page, menu)
-        button = last.get_by_role("button", name="Export").bounding_box()
-        drawn = menu.bounding_box()
-        assert button is not None
-        assert drawn is not None
-        assert drawn["y"] + drawn["height"] <= button["y"]
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-
         # The daemon picker, at the foot of the window: over its button, as wide as it.
         page.locator("[data-hmz=daemon-bar]").click()
         _whole(page, page.get_by_role("menu", name="Daemon"))
@@ -258,7 +234,7 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
 
         # What a right click opens, at the window's foot.
         go(page, "/settings/themes")
-        row = page.locator("[data-hmz=pair]").last
+        row = page.locator("[data-hmz=theme]").last
         row.scroll_into_view_if_needed()
         row.click(button="right", position={"x": 300, "y": 20})
         _whole(page, page.locator(".popover.context"))
@@ -288,7 +264,8 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
 ) -> None:
     """Opening one popup closes the others; a press outside, Escape or leaving closes it."""
     with served() as site, opened(site, engine=engine, width=1296, height=792) as page:
-        go(page, "/new/chat")
+        # A new epic keeps the daemon and the folder a control each, one by the other.
+        go(page, "/new")
         folders = page.locator("[data-hmz=workspace-picker]")
         where = page.locator("[data-hmz=environment]")
         folders.click()
@@ -333,7 +310,7 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
         folders.click()
         page.get_by_role("menuitem", name="Open folder…").click()
         expect(form).to_be_visible()
-        page.mouse.click(640, 300)
+        page.mouse.click(1000, 600)
         expect(form).to_be_hidden()
         folders.click()
         page.get_by_role("menuitem", name="Open folder…").click()
@@ -341,6 +318,6 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
         page.locator("[data-hmz=path-browse]").click()
         expect(panel).to_be_visible()
         go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=pair]").first).to_be_visible()
+        expect(page.locator("[data-hmz=theme]").first).to_be_visible()
         assert _popups(page) == []
         assert _flat(page)

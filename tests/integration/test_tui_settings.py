@@ -92,8 +92,11 @@ async def test_details_turned_on_and_saved_is_written_and_applied(
 ) -> None:
     async with Humanize().run_test(size=SIZE) as pilot:
         await into_settings(pilot)
+        await shows(pilot, "this machine: what epics show, chat $, error reports")
         await opens(pilot, "general")
-        await shows(pilot, "show every tool call and all of the thinking")
+        drawn = await shows(pilot, "show every tool call and all of the thinking")
+        # Her nous is the one last used, which `/ai` asks: nothing here sets it.
+        assert "Ai-chan" not in drawn
 
         await picks(pilot, "details", "on")
         await shows(pilot, "● on")

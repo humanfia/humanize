@@ -366,7 +366,7 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 | `event` | When | Fields |
 | --- | --- | --- |
 | `began` | the epic opens | `kind` (`flow`; `chat` only in an epic an earlier Humanize wrote for a [chat](/user/chat), when a chat was an epic; a `began` with none is read as `flow`, but one whose `flow` is `chat`, which an earlier Humanize wrote too, as of kind `chat`), `flow` (as named; absent from an epic of kind `chat`), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider, name}`, one per role: `agent` is the role, `name` what the agent filling it is called; `name` is absent from an epic written before agents had names of their own, whose sessions were written under the role), `envs` (list of `role=<-e spec>`, as given; in a record with no `spelling`, one written in a spelling `-e` now refuses, `local@/x`, `docker@local/x`, `swarm@local/x`, `apple-container@local/x`, `slurm@local/x`, an unsaved ssh host out of brackets, is read back as `-e` spells it), `used` (the same, where an environment was put on a runtime its `-e` [fell back to](/reference/machines#falling-back); omitted where it equals `envs`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `duration` in seconds, `null` for none, and in ISO 8601 (`PT1H`, `P1Y`) in an epic an earlier Humanize wrote; `cost: "Infinity"` for unlimited; `graceful` a boolean, or `{duration, cost, output_tokens}` of booleans where the limits differ), `profile_flow`, `profile_environment` (`true`, only for a run [profiled](#profiling-a-run) that way), `spelling` (`2`: `envs` and `used` are spelled as `-e` writes `@` only before a provider) |
-| `set` | only in an epic of kind `chat`, as an earlier Humanize wrote it and as an [Ai-chan](/user/ai-chan) conversation begun by one still does: its preference or permission is set, or its agent changed | as the `set` of a [chat's record](/reference/files#chats); a reader takes each from the last event that gives it, `began` included |
+| `set` | only in an epic of kind `chat` an earlier Humanize wrote, and never written now: its preference or permission was set, or its agent changed | as the `set` of a [chat's record](/reference/files#chats); a reader takes each from the last event that gives it, `began` included |
 | `opened` | a session's CLI has given it an id (when it opens, or during its first turn, as the CLI says it rather than when that turn ends, and whether or not that turn then lands); a session whose CLI never started is not written | `agent` (the agent's own name, such as `NeiKos496`, never the role it fills), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<agent>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, or the `<backend>:<name>` of the runtime a harness setting named; only when its work was on another machine; `self` in an epic an earlier Humanize wrote is read as `env`) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |
@@ -375,10 +375,14 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 
 A chat writes no epic: it is a record of its own, [`chat.jsonl`](/reference/files#chats) under
 `H/chats/`. Humanize begins no epic of kind `chat` any more. One an earlier Humanize began
-stays an epic, read here and never as a chat: its `began` gives `kind` `chat`, one entry of
-`agents`, whose `agent` is `assistant`, and its `workspace` and `task`, `prefer` and
-`permission` where it has its own, and none of `flow`, `ref`, `picked_up`, `envs`, `used`,
-`params`, `budget`, `profile_flow` or `profile_environment`.
+is [made a chat](/reference/files#chats): each time the daemon starts it renames its
+`epic.jsonl` to `chat.jsonl` and moves its directory to `H/chats/<ws>/<name>/`, changing
+nothing else, and from then on it is a chat by that name; one a process holds, or whose name
+a chat already has, is left for a later start and until then is listed and read neither as an
+epic nor as a chat. Its `began` gives `kind` `chat`, one entry of `agents`, whose `agent` is
+`assistant`, and its `workspace` and `task`, `prefer` and `permission` where it has its own,
+and none of `flow`, `ref`, `picked_up`, `envs`, `used`, `params`, `budget`, `profile_flow` or
+`profile_environment`.
 
 `how` is `stopped` for a run cancelled from outside (<kbd>ctrl+c</kbd>, `Run.stop()`), whose
 budget ran out, or that raised `FlowCancelled`; `failed` for any other exception; `done`

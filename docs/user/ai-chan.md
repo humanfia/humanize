@@ -1,6 +1,6 @@
 # Ai-chan
 
-<img class="ai-chan-avatar" src="/ai-chan/avatar-128.png" alt="Ai-chan, drawn in pixel art" width="96" height="96">
+<img class="ai-chan-avatar" src="/ai-chan/avatar.webp" alt="Ai-chan" width="96" height="96">
 
 Ai-chan is Humanize's own operator: you tell her what you want in words, and she does it on
 your epics as you would from the prompt or the page. Ask her what your epics did today, have her
@@ -12,15 +12,14 @@ steer a session, or run the tests in an epic's environment.
 - **Use it when** a question spans several epics, or a job is easier said than clicked:
   "summarize what my epics did today", "tell the actor to stop refactoring", "run the tests in
   the env of epic X".
-- **You need** an agent for her to think with, chosen as **Ai-chan** on the
-  [General page of the settings](/user/settings#general) or when you open her.
+- **You need** an agent for her to think with, chosen when you open her: a new conversation
+  starts on the one you used last.
 :::
 
 <style>
 .ai-chan-avatar {
   float: right;
   margin: 0 0 12px 16px;
-  image-rendering: pixelated;
 }
 </style>
 
@@ -47,8 +46,8 @@ as it was.
 | | What it is | Choices | Default |
 | --- | --- | --- | --- |
 | **Scope** | what she may reach | `epic`: one epic, and the directory it ran in · `workspace`: one directory and every epic run there · `daemon`: every directory and every epic on this machine's daemon | the epic you are looking at, else the directory, else the daemon |
-| **Nous** | what she thinks with | any [nous](/user/settings#nous), or an agent: a CLI, an account, a model and an effort | the **Ai-chan** setting |
-| **Permission** | what she may change | a **preset**, `read-only` or `danger-full-access`, and **network**, off or on | `read-only`, network off |
+| **Nous** | what she thinks with | any [nous](/user/settings#nous), or an agent: a CLI, an account, a model and an effort | the one the last conversation was made with |
+| **Permission** | what she may change | a **preset**, `read-only` or `danger-full-access` | `read-only` |
 
 What she may do follows from the preset, and from the scope reaching what she acts on:
 
@@ -70,8 +69,8 @@ account or touch its credentials, or see another conversation with Ai-chan, her 
 Her CLI never stops to ask you for approval: what she cannot do is refused as she tries it, not
 put to you.
 
-**Network** off cuts the network for her CLI and every command it runs, except what her model
-and its sign-in need. Turn it on when she must fetch something, such as a page or a package.
+Her CLI and every command it runs may always reach the network, whatever the scope and the
+preset: she can fetch a page or a package without being set up for it.
 
 She talks as a chat does: she answers each thing you say in a turn, and
 she shows each tool she calls -- what she asked Humanize for, and how it was answered -- as a
@@ -90,12 +89,12 @@ under **New**:
   New                                                                         ①
     a conversation of its own scope, nous and permission
   Ai-chan#2 · check the reviewer's last round                                 ②
-    epic 0912-a1b2c3 · claude/claude-opus-5:high · read-only · network off · between turns
+    epic 0912-a1b2c3 · claude/claude-opus-5:high · read-only · between turns
   Ai-chan#1 · what did the benchmark score
-    daemon · claude/claude-opus-5:high · read-only · network off · folded away
+    daemon · claude/claude-opus-5:high · read-only · folded away
 ```
 
-Pick **New**. A form asks for the scope, the nous, the preset and the network, each set to its
+Pick **New**. A form asks for the scope, the nous and the preset, each set to its
 default. Nothing has run here, so the scope is `workspace`, this directory. Press **Done**: the
 first line you say is the task that starts the conversation.
 
@@ -113,7 +112,7 @@ What to look at, by number:
 
 1. **New** makes a conversation. Every one you made is listed under it, newest first.
 2. **Each conversation**, `Ai-chan#<n>` and its title, says its scope, its nous, its preset,
-   whether its network is on, and how it stands: `answering`, `between turns` or `folded away`.
+   and how it stands: `answering`, `between turns` or `folded away`.
 3. **Each tool she calls** is a tool line of her turn, as an agent's is, even with
    [Details](/user/settings#details) off: what she asked Humanize for, and how it was answered.
 4. **`Ai-chan#3 · workspace shop`** at the front of the status line is the conversation you
@@ -129,24 +128,29 @@ What to look at, by number:
 | Where | Open | New | Stop her turn | Forget |
 | --- | --- | --- | --- | --- |
 | The prompt (`hmz`) | `/ai`, then <kbd>enter</kbd> on a conversation | `/ai` › **New**: a form, **Done**, then say the first line | `/stop` | `/ai`, <kbd>m</kbd> on a conversation, **forget** |
-| The page (`hmz web`) | Ai-chan's avatar, at the right of every view's bar, then a conversation | **New** in the drawer: a form, then type the task and press <kbd>enter</kbd> | **Stop**, while she answers | **Forget** on a conversation |
+| The page (`hmz web`) | Ai-chan's avatar, at the right of every view's bar, then a conversation | **New** in the drawer: a form, then type the task and press <kbd>enter</kbd> | **Stop**, while she answers | **Delete** in a conversation's menu: right-click it, or swipe it left on a phone |
 | Humanize Desktop | as on the page | as on the page | as on the page | as on the page |
 
 - **At the prompt**, the log screen follows the conversation you open, as it follows a chat:
   each line you say is her next turn. `/clear` leaves her conversation going and comes back to
   this directory's own. `/btw` is refused while you follow her: she is not a session of an
   epic.
-- **On the page**, the drawer stays open from view to view until you close it, and lists each
-  conversation as **Answering**, **Waiting** or **Folded away**. A conversation you open whose
-  first turn failed says **Failed**, with what her harness said, and takes no more lines: start
+- **On the page**, the drawer stays open from view to view until you close it, and lists your
+  conversations as a chat app does: one of her sixteen faces, the title, and the start of what
+  was last said -- `typing…` while she answers. Right-click a conversation, or swipe it left on
+  a phone, to **Pin** it to the top, **Mark as unread** or **Delete** it; pins and what you
+  have read are kept in that browser. Open one and it is a chat: her answers in bubbles beside
+  her face, yours at the right, three dots while she answers. A conversation whose
+  first turn failed says so, with what her harness said, and takes no more lines: start
   a new one. Its form also takes a **Title**, made from the task where you leave it empty. Where
   the window has no room for the drawer and a view's panel both, opening one closes the other.
   On a phone the drawer covers the view, and the sidebar's drawer closes as it opens;
   <kbd>esc</kbd> or its close button puts it away.
 - **Stopping** interrupts her turn and leaves the conversation between turns. It does not end
   it.
-- **Forgetting** removes the conversation from the list and deletes her scratch directory. It
-  asks first (`Forget Ai-chan#<n>?` at the prompt), and cannot be undone.
+- **Forgetting** -- **Delete** on the page -- removes the conversation from the list and
+  deletes her scratch directory. It asks first (`Forget Ai-chan#<n>?` at the prompt, **Delete
+  this conversation?** on the page), and cannot be undone.
 - **Her conversations are not your epics or chats.** None is listed in `/epics`, in the page's sidebar
   or among a directory's epics or chats, while it lasts or after you forget it; what it wrote down is
   kept on disk either way.
@@ -174,7 +178,7 @@ Each is a first line, with the scope and permission it needs.
 | "Ask actor/2 why it skipped the migration." | `epic` | `read-only` |
 | "Run `pytest -x` in the env `repo` of this epic and tell me what fails." | `epic`, while it runs | `danger-full-access` |
 | "Start ralph_loop here on the open issue about coupons." | `workspace` | `danger-full-access` |
-| "Read the new release notes of pytest: does anything in them break us?" | `workspace` | `read-only`, network on |
+| "Read the new release notes of pytest: does anything in them break us?" | `workspace` | `read-only` |
 
 To steer a session, she says the line to it as you would by typing into its transcript: see
 [Talking to a running turn](/user/steering). To run tests in an env, she runs the command
@@ -213,8 +217,8 @@ unless you mean it.
 
 ### `Name Ai-chan's nous: the ai_chan setting names none.` {#no-nous}
 
-No nous was given, and the **Ai-chan** setting names none. Pick one on the form, or set
-**Ai-chan** on the [General page](/user/settings#general).
+No nous was given, and no conversation was made on this machine yet for a new one to take
+its nous from. Pick one on the form: the next conversation starts on it.
 
 ### `Tell Ai-chan something to start with.`
 
@@ -250,6 +254,6 @@ directory, or `daemon`.
 - [Side questions (`/btw`)](/user/btw): ask one session of an epic, read-only, without the
   epic hearing it.
 - [Talking to a running turn](/user/steering): say something to an agent yourself.
-- [Settings](/user/settings#general): the nous a new conversation thinks with.
+- [Nous](/user/settings#nous): what she can think with.
 - [TUI reference](/reference/tui#ai-chan): `/ai`, its menu and its form.
 - [Daemon reference](/reference/daemon#ai-chan): every method she may call, and what refuses it.

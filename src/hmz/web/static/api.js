@@ -6,6 +6,7 @@
 
 import { bridge, claim, connect, ERRORS, local, registry, RpcError, tauri, webrtc } from './rpc/index.js'
 import { fromBase64, toBase64 } from './rpc/pipe.js'
+import { t } from './i18n.js'
 
 /** Where the page is shown: the desktop application's web view, or a browser. */
 const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
@@ -13,11 +14,11 @@ const DESKTOP = Boolean(globalThis.__TAURI_INTERNALS__)
 /** What this page is to a daemon, as `session.hello` says it. */
 const CLIENT = { name: '', kind: DESKTOP ? 'desktop' : 'web' }
 
-/** The remote daemons this browser keeps, and its WebRTC certificate and ICE servers. */
+/** The remote daemons this browser keeps, each with its STUN and TURN servers, and its WebRTC certificate. */
 export const daemons = registry()
 
 /** What opens a carrier for the page: the server's `/rpc` and `/dial`, or the app's pipes; and WebRTC. */
-export const providers = [DESKTOP ? tauri() : bridge(), webrtc({ certificate: () => daemons.certificate(), iceServers: () => daemons.iceServers() })]
+export const providers = [DESKTOP ? tauri() : bridge(), webrtc({ certificate: () => daemons.certificate() })]
 
 /** The daemon the address names, or '' where it names none. */
 function named(address) {
@@ -95,7 +96,7 @@ const stateWatchers = new Set()
 export async function client(name = daemon()) {
   if (clients.has(name)) return clients.get(name)
   const entry = name === 'local' ? local() : (await daemons.list()).find((one) => one.name === name)
-  if (!entry) throw new Refused(`There is no daemon ${name}.`, ERRORS.NOT_FOUND)
+  if (!entry) throw new Refused(t('There is no daemon {name}.', { name }), ERRORS.NOT_FOUND)
   if (clients.has(name)) return clients.get(name)
   const made = connect(entry, providers, {
     client: CLIENT,
@@ -169,30 +170,35 @@ export function kindOf(entry) {
   const first = entry.routes[0] || ''
   if (first.startsWith('stdio:ssh')) return 'SSH'
   if (first.startsWith('easytier:')) return 'P2P'
-  return 'Paired'
+  return t('Paired')
 }
 
 /**
  * Adds a daemon from a pairing code, claiming it at once (Section 3.13.4 of protocol/web.md), as
  * the machine the page is served from is called; a P2P daemon over `first`, its `easytier:` route
- * (Section 3.13.6).
+ * (Section 3.13.6); reached with, and then kept with, `ice`, its STUN and TURN servers (Section
+ * 3.13.21).
  */
-export async function pair(name, code, first) {
+export async function pair(name, code, first, ice = []) {
   const device = (await hello('local').catch(() => null))?.machine || 'browser'
   try {
-    return await claim(daemons, { name, code, device, first }, providers, CLIENT)
+    return await claim(daemons, { name, code, device, first, ice }, providers, CLIENT)
   } catch (error) {
     throw refused(error, name)
   }
 }
+
+/** How a daemon is reached, as a failure to reach it says it. */
+const STATES = { idle: t('idle@@link'), connecting: t('connecting'), installing: t('installing'), up: t('up'), failed: t('failed') }
 
 /** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
 function refused(error, name) {
   if (error instanceof Refused) return error
   if (error instanceof RpcError) {
     if (error.code === ERRORS.UNAVAILABLE && name !== 'local') {
-      const { state, detail } = stateOf(name)
-      return new Refused(`${name} is unavailable, ${state}${detail ? `: ${detail}` : '.'}`, error.code, error.data)
+      const { state: now, detail } = stateOf(name)
+      const state = Object.hasOwn(STATES, now) ? STATES[now] : now
+      return new Refused(detail ? t('{name} is unavailable, {state}: {detail}', { name, state, detail }) : t('{name} is unavailable, {state}.', { name, state }), error.code, error.data)
     }
     return new Refused(error.message, error.code, error.data)
   }

@@ -402,10 +402,19 @@ code {
   text-decoration: none;
 }
 
-.brand img {
+.brand .brand-mark {
   flex: none;
   width: 24px;
   height: 24px;
+}
+
+/* The chevron in the ink of the side shown, the wedge in the mark's own green. */
+.brand-mark .ink {
+  fill: currentColor;
+}
+
+.brand-mark .green {
+  fill: var(--green);
 }
 
 /* Its name is said, not drawn. */
@@ -1220,7 +1229,7 @@ code {
    bar there. The newest first, each under the one before. */
 .toasts {
   position: fixed;
-  top: calc(var(--lights-strip, 0px) + var(--bar-h) + var(--under, 0px) + var(--space-8));
+  top: calc(var(--bar-h) + var(--under, 0px) + var(--space-8));
   right: var(--space-16);
   z-index: var(--z-toast);
   display: grid;
@@ -2044,25 +2053,6 @@ input[type='checkbox']:disabled {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
 }
 
-.role {
-  display: grid;
-  gap: var(--space-8);
-  padding: var(--space-12);
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-.role h3 {
-  margin: 0;
-  font: 500 var(--text-sm)/16px var(--sans);
-  color: var(--ink-3);
-  display: flex;
-  gap: var(--space-8);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .check {
   display: inline-flex;
   gap: var(--space-8);
@@ -2161,7 +2151,16 @@ p + .panel {
 }
 
 .empty .row {
-  margin-top: var(--space-12);
+  margin: var(--space-12) 0 0;
+}
+
+/* In a panel, which has room of its own about it, it stands where the list would. */
+.panel > .empty {
+  margin: var(--space-12) 0 0;
+}
+
+.flow-detail > .empty {
+  margin: 0;
 }
 
 /* What went wrong, and what is worth knowing: a wash of the one colour that says which. A path
@@ -2670,7 +2669,8 @@ pre.block {
 
 /* What a card folds away is opened by a line with the chevron every folded thing has: two
    strokes, each a gradient in the quiet ink, turned down once it is open. */
-:is(.panel, .flow-detail) > details > summary {
+:is(.panel, .flow-detail) > details > summary,
+details.fold > summary {
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -2681,11 +2681,13 @@ pre.block {
   cursor: pointer;
 }
 
-:is(.panel, .flow-detail) > details > summary::-webkit-details-marker {
+:is(.panel, .flow-detail) > details > summary::-webkit-details-marker,
+details.fold > summary::-webkit-details-marker {
   display: none;
 }
 
-:is(.panel, .flow-detail) > details > summary::before {
+:is(.panel, .flow-detail) > details > summary::before,
+details.fold > summary::before {
   --stroke: transparent calc(50% - 0.5px), var(--ink-3) 0, var(--ink-3) calc(50% + 0.5px), transparent 0;
   content: '';
   flex: none;
@@ -2696,11 +2698,13 @@ pre.block {
     linear-gradient(to bottom right, var(--stroke)) bottom / 4px 4px no-repeat;
 }
 
-:is(.panel, .flow-detail) > details[open] > summary::before {
+:is(.panel, .flow-detail) > details[open] > summary::before,
+details.fold[open] > summary::before {
   transform: rotate(90deg);
 }
 
-:is(.panel, .flow-detail) > details[open] > summary {
+:is(.panel, .flow-detail) > details[open] > summary,
+details.fold[open] > summary {
   margin-bottom: var(--space-8);
 }
 
@@ -2952,35 +2956,6 @@ pre.block {
 
 .composer:has(> .composer-bar > .composer-tools:empty) > .composer-said {
   grid-column: 1 / -1;
-}
-
-/* How a flow is set up, said beside what opens its options: each part a tag as high as a chip
-   and quieter than one pressed, cut short where the row has no room for the whole of it. What
-   opens the options after them is never cut. */
-.composer-summary {
-  flex: 0 1 auto;
-  display: flex;
-  gap: var(--space-4);
-  min-width: 0;
-  overflow: hidden;
-}
-
-.composer-summary .chip {
-  flex: 0 1 auto;
-  display: block;
-  min-width: 0;
-  height: var(--control-h-xs);
-  max-width: 260px;
-  border-radius: var(--radius-sm);
-  padding-block: var(--space-4);
-  background: var(--quiet);
-  font: var(--text-xs) / 16px var(--mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.composer-summary ~ .chip-btn {
-  flex: none;
 }
 
 .options.stale {
@@ -5634,10 +5609,6 @@ body:has(> .overlay > .dialog-settings) {
     font-size: var(--text-md);
   }
 
-  .composer-summary {
-    display: none;
-  }
-
   /* What is said for a moment while a dialog fills the window is said at the window's foot,
      in room the dialog keeps bare under what it holds for as long as it is said: nothing in
      the dialog is drawn over. A toast taller than that room scrolls in itself. */
@@ -5739,27 +5710,33 @@ body:has(> .overlay > .dialog-settings) {
 
 /* -------------------------------------------------------- Humanize Desktop's window */
 
-/* There the page runs to the window's top edge, and the window's traffic lights stand where
-   macOS puts them, in its top 32 pixels at the left. That strip is kept for them alone, across
-   the whole window: the sidebar draws its top row beside them, the view and Ai-chan's drawer
-   under it, and a dialog that fills a narrow window under it. Full screen, where they are
-   gone, the page is drawn as anywhere else. */
+/* There the page runs to the window's top edge, and the window's traffic lights stand over its
+   top row, at the left, centred in the row's height. Whichever row is the window's top left keeps
+   that room at its left for them alone, 84 across: the sidebar's title row; with the sidebar
+   hidden, or a drawer on a narrow window, the bar over the view, whose first button stands
+   straight after them; and the head of a dialog that fills a narrow window, which a dialog that
+   only asks never does. Full screen, where they are gone, the page is drawn as anywhere else. */
 :root[data-shell='macos']:not([data-fullscreen]) {
-  --lights-strip: 32px;
+  --lights: 84px;
 }
 
-:root[data-shell='macos']:not([data-fullscreen]) .main,
-:root[data-shell='macos']:not([data-fullscreen]) .inspector.aichan {
-  padding-top: var(--lights-strip);
-}
-
-:root[data-shell='macos']:not([data-fullscreen]) .inspector.aichan .panel-close {
-  top: calc(var(--lights-strip) + var(--space-8));
+:root[data-shell='macos']:not([data-fullscreen]) .bar .bar-side {
+  margin-left: calc(var(--lights) - var(--space-8));
 }
 
 @media (max-width: 860px) {
-  :root[data-shell='macos']:not([data-fullscreen]) .overlay:not(:has(> .dialog-delete)) {
-    padding-top: var(--lights-strip);
+  :root[data-shell='macos']:not([data-fullscreen]) .dialog:not(.dialog-delete) .dialog-head {
+    padding-left: var(--lights);
+  }
+
+  /* Search's field, which stands lower in its box than a bar's title does, is in their row. */
+  :root[data-shell='macos']:not([data-fullscreen]) .dialog-search-box .dialog-head {
+    padding-block: calc((var(--bar-h) - var(--control-h)) / 2);
+  }
+
+  /* What scrolls across would scroll under them through its padding: it starts clear of them. */
+  :root[data-shell='macos']:not([data-fullscreen]) .settings-nav {
+    margin-left: var(--lights);
   }
 }
 
@@ -5826,9 +5803,9 @@ body:has(> .overlay > .dialog-settings) {
   display: grid;
 }
 
-/* A pair, or a theme: what it looks like, what it is called and what is done with it, in one
-   line of the card that lists them, a hairline between two. The one in use is said by the ink
-   edge of its picture. */
+/* A theme: what its light and its dark look like, what it is called and what is done with it,
+   in one line of the card that lists them, a hairline between two. The one in use is said by
+   the ink edge of its pictures. */
 .theme-row {
   display: flex;
   align-items: center;
@@ -5847,20 +5824,13 @@ body:has(> .overlay > .dialog-settings) {
   border-bottom: 0;
 }
 
-.theme-swatch-button {
+.theme-sides {
   flex: none;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: none;
-  cursor: pointer;
+  display: flex;
+  gap: var(--space-4);
 }
 
-.theme-swatch-button:hover .theme-swatch {
-  border-color: var(--ink-3);
-}
-
-.theme-swatch-button.chosen .theme-swatch {
+.theme-row.chosen .theme-swatch {
   border-color: var(--ink);
 }
 
@@ -5878,8 +5848,8 @@ body:has(> .overlay > .dialog-settings) {
   font: var(--text-sm)/16px var(--sans);
 }
 
-/* A theme drawn small, in its own colours: a strip of its sidebar, its text on its page, and
-   its accents. */
+/* A side of a theme drawn small, in its own colours: a strip of its sidebar, its text on its
+   page, and its accents. */
 .theme-swatch {
   position: relative;
   flex: none;
@@ -5894,7 +5864,6 @@ body:has(> .overlay > .dialog-settings) {
   border: var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--ink);
-  transition: border-color var(--dur) var(--ease);
 }
 
 .theme-swatch-side {
@@ -6217,6 +6186,85 @@ input[aria-invalid='true'] {
 .daemon-detail {
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
+}
+
+/* What is a daemon's own stands under its line and is read with it: no line between the two,
+   and it is set from the left whatever its cell does with a button. */
+.daemons-table tr[data-hmz='daemon'] > td {
+  border-bottom: 0;
+}
+
+.daemons-table .daemon-own > td {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-16);
+  text-align: left;
+}
+
+.daemon-own-body {
+  display: grid;
+  gap: var(--space-12);
+  padding-left: var(--space-16);
+  border-left: var(--border);
+}
+
+.daemon-own-body .form {
+  gap: var(--space-8);
+}
+
+.daemon-own-body h3 {
+  margin: 0;
+  font: 500 var(--text-sm)/16px var(--sans);
+  color: var(--ink-3);
+}
+
+.daemon-own-body p {
+  margin: 0;
+}
+
+@container (max-width: 640px) {
+  .table-wrap:has(td:last-child .btn) .daemons-table tr.daemon-own {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+/* A new daemon's form, and beside it what the kind chosen is: under the form's kinds where there
+   is no room beside. */
+.daemon-write {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
+  gap: var(--space-24);
+  align-items: start;
+}
+
+.daemon-about {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-md);
+  background: var(--quiet);
+  color: var(--ink-2);
+  font: var(--text-sm)/20px var(--sans);
+}
+
+.daemon-about h3 {
+  margin: 0;
+  font: 500 var(--text-md)/20px var(--sans);
+  color: var(--ink);
+}
+
+.daemon-about p {
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .daemon-write {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .daemon-about {
+    order: -1;
+  }
 }
 
 /* A code made for a device to pair with: said in a quiet block, with what copies it. */
@@ -7128,15 +7176,15 @@ pre.ask-plain {
 
 /* ------------------------------------------------------------------ Ai-chan's drawer */
 
-/* She is pixel art: drawn in hard pixels at every size. */
+/* Her avatar: a round face. */
 .aichan-avatar {
-  image-rendering: pixelated;
   display: block;
+  border-radius: var(--radius-full);
 }
 
 .aichan-btn .aichan-avatar {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Beside the view the drawer keeps the width its lines are read at: where the window has not
@@ -7163,11 +7211,6 @@ pre.ask-plain {
   border-bottom: var(--border);
 }
 
-.aichan-head .aichan-avatar {
-  width: 24px;
-  height: 24px;
-}
-
 .aichan-head h2 {
   flex: 1;
   margin: 0;
@@ -7183,72 +7226,205 @@ pre.ask-plain {
   padding: var(--gutter);
 }
 
-.aichan-body > :is(.loading, .aichan-none) {
+.aichan-body > .loading {
   margin: 0;
+}
+
+/* The list runs the drawer's whole width, a row to each edge, as a chat app's does. */
+.aichan-listing {
+  margin: calc(-1 * var(--gutter));
+}
+
+.aichan-listing > div:not(:empty),
+.aichan-none {
+  margin: var(--gutter);
 }
 
 .aichan-list {
-  display: grid;
-  gap: var(--space-8);
   margin: 0;
-  padding: 0;
+  padding: var(--space-4) 0;
   list-style: none;
 }
 
-/* One conversation: a card picked whole, and under it what forgets it. */
+/* One conversation: her face, its title, and under it one line of what was last said. What can
+   be done to it stands past its right edge, and comes in with the row a finger swipes left.
+   Clipped, not hidden: a row that hides what is past its edge scrolls to it once it is focused
+   or brought into view, which moves the row aside and, as a scroll of it, shuts it. */
 .aichan-row {
-  display: grid;
-  gap: var(--space-8);
-  padding: var(--space-12);
-  background: var(--raised);
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  transition: border-color var(--dur) var(--ease);
-}
-
-.aichan-row:hover {
-  border-color: var(--line-strong);
-}
-
-.aichan-row > .confirm {
-  justify-self: start;
+  position: relative;
+  overflow: clip;
+  touch-action: pan-y;
 }
 
 .aichan-pick {
+  position: relative;
+  z-index: 1;
   display: grid;
-  gap: var(--space-2);
-  padding: 0;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-rows: 20px 18px;
+  align-items: center;
+  gap: 0 var(--space-12);
+  width: 100%;
+  padding: var(--space-8) var(--gutter);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   background: none;
   color: inherit;
   text-align: left;
   cursor: pointer;
   font: inherit;
+  transform: translateX(var(--swipe, 0));
+  transition: transform var(--dur-slow) var(--ease);
+  -webkit-touch-callout: none;
+}
+
+.aichan-pick:hover,
+.aichan-row.swiped > .aichan-pick {
+  background: var(--hover);
+}
+
+.aichan-pick:focus-visible {
+  outline-offset: -2px;
+}
+
+.aichan-row.is-pinned > .aichan-pick {
+  background: var(--selected);
+}
+
+.aichan-face {
+  grid-row: 1 / 3;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--selected);
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .aichan-title {
-  font: 600 var(--text)/20px var(--sans);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--text)/20px var(--sans);
 }
 
-.aichan-about {
-  font-size: var(--text-sm);
-  line-height: 16px;
+.aichan-row.is-unread .aichan-title {
+  font-weight: 700;
+}
+
+.aichan-latest {
+  grid-column: 2 / 4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--text-sm)/18px var(--sans);
   color: var(--ink-3);
-  overflow-wrap: anywhere;
 }
 
-.aichan-state {
-  font: var(--text-xs)/16px var(--mono);
-  color: var(--ink-2);
-}
-
-.aichan-state.running {
+.aichan-row.is-typing .aichan-latest {
   color: var(--live-ink);
 }
 
-.aichan-state.failed {
+/* At the title's end: that it is pinned, that it failed, that it is unread. */
+.aichan-signs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--ink-3);
+}
+
+.aichan-signs .icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.aichan-failed {
+  color: var(--fail);
+}
+
+.aichan-unread {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--pink);
+}
+
+/* Past the row's right edge: the same three as its menu, each a column a finger can press.
+   Nothing of them is there until the row is dragged, nor once it has slid shut. */
+.aichan-swipe {
+  position: absolute;
+  inset: 0 auto 0 100%;
+  display: flex;
+  visibility: hidden;
+  transform: translateX(var(--swipe, 0));
+  transition:
+    transform var(--dur-slow) var(--ease),
+    visibility 0s var(--dur-slow);
+}
+
+.aichan-row:is(.swiped, .swiping) > .aichan-swipe {
+  visibility: visible;
+  transition: transform var(--dur-slow) var(--ease);
+}
+
+.aichan-row.swiping > :is(.aichan-pick, .aichan-swipe) {
+  transition: none;
+}
+
+.aichan-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 68px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-left: var(--border);
+  background: var(--raised);
+  color: var(--ink-2);
+  font: 500 var(--text-xs)/14px var(--sans);
+  text-align: center;
+  cursor: pointer;
+}
+
+.aichan-act .icon {
+  width: var(--icon);
+  height: var(--icon);
+}
+
+.aichan-act.danger {
+  background: var(--fail);
+  border-left-color: transparent;
+  color: var(--on-ink);
+}
+
+/* What asks before a conversation is deleted: over its row, in the row's own room. */
+.aichan-ask {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 0 var(--gutter);
+  background: var(--surface);
+}
+
+.aichan-asked {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font: 500 var(--text-md)/18px var(--sans);
+}
+
+.aichan-wrong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  font-size: var(--text-sm);
   color: var(--fail);
 }
 
@@ -7264,9 +7440,35 @@ pre.ask-plain {
   margin-left: calc(-1 * var(--space-8));
 }
 
+/* Its title, cut short where it is long, and straight after it the pencil that renames it: quiet
+   until it is pointed at. */
 .aichan-crumb .aichan-title {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aichan-crumb .aichan-rename {
+  flex: none;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  margin-left: calc(-1 * var(--space-4));
+  color: var(--ink-3);
+}
+
+.aichan-crumb .aichan-rename .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.aichan-crumb .aichan-rename:is(:hover, :focus-visible) {
+  color: var(--ink);
+}
+
+.aichan-crumb input.title-edit {
+  flex: 1;
 }
 
 .aichan-chat {
@@ -7283,29 +7485,163 @@ pre.ask-plain {
   overflow-y: auto;
 }
 
+/* A conversation with her, as a chat app draws one: what she says in bubbles at the left, beside
+   the conversation's face; what the person says in bubbles at the right; and what she did on the
+   way, a quiet line between them. */
 .aichan-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   font-size: var(--text-md);
   line-height: 20px;
 }
 
-.aichan-note {
-  margin: var(--space-8) 0 0;
-  font-size: var(--text-sm);
+.aichan-log:empty {
+  display: none;
 }
 
-/* Her words beside her avatar, in place of the bullet. */
-.aichan-log .said:is(.text, .result, .asks, .notice) > .g {
-  width: 20px;
-  height: 20px;
-  align-self: start;
-  margin-top: 0;
+.aichan-log .said,
+.aichan-typing {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: end;
+  gap: 0 var(--space-8);
+}
+
+/* Nobody is named in it: there is her, and there is you. */
+.aichan-log .who {
+  display: none;
+}
+
+.aichan-log .said:is(.text, .result, .asks, .notice) > .g,
+.aichan-typing > .g {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border-radius: var(--radius-full);
   color: transparent;
-  background: url('ai-chan/avatar-32.png') center / contain no-repeat;
-  image-rendering: pixelated;
+  overflow: hidden;
+  background: var(--selected) var(--aichan-face, url('ai-chan/avatar.webp')) center / cover no-repeat;
 }
 
-.aichan-log .said {
-  grid-template-columns: 20px minmax(0, 1fr);
+/* Of several of hers one after another, the last has the face. */
+.aichan-log .said:is(.text, .result, .asks, .notice):has(+ :is(.said.text, .said.result, .said.asks, .said.notice, .aichan-typing)) > .g {
+  visibility: hidden;
+  height: 0;
+}
+
+.aichan-log .said:is(.text, .result, .asks, .notice) > .body,
+.aichan-typing > .body {
+  justify-self: start;
+  max-width: 100%;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-xs);
+  background: var(--raised);
+  border: var(--border);
+}
+
+.aichan-log .said.asks > .body {
+  background: color-mix(in srgb, var(--budget) 10%, var(--raised));
+}
+
+.aichan-log .said.you {
+  display: flex;
+  padding: 0;
+}
+
+.aichan-log .said.you .body {
+  padding: var(--space-8) var(--space-12);
+  border-bottom-right-radius: var(--radius-xs);
+}
+
+/* What she did on the way, and how long a turn took: said small, clear of the faces. */
+.aichan-log .said:is(.tool, .reasoning, .subagent, .subagent-ends, .ends, .failed, .refused, .shell) > .g {
+  display: none;
+}
+
+.aichan-log .said:is(.tool, .reasoning, .subagent, .subagent-ends, .ends, .failed, .refused, .shell) > .body {
+  grid-column: 2;
+}
+
+.aichan-log .said.ends {
+  margin-bottom: var(--space-8);
+}
+
+/* She is typing: three dots that rise in turn. */
+.aichan-typing > .body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 36px;
+}
+
+.aichan-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-3);
+  animation: aichan-typing 1.2s var(--ease) infinite;
+}
+
+.aichan-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.aichan-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes aichan-typing {
+  0%,
+  60%,
+  100% {
+    transform: none;
+    opacity: 0.5;
+  }
+
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aichan-typing i {
+    animation: none;
+  }
+
+  .aichan-pick,
+  .aichan-swipe {
+    transition: none;
+  }
+}
+
+/* Under her box, what a conversation was made with is said on the chips it was picked from,
+   which open nothing any more. */
+.aichan-chat .chip-btn:disabled {
+  cursor: default;
+  color: var(--ink-3);
+}
+
+.aichan-chat .chip-btn:disabled .icon-down {
+  display: none;
+}
+
+/* The drawer is narrow: where her nous and what she may do do not fit side by side, each is
+   said whole, one under the other, rather than her nous cut short. */
+.aichan-chat .under-right:has(> .model-pick) {
+  flex-wrap: wrap;
+}
+
+/* Her permission is said with her scope after it, whole: two names, as the chip of where a chat
+   runs holds two. */
+.aichan-chat .composer-under .permission-chip .chip-value {
+  max-width: none;
+}
+
+.aichan-chat .permission-chip .chip-part {
+  color: var(--ink-3);
 }
 
 .nous-field,
@@ -7316,6 +7652,14 @@ pre.ask-plain {
 
 .aichan-options:empty {
   display: none;
+}
+
+/* In the macOS app's narrow window the drawer covers the view from the window's left edge: its
+   head keeps clear of the window's own buttons. */
+@media (max-width: 860px) {
+  :root[data-shell='macos']:not([data-fullscreen]) .inspector.aichan .aichan-head {
+    padding-left: var(--lights);
+  }
 }
 
 /* In the Windows app's window the drawer, open, is the top right, beside the view or over it:

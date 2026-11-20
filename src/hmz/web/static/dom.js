@@ -1,6 +1,7 @@
 // What every view builds its page out of: elements, the few shapes the page repeats -- a
 // status, a confirmation, an error, nothing yet -- and how a time or a length of time is said.
 
+import { locale, t } from './i18n.js'
 import { closed, opened, place } from './layers.js'
 
 /** An element, its properties, and what goes in it. */
@@ -68,9 +69,24 @@ export function tone(how) {
   return { budget: 'stopped', refused: 'failed', crashed: 'failed' }[how] || how
 }
 
+/** What each way is called in the page's language: the daemon's own word, where the page has none for it. */
+const STANDS = {
+  running: t('running'),
+  asking: t('asking'),
+  waiting: t('waiting'),
+  stopping: t('stopping'),
+  done: t('done'),
+  failed: t('failed'),
+  refused: t('refused'),
+  crashed: t('crashed'),
+  stopped: t('stopped'),
+  budget: t('budget'),
+  unfinished: t('unfinished'),
+}
+
 /** A status: how a run ended, or that it is going. */
 export function badge(how) {
-  return h('span', { class: `badge tone-${tone(how)}` }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, MARKS[how] || '·'), how || 'unknown')
+  return h('span', { class: `badge tone-${tone(how)}` }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, MARKS[how] || '·'), STANDS[how] || how || t('unknown'))
 }
 
 /** A sentence the server refused with, said where it happened. */
@@ -89,7 +105,7 @@ export function empty(title, text, ...actions) {
  * answers, as a menu opens by its button, so that nothing beside it moves. The answer that
  * takes it back has the focus, and whatever closes a menu (layers.js) takes it back as well.
  */
-export function confirming({ label, ask, yes, no = 'Cancel', act, danger = true, small = false, busy = `${yes}…`, held = false }) {
+export function confirming({ label, ask, yes, no = t('Cancel'), act, danger = true, small = false, busy = `${yes}…`, held = false }) {
   const button = h('button', { class: ['btn', danger && 'danger', small && 'small'], type: 'button', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, label)
   const holder = h('span', { class: 'confirm' }, button)
   let asked = null
@@ -169,20 +185,20 @@ export function copier(label, text) {
     button.style.minWidth = `${button.getBoundingClientRect().width}px`
     try {
       await navigator.clipboard.writeText(typeof text === 'function' ? text() : text)
-      button.textContent = 'Copied'
+      button.textContent = t('Copied')
     } catch {
-      button.textContent = 'Copy failed'
+      button.textContent = t('Copy failed')
     }
     setTimeout(() => (button.textContent = label), 1800)
   })
   return button
 }
 
-/** When something happened, as a moment in this browser's own time. */
+/** When something happened, as a moment in this browser's own time, written as the page's language writes one. */
 export function when(stamp) {
   const at = moment(stamp)
   if (!at) return ''
-  return at.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return at.toLocaleString(locale(), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 /** How long ago something happened, as somebody says it. */
@@ -190,10 +206,10 @@ export function ago(stamp, now = Date.now()) {
   const at = moment(stamp)
   if (!at) return ''
   const seconds = Math.max(0, (now - at.getTime()) / 1000)
-  if (seconds < 45) return 'just now'
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`
-  return at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  if (seconds < 45) return t('just now')
+  if (seconds < 3600) return t('{n}m ago', { n: Math.round(seconds / 60) })
+  if (seconds < 86400) return t('{n}h ago', { n: Math.round(seconds / 3600) })
+  return at.toLocaleDateString(locale(), { month: 'short', day: 'numeric' })
 }
 
 /** A moment an epic wrote down, or a number of seconds since the epoch. */
@@ -241,11 +257,15 @@ export function secondsOf(duration) {
  * order said, the last that matches a path deciding it, and whether it goes online.
  */
 export function permitted(permission) {
-  const touches = { write: 'writes', read: 'reads', none: 'keeps out of' }
+  const touches = {
+    write: (path) => t('writes {path}', { path }),
+    read: (path) => t('reads {path}', { path }),
+    none: (path) => t('keeps out of {path}', { path }),
+  }
   return [
     permission.preset,
-    ...permission.granular.map((rule) => `${touches[rule.access]} ${rule.path}`),
-    permission.network ? 'goes online' : 'stays offline',
+    ...permission.granular.map((rule) => touches[rule.access](rule.path)),
+    permission.network ? t('goes online') : t('stays offline'),
   ].join(' · ')
 }
 
@@ -297,6 +317,7 @@ const ICONS = {
   bell: ['M6 16v-5a6 6 0 0 1 12 0v5l2 2H4Z', 'M10 21h4'],
   question: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 4', 'M12 17h0'],
   compose: ['M11 4H4v16h16v-7', 'M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z'],
+  pencil: ['M4 20h4L19 9l-4-4L4 16Z', 'M13 7l4 4'],
   fork: ['M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M12 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M6 9v3h12V9', 'M12 12v3'],
   archive: ['M3 5h18v4H3Z', 'M5 9v11h14V9', 'M10 13h4'],
   trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13'],
@@ -321,7 +342,7 @@ export function iconButton(name, label, props = {}) {
 /** The first line of a task, which is what a run is named by in a list. */
 export function headline(task) {
   const first = String(task || '').trim().split('\n')[0]
-  return first || '(no task)'
+  return first || t('(no task)')
 }
 
 /** A flow as a list names it: a flow named by its path, by the last part of it. */

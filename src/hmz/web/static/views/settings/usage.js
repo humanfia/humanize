@@ -4,7 +4,8 @@
 
 import { given, hash, poll } from '../../api.js'
 import { stays } from '../../app.js'
-import { badge, fill, flowName, h, problem } from '../../dom.js'
+import { badge, empty, fill, flowName, h, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 
 /** How far back the page can look, in days. */
 const RANGES = [7, 30, 90, 365]
@@ -12,17 +13,17 @@ const RANGES = [7, 30, 90, 365]
 export function draw(holder, query, parts, scope) {
   let days = Number(query.get('days')) || 30
   let workspace = query.get('workspace') || ''
-  const places = h('select', { 'aria-label': 'Workdir' }, h('option', { value: '' }, 'All workdirs'))
+  const places = h('select', { 'aria-label': t('Workdir') }, h('option', { value: '' }, t('All workdirs')))
   scope.call('workspaces.list').then((answer) => {
-    fill(places, h('option', { value: '' }, 'All workdirs'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace, title: one.path }, one.name)))
+    fill(places, h('option', { value: '' }, t('All workdirs')), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace, title: one.path }, one.name)))
   }, () => {})
   places.addEventListener('change', () => {
     workspace = places.value
     watch()
   })
-  const range = h('div', { class: 'segmented', role: 'group', 'aria-label': 'How far back' })
-  const body = h('div', { class: 'reading', 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, 'Reading what the epics spent…'))
-  fill(holder, h('div', { class: 'row' }, h('span', { class: 'kicker' }, 'Range'), range, places), body)
+  const range = h('div', { class: 'segmented', role: 'group', 'aria-label': t('How far back') })
+  const body = h('div', { class: 'reading', 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, t('Reading what the epics spent…')))
+  fill(holder, h('div', { class: 'row' }, h('span', { class: 'kicker' }, t('Range')), range, places), body)
 
   let stop = () => {}
   const watch = () => {
@@ -33,7 +34,7 @@ export function draw(holder, query, parts, scope) {
     fill(
       range,
       RANGES.map((one) => {
-        const button = h('button', { type: 'button', 'aria-pressed': String(one === days) }, `${one}d`)
+        const button = h('button', { type: 'button', 'aria-pressed': String(one === days) }, t('{n}d', { n: one }))
         button.addEventListener('click', () => {
           days = one
           watch()
@@ -47,12 +48,12 @@ export function draw(holder, query, parts, scope) {
   function draw(data, error) {
     body.removeAttribute('aria-busy')
     if (!data) {
-      fill(body, error ? problem(error) : h('p', { class: 'loading' }, 'Reading…'))
+      fill(body, error ? problem(error) : h('p', { class: 'loading' }, t('Reading…')))
       return
     }
     const whole = data.whole
     const top = Math.max(...data.days.map((one) => one.cost), 0)
-    const label = `Cost per day over the last ${data.days_back} days, the highest ${top.toFixed(2)} dollars`
+    const label = t('Cost per day over the last {days} days, the highest {top} dollars', { days: data.days_back, top: top.toFixed(2) })
     fill(
       body,
       error ? problem(error) : null,
@@ -62,16 +63,16 @@ export function draw(holder, query, parts, scope) {
         h(
           'div',
           { class: 'tiles' },
-          tile('spent', whole.money || '$0', `over ${whole.runs} epic${whole.runs === 1 ? '' : 's'}`),
-          tile('output tokens', whole.tokens || '0', ''),
-          tile('agent time', whole.worked || '0s', ''),
-          h('div', { class: 'tile' }, h('div', { class: 'kicker' }, 'ended'), h('div', { class: 'row' }, Object.entries(data.ended).map(([how, count]) => h('span', {}, badge(how), ' ', count)))),
+          tile(t('spent'), whole.money || '$0', t('over {n} epics', { n: whole.runs })),
+          tile(t('output tokens'), whole.tokens || '0', ''),
+          tile(t('agent time'), whole.worked || '0s', ''),
+          h('div', { class: 'tile' }, h('div', { class: 'kicker' }, t('ended')), h('div', { class: 'row' }, Object.entries(data.ended).map(([how, count]) => h('span', {}, badge(how), ' ', count)))),
         ),
       ),
       h(
         'section',
         { class: 'panel' },
-        h('header', {}, h('h2', {}, 'Cost by day'), h('span', { class: 'kicker' }, 'UTC')),
+        h('header', {}, h('h2', {}, t('Cost by day')), h('span', { class: 'kicker' }, 'UTC')),
         top
           ? [
               h(
@@ -81,24 +82,24 @@ export function draw(holder, query, parts, scope) {
                   h('div', {
                     class: ['bar', !one.cost && 'none'],
                     style: { height: `${Math.max(1, (one.cost / top) * 100)}%` },
-                    title: `${one.day}: ${one.money || '$0'}, ${one.runs} epic${one.runs === 1 ? '' : 's'}, ${one.tokens} output tokens`,
+                    title: t('{day}: {money}, {n} epics, {tokens} output tokens', { day: one.day, money: one.money || '$0', n: one.runs, tokens: one.tokens }),
                   }),
                 ),
               ),
               h('div', { class: 'bars-axis', 'aria-hidden': 'true' }, h('span', {}, data.days[0].day), h('span', {}, data.days[data.days.length - 1].day)),
             ]
-          : h('p', { class: 'dim' }, 'No epic here spent any money in these days.'),
+          : h('p', { class: 'dim' }, t('Nothing spent in this range.')),
         h(
           'details',
           {},
-          h('summary', {}, 'Table'),
+          h('summary', {}, t('Table')),
           h(
             'div',
             { class: 'table-wrap' },
             h(
               'table',
               {},
-              h('thead', {}, h('tr', {}, h('th', {}, 'Day'), h('th', { class: 'num' }, 'Epics'), h('th', { class: 'num' }, 'Spent'), h('th', { class: 'num' }, 'Output'))),
+              h('thead', {}, h('tr', {}, h('th', {}, t('Day')), h('th', { class: 'num' }, t('Epics')), h('th', { class: 'num' }, t('Spent')), h('th', { class: 'num' }, t('Output')))),
               h('tbody', {}, data.days.filter((one) => one.runs).map((one) => h('tr', {}, h('td', { class: 'mono' }, one.day), h('td', { class: 'num' }, one.runs), h('td', { class: 'num' }, one.money), h('td', { class: 'num' }, one.tokens)))),
             ),
           ),
@@ -107,7 +108,7 @@ export function draw(holder, query, parts, scope) {
       h(
         'section',
         { class: 'panel' },
-        h('h2', {}, 'By flow'),
+        h('h2', {}, t('By flow')),
         data.flows.length
           ? h(
               'div',
@@ -115,7 +116,7 @@ export function draw(holder, query, parts, scope) {
               h(
                 'table',
                 {},
-                h('thead', {}, h('tr', {}, h('th', {}, 'Flow'), h('th', { class: 'num' }, 'Epics'), h('th', { class: 'num' }, 'Spent'), h('th', {}, 'Share'), h('th', { class: 'num' }, 'Output'), h('th', { class: 'num' }, 'Time'))),
+                h('thead', {}, h('tr', {}, h('th', {}, t('Flow')), h('th', { class: 'num' }, t('Epics')), h('th', { class: 'num' }, t('Spent')), h('th', {}, t('Share')), h('th', { class: 'num' }, t('Output')), h('th', { class: 'num' }, t('Time')))),
                 h(
                   'tbody',
                   {},
@@ -123,7 +124,7 @@ export function draw(holder, query, parts, scope) {
                     h(
                       'tr',
                       {},
-                      h('td', {}, h('a', { href: hash(`/search?flow=${encodeURIComponent(one.flow)}`), title: one.flow }, flowName(one.flow))),
+                      h('td', {}, h('a', { href: hash(`/search?flow=${encodeURIComponent(one.flow)}`), title: one.flow === 'chat' ? t('chat') : one.flow }, one.flow === 'chat' ? t('chat') : flowName(one.flow))),
                       h('td', { class: 'num' }, one.runs),
                       h('td', { class: 'num' }, one.money),
                       h('td', {}, h('div', { class: 'share', title: share(one.cost, whole.cost) }, h('span', { style: { width: share(one.cost, whole.cost) } }))),
@@ -134,7 +135,11 @@ export function draw(holder, query, parts, scope) {
                 ),
               ),
             )
-          : h('p', { class: 'dim' }, 'No epic in this range.'),
+          : empty(
+              t('Nothing ran in this range.'),
+              t(' What a chat or an epic spends is counted here as it goes.'),
+              h('a', { class: 'btn primary', href: scope.name === 'local' ? '#/new/chat' : `#/@${encodeURIComponent(scope.name)}/new/chat`, 'data-hmz': 'usage-start' }, t('New chat')),
+            ),
       ),
     )
   }

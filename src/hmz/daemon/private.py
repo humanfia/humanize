@@ -31,6 +31,9 @@ __all__ = ["Private"]
 #: How long a host is given to say what it holds.
 _PATIENCE = 10.0
 
+#: How long a host's thread is given to end once the daemon has closed.
+_ENDING = 10.0
+
 
 class _Held(Hosts):
     """Every host the daemon took on, each held on a thread of this process."""
@@ -40,6 +43,18 @@ class _Held(Hosts):
     ) -> None:
         super().__init__(changed)
         self._holding = holding
+        #: The thread of every host taken on, which :meth:`ended` waits for.
+        self._threads: list[threading.Thread] = []
+
+    def ended(self) -> None:
+        """Waits for the thread of every host let go of, so that none outlives its daemon.
+
+        One that did would still read where Humanize keeps this machine's files, which is
+        the program's own again once a private daemon has gone (Section 4.19 of python.md).
+        """
+        threads, self._threads = self._threads, []
+        for one in threads:
+            one.join(_ENDING)
 
     def _starts(
         self, workspace: str, slot: str, env: dict[str, str] | None = None
@@ -53,13 +68,16 @@ class _Held(Hosts):
 
         ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         held = Host(self._holding(workspace), slot)
-        threading.Thread(
+        thread = threading.Thread(
             target=serves,
             args=(held, workspace, theirs),
             kwargs={"slot": slot},
             daemon=True,
             name="hmz-host",
-        ).start()
+        )
+        self._threads = [one for one in self._threads if one.is_alive()]
+        self._threads.append(thread)
+        thread.start()
         hosted = Hosted(workspace, slot)
         hosted.peer = Peer(
             SocketPipe(ours, trusted=True),
@@ -93,7 +111,8 @@ class Private(Router):
         holding: Callable[[str], Holding],
     ) -> None:
         super().__init__(at, listening, kept=True)
-        self.hosts = _Held(self._touched, holding)
+        self._held = _Held(self._touched, holding)
+        self.hosts = self._held
         self.hosts.ai = self.links
 
         def checks(call: Call) -> Any:
@@ -103,6 +122,11 @@ class Private(Router):
 
         self.families["flows.check"] = checks
         self.dispatcher.register("flows.check", self._guarded("flows.check", checks))
+
+    def close(self) -> None:
+        """Closes as a daemon does, and returns once every host's thread has ended."""
+        super().close()
+        self._held.ended()
 
     def paired(self) -> Pipe:
         """A trusted session's pipe to this daemon, over a socket pair: the client's end."""

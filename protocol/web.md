@@ -127,8 +127,8 @@ tells it to the user through the system, with the daemon it came from.
 
 **3.2.9** The **Exomyth** of an epic is the page's view of that epic's timeline and flame graph.
 
-**3.2.10** A **theme** is a set of colours and pictures the page is drawn in. A **pair** is a light
-theme and a dark theme kept together under one name. A **preset** is a pair that comes with hmz.
+**3.2.10** A **theme** is a light side and a dark side, each a set of colours and pictures the page
+is drawn in, kept together under one name. A **preset** is a theme that comes with hmz.
 
 **3.2.11** **App settings** are the settings pages that belong to the page in this browser alone.
 **Daemon settings** are the settings pages that each daemon keeps for itself.
@@ -286,11 +286,36 @@ and MUST NOT hide it.
 still stands, save a menu the user opened from a chip of the row under the box (Section 3.6.6.15),
 which stands by its chip.
 
-**3.4.4.11** Wherever the page names a harness, a model or an effort it MUST name it as its vendor
-does, from one table the page carries -- `claude` as `Claude Code`, `claude-fable-5-2` as
-`Fable 5.2`, `gpt-6.2-sol` as `GPT-6.2 Sol`, `medium` as `Medium` -- and one the table does not
-hold as it is written. An agent MUST be written as `-a` spells it only where it is typed, where it
-is copied, and where what names it is pointed at.
+**3.4.4.11** Wherever the page names a harness or a model it MUST name it as its vendor does, and
+wherever it names an effort it MUST name it by the page's own word for it, each from one table the
+page carries -- `claude` as `Claude Code`, `claude-fable-5-2` as `Fable 5.2`, `gpt-6.2-sol` as
+`GPT-6.2 Sol`, `medium` as `Medium` -- and one the table does not hold as it is written. The word
+for an effort is a text of the page's, said in the page's language as Section 3.4.4.13 has it. An
+agent MUST be written as `-a` spells it only where it is typed, where it is copied, and where what
+names it is pointed at.
+
+**3.4.4.12** The page MUST be written in one language at a time -- English, Simplified Chinese or
+Traditional Chinese -- and MUST say which as the `lang` of its document, `en`, `zh-Hans` or
+`zh-Hant`, before anything of it is drawn.
+
+**3.4.4.13** The labels and texts this document quotes are the English ones. Written in another
+language, the page MUST say its translation of each in their place, and MUST say the English one
+wherever it has no translation. It MUST NOT say Traditional Chinese in Simplified Chinese's words,
+nor Simplified Chinese in Traditional Chinese's.
+
+**3.4.4.14** The page MUST NOT translate what it did not write: the name of a harness or of a model
+(Section 3.4.4.11), a path, an identifier, a name the user gave, the text of a task, of a flow's
+description or options, of an agent's output or of a question, and the sentence a daemon refuses or
+fails with. In every language it MUST write `Humanize`, `Ai-chan`, `Nous`, `Epic`, `Flow`,
+`Flowverse`, `Harness`, `Daemon`, `Exomyth`, `Agent` and `Worktree` in Latin script.
+
+**3.4.4.15** The page MUST write a date and a time of day as its language writes them, and as the
+browser's own region of that language does where the browser names one.
+
+**3.4.4.16** With no language chosen (Section 3.11.3.6), the page MUST be written in the first
+language the browser asks for that the page has: Traditional Chinese for a Chinese tagged `Hant`,
+or one of Taiwan, Hong Kong or Macao not tagged `Hans`; Simplified Chinese for any other Chinese;
+English for an English, and where the browser asks for none of the three.
 
 #### 3.4.5. Paths
 
@@ -302,6 +327,19 @@ directory, or a file where a file is wanted.
 is typed.
 
 **3.4.5.3** The page MUST NOT accept a path that is not a directory as a workspace.
+
+#### 3.4.6. Empty lists
+
+**3.4.6.1** Where a list the page draws holds nothing yet and the page offers what puts something
+in it -- installing a flow, starting a chat or an epic, adding a backup target, a nous, a runtime
+or an account -- the page MUST say that the list is empty in place of the list, and MUST offer
+there a button that opens what puts something in it.
+
+**3.4.6.2** Where a list holds nothing because of what the user typed or filtered for, the button
+MUST clear what was typed and filtered for instead.
+
+**3.4.6.3** What such a button opens MUST be what the page offers elsewhere: it MUST NOT write
+anything by itself.
 
 ### 3.5. Workspaces and the epics list
 
@@ -326,7 +364,8 @@ in the sidebar from then on, save as Section 3.5.7.1 states.
 their latest epic, newest first, as the list is sorted (3.5.17).
 
 **3.5.4** Each group MUST list its epics in the order the list is sorted in (3.5.17), chats among the
-others, and MUST say `Nothing here yet` where it has none.
+others, and MUST say `Nothing here yet` where it has none, with the button of Section 3.4.6.1
+that starts a chat in it.
 
 **3.5.5** The user MUST be able to fold a group away and open it again by its heading; the page MUST
 remember which groups are folded in this browser.
@@ -335,13 +374,13 @@ remember which groups are folded in this browser.
 opens a new chat: in that workspace, for a folder. The two MUST be shown where the heading is
 pointed at or holds the focus, and always where the device has nothing to point with.
 
-**3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, its flows, searching
+**3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, searching
 it, copying its
 path, folding or opening it, its workspace settings, its usage, and, where no epic ran there,
 forgetting it.
 
 **3.5.7.1** A folder whose directory is no longer there MUST say so by its name and in its menu,
-and MUST NOT offer a new chat there, a new epic there or its flows, neither in its menu nor by `+`
+and MUST NOT offer a new chat there or a new epic there, neither in its menu nor by `+`
 (3.5.6); as a row of `Folders` (3.5.1.1) it MUST open the search of what it holds. One that is
 gone and holds no epic and no chat MUST NOT be listed.
 
@@ -369,7 +408,8 @@ browser which questions were seen.
 
 **3.5.10** An epic that another process is going with, outside any host, MUST be marked as going and
 MUST NOT be marked `live`. A chat MUST be marked only `running` while a turn is open, `asking`,
-`failed`, or otherwise `stopped`, and MUST NOT be marked `live`. A chat that folds away while this
+`failed`, or otherwise `stopped`, and MUST NOT be marked `live`: whether a host holds a chat MUST
+NOT be shown, and a chat MUST NOT be counted among the epics going. A chat that folds away while this
 browser has not seen what it last waited on MUST stay `asking` until that is seen, and the page MUST
 remember in this browser what each chat last waited on until a turn of it opens.
 
@@ -404,8 +444,9 @@ asking.
 **3.5.15** A chat in the sidebar MUST be drawn as a row of another kind than any other epic: its
 task's first line alone, with no mark or glyph of a state, no name of a flow and nothing that opens
 it out. After that line, in the same line, its row MUST say `Running` while its mark (3.5.10) is
-`running`, `Awaiting input` while it is `asking`, `Failed` where it is `failed`, and nothing where it
-is `stopped`. What the row says when pointed at MUST say when the chat began, and the row MUST show
+`running`, `Failed` where it is `failed`, and nothing where it is `stopped`; while it is `asking`
+it MUST say no word, and MUST draw there the dot of a row marked unread (3.5.19), once, named
+`Awaiting input` to whoever cannot see it and where it is pointed at. What the row says when pointed at MUST say when the chat began, and the row MUST show
 how long ago it began where the device has nothing to point with. The row, and what it says when
 pointed at, MUST NOT say `epic` or `flow`.
 
@@ -454,15 +495,17 @@ too, unless it says otherwise. The page MUST NOT ask `runs.*` for a chat.
 epic's.
 
 **3.5.20.2** A chat's row MUST be marked (3.5.10) from its `state`: a turn open while it is `turn`
-or `asking`, between turns while it is `going`, `failed` where it is `failed`, and `stopped`
-otherwise. What a chat a host holds waits on MUST be read from `hosts.running`, by the chat's id,
+or `asking`, `failed` where it is `failed`, and `stopped` otherwise, `going` and `resting` alike.
+What a chat a host holds waits on MUST be read from `hosts.running`, by the chat's id,
 so that what it waits on between turns is marked `asking` until this browser has seen it. Sorted
-by `Last updated` (3.5.17.2), a chat that rests MUST stand by its `updated`.
+by `Last updated` (3.5.17.2), a chat MUST stand by its `updated`, whether or not a host holds it,
+and a host holding a chat MUST NOT put its folder before another.
 
-**3.5.20.3** An epic an earlier hmz recorded for a chat (`kind` `chat`, Section 4.16.2.1 of
-[DAEMON]) MUST be listed, found and drawn as any other epic, at `#/epics/<name>`, with its flow
-said as `chat`. The page MUST NOT draw it as a chat, and MUST NOT offer to resume it, to start a
-new epic like it, or to say anything in it.
+**3.5.20.3** A chat an earlier hmz recorded as an epic is a chat as any other once the daemon has
+moved it (Section 8.7.10 of [CORE]), under the name that epic had: the page MUST list, find and
+draw it as a chat, at `#/chats/<id>`, and MUST NOT draw any epic as of a flow `chat` for having
+been one. An address `#/epics/<name>` whose name `runs.get` refuses and `chat.get` answers MUST
+become `#/chats/<name>`, without a step in the history.
 
 **3.5.20.4** The sidebar MUST leave out every archived chat (Section 8.10.3 of [CORE]), a pinned
 one included.
@@ -586,7 +629,9 @@ what the person was asked, was shown and answered; a line typed under one MUST g
 
 **3.6.6.1** A chat MUST be drawn as its conversation alone, wherever it is opened, as Section 8 of
 [CORE] specifies: the task and each line of the user's on one side, each answer of the agent's on
-the other.
+the other. The conversation MUST NOT name the chat's agent or any session it opened: the page MUST
+draw nothing as a turn of the agent's begins, and as it ends MUST say how long the turn worked,
+`Worked for <time>`, and no name.
 
 **3.6.6.2** The box under a chat MUST send the user's next turn between turns, and MUST answer what
 the agent asks while a turn is open, with the offered answers as buttons at the end of the
@@ -595,16 +640,23 @@ conversation.
 **3.6.6.3** The page MUST NOT draw what a chat waits for between turns as a question.
 
 **3.6.6.4** The page MUST NOT offer, for a chat, a graph, its agents or sessions, its Exomyth, its
-people, or a way to end it; its open turn is stopped as Section 3.6.6.21 states. It MUST offer, beside the conversation of a chat a host holds, a side
+people, or a way to end it; its open turn is stopped as Section 3.6.6.21 states. It MUST offer, beside the conversation of every chat, whether or not a host holds it, a side
 panel `Environment` that the user can hide and show, holding the Environments view of the chat's
-envs (Section 3.17) and a link to that view on its own.
+envs (Section 3.17) and a link to that view on its own. Shown for a chat no host holds, the panel
+MUST carry the chat on with nothing said (`chat.start` with `resume` the chat's id and an empty
+`task`, Section 4.25.1.9 of [DAEMON]), saying nothing of it but that it is opening, and MUST then
+show the chat's envs as that host lists them; where the daemon refuses -- the chat's folder is
+gone, say -- the panel MUST say why, and MUST ask again when a pane of it is next asked for.
 
 **3.6.6.5** Each chat MUST go on a host of its own, beside every other chat and every flow of its
 workspace; starting a chat or an epic MUST NOT end another.
 
-**3.6.6.6** A chat that has folded away MUST be carried on, the same chat, when the user says
-something in it -- by `chat.start` with `resume` the chat's id -- with what was said before drawn
-above.
+**3.6.6.6** The page MUST offer the box of every chat, whatever its `state`, and MUST NOT say of a
+chat that it is going, at rest, or cannot be continued. A chat no host holds MUST be carried on,
+the same chat, when the user says something in it -- by `chat.start` with `resume` the chat's id
+-- with what was said before drawn above; one a host holds, the one Section 3.6.6.4 brought up
+among them, MUST be said it by `chat.say`. What the daemon refuses MUST be said in the daemon's
+own sentence.
 
 **3.6.6.7** The box under a chat MUST complete `/`, `$` and `@` from the chat's catalogue, the names
 hmz keeps and the flows (`chat.commands`, Section 4 of [DAEMON]), each tagged with where it comes
@@ -621,8 +673,8 @@ The page MUST NOT draw that choice on the bar itself.
 **3.6.6.10** The bar of a chat MUST hold, at its left, the chat's title as a button that renames
 the chat (Section 3.6.6.23), and right after it one menu, `More options`; and at its far right the buttons
 of Section 3.6.6.19, with which the bar MUST end (Section 3.16.1). The menu MUST offer what the
-chat's right-click menu offers (Section 3.4.4.1), the chat's `Environment` (Section 3.6.6.4) where
-its host has one, and the choice of Section 3.6.6.9. The bar MUST NOT say how the chat stands
+chat's right-click menu offers (Section 3.4.4.1), the chat's `Environment` (Section 3.6.6.4),
+and the choice of Section 3.6.6.9. The bar MUST NOT say how the chat stands
 (Section 3.6.6.18).
 
 **3.6.6.11** The panel beside a chat MUST show one pane at a time, picked on the chat's bar
@@ -630,7 +682,11 @@ its host has one, and the choice of Section 3.6.6.9. The bar MUST NOT say how th
 tabs of the Environments view over the chat's `Environment`. It MUST call `Details` and `Side
 questions` what Section 3.6.3 calls `Epic` and `Aside`, MUST show under `Details` everything `Epic`
 shows that a chat has, each named in plain words, and MUST say that side questions never reach the
-chat.
+chat. `Details` MUST NOT count the chat's sessions, MUST NOT name a session or the role of an
+agent, and MUST say where the chat works by the kind and the target of its environment, each said
+once. `Side questions` MUST NOT offer a session to pick (Section 3.6.3.5): a side question about a
+chat MUST be asked of the session the chat last opened, and MUST name no session, each side
+conversation going by the first question asked in it.
 
 **3.6.6.12** The page MUST NOT call a chat an epic or a run, nor a choice of the chat's `native`,
 in the bar, the menu, the tabs, the headings, the labels and the box of a chat's view. The box
@@ -680,8 +736,9 @@ while none is picked, `No folder` (Section 3.8.2) among it, saying `Pick a folde
 the four typed by hand MUST do what it did.
 
 **3.6.6.17** The row under the box of a chat that has begun MUST hold, at its right and in this
-order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and a chip `Usage`, which MUST
-say what the chat has spent or written where the page knows it and MUST open, by the chip, a
+order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and a chip `Usage`, a ring
+alone, which MUST say nothing beside the ring -- neither what the chat has spent nor what it has
+written -- MUST be named `Usage` to whoever cannot see it, and MUST open, by the chip, a
 popup of its own (Section 3.6.6.17.1): it MUST NOT open the chat's `Details` nor a page of
 Settings. That row MUST NOT hold where the chat runs.
 
@@ -693,19 +750,19 @@ which opens `Usage` (Section 3.11.2.12) on that workspace. It MUST be 308 CSS pi
 the window has the room, and MUST be one of the page's popups (Section 3.4.3.4): Escape MUST
 close it and, closed so, the focus MUST go back to the chip.
 
-**3.6.6.18** While a turn of a chat is open, the page MUST say over the chat's box who is
-responding, by the model the chat's agent runs; it MUST say there, besides, that the chat waits on
-the user or has failed, and MUST say nothing there otherwise.
+**3.6.6.18** The page MUST say over the chat's box, in one line, that the chat has failed, and
+MUST say nothing there otherwise: neither who is responding while a turn is open, nor that the
+chat waits on the user.
 
 **3.6.6.19** The bar of a chat MUST hold, at its far right and in this order, a button each for
 `Details`, `Terminal`, `Changes` and `Files`, each 28 CSS pixels square, and then a menu `View
-options` holding `Side questions`, `Board` while the chat keeps one (Section 3.6.3), and `Ai-chan`
-(Section 3.16.1), each marked while it is the one shown. `Details`, `Side questions` and `Board`
-MUST open the panel beside the chat on that pane (Section 3.6.6.11); `Terminal`, `Changes` and
+options` holding `Side questions` and `Board` while the chat keeps one (Section 3.6.3), each marked
+while it is the one shown, and last Ai-chan's button (Section 3.16.1). `Details`, `Side
+questions` and `Board` MUST open the panel beside the chat on that pane (Section 3.6.6.11); `Terminal`, `Changes` and
 `Files` MUST open it on the chat's
-`Environment` (Section 3.6.6.4) at that panel (Section 3.17), and MUST be disabled while the chat
-has no such panel, saying whether that is for want of a host or of such a panel in its
-environment. A button MUST say whether its pane is the one open, and pressing the one open MUST
+`Environment` (Section 3.6.6.4) at that panel (Section 3.17), whether or not a host holds the
+chat, and MUST be disabled only where the chat's environment, once read, keeps no such panel,
+saying so. A button MUST say whether its pane is the one open, and pressing the one open MUST
 shut the panel. Where the panel stands beside the chat, the bar MUST run over both, so that a
 button stays where it is as its pane opens and shuts.
 
@@ -762,8 +819,9 @@ workspace, where the two differ (Section 8.3.13 of [CORE]).
 parameters and budget -- the tree of flows it called, its sessions, what it spent and how long it
 took.
 
-**3.6.7.2** The page MUST offer `Read turns`, which reads the epic's handovers and each session's
-turns back out of the logs it kept.
+**3.6.7.2** The page MUST read the epic's handovers and each session's turns back out of the logs
+it kept, on its own, when the epic is shown, and MUST say so while it reads. Where the reading
+fails, the page MUST say why and MUST offer `Read turns`, which reads them again.
 
 **3.6.7.3** The page MUST offer `Export`, which downloads the epic as one archive, as Section 3 of
 [CORE] specifies, reading it in chunks (`runs.bundle` and `files.read`, Section 4.16.4.4 of
@@ -789,7 +847,8 @@ machine; where Local runs in WSL, that path MAY be a Windows path, read as WSL n
 **3.6.8.2** In a browser, the import address MUST import only once the user presses `Import`.
 
 **3.6.8.3** An imported epic MUST be imported into the daemon shown, under the workspace it ran in,
-and MUST then open on its Exomyth.
+and MUST then open on its Exomyth; one imported as a chat (Section 3.5.20.3) MUST open as that
+chat, at `#/chats/<id>`.
 
 **3.6.8.4** An epic already present MUST be refused, naming it, and the page MUST offer `Open` to go
 to it.
@@ -1000,12 +1059,13 @@ ran.
 **3.8.2** The user MUST be able to pick any workspace the daemon shown serves, or to open one by its
 path with completion as it is typed, or to pick no workspace, `No folder`.
 
-**3.8.2.1** The form MUST offer that choice under the box of Section 3.8.5, at its left, as a
-control naming the workspace picked, and MUST NOT offer it in the bar over the form.
+**3.8.2.1** The form MUST offer that choice as `Folder`, a control naming the workspace picked,
+in `Environment` in the middle of the page (Section 3.8.24), and MUST NOT offer it under the box
+of Section 3.8.5 or in the bar over the form.
 
 **3.8.2.2** The menu of that control MUST list the workspaces the daemon shown serves whose
-directories are there, each one row named by the last part of its path and saying its path where
-it is pointed at, and after them `Open folder…` and `No folder`.
+directories are there, each one row named by the last part of its path and saying its path, and
+after them `Open folder…` and `No folder`.
 
 **3.8.2.3** The form MUST go on reading which directories are there while it is shown. A workspace
 picked whose directory is not there -- named by the address, or gone since -- MUST stay picked,
@@ -1022,23 +1082,32 @@ alone in the system's temporary directory.
 **3.8.4** The user MUST be able to pick any flow on offer in that workspace.
 
 **3.8.4.1** Where no flow is on offer there, the form MUST say so in the middle of the page, with
-`Open Flows`, which opens the flows of that workspace (Section 3.9); what picks the flow MUST
-offer the same, `Options` MUST be disabled, and starting MUST be refused saying that a flow is
-installed first.
+`Open Flows`, which opens `Flows` (Section 3.9), the one page of every workspace, on its
+flowverses, where a flow is installed from; what picks the flow MUST offer the same, the form MUST then show of what a flow is set up with `Environment`
+alone, and starting MUST be refused saying that a flow is installed first.
 
 **3.8.5** The form MUST offer a box for the task; Enter in it MUST start the epic.
 
-**3.8.6** `Options` MUST hold what the flow is set up with, as that workspace last set it up: for
-each agent role an agent, for each environment role an environment, the parameters, the budget, the
-backup targets, `Profile flow` and `Profile environment`.
+**3.8.6** The form MUST show, in the middle of the page, what the flow is set up with, as that
+workspace last started it: `Environment` first, holding `Runs on`, `Folder` (Section 3.8.2.1) and
+for each environment role an environment; then for each agent role an agent, the parameters, the
+budget, the backup targets, `Profile flow` and `Profile environment`. All of it MUST be in sight
+without a control being pressed: the form MUST NOT hold a control named `Options`, or any other
+that shows or hides what the flow is set up with.
 
-**3.8.7** The form MUST show beside `Options` what is set, bar on a screen as narrow as a phone's,
-where `Options` alone says it once opened.
+**3.8.7** The form MUST NOT say what is set anywhere but where it is set: the row under the box
+MUST NOT name an agent, a role or the budget.
 
 **3.8.8** An agent MUST be set up a part at a time, as Section 4 of [CORE] specifies: a harness
 installed here that can fill the role; the account it runs as, this machine's own or one made, with
 a way to make one; a model known runnable as that account, asking the harness where none is known
 yet and accepting a typed model where it cannot say; and an effort that model takes.
+
+**3.8.8.1** Each agent role MUST be one row of the form, a row a role however many the flow has:
+the role's name at its left, saying `Optional` where the flow does not require it, and beside it
+the chip of Section 3.8.19, which MUST offer only the harnesses installed here that can fill that
+role and whose menu MUST open under the chip, aligned with its left edge. Where no harness
+installed here can fill the role the menu MUST say so.
 
 **3.8.9** An environment MUST be set up a part at a time, as Section 7 of [CORE] specifies: its
 backend, a runtime of that backend saved or made there, and its directory, completed as it is typed
@@ -1047,14 +1116,17 @@ where it is on this machine.
 **3.8.10** Each agent and each environment set up on the form MUST come to what `-a` and `-e` spell,
 as [CLI] specifies.
 
-**3.8.11** The backup targets MUST default to the default targets until a choice is saved.
+**3.8.11** The backup targets MUST default to the default targets until an epic is started with
+another choice.
 
-**3.8.12** `Save` MUST write down what the form holds for that workspace without starting an epic.
+**3.8.12** The form MUST NOT offer to write down what it holds without starting an epic: it MUST
+NOT hold a `Save` button.
 
-**3.8.13** Starting an epic MUST write down what the form holds for that workspace, as `Save` does.
+**3.8.13** Starting an epic MUST write down what the form holds for that workspace (`remember`,
+Section 4.8.2.3 of [DAEMON]), which is what the form next opens on there.
 
-**3.8.14** The form MUST refuse to save or start where a role has no agent, or where no limit bounds
-what the epic spends.
+**3.8.14** The form MUST refuse to start where a required role has no agent, or where no limit
+bounds what the epic spends, and MUST then put the focus where what is missing is set.
 
 **3.8.15** Once the epic starts, the page MUST go to it; for a chat, to its conversation.
 
@@ -1095,21 +1167,28 @@ pixels high holding the heading `New chat` at its left; the box of Section 3.6.6
 foot of the page, in the column a conversation is read in; and between them nothing but the list
 of Section 3.8.23. It MUST NOT draw a greeting, a mark, or a box in the middle of the page.
 
-**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, `Environment`,
-then the workspace control of Section 3.8.2.1 and then `Worktree` (Section 3.8.22.1), and at its
-right the chips of Section 3.8.19 and
+**3.8.22** The row under the box of the form of a new chat MUST hold, at its left, one chip,
+`Environment`, and nothing else, and at its right the chips of Section 3.8.19 and
 Section 3.8.20 and then `Usage`, drawn as the chip of Section 3.6.6.17 is, which MUST open the
 popup of Section 3.6.6.17.1 with no chat's figures: what the workspace picked has used -- every
-workspace's where none is picked -- and the link to `Usage` (Section 3.11.2.12). `Environment` MUST name the daemon the page shows and MUST open a menu of Local and
-every remote daemon this browser keeps, with the one shown marked, and `New environment`, which
-opens the daemons' settings (Section 3.13); picking another daemon MUST switch the page to it
-(Section 3.4.2.4), on the same form.
+workspace's where none is picked -- and the link to `Usage` (Section 3.11.2.12). `Environment`
+MUST name the daemon the page shows and then the workspace picked, as `Local · project`, and
+`No folder` where none is; it is the control of Section 3.8.2 on this form, and what Section
+3.8.2.3 has that control say MUST be said on it. It MUST open one menu holding, in this order:
+under the heading `Runs on`, Local and every remote daemon this browser keeps, with the one shown
+marked, and `New environment`, which opens the daemons' settings (Section 3.13); under the heading
+`Folder`, the workspaces the daemon shown serves whose directories are there, each one row named
+by the last part of its path and saying its path where it is pointed at, with the one picked
+marked, and after them `Open folder…` and `No folder`; and `Worktree` (Section 3.8.22.1). Picking
+another daemon MUST switch the page to it (Section 3.4.2.4), on the same form. The menu MUST open
+with the focus on the workspace picked.
 
-**3.8.22.1** `Worktree` MUST be a checkbox, clear until the user ticks it; ticked, the chat MUST be
-started with `worktree` `true` (Section 4.25.1.8 of [DAEMON]). It MUST be disabled, clear, and say
-why, under `No folder` and where `paths.list` finds `.git` neither in the workspace picked nor in
-any directory over it; where that cannot be told it MUST stay enabled, and a refusal of the start
-MUST be said as any other is (Section 3.4.4.9).
+**3.8.22.1** `Worktree` MUST be a row of that menu that is ticked, clear until the user ticks it,
+and ticking it MUST NOT close the menu; ticked, the chat MUST be started with `worktree` `true`
+(Section 4.25.1.8 of [DAEMON]). It MUST be drawn as switched off, clear, and say why where it is
+pointed at, under `No folder` and where `paths.list` finds `.git` neither in the workspace picked
+nor in any directory over it; where that cannot be told it MUST stay on offer, and a refusal of
+the start MUST be said as any other is (Section 3.4.4.9).
 
 **3.8.23** The form of a new chat MUST list, in the middle of the page, in a list named `Next
 steps` under no heading, each chat marked `asking` (Section 3.5.10) among the 200 newest chats of
@@ -1121,24 +1200,31 @@ list.
 
 **3.8.24** The form of a new epic of a flow MUST be drawn in the frame of Section 3.8.21: the
 heading `New epic`, or `Resume epic`, in the bar with the flow of Section 3.8.4 beside it; what the
-flow is for and `Options` (Section 3.8.6) in the middle of the page; and the box of Section 3.8.5
-docked at the foot, holding only the `Add` button of Section 3.6.6.16, what is typed and the button
-that sends. The row under that box
-MUST hold, at its left, `Environment` (Section 3.8.22) and the workspace control of Section
-3.8.2.1, and at its right what is set (Section 3.8.7) and the button that opens `Options`.
+flow is for and, under it, what it is set up with (Section 3.8.6) in the middle of the page; and
+the box of Section 3.8.5 docked at the foot, holding only the `Add` button of Section 3.6.6.16,
+what is typed and the button that sends. The row under that box MUST hold nothing, neither at its
+left nor at its right. `Environment` MUST be the first part of what the flow is set up with, shown
+whatever flow is picked and where none is: a row `Runs on`, a chip that names the daemon the page
+shows and opens the menu Section 3.8.22 puts under `Runs on`; a row `Folder`, the control of
+Section 3.8.2.1; and then a row for each environment role of the flow picked, named by the role,
+whose directory on this machine, while none is typed, MUST say the workspace picked, where such a
+role left blank works. The menus of `Runs on` and of `Folder` MUST open under their controls.
 
 ### 3.9. Flows
 
 **3.9.1** `Flows` MUST have an `Installed` tab and a `Flowverses` tab.
 
 **3.9.2** `Installed` MUST list each flow on offer on the daemon shown whatever the workspace --
-those installed from a flowverse and the user's own -- and, where the address names a workspace,
-that workspace's own flows too, with what each declares, and, for one installed from a flowverse,
-its release and any newer release its flowverse lists. `Flows` MUST NOT offer a control that picks
-a workspace, and MUST say the workspace its address names in its bar.
+those installed from a flowverse and the user's own -- with what each declares, and, for one
+installed from a flowverse, its release and any newer release its flowverse lists. `Flows` MUST NOT
+name, pick or depend on a workspace: it MUST NOT list a workspace's own flows, and a workspace its
+address names MUST be left out of what it asks and of its address.
 
-**3.9.3** `Installed` MUST let the user start, update and uninstall a flow, and, where the address
-names a workspace, copy it whole into that workspace.
+**3.9.2.1** Where no flow is on offer, `Installed` MUST say so and MUST offer `Browse Flowverses`,
+which opens `Flowverses`.
+
+**3.9.3** `Installed` MUST let the user start, update and uninstall a flow, and MUST NOT offer to
+copy one into a workspace.
 
 **3.9.4** `Flowverses` MUST list every flowverse except the project's and the user's own as a row
 of tabs, each saying its name alone and Humanize's own saying `Official`, and MUST open on the
@@ -1149,6 +1235,10 @@ that fetches it. The form that adds one MUST NOT be shown until the user chooses
 **3.9.5** A flowverse opened MUST show whether its index is fetched or written into, the flows it
 lists, and every release of each, newest first, with prereleases and the installed release marked,
 and MUST name every manifest it skipped.
+
+**3.9.5.1** A flowverse opened that lists no flow MUST say so: one not fetched yet, where it can be
+fetched, with `Fetch`, which fetches it as the button after its name does; any other with
+`Add flowverse`, which opens the form that adds one.
 
 **3.9.6** `Flowverses` MUST let the user install, switch to and uninstall a release, and add, fetch
 and remove a flowverse; removing a flowverse MUST remove what was installed from it, and MUST ask
@@ -1193,7 +1283,8 @@ either set, `All` MUST list epics alone. The counts by how it went MUST be of th
 
 **3.10.7** Each epic found MUST be one line: its task, then quietly how it stands, its workspace and
 when it began. How it stands MUST be said in the words its row in the sidebar says it in (Section
-3.5.15 for a chat, which says nothing while it rests), there and wherever else `Search` says it.
+3.5.15 for a chat, which says nothing between turns, and `Awaiting input` in words while it
+waits on the user), there and wherever else `Search` says it.
 What was found MUST stand under a quiet heading, `Recents` where nothing narrows the list and
 `Results` otherwise, with which of how many are listed; under it MUST stand `Actions`: `New chat`
 and `Import`, which MUST stay in sight however many were found.
@@ -1232,8 +1323,8 @@ to and the groups it stands in.
 
 **3.11.1.1** Settings MUST be a dialog with two groups of pages: `App` and `Daemon`.
 
-**3.11.1.2** `App` MUST hold `Themes`, `Daemons` and `Notifications`, and MUST be the same whichever
-daemon is shown.
+**3.11.1.2** `App` MUST hold `Themes`, `Daemons`, `Notifications` and `Language`, and MUST be the
+same whichever daemon is shown.
 
 **3.11.1.3** `Daemon` MUST hold `General`, `Accounts`, `Nous`, `Runtimes`, `Backup`, `Workspace`
 and `Usage`, each of the daemon picked above them.
@@ -1244,9 +1335,9 @@ another, MUST be part of the address, and picking it MUST change nothing else on
 #### 3.11.2. Daemon pages
 
 **3.11.2.1** `General` MUST let the user set whether a turn's working is shown, `Harness
-sessions`, whether the sidebar lists them (Section 3.5.21; off until set), `Ai-chan`, the nous a new
-Ai-chan conversation defaults to (none until one is picked), and whether errors are reported, as
-Section 14.3.2 of [CORE] and Section 12 of [CORE] specify.
+sessions`, whether the sidebar lists them (Section 3.5.21; off until set), and whether errors are
+reported, as Section 12 of [CORE] specifies. It MUST NOT offer the nous of Ai-chan, which is picked
+as each conversation is made (Section 3.16.3).
 
 **3.11.2.2** `Accounts` MUST list every account by its harness, way in and the names of the
 variables it sets, and MUST let the user ask again what it runs, correct it, copy it to another
@@ -1311,8 +1402,8 @@ left out.
 **3.11.3.1** `Themes` MUST let the user choose a theme as Section 3.12 specifies.
 
 **3.11.3.2** `Daemons` MUST list Local and every remote daemon with its state, and MUST let the
-user add, edit, connect and remove remote daemons, pair devices and revoke them, as Section 3.13
-specifies.
+user add, edit, connect and remove remote daemons, pair devices and revoke them, and set each
+remote daemon's STUN and TURN servers, as Section 3.13 specifies.
 
 **3.11.3.3** `Notifications` MUST let the user switch each kind of notification on and off --
 `Done`, `Failed`, `Stopped`, `Questions` and `Waiting` -- and switch system notifications on and
@@ -1324,6 +1415,11 @@ leave to show system notifications only when the user presses it.
 **3.11.3.5** The App settings MUST be kept in the browser's storage alone, and MUST NOT be kept in
 any daemon's settings.
 
+**3.11.3.6** `Language` MUST let the user choose `System`, `English`, `简体中文` or `繁體中文`, each
+language named in its own words whatever the page is written in. `System`, the default, MUST be no
+language chosen (Section 3.4.4.16). A choice MUST take effect at once, in every page the browser has
+open, and each page MUST stay on the view it was on.
+
 ### 3.12. Themes
 
 **3.12.1** The page MUST be drawn in Humanize's own typeface and in a theme.
@@ -1331,38 +1427,51 @@ any daemon's settings.
 **3.12.2** The page MUST offer the presets: Humanize's own, `Humanize Green`, `Temperate Gold`,
 `Concordant Scarlet`, `Restrained Crimson`, `Critical Teal`, `Desirous Indigo`, `Peaceful Lilac`,
 `Hateful Silver`, `Devoted Pink`, `Self-Negating Plum`, `Dominant Azure`, `Surviving Jade` and
-`Lamenting Orchid`.
+`Lamenting Orchid`. Written in another language, the page MUST name each by its translation
+(Section 3.4.4.13), `Humanize` kept in Latin script; a theme the user made MUST keep the name it
+was given.
 
-**3.12.3** Under `Auto`, the default, the page MUST follow the browser's light or dark preference
-with a pair, or with one theme picked for light and one picked for dark.
+**3.12.3** The page MUST let the user choose which side of the theme chosen it is drawn in, one of
+`Auto`, `Light` and `Dark`, apart from the theme: `Light` and `Dark` MUST draw that side whatever
+the browser prefers, and `Auto`, the default, MUST draw the light side where the browser prefers
+light and the dark side where it prefers dark, following the preference as it changes. `Humanize
+Green` MUST be chosen where the user chose no theme.
 
-**3.12.4** The user MUST be able to pick one theme to use whatever the browser's preference is.
+**3.12.4** Every theme MUST hold both a light side and a dark side, and the user MUST choose the
+two together, as one theme.
 
-**3.12.5** The user MUST be able to make a theme on `Light` or `Dark`, or a pair of the user's own,
-to duplicate any theme or pair, and to edit any of the user's own.
+**3.12.5** The user MUST be able to make a theme of the user's own, from the theme chosen or from a
+`.hmztheme` file, and to edit and delete any of the user's own. The page MUST offer no other way to
+make one.
 
-**3.12.6** Editing a theme MUST let the user set its name, its base, each of its colours, and a
-picture -- still or moving -- behind the page, the sidebar, the panel and dialogs, each to cover,
-fit or tile its plane; a colour left blank MUST be the base's.
+**3.12.6** Editing a theme MUST let the user set its name and, for each of its two sides, each of
+its colours and a picture -- still or moving -- behind the page, the sidebar, the panel and
+dialogs, each to cover, fit or tile its plane; a colour left blank MUST be `Humanize Green`'s for
+that side.
 
 **3.12.7** The page MUST show a theme as it is changed, and MUST keep each change at once.
 
-**3.12.8** The user MUST be able to export a theme, or a pair with both its themes, as a `.hmztheme`
-file, and to import one, as Section 3.12.13 specifies the file.
+**3.12.8** The user MUST be able to export a theme of the user's own, where it is edited, as a
+`.hmztheme` file, and to import one, as Section 3.12.13 specifies the file.
 
-**3.12.9** The page MUST keep themes in the browser, per browser.
+**3.12.9** The page MUST keep themes in the browser, per browser. What an earlier version of the
+page kept there MUST be kept: a theme of one side as a theme whose other side sets nothing, a side
+chosen alone as its theme chosen and drawn in that side, and a light side and a dark side of two
+themes, chosen apart, as one theme of the user's own holding both, chosen.
 
-**3.12.10** A theme MUST be chosen only in `Settings`, in a browser and in the desktop app alike.
+**3.12.10** A theme and the side it is drawn in MUST be chosen only in `Settings`, in a browser and
+in the desktop app alike.
 
 **3.12.11** Where the system asks for reduced motion, the page MUST hold every moving picture still.
 
 **3.12.12** The page MUST be usable in every theme it offers, including on a screen as narrow as a
 phone's.
 
-**3.12.13** A `.hmztheme` file MUST be one JSON object holding `"hmztheme": 1` and `name`, and
-either `base` (`light` or `dark`) with `colors` and `images` for one theme, or `light` and `dark`,
-each holding `colors` and `images`, for a pair. `colors` MUST be keyed by the page's colour tokens:
-`paper`, `side`, `surface`, `raised`, `ink`, `ink-2`, `ink-3`, `on-ink`, `on-fill`, `link`,
+**3.12.13** A `.hmztheme` file MUST be one JSON object holding `"hmztheme": 1`, `name`, and `light`
+and `dark`, each holding the `colors` and `images` of that side. A file that holds `base` (`light`
+or `dark`) with `colors` and `images` in place of both, as an earlier version wrote for one side,
+MUST be read as a theme whose other side sets nothing. `colors` MUST be keyed by the page's colour
+tokens: `paper`, `side`, `surface`, `raised`, `ink`, `ink-2`, `ink-3`, `on-ink`, `on-fill`, `link`,
 `control`, `control-ink`, `primary`, `on-primary`, `field`, `edge`, `line`, `line-strong`, `hover`,
 `scrim`, `green`, `cyan`, `cyan-ink`, `pink`, `pink-ink`, `lavender`, `gold`, `done`, `fail`, and
 `lane-1` to `lane-6`. `images` MUST be keyed by plane -- `page`, `sidebar`, `panel`, `dialog` --
@@ -1375,7 +1484,10 @@ token, a value that is not a colour, and a picture that is not an image.
 
 **3.13.1** The page MUST keep the remote daemons in the browser's IndexedDB, each as Section 3.8.1
 of [DAEMON] states -- its name, the daemon id it pins and its routes in order -- together with the
-STUN and TURN servers it uses for WebRTC, and MUST NOT keep them in any daemon's settings.
+STUN and TURN servers it uses to reach that daemon over WebRTC, and MUST NOT keep them in any
+daemon's settings. STUN and TURN servers an earlier version of the page kept for every daemon
+together MUST be kept, from the first time the page is opened, for each remote daemon that has a
+`webrtc:` route, and for no other.
 
 **3.13.2** Local MUST NOT be removable or renamable, and a remote daemon MUST NOT be named `local`.
 
@@ -1384,7 +1496,9 @@ letters, digits, `.`, `_` and `-`.
 
 **3.13.4** The `New daemon` form MUST offer three kinds: `Code`, `SSH` and `P2P`. `Code` MUST ask a
 name and a pairing code, MUST claim the code at once over its routes as Section 4.5.7 of [WIRE]
-states, and MUST keep the daemon only where the claim succeeds, saying why otherwise.
+states, and MUST keep the daemon only where the claim succeeds, saying why otherwise. Beside the
+form, the page MUST say in a few sentences what the kind chosen is and what the other machine
+needs for it, and under `SSH` what the mode chosen is.
 
 **3.13.5** `SSH` MUST offer two modes: `SSH Config`, which offers only a dropdown of the hosts of
 Local's ssh config (`runtimes.hosts`, Section 4.18.4.4 of [DAEMON]) not yet added and writes the
@@ -1424,7 +1538,8 @@ one MUST fail.
 `Daemon` settings pages MUST be of the daemon shown.
 
 **3.13.13** The daemon bar MUST show the daemon shown, its host, whether it is reached, and how many
-chats and epics are going on it, an Ai-chan conversation (Section 14 of [CORE]) not counted.
+epics are going on it, a chat (Section 3.5.10) and an Ai-chan conversation (Section 14 of [CORE])
+not counted.
 
 **3.13.14** A click on the daemon bar MUST open its menu: `Daemon`, which opens beside it every
 daemon and its state; then `Settings` and `Usage`; and `Update` where a newer release of hmz is out.
@@ -1445,10 +1560,21 @@ something, with its state.
 **3.13.19** The page MUST offer `SSH` and `P2P` only where its pipe provider can open their routes
 (Section 4.9).
 
-**3.13.20** `Settings` › `Daemons` MUST offer, for each daemon that is `up`, `Pair a device`, which
-makes a pairing code (`pair.create`, Section 4.14.2 of [DAEMON]) and shows it with when it expires,
-offering to copy it; and `Devices`, which lists the devices paired with that daemon and revokes one
-after confirmation (`devices.*`, Section 4.14.3 of [DAEMON]).
+**3.13.20** `Settings` › `Daemons` MUST offer, with each daemon that is `up` and where that daemon
+is listed, `Pair a device`, which makes a pairing code (`pair.create`, Section 4.14.2 of [DAEMON])
+and shows it with when it expires, offering to copy it; and `Devices`, which lists the devices
+paired with that daemon and revokes one after confirmation (`devices.*`, Section 4.14.3 of
+[DAEMON]). The page MUST say what a daemon's devices are, and, of a daemon that is not `up`, that
+its devices are shown once it is reached.
+
+**3.13.21** `Settings` › `Daemons` MUST let the user set, with each remote daemon and where that
+daemon is listed, that daemon's own STUN and TURN servers, each the URLs of one server and, for a
+TURN server, its username and credential, as Section 3.4.9.1 of [FILES] writes one; the page MUST
+refuse what is not a STUN or TURN server, MUST NOT show a credential once written, and MUST keep a
+credential left as it is shown. The page MUST open a daemon's `webrtc:` routes with that daemon's
+servers alone, and with none where it has none (Section 4.7.8 of [WIRE]). For a new `Code` daemon
+the form MUST ask them under `Advanced`, folded away until the pairing code written has a
+`webrtc:` route, and MUST claim the code with them.
 
 ### 3.14. Release notice
 
@@ -1501,33 +1627,76 @@ about: its epic on its daemon, or its chat, at `#/chats/<id>`.
 
 ### 3.16. Ai-chan
 
-**3.16.1** Every view of the page MUST offer a button, drawn as Ai-chan's avatar, the file
-`ai-chan/avatar.png` among the page's files (Section 4.5.3), that opens and closes the **Ai-chan
-drawer** beside the view; the view of a chat MUST offer it as `Ai-chan` in `View options` (Section
-3.6.6.19) in place of that button. The drawer MUST stay open, as it was, while the user goes from
-view to view of one daemon, until it is closed.
+**3.16.1** Every view of the page, the view of a chat and the form of a new chat among them, MUST
+offer, at the end of its bar, a button drawn as Ai-chan's avatar, the file `ai-chan/avatar.webp`
+among the page's files (Section 4.5.3), that opens and closes the **Ai-chan drawer** beside the
+view. The drawer MUST stay open, as it was, while the user goes from view to view of one daemon,
+until it is closed.
 
 **3.16.2** The drawer MUST list every Ai-chan conversation of the daemon shown (Section 4.22.3 of
-[DAEMON]), newest first, each with its title, its scope, its nous, its preset, whether its network
-is on, and whether a turn is open, it is between turns or it has folded away; and MUST offer `New`
-and, on each conversation, `Forget`, which asks for confirmation and then calls `aichan.forget`.
+[DAEMON]) as a chat app lists its conversations, each a row of: one of Ai-chan's sixteen faces, the
+files `ai-chan/face-01.webp` to `ai-chan/face-16.webp` among the page's files, the same face for a
+conversation wherever and whenever it is drawn; its title; and under the title, on one line cut
+short with an ellipsis, its `latest`, or `typing…` while its turn is open. A row MUST NOT say the
+conversation's scope, its nous or its preset, nor in words whether it is between turns or has
+folded away, and MUST hold no button of its own. The drawer MUST offer `New`, and with no
+conversation to list MUST say so and offer to make one.
 
-**3.16.3** `New` MUST open a form in the drawer that asks for the scope -- `Daemon`, `Workspace` or
-`Epic`, defaulting as Section 14.3.4 of [CORE] states to the epic, else the workspace, the view
-shows --, the workspace and the epic the scope names, the nous (defaulting to the `ai_chan`
-setting), the preset (`read-only` or `danger-full-access`, defaulting to `read-only`), `Network`
-(off by default) and the task; Enter in the box for the task MUST make the conversation by
-`aichan.create` and open it.
+**3.16.2.1** Each row MUST offer a menu -- opened by the pointer's secondary button, by the menu key
+and by a finger resting on the row -- of `Pin` or `Unpin`, `Mark as read` or `Mark as unread`, and
+`Delete`; and a row swiped to the left by a finger MUST show the same three beside it. `Delete`
+MUST ask for confirmation and then call `aichan.forget`.
+
+**3.16.2.2** The page MUST remember in this browser, by daemon, which conversations are pinned,
+which are marked unread, and up to when each was read, and MUST forget what it remembers of a
+conversation that is gone. A conversation MUST be unread while it is marked so, or while its
+`updated` is later than when it was last read, and MUST be read once it is opened or marked read.
+An unread row MUST show its title in bold and a dot; a pinned one a mark that it is; and one whose
+chat the drawer has seen end failed a mark of that.
+
+**3.16.2.3** The pinned conversations MUST be listed first, and then every conversation by its
+`updated`, the latest first.
+
+**3.16.3** `New` MUST draw, in the drawer, a conversation not made yet as Section 3.16.4 draws one
+that is: a chat with nothing said in it, titled `New conversation`, and no form. Under its box, as
+under a new chat's (Section 3.8.19, Section 3.8.20), MUST stand two chips: the nous, picked from
+the chip a new chat picks its own from and set to begin with to the nous last used, the `ai_chan`
+setting (Section 14.3.2 of [CORE]); and the permission, the chip a chat's permission is picked from
+(Section 3.6.6.14), which MUST offer the two presets, `Read only` (`read-only`, the default) and
+`Full access` (`danger-full-access`), and under them the scope -- `Daemon`, `Workspace`, of the
+workspace the view shows, else the first the daemon lists, or `Epic`, of the epic the view shows,
+defaulting as Section 14.3.4 of [CORE] states --, and MUST say the scope picked after the preset.
+A scope with nothing to name, an `Epic` while the view shows none, MUST be shown and MUST NOT be
+picked. The drawer MUST NOT ask for a title or for the network, and the page MUST NOT remember the
+preset or the scope from one conversation to the next.
+
+**3.16.3.1** The first line said in that box MUST make the conversation by `aichan.create`, with
+the scope, the nous and the preset picked and that line as its `task`, and the drawer MUST go on
+drawing it in the same view, as Section 3.16.4 states.
 
 **3.16.4** Opening a conversation MUST draw it in the drawer as a chat (Section 8.8 of [CORE]),
 attached to its slot by `epic.attach`, carrying it on where it has folded away (Section 14.8.5 of
-[CORE]), with Ai-chan's answers beside her avatar and a box that says the next line to her.
+[CORE]), as a chat app draws one: Ai-chan's answers in bubbles at the left, beside the face its row
+has, the user's lines in bubbles at the right, a bubble of hers holding three dots at its foot
+while her turn is open and she asks the user nothing in it, and a box that says the next line to
+her, under which the two chips of Section 3.16.3 MUST say the nous, the preset and the scope it was
+made with, and MUST NOT be picked from. The drawer MUST NOT name a session, MUST NOT say in words
+that the conversation waits on the user or has folded away, and MUST NOT show what it cost. Until
+the conversation's host has answered, the drawer MUST say that it is being opened, and, where
+attaching to it was refused, why; of a conversation carried on, what was said before MUST be drawn
+without what Ai-chan was told ahead of the user's first line (Section 14.6.4 of [CORE]).
+
+**3.16.4.1** Beside the conversation's title the drawer MUST offer a button drawn as a pencil,
+named `Rename`, quieter than the title. Pressing it, and nothing else, MUST put a field holding
+the title in the title's place: Enter and leaving the field MUST record what it holds by
+`aichan.rename` (Section 4.22.7 of [DAEMON]), Escape MUST leave the title as it was, and the list
+MUST show the title recorded.
 
 **3.16.5** The drawer MUST show each tool Ai-chan calls, with the method and how it was answered,
 on one line the user can open (Section 14.7.3 of [CORE]).
 
-**3.16.6** While Ai-chan's turn is open, the drawer MUST offer `Stop`, which stops that turn
-without asking for confirmation (Section 14.8.3 of [CORE]).
+**3.16.6** While Ai-chan's turn is open, the button of the drawer's box MUST be `Stop`, as a chat's
+is, which stops that turn without asking for confirmation (Section 14.8.3 of [CORE]).
 
 **3.16.7** On a screen as narrow as a phone's, the drawer MUST cover the view, and Escape and a
 button MUST close it.
@@ -1539,7 +1708,10 @@ button MUST close it.
 **3.17.1.1** The page MUST offer, for every epic a host holds, the Environments view of its envs, as
 Section 7.13 of [CORE] specifies, at the address of the epic's host, `#/live?workspace=…&slot=…`,
 with `envs/` before `live` and the query parameters `env`, the `id` of the env shown (Section
-4.24.2 of [DAEMON]), and `tab`, the panel shown: `files`, `terminal` or `changes`.
+4.24.2 of [DAEMON]), and `tab`, the panel shown: `files`, `terminal` or `changes`. A chat's address
+MUST also carry `chat`, the chat's id: where the host it names has gone, the view MUST carry the
+chat on with nothing said (Section 3.6.6.4), MUST show its envs on the host that then holds it,
+and MUST put that host in the address.
 
 **3.17.1.2** The view MUST list the envs of the snapshot `envs` as a tree: grouped by role, each
 derived env under the env it was derived from, each named by its chain and marked where it is
@@ -1740,7 +1912,8 @@ and `X-Frame-Options: DENY`, but `faces/frame.html`, which MUST carry `X-Frame-O
 **4.5.2** A refusal MUST carry `{"error": "<sentence>"}`, `application/json; charset=utf-8`.
 
 **4.5.3** `GET /` MUST serve `index.html`, and `GET /<path>` the file of that path among the page's
-files, with the media type of its extension (`.html`, `.js`, `.css`, `.svg`, `.png`, `.json`).
+files, with the media type of its extension (`.html`, `.js`, `.css`, `.svg`, `.png`, `.webp`,
+`.json`).
 
 **4.5.4** A path whose components are not each one or more letters, digits, `_` or `-`, whose last
 component lacks one extension of lowercase letters or digits, or that is longer than 200 characters,

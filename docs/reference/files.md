@@ -107,7 +107,7 @@ workspace of every conversation of the scope `daemon`.
 | Property | Value |
 | --- | --- |
 | Mode | `0700`, and `0700` for each `<id>/` |
-| `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `network`, `slot`, `record` (the name of the conversation's own [chat](#chats), `""` before it has one; of one an earlier Humanize began, its epic's name), `created` (UTC). Mode `0600`, replaced atomically, written by the daemon alone |
+| `conversations.yaml` | a YAML list, one mapping per conversation not forgotten, in the order made: `id`, `title`, `scope`, `workspace`, `epic`, `nous`, `preset`, `slot`, `record` (the name of the conversation's own [chat](#chats), `""` before it has one; one an earlier Humanize began as an epic keeps the name that epic had), `created` (UTC), `latest` (what was last said in it, cut short) and `updated` (UTC, when that was said), which an entry an earlier Humanize wrote lacks until [`aichan.list`](/reference/daemon#aichan-methods) writes them; such an entry may also hold `network`, which is ignored: every conversation may reach the network. Mode `0600`, replaced atomically, written by the daemon alone |
 | `forgotten.yaml` | a YAML list of the `record` of each conversation forgotten, in the order forgotten, which keeps each off every list of chats and of epics. Mode `0600`, replaced atomically, written by the daemon alone |
 | `<id>/` | that conversation's scratch directory, where her CLI works; made with the conversation |
 | Removed | an entry and its `<id>/` by `aichan.forget`, never what its `record` names; the whole of `H/ai/` by you, while no daemon of this home runs, forgets every conversation, and the chat of each is then listed as any other |
@@ -368,8 +368,18 @@ is a new directory holding a copy of `sessions/`. A chat made from a harness ses
 directory holding, under `sessions/<harness>/`, a copy of that session's files as the CLI lays
 them out, with an `opened` for it and an `ended`: the CLI's own files are only read.
 
-A chat an earlier Humanize began is an epic under `H/epics/`, whose `began` gives `kind`
-`chat`: it stays there, read as an epic, and is not a chat.
+A chat an earlier Humanize began is an epic directory under `H/epics/<workspace>/`, whose
+`began` gives `kind` `chat` or, earlier still, no `kind` and the `flow` `chat`. Each time the
+daemon starts, before it serves, it moves every one of them no process holds to
+`H/chats/<workspace>/` under the same name: `epic.jsonl` is renamed `chat.jsonl` in place,
+then the directory is renamed, and nothing else of it is touched -- the record keeps every
+line an epic's had, `kind`, `flow` and `resumable` among the keys of its `began`, and the
+directory whatever else it held. A directory left with `chat.jsonl` and no `epic.jsonl` under
+`H/epics/` is a move a killed daemon did not finish, and the next start finishes it. One
+whose `.held` is locked, one whose name a chat already has, and one holding both records are
+left for a later start and are no chat until then; `daemon.log` says each, with why. An
+archive or a [backup](/user/backups#chats) holding such an epic is read in among the chats
+the same way.
 
 ## Caches
 

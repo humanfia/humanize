@@ -3,6 +3,7 @@
 // the one picked. Kept apart from the page, as plain functions of what they are given, so that the
 // selects of a form and the menu of a chip offer the same, and are tested alone.
 
+import { t } from '../i18n.js'
 import { effortName, harnessName, modelName, modelRoute } from '../names.js'
 
 /** An agent as `-a` spells it, taken apart: `cli[@account]/model[:effort]`. */
@@ -51,10 +52,10 @@ export function offering(chosen, clis, names, { waiting = () => false, why = () 
   return {
     clis: [
       ...names.map((one) => ({ value: one, label: harnessName(one) })),
-      ...(chosen.cli && !names.includes(chosen.cli) ? [{ value: chosen.cli, label: `${harnessName(chosen.cli)} (not installed)` }] : []),
-      ...(!names.length && !chosen.cli ? [{ value: '', label: 'None installed' }] : []),
+      ...(chosen.cli && !names.includes(chosen.cli) ? [{ value: chosen.cli, label: t('{name} (not installed)', { name: harnessName(chosen.cli) }) }] : []),
+      ...(!names.length && !chosen.cli ? [{ value: '', label: t('None installed') }] : []),
     ],
-    accounts: accounts.length ? accounts.map((one) => ({ value: one.name, label: one.name || 'Local' })) : [{ value: '', label: 'Local' }],
+    accounts: accounts.length ? accounts.map((one) => ({ value: one.name, label: one.name || t('Local') })) : [{ value: '', label: t('Local') }],
     models: models.map((one) => ({ value: one.name, label: modelName(one.name) })),
     /** Whether the model chosen is one nobody listed. */
     unlisted: Boolean(chosen.model) && !found,

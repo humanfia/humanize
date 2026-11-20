@@ -214,19 +214,19 @@ Each view is an address after `#`, so it can be kept and opened again:
 | --- | --- |
 | `#/new[?workspace=&flow=&resume=<name>]` | A new epic, **Chat** or **Flow**: in the workspace picked (where `hmz web` started by default, or the first listed whose directory is there where that one is gone), a [chat](/user/chat) with the agent that workspace remembers, the flow picked, or the epic named picked up. The page opens here. |
 | `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own -- or the chat going on a chat's; its address becomes `#/epics/<name>` once it is written down -- a chat's, `#/chats/<id>`. |
-| `#/chats/<id>` | One chat, by its id: its conversation, read with `chat.get`; live where a host holds it. |
+| `#/chats/<id>` | One chat, by its id: its conversation, read with `chat.get`, and followed on its host where one holds it. Never drawn as going or at rest: where no host holds it, what is said in it carries it on (`chat.start` with `resume`), and opening **Terminal**, **Changes** or **Files** carries it on with nothing said (`chat.start` with `resume` and an empty `task`), then follows that host. |
 | `#/harness/<harness>/<id>?workspace=<path>` | One [harness session](/reference/daemon#harness-sessions) of that workspace, read with `chat.harness.get` and only read; **Continue in chat** calls `chat.harness.adopt` and opens the chat it answers, and is offered only where the row is `continuable`: otherwise the view says `A session of <harness> cannot be continued in a chat.` |
 | `#/epics/import?path=<file>` | Imports the `.hmzepic` at that whole path -- in Humanize Desktop as it is opened, read from the app and sent in chunks to the daemon shown, as one picked is; in a browser, from the daemon's machine as `runs.import` `{path}` does, which any page elsewhere could have sent here, once **Import** under the path is pressed -- then stands in for itself with `#/epics/<name>/exomyth`, its [Exomyth](/user/web#exomyth) -- going back does not import it again; a refusal is said in its place, with the epic's own address where it is here already. What the desktop app is to open a `.hmzepic` with. |
-| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. An epic an earlier Humanize recorded for a chat is one of these, its flow said as `chat`, and only read. |
+| `#/epics/<name>` | One epic, by its directory's name, drawn as a graph of its agents; live where it is the epic going. One that names no epic and names a chat -- a chat an earlier Humanize recorded as an epic, [moved among the chats](/user/chat#earlier-chats) since -- becomes `#/chats/<id>`. |
 | `#/epics/<name>/agents/<role>` | The same graph, with that agent picked out. |
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs/<role>` | One agent's log, across its sessions; or one person's, what they are asked and answer. `#/epics/<name>/logs`, with neither, opens `#/epics/<name>`. |
 | `#/epics/<name>/exomyth[?tab=flame]` | The epic's [Exomyth](/user/web#exomyth): its timeline, or its flame graph. |
-| `#/flows[?workspace=&flow=]` | The flows on offer, one opened; with `workspace`, that folder's own flows too. |
+| `#/flows[?flow=]` | The flows on offer on the daemon, one opened. The page names no folder: a `workspace` in the address is dropped. |
 | `#/flows?tab=verses[&verse=]` | The flowverses, the one named opened, or the first. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
-| `#/settings/<page>[?daemon=&days=]` | A dialog: `themes`, `daemons` or `notifications`, the page's own; or `general`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`, of the daemon `daemon` names (the one shown without it); `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
+| `#/settings/<page>[?daemon=&days=]` | A dialog: `themes`, `daemons`, `notifications` or `language`, the page's own; or `general`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`, of the daemon `daemon` names (the one shown without it); `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
 | `#/delete/<id>[?daemon=]` | A dialog asking before a chat is deleted: `Cancel` or `Delete`. Of the daemon `daemon` names (the one shown without it). |
 
 Every address above is of one daemon. `#/@<name>/<view>` -- `#/@local/new`, `#/@gpu/epics/<name>`
@@ -236,12 +236,20 @@ to another daemon's address draws the view and the sidebar again, of that daemon
 what the page followed of the last. What is told, the daemons and the page's own settings
 are the same whichever daemon is shown.
 
-Every view's bar carries Ai-chan's avatar at its right, the page's file `ai-chan/avatar.png`, a button that
+Every view's bar -- a chat's and a new chat's among them -- ends with Ai-chan's avatar, the
+page's file `ai-chan/avatar.webp`, a button that
 opens and closes the [Ai-chan drawer](/user/web#ai-chan) beside it, kept open from view to view
-of one daemon. The drawer lists that daemon's conversations (`aichan.list`), makes one
-(`aichan.create`) from its **New** form, forgets one (`aichan.forget`) after asking, and draws
-one as a chat attached to its `ai:` slot (`epic.attach`), its **Stop** being `epic.stop`. On a
-phone's width it covers the view.
+of one daemon. The drawer lists that daemon's conversations (`aichan.list`, read every 3
+seconds while it is open), each a row of one of the faces `ai-chan/face-01.webp` to
+`face-16.webp` -- picked by the conversation's `id`, so the same in every browser --, its
+`title` and its `latest`, or `typing…` while its `state` is `running`; pinned rows first, then
+by `updated`. **New** draws a conversation not made yet as a chat with nothing said in it;
+the first line said there makes it (`aichan.create`, with the `nous` its nous chip holds,
+which starts on `settings.get`'s `ai_chan`, and the `preset` and `scope` its permission chip
+holds). It deletes one (`aichan.forget`) from the row's menu after asking, renames one
+(`aichan.rename`) from the pencil beside its title, and draws one as a chat attached to its
+`ai:` slot (`epic.attach`), the box's **Stop** being `epic.stop`. On a phone's width it covers the view, and a
+row swiped left shows its menu's three choices beside it.
 
 ### What the page keeps {#kept}
 
@@ -250,10 +258,10 @@ origin -- which is why `hmz web` keeps its port:
 
 | Where | What |
 | --- | --- |
-| IndexedDB `hmz-daemons` | The remote daemons, each its name, the daemon id it pins (`""` until it is first reached over a trusted route) and its routes in order; the STUN and TURN servers WebRTC uses; and the browser's own certificate, which a daemon paired with it knows it by. |
+| IndexedDB `hmz-daemons` | The remote daemons, each its name, the daemon id it pins (`""` until it is first reached over a trusted route), its routes in order and, where it has any, the STUN and TURN servers its `webrtc:` routes are opened with; and the browser's own certificate, which a daemon paired with it knows it by. Version 2: version 1 kept one list of servers for every daemon, which is moved, the first time the page is opened, onto each daemon with a `webrtc:` route. |
 | IndexedDB `hmz-notifications` | Where each reached daemon's notices (`notices.subscribe`) are taken up again; and which kinds are told, and whether the system shows them. No list of notifications is kept. |
 | IndexedDB `hmz` | The pictures of the [themes](/user/web#themes) made here. |
-| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-theme` (and under Auto `hmz-theme-light` and `hmz-theme-dark`), the themes made here as `hmz-themes`, a sidebar folded away as `hmz-sidebar` and how wide it was dragged as `hmz-side-wide`, how wide the lists of an [environment](/features/environments) were dragged as `hmz-envs-tree`, `hmz-files-side` and `hmz-changes-side`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which of its groups folded away as `hmz-shut`, how its list is grouped, sorted and filtered as `hmz-list`, which epics are pinned as `hmz-pinned` and which marked unread as `hmz-unread`, whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
+| `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-pair` (absent for Humanize Green) and which side of it is shown as `hmz-mode` (`light` or `dark`; absent under **Auto**), the themes made here as `hmz-themes` and the colours of a preset in use as `hmz-painted`, the [language](/user/web#language) chosen as `hmz-language` (`en`, `zh-Hans` or `zh-Hant`; absent under **System**), a sidebar folded away as `hmz-sidebar` and how wide it was dragged as `hmz-side-wide`, how wide the lists of an [environment](/features/environments) were dragged as `hmz-envs-tree`, `hmz-files-side` and `hmz-changes-side`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which of its groups folded away as `hmz-shut`, how its list is grouped, sorted and filtered as `hmz-list`, which epics are pinned as `hmz-pinned` and which marked unread as `hmz-unread`, what is kept of [Ai-chan's](/user/web#ai-chan) conversations as `hmz-aichan-marks` (by daemon: the ids `pinned`, marked `unread` and seen `failed`, and `seen`, the `updated` each was read up to; an id `aichan.list` no longer answers is dropped), whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
 
 Another browser, or another port, starts with none of it: add the daemons there again.
 

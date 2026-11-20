@@ -52,7 +52,8 @@ its sessions beside it -- by the same code: one assistant and one conversation, 
 flow, params, envs or budget written down. It is the one record that is opened again: a chat
 carried on is the same conversation, and so the same directory, which says it was `reopened`
 rather than beginning twice, and says it was `set` each time something of it is. A chat an
-earlier Humanize wrote as an epic of kind `chat` still reads back as that epic. What a
+earlier Humanize wrote as an epic of kind `chat` is moved among the chats, as it stands, by
+:func:`migrated`. What a
 resumable flow keeps is the engine's journal
 (:mod:`hmz.runtime.flowing.journaling`), written into the epic of the run keeping it; a run
 picking it up is handed a copy of it in an epic of its own, which the engine compacts and goes
@@ -111,6 +112,7 @@ __all__ = [
     "adopted",
     "called",
     "chats",
+    "chatted",
     "ending",
     "epics",
     "foreign",
@@ -121,6 +123,7 @@ __all__ = [
     "harnessed",
     "journal",
     "logs",
+    "migrated",
     "note",
     "opened",
     "picks_up",
@@ -189,7 +192,8 @@ ENDINGS = (RUNNING, "done", "failed", "stopped", UNFINISHED)
 #: The kind of an epic a flow runs, and of every epic whose record says no kind.
 FLOW = "flow"
 
-#: The kind of an epic an earlier Humanize wrote for a chat, and of every chat's record.
+#: The kind of every chat's record, and of the epic an earlier Humanize wrote for a chat, which
+#: :func:`migrated` moves among the chats.
 CHAT = "chat"
 
 #: The file a chat's record is written to, inside the chat's directory (Section 8 of [CORE]).
@@ -332,8 +336,7 @@ class Ran(NamedTuple):
 
     Attributes:
       at: The epic's directory, which is what everything about it is under.
-      flow: The flow that was run, as it was named; "" for a chat, but for one an earlier
-        Humanize wrote, which was of the flow `chat`.
+      flow: The flow that was run, as it was named; "" for a chat.
       task: What its agents were asked to do.
       workspace: Where it ran.
       began: When it started.
@@ -371,8 +374,9 @@ class Ran(NamedTuple):
         under in settings.
       backed: How its last backup to each target went, by target: `at`, `ok`, `error` --
         "" where it went -- and `why` it was backed up.
-      kind: :data:`FLOW`, or :data:`CHAT` for a chat's record and for an epic an earlier
-        Humanize wrote for a chat: one whose record says so, or one of the flow `chat`.
+      kind: :data:`FLOW`, or :data:`CHAT` for a chat's record, and for the record of an epic
+        an earlier Humanize wrote for a chat -- one that says so, or one of the flow `chat` --
+        wherever it is.
       prefer: A chat's own preference (Section 8.9.10 of [CORE]), as it was last set, or ""
         where it goes by the person's.
       permission: A chat's permission (Section 8.3.9 of [CORE]), as it was last set, or ""
@@ -421,7 +425,7 @@ class Ran(NamedTuple):
 
     @property
     def chat(self) -> bool:
-        """Whether this is a chat's record, or an epic an earlier Humanize wrote for one."""
+        """Whether this is a chat's record, as it is written now or as an earlier Humanize did."""
         return self.kind == CHAT
 
     @property
@@ -877,10 +881,7 @@ class Epic:
             # sort in: which run a flow is picked up from is the last of them, and two named
             # alike would otherwise be ordered by the hex, which is to say at random.
             / f"{_stamp()}-{uuid.uuid4().hex[:6]}",
-            # As the directory carried on has it: one an earlier Humanize wrote is an epic's.
-            (journal(picked_up).name if reopened and picked_up else CHATTED)
-            if kind == CHAT
-            else JOURNAL,
+            CHATTED if kind == CHAT else JOURNAL,
             (workspace or Path.cwd()).resolve(),
             flow,
         )
@@ -1329,6 +1330,102 @@ def chats(workspace: Path | str | None = None) -> list[Path]:
     return sorted(found, key=lambda one: one.name)
 
 
+def chatted(at: Path) -> bool:
+    """Whether the record one directory holds is a chat's, wherever the directory is.
+
+    Args:
+      at: A chat's directory, or an epic's.
+
+    Returns:
+      True for one whose record is :data:`CHATTED`, and for one whose record is an epic's
+      that an earlier Humanize began for a chat (Section 6.5.19 of [FILES]).
+    """
+    record = journal(at)
+    if record.name == CHATTED:
+        return record.is_file()
+    try:
+        with record.open(encoding="utf-8", errors="replace") as lines:
+            for line in lines:
+                try:
+                    said = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(said, dict):
+                    continue
+                began = cast("dict[str, Any]", said)
+                if began.get("event") == "began":
+                    return _kind(began) == CHAT
+    except OSError:
+        pass
+    return False
+
+
+def migrated() -> tuple[list[str], dict[str, str]]:
+    """Moves every chat an earlier Humanize wrote as an epic among the chats (Section 6.12.14).
+
+    Each is the directory it was, under `chats/` of the same workspace and by the same name,
+    and its record the file it was, named :data:`CHATTED`: nothing in it is rewritten. One a
+    process holds is left for the next time, as is one whose name a chat already has. A move
+    cut short -- the record renamed and the directory not yet moved -- is finished by the
+    next, and a second one finds nothing to move.
+
+    Returns:
+      The names of the chats moved, in the order their directories sort, and why each one
+      left was, by its name.
+    """
+    moved: list[str] = []
+    left: dict[str, str] = {}
+    kept = home() / "epics"
+    try:
+        workspaces = sorted(kept.iterdir())
+    except OSError:
+        return moved, left
+    for workspace in workspaces:
+        try:
+            # Not what is staged there (Section 6.11.4 of [FILES]), which is dotted.
+            found = sorted(
+                one
+                for one in workspace.iterdir()
+                if not one.name.startswith(".") and one.is_dir()
+            )
+        except OSError:
+            continue
+        for at in found:
+            if at.is_symlink() or not chatted(at):
+                continue
+            into = home() / "chats" / workspace.name / at.name
+            if into.exists():
+                left[at.name] = f"a chat is already at {into}"
+                continue
+            # Held for the move, as a run holds it: one going is never moved under its host.
+            held = _hold(at / _HELD)
+            if held is None:
+                left[at.name] = "it is going"
+                continue
+            own = at / JOURNAL
+            renamed = False
+            try:
+                if own.is_file():
+                    if (at / CHATTED).exists():
+                        left[at.name] = f"it holds both {JOURNAL} and {CHATTED}"
+                        continue
+                    own.rename(at / CHATTED)
+                    renamed = True
+                into.parent.mkdir(parents=True, exist_ok=True)
+                at.rename(into)
+            except OSError as why:
+                left[at.name] = why.strerror or str(why)
+                if renamed:
+                    # As it was, and so an epic to move the next time.
+                    with contextlib.suppress(OSError):
+                        (at / CHATTED).rename(own)
+                continue
+            finally:
+                os.close(held)
+            moved.append(at.name)
+    return moved, left
+
+
 def forked(chat: Path) -> Path:
     """A new chat that goes on from a copy of the conversation one chat has kept so far.
 
@@ -1747,7 +1844,8 @@ def read(epic: Path) -> Ran | None:
     backup = None if _here(events) else began.get("backup")
     return Ran(
         at=epic,
-        flow=str(began.get("flow") or ""),
+        # A chat is of no flow, whatever an earlier Humanize wrote one as.
+        flow="" if kind == CHAT else str(began.get("flow") or ""),
         task=task,
         workspace=str(began.get("workspace") or ""),
         began=str(began.get("at") or ""),

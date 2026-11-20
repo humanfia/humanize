@@ -632,7 +632,7 @@ error.
 
 | Option | Value | Asks | Writes to stdout |
 | --- | --- | --- | --- |
-| <span id="chat-list"></span>`--list` | flag | `chat.list` with this workspace, a page of 200 at a time | one line per chat that is not archived, newest first: `<id>  <state>  <title>`, the title on one line and cut to 60 characters |
+| <span id="chat-list"></span>`--list` | flag | `chat.list` with this workspace, a page of 200 at a time | one line per chat that is not archived, newest first: `<id>  <state>  <title>`, the title on one line and cut to 60 characters; `<state>` is `turn`, `asking`, `failed`, or `ready` otherwise |
 | `--archived` | flag, with `--list` only | `chat.list` with `archived` | the archived chats alone, the same way |
 | <span id="chat-rename"></span>`--rename` | `CHAT`, then the title as the one positional argument (not blank) | `chat.rename` | the chat's line, as it then stands |
 | <span id="chat-fork"></span>`--fork` | `CHAT` | `chat.fork` | the id of the new chat |
@@ -649,7 +649,7 @@ stdin, in either case. Where stdin is no terminal it reads nothing and says
 | --- | --- |
 | `0` | Done. |
 | `1` | `--delete` was not answered yes: `hmz chat: chat <id> was not deleted` on stderr. Or the daemon could not be reached. |
-| `2` | A usage error; or the daemon refused it, `hmz chat: error: <reason>` on stderr: `There is no chat <id>.`, a chat still going that is to be deleted, a chat whose turn is open that is to be forked. |
+| `2` | A usage error; or the daemon refused it, `hmz chat: error: <reason>` on stderr: `There is no chat <id>.`, a chat whose turn is open that is to be deleted or forked. |
 
 ## `hmz web` {#hmz-web}
 

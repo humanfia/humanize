@@ -62,12 +62,12 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back** and **Forward**; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark at its far end -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Awaiting input** while it asks, **Failed** where it failed, and nothing once it rests; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
-| **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A plain heading at the top, the chats that wait on you listed in the middle, and at the foot a box for the first message or the task, with where it runs under it at the left and, for an epic, the flow picked beside the heading | Start it; a chat's model and what it may touch are picked from the chips under the box at its right, and **Options** under an epic's box sets the rest up. See [Starting an epic](#starting-an-epic) |
+| **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back** and **Forward**; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark at its far end -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Failed** where it failed, a small dot -- the one an unread row has, said as `Awaiting input` where you point at it -- while it waits on you, and nothing between turns; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
+| **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A plain heading at the top, the chats that wait on you listed in the middle, and at the foot a box for the first message or the task. A chat keeps where it runs under the box at the left, on one chip, **Environment**; an epic has the flow picked beside the heading and everything it is set up with in the middle of the page, its **Environment** first | Start it; a chat's model and what it may touch are picked from the chips under the box at its right, and an epic's set-up is in sight over its box. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
-| **Flows** | **Installed**: a card for each flow on offer -- those installed from a flowverse and your own, whatever the directory -- its release and any newer one, and, one chosen, what it declares under the cards. The page picks no directory: a folder's **Flows here** opens it on that folder, named in the bar, with the folder's own flows listed too. **Flowverses**: a tab for each index flows are installed from, **Official** first and open at once, showing where it is fetched from and every release it lists | Start one, update or uninstall it, and, opened on a folder, copy it into that folder -- unless its directory was deleted, which the bar says as **missing**; install, switch or uninstall a release; fetch a flowverse again with the arrow after its name, add one with **+** after the tabs, or remove one. A row of tabs is one stop of <kbd>Tab</kbd>: <kbd>←</kbd> <kbd>→</kbd>, <kbd>Home</kbd> and <kbd>End</kbd> move among its tabs, <kbd>Enter</kbd> picks |
-| **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | A box over the middle of the window: the field, the tabs **All**, **Chats** and **Epics**, then every chat and epic a line apiece, newest first, each saying how it stands in the words its row in the sidebar says it in -- a chat that rests says nothing -- and under them **Actions**, which stay in sight however many were found. Once you move to one, by key or pointer, a line over the foot says the rest of it: its folder, flow, agents, what it spent and how long it took; on a phone or a touch screen that stands under each | Type a word of the task; <kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens (what you typed, even before it is listed), <kbd>Alt</kbd> <kbd>Enter</kbd> (<kbd>⌥</kbd> on a Mac) or the menu key opens the menu of the one you are on, <kbd>Esc</kbd> closes, and gives the keys back to where they were -- the box you were typing into; <kbd>Tab</kbd> stays within it; <kbd>←</kbd> <kbd>→</kbd> change the tab and <kbd>/</kbd> opens **Filters** -- how it went, folder, and, off **Chats**, flow -- while the field is empty; **New chat** or **Import** under **Actions**. Search leaves no step behind: **Back** after it is closed goes to what was open before, and from a chat it opened to the view it was opened over. See [Importing an epic](#importing-an-epic) |
+| **Flows** | **Installed**: a card for each flow on offer -- those installed from a flowverse and your own, whatever the directory -- its release and any newer one, and, one chosen, what it declares under the cards. The page is the daemon's and no folder's: it lists no folder's own flows, which [a new epic](#starting-an-epic) in that folder offers. Where none is installed yet it says so, with **Browse Flowverses**. **Flowverses**: a tab for each index flows are installed from, **Official** first and open at once, showing where it is fetched from and every release it lists | Start one, update or uninstall it; install, switch or uninstall a release; fetch a flowverse again with the arrow after its name, add one with **+** after the tabs, or remove one. A row of tabs is one stop of <kbd>Tab</kbd>: <kbd>←</kbd> <kbd>→</kbd>, <kbd>Home</kbd> and <kbd>End</kbd> move among its tabs, <kbd>Enter</kbd> picks |
+| **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | A box over the middle of the window: the field, the tabs **All**, **Chats** and **Epics**, then every chat and epic a line apiece, newest first, each saying how it stands in the words its row in the sidebar says it in -- a chat between turns says nothing -- and under them **Actions**, which stay in sight however many were found. Once you move to one, by key or pointer, a line over the foot says the rest of it: its folder, flow, agents, what it spent and how long it took; on a phone or a touch screen that stands under each | Type a word of the task; <kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens (what you typed, even before it is listed), <kbd>Alt</kbd> <kbd>Enter</kbd> (<kbd>⌥</kbd> on a Mac) or the menu key opens the menu of the one you are on, <kbd>Esc</kbd> closes, and gives the keys back to where they were -- the box you were typing into; <kbd>Tab</kbd> stays within it; <kbd>←</kbd> <kbd>→</kbd> change the tab and <kbd>/</kbd> opens **Filters** -- how it went, folder, and, off **Chats**, flow -- while the field is empty; **New chat** or **Import** under **Actions**. Search leaves no step behind: **Back** after it is closed goes to what was open before, and from a chat it opened to the view it was opened over. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
 The foot of the sidebar is one row: the [daemon bar](#daemon-bar) and, beside it, a gear that
@@ -88,15 +88,23 @@ the sidebar is a drawer behind the button in the corner: open, it holds the keys
 [Ai-chan's drawer](#ai-chan) each cover the view, so one is open at a time: opening one closes
 the others, and going to another view closes the sidebar's.
 
+A list with nothing in it yet says so where the list would be, with a button that gets something
+there: **Browse Flowverses** where no flow is installed, **Fetch** or **Add flowverse** on a
+flowverse that lists none, **New chat** or **New epic** in **Search**, and in **Settings**
+**Add target**, **New nous**, **Add runtime** and **Add account**, each of which goes to the form
+under the list. In **Search**, where nothing matches what you typed or filtered for, the button is
+**Clear filters**. None of them writes anything by itself.
+
 ### The list {#the-list}
 
 **Group and sort**, on any heading of the list, arranges it; the browser keeps what you chose.
-A heading is always there to hold it: with nothing to show, a group says **Nothing here yet**.
+A heading is always there to hold it: with nothing to show, a group says **Nothing here yet** over a
+**New chat** button that starts a chat in it.
 
 | Choice | What it does |
 | --- | --- |
 | **Group by** | **Folder** (as it starts): a heading per directory, and **No folder** last for what has none. **Date**: **Today**, **Yesterday**, **Last 7 days**, **Last 30 days**, **Older**. **None**: one list. By date or as one list, the directories stand last under **Folders**, a row each: click one for a new chat there, and right-click it, or press **More options**, for what a directory's heading offers |
-| **Sort by** | **Last updated** (as it starts): what is going first, then by when each ended. **Created**: by when each began |
+| **Sort by** | **Last updated** (as it starts): an epic going first, then by when each ended -- a chat by when it was last said to or answered, whether or not the daemon holds it now. **Created**: by when each began |
 | **Show** | **Chats** and **Epics**, each on or off: off, the list leaves them out |
 | **Reset to defaults** | By folder, last updated first, chats and epics both |
 
@@ -238,16 +246,24 @@ between turns it is your next turn, and while the agent asks something mid-turn 
 that, the answers it offers buttons under its question, at the end of the conversation. It has no graph, no agents
 or sessions under its row in the sidebar, no **Exomyth**, **Log** or **People**, and nothing
 that ends it: it is `running` while its agent answers and `stopped` once the turn ends -- asking,
-blinking, until you have looked at it, even once it has folded away. A chat is no epic: it is
+blinking, until you have looked at it. A chat is never shown as going or at rest: it is
+always ready, to be said something and for its terminal, its changes and its files to be opened.
+A chat is no epic: it is
 kept as a record of its own, listed beside the epics, and its address is `#/chats/<id>`. Every
 chat is its own, beside every other chat and flow of its directory: a new chat, or a new epic,
-leaves the last one going, as a chat app's new chat does. A chat nobody has looked at for a
-minute between turns folds away; say something in it and it carries on, the same chat, with what
-was said before still above and an agent that remembers it. A turn that could not be taken
+leaves the last one as it is, as a chat app's new chat does. Behind the page, the daemon lets
+go of a chat nobody has looked at for a minute between turns and brings it back as it is asked
+for, and nothing on the page says which it is: say something in it and it carries on, the same
+chat, with what was said before still above and an agent that remembers it; open a pane of its
+environment and its folder is brought up with nothing said, and nothing written into the chat. A turn that could not be taken
 says so in the conversation, with why, and the chat waits for your next line. Where the
 conversation itself cannot be carried on, the chat says why and answers what you said in a
-new one. A chat an earlier Humanize wrote down as an epic is listed among the epics, its flow
-said as `chat`: it is read as any epic written down, and nothing is said in it.
+new one. A chat an earlier Humanize wrote down as an epic is
+[a chat as any other](/user/chat#earlier-chats) once the daemon has started: it is listed
+among the chats, and an address that named the epic opens the chat.
+
+The conversation names nobody: a turn of the agent's draws nothing as it begins, and ends on
+`Worked for <time>`.
 
 The box under a chat holds only **+**, what you type and the button that sends; what else
 there is to pick is a row of quiet chips under it, at its right. The first says the nous that
@@ -271,21 +287,25 @@ flows** `$` and **Run a shell command** `!` -- and what it offers as you type is
 A chat reads as a chat app's session. Its bar holds its title -- a button: press it to
 [rename the chat](#managing-a-chat) where it stands -- and, right after it, one
 **More options** menu (`⋯`); at the far right, a button each for **Details**, **Terminal**,
-**Changes** and **Files**, then **View options**. Each button opens its pane beside the
+**Changes** and **Files**, then **View options**, and last Ai-chan's avatar, which opens
+[her drawer](#ai-chan) as on every view. Each button opens its pane beside the
 conversation and shuts it again -- the bar runs over the pane too, so the button stays where
 you pressed it: **Details** is what the chat is, and the other three are the
 terminal, the changes and the files of the [environment](/features/environments) it works in, there
-while a host holds the chat; one that cannot open says why where you point at it. **View
-options** holds **Side questions**, **Board** while the chat keeps one, and **Ai-chan**, which
-opens [her drawer](#ai-chan). The pane open is headed by its name and has no tabs of its own:
-the bar picks it. No pane is open until you open one. How the chat stands is said in a quiet line over its box, only while there is
-something to say: who **is responding** while a turn is open, that it is waiting for you, or
-that it failed. While a turn is open the button that sends is **Stop**: it stops that turn, and
+for every chat, however long ago it was last said to: the folder is brought up as the pane opens,
+and the pane says why where it cannot be -- the chat's folder is no longer on this machine, say.
+A button is off only where the environment keeps no such panel -- **Changes** in a folder that is
+no git repository -- and says so where you point at it. **View
+options** holds **Side questions**, and **Board** while the chat keeps one. The pane open is headed by its name and has no tabs of its own:
+the bar picks it. No pane is open until you open one. **Details** says what the chat has
+used, its first message, where it works and what it is; it counts no sessions and names none.
+**Side questions** asks about the chat as it stands, with nothing to pick first, and each
+side conversation goes by the first question asked in it. Nothing is said over the chat's box
+of how it stands but that it failed. While a turn is open the button that sends is **Stop**: it stops that turn, and
 the chat stays, waiting for your next line; what you type and send with <kbd>Enter</kbd>
 meanwhile is still delivered to that turn. The menu holds what a right click on the chat offers
 -- **Rename**, a new chat like it, **Fork**, copying its link, **Upload**, **Archive** and
-**Delete** -- with **Environment** while a host
-holds it, and **Skill or flow**: whether a `$` name that is both a skill and a flow uses the
+**Delete** -- with **Environment**, and **Skill or flow**: whether a `$` name that is both a skill and a flow uses the
 skill or starts the flow, with a mark on the one in force and whether that comes from the
 settings or from this chat. Picking the other sets this chat's own
 [preference](/user/chat#a-name-that-is-both), as `/prefer` does.
@@ -305,16 +325,15 @@ a right click on it, and the `⋯` menu of its bar.
 | | What it does |
 | --- | --- |
 | **Rename** | Turns the title into a field, where it stands: on the chat's bar -- pressing the title there does the same -- or in its row of the sidebar. <kbd>Enter</kbd>, or clicking away, saves it; <kbd>Esc</kbd> leaves it as it was. The bar and the row both follow |
-| **Fork** | Makes a new chat from a copy of the conversation so far and opens it; it rests until you say something in it. Refused while a turn is open, in the daemon's own words |
+| **Fork** | Makes a new chat from a copy of the conversation so far and opens it, ready to be said something. Refused while a turn is open, in the daemon's own words |
 | **Archive** | Takes the chat off the sidebar and out of Search, and changes nothing else of it. Still open, or opened again by its address, it reads as before, with **Unarchive** on its bar (in a narrow window, in its menu alone) and in its menu. The archived chats of a directory are listed in [Settings](#settings) under **Workspace**, each with **Unarchive** and **Delete** |
-| **Delete** | Asks first, in a dialog: deleting permanently removes the chat's record and the sessions kept with it, cannot be undone, and leaves a worktree the chat worked in on disk. **Cancel**, <kbd>Esc</kbd> or **Delete**. A chat still going -- a host holds it, between turns included -- is refused, in the daemon's own words: delete it once it has folded away. Deleted from its own view, the page opens a new chat |
+| **Delete** | Asks first, in a dialog: deleting permanently removes the chat's record and the sessions kept with it, cannot be undone, and leaves a worktree the chat worked in on disk. **Cancel**, <kbd>Esc</kbd> or **Delete**. A chat whose turn is open is refused, in the daemon's own words: stop the turn, or delete it once the turn is done. Deleted from its own view, the page opens a new chat |
 
 The next chip under the box names what the chat's agent may touch -- **Read only**, **Edit
 this folder** or **Full access** -- and opens a menu of the three, the one in force checked.
 Picking another sets the chat's [permission](/user/chat#permission) from your next message; on
-a chat that has folded away, it is what the chat is carried on with. The last is **Usage**, a
-ring with, once there is something to say, what the chat has spent or the tokens it has written
-beside it: click it for a small popup by the ring -- what this chat has spent, its tokens and
+a chat the daemon has let go of, it is what the chat is carried on with. The last is **Usage**, a
+ring with no figure beside it: click it for a small popup by the ring -- what this chat has spent, its tokens and
 how long it has run, with a bar for each kind of token while it runs; what the chat's folder
 has spent today and over the last 7 days, with the output tokens written, over how many chats
 and epics; and **Usage settings**, which opens the
@@ -334,9 +353,10 @@ An epic that has ended keeps its graph and its panel. Opened later, it says how 
 -- its agents, environments, params and budget -- the flows it called, its sessions, what it
 spent, and how long it took, with how much of that was spent working.
 
-- **Read its turns** reads who handed to whom, and each session's turns, out of the logs it
-  kept, as [tracing](/user/tracing) does. It takes a moment on a long epic. Opening a session
-  reads its thread the same way.
+- Who handed to whom, and each session's turns, are read out of the logs it kept as soon as
+  the epic is shown, as [tracing](/user/tracing) does. It takes a moment on a long epic, and
+  the page says so while it reads; if the reading fails, **Read turns** tries again. Opening
+  a session reads its thread the same way.
 - **Export** (the arrow at the top) downloads the epic as one archive, struck of credentials;
   a chat is not exported. See [Exporting a run](/user/export).
 - **Upload** (the up arrow at the top, or in the epic's menu; in a chat's **More** menu) backs it up now to the targets it
@@ -401,30 +421,39 @@ here at the same path, holding the commit its archive says; otherwise it says wh
 `Imported · not resumable here: …`, and offers no **Resume**. A `.hmzepic` already on this
 machine is imported by its address too, `#/epics/import?path=<file>`, once you press **Import**
 under its path, and opens on its [Exomyth](#exomyth) -- as [Humanize Desktop](/user/desktop#opening-a-hmzepic)
-opens one you double-click. Where `hmz` runs in WSL, a Windows path, `C:\…` or `\\wsl$\…`, is
+opens one you double-click. One an earlier Humanize exported of a chat is read back in as a
+chat, and opens as that chat. Where `hmz` runs in WSL, a Windows path, `C:\…` or `\\wsl$\…`, is
 read as WSL names it. See [Exporting a run](/user/export#importing-a-run).
 
 ### Starting an epic {#starting-an-epic}
 
 A new chat and a new epic of a flow are two forms, each opened from the sidebar, in one
 frame: a plain heading at the top, and the box you type into docked at the foot of the page.
-Both keep where they run under that box, at its left, as two quiet chips. **Environment** names
-the [daemon](#daemons) the page shows -- **Local**, or a remote one -- and picks another,
-as the daemon bar at the foot of the sidebar does; **New environment** opens the daemons'
-settings. The folder chip names the directory: click it to pick another by its name -- point at
-one for its whole path -- **Open folder…**, or **No folder**.
+Both say where they run as an **Environment**: the [daemon](#daemons) and, on it, the folder.
+
+A new chat keeps it under the box, at its left, on one quiet chip that reads the daemon and
+then the folder, as `Local · project`. Its menu has both. **Runs on** lists **Local** and every
+remote daemon, and picks another as the daemon bar at the foot of the sidebar does; **New
+environment** opens the daemons' settings. **Folder** lists the directories: pick another by its
+name -- point at one for its whole path -- **Open folder…**, or **No folder**. The last row is
+**Worktree**.
+
+A new epic has nothing under its box. **Environment** is the first part of what it is set up
+with, in the middle of the page: a row **Runs on** with the daemon, a row **Folder** with the
+directory, each picked from its own chip, and under them a row for each environment the flow
+asks you to place.
 
 The forms follow which directories still exist, and keep looking while they are open. They open
 on the directory `hmz web` was started in while it is there, else on the one worked in last that
-is, else on your home; the chip's menu lists only directories that are there. A directory that
+is, else on your home; the menu lists only directories that are there. A directory that
 is deleted while it is picked -- or named by an address you kept -- stays picked: the chip reads
 `<name> (missing)`, and over the box the form says **The folder `<name>` is no longer on this
 machine. Pick another folder.** Nothing is started there; put the directory back and the form
 reads it again by itself.
 
-A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from the folder chip; the
+A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from **Environment**; the
 nous -- a harness and a model -- from the chip under the box at its right; and type the first
-message. Tick **Worktree**, after the folder chip, to start it in [a git worktree of its
+message. Tick **Worktree**, the last row of **Environment**'s menu, to start it in [a git worktree of its
 own](/user/chat#worktree): it cannot be ticked with **No folder**, nor in a directory that is in
 no git repository, and says which where you point at it. <kbd>Enter</kbd> starts the chat, and the page goes to its conversation. There is no
 flow, budget or params to set. **+** in the box offers **Add files**, which types `@` and
@@ -454,9 +483,11 @@ the agent that directory last chatted with. It opens a menu:
   list is typed; the **Account** it runs as (**Local** is this machine's own sign-in; **Add
   account…** opens Settings); and **Refresh models**, which asks that harness what it runs again.
 
-Harnesses, models and efforts are named everywhere on the page as their vendors name them --
-`claude` is **Claude Code**, `claude-haiku-4-5` is **Haiku 4.5**, `xhigh` is **Extra high** --
-and one the page has no name for is shown as it is written.
+Harnesses and models are named everywhere on the page as their vendors name them -- `claude` is
+**Claude Code**, `claude-haiku-4-5` is **Haiku 4.5** -- and an effort by the page's own word for
+it, `xhigh` being **Extra high**; one the page has no name for is shown as it is written. The
+word for an effort follows the page's [language](#language); a harness's and a model's name
+never does.
 
 What is picked is an agent as `-a` spells one, `cli[@account]/model[:effort]`; resting the
 pointer on the chip says it in full.
@@ -468,81 +499,114 @@ none is picked -- with **Usage settings** for the whole page.
 
 **New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
 picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory
-last ran; pick another flow beside the **New epic** heading, and another directory from the folder chip under the box.
+last ran; pick another flow beside the **New epic** heading, and another directory from **Folder**, under **Environment**.
 **+** in the box offers **Add files**, as on a new chat.
 A chat is not among the flows. Where no flow is installed -- Humanize ships none -- the middle
 of the page says so, and **Open Flows** there, as in the flow's menu, goes to
-**Flows** to install one; until then nothing starts. **Open folder…**
+**Flows**, on its flowverses, to install one; until then nothing starts. **Open folder…**
 takes any directory by its path, completed as you type, and keeps it in the sidebar. **No
 folder** works in none of yours: each epic started so gets a new directory of its own in the
 temporary directory, made as it starts, and set up as the directory `hmz web` started in is; the
 epic then shows in the sidebar under that directory. Type the
-task and press <kbd>Enter</kbd>. **Options**, under the box at its right, opens what the flow is set up with, as that
-directory last set it up:
+task and press <kbd>Enter</kbd>. What the flow is set up with is in the middle of the page, under what the
+flow is for, always in sight -- nothing opens or hides it -- as that directory last started it:
 
-- **Agents.** Per role: the **CLI** (installed ones that can fill it), the **Account** it runs
-  as (**Local** is this machine's own sign-in; **Add account…** opens Settings), the **Model**
-  and the **Effort**. A CLI never asked what it runs is asked the first time it is picked, which
-  can take a while; the refresh button asks again. Where it cannot say, pick **Other…** and type
-  the model.
-- **Environments.** Per role: the **Backend**, the **Runtime** of it (or **Add runtime…**, or
-  for ssh **Other host…**), and the **Directory**, completed as you type on this machine.
+- **Environment.** **Runs on** and **Folder**, as above; then, per environment role, the
+  **Backend**, the **Runtime** of it (or **Add runtime…**, or for ssh **Other host…**), and the
+  **Directory**, completed as you type on this machine. A directory left blank is the folder
+  picked, which the field says while it is empty.
+- **Agents.** A row per role: its name, and beside it a chip that says the nous filling it --
+  harness, model and effort. The chip opens the menu a new chat's does, holding only the
+  harnesses installed that can fill that role: pick a row, an **Effort**, or under **More** a
+  typed model, the **Account** it runs as (**Local** is this machine's own sign-in; **Add
+  account…** opens Settings) and **Refresh models**. A harness never asked what it runs is
+  asked the first time it is picked, which can take a while. Point at a role's name for what
+  it is held to.
 - **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
-  up to, the defaults ticked until a choice is saved -- and **Profile flow** and **Profile environment**. **Save** keeps them all for that directory
-  without starting an epic, as saving `/flow` does; starting keeps it too. The chips beside **Options** say what is set, where the window has the room: on a phone **Options** alone does, once opened. Every flow
-needs at least one limit. The page goes to the epic once it starts.
+  up to, the defaults ticked until you start with another choice -- and **Profile flow** and
+  **Profile environment**.
+
+There is nothing to save: starting the epic keeps the whole set-up for that directory, and the
+next new epic of that flow there opens on it. Every flow needs at least one limit, and each
+required role an agent; started without one, the form says so and puts you where it is set.
+The page goes to the epic once it starts.
 
 ### Ai-chan {#ai-chan}
 
 Ai-chan is an agent you operate Humanize through by talking to her. Her avatar, at the right of
-every view's bar, opens and closes her drawer beside the view -- a chat's bar ends as a chat
-app's does, and offers her as **Ai-chan** under **View options** instead; it stays open as you go from view
-to view, until you close it. What you type in it stays in it: a new chat or a new epic that
+every view's bar -- a chat's and a new chat's too --, opens and closes her drawer beside the
+view; it stays open as you go from view to view, until you close it. What you type in it stays in it: a new chat or a new epic that
 finishes opening beside it meanwhile does not take the keys. Where opening it would leave the
 view under 480 pixels beside a panel already open, that panel closes for it, as hers does for a
 panel opened after. On a phone it covers the view:
 close it with its button or <kbd>Escape</kbd>.
 
-The drawer lists every conversation with her on the daemon shown, newest first: its title, what
-it reaches, its nous, its preset, whether its network is on, and whether she is **Answering**,
-**Waiting** for you, or has **Folded away**. **Forget** forgets one, once you confirm. The
-drawer is the only place her conversations are listed: none is in the sidebar, nor counted among
-a workspace's epics, while it lasts or once forgotten.
+The drawer lists every conversation with her on the daemon shown as a chat app lists its own:
+one of her sixteen faces -- a conversation keeps its own --, its title, and under it the start
+of what was last said, or `typing…` while she answers. Pinned conversations come first, then
+the one last said in. One that said something since you last opened it has a bold title and a
+dot. With none yet, the drawer says so and offers **New conversation**.
 
-**New** asks what the conversation is fixed to:
+Each conversation has a menu of three things -- right-click it, press the menu key (or
+<kbd>Alt</kbd>+<kbd>Enter</kbd>) on it, or rest a finger on it; on a phone, swiping it to the
+left shows the same three beside it:
 
-- **Scope.** **Daemon** -- every workspace and epic --, **Workspace** -- one workspace and its
-  epics --, or **Epic** -- one epic. It starts on the epic the view shows, else the workspace,
-  else the daemon.
-- **Nous.** Starts on the one **Settings › General** names for her; with none named there,
-  pick one.
-- **Preset.** `read-only`, the default, or `danger-full-access`; and **Network**, off by default.
-- **Title**, from the task where left empty.
+- **Pin** / **Unpin** keeps it at the top of the list.
+- **Mark as unread** / **Mark as read** puts the dot on it, or takes it off.
+- **Delete** forgets it, once you confirm: it leaves the list and her scratch directory is
+  removed.
 
-Type the task and press <kbd>Enter</kbd>: the conversation opens as a chat, her answers beside
-her avatar and each tool she calls a line to open. While she answers, **Stop** stops her turn and
-leaves the conversation waiting for your next line. One that folded away is carried on by opening
-it and saying something.
+Pins and what you have read are kept in this browser, for each daemon; another browser starts
+without them. The drawer is the only place her conversations are listed: none is in the
+sidebar, nor counted among a workspace's epics, while it lasts or once deleted.
+
+**New** opens a conversation as a chat with nothing said in it yet -- no form to fill in. Under
+its box are the two chips a new chat has, which say what the conversation is fixed to:
+
+- **Nous**, as on a new chat: it starts on the one you used last, and its menu offers every
+  model the harnesses here run. There is no setting for it: the one you start a conversation
+  with is the one the next opens on.
+- **Permission**, which says the preset and the scope, as `Read only · Workspace`. Its menu
+  holds the two presets -- **Read only**, the default, and **Full access** -- and under them
+  the **Scope**: **Daemon** -- every workspace and epic --, **Workspace** -- the folder the
+  view shows, and its epics --, or **Epic** -- the epic the view shows. It starts on the epic
+  the view shows, else the workspace, else the daemon; **Epic** cannot be picked while the
+  view shows none. Neither is remembered: each conversation starts on the defaults.
+
+She may always reach the network, so nothing asks about it, and nothing asks for a title.
+Type what you want and press <kbd>Enter</kbd>: that line makes the conversation, which goes on
+where you typed it -- her answers in bubbles at the left beside her face, yours at the right,
+and each tool she calls a quiet line to open. From then on the two chips say what it was made
+with, and open nothing. While she answers, three dots stand in a bubble of hers and the box's
+button stops her turn, leaving the conversation ready for your next line. One the daemon put
+away meanwhile is carried on by opening it and saying something. Nothing in the drawer names a
+session, or says what a conversation cost.
+
+A conversation is titled by the first line you said. To give it another title, press the
+pencil beside the title, type, and press <kbd>Enter</kbd> or click elsewhere;
+<kbd>Escape</kbd> leaves it as it was. The list shows the new title.
 
 ### Settings {#settings}
 
-Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches and
-what it tells you of them. It is the same whichever daemon is on screen. **Daemon** is the same
+Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches,
+what it tells you of them and the [language](#language) it is written in. It is the same
+whichever daemon is on screen. **Daemon** is the same
 pages as [`/settings`](/user/settings), in the same order, and what the epics spent, all of one
 daemon:
 
 | Page | What is there |
 | --- | --- |
-| **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
-| **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
+| **Themes** | The [themes](#themes) of this browser, which one is in use, and whether its light or its dark is shown |
+| **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: **Edit** it (what you leave blank stays as it was), or make one; under **More options** at the end of its row, or on a right click of it, ask what it runs again (**Refresh models**), copy it to another CLI, or remove it, which asks first in the row |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node. A concrete nous is listed by its names -- **Claude Code - Opus 4.1 · High** -- with what `-a` spells where you point at it; typed into a graph, it is typed as `-a` spells it |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there; a directory that was deleted is marked `(missing)` in the list, and can still be forgotten; and under **Archived chats**, the chats of that directory that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
-| **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
+| **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; under each, its **Devices** and **Pair a device** once it is up, and a remote daemon's own **WebRTC servers** |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
+| **Language** | The [language](#language) the page is written in: **System**, **English**, **简体中文** or **繁體中文**. Kept in this browser, never per daemon |
 
 Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
 until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
@@ -572,23 +636,34 @@ offered as `(at a terminal)` and made from `/settings` in `hmz`.
 
 ### Themes {#themes}
 
-The page is drawn in a theme. Humanize comes with **presets**, each a pair of a light theme and a
-dark one: its own, **Humanize Green**, and **Temperate Gold**, **Concordant Scarlet**,
+The page is drawn in a theme. A theme always has two sides, a light one and a dark one, under
+one name, and you choose which is shown apart from the theme. Humanize comes with **presets**: its own,
+**Humanize Green**, and **Temperate Gold**, **Concordant Scarlet**,
 **Restrained Crimson**, **Critical Teal**, **Desirous Indigo**, **Peaceful Lilac**,
 **Hateful Silver**, **Devoted Pink**, **Self-Negating Plum**, **Dominant Azure**,
 **Surviving Jade** and **Lamenting Orchid**.
 
-A theme is picked only under **Settings → Themes**. **Auto**, the default, follows your system
-with a pair: under **Auto** pick a **Pair** -- or any theme for the system's **Light** and any
-for its **Dark**, your own included. Click a preset's light or dark
-swatch to use that one theme whatever the system is.
+A theme is picked only under **Settings → Themes**: **Use** beside one chooses it, both sides at
+once. Humanize Green is in use until you choose another.
 
-**New** makes a theme from the one showing, and **New pair** a pair of your own -- a light theme
-and a dark one, which Auto can follow your system with as it does a preset -- from the pair
-showing. **Duplicate** copies any theme, or a whole pair. **Edit** opens one of yours:
+**Appearance**, at the top of the same page, says which side of the theme in use is shown:
 
-- **Name**, and the **Base** it is made on, Light or Dark, whose colour any you leave blank is.
-  In a pair, the name is both themes', and **Side** switches between its light and its dark.
+| Choice | What is shown |
+| --- | --- |
+| **Auto** | The light side where your system is light and the dark where it is dark, followed as it changes. This is what you have until you choose. |
+| **Light** | The light side, whatever your system says |
+| **Dark** | The dark side, whatever your system says |
+
+The choice is kept by the browser, as the theme is, and holds for whichever theme you use next;
+[the app](/user/desktop) has the same three.
+
+Under **Custom** are the themes of your own. **New** makes one from the theme in use, copying
+both its sides -- to start from a preset, use it first -- and **Import** reads one from a file.
+**Edit** opens one of yours, **Delete** forgets it:
+
+- **Name**, which both sides have, and **Side**, which switches between its light and its dark.
+  Each side has its own colours and pictures; a colour you leave blank is Humanize Green's for
+  that side.
 - Every colour, by what it colours: **Backgrounds** (page, sidebar, surface, raised),
   **Text**, **Controls** (button, its text, primary button, its text, field, edge), **Lines**
   (line, strong line, hover, scrim), **Accents** and the **Graph**'s lanes. **Edge** is the line
@@ -597,38 +672,38 @@ showing. **Duplicate** copies any theme, or a whole pair. **Edit** opens one of 
   what is selected or pressed is a stronger tint of the text's colour, worked out from it, and
   no colour of its own. The **strong line** is around what floats and what is typed into, the
   **line** between everything else, and the **scrim** dims the page behind a dialog. Pick one or type any CSS colour, such as
-  `#102030` or `rgba(255, 255, 255, 0.1)`; × gives back the base's.
+  `#102030` or `rgba(255, 255, 255, 0.1)`; × gives back Humanize Green's.
 - **Pictures** behind the **Page**, **Sidebar**, **Panel** and **Dialog**: a PNG, JPEG, GIF,
   WebP, AVIF or SVG -- an animated SVG moves -- each to **Cover**, **Fit** or **Tile** its plane.
   Where your system asks for reduced motion, a moving picture is held still.
 
-The page shows a theme as you change it, and keeps every change at once. **Export** saves a
-theme, or a pair with both its themes, pictures and all, as a `.hmztheme` file; **Import** reads
-one back, here or in any other browser. Themes are kept by the browser, as the rest of what the page remembers is, so another
-browser -- or [the app](/user/desktop) -- has its own until you import them there.
+The page shows a theme as you change it, and keeps every change at once. **Export**, beside
+**Done** where a theme of yours is edited, saves it with both its sides, pictures and all, as a
+`.hmztheme` file; **Import** reads one back, here or in any other browser. Themes are kept by the
+browser, as the rest of what the page remembers is, so another browser -- or
+[the app](/user/desktop) -- has its own until you import them there.
 
-A `.hmztheme` file is JSON:
-
-```json
-{
-  "hmztheme": 1,
-  "name": "Night",
-  "base": "dark",
-  "colors": { "paper": "#102030", "primary": "#ec6fa3" },
-  "images": { "page": { "fit": "cover", "data": "data:image/svg+xml;base64,…" } }
-}
-```
-
-A pair holds both its themes, each with its `colors` and `images`, in place of a `base`:
+A `.hmztheme` file is JSON, holding both sides, each with its `colors` and `images`:
 
 ```json
 {
   "hmztheme": 1,
   "name": "Dusk",
   "light": { "colors": { "paper": "#fff8e0" }, "images": {} },
-  "dark": { "colors": { "paper": "#201008" }, "images": {} }
+  "dark": {
+    "colors": { "paper": "#201008", "primary": "#ec6fa3" },
+    "images": { "page": { "fit": "cover", "data": "data:image/svg+xml;base64,…" } }
+  }
 }
 ```
+
+An earlier Humanize let a theme have one side alone, and let a light and a dark be picked apart.
+What it kept in your browser is kept: a theme of one side gets the other, plain, and two sides
+picked apart become one theme of your own, called **Custom**, which stays in use. One side you
+had picked to show whatever your system said is still shown: its theme is in use, with
+**Appearance** on **Light** or **Dark**. A file it
+wrote for one side -- `"base": "dark"` with `colors` and `images`, in place of `light` and
+`dark` -- is still imported, as a theme whose other side is plain.
 
 `colors` is keyed by the page's colour tokens (`paper`, `side`, `surface`, `raised`, `ink`,
 `ink-2`, `ink-3`, `on-ink`, `on-fill`, `link`, `control`, `control-ink`, `primary`,
@@ -700,11 +775,12 @@ A daemon is in one of these states:
 `SSH · SSH Config`, `SSH · Custom` or `P2P · EasyTier` -- what reaches it, and its state.
 **New daemon** asks you to pick a kind, **Code**, **SSH** or **P2P**, and a mode under it; then
 the **name** the page calls it -- letters, digits, `.`, `_` and `-`; `local` is Local's and
-cannot be taken -- and how to reach it:
+cannot be taken -- and how to reach it. Beside the form, the page says what the kind you picked
+is and what the other machine needs for it, and each field says under it what it is for:
 
 | Kind | Mode | What you give |
 | --- | --- | --- |
-| **Code** | | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair` or by **Pair a device** on a page that reaches it. It is claimed at once, over the routes it carries, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. |
+| **Code** | | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair` or by **Pair a device** on a page that reaches it. It is claimed at once, over the routes it carries, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. **Advanced** holds the [STUN and TURN servers](#webrtc-servers) to claim it with, and opens by itself for a code that is reached over WebRTC. |
 | **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config` not yet added, picked from a list; picking one fills in the name. Nothing here writes to the config. It is resolved through your config every time, so editing the config edits the daemon. |
 | **SSH** | **Custom** | The host, user, port, identity file, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept by the page, and the config is not read again. |
 | **P2P** | **EasyTier** | The secret that machine's EasyTier entry holds: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. For a new daemon, also that machine's pairing code: it is claimed at once over EasyTier, and the daemon is kept, held to that machine's id, only once the claim succeeds. |
@@ -721,13 +797,41 @@ A daemon removed can be added again from a new pairing code: this machine is not
 paired a second time, and keeps the name it was paired under.
 
 The daemons are kept by this browser, in its IndexedDB: each its name, the daemon id pinned,
-and its [routes](/reference/settings#settings-yaml). Another browser, Humanize Desktop, and `hmz`
-in a terminal each keep their own.
+its [routes](/reference/settings#settings-yaml) and its own STUN and TURN servers. Another
+browser, Humanize Desktop, and `hmz` in a terminal each keep their own.
 
-Below the form, **Devices** has, for each daemon that is up, **Pair a device**, which makes a
-pairing code for another machine or browser to claim -- shown with when it expires, and a
-button that copies it -- and the devices paired with that daemon, each with when it was last
-seen; **Revoke** one, asked first, and it can reach that daemon no more.
+### Devices {#devices}
+
+A daemon's **devices** are the browsers and machines paired with it: the ones that may reach
+it. They are the other way round from **New daemon**, which is about the machines this page
+reaches. Under each daemon's line in the list, once it is up, **Devices** has **Pair a
+device**, which makes a one-time pairing code for another machine or browser to claim -- under
+**New daemon → Code** there -- shown with when it expires, and a button that copies it; and
+the devices paired with that daemon, each with when it was last seen. **Revoke** one, asked
+first, and it can reach that daemon no more. A daemon that is not up says so there instead:
+**Connect** to it first.
+
+### WebRTC servers {#webrtc-servers}
+
+A browser reaches a daemon behind a [relay](/user/relay) over WebRTC, by a `webrtc:` route.
+The two then look for a direct path between them: a **STUN** server tells each its address as
+the other sees it, and a **TURN** server carries the traffic where no direct path exists. On a
+simple network neither is needed.
+
+Each remote daemon has its own, under its line in the list: **WebRTC servers**, folded away
+unless one of its routes is a `webrtc:` route. Write one server a line -- its URL, as
+`stun:host:port` or `turn:host:port`, then for a TURN server its username and its credential
+-- and **Save**. A credential is shown as `••••` from then on, and is kept where you leave it
+so, also where you edit the URLs of its line; a `••••` written where no credential is kept is
+refused, and you write the credential again. They are used for that daemon's `webrtc:` routes only; a daemon reached another way never
+uses them. For a new **Code** daemon they are asked under **Advanced**, before the code is
+claimed.
+
+They are this browser's side. The daemon's own side is the
+`ice_servers` setting of its machine, which its [listeners](/reference/daemon#listeners) answer WebRTC with.
+
+An earlier version kept one list of servers for every daemon: it is moved, the first time the
+page is opened, onto each daemon that has a `webrtc:` route.
 
 ### What happens on connect {#on-connect}
 
@@ -843,6 +947,37 @@ so there: a blocked one is allowed again in the browser's own settings for the s
 settings: they are kept by this browser and hold for every
 daemon, never one daemon apart. `hmz` has its own, on its
 [Notifications page](/user/settings#notifications).
+
+## Language {#language}
+
+The page is written in English, Simplified Chinese or Traditional Chinese. **Settings →
+Language** chooses which:
+
+| Choice | The page is written in |
+| --- | --- |
+| **System** | What your browser asks for, and the default: Traditional Chinese for `zh-TW`, `zh-HK`, `zh-MO` and anything tagged `Hant`, Simplified Chinese for any other Chinese, English for everything else |
+| **English** | English |
+| **简体中文** | Simplified Chinese |
+| **繁體中文** | Traditional Chinese, in Taiwan's words |
+
+A choice takes effect at once: the page opens again where it was, written in that language, and
+so does every other tab of it. Dates and times follow the language too. It is an App setting,
+kept by this browser and the same for every daemon; another browser starts on **System**.
+
+Some things stay as they were written, whatever the language:
+
+- **Names.** Humanize, Ai-chan, Nous, Epic, Flow, Flowverse, Harness, Daemon, Exomyth, Agent and
+  Worktree, and the names of harnesses and models, are written in Latin script. An effort is
+  translated: **Extra high** is **超高**.
+- **What the page did not write.** Tasks, what agents answer, a flow's own description and
+  options, paths, and what a daemon refuses with are shown as they are.
+- **A text not translated yet** is shown in English.
+
+The presets' names are translated with the rest of the page: in Chinese **Temperate Gold** is
+**节制金色** or **節制金色**, and so on down the list, while **Humanize Green** keeps `Humanize`. A
+theme you made keeps the name you gave it.
+
+`hmz` in the terminal, and the desktop app's own menu and update windows, are in English.
 
 ## From another machine {#over-ssh}
 

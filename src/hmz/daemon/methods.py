@@ -17,6 +17,9 @@ import os
 import pkgutil
 import socket
 import tempfile
+import threading
+import time
+from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -87,6 +90,12 @@ ENV = (
 _TERMINAL = ("env.term.open", "env.term.input")
 _NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_terminals."
 
+
+#: The states of a host whose chat is going.
+_GOING = ("running", "stopping")
+
+#: How long, in seconds, a chat ended to be deleted is waited for.
+_ENDING = 10.0
 
 #: Why a chat whose host folded it away takes nothing more (Section 4.25.2.4).
 _FOLDED = "this chat has folded away; carry it on with chat.start"
@@ -167,6 +176,10 @@ class _Methods:
     def __init__(self, router: Router, families: Mapping[str, Handler]) -> None:
         self._router = router
         self._families = families
+        #: Held, one of each chat, while that chat is carried on, so that two who ask at
+        #: once are answered the one host.
+        self._carrying: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._carried = threading.Lock()
 
     # -- sessions and pairing
 
@@ -344,7 +357,8 @@ class _Methods:
     # -- epics
 
     def attach(self, call: Call) -> dict[str, Any]:
-        from hmz.daemon.hosts import Subscription
+        from hmz.daemon.hosts import CLOSED, Subscription
+        from hmz.rpc import RpcError
 
         router = self._router
         session = router.session(call)
@@ -359,25 +373,37 @@ class _Methods:
                 named = workspace(params["workspace"])
         else:
             raise _refused(-32602, "epic.attach needs workspace.")
-        hosted = router.hosts.opened(named, slot(params.get("slot"), new=True))
-        sub = Subscription(
-            session, session.named(), hosted, figures=params.get("figures") is True
-        )
-        with session.lock:
-            session.subs[sub.sub] = sub
+        slotted = slot(params.get("slot"), new=True)
         since = params.get("since")
-        try:
-            sub.client = hosted.attach(
-                sub,
-                replay=params.get("replay", True) is not False,
-                since=cast("dict[str, Any]", since)
-                if isinstance(since, dict)
-                else None,
+        while True:
+            hosted = router.hosts.opened(named, slotted)
+            sub = Subscription(
+                session, session.named(), hosted, figures=params.get("figures") is True
             )
-        except BaseException:
             with session.lock:
-                session.subs.pop(sub.sub, None)
-            raise
+                session.subs[sub.sub] = sub
+            try:
+                sub.client = hosted.attach(
+                    sub,
+                    replay=params.get("replay", True) is not False,
+                    since=cast("dict[str, Any]", since)
+                    if isinstance(since, dict)
+                    else None,
+                )
+            except BaseException as why:
+                with session.lock:
+                    session.subs.pop(sub.sub, None)
+                # Her host going as it is attached to is gone once its link has closed, and
+                # is then started again (Section 4.22.5.2).
+                if (
+                    slotted.startswith("ai:")
+                    and isinstance(why, RpcError)
+                    and why.message == CLOSED
+                    and router.hosts.outwaited(hosted)
+                ):
+                    continue
+                raise
+            break
         if session.closed:
             sub.dropped()
             raise _refused(409, "the frontend went while it was saying hello")
@@ -456,6 +482,67 @@ class _Methods:
         resumed = Path(checked["resume"] or "").name
         if resumed in self._router.links.kept.epics():
             raise _refused(404, f"{resumed} is not a chat of {named}.")
+        if not resumed:
+            return self._chat_started(call, named, slotted, checked, resumed)
+        with self._carried:
+            carrying = self._carrying[resumed]
+        # Carried on by one caller at a time, so that two who ask at once are answered the
+        # one host (Section 4.25.1.9).
+        with carrying:
+            holding = self._holding(resumed)
+            if holding is not None and checked["task"]:
+                # Said to the host standing by with it, nothing said yet, as its first turn;
+                # one of another agent ends as it was first.
+                first = {key: checked[key] for key in ("agent", "prefer", "permission")}
+                said = {"do": "say", "text": checked["task"], "first": first}
+                if not self._chatted(call, holding[0], said).get("ended"):
+                    return {"slot": holding[0].slot, "chat": resumed}
+                self._let_go(resumed)
+            elif holding is not None:
+                return {"slot": holding[0].slot, "chat": resumed}
+            return self._chat_started(call, named, slotted, checked, resumed)
+
+    def _let_go(self, chat: str) -> None:
+        """Waits a while for the host that held a chat to have ended."""
+        ended = time.monotonic() + _ENDING
+        while self._holding(chat) is not None and time.monotonic() < ended:
+            time.sleep(0.05)
+
+    def _holding(self, chat: str) -> tuple[Hosted, dict[str, Any]] | None:
+        """The host going with a chat, by the chat's name, and how it stands; else None."""
+        for hosted in self._router.hosts.listed():
+            if not hosted.slot.startswith("chat:"):
+                continue
+            with contextlib.suppress(Exception):
+                status = hosted.status()
+                if status.get("chat") == chat and status.get("state") in _GOING:
+                    return hosted, status
+        return None
+
+    def chat_delete(self, call: Call) -> dict[str, Any]:
+        """Deletes a chat, ending first the host that holds it between turns (4.25.7.6).
+
+        Ended as an empty next message ends it, and waited for a while; one with a turn
+        open is left, and refused as the family refuses it.
+        """
+        name = str(call.params.get("chat"))
+        holding = self._holding(name)
+        if holding is not None and holding[1].get("turn") == "done":
+            with contextlib.suppress(Exception):
+                holding[0].chat({"do": "say", "text": ""})
+            self._let_go(name)
+        return self._families["chat.delete"](call)
+
+    def _chat_started(
+        self,
+        call: Call,
+        named: str,
+        slotted: str,
+        checked: Mapping[str, Any],
+        resumed: str,
+    ) -> dict[str, Any]:
+        """Starts a chat checked on a host of its own, and answers its slot and its name."""
+        params = call.params
         hosted = self._router.hosts.opened(named, slotted)
         started = self._chatted(
             call,
@@ -636,6 +723,7 @@ class _Methods:
             "chat.commands": self.chat_commands,
             "chat.set": self.chat_set,
             "chat.stop": self.chat_stop,
+            "chat.delete": self.chat_delete,
         }
 
 

@@ -195,15 +195,15 @@ async def test_a_chat_is_deleted_only_once_it_is_said_to_be_for_good(
         assert rows(app) == [second.name]
         assert not first.exists()
 
-        # The one going on a host is not deleted, and says why.
+        # The one a host holds between turns is deleted too: its host is ended first.
         await pilot.press("m")
         await on(pilot, Acts)
         await opens(pilot, "delete")
         await on(pilot, Deletes)
         await pilot.press("right", "enter")
         await on(pilot, Resumes)
-        await wrapped(pilot, "is going on; delete it once it rests")
-    assert chats(workspace) == [second]
+        await wrapped(pilot, "deleted second")
+    assert chats(workspace) == []
 
 
 async def test_a_chat_forked_is_gone_on_with_as_a_chat_of_its_own(

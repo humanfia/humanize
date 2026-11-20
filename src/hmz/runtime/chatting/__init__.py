@@ -271,6 +271,9 @@ class Chat:
     - The conversation is kept in the chat's directory as it stands when the chat ends, and
       a chat carried on (`spec.resume`) goes on in the same record and the same conversation,
       or says why it cannot and goes on in a new one.
+    - A chat carried on with nothing said (`spec.resume` and no `spec.task`) holds its
+      workspace and waits, between turns, for the first thing said: nothing is opened and
+      nothing written into its record until then, and an empty message ends it as it was.
     - The chat's record says `prefer` where this chat has its own, `permission` where it is
       not `workspace-write`, and `workdir` where its assistant works in a worktree.
     - The assistant is held to the chat's permission, a preset with the web besides. One set
@@ -300,6 +303,9 @@ class Chat:
         #: Whether the chat has ended, after which nothing more is written into its record.
         self._ended = False
         self._talk: _Talk | None = None
+        #: The chat carried on with nothing said yet, and its workspace: held, with nothing
+        #: written of it, until something is said.
+        self._stood: tuple[Path, HeldWorkspace] | None = None
         self._listeners: list[Listener] = []
         self._opened: list[Opened] = []
         self._spending: _Spending | None = None
@@ -311,9 +317,14 @@ class Chat:
 
     @property
     def at(self) -> Path | None:
-        """The chat's directory once :meth:`run` has opened it, and None before."""
-        epic = self._epic
-        return None if epic is None else epic.path
+        """The chat's directory once :meth:`run` has opened it, and None before.
+
+        One carried on with nothing said is in the directory it is to go on in, unopened.
+        """
+        epic, stood = self._epic, self._stood
+        if epic is not None:
+            return epic.path
+        return None if stood is None else stood[0]
 
     def prefers(self, prefer: Prefer) -> None:
         """Sets this chat's own preference, recorded in the chat.
@@ -432,10 +443,15 @@ class Chat:
     def envs(self) -> HeldWorkspace | None:
         """The workspace the chat works in, listed as a run's environments are for env panels.
 
-        None before the chat has opened it, and once it has ended.
+        None before the chat has opened it, and once it has ended. One carried on with
+        nothing said holds it from then, before anything is said.
         """
-        talk = self._talk
-        return None if talk is None or self._ended else talk.held
+        talk, stood = self._talk, self._stood
+        if self._ended:
+            return None
+        if talk is not None:
+            return talk.held
+        return None if stood is None else stood[1]
 
     def interrupt(self) -> bool:
         """Stops the turn going, if one is, leaving the chat between turns; from any thread.
@@ -529,6 +545,19 @@ class Chat:
                 raise Refused(str(why)) from why
             raise
         try:
+            if carried is not None and not spec.task and spec.role is None:
+                # Carried on with nothing said: its workspace is held, and nothing of it is
+                # opened or written down, until something is said, which carries it on.
+                self._stood = carried, HeldWorkspace(local, asyncio.get_running_loop())
+                said_next = await self.person.next("")
+                if not said_next:
+                    with self._lock:
+                        self._ended = True
+                    await asyncio.shield(closed((driver, root), held))
+                    return ChatEnd(carried, "stopped")
+                self.spec = spec = replace(spec, task=said_next)
+                # Read again: it may have been written in, or carried on elsewhere, since.
+                carried, before = _carried(spec.resume, workspace)
             with self._lock:
                 if self._prefer is None and before is not None and before.prefer:
                     self._prefer = "flow" if before.prefer == "flow" else "native"
@@ -1109,13 +1138,14 @@ def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | N
       Refused: For one that is not a chat or is going on already, and for one that cannot be
         continued here: another workspace's.
     """
-    from hmz.runtime.epic import going, read
+    from hmz.runtime.epic import CHATTED, going, journal, read
     from hmz.runtime.runner import Refused
 
     if resume is None:
         return None, None
     ran = read(resume)
-    if ran is None or not ran.chat:
+    # One an earlier hmz kept as an epic is no chat until it is moved (Section 8.7.10).
+    if ran is None or not ran.chat or journal(resume).name != CHATTED:
         raise Refused(f"{resume.name} is not a chat, so there is no chat to carry on")
     if Path(ran.workspace).resolve() != workspace:
         raise Refused(

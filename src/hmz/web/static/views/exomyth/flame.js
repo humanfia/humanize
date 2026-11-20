@@ -12,6 +12,7 @@
 // frame after anything changes, a frame narrower than a pixel left out with all it holds.
 
 import { h } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { EDGE } from '../../shell.js'
 import { clock, counted, firstEnding, lasted } from './model.js'
 import { stats } from './stats.js'
@@ -38,17 +39,17 @@ const TOKENS = {
 
 /** The weights a frame can be sized by, as the page says them. */
 const WEIGHTS = [
-  ['time', 'Time'],
-  ['in', 'Tokens in'],
-  ['out', 'Tokens out'],
-  ['count', 'Count'],
+  ['time', t('Time')],
+  ['in', t('Tokens in')],
+  ['out', t('Tokens out')],
+  ['count', t('Count')],
 ]
 
 /** How much of a weight, said. */
 function said(weight, value) {
   if (weight === 'time') return lasted(value)
-  if (weight === 'count') return `${counted(value)} spans`
-  return `${counted(value)} tokens`
+  if (weight === 'count') return t('{count} spans', { count: counted(value) })
+  return t('{count} tokens', { count: counted(value) })
 }
 
 /** A column of numbers that grows as it is written to. */
@@ -305,18 +306,18 @@ export function mount(el, model, range, told = {}) {
   let drawn = 0
   const cache = new Map()
 
-  const canvas = h('canvas', { class: 'exo-flame-canvas', role: 'img', 'aria-label': 'Flame', 'data-hmz': 'exomyth-flame-canvas' })
+  const canvas = h('canvas', { class: 'exo-flame-canvas', role: 'img', 'aria-label': t('Flame'), 'data-hmz': 'exomyth-flame-canvas' })
   const box = h('div', { class: 'exo-flame-box' }, canvas)
   const tip = h('div', { class: 'tip exo-tip', role: 'tooltip', hidden: true })
-  const crumbs = h('nav', { class: 'exo-crumbs', 'aria-label': 'Zoom', 'data-hmz': 'exomyth-crumbs' })
+  const crumbs = h('nav', { class: 'exo-crumbs', 'aria-label': t('Zoom'), 'data-hmz': 'exomyth-crumbs' })
   const stretch = h('span', { class: 'dim mono', 'data-hmz': 'exomyth-flame-range' })
   const weights = h(
     'div',
-    { class: 'segmented', role: 'group', 'aria-label': 'Weight', 'data-hmz': 'exomyth-weight' },
+    { class: 'segmented', role: 'group', 'aria-label': t('Weight'), 'data-hmz': 'exomyth-weight' },
     WEIGHTS.map(([key, text]) => h('button', { type: 'button', 'aria-pressed': String(key === weight), 'data-weight': key, onclick: () => weighed(key) }, text)),
   )
-  const merging = h('button', { type: 'button', class: 'btn small', 'aria-pressed': 'true', 'data-hmz': 'exomyth-merge', onclick: () => merged(!merge) }, 'Merge sessions')
-  const flipping = h('button', { type: 'button', class: 'btn small', 'aria-pressed': 'false', 'data-hmz': 'exomyth-upward', onclick: () => flipped(!upward) }, 'Bottom up')
+  const merging = h('button', { type: 'button', class: 'btn small', 'aria-pressed': 'true', 'data-hmz': 'exomyth-merge', onclick: () => merged(!merge) }, t('Merge sessions'))
+  const flipping = h('button', { type: 'button', class: 'btn small', 'aria-pressed': 'false', 'data-hmz': 'exomyth-upward', onclick: () => flipped(!upward) }, t('Bottom up'))
   const table = stats({ chose: (one) => highlit(one), timeline: (one) => told.timeline?.(one.name) })
   el.replaceChildren(h('div', { class: 'exo-flame-bar' }, weights, merging, flipping, stretch), crumbs, box, table.node)
   document.body.append(tip)
@@ -365,7 +366,7 @@ export function mount(el, model, range, told = {}) {
     told.shared?.(share)
     crumbed()
     table.shown(agg.named, chosen)
-    stretch.textContent = range ? `${clock(range.from, 1000)} – ${clock(range.to, 1000)}` : 'Whole epic'
+    stretch.textContent = range ? `${clock(range.from, 1000)} – ${clock(range.to, 1000)}` : t('Whole epic')
     draw()
   }
 
@@ -559,13 +560,13 @@ export function mount(el, model, range, told = {}) {
       return n
     }
     const scale = width / laid.total[zoomed]
-    const t = laid.x[zoomed] + px / scale
+    const time = laid.x[zoomed] + px / scale
     let n = zoomed
     while (agg.depth[n] < d) {
       let next = -1
       for (let k = laid.from[n]; k < laid.from[n + 1]; k++) {
         const kid = laid.kids[k]
-        if (t >= laid.x[kid] && t < laid.x[kid] + laid.total[kid]) {
+        if (time >= laid.x[kid] && time < laid.x[kid] + laid.total[kid]) {
           next = kid
           break
         }
@@ -583,7 +584,8 @@ export function mount(el, model, range, told = {}) {
     }
     const whole = laid.total[agg.root]
     const part = whole ? (laid.total[n] / whole) * 100 : 0
-    tip.textContent = `${text(agg.name[n])}\n${said(weight, laid.total[n])} total · ${said(weight, laid.self[n])} self · ${part.toFixed(part < 10 ? 2 : 1)}%\n${counted(agg.own.count[n])} ${agg.own.count[n] === 1 ? 'span' : 'spans'}`
+    const spans = agg.own.count[n] === 1 ? t('{count} span', { count: counted(agg.own.count[n]) }) : t('{count} spans', { count: counted(agg.own.count[n]) })
+    tip.textContent = `${text(agg.name[n])}\n${t('{total} total · {self} self · {share}%', { total: said(weight, laid.total[n]), self: said(weight, laid.self[n]), share: part.toFixed(part < 10 ? 2 : 1) })}\n${spans}`
     tip.hidden = false
     const shape = tip.getBoundingClientRect()
     // Kept over the chart, clear of the panel beside it.

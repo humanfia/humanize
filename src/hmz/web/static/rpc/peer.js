@@ -2,6 +2,7 @@
 // calls it makes and their answers, the notifications it sends, and the calls and notifications
 // the other side sends it. A session that closes fails every call still unanswered with `Dropped`.
 
+import { t } from '../i18n.js'
 import { encode, Frames, FrameError } from './frames.js'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
@@ -99,14 +100,14 @@ export class Peer {
    */
   call(method, params, { timeout, signal } = {}) {
     if (this.#why !== null) return Promise.reject(new Dropped(this.#why))
-    if (signal?.aborted) return Promise.reject(new RpcError(ERRORS.CANCELLED, 'The call was cancelled.'))
+    if (signal?.aborted) return Promise.reject(new RpcError(ERRORS.CANCELLED, t('The call was cancelled.')))
     const id = this.#next++
     let frame
     try {
       frame = encode(params === undefined ? { jsonrpc: '2.0', id, method } : { jsonrpc: '2.0', id, method, params })
     } catch (error) {
       if (!(error instanceof FrameError)) throw error
-      return Promise.reject(new RpcError(ERRORS.TOO_LARGE, 'That is more than a call here may carry.'))
+      return Promise.reject(new RpcError(ERRORS.TOO_LARGE, t('That is more than a call here may carry.')))
     }
     return new Promise((resolve, reject) => {
       let timer
@@ -114,7 +115,7 @@ export class Peer {
         if (!this.#pending.delete(id)) return
         this.notify('session.cancel', { id })
         settled()
-        reject(new RpcError(ERRORS.CANCELLED, 'The call was cancelled.'))
+        reject(new RpcError(ERRORS.CANCELLED, t('The call was cancelled.')))
       }
       const settled = () => {
         clearTimeout(timer)

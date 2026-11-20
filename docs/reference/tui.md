@@ -124,7 +124,7 @@ interface opens on a new chat, its agent the chat agent remembered for this dire
 | Its harness's own input | A line starting `/`, `$`, `!` or `@` is first read as the harness reads it at its own prompt, against the catalogue the chat's host gives (`chat.commands`): its commands and skills are said to it, a `!` command runs for the chat and is drawn dim, as a shell draws it, with what it printed under it, and a command only the harness's own interface serves is refused, `<cmd> is served only by the harness's own interactive interface`. Humanize keeps `/clear`, `/resume`, `/exit`, `/quit`, `/btw`, `/flow`, `/epics`, `/settings`, `/chat` and `/prefer`. A `/` naming nothing is `no such command` where the catalogue has any `/` entry and the chat has taken a turn, and is said as text otherwise. |
 | `$` names both | A `$<name>` that is both a skill and a flow runs the skill unless the chat prefers flows: `/prefer` says which and where it comes from (the settings file, or this chat), `/prefer native\|flow` sets it for this chat. `/flow <name> <task>` always starts the flow. |
 | `/resume` | Lists the chats of this directory that are not archived, newest first, by title, as the daemon's `chat.list` answers them, the chat on the screen among them with `✔` and the cursor; picking that one leaves it on the screen, and `m` on any opens [its menu](#resume). Another one picked is read where it is while a host holds it, and otherwise drawn with what was said in it and carried on, the same chat (`chat.start` with `resume` its id), by the next line you say: `say something to continue chat <id>`. With [`harness_sessions`](/reference/settings#harness-sessions) on, the [sessions each CLI had of its own](/user/chat#harness-sessions) here follow the chats, each `<cli> session, read-only: a copy goes on as a chat`, or `<cli> session, read-only: cannot be continued in a chat` for a CLI [that carries none on](/reference/daemon#harness-sessions); one picked is copied into a new chat (`chat.harness.adopt`), which is then carried on the same way, and one that cannot be continued says the daemon's refusal instead; such a row is read-only and has no menu. |
-| `/epics` | Lists no chat of this machine. An epic an earlier hmz recorded for a chat is listed as an epic named `chat`, read as any other, with no `Exomyth` row and no way to carry it on. |
+| `/epics` | Lists no chat of this machine. A chat an earlier hmz recorded as an epic is [moved among the chats](/user/chat#earlier-chats) as the daemon starts and listed by `/resume`; one not moved yet is listed here as an epic named `chat`, read as any other, with no `Exomyth` row and no way to carry it on. |
 | `!` lines | A `!` line and its output are drawn dim, in the style of a shell. |
 
 #### Native input {#native-input}
@@ -277,7 +277,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | <span id="cmd-btw"></span>`/btw` | `[question]` | all | out of btw mode: off a `session` view, an [Ai-chan conversation](#ai-chan) followed, or the session gone (see [btw](#btw)) | — |
 | <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing; in a [chat](#chat), no earlier chat here |
-| <span id="cmd-env"></span>`/env` | `[role]` | all | no environment is open (the host's `envs` snapshot is empty) | — |
+| <span id="cmd-env"></span>`/env` | `[role]` | all | no environment is open (the host's `envs` snapshot is empty), unless a chat picked with `/resume` waits to be carried on: it is then carried on with nothing said, and its environments open once its host lists them | — |
 | <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
 | <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
@@ -408,7 +408,7 @@ and what became of it said on the line under the list, a refusal in red:
 | `fork` | `chat.fork`, then closes the list on the new chat, drawn with what was said in it, `say something to continue chat <id>` | the daemon's refusal where a turn is open or the conversation is kept elsewhere |
 | `archive` | `chat.archive`; the chat leaves the list | `archived <title>; /settings workspace puts it back` |
 | `upload` | offered where a backup target exists: `chat.backup`, to the chat's targets or the defaults, not waited on | `backing up to <targets>` |
-| `delete` | opens the box `Delete <title>?`, `Permanent: the chat and the conversation kept with it are removed, and cannot be brought back.`, buttons **keep** (focused) and **delete**; **delete** calls `chat.delete`, and the chat leaves the list | `deleted <title>`; for one still going, `Chat <id> is going on; delete it once it rests.` |
+| `delete` | opens the box `Delete <title>?`, `Permanent: the chat and the conversation kept with it are removed, and cannot be brought back.`, buttons **keep** (focused) and **delete**; **delete** calls `chat.delete`, and the chat leaves the list | `deleted <title>`; for one whose turn is open, `Chat <id> has a turn open; delete it once it is done.` |
 | `copy id` | copies the chat's id | `id copied` |
 
 Where the chat on the screen was archived or deleted, closing the list starts a new chat, as
@@ -629,10 +629,10 @@ where it is one, else on the view being read:
 
 | Aspect | Rule |
 | --- | --- |
-| Menu | `/ai` lists **New**, then every conversation `aichan.list` answers, newest first: `Ai-chan#<n> · <title>`, and beside it its scope (`daemon`, `workspace <dir>`, `epic <name>`), nous, preset, `network on\|off`, and `answering`, `between turns` or `folded away`. |
+| Menu | `/ai` lists **New**, then every conversation `aichan.list` answers, newest first: `Ai-chan#<n> · <title>`, and beside it its scope (`daemon`, `workspace <dir>`, `epic <name>`), nous, preset, and `answering`, `between turns` or `folded away`. |
 | Carrying one on | `enter` on a conversation follows its host (`epic.attach` on its `ai:` slot), which carries on one that folded away. |
 | Forgetting one | `m` on a conversation offers **forget**, which asks `Forget Ai-chan#<n>?` and then calls `aichan.forget`. |
-| New | A form: **scope** ▾ (`epic`, of the epic going or last on this directory's host, where there is one, else `workspace`, of this directory; or `daemon`), **nous** ▾ (every nous `nous.list` answers, written as `-a` spells an agent where there is none; defaulting to the `ai_chan` setting of the [General page](#general-page); required), **preset** ▾ (`read-only`, `danger-full-access`), **network** ▾ (`off`, `on`). **Done** leaves the menu, prints `Ai-chan: the next line you say starts the conversation; /clear to drop it`, and the next line said is the task of `aichan.create`; its conversation is then followed. A refusal is `hmz: /ai: <why>`. |
+| New | A form: **scope** ▾ (`epic`, of the epic going or last on this directory's host, where there is one, else `workspace`, of this directory; or `daemon`), **nous** ▾ (every nous `nous.list` answers, written as `-a` spells an agent where there is none; defaulting to the nous the last conversation was made with, the [`ai_chan` setting](/reference/settings#ai-chan); required), **preset** ▾ (`read-only`, `danger-full-access`). **Done** leaves the menu, prints `Ai-chan: the next line you say starts the conversation; /clear to drop it`, and the next line said is the task of `aichan.create`; its conversation is then followed. A refusal is `hmz: /ai: <why>`. |
 | Drawn | As a [chat](#chat), with `Ai-chan#<n> · <scope>` (a workspace by its last part) at the front of the [status line](#status-left). Every tool she calls is shown as a tool line, [details](#general-page) on or off. |
 | Lines | A line said is her next turn. `/stop` interrupts her open turn, leaving the conversation between turns. `/btw` is refused. |
 | Leaving | [`/clear`](#clear-command) leaves her to her host and follows this directory's own host again. |
@@ -1301,7 +1301,7 @@ its step of the way across the top: `hmz › /epics › <when> · <flow>`). `←
 | `Exomyth` | `the epic as a timeline of its sessions`. Opens [Exomyth](#exomyth); `esc` there comes back to the run. Not for an epic of kind `chat`. |
 | `copy name`, `copy task`, `copy path` | `what the epic is called`, `what the epic was asked to do`, `where the epic is written down`. Copies it to the clipboard, saying `<name\|task\|path> copied` under the runs. |
 
-A [chat](#chat) is no epic and is not listed here: `/resume` in a chat goes back to one. An epic an earlier hmz recorded for a chat (kind `chat`) is listed, named `chat`, and read as any other, but offers neither `resume epic` nor `Exomyth`: `this epic is of a chat an earlier hmz had, and cannot be carried on`.
+A [chat](#chat) is no epic and is not listed here: `/resume` in a chat goes back to one. An epic an earlier hmz recorded for a chat (kind `chat`) is [moved among the chats](/user/chat#earlier-chats) as the daemon starts; one not moved yet is listed, named `chat`, and read as any other, but offers neither `resume epic` nor `Exomyth`: `this epic is of a chat an earlier hmz had, and cannot be carried on`.
 
 Rows in order: `resume epic`, `graph`, `export epic`, `Exomyth`, `upload`, `copy name`, `copy task`, `copy path`, each where offered.
 
@@ -1497,7 +1497,7 @@ Storage keys are in [Settings](/reference/settings).
 
   ╭──────────────────────────────────────────────────────────────────────────╮
   │ ⚙  General                                      details off · reports on │
-  │    this machine: what epics show, Ai-chan's nous, chat $, error reports  │
+  │    this machine: what epics show, chat $, error reports                  │
   │──────────────────────────────────────────────────────────────────────────│
   │ ♪  Notifications                                5 of 5 kinds · system on │
   │    which epics on this machine you are told of                           │
@@ -1530,7 +1530,7 @@ Storage keys are in [Settings](/reference/settings).
 
 | Card | Summary | `● unsaved` when |
 | --- | --- | --- |
-| ⚙ General | `details on\|off · reports on\|off\|not set` | details, Ai-chan's nous or reports changed |
+| ⚙ General | `details on\|off · reports on\|off\|not set` | details or reports changed |
 | ♪ Notifications | `<n> of 5 kinds · system on\|off` | a kind or the system changed |
 | ⇄ Daemons | `<n> daemon(s)` (Local included) | never |
 | ◉ Accounts | `<n> account(s)` (named accounts) | an edit or removal held |
@@ -1588,7 +1588,6 @@ in force.
 | --- | --- | --- |
 | Error reports, Details | at once on save | — |
 | Notifications | at once on save: the next notice of a kind is told or not | — |
-| Ai-chan | the next Ai-chan conversation made | `takes effect on the next Ai-chan conversation` |
 | Chat prefers for $ | at once on save: the next `$` line of every chat that does not say for itself | — |
 | Chat agent | the next chat started in this directory | `takes effect on next chat` |
 | Forget | next launch | `takes effect on next launch` |
@@ -1605,7 +1604,6 @@ order done, including things done at once, even after a discard), then:
 | --- | --- |
 | Error reports on / off | `error reporting enabled` / `error reporting disabled` |
 | Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
-| Ai-chan | `the next Ai-chan conversation thinks with <spec>`, or with none `/ai will ask which nous each new Ai-chan conversation thinks with` |
 | Forget | `cleared saved settings for this directory; Humanize will open without them on next launch` |
 
 ### General page {#general-page}
@@ -1616,7 +1614,6 @@ in this order, under the heading in the first column.
 | Heading | Row | Values (description) | Default | Stored as |
 | --- | --- | --- | --- | --- |
 | Display | **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
-| Agents | **Ai-chan** ▾ `the nous a new Ai-chan conversation defaults to` | `none` (`ask for one each time`), the current choice (`chosen`), each nous (`a nous`), `another…` (`set an agent up`: the [agent sheet](#what-each-agent-is) titled `Set up Ai-chan`) | none | `ai_chan` (a nous's name or `cli[@account]/model:effort`); takes effect on the next [Ai-chan conversation](#ai-chan) made |
 | Chat | **Chat prefers for $** ▾ `what $<name> starts in a chat where a native skill and a flow share it` | `native` (`the harness's own skill of that name`), `flow` (`the flow of that name; the skill stays $ in the harness`) | native | `chat.prefer` |
 | Privacy | **Error reports** ▾ `send error reports to Humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
 | Privacy | **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
@@ -2359,7 +2356,7 @@ and when the width changes. The status line says `· copied` for 2 s.
 | --- | --- | --- |
 | `enable_sentry` | machine | Error reports, the first-start question |
 | `details` | machine | Details |
-| `ai_chan` | machine | Ai-chan |
+| `ai_chan` | machine | making an [Ai-chan conversation](#ai-chan): the nous it was made with |
 | `chat.prefer` | machine | Chat prefers for `$` |
 | `workspaces.<dir>.chat.agent` | directory | starting a chat, `/model` or `/effort` in one, Chat agent |
 | `backup` | machine | the Backup page |

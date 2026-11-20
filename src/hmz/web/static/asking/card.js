@@ -7,6 +7,7 @@
 
 import { fill, h, problem } from '../dom.js'
 import { ask, shownTo } from '../held.js'
+import { t } from '../i18n.js'
 import { blocks } from './blocks.js'
 import { schemaForm } from './form.js'
 import { keepDraft, oneLine, pruneDrafts, readDraft, refusalErrors, sendLabel, summaryOf, withdrawnWhy, draftable } from './logic.js'
@@ -42,7 +43,7 @@ export function questionCard(where, one, me, clients) {
   const schema = one.schema && typeof one.schema === 'object' ? one.schema : null
   const held = Boolean(one.owner && one.owner !== me)
   const node = h('section', { class: ['question', 'ask-card', 'ask-new', held && 'is-held'], 'data-hmz': 'question', 'data-question': String(one.question), 'aria-labelledby': promptId })
-  const kicker = h('div', { class: 'kicker ask-kicker' }, h('span', {}, `${one.role || 'the flow'} asks`))
+  const kicker = h('div', { class: 'kicker ask-kicker' }, h('span', {}, one.role ? t('{role} asks', { role: one.role }) : t('the flow asks')))
   const prompt = h('div', { class: 'body ask-prompt', id: promptId, 'data-hmz': 'ask-prompt' }, one.text || '')
   // On a card, only the first block is open: the rest wait behind what they hold, one line each.
   const context = blocks(one.context, { open: (one.context || []).map((_, at) => at === 0) })
@@ -62,12 +63,12 @@ export function questionCard(where, one, me, clients) {
     const mine = answered && (outcome.mine || answered.client === me)
     const words = answered
       ? mine
-        ? `You answered: ${said}`
-        : `${answered.by || named[answered.client] || 'Someone'} answered: ${said}`
-      : `Withdrawn: ${withdrawnWhy(outcome.withdrawn, one.role)}`
+        ? t('You answered: {said}', { said })
+        : t('{who} answered: {said}', { who: answered.by || named[answered.client] || t('Someone'), said })
+      : t('Withdrawn: {why}', { why: withdrawnWhy(outcome.withdrawn, one.role) })
     node.classList.remove('ask-new', 'is-held')
     node.classList.add('ask-settled', answered ? 'is-answered' : 'is-withdrawn')
-    const dismiss = h('button', { type: 'button', class: 'icon-btn ask-dismiss', 'aria-label': 'Dismiss', title: 'Dismiss', 'data-hmz': 'ask-dismiss', onclick: () => node.remove() }, '×')
+    const dismiss = h('button', { type: 'button', class: 'icon-btn ask-dismiss', 'aria-label': t('Dismiss'), title: t('Dismiss'), 'data-hmz': 'ask-dismiss', onclick: () => node.remove() }, '×')
     fill(
       node,
       h(
@@ -83,7 +84,7 @@ export function questionCard(where, one, me, clients) {
 
   if (held) {
     // Held by another: read, never filled, while it waits for them.
-    answer.append(h('p', { class: 'ask-held', 'data-hmz': 'ask-held', role: 'status' }, h('span', { class: 'ask-wait', 'aria-hidden': 'true' }, '●'), `Waiting for ${named[one.owner] || one.owner} to answer: that frontend holds ${one.role}.`))
+    answer.append(h('p', { class: 'ask-held', 'data-hmz': 'ask-held', role: 'status' }, h('span', { class: 'ask-wait', 'aria-hidden': 'true' }, '●'), t('Waiting for {who} to answer: that frontend holds {role}.', { who: named[one.owner] || one.owner, role: one.role })))
     if (schema) answer.append(schemaForm(schema, { disabled: true, prefix: 'held' }).node)
     else if ((one.options || []).length) answer.append(h('div', { class: 'ask-options row' }, one.options.map((option) => h('button', { type: 'button', class: 'btn small', disabled: true }, option))))
     return node
@@ -176,7 +177,7 @@ function schemaAnswer(where, one, schema, settle) {
       clearTimeout(timer)
       timer = setTimeout(() => {
         keepDraft(draftOf(where, one), draftable(value, schema))
-        kept.say('Draft kept')
+        kept.say(t('Draft kept'))
       }, 400)
     },
   })
@@ -196,7 +197,7 @@ function schemaAnswer(where, one, schema, settle) {
     button.classList.toggle('is-left', left > 0)
   }
   progress()
-  if (draft !== undefined) kept.say('Draft restored')
+  if (draft !== undefined) kept.say(t('Draft restored'))
 
   let busy = false
   async function submit() {
@@ -210,7 +211,7 @@ function schemaAnswer(where, one, schema, settle) {
     }
     const value = form.read()
     busy = button.disabled = true
-    button.textContent = 'Answering…'
+    button.textContent = t('Answering…')
     try {
       await ask(where, 'answer', { question: one.question, value })
       clearTimeout(timer)
@@ -219,7 +220,7 @@ function schemaAnswer(where, one, schema, settle) {
       const mapped = refusalErrors(error)
       if (mapped.length) {
         form.show(mapped)
-        said.append(h('p', { class: 'problem', role: 'alert' }, mapped.length === 1 ? 'One answer needs another look.' : `${mapped.length} answers need another look.`))
+        said.append(h('p', { class: 'problem', role: 'alert' }, mapped.length === 1 ? t('One answer needs another look.') : t('{n} answers need another look.', { n: mapped.length })))
         form.focusFirst()
       } else said.append(problem(error))
     } finally {
@@ -249,7 +250,7 @@ function textAnswer(where, one, settle) {
       fill(said)
       const was = [...button.childNodes]
       for (const each of buttons) each.disabled = true
-      fill(button, 'Answering…')
+      fill(button, t('Answering…'))
       try {
         // Sent as itself: a number is taken as a place only where it is no option of its own.
         await answering(option, option)
@@ -263,13 +264,13 @@ function textAnswer(where, one, settle) {
     return button
   })
   const draft = readDraft(draftOf(where, one))
-  const typed = h('input', { type: 'text', placeholder: options.length ? 'Or say something else' : 'Your answer', 'aria-label': 'Answer', 'data-hmz': 'ask-text', value: typeof draft === 'string' ? draft : '' })
+  const typed = h('input', { type: 'text', placeholder: options.length ? t('Or say something else') : t('Your answer'), 'aria-label': t('Answer'), 'data-hmz': 'ask-text', value: typeof draft === 'string' ? draft : '' })
   let timer = 0
   typed.addEventListener('input', () => {
     clearTimeout(timer)
     timer = setTimeout(() => keepDraft(draftOf(where, one), typed.value || undefined), 400)
   })
-  const send = h('button', { class: 'btn small primary', type: 'submit' }, 'Answer')
+  const send = h('button', { class: 'btn small primary', type: 'submit' }, t('Answer'))
   const form = h('form', { class: 'row ask-line' }, typed, send)
   form.addEventListener('submit', async (event) => {
     event.preventDefault()
@@ -279,7 +280,7 @@ function textAnswer(where, one, settle) {
     }
     fill(said)
     send.disabled = true
-    send.textContent = 'Answering…'
+    send.textContent = t('Answering…')
     try {
       clearTimeout(timer)
       await answering(typed.value, typed.value)
@@ -288,10 +289,10 @@ function textAnswer(where, one, settle) {
       said.append(problem(error))
     } finally {
       send.disabled = false
-      send.textContent = 'Answer'
+      send.textContent = t('Answer')
     }
   })
-  const node = h('div', { class: 'ask-text-answer' }, buttons.length ? h('div', { class: 'row ask-options', role: 'group', 'aria-label': 'Answers offered' }, buttons) : null, form, said)
+  const node = h('div', { class: 'ask-text-answer' }, buttons.length ? h('div', { class: 'row ask-options', role: 'group', 'aria-label': t('Answers offered') }, buttons) : null, form, said)
   return {
     node,
     submit: () => form.requestSubmit(),
@@ -318,7 +319,7 @@ function themeTokens() {
  */
 function faced(where, one, context, answer, sending, settle) {
   const plain = h('div', { class: 'ask-plain-form', hidden: true }, sending.node)
-  const frame = h('div', { class: 'ask-face', 'data-hmz': 'ask-face', 'aria-busy': 'true' }, h('p', { class: 'loading dim', role: 'status' }, `Opening ${(one.face && one.face.title) || 'the flow’s view'}…`))
+  const frame = h('div', { class: 'ask-face', 'data-hmz': 'ask-face', 'aria-busy': 'true' }, h('p', { class: 'loading dim', role: 'status' }, one.face && one.face.title ? t('Opening {name}…', { name: one.face.title }) : t('Opening the flow’s view…')))
   const note = h('p', { class: 'dim ask-face-note', hidden: true })
   let failed = false
   // The face host draws the one switch between the face and the plain form, and says when
@@ -335,7 +336,7 @@ function faced(where, one, context, answer, sending, settle) {
     failed = true
     frame.remove()
     note.hidden = false
-    note.textContent = `The flow’s own view could not open${why ? ` (${why})` : ''}; here is the plain form.`
+    note.textContent = why ? t('The flow’s own view could not open ({why}); here is the plain form.', { why }) : t('The flow’s own view could not open; here is the plain form.')
     showPlain(true)
   }
   answer.append(frame, note, plain)
@@ -361,7 +362,7 @@ function faced(where, one, context, answer, sending, settle) {
         shown,
         where,
       })
-      if (!(mounted instanceof Node)) throw new Error('no view')
+      if (!(mounted instanceof Node)) throw new Error(t('no view'))
       if (failed) return
       frame.removeAttribute('aria-busy')
       fill(frame, mounted)

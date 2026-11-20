@@ -221,14 +221,7 @@ def _list(call: Call) -> dict[str, Any]:
 
 
 def _get(call: Call) -> dict[str, Any]:
-    name = str(call.params["chat"])
-    try:
-        ran = CHATS.named(name)
-    except RpcError:
-        if name not in _hers():
-            raise
-        # Her conversation an earlier hmz began, which is kept as an epic.
-        ran = runs.RUNS.named(name)
+    ran = CHATS.named(str(call.params["chat"]))
     said = detail(ran, hosted().get(ran.name), going=CHATS.going(ran))
     if call.params.get("trace") is True:
         said["trace"] = CHATS.traced(ran)
@@ -284,9 +277,12 @@ def _delete(call: Call) -> dict[str, Any]:
     from hmz.runtime.epic import going
 
     ran = _named(call)
+    # Not while anything holds it: the daemon ends a host that holds it between turns
+    # before this is asked, so what holds it still has a turn of it open.
     if ran.name in hosted() or going(ran.at):
         raise RpcError(
-            Code.CONFLICT, f"Chat {ran.name} is going on; delete it once it rests."
+            Code.CONFLICT,
+            f"Chat {ran.name} has a turn open; delete it once it is done.",
         )
     # Its record and the sessions kept beside it; a worktree it worked in is never removed.
     shutil.rmtree(ran.at)

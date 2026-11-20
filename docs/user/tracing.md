@@ -173,7 +173,7 @@ where the budget is:
 1. **`profile environment`**, just under `budget` and `profile flow` on
    [`/flow`](/reference/tui#roles-page): a switch. **`profile flow`** above it is the same
    switch for the flow's own Python. On the web page they are the **Profile flow** and
-   **Profile environment** boxes under **Options**.
+   **Profile environment** boxes on the **New epic** form.
    <kbd>enter</kbd> drops `on` and `off` under it, the cursor already on the other one, so
    <kbd>enter</kbd> twice turns it round. It is off until you turn it on.
 2. **Save**: kept with the rest of the flow's setup in this directory, so the next run of the

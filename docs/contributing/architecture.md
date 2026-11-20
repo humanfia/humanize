@@ -271,11 +271,49 @@ module that opens one:
 without a document, so `tests/unit/web/js/layers.test.mjs` tests it under `node --test`.
 
 A harness, a model and an effort are named on the page by `web/static/names.js` alone
-(`harnessName`, `modelName`, `effortName`): each harness and each rung by its vendor's name, a
-model by its family's row, and an id the table does not hold as it is written. Draw a name
+(`harnessName`, `modelName`, `effortName`): each harness by its vendor's name, a model by its
+family's row, each rung of an effort by the page's own word for it -- a `t('…')` of the table,
+so it is said in the page's [language](#web-languages) -- and an id the table does not hold as
+it is written. Draw a name
 through it and keep the id where it is data -- a `data-` attribute, a tip, an agent as `-a`
 spells it. A harness added to `DRIVEN` gets a row there; `tests/unit/web/js/names.test.mjs`
 lists the ids.
+
+## The page's languages {#web-languages}
+
+The page is written in English, Simplified Chinese (`zh-Hans`) or Traditional Chinese
+(`zh-Hant`). `web/static/lang.js`, a classic script ahead of the page's own, sets `<html lang>`
+before anything is drawn, from the choice kept as `hmz-language` or from what the browser asks
+for; `web/static/i18n.js` says each text in that language. Changing it keeps the choice and
+opens the page again, so a table built as a module loads may call `t` at once.
+
+The English text is the key, written where it is said:
+
+```js
+import { pieces, t } from './i18n.js'
+
+h('button', {}, t('Cancel'))
+t('New chat in {name}', { name: called })
+t('{n} flows have a newer release', { n: count }) // forms in i18n/en/<area>.js: { one, other }
+t('Open@@verb') // `@@note` tells two homographs apart; it is never shown
+h('p', {}, pieces('From {name}', { name: h('b', {}, called) })) // a sentence holding an element
+```
+
+- The first argument is always one single-quoted literal: the test finds the page's texts by
+  it. A text chosen by a value comes from a table of `t('…')` calls, never `t(value)`.
+- Wrap the text where it is written, never inside `h()`: `h` also carries paths, tasks and what
+  agents wrote, which are never looked up.
+- A translation goes into the fragment of its area, `web/static/i18n/zh-Hans/<area>.js` and
+  `web/static/i18n/zh-Hant/<area>.js` (`core`, `sidebar`, `chat`, `ask`, `settings`, `envs`,
+  `themes`); a text two areas say belongs to `core`. Traditional Chinese is written in Taiwan's
+  words, not converted from Simplified.
+- Names stay in Latin script (Humanize, Ai-chan, Nous, Epic, Flow, Flowverse, Harness, Daemon,
+  Exomyth, Agent, Worktree, and every harness and model), and what a daemon, a flow or an agent
+  wrote is never translated.
+
+`tests/unit/web/js/i18n.test.mjs` holds the catalogs to the source: every text in both Chinese
+catalogs, no entry left over, the same `{names}` in a translation as in its text, no text in two
+fragments. Run it with `node --test tests/unit/web/js/i18n.test.mjs`.
 
 ## Vendored web code {#vendored-web-code}
 

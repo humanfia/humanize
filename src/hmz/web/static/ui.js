@@ -6,6 +6,7 @@
 // of the page, clear of what is typed.
 
 import { h, icon } from './dom.js'
+import { t } from './i18n.js'
 import { chain, closed, opened, tipping } from './layers.js'
 import { EDGE, GAP, enter, place } from './shell.js'
 
@@ -48,12 +49,12 @@ export function menuButton(button, of) {
 }
 
 /** Copies text, saying so in a toast where it could and could not. */
-export async function copy(text, what = 'Copied') {
+export async function copy(text, what = t('Copied')) {
   try {
     await navigator.clipboard.writeText(text)
     toast(what)
   } catch {
-    toast('Copy failed')
+    toast(t('Copy failed'))
   }
 }
 

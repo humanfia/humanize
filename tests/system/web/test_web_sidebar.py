@@ -80,6 +80,17 @@ def _answers(runs: list[dict[str, Any]], total: int | None = None) -> dict[str, 
     }
 
 
+def _now() -> str:
+    """This moment, as a chat's row says when it was last written."""
+    import datetime
+
+    return datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")
+
+
+#: When every chat a host holds here was last heard of: one moment, so their order stays.
+_NOW = _now()
+
+
 def _chat(row: dict[str, Any]) -> dict[str, Any]:
     """A chat's row as `chat.list` answers it: what it waits on between turns its host says."""
     held = row["held"]
@@ -93,7 +104,8 @@ def _chat(row: dict[str, Any]) -> dict[str, Any]:
         "agent": row["agents"][0]["runs"],
         "model": "sonnet",
         "began": row["began"],
-        "updated": row["ended"] or row["began"],
+        # One a host holds was heard of just now, which is all that stands it first.
+        "updated": row["ended"] or (_NOW if held else row["began"]),
         "state": "failed"
         if how == "failed"
         else "turn"
@@ -344,14 +356,27 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         assert _box(add) == (238, 206, 24, 24)
         expect(add).to_have_attribute("aria-label", "New chat in w")
 
-        # A chat says how it stands in quiet words straight after its title, and no more:
-        # no glyph, no dot, no flow, nothing that opens it out.
+        # A chat says how it stands in a quiet word straight after its title, and no more:
+        # no glyph, no flow, nothing that opens it out. One that waits on its person says
+        # no word: it is marked by the dot of a row unread, which says so to whoever
+        # cannot see it and where it is pointed at.
         said = {
             name: group.locator(f".side-item[data-epic={name}] [data-hmz=chat-state]")
             for name in ("going", "asks", "failed", "rests")
         }
         expect(said["going"]).to_have_text("Running")
-        expect(said["asks"]).to_have_text("Awaiting input")
+        expect(said["asks"]).to_have_text("")
+        expect(said["asks"]).to_have_class("side-unread")
+        expect(said["asks"]).to_have_attribute("role", "img")
+        expect(said["asks"]).to_have_attribute("aria-label", "Awaiting input")
+        expect(said["asks"]).to_have_attribute("title", "Awaiting input")
+        assert _box(said["asks"])[2:] == (6, 6)
+        expect(group.locator(".side-item[data-epic=asks]")).not_to_contain_text(
+            "Awaiting input"
+        )
+        expect(
+            group.locator(".side-item[data-epic=asks] [data-hmz=unread]")
+        ).to_have_count(0)
         expect(said["asks"]).to_have_css("animation-name", "none")
         expect(said["failed"]).to_have_text("Failed")
         expect(said["rests"]).to_have_count(0)
@@ -655,12 +680,23 @@ def test_a_list_by_folder_with_nothing_to_show_keeps_a_heading(engine: str) -> N
         expect(page.locator("[data-hmz=epics] .side-quiet")).to_have_text(
             "Nothing here yet"
         )
+        # Where its rows would be, what starts a chat in it.
+        fresh = page.locator("[data-hmz=epics] [data-hmz=group-empty-new]")
+        expect(fresh).to_have_text("New chat")
         # What brings the chat back is on that heading.
         menu = _group_and_sort(page)
         menu.get_by_role("menuitem", name="Show").hover()
         page.get_by_role("menuitemcheckbox", name="Chats").click()
         expect(epics).to_have_count(1)
         _named(page, "No folder")
+        expect(fresh).to_have_count(0)
+        page.keyboard.press("Escape")
+        menu = _group_and_sort(page)
+        menu.get_by_role("menuitem", name="Show").hover()
+        page.get_by_role("menuitemcheckbox", name="Chats").click()
+        page.keyboard.press("Escape")
+        fresh.click()
+        expect(page).to_have_url(re.compile(r"#/new/chat$"))
 
 
 def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them(
@@ -697,7 +733,6 @@ def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them
         offered = [
             "New chat here",
             "New epic here",
-            "Flows here",
             "Search here",
             "Copy path",
             "Settings",
@@ -902,3 +937,94 @@ def test_the_drawer_on_a_phone_holds_the_focus_and_closes_by_escape(
         page.locator("[data-hmz=composer-text]").click()
         page.keyboard.type("hello")
         expect(page.locator("[data-hmz=composer-text]")).to_have_value("hello")
+
+
+@pytest.mark.parametrize(
+    ("language", "said"),
+    [
+        (
+            "zh-Hans",
+            {
+                "nav": ["新建聊天", "新建 Epic", "搜索", "Flow"],
+                "states": ["运行中", "等待输入", "已完成", "失败"],
+                "menu": ["分组方式", "排序方式", "显示"],
+                "about": ["文件夹", "最近更新"],
+                "reset": "恢复默认",
+                "row": ["打开", "置顶", "标为未读", "重命名"],
+                "date": ["今天", "更早", "文件夹"],
+                "add": "在 w 中新建聊天",
+            },
+        ),
+        (
+            "zh-Hant",
+            {
+                "nav": ["新增聊天", "新增 Epic", "搜尋", "Flow"],
+                "states": ["執行中", "等待輸入", "已完成", "失敗"],
+                "menu": ["分組方式", "排序方式", "顯示"],
+                "about": ["資料夾", "上次更新"],
+                "reset": "重設為預設值",
+                "row": ["開啟", "置頂", "標示為未讀", "重新命名"],
+                "date": ["今天", "更早", "資料夾"],
+                "add": "在 w 中新增聊天",
+            },
+        ),
+    ],
+)
+def test_the_sidebar_is_written_in_the_language_chosen(
+    engine: str, language: str, said: dict[str, Any]
+) -> None:
+    wire = _wire(_MIXED)
+    kept = f"localStorage.setItem('hmz-language', '{language}')"
+    with (
+        served() as site,
+        opened(site, engine=engine, routed=wire.routes, init=kept) as page,
+    ):
+        expect(page.locator("html")).to_have_attribute("lang", language)
+        expect(page.locator(".side-nav a > span:not(.side-badge)")).to_have_text(
+            said["nav"]
+        )
+        # What was asked and a folder's name stay as written; how a row stands does not.
+        _named(page, "w", "v", "empty")
+        expect(page.locator("[data-hmz=epics] [data-hmz=epic]")).to_have_count(6)
+        going = page.locator("[data-hmz=epics] .side-item[data-epic=going]")
+        expect(going.locator(".side-label")).to_have_text("Ask going")
+        states = page.locator(
+            "[data-hmz=epics] :is([data-hmz=chat-state], [data-hmz=epic-state])"
+        )
+        assert [
+            one.get_attribute("aria-label") or one.inner_text() for one in states.all()
+        ] == said["states"]
+        expect(page.locator("[data-hmz=group-add]").first).to_have_attribute(
+            "aria-label", said["add"]
+        )
+        # No label of the list is cut short or runs out of its row.
+        labels = page.locator(".side-nav a > span:not(.side-badge), .side-status")
+        for label in labels.all():
+            assert label.evaluate("(el) => el.scrollWidth <= el.clientWidth + 1"), (
+                label.inner_text()
+            )
+
+        menu = _group_and_sort(page)
+        expect(
+            menu.locator(":scope > .choice-sub > .choice .choice-label")
+        ).to_have_text(said["menu"])
+        expect(
+            menu.locator(":scope > .choice-sub > .choice .choice-about")
+        ).to_have_text(said["about"])
+        expect(menu.locator(":scope > .choice")).to_have_text(said["reset"])
+        page.keyboard.press("Escape")
+
+        page.locator("[data-hmz=epics] .side-item[data-epic=rests] a").click(
+            button="right"
+        )
+        expect(page.get_by_role("menuitem")).to_contain_text(said["row"])
+        page.keyboard.press("Escape")
+
+    by_date = (
+        f"{kept}; localStorage.setItem('hmz-list', JSON.stringify({{ group: 'date' }}))"
+    )
+    with (
+        served() as site,
+        opened(site, engine=engine, routed=wire.routes, init=by_date) as page,
+    ):
+        _named(page, *said["date"])

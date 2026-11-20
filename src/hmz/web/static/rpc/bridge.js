@@ -3,6 +3,7 @@
 // routes the server opens for the page, which tells the page `{state, detail}` in text until the
 // carrier is up. From then on, binary messages carry the bytes each way.
 
+import { t } from '../i18n.js'
 import { Pipe, onAbort } from './pipe.js'
 import { routeKind } from './routes.js'
 
@@ -37,7 +38,7 @@ export function bridge({ base, WebSocket: Socket = globalThis.WebSocket } = {}) 
         }
         const stop = onAbort(signal, () => {
           socket.close(1000)
-          reject(new Error('Given up.'))
+          reject(new Error(t('Given up.')))
         })
         socket.onopen = () => {
           if (!dialed) up()
@@ -49,7 +50,7 @@ export function bridge({ base, WebSocket: Socket = globalThis.WebSocket } = {}) 
           }
           if (pipe) {
             socket.close(1000)
-            pipe.end('The server sent text.')
+            pipe.end(t('The server sent text.'))
             return
           }
           let told

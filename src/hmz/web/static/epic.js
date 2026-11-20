@@ -14,9 +14,10 @@
 // way, in the order they were opened, so an address to a session stays one as its run ends.
 
 import { call, daemon, poll } from './api.js'
-import { chatDetail, epicRow } from './chats.js'
+import { chatDetail } from './chats.js'
 import { agentLabel } from './chips/agent.js'
 import { flowName, lane, lasting } from './dom.js'
+import { t } from './i18n.js'
 import { current, follow, placed } from './held.js'
 import { harnessName, modelName } from './names.js'
 import { keep, kept } from './shell.js'
@@ -86,7 +87,7 @@ export function watch(name, where, told, { chat: aChat = false } = {}) {
   const stop = name
     ? poll(aChat ? 'chat.get' : 'runs.get', aChat ? { chat: name } : { name }, 4000, (data, error) => {
         seen.error = error
-        if (data) seen.detail = aChat ? chatDetail(data) : epicRow(data)
+        if (data) seen.detail = aChat ? chatDetail(data) : data
         tell()
       })
     : () => {}
@@ -99,7 +100,7 @@ export function watch(name, where, told, { chat: aChat = false } = {}) {
 
 /** An epic, or a chat, whole, as the view reads either. */
 function whole(name, chat) {
-  return chat ? call('chat.get', { chat: name }).then(chatDetail) : call('runs.get', { name }).then(epicRow)
+  return chat ? call('chat.get', { chat: name }).then(chatDetail) : call('runs.get', { name })
 }
 
 /** Whether the start the records say is the start an epic wrote down, as the server matches them. */
@@ -128,8 +129,8 @@ export function chatting(epic) {
  * How an epic is marked: as it stands, save that one going, asked something no person has
  * looked at yet, is asking, and once every question has been looked at, waiting. A chat is
  * marked as a chat app marks one: running while its agent answers, asking while its reply waits
- * unseen, even once it has folded away, failed where it failed, and stopped otherwise -- by the
- * turn said where it is, else by how the epic stands.
+ * unseen, whether or not a host still holds it, failed where it failed, and stopped otherwise:
+ * never by whether a host holds it.
  *
  * @param {string} how How the epic stands.
  * @param {{chat?: boolean, turn?: string, asked?: string[], epic?: string}} of Whether it is a chat, its turn, and the `<run>:<question>` keys it waits on a person for.
@@ -144,7 +145,7 @@ export function markOf(how, { chat = false, turn = '', asked = [], epic = '' } =
     if (asked.length) owe(epic, asked)
     const waits = waitsOn(epic, asked)
     if (waits.some((key) => !looked().has(lookedKey(epic, key)))) return 'asking'
-    return how === 'running' && !turn ? 'running' : ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
+    return ['failed', 'refused', 'crashed'].includes(how) ? how : 'stopped'
   }
   if (how !== 'running' || !asked.length) return how
   return asked.some((key) => !looked().has(lookedKey(epic, key))) ? 'asking' : 'waiting'
@@ -315,9 +316,9 @@ export function live(held, run, detail) {
       person,
       color: lane(person ? -1 : index),
       spec: person ? '' : specs[name] || given,
-      said: person ? 'a person' : runsSaid(specs[name] || given),
+      said: person ? t('a person') : runsSaid(specs[name] || given),
       working: Boolean(figure && figure.working),
-      status: figure ? (figure.working ? `working ${figure.lasting}` : `idle ${figure.lasting}`) : person ? '' : 'not started',
+      status: figure ? (figure.working ? t('working {time}', { time: figure.lasting }) : t('idle {time}', { time: figure.lasting })) : person ? '' : t('not started'),
       turns: figure ? figure.turns : sessions.filter((one) => one.agent === name).reduce((sum, one) => sum + one.turns.length, 0),
       tokens: figure ? figure.tokens : '',
       under: figure ? figure.under : [],
@@ -368,7 +369,7 @@ export function written(detail, traced) {
       spec: given[name] ? given[name].runs : '',
       said: runsSaid(given[name] ? given[name].runs : ''),
       working: false,
-      status: traced ? `${count} turn${count === 1 ? '' : 's'}` : `${mine.length} session${mine.length === 1 ? '' : 's'}`,
+      status: traced ? t('{n} turns', { n: count }) : t('{n} sessions', { n: mine.length }),
       // Its status says them already.
       turns: null,
       tokens: '',

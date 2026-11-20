@@ -278,7 +278,7 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             expect(listed.locator(".archived-title")).to_have_text("first thing")
             listed.get_by_role("button", name="Unarchive").click()
             expect(listed).to_have_count(0)
-            expect(archived).to_contain_text("None")
+            expect(archived).to_contain_text("No archived chats.")
             assert not _call(page, "chat.get", {"chat": fork})["archived"]
             page.keyboard.press("Escape")
             expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
@@ -332,29 +332,43 @@ def test_a_chat_is_forked_archived_put_back_and_deleted(
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog).to_have_count(0)
             expect(page.locator("[data-hmz=dialog-settings]")).to_be_visible()
-            expect(archived).to_contain_text("None")
+            expect(archived).to_contain_text("No archived chats.")
             assert _call(page, "chat.list", {"archived": True})["chats"] == []
 
 
-def test_what_the_daemon_refuses_of_a_chat_going_is_said_in_its_words(
+def test_a_chat_is_deleted_between_turns_and_refused_only_while_its_turn_is_open(
     project: Path, engine: str
 ) -> None:
     with served() as site:
-        name = _chatted(site, "still going", stopped=False)
+        name = _chatted(site, "still here", stopped=False)
         with opened(site, engine=engine, width=1280, height=800) as page:
             go(page, f"/chats/{name}")
-            expect(_title(page)).to_have_text("still going")
+            expect(_title(page)).to_have_text("still here")
+            # A turn open: what the daemon refuses is said in its words.
+            button = page.locator("[data-hmz=say] .send")
+            say = page.locator("[data-hmz=say] textarea")
+            say.fill('run: [["sleep", "60"]]')
+            say.press("Enter")
+            expect(button).to_have_attribute("aria-label", "Stop")
             _bar_menu(page).get_by_role("menuitem", name="Delete").click()
             dialog = page.locator("[data-hmz=dialog-delete]")
             dialog.locator("[data-hmz=delete-confirm]").click()
             expect(dialog.locator(".delete-said")).to_have_text(
-                f"Chat {name} is going on; delete it once it rests."
+                f"Chat {name} has a turn open; delete it once it is done."
             )
             # The chat stays, and so does the dialog, to be cancelled.
             dialog.locator("[data-hmz=delete-cancel]").click()
             expect(dialog).to_have_count(0)
             assert _call(page, "chat.get", {"chat": name})["id"] == name
-            stop(page)
+
+            # Between turns, a host holding it is no reason to keep it: it is deleted.
+            button.click()
+            expect(button).to_have_attribute("aria-label", "Send")
+            assert _call(page, "chat.get", {"chat": name})["slot"]
+            _bar_menu(page).get_by_role("menuitem", name="Delete").click()
+            dialog.locator("[data-hmz=delete-confirm]").click()
+            expect(page.locator("div[data-hmz=new-chat]")).to_be_visible()
+            assert _call(page, "chat.list")["chats"] == []
 
 
 def _git(at: Path, *argv: str) -> None:
@@ -374,23 +388,33 @@ def test_a_new_chat_is_started_in_a_worktree_of_a_repository(
     with served() as site, opened(site, engine=engine, width=width, height=800) as page:
         # A folder in no repository offers no worktree, and says why.
         go(page, "/new/chat")
+        where = page.locator("[data-hmz=start] [data-hmz=environment]")
         box = page.locator("[data-hmz=new-worktree]")
-        label = page.locator("[data-hmz=start] .desk-check")
-        expect(label).to_have_text("Worktree")
-        expect(box).to_be_disabled()
-        expect(label).to_have_attribute(
-            "data-tip", "This folder is not a git repository"
+        # Not under the box: a row of Environment's menu, the last, that is ticked.
+        expect(box).to_have_count(0)
+        expect(page.locator("[data-hmz=start] .desk-check")).to_have_count(0)
+        expect(where).to_contain_text(project.name)
+        where.click()
+        menu = page.get_by_role("menu", name="Environment")
+        expect(box).to_have_text("Worktree")
+        expect(box).to_have_attribute("role", "menuitemcheckbox")
+        assert menu.locator("[role=menuitem], [role=menuitemcheckbox]").last.evaluate(
+            "(el) => el.dataset.hmz === 'new-worktree'"
         )
-        # After the folder, in the row's left group.
-        assert label.evaluate(
-            "(el) => el.previousElementSibling.matches('.menu-holder, .flow-picker')"
-            " || Boolean(el.previousElementSibling.querySelector('[data-hmz=workspace-picker]'))"
-        )
+        expect(box).to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("aria-checked", "false")
+        expect(box).to_have_attribute("data-tip", "This folder is not a git repository")
+        # Pressed all the same, it ticks nothing.
+        box.click(force=True)
+        expect(box).to_have_attribute("aria-checked", "false")
+        page.keyboard.press("Escape")
 
         # Nor does no folder.
         go(page, "/new/chat?scratch=1")
-        expect(box).to_be_disabled()
-        expect(label).to_have_attribute("data-tip", "A worktree needs a folder")
+        where.click()
+        expect(box).to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("data-tip", "A worktree needs a folder")
+        page.keyboard.press("Escape")
 
         # In a repository it is on offer; ticked, the chat works in a worktree of it.
         _git(project, "init", "-q")
@@ -398,10 +422,16 @@ def test_a_new_chat_is_started_in_a_worktree_of_a_repository(
         _git(project, "add", ".")
         _git(project, "commit", "-q", "-m", "first")
         go(page, f"/new/chat?workspace={urllib.parse.quote(str(project))}")
-        expect(box).to_be_enabled()
-        expect(box).not_to_be_checked()
-        label.click()
-        expect(box).to_be_checked()
+        where.click()
+        expect(box).not_to_have_attribute("aria-disabled", "true")
+        expect(box).to_have_attribute("aria-checked", "false")
+        box.click()
+        # Ticked, the menu stays and says so on the row, which keeps the keys.
+        expect(menu).to_be_visible()
+        expect(box).to_have_attribute("aria-checked", "true")
+        expect(box).to_be_focused()
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
         ).to_have_attribute("data-value", "claude-haiku-4-5")

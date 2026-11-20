@@ -6,6 +6,7 @@
 import { blocks } from './asking/blocks.js'
 import { fieldsOf, kindOf, resolved, summaryOf } from './asking/logic.js'
 import { h, lasting } from './dom.js'
+import { t } from './i18n.js'
 import { modelName } from './names.js'
 import { refusedSaid, shellOf, shellParts } from './natives.js'
 import { copy, menuOf, menuOn } from './ui.js'
@@ -47,8 +48,8 @@ export function line(kind, body, { who = '', folded = false } = {}) {
   )
   // A line copied whole, or the whole thread: what selecting it would take a drag to get.
   return menuOn(said, () => [
-    { label: 'Copy', glyph: 'copy', act: () => copy(text, 'Copied') },
-    { label: 'Copy thread', glyph: 'copy', act: () => copy(threadOf(said), 'Thread copied') },
+    { label: t('Copy'), glyph: 'copy', act: () => copy(text, t('Copied')) },
+    { label: t('Copy thread'), glyph: 'copy', act: () => copy(threadOf(said), t('Thread copied')) },
   ])
 }
 
@@ -67,8 +68,8 @@ export function shellLine(ran) {
     h('div', { class: 'body' }, parts.map((one) => h('pre', { class: `shell-${one.part}` }, one.text))),
   )
   return menuOn(said, () => [
-    { label: 'Copy', glyph: 'copy', act: () => copy(text, 'Copied') },
-    { label: 'Copy output', glyph: 'copy', act: () => copy([ran.out, ran.err].filter(Boolean).join('\n'), 'Copied') },
+    { label: t('Copy'), glyph: 'copy', act: () => copy(text, t('Copied')) },
+    { label: t('Copy output'), glyph: 'copy', act: () => copy([ran.out, ran.err].filter(Boolean).join('\n'), t('Copied')) },
   ])
 }
 
@@ -123,7 +124,9 @@ function threadOf(one) {
  * asked, since it is only the reply said back. Anything else said in asking it -- that a turn
  * could not be taken, or that the conversation could not be carried on -- is the flow's own
  * word in the conversation, and is drawn there, as the terminal interface draws it. A `!`
- * command the chat ran is drawn as a shell draws it, and a line it refused with why.
+ * command the chat ran is drawn as a shell draws it, and a line it refused with why. A turn of
+ * its assistant's is closed by how long it worked and names no session: nothing is drawn as it
+ * begins.
  *
  * Given `folded`, every tool is one line to open, as Ai-chan's are drawn.
  *
@@ -146,7 +149,7 @@ export function sayer(key, { chat = false, folded = false } = {}) {
     switch (record.type) {
       case 'said': {
         const toPerson = kind === 'person' && (record.to === `outworlder:${whom}` || record.role === whom || record.by === whom)
-        return mine || toPerson ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+        return mine || toPerson ? [line('you', record.text, { who: record.by ? t('{who} said', { who: record.by }) : '' })] : []
       }
       case 'asked':
         if (chat && record.mode === 'listen' && kind !== 'person') {
@@ -166,8 +169,8 @@ export function sayer(key, { chat = false, folded = false } = {}) {
           ? asking(record)
           : []
       case 'answered':
-        if (kind === 'person' && record.role === whom) return [line('you', answeredText(record, schemas), { who: record.by ? `${record.by} answered` : 'answered' })]
-        return chat && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+        if (kind === 'person' && record.role === whom) return [line('you', answeredText(record, schemas), { who: record.by ? t('{who} answered', { who: record.by }) : t('answered') })]
+        return chat && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? t('{who} said', { who: record.by }) : '' })] : []
       // What a flow showed a person with nothing asked, in their thread.
       case 'shown':
         return (kind === 'person' && record.role === whom) || (kind === 'session' && (of(record) === key || key === `outworlder:${record.role}`)) ? [shown(record)] : []
@@ -181,7 +184,7 @@ export function sayer(key, { chat = false, folded = false } = {}) {
       case 'event': {
         if (!mine) return []
         if (record.kind === 'result') answer = String(record.text || '')
-        const lines = said(record, kind === 'agent' ? record.session || record.agent : '', began, folded)
+        const lines = said(record, kind === 'agent' ? record.session || record.agent : '', began, { chat, folded })
         if (record.kind === 'asks') stopped = { text: String(record.text || '').trim(), line: lines[0] }
         return lines
       }
@@ -205,7 +208,7 @@ export function sayer(key, { chat = false, folded = false } = {}) {
  * `data-question`, for what answers it to be put by it.
  */
 function asked(record, schemas, one = null) {
-  one ||= line('asks', record.text, { who: `${record.role || 'the flow'} asks` })
+  one ||= line('asks', record.text, { who: record.role ? t('{who} asks', { who: record.role }) : t('the flow asks') })
   one.dataset.question = record.question
   const body = one.querySelector('.body')
   const context = blocks(record.context)
@@ -214,7 +217,7 @@ function asked(record, schemas, one = null) {
     schemas.set(record.question, record.schema)
     const top = resolved(record.schema).node
     const n = kindOf(top) === 'object' ? fieldsOf(top, record.schema).length : 1
-    body.append(h('div', { class: 'ask-form-note dim', 'data-hmz': 'ask-form-note' }, `form · ${n} ${n === 1 ? 'field' : 'fields'}`))
+    body.append(h('div', { class: 'ask-form-note dim', 'data-hmz': 'ask-form-note' }, t('form · {n} fields', { n })))
   }
   return one
 }
@@ -233,7 +236,7 @@ function answeredText(record, schemas) {
 
 /** Context a flow showed a person, as blocks under who it was shown to. */
 function shown(record) {
-  const one = line('notice', '', { who: `shown to ${record.role || 'you'}` })
+  const one = line('notice', '', { who: record.role ? t('shown to {who}', { who: record.role }) : t('shown to you') })
   one.classList.add('shown')
   one.dataset.hmz = 'said-shown'
   const context = blocks(record.context)
@@ -241,15 +244,22 @@ function shown(record) {
   return one
 }
 
-function said(record, who, began, folded = false) {
+/**
+ * What one thing a turn did adds to the transcript. A turn's start and its end name whose turn
+ * it was; given `chat`, a chat's or an Ai-chan conversation's, they name nobody -- there is one
+ * assistant, and no session for its person to tell from another: `begins` draws nothing, and
+ * `ends` only how long the turn worked.
+ */
+function said(record, who, began, { chat = false, folded = false } = {}) {
   const whose = record.session || record.agent
   switch (record.kind) {
     case 'begins':
       began.set(whose, record.at)
-      return [line('begins', `${whose} is working`)]
+      return chat ? [] : [line('begins', t('{who} is working', { who: whose }))]
     case 'ends': {
       const since = began.get(whose)
-      return [line('ends', `Worked for ${since ? lasting(record.at - since) : '?'} · ${whose}`)]
+      const time = since ? lasting(record.at - since) : '?'
+      return [line('ends', chat ? t('Worked for {time}', { time }) : t('Worked for {time} · {who}', { time, who: whose }))]
     }
     // A turn's last word is the answer it ends on, which its words have said already: drawn
     // as the terminal interface draws it, once.
@@ -266,8 +276,8 @@ function said(record, who, began, folded = false) {
     case 'subagent':
     case 'subagent-ends': {
       const [named, ...about] = record.text.split(' ')
-      const doing = record.kind === 'subagent' ? 'started' : 'done'
-      return [line(record.kind, `${named}${about.length ? ` (${about.join(' ')})` : ''} ${doing}`, { who })]
+      const called = `${named}${about.length ? ` (${about.join(' ')})` : ''}`
+      return [line(record.kind, record.kind === 'subagent' ? t('{who} started', { who: called }) : t('{who} done', { who: called }), { who })]
     }
     default:
       return []

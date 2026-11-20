@@ -64,8 +64,7 @@ const served = daemon({
       return {}
     },
     'chat.get': ({ chat, trace }) => ({ ...CHAT, id: chat, earlier: carried, ...(trace ? { trace: [{ key: 'claude:s1', actions: [] }] } : {}) }),
-    // An epic an earlier hmz recorded for a chat: of the kind `chat`, and of no flow.
-    'runs.get': ({ name }) => ({ name, kind: 'chat', flow: '', task: 'an old chat', workspace: '/old', how: 'stopped', held: false, resumable: true, picks_up: true, agents: [], sessions: [] }),
+    'runs.get': ({ name }) => ({ name, kind: 'flow', flow: 'ralph', task: 'an epic', workspace: '/old', how: 'stopped', held: false, resumable: true, picks_up: true, agents: [], sessions: [] }),
   },
 })
 /** How many sessions the chat at `/carried` opened before it was last carried on. */
@@ -211,16 +210,15 @@ test('a chat named is followed by chat.get, as a chat: titled, told by its first
   }
 })
 
-test('an epic an earlier hmz recorded for a chat is followed as an epic of the flow chat, only read', async () => {
+test('an epic is followed as `runs.get` answers it', async () => {
   const told = []
   const stop = watch('e-old', '', (seen) => told.push(seen.detail))
   try {
     await until(() => told.some(Boolean))
     const detail = told.findLast(Boolean)
-    assert.deepEqual([detail.name, detail.kind, detail.flow], ['e-old', 'flow', 'chat'])
+    assert.deepEqual([detail.name, detail.kind, detail.flow], ['e-old', 'flow', 'ralph'])
     assert.equal(chatting(detail), false)
-    // Nothing carries it on, and nothing resumes it.
-    assert.deepEqual([detail.picks_up, detail.resumable], [false, false])
+    assert.deepEqual([detail.picks_up, detail.resumable], [true, true])
   } finally {
     stop()
   }

@@ -2,6 +2,8 @@
 // order from its start, each said in a line; the graph the form holds put as `nous.set` takes
 // it; and every nous written in an order in which each names only nous already written.
 
+import { t } from './i18n.js'
+
 /** Whether a nous is concrete, `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`, rather than a name. */
 export function concrete(name) {
   return String(name || '').includes('/')
@@ -37,7 +39,7 @@ export function ordered(graph) {
 export function nodeSaid(one, named = (nous) => nous) {
   if (one.use) return named(one.use)
   const among = (one.among || []).map(({ nous, weight }) => (weight > 1 ? `${named(nous)} ×${weight}` : named(nous))).join(', ')
-  return `${one.balance}: ${among}${one.spread ? `, ${one.spread} at most` : ''}`
+  return one.spread ? t('{balance}: {among}, {spread} at most', { balance: one.balance, among, spread: one.spread }) : `${one.balance}: ${among}`
 }
 
 /** One node's edges as a line says them: `fault → node`, `*` last. */

@@ -280,8 +280,9 @@ and it goes on as the same chat. Carry one on by saying something in it -- `/res
 which lists this directory's earlier chats newest first, the chat's page in
 [`hmz web`](/user/web), or `hmz chat --resume <chat id> "<message>"`. Its agent remembers what
 was said, its own [preference](/user/chat#a-name-that-is-both) is kept, and it works where it
-worked, having spent what each stretch spent. `/epics` lists no chat; an epic an earlier hmz
-recorded for a chat is read there and cannot be carried on.
+worked, having spent what each stretch spent. `/epics` lists no chat; a chat an earlier hmz
+recorded as an epic is [moved among the chats](/user/chat#earlier-chats) as the daemon starts,
+and is carried on as any other.
 
 ## Make a flow resumable
 

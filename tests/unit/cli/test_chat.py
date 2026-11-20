@@ -648,7 +648,7 @@ def test_list_says_each_chat_of_this_directory_by_its_id_newest_first(
         )
     ]
     assert capsys.readouterr().out == (
-        f"E2  resting  the parser {'x' * 48}…\nE1  going  hi\n"
+        f"E2  ready  the parser {'x' * 48}…\nE1  ready  hi\n"
     )
     assert client.closed
 
@@ -691,7 +691,7 @@ def test_a_chat_is_renamed_archived_and_put_back_and_said_as_it_now_stands(
     assert main(["chat", *argv]) == 0
 
     assert client.asked == [(method, params)]
-    assert capsys.readouterr().out == "E  resting  the parser\n"
+    assert capsys.readouterr().out == "E  ready  the parser\n"
 
 
 def test_fork_says_the_id_of_the_new_chat(
@@ -745,7 +745,7 @@ def test_delete_asks_at_a_terminal_saying_it_is_for_good(
 
     assert client.methods() == methods
     err = capsys.readouterr().err
-    assert "hmz chat: delete E  resting  the parser\n" in err
+    assert "hmz chat: delete E  ready  the parser\n" in err
     assert "for good? It cannot be brought back. [y/N] " in err
     assert ("hmz chat: chat E was not deleted\n" in err) is bool(status)
 

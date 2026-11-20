@@ -49,7 +49,6 @@ def test_a_scoped_link_is_made_and_reached_under_a_long_machine_directory(
             "epic": "",
             "nous": "claude/opus",
             "preset": "read-only",
-            "network": False,
         }
     )
     try:

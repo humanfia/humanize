@@ -109,7 +109,7 @@ your checkout:
 hmz chat --worktree -a claude/claude-opus-5:high "Try the other parser."
 ```
 
-In `hmz web` it is the **Worktree** box under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
+In `hmz web` it is the **Worktree** row of **Environment**, the chip under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
 a new worktree of the repository holding the directory, detached at its `HEAD` and on no
 branch, under [`envs/`](/reference/files#environments) in Humanize's home, and the agent works
 there in place of the directory. The chat is still a chat of the directory it was started in:
@@ -268,7 +268,10 @@ going.
 
 In the terminal a chat's status line says `running` while its agent answers and `done` between
 turns. A chat nobody has looked at for a minute between turns **folds away**: its host goes,
-and the chat rests, keeping its conversation. Say something in it and it is carried on, the
+and the chat rests, keeping its conversation. A chat that rests is as ready as one that does
+not: its environment opens all the same -- **Terminal**, **Changes** and **Files** on the web
+page, `/env` in the terminal -- by carrying it on with nothing said, which opens no conversation
+and writes nothing into the chat. Say something in it and it is carried on, the
 same chat, by an agent that remembers what was said and keeps the name the chat wrote it down
 under, so a side question reaches every session it opened:
 
@@ -294,7 +297,7 @@ talking in it, a chat can be:
 | forked | `chat.fork` | makes a new chat of the same directory from a copy of the conversation so far, with the same title, agent, preference and permission, working where the chat works. The new chat rests until you say something in it, and the chat forked is left as it is. Refused while a turn is open, and where the agent's CLI keeps the conversation outside the chat |
 | archived, and put back | `chat.archive`, `chat.unarchive` | takes it off the lists of chats, or puts it back, and changes nothing else of it; `chat.list` with `archived` lists the archived ones |
 | backed up now | `chat.backup` | uploads it to its [backup targets](/user/backups), as an epic is backed up: **Upload** in a chat's menu in `hmz web` |
-| deleted | `chat.delete` | removes its record and the sessions kept with it, for good: Humanize cannot bring it back. Refused while the chat is going -- a host holds it, between turns included -- so delete it once it has folded away. No epic and no [worktree](#worktree) is removed |
+| deleted | `chat.delete` | removes its record and the sessions kept with it, for good: Humanize cannot bring it back. Refused while a turn of it is open -- `Chat <id> has a turn open; delete it once it is done.` -- or another process holds it; a host that holds it between turns is ended first. No epic and no [worktree](#worktree) is removed |
 
 In `hmz web` each is in the chat's menu, and the archived chats of a directory are listed in
 its settings: see [Managing a chat](/user/web#managing-a-chat).
@@ -311,8 +314,8 @@ the screen is there too, ticked -- for its menu:
 | `delete` | a box asks first and says it is permanent; **keep** is the answer under the cursor, **delete** removes the chat for good |
 | `copy id` | copies the chat's [id](#where-a-chat-is-kept) |
 
-The line under the list says how each went, a refusal included: a chat that is still going
-cannot be deleted, and one whose turn is open cannot be forked.
+The line under the list says how each went, a refusal included: a chat whose turn is
+open can be neither deleted nor forked.
 
 **Archived chats are put back in the directory's settings**: `/settings workspace`, then
 **Archived chats**, lists them newest first, and <kbd>enter</kbd> on one puts it back on
@@ -370,9 +373,21 @@ record, and `sessions/` beside it holds the agent's conversation.
 
 ### Chats of an earlier Humanize {#earlier-chats}
 
-A chat was once written down as an epic. Those stay where they are, as ordinary epics that are
-only read: they are listed in `/epics` and among the epics of `hmz web`, their flow said as
-`chat`, and they cannot be carried on as chats. Nothing is moved or converted.
+A chat was once written down as an epic. Each time the daemon starts, before it serves
+anything, it moves every such epic among the chats: the directory goes from
+`~/.hmz/epics/<workspace>/` to `~/.hmz/chats/<workspace>/` under the name it had, and its
+`epic.jsonl` is renamed `chat.jsonl`. Nothing in the record is rewritten. From then on it is
+a chat as any other, under the same id: listed by `/resume`, `hmz chat --list` and the
+sidebar of `hmz web`, carried on by saying something in it, renamed, forked, archived, backed
+up and deleted as a chat. A link, a pin or a notice that named the epic in `hmz web` opens
+the chat.
+
+One that some process still holds, or whose name a chat already has, is left where it is and
+moved at a later start; `daemon.log` says which were moved and which were left, with why.
+Until it is moved it is on no list of the daemon's, as an epic or as a chat. The same holds
+for one read back in from an archive or downloaded from a [backup target](/user/backups#chats):
+it lands among the chats. An earlier Humanize that still wrote chats as epics no longer finds
+a chat once it has been moved.
 
 ## From the shell {#from-the-shell}
 
@@ -405,24 +420,25 @@ As the chat starts, its id is written to stderr -- `hmz chat: chat <id>` -- whic
 
 ```console
 $ hmz chat --list
-20261117T100000.123Z-ab12cd  resting  What does this repository do?
+20261117T100000.123Z-ab12cd  ready  What does this repository do?
 $ hmz chat --rename 20261117T100000.123Z-ab12cd "The tour"
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --fork 20261117T100000.123Z-ab12cd
 20261119T091500.456Z-4d5e6f
 $ hmz chat --archive 20261117T100000.123Z-ab12cd
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --list --archived
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --unarchive 20261117T100000.123Z-ab12cd
-20261117T100000.123Z-ab12cd  resting  The tour
+20261117T100000.123Z-ab12cd  ready  The tour
 $ hmz chat --delete 20261119T091500.456Z-4d5e6f
-hmz chat: delete 20261119T091500.456Z-4d5e6f  resting  The tour
+hmz chat: delete 20261119T091500.456Z-4d5e6f  ready  The tour
 for good? It cannot be brought back. [y/N] y
 ```
 
-`--list` says the chats of this directory, newest first: id, how it stands (`resting`,
-`going`, `turn`, `asking` or `failed`) and title. `--delete` asks unless `--yes` is given, and
+`--list` says the chats of this directory, newest first: id, how it stands (`turn`
+while a turn is open, `asking` while it waits on an answer mid-turn, `failed`, and otherwise
+`ready`) and title. `--delete` asks unless `--yes` is given, and
 deletes nothing where nobody is at a terminal to answer. `hmz backup <chat id>` backs a chat
 up ([Backing epics up](/user/backups#chats)).
 

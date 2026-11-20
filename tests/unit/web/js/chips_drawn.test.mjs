@@ -183,9 +183,11 @@ test('the Usage chip opens a popup that is read, drawn again as the chat spends,
     // What is read, not chosen from: a dialog, to whoever cannot see it.
     assert.equal(button.getAttribute('aria-haspopup'), 'dialog')
     assert.equal(button.getAttribute('aria-expanded'), 'false')
-    made.said('$0.10')
-    assert.equal(button.textContent, '$0.10')
-    assert.equal(button.getAttribute('aria-label'), 'Usage: $0.10')
+    // The ring alone: no figure stands beside it, however much the chat has spent.
+    made.read()
+    assert.equal(button.textContent, '')
+    assert.equal(button.querySelector('.chip-value'), null)
+    assert.equal(button.getAttribute('aria-label'), 'Usage')
     button.click()
     const pop = made.node.querySelector('[role=dialog]')
     assert.equal(pop.getAttribute('aria-label'), 'Usage')
@@ -205,8 +207,9 @@ test('the Usage chip opens a popup that is read, drawn again as the chat spends,
     const mine = () => pop.querySelector('.usage-mine').querySelectorAll('.usage-value').map((one) => one.textContent)
     assert.deepEqual(mine(), ['$0.10'])
     rows = [{ label: 'Spent', value: '$0.25' }]
-    made.said('$0.25')
+    made.read()
     assert.deepEqual(mine(), ['$0.25'])
+    assert.equal(button.textContent, '')
     // Tab past its last stop closes it, and the chip has the focus, from where Tab goes on.
     assert.equal(document.activeElement, link)
     const tab = pressed(pop, 'Tab', link)
@@ -259,6 +262,69 @@ test('an answer to an earlier opening of the Usage popup is dropped, and every f
   } finally {
     held = null
     dismiss('route')
+    row.remove()
+  }
+})
+
+test('a chip of a flow`s role offers only the harnesses that can fill it, and its menu opens under it, at its start', async () => {
+  await readBackends('/w')
+  // In the middle of a page, as a new epic keeps it: not in the row under a box.
+  const made = modelChip({ name: 'worker', clis: ['claude'] }, '', () => {}, { up: false, align: 'start' })
+  const row = el('div', { class: 'setup-row' }, made.node)
+  body.append(row)
+  const button = made.node.querySelector('[data-hmz=pick-model]')
+  try {
+    assert.equal(made.node.getAttribute('data-role'), 'worker')
+    // Nothing kept: the first model of the first harness that can fill it.
+    assert.equal(made.value(), 'claude/claude-haiku-4-5')
+    assert.equal(button.textContent, 'Claude Code Haiku 4.5 Default')
+    button.box = { left: 300, top: 200, width: 220, height: 24 }
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    // No row of a harness the role cannot be filled by, though the daemon lists twelve of its models.
+    assert.deepEqual(nousOf(menu).map((one) => one.textContent), ['Claude Code - Haiku 4.5'])
+    // Under the chip, its left edge on the chip's.
+    assert.equal(menu.style.left, '300px')
+    assert.ok(parseFloat(menu.style.top) >= 224)
+  } finally {
+    dismiss('route')
+    made.leave()
+    row.remove()
+  }
+})
+
+test('a chip named by a role alone still offers every harness, over the chip', async () => {
+  await readBackends('/w')
+  const made = modelChip('assistant', 'claude/claude-haiku-4-5')
+  const row = under(made.node)
+  const button = made.node.querySelector('[data-hmz=pick-model]')
+  try {
+    button.box = { left: 800, top: 768, width: 200, height: 24 }
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    assert.equal(nousOf(menu).length, 13)
+    assert.ok(parseFloat(menu.style.top) < 768)
+  } finally {
+    dismiss('route')
+    made.leave()
+    row.remove()
+  }
+})
+
+test('a role no harness installed here can fill says so in its menu', async () => {
+  await readBackends('/w')
+  const made = modelChip({ name: 'worker', clis: [] }, '', () => {}, { up: false, align: 'start' })
+  const row = el('div', { class: 'setup-row' }, made.node)
+  body.append(row)
+  try {
+    assert.equal(made.value(), '')
+    made.node.querySelector('[data-hmz=pick-model]').click()
+    const menu = made.node.querySelector('[role=menu]')
+    assert.equal(menu.querySelector('.nous-list'), null)
+    assert.equal(menu.querySelector('[data-hmz=pick-none]').textContent, 'No harness installed here can fill it.')
+  } finally {
+    dismiss('route')
+    made.leave()
     row.remove()
   }
 })

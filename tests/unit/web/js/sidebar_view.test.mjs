@@ -21,14 +21,23 @@ test('a browser keeps nothing of a view that is the defaults', () => {
   assert.deepEqual(viewOf(viewText({ ...DEFAULTS, chats: false })), { ...DEFAULTS, chats: false })
 })
 
-test('last updated puts one going first, then by when each ended, else began', () => {
+test('last updated puts an epic going first, then by when each ended, else began', () => {
   const rows = [
     run('began-late', '/a', '2026-10-12T10:00:00Z'),
     run('ended-late', '/a', '2026-10-10T10:00:00Z', { ended: '2026-10-13T10:00:00Z' }),
-    run('going', '/a', '2026-10-01T10:00:00Z', { held: true }),
+    run('going', '/a', '2026-10-01T10:00:00Z', { kind: 'flow', held: true }),
   ]
   assert.deepEqual(sorted(rows, DEFAULTS, NOW).map((one) => one.name), ['going', 'ended-late', 'began-late'])
   assert.deepEqual(sorted(rows, { ...DEFAULTS, sort: 'created' }, NOW).map((one) => one.name), ['began-late', 'ended-late', 'going'])
+})
+
+test('a chat a host holds is never going: it stands by when it was last heard of, as any chat', () => {
+  const rows = [
+    run('late', '/late', '2026-10-13T10:00:00Z', { ended: '2026-10-13T11:00:00Z' }),
+    run('held', '/held', '2026-10-01T10:00:00Z', { held: true, ended: '2026-10-12T10:00:00Z' }),
+  ]
+  assert.deepEqual(sorted(rows, DEFAULTS, NOW).map((one) => one.name), ['late', 'held'])
+  assert.deepEqual(arranged({ runs: rows, view: DEFAULTS, now: NOW }).map((one) => one.path), ['/late', '/held'])
 })
 
 test('Show leaves out the chats or the epics, as it says', () => {
@@ -51,7 +60,7 @@ test('a workspace no list of workspaces names is still offered, by what ran in i
 })
 
 test('a workspace with one a host goes with stands before a later one that rests', () => {
-  const runs = [run('late', '/late', '2026-10-13T10:00:00Z'), run('held', '/held', '2026-10-12T10:00:00Z', { held: true }), run('early', '/early', '2026-10-11T10:00:00Z')]
+  const runs = [run('late', '/late', '2026-10-13T10:00:00Z'), run('held', '/held', '2026-10-12T10:00:00Z', { kind: 'flow', held: true }), run('early', '/early', '2026-10-11T10:00:00Z')]
   assert.deepEqual(arranged({ runs, view: DEFAULTS, now: NOW }).map((one) => one.path), ['/held', '/late', '/early'])
 })
 
@@ -76,7 +85,7 @@ test('by folder, a list with no folder and nothing to show keeps a heading, wher
 
 test('by date, the rows stand under how long ago each was last updated, the empty days left out', () => {
   const runs = [
-    run('now', '/w', '2026-10-01T10:00:00', { held: true }),
+    run('now', '/w', '2026-10-01T10:00:00', { kind: 'flow', held: true }),
     run('today', '/w', '2026-10-20T01:00:00'),
     run('yesterday', '/v', '2026-10-19T23:00:00'),
     run('week', '/w', '2026-10-14T10:00:00'),

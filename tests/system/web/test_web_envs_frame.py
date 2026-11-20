@@ -464,7 +464,7 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
         )
         expect(frame_.locator("[data-hmz=envs-unavailable]")).to_be_visible()
         expect(frame_.locator("[data-hmz=envs-full]")).to_have_attribute(
-            "href", f"#/envs/live?{_HOST}&env=1%3Aworkspace&tab=files"
+            "href", f"#/envs/live?{_HOST}&chat={_CHAT}&env=1%3Aworkspace&tab=files"
         )
 
         # The bar's buttons each open the environment on a panel of its own, say which
@@ -503,17 +503,17 @@ def test_a_chat_opens_its_environment_beside_it(project: Path, engine: str) -> N
         bar.locator("[data-hmz=chat-view]").click()
         expect(
             page.get_by_role("menu", name="View options").get_by_role("menuitem")
-        ).to_have_text(["Side questions", "Board", "Ai-chan"])
+        ).to_have_text(["Side questions", "Board"])
         page.keyboard.press("Escape")
         expect(frame_).to_have_attribute("data-marked", "yes")
 
         # The Details tab links where the chat works to it, and says what was done in it.
         bar.locator("[data-hmz=pane-details]").click()
         expect(panel.locator("[data-hmz=env-link]")).to_have_attribute(
-            "href", f"#/envs/live?{_HOST}&env=1%3Aworkspace"
+            "href", f"#/envs/live?{_HOST}&chat={_CHAT}&env=1%3Aworkspace"
         )
         expect(panel.locator("[data-hmz=envs-open]")).to_have_attribute(
-            "href", f"#/envs/live?{_HOST}"
+            "href", f"#/envs/live?{_HOST}&chat={_CHAT}"
         )
         expect(panel.locator("[data-hmz=env-used-list]")).to_contain_text(
             "web wrote notes.md in workspace"

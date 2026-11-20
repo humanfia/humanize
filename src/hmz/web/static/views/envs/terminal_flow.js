@@ -349,11 +349,11 @@ const DARK = {
  */
 export function palette({ dark, tokens = {} }) {
   const base = dark ? DARK : LIGHT
-  const t = (name) => (parseColor(tokens[name]) ? tokens[name] : null)
-  const background = t('surface') || t('paper') || (dark ? '#172026' : '#fbfdfd')
-  const foreground = t('ink') || (dark ? '#e6eff1' : '#141a1f')
-  const accent = t('cyan') || base.cyan
-  const colour = (token, fallback) => t(token) || fallback
+  const token = (name) => (parseColor(tokens[name]) ? tokens[name] : null)
+  const background = token('surface') || token('paper') || (dark ? '#172026' : '#fbfdfd')
+  const foreground = token('ink') || (dark ? '#e6eff1' : '#141a1f')
+  const accent = token('cyan') || base.cyan
+  const colour = (name, fallback) => token(name) || fallback
   const named = {
     black: dark ? colour('raised', base.black) : colour('ink', base.black),
     red: colour('fail', base.red),

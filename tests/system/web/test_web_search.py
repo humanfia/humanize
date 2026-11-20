@@ -351,10 +351,10 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         expect(opener).to_have_attribute("aria-expanded", "true")
         expect(filters.get_by_role("group", name="How it went")).to_be_visible()
         expect(page.locator("[data-hmz=search-workspace]")).to_be_visible()
-        # A chat is of no flow: the flows offered are the flows, and the chats offer none
-        # to filter by.
+        # The flows offered are every flow the daemon names, one named `chat` as any other;
+        # a chat is of no flow, and the chats offer none to filter by.
         flows = page.locator("[data-hmz=search-flow]")
-        expect(flows.locator("option")).to_have_text(["All flows", "ralph"])
+        expect(flows.locator("option")).to_have_text(["All flows", "chat", "ralph"])
         page.get_by_role("tab", name="Chats").click()
         expect(found).to_have_count(40)
         expect(flows).to_be_hidden()
@@ -381,8 +381,7 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         )
         expect(found).to_have_count(10)
 
-        # Opened again on an address that names a filter, the filters are open; one of before
-        # the tabs, with the chats as a flow, is the chats.
+        # Opened again on an address that names a filter, the filters are open.
         page.keyboard.press("Escape")
         expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
         page.evaluate("location.hash = '/search?kind=flow&status=done'")
@@ -392,10 +391,20 @@ def test_searchs_filters_stay_in_reach_under_its_tabs(engine: str) -> None:
         page.keyboard.press("Escape")
         expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
         # A chat is not found by how it went: the filter by it is not offered on the chats.
-        page.evaluate("location.hash = '/search?flow=chat&status=done'")
+        page.evaluate("location.hash = '/search?kind=chat&status=done'")
         expect(chosen).to_have_text("Chats")
         expect(filters).to_be_hidden()
         expect(found).to_have_count(40)
+        # A flow named `chat` is a flow as any other: offered among the flows, and what an
+        # address that names it filters the epics by.
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=overlay]")).to_be_hidden()
+        page.evaluate("location.hash = '/search?flow=chat'")
+        expect(chosen).to_have_text("All")
+        expect(filters).to_be_visible()
+        expect(flows).to_have_value("chat")
+        expect(found).to_have_count(0)
+        assert wire.params("runs.list")[-1]["flow"] == "chat"
 
         # What can be done stands under what was found, whatever was.
         expect(page.locator("[data-hmz=search-new-chat]")).to_have_text("New chat")
@@ -537,8 +546,21 @@ def test_an_address_and_an_empty_tab_say_what_is_so(engine: str) -> None:
         expect(empty).to_contain_text("No chats yet")
         expect(empty).not_to_contain_text("filters")
         expect(page.locator("[data-hmz=search-new-chat]")).to_be_visible()
-        page.get_by_role("combobox", name="Search").fill("zebra")
+        # What gets a chat there is offered with it, and is no line the arrows move to.
+        start = empty.get_by_role("link", name="New chat")
+        expect(start).to_have_attribute("href", "#/new/chat")
+        expect(empty.locator("[role=option]")).to_have_count(0)
+        field = page.get_by_role("combobox", name="Search")
+        field.fill("zebra")
         expect(empty).to_contain_text("Nothing is like that")
+        expect(empty.get_by_role("link")).to_have_count(0)
+        # Cleared, what was typed is gone and the tab stays; the keys stay in the field.
+        empty.get_by_role("button", name="Clear filters").click()
+        expect(field).to_have_value("")
+        expect(field).to_be_focused()
+        expect(empty).to_contain_text("No chats yet")
+        expect(chosen).to_have_text("Chats")
+        assert "q=" not in page.url
 
 
 #: A chat going, one that asks, one that failed, one at rest and an epic of a flow.
@@ -607,16 +629,21 @@ def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
     ):
         side = page.locator("[data-hmz=sidebar] [data-hmz=epic]")
         expect(side).to_have_count(5)
+        # What each row says of how it stands: its word, or what its dot is named where a
+        # chat that waits on its person is marked by one.
         said = {
             one.locator(".side-label").first.inner_text(): one.locator(
-                ".side-status"
-            ).all_inner_texts()
+                ".side-status, [data-hmz=chat-state]"
+            ).evaluate_all(
+                "all => all.map((one) => one.textContent || one.getAttribute('aria-label'))"
+            )
             for one in side.all()
         }
         page.keyboard.press("Control+k")
         found = page.locator("[data-hmz=found] [data-hmz=epic]")
         expect(found).to_have_count(5)
-        # Side by side, the same chat is said to stand the same way: nothing while it rests.
+        # Side by side, the same chat is said to stand the same way: nothing while it rests,
+        # and in words here what the sidebar's dot is named.
         for one in found.all():
             task = one.locator(".result-task").inner_text()
             assert one.locator("[data-hmz=result-how]").all_inner_texts() == said[task]
@@ -632,6 +659,10 @@ def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
         expect(
             page.locator("[data-hmz=search-detail] [data-hmz=result-state]")
         ).to_have_text("Awaiting input")
+        # A chat's agent is said by what it runs, with no name or role of an epic's agent.
+        chip = page.locator("[data-hmz=search-detail] .chip")
+        expect(chip).to_have_text("Claude Code sonnet")
+        expect(chip).to_have_attribute("title", "claude/sonnet")
         page.keyboard.press("ArrowDown")
         page.keyboard.press("ArrowDown")
         expect(

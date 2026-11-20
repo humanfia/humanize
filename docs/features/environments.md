@@ -27,7 +27,8 @@ changed.</p>
 ## In a browser
 
 On a running epic, every environment in the **Epic** panel links to it; in a chat, open the
-**Environment** panel beside the conversation. The Environments view lists every environment of
+**Environment** panel beside the conversation, which is there for every chat however long ago
+it was last said to: its folder is brought up as the panel opens. The Environments view lists every environment of
 the run, grouped by role, with the ones a flow made nested under the one they came from.
 
 <div class="hmz-facts">

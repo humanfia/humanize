@@ -6,7 +6,9 @@ holds copied to several daemons at once.
 `gpu` is another machine's daemon, real and paired with this browser, reached through `/dial`;
 `lab` is kept, but nothing answers where it is reached, as a daemon that is not up.
 
-Then the New daemon form, in each kind and mode: Code against `gpu`'s pairing code; SSH Config
+Then the New daemon form, in each kind and mode, with what is said beside it, and what stands
+under each daemon's line: its devices, and a remote daemon's own WebRTC servers. Code against
+`gpu`'s pairing code; SSH Config
 against the real ssh config of the test's home; Custom and EasyTier with what Local answers of
 the ssh config, the community's nodes and the EasyTier entries faked on its wire.
 """
@@ -24,6 +26,7 @@ from tests.integration.doubles_web import served
 from tests.system.web.doubles_browser import (
     ENGINES,
     Wire,
+    again,
     another,
     go,
     kept,
@@ -91,7 +94,7 @@ def test_the_daemon_picked_is_the_one_read_and_written(
         expect(picker).to_have_value("local")
 
         picker.select_option("gpu")
-        expect(page.locator("[data-hmz=ai-chan-nous]")).to_be_visible()
+        expect(page.locator("[data-hmz=harness-sessions]")).to_be_visible()
         assert "daemon=gpu" in page.url
         expect(page.locator(".settings-nav a", has_text="Backup")).to_have_attribute(
             "href", "#/settings/backup?daemon=gpu"
@@ -197,6 +200,24 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         go(page, "/settings/daemons")
         form = page.locator("[data-hmz=write-daemon]")
         expect(_pressed(form, "daemon-kind")).to_have_text("Code")
+        # Beside the form, what the kind chosen is and what the other machine needs for it.
+        about = form.locator("[data-hmz=daemon-about]")
+        expect(about.locator("h3")).to_have_text("Pair with a code")
+        expect(about).to_contain_text("hmz daemon pair")
+        kinds = form.locator("[data-hmz=daemon-kind]")
+        kinds.get_by_role("button", name="SSH", exact=True).click()
+        expect(about.locator("h3")).to_have_text("Reach over SSH")
+        expect(about).to_contain_text("SSH Config: pick a Host of ~/.ssh/config.")
+        kinds.get_by_role("button", name="P2P", exact=True).click()
+        expect(about.locator("h3")).to_have_text("Peer to peer")
+        expect(about).to_contain_text("EasyTier")
+        kinds.get_by_role("button", name="Code", exact=True).click()
+        expect(about.locator("h3")).to_have_text("Pair with a code")
+        # With only Local, the page says so, and what its devices are.
+        expect(page.locator("[data-hmz=daemons-none]")).to_contain_text("Only Local")
+        expect(page.locator("[data-hmz=daemons-about]")).to_contain_text(
+            "the browsers and machines paired with it"
+        )
         form.get_by_label("Name").fill("gpu")
         form.locator("#daemon-code").fill("hmz-pair:nope")
         add = form.get_by_role("button", name="Add", exact=True)
@@ -213,10 +234,23 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         assert entry["routes"] == [f"tcp://127.0.0.1:{gpu.port}"]
         assert len(entry["id"]) == 52
 
+        expect(page.locator("[data-hmz=daemons-none]")).to_have_count(0)
+        # Its devices are its own, under its line: none are listed until it is reached.
+        own = page.locator("[data-hmz=daemon-own][data-name=gpu]")
+        devices = own.locator("[data-hmz=daemon-devices][data-name=gpu]")
+        expect(devices.locator("h3")).to_have_text("Devices")
+        expect(devices.locator("[data-hmz=devices-none]")).to_contain_text(
+            "Not reached"
+        )
+        expect(devices.get_by_role("button", name="Pair a device")).to_have_count(0)
+
         # Reached, it lists this machine among its devices, paired as it is called.
         row.get_by_role("button", name="Connect").click()
         expect(row.locator("[data-hmz=daemon-state]")).to_contain_text("up")
-        devices = page.locator("[data-hmz=daemon-devices][data-name=gpu]")
+        # Reached, it offers no Connect; Local, up from the start, never did.
+        expect(row.get_by_role("button", name="Connect")).to_have_count(0)
+        local = page.locator("[data-hmz=daemon][data-name=local]")
+        expect(local.get_by_role("button", name="Connect")).to_have_count(0)
         expect(devices.locator("[data-hmz=device] b")).to_contain_text(
             [socket.gethostname().split(".")[0]]
         )
@@ -231,6 +265,164 @@ def test_a_daemon_is_paired_by_its_code_and_pairs_devices(
         expect(local.locator(".error")).to_contain_text(
             "There is no route to pair over"
         )
+        # No panel of every daemon's devices stands apart from them.
+        expect(page.locator("[data-hmz=pairing]")).to_have_count(0)
+
+
+#: A daemon kept, pinned, with a route over WebRTC, which nothing answers.
+_RELAYED = {
+    "name": "relayed",
+    "id": "a" * 52,
+    "routes": ["webrtc:ws://127.0.0.1:9/r", "tcp://127.0.0.1:9"],
+}
+
+#: Two servers, as a daemon keeps them: a STUN server, and a TURN server with who uses it.
+_SERVERS = [
+    {"urls": "stun:stun.example:3478"},
+    {"urls": "turn:turn.example:3478", "username": "ann", "credential": "secret"},
+]
+
+#: A pairing code whose one route is over WebRTC, as a daemon behind a relay makes one.
+_RELAYED_CODE = """async () => {
+  const { toBase64url } = await import('/rpc/pipe.js')
+  const routes = ['webrtc:ws://127.0.0.1:9/r']
+  const said = { v: 1, id: 'a'.repeat(52), routes, token: 't'.repeat(43), expires: 2e9 }
+  return 'hmz-pair:' + toBase64url(new TextEncoder().encode(JSON.stringify(said)))
+}"""
+
+
+def test_each_daemon_keeps_its_own_webrtc_servers(project: Path, engine: str) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        kept(page, _LAB, _RELAYED)
+        go(page, "/settings/daemons")
+        # No list for every daemon: each remote daemon has its own, and Local none.
+        form = page.locator("[data-hmz=write-daemon]")
+        expect(form.locator("form")).to_be_visible()
+        expect(page.locator("[data-hmz=ice-servers]")).to_have_count(0)
+        expect(page.locator("[data-hmz=daemon-ice]")).to_have_count(2)
+        expect(page.locator("[data-hmz=daemon-ice][data-name=local]")).to_have_count(0)
+        # Folded away, but under the daemon a route of which is WebRTC's.
+        lab = page.locator("[data-hmz=daemon-own][data-name=lab] [data-hmz=daemon-ice]")
+        own = page.locator("[data-hmz=daemon-ice][data-name=relayed]")
+        assert lab.evaluate("(one) => one.open") is False
+        assert own.evaluate("(one) => one.open") is True
+        expect(lab.locator("textarea")).to_be_hidden()
+        lines = own.locator("textarea")
+        expect(lines).to_have_value("")
+        expect(own.locator(".hint")).to_contain_text("webrtc: route")
+
+        # What is no STUN or TURN server is refused, and nothing is kept.
+        save = own.get_by_role("button", name="Save")
+        lines.fill("stun:stun.example:3478\nhttps://nope.example")
+        save.click()
+        expect(own.locator(".error")).to_contain_text(
+            "https://nope.example is not a STUN or TURN server"
+        )
+        assert _kept(page) == [_LAB, _RELAYED]
+
+        lines.fill("stun:stun.example:3478\nturn:turn.example:3478 ann secret")
+        save.click()
+        # The credential is masked from then on, and kept where it is left as shown.
+        masked = "turn:turn.example:3478 ann ••••"
+        expect(lines).to_have_value(f"stun:stun.example:3478\n{masked}")
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": _SERVERS}]
+        lines.fill(masked)
+        save.click()
+        expect(save).to_have_text("Saved")
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": _SERVERS[1:]}]
+        # Its URLs edited and the credential left as shown, the credential is kept still.
+        both = "turn:turn.example:3478,turns:turn.example:5349"
+        lines.fill(f"{both} ann ••••")
+        save.click()
+        expect(save).to_have_text("Saved")
+        wider = {**_SERVERS[1], "urls": both.split(",")}
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": [wider]}]
+        # A mask where no credential is kept is asked for again, and nothing is kept without one.
+        lines.fill(f"{both} ann ••••\nturn:other.example:3478 bob ••••")
+        save.click()
+        expect(own.locator(".error")).to_contain_text(
+            "Write the credential of turn:other.example:3478 again"
+        )
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": [wider]}]
+        lines.fill(masked)
+        save.click()
+        expect(save).to_have_text("Saved")
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": _SERVERS[1:]}]
+
+        # Opened again, they are that daemon's still; its routes edited, they stay.
+        again(page)
+        expect(own.locator("textarea")).to_have_value(masked)
+        page.locator("[data-hmz=daemon][data-name=relayed]").get_by_role(
+            "button", name="Edit"
+        ).click()
+        expect(form.locator("[data-hmz=daemon-about] h3")).to_have_text(
+            "Paired with a code"
+        )
+        form.locator("[data-hmz=route-editor] .list-row").nth(1).get_by_role(
+            "button", name="Remove"
+        ).click()
+        form.get_by_role("button", name="Save", exact=True).click()
+        expect(form.locator("h2")).to_have_text("New daemon")
+        assert _kept(page) == [
+            _LAB,
+            {**_RELAYED, "routes": _RELAYED["routes"][:1], "ice": _SERVERS[1:]},
+        ]
+
+        # A new Code daemon's are asked under Advanced, which a code over WebRTC opens.
+        advanced = form.locator("[data-hmz=daemon-advanced]")
+        assert advanced.evaluate("(one) => one.open") is False
+        form.locator("#daemon-code").fill(page.evaluate(_RELAYED_CODE))
+        assert advanced.evaluate("(one) => one.open") is True
+        expect(advanced.locator("#daemon-ice")).to_be_visible()
+        # Wrong, they are refused before the code is claimed.
+        form.get_by_label("Name").fill("far")
+        advanced.locator("#daemon-ice").fill("nope")
+        form.get_by_role("button", name="Add", exact=True).click()
+        expect(form.locator(".error")).to_contain_text(
+            "nope is not a STUN or TURN server"
+        )
+
+
+def test_the_servers_kept_for_every_daemon_become_each_daemons_own(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        # The base as an earlier version of the page left it, made where no page runs.
+        root = page.url.split("#")[0].split("?")[0]
+        page.goto(f"{root}style.css")
+        page.evaluate(
+            """({ daemons, ice }) => new Promise((done, failed) => {
+              const gone = indexedDB.deleteDatabase('hmz-daemons')
+              // Blocked while the page left lets go of the base, it is deleted once it has.
+              gone.onerror = () => failed(gone.error)
+              gone.onsuccess = () => {
+                const asked = indexedDB.open('hmz-daemons', 1)
+                asked.onupgradeneeded = () => {
+                  asked.result.createObjectStore('daemons', { keyPath: 'name' })
+                  asked.result.createObjectStore('keys')
+                  for (const one of daemons) asked.transaction.objectStore('daemons').put(one)
+                  asked.transaction.objectStore('keys').put(ice, 'ice')
+                }
+                asked.onsuccess = () => (asked.result.close(), done())
+                asked.onerror = () => failed(asked.error)
+              }
+            })""",
+            {"daemons": [_LAB, _RELAYED], "ice": _SERVERS},
+        )
+        # Opened once, and left to draw: a page opened again while its first view loads has
+        # that view's files given up, which WebKit says as an error of the page.
+        page.goto(root)
+        page.wait_for_selector("[data-hmz=sidebar] .brand")
+        page.wait_for_selector("[data-hmz=page]:not([aria-busy])", state="attached")
+        go(page, "/settings/daemons")
+        own = page.locator("[data-hmz=daemon-ice][data-name=relayed]")
+        expect(own.locator("textarea")).to_have_value(
+            "stun:stun.example:3478\nturn:turn.example:3478 ann ••••"
+        )
+        expect(
+            page.locator("[data-hmz=daemon-ice][data-name=lab] textarea")
+        ).to_have_value("")
+        assert _kept(page) == [_LAB, {**_RELAYED, "ice": _SERVERS}]
 
 
 #: A host of the ssh config, as `ssh -G` resolves it.

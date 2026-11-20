@@ -464,10 +464,13 @@ def _named(epic: str) -> Any:
     Raises:
       RpcError: 404 where there is none.
     """
-    from hmz.runtime.epic import chats, every, read
+    from hmz.runtime.epic import chats, chatted, every, read
 
     if epic and "/" not in epic and not epic.startswith("."):
-        for at in (*every(), *chats()):
+        # Not a chat an earlier hmz kept as an epic, which is neither until it is moved
+        # (Section 8.7.10 of core.md).
+        kept = (one for one in every() if one.name == epic and not chatted(one))
+        for at in (*kept, *chats()):
             if at.name == epic and (ran := read(at)) is not None:
                 return ran
     raise _refused(404, f"There is no epic {epic}.")

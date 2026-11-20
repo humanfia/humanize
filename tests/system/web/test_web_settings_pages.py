@@ -84,6 +84,10 @@ def test_a_daemon_is_removed_once_confirmed(project: Path, engine: str) -> None:
         kept(page, _BOX)
         go(page, "/settings/daemons")
         row = page.locator("[data-hmz=daemon][data-name=box]")
+        # Local's devices, listed over it, are read: nothing over it is still to be drawn.
+        expect(
+            page.locator("[data-hmz=daemon-devices][data-name=local] .loading")
+        ).to_have_count(0)
         # Its button stays as it is, and asks by itself: nothing beside it moves.
         remove = row.locator("button[aria-haspopup=dialog]")
         expect(remove).to_have_text("Remove")
@@ -246,6 +250,60 @@ def test_a_range_shown_stays_busy_until_the_next_is_read(
         assert wire.params("runs.usage")[-1]["days"] == 7
         wire.lets_through()
         expect(usage).not_to_have_attribute("aria-busy", "true")
+
+
+def test_what_the_chats_spent_is_named_in_the_pages_language(
+    project: Path, engine: str
+) -> None:
+    spent = {"runs": 1, "cost": 0.5, "money": "$0.50", "tokens": "1.2k", "worked": "3m"}
+    wire = Wire(
+        faked={
+            "runs.usage": lambda _: {
+                "result": {
+                    "days_back": 30,
+                    "days": [{"day": "2026-01-01", **spent}],
+                    # The chats are summed as of the flow `chat`: a word of the page's.
+                    "flows": [{"flow": "chat", **spent}, {"flow": "goal", **spent}],
+                    "ended": {"done": 2},
+                    "whole": {**spent, "runs": 2},
+                }
+            }
+        }
+    )
+    with (
+        served() as site,
+        opened(site, engine=engine, locale="zh-TW", routed=wire.routes) as page,
+    ):
+        go(page, "/settings/usage")
+        named = page.locator("[data-hmz=usage] tbody td:first-child a")
+        expect(named).to_have_text(["聊天", "goal"])
+        expect(named.first).to_have_attribute("title", "聊天")
+
+
+def test_a_settings_list_with_nothing_in_it_offers_what_adds_to_it(
+    project: Path, engine: str
+) -> None:
+    """Section 3.4.6 of protocol/web.md: said in place of the list, with the way to its form."""
+    with served() as site, opened(site, engine=engine) as page:
+        for name, said, button, field in (
+            ("backup", "No backup target yet.", "Add target", "#backup-name"),
+            ("nous", "No nous yet.", "New nous", "#nous-kind"),
+            ("runtimes", "No runtime yet.", "Add runtime", "#runtime-name"),
+        ):
+            go(page, f"/settings/{name}")
+            empty = page.locator(f"[data-hmz=settings-{name}] .empty")
+            expect(empty.locator("strong")).to_have_text(said)
+            # Nothing is written by it: the form under the list takes the keys.
+            empty.get_by_role("button", name=button).click()
+            expect(page.locator(field)).to_be_focused()
+            expect(empty).to_be_visible()
+        # Nothing spent yet: a chat is what spends.
+        go(page, "/settings/usage")
+        none = page.locator("[data-hmz=usage] .empty")
+        expect(none.locator("strong")).to_have_text("Nothing ran in this range.")
+        expect(none.get_by_role("link", name="New chat")).to_have_attribute(
+            "href", "#/new/chat"
+        )
 
 
 def test_an_account_saved_or_made_says_so_until_it_is_answered(

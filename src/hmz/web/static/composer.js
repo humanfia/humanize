@@ -12,6 +12,7 @@
 
 import { added, addsOf } from './desk.js'
 import { fill, h, icon, iconButton, problem } from './dom.js'
+import { t } from './i18n.js'
 import { yields } from './layers.js'
 import { choice, menu } from './shell.js'
 
@@ -31,9 +32,9 @@ import { choice, menu } from './shell.js'
  *   one of them cannot be picked now, or '' where it can. `tools` then stand at the right under
  *   the box, never in it.
  */
-export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = 'Sending…', complete = null, desk = null }) {
+export function composer({ placeholder, label, submit, tools = [], value = '', empty = false, busy = t('Sending…'), complete = null, desk = null }) {
   const text = h('textarea', { rows: '1', placeholder, 'aria-label': label, 'data-hmz': 'composer-text' }, value)
-  const send = h('button', { class: 'send', type: 'submit', 'aria-label': 'Send', title: 'Send' }, icon('send'))
+  const send = h('button', { class: 'send', type: 'submit', 'aria-label': t('Send'), title: t('Send') }, icon('send'))
   const said = h('div', { class: 'composer-said', 'aria-live': 'polite' })
   const tray = h('div', { class: desk ? 'under-right' : 'composer-tools' }, desk ? [tools, desk.right || []] : tools)
   const left = desk ? h('div', { class: 'under-left' }, desk.left || []) : null
@@ -64,7 +65,7 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
   let stop = null
   const stops = (act) => {
     if (Boolean(act) !== Boolean(stop)) {
-      const said = act ? 'Stop' : 'Send'
+      const said = act ? t('Stop') : t('Send')
       send.classList.toggle('stop', Boolean(act))
       send.setAttribute('aria-label', said)
       send.title = said
@@ -108,7 +109,7 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
       send.disabled = false
       form.classList.remove('busy')
       form.removeAttribute('aria-busy')
-      send.setAttribute('aria-label', stop ? 'Stop' : 'Send')
+      send.setAttribute('aria-label', stop ? t('Stop') : t('Send'))
     }
   })
   // Measured again whenever its box changes, so one built before it is shown fits once shown.
@@ -121,7 +122,7 @@ export function composer({ placeholder, label, submit, tools = [], value = '', e
  * starts with, and the box then offers what it could become, as it does where the prefix is typed.
  */
 function adder(text, which, able = () => '') {
-  const button = iconButton('plus', 'Add', { class: 'composer-add', 'data-hmz': 'composer-add' })
+  const button = iconButton('plus', t('Add'), { class: 'composer-add', 'data-hmz': 'composer-add' })
   menu(
     button,
     (close) =>
@@ -144,7 +145,7 @@ function adder(text, which, able = () => '') {
         item.disabled = Boolean(why)
         return item
       }),
-    { up: true, label: 'Add' },
+    { up: true, label: t('Add') },
   )
   return h('div', { class: 'menu-holder' }, button)
 }
@@ -162,7 +163,7 @@ function adder(text, which, able = () => '') {
  * drawn, so a slow one never draws over what was typed since.
  */
 function completer(text, complete) {
-  const list = h('div', { class: 'composer-complete', role: 'listbox', 'aria-label': 'Completions', 'data-hmz': 'completions', hidden: true })
+  const list = h('div', { class: 'composer-complete', role: 'listbox', 'aria-label': t('Completions'), 'data-hmz': 'completions', hidden: true })
   let shown = null
   let items = []
   let active = 0

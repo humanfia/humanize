@@ -1128,6 +1128,9 @@ class Humanize(App[None]):
         #: The chat the next line typed carries on, by its id, as `/resume` or `/chat` went
         #: back to it, or None for a line that starts a conversation of its own.
         self._continuing: str | None = None
+        #: What `/env` named of a chat no host held yet, and that chat: opened once its host
+        #: lists its envs, and forgotten where it is not carried on.
+        self._env_wanted: tuple[str, str] | None = None
         #: Whether a flow is on the screen rather than this interface's chat: from the moment
         #: one is started or found running on the host attached to, until the chat is put
         #: back on it. The chat is what this opens on (Section 3.1 of [TUI]).
@@ -3154,15 +3157,33 @@ class Humanize(App[None]):
         return bool(self._no_resume)
 
     def refused_env(self) -> str:
-        """Why `/env` cannot be run: there being no environment here to open."""
-        return "" if self._opened_envs else "no environment is open here"
+        """Why `/env` cannot be run: there being no environment here to open.
+
+        Never for a chat to be carried on, which no host holds: its workspace is brought up
+        as it is asked for.
+        """
+        if self._opened_envs or self._continuing is not None:
+            return ""
+        return "no environment is open here"
 
     def action_env(self, named: str = "") -> None:
         """Opens the environments of the run in front of us, or one's panels where named.
 
+        A chat to be carried on, which no host holds, is carried on with nothing said
+        (Section 8.7.4 of [CORE]), and its environments open once its host lists them.
+
         Args:
           named: A role, a chain of roles or an environment's id, or "" for all of them.
         """
+        if not self._opened_envs and self._continuing is not None:
+            chat = self._continuing
+            self._chat_starts("")
+            if self._starting:
+                self._env_wanted = named, chat
+            else:
+                # Not asked for: it is still the chat the next line carries on.
+                self._continuing = chat
+            return
         if why := opens_env(self, self._reach, named):
             self.show(f"hmz: {why}", "red")
 
@@ -3888,8 +3909,8 @@ class Humanize(App[None]):
         """Opens the Ai-chan conversations of the daemon and New, which is what `/ai` is.
 
         A conversation chosen is followed in the log screen; New asks for a conversation's
-        scope, nous, preset and network, and leaves the log screen waiting for the first line
-        said, which makes it (Section 7.19 of tui.md).
+        scope, nous and preset, and leaves the log screen waiting for the first line said,
+        which makes it (Section 7.19 of tui.md).
         """
         try:
             listed = await asyncio.to_thread(ai_chan, "list")
@@ -3959,6 +3980,8 @@ class Humanize(App[None]):
                 self._ai_new = asked
                 self._draw()
             return
+        # The daemon wrote its nous down as the one last used: the next form opens on it.
+        self.settings.ai_chan = asked.nous
         one = {
             **asked._asdict(),
             "id": made["id"],
@@ -4584,17 +4607,6 @@ class Humanize(App[None]):
                 else "[dim]showing turn responses only, without details[/dim]"
             )
             self._draw()  # and the status line says which mode this is in from now on
-        if said.ai_chan is not None:
-            self.settings.ai_chan = said.ai_chan
-            # Not the ones made already: a conversation keeps its nous (Section 14.3.1 of
-            # core.md).
-            self.show(
-                f"[dim]the next Ai-chan conversation thinks with {escape(said.ai_chan)}"
-                "[/dim]"
-                if said.ai_chan
-                else "[dim]/ai will ask which nous each new Ai-chan conversation thinks "
-                "with[/dim]"
-            )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.
@@ -5404,6 +5416,10 @@ class Humanize(App[None]):
     def _not_started(self) -> None:
         """Takes a start that was refused as nothing starting, which the refusal has said."""
         self._starting = False
+        if self._env_wanted is not None:
+            # A chat `/env` could not bring up is still the one the next line carries on,
+            # and its environments are not opened over whatever starts next.
+            self._continuing, self._env_wanted = self._env_wanted[1], None
         self._draw()
 
     def _told(self, message: dict[str, Any], by: Link | None = None) -> None:
@@ -5551,6 +5567,10 @@ class Humanize(App[None]):
         elif kind == "envs":
             self._opened_envs = [dict(one) for one in message.get("envs") or ()]
             self._reach.moved()
+            if self._env_wanted is not None and self._opened_envs:
+                # Asked for before its host was up: opened now that it lists them.
+                (named, _), self._env_wanted = self._env_wanted, None
+                self.action_env(named)
         elif kind == "clients":
             self._frontends = {
                 one["client"]: one["name"] for one in message.get("clients") or ()

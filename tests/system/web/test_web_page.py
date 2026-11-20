@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 _PAGES = (
     "general",
     "themes",
+    "language",
     "accounts",
     "nous",
     "runtimes",
@@ -172,13 +173,12 @@ async def talk(
 '''
 
 
-#: A new epic of the project's own `talk`: a chat is of no flow, and a flow's epic has options.
+#: A new epic of the project's own `talk`: a chat is of no flow, and a flow's epic is set up.
 _NEW = "/new?flow=%40local%2Ftalk"
 
 
 def _options(page: Page) -> None:
-    """Opens a new epic's options and gives it a budget, without which no flow starts."""
-    page.get_by_role("button", name="Options").click()
+    """Gives a new epic a budget, without which no flow starts: its set-up is in sight."""
     page.get_by_label("Most it may cost, in dollars").fill("5")
 
 
@@ -208,24 +208,46 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
-        role = page.locator("[data-role=assistant]")
-        expect(role.locator("[data-hmz=pick-cli]")).to_have_value("claude")
-        expect(role.locator("[data-hmz=pick-account] option").first).to_have_text(
-            "Local"
+        # The role is a row of the page's middle, in sight with nothing pressed: its
+        # name, and the nous that fills it on a chip.
+        row = page.locator(
+            "[data-hmz=options] [data-hmz=role-row][data-role=assistant]"
         )
-        models = role.locator("[data-hmz=pick-model] option")
-        expect(models).to_have_text(["Haiku 4.5", "Opus 4.1", "Other…"])
-
-        role.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
-        efforts = role.locator("[data-hmz=pick-effort] option")
+        expect(row).to_be_visible()
+        expect(row.locator(".setup-role")).to_have_text("assistant")
+        chip = row.locator("[data-hmz=pick-model]")
+        expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
+        expect(chip).to_have_attribute(
+            "aria-label", "Nous: Claude Code Haiku 4.5 Default"
+        )
+        chip.click()
+        menu = page.get_by_role("menu", name="Nous")
+        # The harnesses that can fill the role, a row a model each runs.
+        expect(menu.locator(".nous-list [data-cli=claude]")).to_have_text(
+            ["Claude Code - Haiku 4.5", "Claude Code - Opus 4.1"]
+        )
+        # Under the chip, its left edge on the chip's: never over the page's bar.
+        chip_box, menu_box = chip.bounding_box(), menu.bounding_box()
+        assert chip_box
+        assert menu_box
+        assert menu_box["y"] >= chip_box["y"] + chip_box["height"]
+        assert abs(menu_box["x"] - chip_box["x"]) <= 1
+        menu.locator("[data-value=claude-opus-4-1]").click()
+        expect(chip).to_have_text("Claude Code Opus 4.1 Default")
+        chip.click()
+        menu.get_by_role("menuitem", name="Effort").click()
+        efforts = page.locator("[data-hmz=pick-effort] [role=menuitem]")
         expect(efforts).to_have_text(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
-        role.locator("[data-hmz=pick-effort]").select_option("max")
-        expect(page.locator(".composer-summary")).to_contain_text(
-            "assistant: Claude Code Opus 4.1 Max"
-        )
+        efforts.nth(2).click()
+        expect(chip).to_have_text("Claude Code Opus 4.1 Max")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
+        # What is set is said where it is set, and nowhere under the box.
+        expect(page.locator(".composer-summary")).to_have_count(0)
+        expect(
+            page.locator("[data-hmz=start] [data-hmz=composer-under] button")
+        ).to_have_count(0)
 
 
 def _centre(node: Locator) -> dict[str, float]:
@@ -383,16 +405,16 @@ def test_a_model_no_cli_would_list_is_typed(
     monkeypatch.setattr(hmz.coganchor.models, "ask", refused)
     with served() as site, opened(site, engine=engine) as page:
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
-        role = page.locator("[data-role=assistant]")
-        expect(role.locator("[data-hmz=agent-picker] .hint")).to_contain_text(
-            "claude is not answering"
-        )
-        typed = role.locator("[data-hmz=pick-model-typed]")
+        chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        chip.click()
+        menu = page.get_by_role("menu", name="Nous")
+        expect(menu).to_contain_text("claude is not answering")
+        menu.get_by_role("menuitem", name="More").click()
+        typed = menu.locator("[data-hmz=pick-model-typed]")
         typed.fill("claude-sonnet-4-5")
-        expect(page.locator(".composer-summary")).to_contain_text(
-            "assistant: Claude Code Sonnet 4.5 Default"
-        )
+        typed.press("Enter")
+        expect(chip).to_have_text("Claude Code Sonnet 4.5 Default")
+        expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
 
 
 def _at(page: Page, selector: str) -> FloatRect:
@@ -476,12 +498,16 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
         chips = view.locator("[data-hmz=composer-under] button:visible")
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
             "environment",
-            "workspace-picker",
             "pick-model",
             "permission",
             "new-usage",
         ]
-        for at in range(5):
+        # At the left the one chip, and nothing else: no folder control, no box to tick.
+        expect(view.locator("[data-hmz=composer-under] .under-left > *")).to_have_count(
+            1
+        )
+        expect(view.locator("[data-hmz=workspace-picker]")).to_have_count(0)
+        for at in range(4):
             box = chips.nth(at).bounding_box()
             assert box
             assert box["height"] == 24
@@ -509,30 +535,39 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
                 ".scrollWidth <= document.querySelector('[data-hmz=start]"
                 " [data-hmz=composer-under]').clientWidth"
             )
-        expect(view.locator("[data-hmz=environment]")).to_have_text("Local")
+        # Environment is where it runs: the daemon the page shows, then the folder.
+        expect(view.locator("[data-hmz=environment]")).to_have_text(
+            f"Local · {project.name}"
+        )
         # Said, to whoever cannot see it, with what it picks.
         expect(view.locator("[data-hmz=environment]")).to_have_attribute(
-            "aria-label", "Environment: Local"
+            "aria-label", f"Environment: Local, {project.name}"
         )
-        expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
 
-        # Environment is the daemon the page shows, and offers the others.
+        # One menu holds both, each under its heading, and then the worktree.
         view.locator("[data-hmz=environment]").click()
         offered = page.get_by_role("menu", name="Environment")
-        expect(offered.get_by_role("menuitem")).to_have_text(
-            [re.compile("Local"), "New environment"]
-        )
+        expect(offered.locator(".popover-head")).to_have_text(["Runs on", "Folder"])
+        expect(offered.locator("[data-daemon]")).to_have_text([re.compile("Local")])
         expect(offered.locator("[data-daemon=local]")).to_have_class(
             re.compile("chosen")
         )
+        rows = offered.locator("[role=menuitem], [role=menuitemcheckbox]")
+        expect(rows.nth(1)).to_have_text("New environment")
+        # The folder: the ones there are, then opening one, then none; then Worktree.
+        expect(offered.locator("[data-folder].chosen")).to_have_text(project.name)
+        expect(rows.nth(-3)).to_contain_text("Open folder…")
+        expect(rows.nth(-2)).to_contain_text("No folder")
+        expect(rows.nth(-1)).to_have_text("Worktree")
+        # Of the two in force, it opens on the folder.
+        expect(offered.locator("[data-folder].chosen")).to_be_focused()
         # A menu of the desk is a chat app's: a choice of one line is a row of 28px.
         assert _at(page, "[role=menu] [data-daemon=local]")["height"] == 28
-        page.keyboard.press("Escape")
-        # The folder: the recent ones, then opening one, then none.
-        view.locator("[data-hmz=workspace-picker]").click()
-        folders = page.get_by_role("menu", name="Folders").get_by_role("menuitem")
-        expect(folders.nth(-2)).to_contain_text("Open folder…")
-        expect(folders.nth(-1)).to_contain_text("No folder")
+        assert _at(page, "[role=menu] [data-hmz=new-worktree]")["height"] == 28
+        # Over the chip, its lower edge by the chip's upper edge.
+        chip_box, menu_box = _at(page, "[data-hmz=environment]"), offered.bounding_box()
+        assert menu_box
+        assert menu_box["y"] + menu_box["height"] <= chip_box["y"]
         page.keyboard.press("Escape")
 
         # Before there is a chat, Add offers the one prefix the page completes by
@@ -607,33 +642,75 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         picker = _at(page, "[data-hmz=flow-picker]")
         assert 0 <= picker["x"] - (heading["x"] + heading["width"]) <= 12
         # The box docked at the foot, as a new chat's: Add, what is typed and the button
-        # that sends in it, where it runs under it at the left, Options and what is set
-        # at the right.
+        # that sends in it, and nothing under it at either end.
         pane = _at(page, "[data-hmz=new-epic]")
         boxed = _at(page, "[data-hmz=start] .composer-box")
         under = _at(page, "[data-hmz=start] [data-hmz=composer-under]")
         expect(view.locator(".composer-box > *")).to_have_count(3)
         assert under["y"] >= boxed["y"] + boxed["height"]
         assert pane["y"] + pane["height"] - (under["y"] + under["height"]) == 8
-        assert _at(page, "[data-hmz=environment]")["x"] == boxed["x"] + 12
+        expect(view.locator("[data-hmz=composer-under] .under-left > *")).to_have_count(
+            0
+        )
+        expect(
+            view.locator("[data-hmz=composer-under] .under-right > *")
+        ).to_have_count(0)
         # Add offers the files of the folder alone, which `@` completes in a task too.
         view.locator("[data-hmz=composer-add]").click()
         expect(
             page.get_by_role("menu", name="Add").get_by_role("menuitem")
         ).to_have_text(["Add files"])
         page.keyboard.press("Escape")
-        assert _at(page, "[data-hmz=workspace-picker]")["x"] < boxed["x"] + 200
-        options = page.get_by_role("button", name="Options")
-        chip = options.bounding_box()
-        assert chip
-        assert chip["height"] == 24
-        assert abs(chip["x"] + chip["width"] - (boxed["x"] + boxed["width"] - 12)) <= 1
-        # Options opens in the middle of the page, over the box.
-        expect(page.locator("[data-hmz=options]")).to_be_hidden()
-        options.click()
+        # What the flow is set up with is in the middle of the page, over the box, with
+        # nothing pressed: no Options, no Save, and nothing said of it under the box.
+        expect(page.get_by_role("button", name="Options", exact=True)).to_have_count(0)
+        expect(page.get_by_role("button", name="Save")).to_have_count(0)
+        expect(page.locator(".composer-summary")).to_have_count(0)
+        expect(page.locator("[data-hmz=options]")).to_be_visible()
         opened_ = _at(page, "[data-hmz=options]")
         assert opened_["y"] >= 44
         assert opened_["y"] < boxed["y"]
+        # Environment first: the daemon it runs on, then the folder, a row each, the
+        # names in one column and what each picks in the next.
+        first = view.locator("[data-hmz=options] > *").first
+        expect(first).to_have_attribute("data-hmz", "setup-environment")
+        expect(first.locator("h3")).to_have_text("Environment")
+        expect(first.locator(".setup-row > .setup-name")).to_have_text(
+            ["Runs on", "Folder"]
+        )
+        runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=environment]")
+        folder = _at(page, "[data-hmz=setup-folder] [data-hmz=workspace-picker]")
+        assert runs["x"] == folder["x"]
+        assert folder["y"] >= runs["y"] + runs["height"]
+        assert (runs["height"], folder["height"]) == (24, 24)
+        expect(
+            view.locator("[data-hmz=setup-daemon] [data-hmz=environment]")
+        ).to_have_text("Local")
+        expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
+        # Their menus open under them.
+        view.locator("[data-hmz=setup-daemon] [data-hmz=environment]").click()
+        daemons = page.get_by_role("menu", name="Environment")
+        expect(daemons.get_by_role("menuitem")).to_have_text(
+            [re.compile("Local"), "New environment"]
+        )
+        box = daemons.bounding_box()
+        assert box
+        assert box["y"] >= runs["y"] + runs["height"]
+        page.keyboard.press("Escape")
+        view.locator("[data-hmz=workspace-picker]").click()
+        folders = page.get_by_role("menu", name="Folders")
+        expect(folders.get_by_role("menuitem").nth(-2)).to_contain_text("Open folder…")
+        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("No folder")
+        box = folders.bounding_box()
+        assert box
+        assert box["y"] >= folder["y"] + folder["height"]
+        page.keyboard.press("Escape")
+        # Each role of the flow is a line of its own, under the one before it.
+        tops = view.locator("[data-hmz=role-row]").evaluate_all(
+            "all => all.map((one) => one.getBoundingClientRect().top)"
+        )
+        assert tops
+        assert tops == sorted(set(tops))
         expect(view.locator(".greeting, .home-mark")).to_have_count(0)
 
 
@@ -651,7 +728,7 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         )
         assert len(set(inks)) == 3
         expect(chip).to_have_attribute("data-agent", "claude/claude-haiku-4-5")
-        expect(page.get_by_role("button", name="Options")).to_have_count(0)
+        expect(page.get_by_role("button", name="Options", exact=True)).to_have_count(0)
         # Under the box, at its right, before what the chat may touch: never in it.
         chip_box, send_box = chip.bounding_box(), page.locator(".send").bounding_box()
         boxed = page.locator("[data-hmz=start] .composer-box").bounding_box()
@@ -820,8 +897,12 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         expect(row.locator("[data-hmz=epic]")).to_have_attribute("data-kind", "chat")
         expect(page.get_by_role("tab", name="People")).to_have_count(0)
         # Nothing on it is called an epic, a flow or native: its bar holds its title, one
-        # menu and a button for each pane, and its panel says what it is in a chat's words.
-        expect(bar.locator(".bar-actions button")).to_have_count(5)
+        # menu, a button for each pane and, as every view's, Ai-chan's at its end, and its
+        # panel says what it is in a chat's words.
+        expect(bar.locator(".bar-actions button")).to_have_count(6)
+        expect(bar.locator(".bar-actions > *").last).to_have_attribute(
+            "data-hmz", "aichan-toggle"
+        )
         expect(bar.locator("[data-hmz=prefer]")).to_have_count(0)
         expect(bar).not_to_contain_text(re.compile("epic|flow|native", re.IGNORECASE))
         expect(page.locator("[data-hmz=inspector]")).to_be_hidden()
@@ -1030,31 +1111,6 @@ def test_a_chat_is_listed_renamed_stopped_and_carried_on_by_its_id(
         stop(page)
 
 
-@pytest.mark.skip(
-    reason="`chat.get` does not say whether a chat kept what carries it on: the page "
-    "offers the box of every chat that rests, and the daemon refuses what cannot be"
-)
-def test_a_chat_that_kept_nothing_to_carry_on_says_it_cannot_be_continued(
-    project: Path, engine: str
-) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        _start_chat(page, "hello there")
-        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: hello there")
-        stop(page)
-        # A chat whose conversation was never kept: nothing in its record to carry on from.
-        kept = list(project.parent.glob("humanize-home/chats/*/*/sessions"))
-        assert kept
-        for one in kept:
-            shutil.rmtree(one)
-        page.reload()
-
-        expect(page.locator("[data-hmz=not-carried]")).to_have_text(
-            "This chat cannot be continued here."
-        )
-        expect(page.locator("[data-hmz=composer], [data-hmz=say]")).to_have_count(0)
-        expect(page.get_by_role("link", name="Resume")).to_have_count(0)
-
-
 @pytest.mark.usefixtures("loops")
 def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
     project: Path, engine: str
@@ -1073,7 +1129,6 @@ def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
     with served() as site, opened(site, engine=engine) as page:
         go(page, f"/epics/{origin}")
         page.get_by_role("link", name="Resume").first.click()
-        page.get_by_role("button", name="Options", exact=True).click()
         minutes = page.get_by_label("Longest it may take, in minutes")
         expect(minutes).to_have_value("525600")
         page.locator("[data-hmz=composer-text]").press("Enter")
@@ -1086,7 +1141,6 @@ def test_an_epic_given_a_year_or_more_is_resumed_on_its_budget(
 
         # Kept for the flow as settings says a year, and a new epic of it opens on it.
         go(page, "/new?flow=flame_chase")
-        page.get_by_role("button", name="Options", exact=True).click()
         expect(minutes).to_have_value("525600")
 
 
@@ -1238,9 +1292,9 @@ def _painted(page: Page, token: str, said: str) -> None:
     raise AssertionError(f"{token} is {_paints(page, token)!r}, not {said!r}")
 
 
-#: Every pair of themes Humanize comes with: its own, then twelve more, each named for a mood
-#: and its colour.
-_PAIRS = [
+#: Every theme Humanize comes with: its own, then twelve more, each named for a mood and its
+#: colour.
+_PRESETS = [
     "Humanize Green",
     "Temperate Gold",
     "Concordant Scarlet",
@@ -1257,7 +1311,12 @@ _PAIRS = [
 ]
 
 
-def test_the_colours_are_a_pair_under_auto_or_a_theme(
+def _kept(page: Page, name: str) -> str | None:
+    """What the browser keeps under a name; None where it keeps nothing."""
+    return page.evaluate("(name) => localStorage.getItem(name)", name)
+
+
+def test_a_theme_is_chosen_whole_and_under_auto_the_system_says_which_side_is_shown(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
@@ -1268,53 +1327,94 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
         )
         page.keyboard.press("Escape")
         go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=pair]")).to_have_count(len(_PAIRS))
-        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("humanize")
-        page.locator("[data-hmz=auto-pair]").select_option(label="Peaceful Lilac")
+        presets = page.locator("[data-hmz=presets] [data-hmz=theme]")
+        expect(presets.locator(".theme-name b")).to_have_text(_PRESETS)
+        # Each is drawn as its two sides, and no row picks one of them: nothing is copied or
+        # written out from the list. Which side is shown is one choice for them all, Auto
+        # where none was made.
+        expect(presets.locator(".theme-swatch")).to_have_count(2 * len(_PRESETS))
+        expect(presets.locator("button")).to_have_text(["Use"] * len(_PRESETS))
+        expect(page.locator("[data-hmz=theme-mode] button")).to_have_text(
+            ["Auto", "Light", "Dark"]
+        )
+        expect(page.locator("[data-hmz=theme-mode] [aria-pressed=true]")).to_have_text(
+            "Auto"
+        )
+        assert _kept(page, "hmz-mode") is None
+        expect(page.locator("[data-hmz=presets] select")).to_have_count(0)
+        custom = page.locator("[data-hmz=custom]")
+        expect(custom.locator("h2")).to_have_text("Custom")
+        expect(custom.locator("header button")).to_have_text(["New", "Import"])
+        expect(custom.locator("p")).to_have_text("No custom themes yet.")
+        expect(custom.locator("select")).to_have_count(0)
+
+        # Humanize's own is in use where none was chosen.
+        own = page.locator("[data-hmz=theme][data-key=humanize]")
+        expect(own).to_have_class(re.compile("chosen"))
+        expect(own.locator(".theme-name .dim")).to_have_text("In use")
+        expect(own.get_by_role("button", name="Use")).to_be_disabled()
+
+        lilac = page.locator("[data-hmz=theme][data-key=peaceful-lilac]")
+        lilac.get_by_role("button", name="Use").click()
+        expect(lilac).to_have_class(re.compile("chosen"))
+        expect(own).not_to_have_class(re.compile("chosen"))
         expect(page.locator("html")).to_have_attribute("data-theme", "light")
         _painted(page, "--paper", "#f7f2f7")
         page.emulate_media(color_scheme="dark")
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
         _painted(page, "--paper", "#151019")
-        # Opened again, the pair is painted before the page is drawn.
+        assert _kept(page, "hmz-pair") == "peaceful-lilac"
+        # Opened again, the theme is painted before the page is drawn.
         again = page.context.new_page()
         again.emulate_media(color_scheme="dark")
         again.goto(site.address)
         assert _paints(again, "--paper") == "#151019"
         again.close()
 
-        # One theme of a pair, chosen outright, holds whatever the system is.
-        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("peaceful-lilac")
-        page.get_by_role("button", name="Use Devoted Pink · Light").click()
-        expect(page.locator("html")).to_have_attribute("data-theme", "light")
-        _painted(page, "--paper", "#fdf6f5")
-        page.locator("[data-hmz=auto-pair]").select_option(label="Critical Teal")
-        _painted(page, "--paper", "#0f1518")
-        page.locator("[data-hmz=auto-light]").select_option(
-            label="Hateful Silver · Light"
-        )
-        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("")
+        # What a right click offers is the theme, whole.
+        lilac.click(button="right", position={"x": 300, "y": 20})
+        expect(page.locator(".popover.context [role=menuitem]")).to_have_text(["Use"])
+        page.keyboard.press("Escape")
+        own.get_by_role("button", name="Use").click()
+        expect(own).to_have_class(re.compile("chosen"))
+        assert _kept(page, "hmz-pair") is None
+        assert page.evaluate("document.documentElement.style.length") == 0
 
 
-def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
+def test_a_theme_is_made_of_the_one_in_use_written_out_and_read_back(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=theme]")).to_have_count(0)
+        custom = page.locator("[data-hmz=custom] [data-hmz=theme]")
+        expect(custom).to_have_count(0)
+        pink = page.locator("[data-hmz=theme][data-key=devoted-pink]")
+        pink.get_by_role("button", name="Use").click()
+        _painted(page, "--paper", "#fdf6f5")
+
+        # New copies both sides of the theme in use, and opens the side the system shows.
         page.get_by_role("button", name="New", exact=True).click()
         editor = page.locator("[data-hmz=theme-editor]")
         expect(editor).to_be_visible()
-        page.locator("[data-hmz=theme-name]").fill("Night")
-        page.locator("[data-hmz=theme-base]").select_option("dark")
-        # Shown on the page as it is changed, while it is edited.
-        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
-        page.locator("[data-hmz=colour-paper]").fill("#102030")
+        side = page.locator("[data-hmz=theme-side]")
+        expect(side.locator("button")).to_have_text(["Light", "Dark"])
+        expect(side.locator("[aria-pressed=true]")).to_have_text("Light")
+        expect(page.locator("[data-hmz=theme-base]")).to_have_count(0)
+        expect(page.locator("[data-hmz=theme-name]")).to_have_value("New theme")
+        expect(page.locator("[data-hmz=colour-paper]")).to_have_value("#fdf6f5")
+        page.locator("[data-hmz=theme-name]").fill("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#fff8e0")
         page.locator("[data-hmz=colour-control]").fill("not a colour")
         expect(page.locator("[data-hmz=colour-control]")).to_have_attribute(
             "aria-invalid", "true"
         )
-        assert _paints(page, "--paper") == "#102030"
+        # Shown on the page as it is changed, while it is edited.
+        assert _paints(page, "--paper") == "#fff8e0"
+        side.get_by_role("button", name="Dark").click()
+        expect(side.locator("[aria-pressed=true]")).to_have_text("Dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        expect(page.locator("[data-hmz=theme-name]")).to_have_value("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#201008")
         page.locator("[data-hmz=picture-page]").set_input_files(
             {"name": "moving.svg", "mimeType": "image/svg+xml", "buffer": _MOVING}
         )
@@ -1326,76 +1426,29 @@ def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
         # Left, the page is drawn in the theme chosen again.
         page.get_by_role("link", name="Done").click()
         expect(page.locator("html")).to_have_attribute("data-theme", "light")
-        night = page.locator("[data-hmz=theme]", has_text="Night")
+        _painted(page, "--paper", "#fdf6f5")
+        dusk = custom.filter(has_text="Dusk")
+        expect(dusk.locator(".theme-swatch")).to_have_count(2)
+        # It is written out where it is edited, and nowhere else.
+        expect(dusk.locator(".row").locator("button, a")).to_have_text(
+            ["Use", "Edit", "Delete"]
+        )
+        dusk.get_by_role("link", name="Edit").click()
         with page.expect_download() as saving:
-            night.get_by_role("button", name="Export").click()
-        saved = saving.value
-        assert saved.suggested_filename == "Night.hmztheme"
-        written = Path(saved.path()).read_text()
-        night.get_by_role("button", name="Delete").click()
-        _answer(night, "Delete Night?", "Delete")
-        expect(night).to_have_count(0)
-
-        page.locator("[data-hmz=theme-file]").set_input_files(
-            {
-                "name": "Night.hmztheme",
-                "mimeType": "application/json",
-                "buffer": written.encode(),
-            }
-        )
-        expect(night).to_have_count(1)
-        page.locator("[data-hmz=auto-dark]").select_option(label="Night · Dark")
-        page.emulate_media(color_scheme="dark")
-        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
-        _painted(page, "--paper", "#102030")
-        _painted(page, "--page-image", "data:image/svg+xml")
-        # Where motion is asked to be reduced, the picture is held as it is first drawn.
-        page.emulate_media(reduced_motion="reduce")
-        _painted(page, "--page-image", "data:image/png")
-        page.emulate_media(color_scheme="light")
-        expect(page.locator("html")).to_have_attribute("data-theme", "light")
-        # Opened again, it is painted before the page is drawn.
-        again = page.context.new_page()
-        again.emulate_media(color_scheme="dark")
-        again.goto(site.address)
-        assert again.evaluate("document.documentElement.dataset.theme") == "dark"
-        assert _paints(again, "--paper") == "#102030"
-        again.close()
-
-
-def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
-    project: Path, engine: str
-) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        go(page, "/settings/themes")
-        page.get_by_role("button", name="New pair").click()
-        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
-            "Light"
-        )
-        page.locator("[data-hmz=theme-name]").fill("Dusk")
-        page.locator("[data-hmz=colour-paper]").fill("#fff8e0")
-        page.locator("[data-hmz=theme-side]").get_by_role("button", name="Dark").click()
-        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
-            "Dark"
-        )
-        expect(page.locator("[data-hmz=theme-name]")).to_have_value("Dusk")
-        page.locator("[data-hmz=colour-paper]").fill("#201008")
-        page.get_by_role("link", name="Done").click()
-
-        dusk = page.locator("[data-hmz=pair]", has_text="Dusk")
-        dusk.get_by_role("button", name="Export").click()
-        with page.expect_download() as saving:
-            page.get_by_role("menuitem", name="Pair").click()
+            editor.get_by_role("button", name="Export").click()
         saved = saving.value
         assert saved.suggested_filename == "Dusk.hmztheme"
         written = json.loads(Path(saved.path()).read_text())
+        assert sorted(written) == ["dark", "hmztheme", "light", "name"]
         assert written["name"] == "Dusk"
         assert written["light"]["colors"]["paper"] == "#fff8e0"
         assert written["dark"]["colors"]["paper"] == "#201008"
+        assert written["dark"]["images"]["page"]["data"].startswith("data:image/svg")
+        page.get_by_role("link", name="Done").click()
 
         dusk.get_by_role("button", name="Delete").click()
         _answer(dusk, "Delete Dusk?", "Delete")
-        expect(dusk).to_have_count(0)
+        expect(custom).to_have_count(0)
         page.locator("[data-hmz=theme-file]").set_input_files(
             {
                 "name": "Dusk.hmztheme",
@@ -1404,11 +1457,222 @@ def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
             }
         )
         expect(dusk).to_have_count(1)
-        page.locator("[data-hmz=auto-pair]").select_option(label="Dusk")
+        dusk.get_by_role("button", name="Use").click()
+        expect(dusk).to_have_class(re.compile("chosen"))
         _painted(page, "--paper", "#fff8e0")
         page.emulate_media(color_scheme="dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
         _painted(page, "--paper", "#201008")
-        expect(dusk).to_have_class(re.compile("chosen"))
+        _painted(page, "--page-image", "data:image/svg+xml")
+        # Where motion is asked to be reduced, the picture is held as it is first drawn.
+        page.emulate_media(reduced_motion="reduce")
+        _painted(page, "--page-image", "data:image/png")
+        # Opened again, it is painted before the page is drawn.
+        again = page.context.new_page()
+        again.emulate_media(color_scheme="dark")
+        again.goto(site.address)
+        assert again.evaluate("document.documentElement.dataset.theme") == "dark"
+        assert _paints(again, "--paper") == "#201008"
+        again.close()
+
+        # Deleted while in use, Humanize's own is shown instead.
+        dusk.get_by_role("button", name="Delete").click()
+        _answer(dusk, "Delete Dusk?", "Delete")
+        expect(custom).to_have_count(0)
+        expect(page.locator("[data-hmz=theme][data-key=humanize]")).to_have_class(
+            re.compile("chosen")
+        )
+        assert _kept(page, "hmz-pair") is None
+
+
+def test_the_side_shown_is_the_one_chosen_and_under_auto_the_systems(
+    project: Path, engine: str, tmp_path: Path
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/themes")
+        mode = page.locator("[data-hmz=theme-mode]")
+        pressed = mode.locator("[aria-pressed=true]")
+        root = page.locator("html")
+        page.locator("[data-hmz=theme][data-key=peaceful-lilac]").get_by_role(
+            "button", name="Use"
+        ).click()
+        _painted(page, "--paper", "#f7f2f7")
+
+        # Dark is drawn at once, where the system is light, and stays whatever the system says.
+        mode.get_by_role("button", name="Dark").click()
+        expect(pressed).to_have_text("Dark")
+        expect(root).to_have_attribute("data-theme", "dark")
+        _painted(page, "--paper", "#151019")
+        assert _kept(page, "hmz-mode") == "dark"
+        assert _kept(page, "hmz-pair") == "peaceful-lilac"
+        for scheme in ("dark", "light"):
+            page.emulate_media(color_scheme=scheme)
+            page.wait_for_timeout(150)
+            expect(root).to_have_attribute("data-theme", "dark")
+            assert "#151019" in _paints(page, "--paper")
+            # The mark's chevron is in the ink of the side shown, whatever the system's is,
+            # and its wedge in the theme's green.
+            chevron, ink, wedge, green = page.evaluate(
+                """() => {
+                    const mark = document.querySelector('.side-top .brand-mark')
+                    const probe = document.createElement('i')
+                    document.body.append(probe)
+                    const painted = (token) => {
+                        probe.style.color = `var(${token})`
+                        return getComputedStyle(probe).color
+                    }
+                    const fill = (part) => getComputedStyle(mark.querySelector(part)).fill
+                    const said = [fill('.ink'), painted('--ink')]
+                    said.push(fill('.green'), painted('--green'))
+                    probe.remove()
+                    return said
+                }"""
+            )
+            assert chevron == ink != "rgb(20, 26, 31)"
+            assert wedge == green
+            page.screenshot(path=str(tmp_path / f"mark-dark-on-{scheme}.png"))
+
+        # Another theme used is drawn on the same side.
+        page.locator("[data-hmz=theme][data-key=devoted-pink]").get_by_role(
+            "button", name="Use"
+        ).click()
+        _painted(page, "--paper", "#1a1016")
+        expect(root).to_have_attribute("data-theme", "dark")
+        expect(pressed).to_have_text("Dark")
+
+        # Light, where the system is dark.
+        page.emulate_media(color_scheme="dark")
+        mode.get_by_role("button", name="Light").click()
+        expect(pressed).to_have_text("Light")
+        expect(root).to_have_attribute("data-theme", "light")
+        _painted(page, "--paper", "#fdf6f5")
+        assert _kept(page, "hmz-mode") == "light"
+        page.emulate_media(color_scheme="light")
+        page.emulate_media(color_scheme="dark")
+        page.wait_for_timeout(150)
+        expect(root).to_have_attribute("data-theme", "light")
+
+        # Opened again, the side chosen is painted before the page is drawn, and another page
+        # this browser has open follows the choice made here.
+        again = page.context.new_page()
+        again.emulate_media(color_scheme="dark")
+        again.goto(site.address)
+        assert again.evaluate("document.documentElement.dataset.theme") == "light"
+        assert "#fdf6f5" in _paints(again, "--paper")
+
+        # Auto keeps nothing, and follows the system as it changes.
+        mode.get_by_role("button", name="Auto").click()
+        expect(pressed).to_have_text("Auto")
+        assert _kept(page, "hmz-mode") is None
+        _painted(page, "--paper", "#1a1016")
+        expect(root).to_have_attribute("data-theme", "dark")
+        _painted(again, "--paper", "#1a1016")
+        again.close()
+        page.emulate_media(color_scheme="light")
+        expect(root).to_have_attribute("data-theme", "light")
+        _painted(page, "--paper", "#fdf6f5")
+        page.emulate_media(color_scheme="dark")
+        expect(root).to_have_attribute("data-theme", "dark")
+
+        # A theme of one's own is opened on the side shown, not the system's.
+        mode.get_by_role("button", name="Light").click()
+        page.locator("[data-hmz=custom]").get_by_role("button", name="New").click()
+        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
+            "Light"
+        )
+
+
+#: What an earlier Humanize kept in a browser: a theme of one side, a dark alone, shown where
+#: the system is dark, and the light of a preset where it is light. Kept once: the page it is
+#: kept for is the first this browser opens.
+_EARLIER = """
+if (!localStorage.getItem('seeded')) {
+  localStorage.setItem('seeded', '1')
+  localStorage.setItem('hmz-themes', JSON.stringify([
+    { id: 'tnight', name: 'Night', base: 'dark', colors: { paper: '#102030' }, images: {} },
+  ]))
+  localStorage.setItem('hmz-theme-light', 'hateful-silver-light')
+  localStorage.setItem('hmz-theme-dark', 'tnight')
+}
+"""
+
+
+def test_what_an_earlier_version_kept_is_kept_as_themes_of_two_sides(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine, init=_EARLIER) as page:
+        go(page, "/settings/themes")
+        custom = page.locator("[data-hmz=custom] [data-hmz=theme]")
+        # The theme of one side has both now, and the two picked apart are one theme, in use.
+        expect(custom.locator(".theme-name b")).to_have_text(["Night", "Custom"])
+        expect(custom.locator(".theme-swatch")).to_have_count(4)
+        mixed = custom.filter(has_text="Custom")
+        expect(mixed).to_have_class(re.compile("chosen"))
+        silver = page.locator("[data-hmz=theme][data-key=hateful-silver]")
+        paper = silver.locator(".theme-swatch").first.evaluate(
+            "(one) => one.style.getPropertyValue('--paper')"
+        )
+        assert paper.startswith("#")
+        _painted(page, "--paper", paper)
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#102030")
+        for gone in ("hmz-theme", "hmz-theme-light", "hmz-theme-dark"):
+            assert _kept(page, gone) is None
+        assert (_kept(page, "hmz-pair") or "").startswith("p")
+        # Night's other side sets nothing: used where the system is light, it is Humanize's own.
+        page.emulate_media(color_scheme="light")
+        night = custom.filter(has_text="Night")
+        night.get_by_role("button", name="Use").click()
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        assert page.evaluate("document.documentElement.style.length") == 0
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#102030")
+        page.emulate_media(color_scheme="light")
+
+        # One side chosen outright, whatever the system was: its theme is chosen, and that
+        # side of it stays the one shown.
+        page.evaluate(
+            """() => {
+              localStorage.removeItem('hmz-pair')
+              localStorage.setItem('hmz-theme', 'devoted-pink-dark')
+            }"""
+        )
+        page.reload()
+        _painted(page, "--paper", "#1a1016")
+        assert _kept(page, "hmz-pair") == "devoted-pink"
+        assert _kept(page, "hmz-mode") == "dark"
+        assert _kept(page, "hmz-theme") is None
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        go(page, "/settings/themes")
+        expect(page.locator("[data-hmz=theme-mode] [aria-pressed=true]")).to_have_text(
+            "Dark"
+        )
+        page.locator("[data-hmz=theme-mode]").get_by_role("button", name="Auto").click()
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+
+        # A file an earlier version wrote for one side is read as a theme of two.
+        go(page, "/settings/themes")
+        page.locator("[data-hmz=theme-file]").set_input_files(
+            {
+                "name": "Solo.hmztheme",
+                "mimeType": "application/json",
+                "buffer": json.dumps(
+                    {
+                        "hmztheme": 1,
+                        "name": "Solo",
+                        "base": "dark",
+                        "colors": {"paper": "#0a0b0c", "nothing": "#fff"},
+                    }
+                ).encode(),
+            }
+        )
+        expect(page.locator(".toast")).to_have_text("Imported Solo")
+        solo = custom.filter(has_text="Solo")
+        expect(solo.locator(".theme-swatch")).to_have_count(2)
+        solo.get_by_role("button", name="Use").click()
+        assert page.evaluate("document.documentElement.style.length") == 0
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#0a0b0c")
 
 
 def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> None:
@@ -1418,7 +1682,7 @@ def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> No
             {"name": "x.hmztheme", "mimeType": "application/json", "buffer": b"{}"}
         )
         expect(page.locator(".toast")).to_have_text("This is not a theme file")
-        expect(page.locator("[data-hmz=theme]")).to_have_count(0)
+        expect(page.locator("[data-hmz=custom] [data-hmz=theme]")).to_have_count(0)
 
 
 def test_a_newer_release_is_offered_under_the_machine(
@@ -1447,21 +1711,47 @@ def test_a_newer_release_is_offered_under_the_machine(
 
 @pytest.mark.usefixtures("talking")
 def test_a_flow_is_opened_and_started_from_the_flows(engine: str) -> None:
+    # The user's own `talk`, on offer whatever the workspace, beside the project's.
+    mine = Path.home() / ".hmz" / "flows" / "talk"
+    mine.mkdir(parents=True)
+    (mine / "__init__.py").write_text(_TALK)
     with served() as site, opened(site, engine=engine) as page:
-        # Flows picks no workspace, and lists no project's own flows until its address names
-        # one, as a folder's `Flows here` does: then the bar says which.
+        # Flows is the daemon's and no folder's: it names and picks no workspace, and lists
+        # no project's own flows.
         page.get_by_role("link", name="Flows").click()
-        expect(
-            page.locator("[data-hmz=flows] :is(.card, .error, p)").first
-        ).to_be_visible()
+        card = page.locator(".card[data-flow='@user/talk']")
+        expect(card).to_be_visible()
         expect(page.locator("[data-hmz=workspace-picker]")).to_have_count(0)
         expect(page.locator(".card[data-flow='@local/talk']")).to_have_count(0)
+        # A workspace an address names is left out of the page and of its address.
         go(page, f"/flows?workspace={site.here}")
-        expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_text(str(site.here))
-        page.locator(".card[data-flow='@local/talk']").click()
-        expect(page.locator(".flow-detail h2")).to_have_text("@local/talk")
+        expect(card).to_be_visible()
+        expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_count(0)
+        expect(page.locator(".card[data-flow='@local/talk']")).to_have_count(0)
+        page.wait_for_url(lambda url: "workspace" not in url)
+        # No flow is marked a default, and none is copied into a folder.
+        expect(
+            page.locator("[data-hmz=flows] .node-tag", has_text="Default")
+        ).to_have_count(0)
+        card.click(button="right")
+        menu = page.locator(".popover.context")
+        expect(menu.get_by_role("menuitem", name="New epic")).to_be_visible()
+        expect(menu.get_by_role("menuitem", name="Copy here")).to_have_count(0)
+        page.keyboard.press("Escape")
+        card.click()
+        expect(page.locator(".flow-detail h2")).to_have_text("@user/talk")
+        # What it says of the flow names no folder the page is on: it is on none.
+        facts = page.locator(".flow-detail .facts")
+        expect(facts).to_contain_text("workspace (the folder the epic runs in)")
+        expect(facts).not_to_contain_text("this directory")
+        expect(facts.locator("dt", has_text="resumable").locator("+ dd")).to_have_text(
+            re.compile("^(yes|no)$")
+        )
+        expect(
+            page.locator(".flow-detail").get_by_role("button", name="Copy here")
+        ).to_have_count(0)
         page.get_by_role("link", name="New epic").last.click()
-        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("@local/talk")
+        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("@user/talk")
 
 
 def test_on_a_phone_the_sidebar_is_a_drawer(project: Path, engine: str) -> None:
@@ -1478,26 +1768,40 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
     project: Path, engine: str
 ) -> None:
     """The app's window draws the page to its top edge, its traffic lights over the top left."""
-    # How far across, and how far down, they reach, at most.
+    # How far across they reach, at most, and how high the row they stand in is.
     lights = 76
-    strip = 30
+    row = 44
     clicked = "a, button, input, select, textarea, summary, [role=tab]"
+    # What can be clicked where they stand, the window's left 76 pixels and its top 44: what is
+    # drawn there, every 4 pixels.
+    under = (
+        "(() => { const found = new Set(); for (let x = 0; x < 76; x += 4) for (let y = 0;"
+        " y < 44; y += 4) { const el = document.elementFromPoint(x, y)?.closest('a, button,"
+        " input, select, textarea, summary, [role=tab]'); if (el) found.add(el.outerHTML"
+        ".slice(0, 80)) } return [...found] })()"
+    )
+
+    def box(page: Page, selector: str) -> dict[str, float]:
+        found = page.locator(selector).first.bounding_box()
+        assert found
+        return {key: found[key] for key in ("x", "y", "width", "height")}
 
     def left(page: Page, selector: str) -> float:
-        box = page.locator(selector).first.bounding_box()
-        assert box
-        return box["x"]
+        return box(page, selector)["x"]
 
     def top(page: Page, selector: str) -> float:
-        box = page.locator(selector).first.bounding_box()
-        assert box
-        return box["y"]
+        return box(page, selector)["y"]
+
+    def foot(page: Page, selector: str) -> float:
+        found = box(page, selector)
+        return found["y"] + found["height"]
 
     with served() as site, opened(site, engine=engine) as page:
         assert page.evaluate("document.documentElement.dataset.shell") is None
         expect(page.locator("[data-tauri-drag-region]")).to_have_count(0)
         assert left(page, ".brand") < lights
-        assert top(page, ".brand") < strip
+        assert top(page, ".brand") < row
+        assert page.evaluate(under) != []
 
     # Said before the page is drawn: by the time its body is, so it never moves.
     at_body = (
@@ -1510,10 +1814,17 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         opened(site, engine=engine, user_agent=_APP, init=at_body) as page,
     ):
         assert page.evaluate("window.shellAtBody") == "macos"
-        # The sidebar's top row stands beside them, in their strip: what hides the sidebar
-        # straight after them, and the mark, which they took the place of, at the row's far end.
+        # One row across the window, the lights in it: the sidebar's title row and the bar over
+        # the view are as high, their feet on one line, and the first entry stands under it.
+        assert top(page, ".side-top") == 0
+        assert foot(page, ".side-top") == row
+        assert top(page, "[data-hmz=bar]") == 0
+        assert foot(page, "[data-hmz=bar]") == row
+        assert top(page, ".side-nav a") >= row
+        # What hides the sidebar stands straight after them, and the mark, which they took the
+        # place of, at the row's far end: in the row's middle, as far from the sidebar's edge
+        # as it stands from it in a browser.
         assert left(page, ".side-fold") >= lights
-        assert top(page, ".side-fold") < strip
         assert left(page, ".brand") > left(page, ".side-forward")
         assert page.evaluate(
             "document.querySelector('.side-top .brand').getBoundingClientRect().right"
@@ -1522,15 +1833,21 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
             " return row.getBoundingClientRect().right"
             " - parseFloat(getComputedStyle(row).paddingRight) })()"
         )
-        for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
-            expect(page.locator(row)).to_have_attribute(
+        mark = box(page, ".side-top .brand .brand-mark")
+        side = box(page, "[data-hmz=sidebar] .side-top")
+        assert (mark["width"], mark["height"]) == (24, 24)
+        assert mark["y"] == row - mark["y"] - mark["height"] == 10
+        assert side["x"] + side["width"] - mark["x"] - mark["width"] == 16
+        for one in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
+            expect(page.locator(one)).to_have_attribute(
                 "data-tauri-drag-region", "deep"
             )
-        # The view itself, whose strip over what it draws is all of it not covered.
-        expect(page.locator("[data-hmz=page]")).to_have_attribute(
-            "data-tauri-drag-region", ""
+        # Nothing but the rows moves the window: no strip is kept over the view.
+        expect(page.locator("[data-hmz=page]")).not_to_have_attribute(
+            "data-tauri-drag-region", re.compile("")
         )
         expect(page.locator(f":is({clicked})[data-tauri-drag-region]")).to_have_count(0)
+        assert page.evaluate(under) == []
         # A menu opened in a row is not what the window is dragged by.
         page.locator("[data-hmz=daemon-bar]").click()
         expect(page.locator("[role=menu]")).to_have_attribute(
@@ -1538,21 +1855,41 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         )
         page.keyboard.press("Escape")
 
-        # Across the whole window: the view is drawn under the strip too.
+        # The sidebar hidden, the bar is the top left: no higher, and what shows the sidebar
+        # stands straight after them.
         page.locator(".side-fold").click()
-        assert top(page, "[data-hmz=bar] .bar-side") >= strip
-        assert left(page, "[data-hmz=bar] .bar-side") < lights
+        assert top(page, "[data-hmz=bar]") == 0
+        assert foot(page, "[data-hmz=bar]") == row
+        assert left(page, "[data-hmz=bar] .bar-side") >= lights
+        assert page.evaluate(under) == []
         # Full screen, where they are gone, it is drawn as in a browser.
         page.evaluate(
             "document.documentElement.toggleAttribute('data-fullscreen', true)"
         )
-        assert top(page, "[data-hmz=bar] .bar-side") < strip
-
-        page.set_viewport_size({"width": 700, "height": 800})
+        assert left(page, "[data-hmz=bar] .bar-side") < lights
+        assert page.evaluate(under) != []
         page.evaluate(
             "document.documentElement.toggleAttribute('data-fullscreen', false)"
         )
-        assert top(page, "[data-hmz=bar] .bar-side") >= strip
+
+        # A narrow window: the bar, the sidebar drawn over it, and a dialog that fills it.
+        page.set_viewport_size({"width": 700, "height": 800})
+        assert top(page, "[data-hmz=bar]") == 0
+        assert left(page, "[data-hmz=bar] .bar-side") >= lights
+        assert page.evaluate(under) == []
+        page.locator("[data-hmz=bar] .bar-side").click()
+        expect(page.locator("[data-hmz=sidebar]")).to_be_in_viewport(ratio=1)
+        assert left(page, ".side-fold") >= lights
+        assert page.evaluate(under) == []
+        page.keyboard.press("Escape")
+        page.keyboard.press("Meta+k")
+        expect(page.locator("[data-hmz=dialog-search]")).to_be_visible()
+        assert top(page, "[data-hmz=dialog-search]") == 0
+        assert page.evaluate(under) == []
+        go(page, "/settings/general")
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        assert top(page, ".settings-nav") == 0
+        assert page.evaluate(under) == []
 
 
 def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
@@ -1630,8 +1967,6 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
         for address in (_NEW, "/flows", "/search", *settings):
             go(page, address)
             page.wait_for_timeout(300)
-            if address.startswith("/new"):
-                page.get_by_role("button", name="Options").click()
             said += page.locator(
                 "button:visible, [role=tab]:visible, [role=menuitem]:visible, "
                 "h2:visible:not(.greeting), h3:visible, .field > .label:visible, "
@@ -1651,24 +1986,58 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
 
 
 @pytest.mark.usefixtures("talking")
-def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -> None:
+def test_a_setup_is_kept_by_starting_an_epic_and_by_nothing_else(
+    project: Path, engine: str
+) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, _NEW)
         _options(page)
-        role = page.locator("[data-role=assistant]")
-        expect(role.locator("[data-hmz=pick-model] option").first).to_have_text(
-            "Haiku 4.5"
-        )
-        role.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
-        page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
-        expect(
-            page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
-        ).to_be_visible()
-
+        chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
+        chip.click()
+        page.get_by_role("menu", name="Nous").locator(
+            "[data-value=claude-opus-4-1]"
+        ).click()
+        expect(chip).to_have_text("Claude Code Opus 4.1 Default")
+        # Nothing saves it but a start: the form holds no Save.
+        expect(page.get_by_role("button", name="Save")).to_have_count(0)
         page.reload()
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
-        expect(role.locator("[data-hmz=pick-model]")).to_have_value("claude-opus-4-1")
+        expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
+        expect(page.get_by_label("Most it may cost, in dollars")).to_have_value("")
+
+        # Started with, it is what a new epic of that flow opens on there.
+        _options(page)
+        chip.click()
+        page.get_by_role("menu", name="Nous").locator(
+            "[data-value=claude-opus-4-1]"
+        ).click()
+        page.locator("[data-hmz=composer-text]").fill("keep this")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(_EPIC)
+        stop(page)
+        go(page, _NEW)
+        expect(chip).to_have_text("Claude Code Opus 4.1 Default")
+        expect(page.get_by_label("Most it may cost, in dollars")).to_have_value("5")
+
+
+@pytest.mark.usefixtures("talking")
+def test_a_start_with_nothing_bounding_it_is_refused_where_the_budget_is_set(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, _NEW)
+        expect(
+            page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        ).to_have_text("Claude Code Haiku 4.5 Default")
+        page.locator("[data-hmz=composer-text]").fill("spend what you like")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        expect(page.locator("[data-hmz=start] .composer-said")).to_contain_text(
+            "Set at least one limit of the budget."
+        )
+        # The keys are where what is missing is set.
+        expect(page.get_by_label("Most it may cost, in dollars")).to_be_focused()
+        assert "#/new" in page.url
 
 
 @pytest.mark.usefixtures("talking")
@@ -1682,7 +2051,7 @@ def test_a_start_says_it_is_starting_until_the_epic_opens(
         _options(page)
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("hold on")
         page.locator("[data-hmz=composer-text]").press("Enter")
         box = page.locator("[data-hmz=start]")
@@ -1733,15 +2102,17 @@ def test_the_flow_and_its_environment_are_profiled_apart(
         expect(environment).not_to_be_checked()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_text("Claude Code Haiku 4.5 Default")
         flow.check()
-        page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
-        expect(
-            page.locator("[data-hmz=options]").get_by_role("button", name="Saved")
-        ).to_be_visible()
+        page.locator("[data-hmz=composer-text]").fill("profile the flow")
+        page.locator("[data-hmz=composer-text]").press("Enter")
+        page.wait_for_url(_EPIC)
+        (said,) = wire.params("epic.start")
+        assert (said["profile_flow"], said["profile_environment"]) == (True, False)
+        stop(page)
+        # Kept by the start, each apart.
         page.reload()
         go(page, _NEW)
-        page.get_by_role("button", name="Options").click()
         expect(flow).to_be_checked()
         expect(environment).not_to_be_checked()
         environment.check()
@@ -1749,7 +2120,7 @@ def test_the_flow_and_its_environment_are_profiled_apart(
         page.locator("[data-hmz=composer-text]").fill("profile me")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(_EPIC)
-        (said,) = wire.params("epic.start")
+        *_, said = wire.params("epic.start")
         assert (said["profile_flow"], said["profile_environment"]) == (True, True)
         stop(page)
 
@@ -1854,7 +2225,7 @@ def test_a_backup_target_is_added_picked_at_a_start_and_an_epic_uploaded_to_it(
         expect(page.locator("[data-hmz=backup] input[value=t]")).to_be_checked()
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        ).to_have_value("claude-haiku-4-5")
+        ).to_have_attribute("data-value", "claude-haiku-4-5")
         page.locator("[data-hmz=composer-text]").fill("back me up")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(_EPIC)
@@ -1909,9 +2280,12 @@ def test_the_panel_says_every_figure_in_words_and_within_its_edges(
         expect(page.locator("[data-hmz=thread]")).to_contain_text("did: fit me")
         _details(page)
         inspector = page.locator("[data-hmz=inspector]")
-        # What it works in said whole after its session, its path under them, whole on hover.
-        works = inspector.locator("[data-hmz=environments] li").first
-        expect(works).to_contain_text(re.compile(r"\w+/1 local"))
+        # What it works in said whole, with no session or role named before it, its path
+        # under it, whole on hover.
+        works = inspector.locator("[data-hmz=environments] li")
+        expect(works).to_have_count(1)
+        expect(works).to_contain_text("local")
+        expect(works).not_to_contain_text(re.compile(r"\w+/1|assistant"))
         expect(works.locator(".path")).to_have_attribute(
             "title", re.compile(rf"{re.escape(project.name)}$")
         )
@@ -1940,25 +2314,81 @@ def _asks_of(page: Page, session: str) -> None:
     expect(page.locator("[data-hmz=btw-to]")).to_contain_text(session)
 
 
-def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
-    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _slow_asides(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Makes a side question that says `slowly` take long enough to be seen answering."""
     from hmz.runtime.watching.btw import Btw, FlowSnapshot
 
     asks = Btw.ask
 
     def slowly(self: Btw, question: str, snapshot: FlowSnapshot) -> str:
-        # Long enough to be seen answering.
         if "slowly" in question:
             time.sleep(3)
         return asks(self, question, snapshot)
 
     monkeypatch.setattr(Btw, "ask", slowly)
+
+
+def test_a_side_question_about_a_chat_names_no_session_and_picks_none(
+    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _slow_asides(monkeypatch)
     with served() as site, opened(site, engine=engine) as page:
         _start_chat(page, "remember papaya")
-        thread = page.locator("[data-hmz=thread]")
-        expect(thread).to_contain_text("did: remember papaya")
+        expect(page.locator("[data-hmz=thread]")).to_contain_text(
+            "did: remember papaya"
+        )
         _side_questions(page)
+        aside = page.locator("[data-hmz=btw]")
+        ask = page.locator("[data-hmz=btw-to]")
+        tabs = page.locator("[data-hmz=btw-tab]")
+        log = page.locator("[data-hmz=btw-log]")
+
+        # A chat is one conversation: nothing to pick, and it is asked at once.
+        expect(ask).to_be_hidden()
+        expect(tabs).to_have_text(["New question"])
+        aside.locator("textarea").fill("what now")
+        aside.locator("textarea").press("Enter")
+        expect(log.locator(".said.btw")).to_have_count(1)
+        expect(aside).not_to_contain_text("Pick the conversation")
+        expect(ask).to_be_hidden()
+        # The side conversation goes by what it first asked, and names no session.
+        expect(tabs).to_have_text(["what now"])
+
+        page.locator("[data-hmz=btw-new]").click()
+        expect(ask).to_be_hidden()
+        aside.locator("textarea").fill("and you, slowly")
+        aside.locator("textarea").press("Enter")
+        working = page.locator("[data-hmz=btw-working]")
+        expect(working).to_have_text("Thinking…")
+        expect(page.locator("[data-hmz=btw-tab].busy")).to_have_count(1)
+        expect(log.locator(".said.btw")).to_have_count(1)
+        expect(working).to_have_count(0)
+        expect(tabs).to_have_text(["what now", "and you, slowly"])
+        # Nor does what was asked say whom it was asked of.
+        expect(log.locator(".said.you .body")).to_have_text("and you, slowly")
+        expect(log.locator(".said.you .who")).to_have_count(0)
+
+        # Opened again, both are read back, each with what was said in it.
+        page.reload()
+        _side_questions(page)
+        expect(tabs).to_have_text(["what now", "and you, slowly"])
+        expect(log).to_contain_text("and you, slowly")
+        tabs.first.click()
+        expect(log).to_contain_text("what now")
+        expect(log.locator(".said.you .body")).to_have_text("what now")
+        page.locator("[data-hmz=btw-close]").click()
+        expect(tabs).to_have_count(1)
+        stop(page)
+
+
+@pytest.mark.usefixtures("talking")
+def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
+    project: Path, engine: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _slow_asides(monkeypatch)
+    with served() as site, opened(site, engine=engine) as page:
+        _start_talk(page, "remember papaya")
+        page.get_by_role("tab", name="Aside").click()
         aside = page.locator("[data-hmz=btw]")
         ask = page.locator("[data-hmz=btw-to]")
 
@@ -1990,6 +2420,11 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         aside.locator("textarea").press("Enter")
         expect(aside).to_contain_text("Pick the conversation to ask first.")
         expect(ask).to_be_visible()
+        # Whom it asks is picked above the box, outside it, and covers none of it.
+        above, box = ask.bounding_box(), aside.locator("textarea").bounding_box()
+        assert above is not None
+        assert box is not None
+        assert above["y"] + above["height"] <= box["y"]
         _asks_of(page, "/1")
         aside.locator("textarea").fill("what now")
         aside.locator("textarea").press("Enter")
@@ -2019,7 +2454,7 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
 
         # Opened again, both are read back, each with what was said in it.
         page.reload()
-        _side_questions(page)
+        page.get_by_role("tab", name="Aside").click()
         expect(tabs).to_have_count(2)
         expect(log).to_contain_text("and you, slowly")
         tabs.first.click()
@@ -2029,49 +2464,6 @@ def test_asides_each_ask_one_picked_at_their_start_and_say_while_they_answer(
         expect(tabs).to_have_count(1)
         expect(log).to_contain_text("and you, slowly")
         stop(page)
-
-
-def test_ai_chan_drawer_opens_from_every_view_with_her_avatar_and_new_form(
-    project: Path, engine: str, tmp_path: Path
-) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        go(page, "/new")
-        drawer = page.locator("[data-hmz=aichan]")
-        expect(drawer).to_be_hidden()
-        toggle = page.locator("[data-hmz=aichan-toggle]").first
-        expect(toggle).to_have_attribute("aria-pressed", "false")
-        toggle.click()
-        expect(drawer).to_be_visible()
-        expect(toggle).to_have_attribute("aria-pressed", "true")
-        # Her avatar, loaded and drawn in hard pixels.
-        avatar = drawer.locator(".aichan-head img")
-        expect(avatar).to_have_attribute("src", "/ai-chan/avatar.png")
-        assert avatar.evaluate("(img) => img.complete && img.naturalWidth") == 512
-        assert (
-            avatar.evaluate("(img) => getComputedStyle(img).imageRendering")
-            == "pixelated"
-        )
-        # Open from view to view, until closed.
-        go(page, f"/flows?workspace={project.resolve()}")
-        expect(drawer).to_be_visible()
-        # New: the scope the page shows, a preset, the network off, and the task.
-        drawer.locator("[data-hmz=aichan-new]").click()
-        form = drawer.locator("[data-hmz=aichan-form]")
-        expect(form).to_be_visible()
-        # A folder's flows show a workspace: the scope starts on it.
-        expect(form.locator("[data-hmz=aichan-scope]")).to_have_value("workspace")
-        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_visible()
-        expect(form.locator("[data-hmz=aichan-preset]")).to_have_value("read-only")
-        expect(form.locator("[data-hmz=aichan-network]")).not_to_be_checked()
-        expect(form.locator("[data-hmz=aichan-epic]")).to_be_hidden()
-        page.screenshot(path=str(tmp_path / "aichan-drawer.png"))
-        form.locator("[data-hmz=aichan-scope]").select_option("daemon")
-        expect(form.locator("[data-hmz=aichan-workspace]")).to_be_hidden()
-        form.locator("[data-hmz=aichan-scope]").select_option("epic")
-        expect(form.locator("[data-hmz=aichan-epic]")).to_be_visible()
-        expect(form.locator("[data-hmz=aichan-task] textarea")).to_be_visible()
-        drawer.get_by_role("button", name="Close panel").click()
-        expect(drawer).to_be_hidden()
 
 
 @pytest.mark.usefixtures("talking")
@@ -2091,7 +2483,7 @@ def test_a_new_view_read_under_ai_chans_drawer_takes_no_focus_out_of_it(
         page.locator("[data-hmz=aichan-toggle]").first.click()
         drawer = page.locator("[data-hmz=aichan]")
         drawer.locator("[data-hmz=aichan-new]").click()
-        task = drawer.locator("[data-hmz=aichan-task] textarea")
+        task = drawer.locator("[data-hmz=aichan-say] textarea")
         expect(task).to_be_focused()
         # The view is asked for from the sidebar, and what it reads is slow to come.
         wire.holds(held)
@@ -2201,13 +2593,11 @@ def test_a_composer_built_before_it_is_shown_is_a_line_tall_once_shown(
         expect(text).to_be_visible()
         line = text.evaluate("t => parseFloat(getComputedStyle(t).lineHeight)")
         box = text.bounding_box()
-        ask = page.locator(".ask-to").bounding_box()
         assert box is not None
-        assert ask is not None
         assert box["height"] >= line
-        # Whom it asks is picked above the box, outside it, and covers none of it.
+        # A chat has nobody to pick to ask: nothing stands in the box but what is typed.
         expect(page.locator("[data-hmz=btw] .ask-to")).to_have_count(0)
-        assert ask["y"] + ask["height"] <= box["y"]
+        expect(page.locator(".ask-to")).to_be_hidden()
         stop(page)
 
 
@@ -2232,7 +2622,6 @@ def test_an_earlier_epic_is_read_out_of_its_logs_and_asked_beside(
 
         _side_questions(page)
         aside = page.locator("[data-hmz=btw]")
-        _asks_of(page, "/1")
         aside.locator("textarea").fill("what was the word")
         aside.locator("textarea").press("Enter")
         expect(page.locator("[data-hmz=btw-log]")).to_contain_text(
@@ -2405,10 +2794,12 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         # Not looked at, as a page behind another window is not, while the chat answers.
         page.evaluate("document.hasFocus = () => false")
         _start_chat(page, "remember teal")
-        # A chat says how it stands over its box; a flow's epic, on its bar.
+        # A chat that answered and waits says nothing of it over its box; a flow's epic
+        # says how it stands on its bar.
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: remember teal")
         status = page.locator("[data-hmz=chat-status]")
-        expect(status).to_have_attribute("data-state", "asking")
-        expect(status).to_have_text("Waiting for you")
+        expect(status).to_have_count(0)
+        expect(page.locator("[data-hmz=dock]")).not_to_contain_text("Waiting for you")
 
         # Looked away from, it folds -- and still asks, as nobody has read what it said.
         page.locator("[data-hmz=epic]", has_text="a flow beside").click()
@@ -2428,12 +2819,123 @@ def test_a_chat_answered_unread_still_asks_once_folded_until_one_looks(
         row = page.locator("[data-hmz=epic]", has_text="remember teal")
         state = row.locator("[data-hmz=chat-state]")
         expect(state).to_have_attribute("data-state", "asking")
-        expect(state).to_have_text("Awaiting input")
+        # Marked by a dot, as a row unread is, which says so to whoever cannot see it.
+        expect(state).to_have_text("")
+        expect(state).to_have_attribute("aria-label", "Awaiting input")
+        expect(row).not_to_contain_text("Awaiting input")
 
         # Read, it is stopped: its row says nothing beside what was asked.
         row.click()
         expect(state).to_have_count(0)
         expect(status).to_have_count(0)
+
+
+def test_a_chat_no_host_holds_opens_its_terminal_changes_and_files_and_is_said_to(
+    project: Path, engine: str
+) -> None:
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-c", "user.name=Ada", "-c", "user.email=ada@example.com", *args],
+            cwd=project,
+            check=True,
+            capture_output=True,
+        )
+
+    (project / "kept.txt").write_text("kept\n")
+    git("init", "-q")
+    git("add", "kept.txt")
+    git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "one")
+    (project / "kept.txt").write_text("kept\nand changed\n")
+    with served() as site, opened(site, engine=engine) as page:
+        _start_chat(page, "remember teal")
+        thread = page.locator("[data-hmz=thread]")
+        expect(thread).to_contain_text("did: remember teal")
+        name = page.url.rsplit("/", 1)[1]
+        # Its host goes: an old chat, opened afresh.
+        stop(page)
+        page.reload()
+        expect(thread).to_contain_text("did: remember teal")
+        chat = _call(page, "chat.get", {"chat": name})
+        assert (chat["slot"], chat["state"]) == ("", "resting")
+        record = Path(chat["at"]) / "chat.jsonl"
+        wrote = record.read_bytes()
+
+        # Nothing says it is not going: its row and its box say nothing of how it
+        # stands, its box is there, and every pane of it is offered.
+        row = page.locator("[data-hmz=sidebar] [data-hmz=epic]", has_text="remember")
+        expect(row.locator("[data-hmz=chat-state]")).to_have_count(0)
+        expect(page.locator("[data-hmz=chat-status]")).to_have_count(0)
+        expect(page.locator("[data-hmz=not-carried]")).to_have_count(0)
+        say = page.locator("[data-hmz=say] textarea")
+        expect(say).to_be_visible()
+        bar = page.locator("[data-hmz=bar]")
+        for pane in ("details", "terminal", "changes", "files"):
+            button = bar.locator(f"[data-hmz=pane-{pane}]")
+            expect(button).to_be_enabled()
+            expect(button).to_have_attribute("title", pane.capitalize())
+
+        # Its files: its folder is brought up with nothing said, and nothing written.
+        bar.locator("[data-hmz=pane-files]").click()
+        frame_ = page.locator("[data-hmz=inspector] [data-hmz=envs]")
+        expect(frame_.locator("[data-hmz=envs-tab-files]")).to_have_attribute(
+            "aria-selected", "true"
+        )
+        expect(frame_.locator("[data-hmz=files-tree]")).to_contain_text("kept.txt")
+        expect(bar.locator("[data-hmz=pane-files]")).to_have_attribute(
+            "aria-pressed", "true"
+        )
+        assert record.read_bytes() == wrote
+        expect(thread).to_contain_text("did: remember teal")
+        expect(row.locator("[data-hmz=chat-state]")).to_have_count(0)
+        expect(page.locator("[data-hmz=chat-status]")).to_have_count(0)
+
+        # Its changes, and a terminal in it.
+        bar.locator("[data-hmz=pane-changes]").click()
+        expect(
+            frame_.locator("[data-hmz=change][data-path='kept.txt']")
+        ).to_be_visible()
+        bar.locator("[data-hmz=pane-terminal]").click()
+        expect(frame_.locator("[data-hmz=term-host]").first).to_be_visible()
+        for pane in ("terminal", "changes", "files"):
+            expect(bar.locator(f"[data-hmz=pane-{pane}]")).to_be_enabled()
+        assert record.read_bytes() == wrote
+
+        # Said something, it is carried on, the same chat, what was said before above.
+        expect(say).to_be_visible()
+        say.fill("what was it")
+        say.press("Enter")
+        expect(thread).to_contain_text("did: what was it")
+        expect(thread).to_contain_text("did: remember teal")
+        assert page.url.endswith(f"#/chats/{name}")
+        assert [one["id"] for one in _call(page, "chat.list")["chats"]] == [name]
+        # Its terminal is still the one open beside it.
+        expect(frame_.locator("[data-hmz=term-host]").first).to_be_visible()
+
+    # One whose host has gone again is brought up again as a pane of it is opened.
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, f"/chats/{name}")
+        expect(page.locator("[data-hmz=thread]")).to_contain_text("did: what was it")
+        stop(page)
+        page.reload()
+        page.locator("[data-hmz=chat-menu]").click()
+        page.locator("[data-hmz=env-open]").click()
+        frame_ = page.locator("[data-hmz=inspector] [data-hmz=envs]")
+        expect(frame_.locator("[data-hmz=files-tree]")).to_contain_text("kept.txt")
+
+        # Its environment's own view, at the address of a host that has gone, finds the
+        # chat again, and goes on to the address of the host it is on now.
+        slot = _call(page, "chat.get", {"chat": name})["slot"]
+        assert slot
+        stop(page)
+        was = {"workspace": str(project.resolve()), "slot": slot, "chat": name}
+        go(page, f"/envs/live?{urllib.parse.urlencode(was)}")
+        whole = page.locator("[data-hmz=envs-view]")
+        expect(whole.locator("[data-hmz=files-tree]")).to_contain_text("kept.txt")
+        now = _call(page, "chat.get", {"chat": name})["slot"]
+        assert now not in ("", slot)
+        assert urllib.parse.quote(now, safe="") in page.url
 
 
 @pytest.mark.usefixtures("talking")

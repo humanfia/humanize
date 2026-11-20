@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -299,6 +300,18 @@ async def test_run_fake_raises_the_flow_apis_exception_for_a_run_refused_before_
 
     assert await fakes.run_fake("aims:aims", params={"rounds": 3}) == 3
     assert _temporaries() == before
+
+
+async def test_run_fake_returns_once_no_host_of_its_private_daemon_is_left_on_a_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = install(tmp_path, monkeypatch)
+    write_flow(project / ".hmz" / "flows", "aims", AIMS)
+
+    for _ in range(5):
+        assert await fakes.run_fake("aims:aims", params={"rounds": 1}) == 1
+        # One left would read this machine's directory as the program's own again.
+        assert not [one for one in threading.enumerate() if one.name == "hmz-host"]
 
 
 #: A flow that asks its one `Outworlder` role for a review, which has a field with no default.

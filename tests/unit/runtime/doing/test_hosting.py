@@ -1707,7 +1707,7 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
     host = Host(cast("Any", where), "ai:1")
     try:
         alice = Told(host, "alice")
-        ai = {"id": 1, "scope": "daemon", "preset": "read-only", "network": False}
+        ai = {"id": 1, "scope": "daemon", "preset": "read-only"}
         # Hers is the daemon's to start, with the reach it keeps: no frontend's.
         assert alice.asks("chat.start", agent="claude/opus:high", task="hi", ai=ai) == {
             "ok": False,
@@ -1751,6 +1751,26 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
         )
     finally:
         host.close()
+
+
+def test_a_chat_carried_on_needs_nothing_said_and_a_new_one_does(
+    where: Workspace,
+) -> None:
+    where.epics.kept["20260101-chat"] = where.workspace / "20260101-chat"
+    checked = hosting.chat_checked(
+        cast("Any", where), {"task": "", "resume": "20260101-chat"}
+    )
+    assert (checked["ok"], checked["task"]) == (True, "")
+    assert hosting.chat_checked(
+        cast("Any", where), {"task": "", "resume": "20200101-nothing"}
+    ) == {
+        "ok": False,
+        "why": f"20200101-nothing is not a chat of {where.workspace}.",
+        "code": 404,
+    }
+    assert hosting.chat_checked(
+        cast("Any", where), {"agent": "claude/opus", "task": ""}
+    ) == {"ok": False, "why": "a chat starts with something said", "code": 400}
 
 
 def test_an_ai_chan_conversation_carried_on_needs_nothing_said(

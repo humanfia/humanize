@@ -47,7 +47,7 @@ workspaces:
         harness: local
 enable_sentry: false               # this machine
 details: true                      # this machine
-ai_chan: claude/claude-opus-5:high # this machine
+ai_chan: claude/claude-opus-5:high # this machine: the nous Ai-chan was last made with
 every_epic: true                   # this machine
 harness_sessions: true             # this machine
 chat:                              # this machine
@@ -105,7 +105,7 @@ backup:                            # this machine
 | --- | --- | --- | --- | --- | --- |
 | <span id="enable-sentry"></span>`enable_sentry` | `bool` | absent: *nobody has been asked*; the TUI asks at its first start; everything else reports nothing | the first-start question; `/settings` › General › **Error reports** | every process that could report (read once per process) | immediately in the process that changed it; at start elsewhere. [`HUMANIZE_SENTRY`](/reference/environment#humanize-sentry) overrides it for one process without writing it. Reading never writes it. |
 | `details` | `bool` (only `true` is on) | `false` | `/settings` › General › **Details** | the TUI | immediately: turns show every tool call and all thinking instead of responses only |
-| <span id="ai-chan"></span>`ai_chan` | `str`: a nous's name, or `cli[@account]/model:effort` | `""`: no default, `/ai` asks for one | `/settings` › General › **Ai-chan**; web **Settings › General › Ai-chan** | the TUI and the web page, as their forms' default; the daemon, as `aichan.create` is given no `nous` | the next Ai-chan conversation made; one made keeps its nous |
+| <span id="ai-chan"></span>`ai_chan` | `str`: a nous's name, or `cli[@account]/model:effort` | `""`: no conversation was made yet, and `/ai` and the page ask for one | nothing you set: the daemon, as [`aichan.create`](/reference/daemon#aichan-methods) makes a conversation, writes the nous it was made with | the TUI and the web page, as their forms' default; the daemon, as `aichan.create` is given no `nous` | the next Ai-chan conversation made; one made keeps its nous |
 | `every_epic` | `bool` (only `true` is on) | `false`: this directory's | `ctrl+t` on [`/epics`](/reference/tui#the-runs-that-have-already-happened) | the TUI | the next time `/epics` is opened |
 | <span id="harness-sessions"></span>`harness_sessions` | `bool` (only `true` is on) | `false`: only what Humanize ran is listed | `/settings` › General › **Harness sessions**; web **Settings › General › Harness sessions**; `settings.set` `harness_sessions` | the web page's sidebar and the TUI's `/resume` in a chat | the web sidebar at once; the TUI the next time `/resume` is typed. It governs what the interfaces list: [`chat.harness.list`](/reference/daemon#harness-sessions) answers either way |
 | <span id="chat-prefer"></span>`chat.prefer` | `str`: `native` or `flow` (any other value reads as `native`) | `native` | `/settings` › General › **Chat prefers for `$`**; `settings.set` `prefer` | every chat, through its host | the next `$` line of every [chat](/user/chat#a-name-that-is-both) that has no preference of its own (`/prefer`, the web's **Skill or flow** menu, `chat.set`), which is kept in that chat's record |
@@ -145,7 +145,7 @@ inherits the setup of the installed flow it shadows.
 | `budget` | `{duration, cost, output_tokens, graceful}` | the budget as `Budget.model_dump_json` writes it (`duration` ISO 8601, `cost` `"Infinity"` for unlimited, `graceful` a `bool` or `{duration, cost, output_tokens}` of `bool`s) | validated as a `Budget`; a failure reads as absent |
 | `profile_flow` | `bool`, written only as `true` | whether a run of the flow started from the TUI or the web profiles the flow's own Python, set on the `/flow` menu's **profile flow** row | anything but `true` reads as off |
 | `profile_environment` | `bool`, written only as `true` | whether a run of the flow started from the TUI or the web [profiles](/reference/tracing#profiling-a-run) the programs its agents start, set on the `/flow` menu's **profile environment** row | anything but `true` reads as off |
-| `backup` | `[str]` | the [backup targets](#backup) an epic of the flow goes to, by name, as **Options → Backup** in `hmz web` saved them; `[]` is none | anything but a list reads as absent, which is the defaults; a name settings has no target of is dropped by whoever starts the epic |
+| `backup` | `[str]` | the [backup targets](#backup) an epic of the flow goes to, by name, as **Backup** on the **New epic** form of `hmz web` was started with; `[]` is none | anything but a list reads as absent, which is the defaults; a name settings has no target of is dropped by whoever starts the epic |
 
 **Writing.** Saving `/flow` replaces the flow's whole entry and sets `flow`. `agents` is always
 written; `envs`, `params`, `budget`, `profile_flow`, `profile_environment` and `backup` are
@@ -306,7 +306,6 @@ outcome is a `backed` line in the epic's `epic.jsonl` (`to`, `ok`, `error`, `why
 | Page | Row | Key | Kind |
 | --- | --- | --- | --- |
 | General | Details | `details` | switch |
-| General | Ai-chan | `ai_chan` | pick |
 | General | Chat prefers for $ | `chat.prefer` | pick: `native`, `flow` |
 | General | Harness sessions | `harness_sessions` | switch |
 | General | Error reports | `enable_sentry` | switch |

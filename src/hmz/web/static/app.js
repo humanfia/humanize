@@ -9,9 +9,10 @@
 import { daemon, hash, hello, started } from './api.js'
 import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
+import { pieces, t } from './i18n.js'
 import { dismiss } from './layers.js'
 import { mountSidebar } from './sidebar.js'
-import { dragged, kept, settlePanel, toggleSidebar } from './shell.js'
+import { bar, kept, settlePanel, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
 import './importing.js'
@@ -35,9 +36,13 @@ const DIALOGS = {
   delete: () => import('./views/chatdelete.js'),
 }
 
-// The strip kept across its top for the window's traffic lights moves the window, as a title bar.
-const page = dragged(document.getElementById('page'), '')
+const page = document.getElementById('page')
 const overlay = document.querySelector('.overlay')
+// What index.html says before any script runs is English: said here in the page's language,
+// which lang.js set before anything was drawn.
+document.querySelector('.skip').textContent = t('Skip to the page')
+document.getElementById('sidebar').setAttribute('aria-label', t('Chats and epics'))
+for (const opening of page.querySelectorAll('.loading')) opening.textContent = t('Opening Humanize…')
 /** The view drawn, what it was loaded by, and how it is left or moved within. */
 let mounted = null
 let closing = null
@@ -271,7 +276,8 @@ async function view(mine, parts, query, key) {
   } catch (error) {
     // Said where it happened, and to the console, where whoever is debugging the page looks.
     console.error(error)
-    fill(page, h('div', { class: 'view' }, problem(`This view failed to open: ${error.message}`)))
+    // Under a bar, as every view is: the window is moved by it, and Ai-chan's button ends it.
+    fill(page, h('div', { class: 'view' }, bar(), h('div', { class: 'view-scroll' }, problem(t('This view failed to open: {why}', { why: error.message })))))
   }
 }
 
@@ -418,13 +424,12 @@ window.addEventListener('hmz:out', () => {
     h(
       'div',
       { class: 'view' },
+      bar(),
       h(
         'div',
         { class: 'empty' },
-        h('strong', {}, 'This browser is not let in.'),
-        'Open the address ',
-        h('code', {}, 'hmz web'),
-        ' printed when it started: it carries the key that lets a browser in.',
+        h('strong', {}, t('This browser is not let in.')),
+        pieces('Open the address {command} printed when it started: it carries the key that lets a browser in.', { command: h('code', {}, 'hmz web') }),
       ),
     ),
   )
