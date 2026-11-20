@@ -1220,7 +1220,7 @@ code {
    bar there. The newest first, each under the one before. */
 .toasts {
   position: fixed;
-  top: calc(var(--lights-strip, 0px) + var(--bar-h) + var(--under, 0px) + var(--space-8));
+  top: calc(var(--bar-h) + var(--under, 0px) + var(--space-8));
   right: var(--space-16);
   z-index: var(--z-toast);
   display: grid;
@@ -5739,27 +5739,33 @@ body:has(> .overlay > .dialog-settings) {
 
 /* -------------------------------------------------------- Humanize Desktop's window */
 
-/* There the page runs to the window's top edge, and the window's traffic lights stand where
-   macOS puts them, in its top 32 pixels at the left. That strip is kept for them alone, across
-   the whole window: the sidebar draws its top row beside them, the view and Ai-chan's drawer
-   under it, and a dialog that fills a narrow window under it. Full screen, where they are
-   gone, the page is drawn as anywhere else. */
+/* There the page runs to the window's top edge, and the window's traffic lights stand over its
+   top row, at the left, centred in the row's height. Whichever row is the window's top left keeps
+   that room at its left for them alone, 84 across: the sidebar's title row; with the sidebar
+   hidden, or a drawer on a narrow window, the bar over the view, whose first button stands
+   straight after them; and the head of a dialog that fills a narrow window, which a dialog that
+   only asks never does. Full screen, where they are gone, the page is drawn as anywhere else. */
 :root[data-shell='macos']:not([data-fullscreen]) {
-  --lights-strip: 32px;
+  --lights: 84px;
 }
 
-:root[data-shell='macos']:not([data-fullscreen]) .main,
-:root[data-shell='macos']:not([data-fullscreen]) .inspector.aichan {
-  padding-top: var(--lights-strip);
-}
-
-:root[data-shell='macos']:not([data-fullscreen]) .inspector.aichan .panel-close {
-  top: calc(var(--lights-strip) + var(--space-8));
+:root[data-shell='macos']:not([data-fullscreen]) .bar .bar-side {
+  margin-left: calc(var(--lights) - var(--space-8));
 }
 
 @media (max-width: 860px) {
-  :root[data-shell='macos']:not([data-fullscreen]) .overlay:not(:has(> .dialog-delete)) {
-    padding-top: var(--lights-strip);
+  :root[data-shell='macos']:not([data-fullscreen]) .dialog:not(.dialog-delete) .dialog-head {
+    padding-left: var(--lights);
+  }
+
+  /* Search's field, which stands lower in its box than a bar's title does, is in their row. */
+  :root[data-shell='macos']:not([data-fullscreen]) .dialog-search-box .dialog-head {
+    padding-block: calc((var(--bar-h) - var(--control-h)) / 2);
+  }
+
+  /* What scrolls across would scroll under them through its padding: it starts clear of them. */
+  :root[data-shell='macos']:not([data-fullscreen]) .settings-nav {
+    margin-left: var(--lights);
   }
 }
 

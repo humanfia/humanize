@@ -21,13 +21,13 @@
   padding-left: var(--space-8);
 }
 
-/* In Humanize Desktop's window on macOS the traffic lights are there themselves: the row stands
-   beside them, in their strip, the three buttons straight after them and the mark at the far end.
-   A sidebar at its narrowest has not the room for that: there the buttons stand a few pixels
-   nearer the lights, which reach 76 across, so that the last keeps the gutter at the far end. */
+/* In Humanize Desktop's window on macOS the traffic lights are there themselves, over this row's
+   left end: the three buttons stand straight after them and the mark at the far end, as far
+   from the sidebar's edge as it stands from it elsewhere. A sidebar at its narrowest has not the
+   room for that: there the buttons stand a few pixels nearer the lights, which reach 76 across,
+   so that the last keeps the gutter at the far end. */
 :root[data-shell='macos']:not([data-fullscreen]) .side-top {
-  height: var(--lights-strip);
-  padding-left: min(84px, 100% - 3 * var(--control-h-sm) - var(--side-gutter));
+  padding-left: min(var(--lights), 100% - 3 * var(--control-h-sm) - var(--side-gutter));
 }
 
 /* The mark is drawn whole or not at all: in a row too narrow for it, it falls onto a second
@@ -48,7 +48,7 @@
 }
 
 :root[data-shell='macos']:not([data-fullscreen]) .side-top .brand img {
-  margin: 0 var(--space-4);
+  margin: 0 var(--space-8) 0 var(--space-4);
 }
 
 /* ------------------------------------------------------------------------- the entries */

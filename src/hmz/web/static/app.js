@@ -11,7 +11,7 @@ import { unmoved } from './desk.js'
 import { fill, h, problem } from './dom.js'
 import { dismiss } from './layers.js'
 import { mountSidebar } from './sidebar.js'
-import { dragged, kept, settlePanel, toggleSidebar } from './shell.js'
+import { kept, settlePanel, toggleSidebar } from './shell.js'
 import { paint } from './themes.js'
 import './ui.js'
 import './importing.js'
@@ -35,8 +35,7 @@ const DIALOGS = {
   delete: () => import('./views/chatdelete.js'),
 }
 
-// The strip kept across its top for the window's traffic lights moves the window, as a title bar.
-const page = dragged(document.getElementById('page'), '')
+const page = document.getElementById('page')
 const overlay = document.querySelector('.overlay')
 /** The view drawn, what it was loaded by, and how it is left or moved within. */
 let mounted = null
