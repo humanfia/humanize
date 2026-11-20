@@ -368,7 +368,7 @@ export function draw(holder) {
             node(
               community,
               one.url,
-              h('span', { class: ['daemon-state', one.up ? 'daemon-up' : 'daemon-failed'] }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, one.up ? '●' : '✕'), one.up ? t('up') : t('down')),
+              h('span', { class: ['daemon-state', one.up ? 'daemon-up' : 'daemon-failed'] }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, one.up ? '●' : '✕'), one.up ? t('up@@node') : t('down')),
               one.name ? h('span', { class: 'dim' }, one.name) : null,
               one.uptime === undefined || one.uptime === '' ? null : h('span', { class: 'dim' }, t('{uptime} up in 24h', { uptime: typeof one.uptime === 'number' ? `${one.uptime}%` : one.uptime })),
             )

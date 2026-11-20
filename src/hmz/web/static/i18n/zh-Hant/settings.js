@@ -132,6 +132,7 @@ export default {
   'Left empty, kept as it is': '留空則維持不變',
   'At least 16 bytes': '至少 16 位元組',
   'Reading the community nodes…': '正在讀取社群節點…',
+  'up@@node': '上線',
   'down': '離線',
   '{uptime} up in 24h': '24 小時上線率 {uptime}',
   'Add the nodes by their URL instead.': '請改以 URL 新增節點。',

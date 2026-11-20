@@ -328,3 +328,10 @@ test('a translation is not its English left as it was, but for the names kept in
     covered(context, `${language} says as English does`, Object.entries(CATALOGS[language]).filter(([key, value]) => forms(value).includes(key.replace(/@@.*$/s, '')) && !SAME.has(key) && /[A-Za-z]{2}/.test(key.replace(/\{\w+\}/g, ''))).map(([key]) => JSON.stringify(key)))
   }
 })
+
+test('a community node that is up is said to be online, not connected as a daemon reached is', () => {
+  // `up` alone is the state of this page's link to a daemon; a node listed is only online.
+  assert.deepEqual([CATALOGS['zh-Hans']['up@@node'], CATALOGS['zh-Hant']['up@@node']], ['在线', '上線'])
+  for (const language of TRANSLATED) assert.notEqual(CATALOGS[language]['up@@node'], CATALOGS[language].up, language)
+  assert.equal(t('up@@node'), 'up')
+})

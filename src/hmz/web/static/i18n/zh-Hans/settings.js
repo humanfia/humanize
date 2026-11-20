@@ -132,6 +132,7 @@ export default {
   'Left empty, kept as it is': '留空则保持不变',
   'At least 16 bytes': '至少 16 字节',
   'Reading the community nodes…': '正在读取社区节点…',
+  'up@@node': '在线',
   'down': '离线',
   '{uptime} up in 24h': '24 小时在线率 {uptime}',
   'Add the nodes by their URL instead.': '请改为通过 URL 添加节点。',
