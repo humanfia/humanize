@@ -222,7 +222,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs/<role>` | One agent's log, across its sessions; or one person's, what they are asked and answer. `#/epics/<name>/logs`, with neither, opens `#/epics/<name>`. |
 | `#/epics/<name>/exomyth[?tab=flame]` | The epic's [Exomyth](/user/web#exomyth): its timeline, or its flame graph. |
-| `#/flows[?workspace=&flow=]` | The flows on offer, one opened; with `workspace`, that folder's own flows too. |
+| `#/flows[?flow=]` | The flows on offer on the daemon, one opened. The page names no folder: a `workspace` in the address is dropped. |
 | `#/flows?tab=verses[&verse=]` | The flowverses, the one named opened, or the first. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |

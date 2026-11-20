@@ -537,8 +537,21 @@ def test_an_address_and_an_empty_tab_say_what_is_so(engine: str) -> None:
         expect(empty).to_contain_text("No chats yet")
         expect(empty).not_to_contain_text("filters")
         expect(page.locator("[data-hmz=search-new-chat]")).to_be_visible()
-        page.get_by_role("combobox", name="Search").fill("zebra")
+        # What gets a chat there is offered with it, and is no line the arrows move to.
+        start = empty.get_by_role("link", name="New chat")
+        expect(start).to_have_attribute("href", "#/new/chat")
+        expect(empty.locator("[role=option]")).to_have_count(0)
+        field = page.get_by_role("combobox", name="Search")
+        field.fill("zebra")
         expect(empty).to_contain_text("Nothing is like that")
+        expect(empty.get_by_role("link")).to_have_count(0)
+        # Cleared, what was typed is gone and the tab stays; the keys stay in the field.
+        empty.get_by_role("button", name="Clear filters").click()
+        expect(field).to_have_value("")
+        expect(field).to_be_focused()
+        expect(empty).to_contain_text("No chats yet")
+        expect(chosen).to_have_text("Chats")
+        assert "q=" not in page.url
 
 
 #: A chat going, one that asks, one that failed, one at rest and an epic of a flow.

@@ -5,7 +5,8 @@
 
 import { call, onDaemon } from '../../api.js'
 import { confirming } from '../../confirm.js'
-import { acting, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { acting, empty, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { pathPicker } from '../../paths.js'
 
 const GIB = 2 ** 30
@@ -61,7 +62,11 @@ export function draw(holder, query, parts, scope) {
       h('header', {}, h('h2', {}, 'Runtimes'), scope.batch(() => data.runtimes.map(({ backend, name, made, ...fields }) => ['runtimes.set', { backend, name, fields, replace: true }]))),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Backend'), h('th', {}, 'Name'), h('th', {}, 'Address'), h('th', {}, 'Resources'), h('th', {}, ''))), h('tbody', {}, rows)))
-        : h('p', { class: 'dim' }, 'None yet: every environment is this machine, or spelled out where it is named.'),
+        : empty(
+            t('No runtime yet.'),
+            t(' Every environment runs on this machine, or is spelled out where it is named, until you add one.'),
+            h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'runtime-add', onclick: () => edit(null) }, t('Add runtime')),
+          ),
     )
   }
 
@@ -69,6 +74,8 @@ export function draw(holder, query, parts, scope) {
     editing = one
     drawWriting()
     writing.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // A new one starts at its first field; one edited is read first.
+    if (!one) writing.querySelector('#runtime-name')?.focus({ preventScroll: true })
   }
 
   function drawWriting() {

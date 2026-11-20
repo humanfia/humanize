@@ -19,7 +19,8 @@ import { pick } from '../importing.js'
 import { menuOf, menuOn } from '../ui.js'
 import { dragged } from '../shell.js'
 import { ago, flowName, empty, fill, h, headline, icon, iconButton, lasting, tone, when } from '../dom.js'
-import { PAGE, TABS, asked, chosenOf, filtered, found as gathered, heading, hints, keyed, moved, nothing, onFlow, onTab, paged, turned } from '../search-model.js'
+import { t } from '../i18n.js'
+import { PAGE, TABS, asked, chosenOf, cleared, filtered, found as gathered, heading, hints, keyed, moved, nothing, onFlow, onTab, paged, turned } from '../search-model.js'
 
 /** How a run can have ended, in the order the filter offers them. */
 const ENDINGS = ['running', 'done', 'failed', 'stopped', 'unfinished']
@@ -293,6 +294,28 @@ export function mount(root, { query }) {
       option(h('button', { class: 'search-action', type: 'button', 'data-hmz': 'import', onclick: pick }, 'Import'), 'import'),
     )
 
+  /**
+   * Nothing found, and what gets something there (Section 3.4.6 of protocol/web.md): what was
+   * typed and filtered for cleared, or a chat or an epic started. Pressed by the pointer, the
+   * focus stays in the field.
+   */
+  const none = () => {
+    const [title, text, does] = nothing(chosen)
+    const buttons = {
+      clear: () =>
+        h('button', { class: 'btn', type: 'button', 'data-hmz': 'search-clear', onclick: () => {
+          search.value = ''
+          places.value = ''
+          unfold(false)
+          choose(cleared(chosen))
+          search.focus()
+        } }, t('Clear filters')),
+      chat: () => h('a', { class: 'btn primary', href: hash('/new/chat'), 'data-hmz': 'search-start-chat' }, t('New chat')),
+      epic: () => h('a', { class: ['btn', does.length === 1 && 'primary'], href: hash('/new'), 'data-hmz': 'search-start-epic' }, t('New epic')),
+    }
+    return pressed(empty(title, text, ...does.map((one) => buttons[one]())))
+  }
+
   function draw(data, error) {
     body.removeAttribute('aria-busy')
     if (!data) {
@@ -344,7 +367,7 @@ export function mount(root, { query }) {
         : null,
       actions(),
     )
-    fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : null, data.total ? null : empty(...nothing(chosen)), list)
+    fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : null, data.total ? null : none(), list)
     // The one moved to stays so across a list read again; a list of others starts at its top,
     // which nothing has moved to yet.
     const found = options()

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { PAGE, TABS, asked, chosenOf, filtered, found, heading, hints, keyed, moved, narrowed, nothing, onFlow, onTab, paged, turned } from '../../../../src/hmz/web/static/search-model.js'
+import { PAGE, TABS, asked, chosenOf, cleared, filtered, found, heading, hints, keyed, moved, narrowed, nothing, onFlow, onTab, paged, turned } from '../../../../src/hmz/web/static/search-model.js'
 
 const chosen = (text = '') => chosenOf(new URLSearchParams(text))
 
@@ -72,6 +72,21 @@ test('nothing found is nothing like that only where something typed or filtered 
     assert.match(nothing(chosen(one))[1], /Clear the filters/)
   }
   assert.doesNotMatch(nothing(chosen('kind=chat'))[1], /filters/)
+})
+
+test('nothing found offers what gets something there: the filters cleared, or a chat or an epic started', () => {
+  assert.deepEqual(nothing(chosen())[2], ['chat', 'epic'])
+  assert.deepEqual(nothing(chosen('kind=chat'))[2], ['chat'])
+  assert.deepEqual(nothing(chosen('kind=flow'))[2], ['epic'])
+  for (const one of ['q=hello', 'kind=flow&status=done', 'flow=ralph', 'workspace=/w']) assert.deepEqual(nothing(chosen(one))[2], ['clear'])
+})
+
+test('clearing takes back what was typed and filtered for, and leaves the tab, which is no filter', () => {
+  const was = chosen('kind=flow&status=done&flow=ralph&workspace=/w&q=hello&offset=50')
+  assert.deepEqual(cleared(was), { kind: 'flow', status: '', flow: '', workspace: '', q: '', offset: 0 })
+  // Nothing found then is none of the tab's kind yet, with nothing left to clear.
+  assert.deepEqual(nothing(cleared(was))[2], ['epic'])
+  assert.equal(was.q, 'hello')
 })
 
 test('an address with nothing in it asks for everything from the first', () => {

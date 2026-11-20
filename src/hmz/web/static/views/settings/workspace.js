@@ -8,6 +8,7 @@ import { archiving, deletingAt } from '../../chat-actions.js'
 import { pathOf } from '../../chats.js'
 import { confirming } from '../../confirm.js'
 import { acting, ago, fill, h, headline, pathText, problem, when } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { firstOf, there } from '../../places.js'
 
 export function draw(holder, query, parts, scope) {
@@ -46,7 +47,7 @@ export function draw(holder, query, parts, scope) {
                   )
                 }),
               )
-            : h('p', { class: 'dim' }, 'None'),
+            : h('p', { class: 'dim' }, t('No archived chats.')),
           more > 0 ? h('p', { class: 'dim' }, `${more} more`) : null,
         )
       },

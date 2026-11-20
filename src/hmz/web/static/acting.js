@@ -291,7 +291,7 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
               submenu({ label: agent.name, glyph: 'agent', about: [agent.role, `${agent.sessions.length}`].filter(Boolean).join(' · '), hmz: 'btw-agent', items: () => newest(agent).map((one) => conversation(agent, one)) }),
             ),
           ]
-        : h('p', { class: 'dim ask-none' }, 'No conversation has opened yet.')
+        : h('p', { class: 'dim ask-none' }, t('No conversation yet. One opens as an agent of this epic starts.'))
     const list = h('div', { class: 'ask-list' }, laid())
     const narrow = h('input', { class: 'menu-filter', type: 'search', placeholder: 'Find whom to ask', 'aria-label': 'Find whom to ask', 'data-hmz': 'btw-find' })
     narrow.addEventListener('input', () => {

@@ -3,6 +3,7 @@
 // to, and what its foot says of the keys.
 
 import { chatRow } from './chats.js'
+import { t } from './i18n.js'
 
 /** The kinds Search lists, as its tabs name them, in their order: a chat is never an epic. */
 export const TABS = [
@@ -133,14 +134,20 @@ export function narrowed(chosen) {
 }
 
 /**
- * What is said where nothing was found, as a headline and what to do about it: nothing like what
- * was typed or filtered for, or none of the tab's kind yet -- a tab is no filter to clear.
+ * What is said where nothing was found, as a headline, what to do about it, and which buttons do
+ * it: nothing like what was typed or filtered for, which `clear` takes back, or none of the tab's
+ * kind yet -- a tab is no filter to clear -- which a new `chat` or a new `epic` starts.
  */
 export function nothing(chosen) {
-  if (chosen.q || filtered(chosen)) return ['Nothing is like that.', ' Clear the filters to see every chat and epic.']
-  if (chosen.kind === 'chat') return ['No chats yet.', ' Start a chat, and it is written down here as it goes.']
-  if (chosen.kind === 'flow') return ['No epics yet.', ' Start an epic, and it is written down here as it goes.']
-  return ['Nothing here yet.', ' Start a chat or an epic, and it is written down here as it goes.']
+  if (chosen.q || filtered(chosen)) return [t('Nothing is like that.'), t(' Clear the filters to see every chat and epic.'), ['clear']]
+  if (chosen.kind === 'chat') return [t('No chats yet.'), t(' Start a chat, and it is written down here as it goes.'), ['chat']]
+  if (chosen.kind === 'flow') return [t('No epics yet.'), t(' Start an epic, and it is written down here as it goes.'), ['epic']]
+  return [t('Nothing here yet.'), t(' Start a chat or an epic, and it is written down here as it goes.'), ['chat', 'epic']]
+}
+
+/** What is chosen once what was typed and filtered for is cleared: the tab stays, which is no filter. */
+export function cleared(chosen) {
+  return { ...chosen, q: '', status: '', flow: '', workspace: '', offset: 0 }
 }
 
 /** What stands over the results: the newest of everything, or what was found. */

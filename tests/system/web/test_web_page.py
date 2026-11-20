@@ -1522,21 +1522,40 @@ def test_a_newer_release_is_offered_under_the_machine(
 
 @pytest.mark.usefixtures("talking")
 def test_a_flow_is_opened_and_started_from_the_flows(engine: str) -> None:
+    # The user's own `talk`, on offer whatever the workspace, beside the project's.
+    mine = Path.home() / ".hmz" / "flows" / "talk"
+    mine.mkdir(parents=True)
+    (mine / "__init__.py").write_text(_TALK)
     with served() as site, opened(site, engine=engine) as page:
-        # Flows picks no workspace, and lists no project's own flows until its address names
-        # one, as a folder's `Flows here` does: then the bar says which.
+        # Flows is the daemon's and no folder's: it names and picks no workspace, and lists
+        # no project's own flows.
         page.get_by_role("link", name="Flows").click()
-        expect(
-            page.locator("[data-hmz=flows] :is(.card, .error, p)").first
-        ).to_be_visible()
+        card = page.locator(".card[data-flow='@user/talk']")
+        expect(card).to_be_visible()
         expect(page.locator("[data-hmz=workspace-picker]")).to_have_count(0)
         expect(page.locator(".card[data-flow='@local/talk']")).to_have_count(0)
+        # A workspace an address names is left out of the page and of its address.
         go(page, f"/flows?workspace={site.here}")
-        expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_text(str(site.here))
-        page.locator(".card[data-flow='@local/talk']").click()
-        expect(page.locator(".flow-detail h2")).to_have_text("@local/talk")
+        expect(card).to_be_visible()
+        expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_count(0)
+        expect(page.locator(".card[data-flow='@local/talk']")).to_have_count(0)
+        page.wait_for_url(lambda url: "workspace" not in url)
+        # No flow is marked a default, and none is copied into a folder.
+        expect(
+            page.locator("[data-hmz=flows] .node-tag", has_text="Default")
+        ).to_have_count(0)
+        card.click(button="right")
+        menu = page.locator(".popover.context")
+        expect(menu.get_by_role("menuitem", name="New epic")).to_be_visible()
+        expect(menu.get_by_role("menuitem", name="Copy here")).to_have_count(0)
+        page.keyboard.press("Escape")
+        card.click()
+        expect(page.locator(".flow-detail h2")).to_have_text("@user/talk")
+        expect(
+            page.locator(".flow-detail").get_by_role("button", name="Copy here")
+        ).to_have_count(0)
         page.get_by_role("link", name="New epic").last.click()
-        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("@local/talk")
+        expect(page.locator("[data-hmz=flow-picker] b")).to_have_text("@user/talk")
 
 
 def test_on_a_phone_the_sidebar_is_a_drawer(project: Path, engine: str) -> None:
@@ -2272,13 +2291,13 @@ def test_ai_chan_drawer_opens_from_every_view_with_her_avatar_and_new_form(
             == "pixelated"
         )
         # Open from view to view, until closed.
-        go(page, f"/flows?workspace={project.resolve()}")
+        go(page, f"/new?workspace={project.resolve()}")
         expect(drawer).to_be_visible()
         # New: the scope the page shows, a preset, the network off, and the task.
         drawer.locator("[data-hmz=aichan-new]").click()
         form = drawer.locator("[data-hmz=aichan-form]")
         expect(form).to_be_visible()
-        # A folder's flows show a workspace: the scope starts on it.
+        # A new epic in a folder shows a workspace: the scope starts on it.
         expect(form.locator("[data-hmz=aichan-scope]")).to_have_value("workspace")
         expect(form.locator("[data-hmz=aichan-workspace]")).to_be_visible()
         expect(form.locator("[data-hmz=aichan-preset]")).to_have_value("read-only")

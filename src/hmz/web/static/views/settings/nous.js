@@ -7,7 +7,8 @@
 
 import { confirming } from '../../confirm.js'
 import { nousNamed } from '../../chips/agent.js'
-import { acting, fill, h, iconButton, lasting, problem } from '../../dom.js'
+import { acting, empty, fill, h, iconButton, lasting, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { effortName } from '../../names.js'
 import { batched, concrete, freshId, graphSaid, held, removed, renamed, withEffort, written } from '../../nous.js'
 import { parted, readBackends } from '../../pickers.js'
@@ -91,7 +92,11 @@ export function draw(holder, query, parts, scope) {
       h('header', {}, h('h2', {}, 'Nous'), scope.batch(() => batched(data.nous))),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Nous'), h('th', {}, 'Tried'), h('th', {}, 'Graph'), h('th', {}, 'Then'), h('th', {}, ''))), h('tbody', {}, rows)))
-        : h('p', { class: 'dim' }, 'No nous written down. A failed turn fails where it ran.'),
+        : empty(
+            t('No nous yet.'),
+            t(' A nous retries a failed turn, on the same model or on another. Without one, a failed turn fails where it ran.'),
+            h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'nous-add', onclick: () => edit(null) }, t('New nous')),
+          ),
     )
     if (rows.length) fit(listing.querySelector('.table-wrap'))
   }
@@ -136,6 +141,8 @@ export function draw(holder, query, parts, scope) {
     editing = one
     drawWriting()
     writing.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // A new one starts at its first field; one edited is read first.
+    if (!one) writing.querySelector('input:not([disabled]), select:not([disabled])')?.focus({ preventScroll: true })
   }
 
   /** The efforts the model of a concrete nous takes, as the daemon's harnesses list them. */
