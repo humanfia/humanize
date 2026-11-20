@@ -363,11 +363,14 @@ export function mount(root, { parts, query }) {
       fill(main, shape === 'graph' ? drawn_.node : h('div', { class: 'list-scroll' }, listed), switching)
       for (const one of ['thread', 'thread-head', 'thread-ask', 'agent-list', 'graph-note']) drawn[one] = undefined
     })
+    // An ended epic's turns are read off its logs once, in either shape: its list and its panel
+    // say them as the graph does.
+    const asking = !run && !traced
     if (shape === 'list') {
       region('agent-list', [model.agents.map(({ name, role, working, status, spec, sessions, tokens }) => [name, role, working, status, spec, tokens, sessions.map((one) => [one.key, one.working, one.turns.length])]), mode.focus], () => fill(listed, listOf(model, detail.name, mode.focus)))
+      if (asking && !tracing && !traceError) readTrace()
       return
     }
-    const asking = !run && !traced
     region('graph-note', [asking, tracing, String(traceError)], () => {
       main.querySelector('.graph-note')?.remove()
       if (!asking) return

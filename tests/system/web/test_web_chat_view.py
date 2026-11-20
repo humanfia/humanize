@@ -561,6 +561,29 @@ def test_a_flows_epic_keeps_its_bar_its_tabs_and_its_words(
         expect(panel.locator("[data-hmz=btw-tab]")).to_have_text("New aside")
 
 
+def test_an_ended_epic_kept_as_a_list_reads_its_turns_as_its_graph_does(
+    project: Path, engine: str
+) -> None:
+    wire, _ = _wired()
+    wire.faked["runs.trace"] = lambda _: {"result": {"sessions": []}}
+    with (
+        served() as site,
+        opened(
+            site,
+            engine=engine,
+            init="localStorage.setItem('hmz-shape', 'list')",
+            routed=wire.routes,
+        ) as page,
+    ):
+        go(page, f"/epics/{_EPIC}")
+        expect(page.locator("[data-hmz=agent-list]")).to_be_visible()
+        # Read with nothing pressed, and what the panel says of it is what was read.
+        panel = page.locator("[data-hmz=inspector]")
+        expect(panel).to_contain_text("Its logs held no turn to read.")
+        expect(panel).not_to_contain_text("Reading its turns…")
+        assert wire.params("runs.trace") == [{"name": _EPIC}]
+
+
 #: How tall each of the elements a locator finds is drawn, in whole pixels.
 _TALL = "all => all.map((one) => Math.round(one.getBoundingClientRect().height))"
 
