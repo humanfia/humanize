@@ -315,7 +315,6 @@ async def test_a_conversation_is_carried_on_from_the_list_and_forgotten_there(
     assert heard(workspace)[-1] == "and again"
 
 
-
 async def _names(pilot: Pilot[None], nous: str) -> None:
     """Writes the nous of the New form on the screen, which asks for one where none was used."""
     pilot.app.screen.query_one("#choices", OptionList).focus()

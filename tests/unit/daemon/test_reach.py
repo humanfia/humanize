@@ -450,7 +450,7 @@ def test_her_conversation_is_named_by_the_chat_its_host_writes(
 def test_what_she_last_answered_is_written_down_as_she_answers_it(
     kept: Conversations, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("time.sleep", mock.Mock())
     monkeypatch.setattr(reaching, "epic_at", "/e/{}".format)
     stamps = iter(["t0", "t1", "t2", "t3"])
     monkeypatch.setattr(reaching.where, "now", lambda: next(stamps))

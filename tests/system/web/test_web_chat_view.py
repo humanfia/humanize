@@ -589,13 +589,11 @@ def test_read_turns_is_offered_only_once_an_ended_epics_turns_could_not_be_read(
     project: Path, engine: str
 ) -> None:
     wire, _ = _wired()
-    answers = iter(
-        [
-            {"error": {"code": -32000, "message": "no logs"}},
-            {"result": {"sessions": []}},
-        ]
-    )
-    wire.faked["runs.trace"] = lambda _: next(answers)
+    answers: list[dict[str, Any]] = [
+        {"result": {"sessions": []}},
+        {"error": {"code": -32000, "message": "no logs"}},
+    ]
+    wire.faked["runs.trace"] = lambda _: answers.pop()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         go(page, f"/epics/{_EPIC}")
         note = page.locator(".graph-note")
