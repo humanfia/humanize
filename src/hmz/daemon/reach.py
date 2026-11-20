@@ -384,7 +384,8 @@ def ran_in(name: str) -> str:
 def epic_at(name: str) -> Path | None:
     """The directory of a chat or an epic, by its name, or None where there is none.
 
-    An Ai-chan conversation is kept as a chat is; one an earlier hmz began is kept as an epic.
+    An Ai-chan conversation is kept as a chat is, one an earlier hmz began as an epic among
+    them once the daemon has moved it (Section 6.12.14 of files.md).
     """
     from hmz.runtime.epic import chats, every
 

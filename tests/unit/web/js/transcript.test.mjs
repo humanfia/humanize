@@ -82,6 +82,22 @@ test('what an agent stops to ask and the flow then puts to its person is one que
   assert.equal(theirs({ type: 'asked', question: 'q1', key: 'Ada/1', role: 'human', text: 'Which one first?' }).length, 1)
 })
 
+test('a turn of a session begins and ends naming whose it was, and a chat’s names nobody', () => {
+  const begins = { type: 'event', kind: 'begins', session: 'Ada/1', agent: 'Ada', at: 100 }
+  const ends = { type: 'event', kind: 'ends', session: 'Ada/1', agent: 'Ada', at: 112 }
+  const session = sayer('Ada/1')
+  assert.deepEqual(session(begins).map((one) => [one.getAttribute('class'), one.querySelector('.body').textContent]), [['said begins', 'Ada/1 is working']])
+  assert.deepEqual(session(ends).map((one) => [one.getAttribute('class'), one.querySelector('.body').textContent]), [['said ends', 'Worked for 12s · Ada/1']])
+  // A chat's, and an Ai-chan conversation's: nothing as it begins, and how long it worked as it ends.
+  for (const chat of [sayer('Ada/1', { chat: true }), sayer('Ada/1', { chat: true, folded: true })]) {
+    assert.deepEqual(chat(begins), [])
+    const [line, ...more] = chat(ends)
+    assert.deepEqual([line.getAttribute('class'), line.querySelector('.body').textContent, more.length], ['said ends', 'Worked for 12s', 0])
+  }
+  // One whose start was not seen says so, and still names nobody.
+  assert.equal(sayer('Ada/1', { chat: true })(ends)[0].querySelector('.body').textContent, 'Worked for ?')
+})
+
 test('a turn read off a trace opens on the prompt as a session, and on its person’s line as a chat', () => {
   const session = { key: 'Ada/1', actions: [{ category: 'turn', start: 1, name: 'turn 1', args: { prompt: 'hello' } }, { category: 'message', start: 2, name: 'message', args: { text: 'hi' } }] }
   const [turn, answer] = saidTraced(session)

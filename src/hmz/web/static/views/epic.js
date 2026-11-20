@@ -20,9 +20,9 @@ import { call, exported, given, hash } from '../api.js'
 import { go, renamed } from '../app.js'
 import { confirming } from '../confirm.js'
 import { acting, ago, badge, flowName, pathText, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
-import { agentLabel, parted } from '../chips/agent.js'
+import { agentLabel } from '../chips/agent.js'
 import { modelFact } from '../chips/model.js'
-import { PANES, paneOf, standing as standingSaid, stoppable, thousands, toggled, usageRows, usageSaid } from '../desk.js'
+import { PANES, paneOf, standing as standingSaid, stoppable, thousands, toggled, usageRows } from '../desk.js'
 import { ask, chatAsk, follow } from '../held.js'
 import { chatPermission } from '../chips/permission.js'
 import { usageChip } from '../chips/usage.js'
@@ -617,24 +617,21 @@ export function mount(root, { parts, query }) {
   }
 
   /**
-   * How a chat stands, said in a quiet line over its box only while it answers, waits on its
-   * person or has failed; and what it has spent, on the chip under its box.
+   * That a chat failed, said in a quiet line over its box, and nothing of how it stands
+   * otherwise; and what it has used, in the popup of the chip under its box while that is open.
    */
   function drawStanding(detail, going) {
-    const turn = going && held().standing.run ? held().standing.run.turn : ''
-    const pending = going ? (held().standing.pending && held().standing.pending.pending) || [] : []
-    const state = markOf(going ? 'running' : detail.how, { chat: true, turn, asked: pending.map((one) => `${one.run}:${one.question}`), epic: detail.name })
-    const said = standingSaid(state, modelName(parted(detail.agents?.[0]?.runs || '').model))
+    const state = markOf(going ? 'running' : detail.how, { chat: true, turn: going && held().standing.run ? held().standing.run.turn : '', asked: [], epic: detail.name })
+    const said = standingSaid(state)
     region('dock-standing', [said, state], () => {
       dock.querySelector('[data-hmz=chat-status]')?.remove()
       if (!said) return
-      const line = h('p', { class: ['chat-status', `chat-${state}`], role: 'status', 'data-hmz': 'chat-status', 'data-state': state }, state === 'running' ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, said)
+      const line = h('p', { class: ['chat-status', `chat-${state}`], role: 'status', 'data-hmz': 'chat-status', 'data-state': state }, said)
       const box = dock.querySelector('.composer, .dock-note')
       if (box) box.before(line)
       else dock.append(line)
     })
-    const spent = usageSaid(going ? held().figures : null, detail.spent)
-    for (const chip of usages) chip.said(spent)
+    for (const chip of usages) chip.read()
   }
 
   // ------------------------------------------------------------------ the panel beside it
@@ -768,7 +765,8 @@ export function mount(root, { parts, query }) {
             tile('spent', spent ? spent.money || '—' : '—', ''),
             tile('output tokens', spent ? spent.tokens : '—', ''),
             tile('took', took(detail, null) || '—', spent && spent.worked ? `${spent.worked} of it working` : ''),
-            tile('sessions', String(detail.sessions.length), chat ? '' : `${detail.agents.length} agent${detail.agents.length === 1 ? '' : 's'}`),
+            // A chat is one conversation: it counts no sessions and no agents.
+            chat ? null : tile('sessions', String(detail.sessions.length), `${detail.agents.length} agent${detail.agents.length === 1 ? '' : 's'}`),
           ),
         ),
       )
@@ -784,7 +782,7 @@ export function mount(root, { parts, query }) {
       ),
     )
     if (figures && figures.spending && figures.spending.length) parts.push(section('Spending', spendingOf(figures)))
-    const places = placesOf(detail, run)
+    const places = placesOf(detail, run, chat)
     // While it goes, where each session works opens that environment, and every one is a click away.
     const envs = going ? envsOf() : []
     const envsAt = (query) => envsAddress({ workspace: here.workspace, slot: here.slot }, query || {})
@@ -797,8 +795,8 @@ export function mount(root, { parts, query }) {
       return h(
         'li',
         {},
-        h('span', { class: 'mono' }, key),
-        ' ',
+        // A chat's is the chat's own: no session is named before it.
+        key ? [h('span', { class: 'mono' }, key), ' '] : null,
         env ? h('a', { href: envsAt({ env: env.id }), 'data-hmz': 'env-link', title: 'Open this environment' }, where) : where,
         workdir ? h('div', {}, pathed(workdir)) : null,
         harness ? h('div', { class: 'dim' }, `harness on ${harness}`) : null,
@@ -1083,8 +1081,8 @@ export function mount(root, { parts, query }) {
     })
     const permission = chatPermission(first, sets)
     if (catalogue && catalogue.slot === here.slot) permission.host(catalogue)
-    // What the chat has used, as a chat app keeps a ring there: what it has spent beside it once
-    // there is something to say, and its popup says the rest (Section 3.6.6.17.1 of protocol/web.md).
+    // What the chat has used, as a chat app keeps a ring there: the ring alone, and its popup
+    // says what was used (Section 3.6.6.17 of protocol/web.md).
     const usage = usageChip({
       hmz: 'chat-usage',
       tip: 'What this chat has used',
@@ -1165,8 +1163,20 @@ export function mount(root, { parts, query }) {
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 
+  /** Whether the chat of this name was looked for, for an address of an epic that names none. */
+  let looked = false
+
   function told(now) {
     seen = now
+    // A chat an earlier hmz kept as an epic is a chat now, by the name it had: an address
+    // kept of that epic -- a pin, a notice, a bookmark -- opens the chat (Section 3.5.20.3).
+    if (parts[0] === 'epics' && name && !now.detail && now.error && !looked) {
+      looked = true
+      call('chat.get', { chat: name }).then(
+        () => location.replace(hash(`/chats/${encodeURIComponent(name)}`)),
+        () => {},
+      )
+    }
     draw()
   }
 
@@ -1296,17 +1306,22 @@ function spendingOf(figures) {
   ]
 }
 
-/** Where each session of an epic works, and where its harness was put, as each opened. */
-function placesOf(detail, run) {
-  if (run) {
-    return run.records.filter((one) => one.type === 'opened' && !one.person && (one.env || one.harness)).map((one) => [one.key, placed(one.env), one.harness || '', (one.env && one.env.role) || '', (one.env && one.env.workdir) || ''])
-  }
-  return sessionsOf(detail).filter((one) => one.harness).map((one) => [one.key, '', one.harness]).concat(detail.used.map((one) => [one.split('=')[0], one.split('=').slice(1).join('='), '']))
+/**
+ * Where each session of an epic works, and where its harness was put, as each opened. A chat's
+ * are said by where it works alone, each once: it names no session and no role.
+ */
+function placesOf(detail, run, chat = false) {
+  const places = run
+    ? run.records.filter((one) => one.type === 'opened' && !one.person && (one.env || one.harness)).map((one) => [one.key, placed(one.env, chat), one.harness || '', (one.env && one.env.role) || '', (one.env && one.env.workdir) || ''])
+    : sessionsOf(detail).filter((one) => one.harness).map((one) => [one.key, '', one.harness]).concat(detail.used.map((one) => [one.split('=')[0], one.split('=').slice(1).join('='), '']))
+  if (!chat) return places
+  const said = new Set()
+  return places.map(([, ...place]) => ['', ...place]).filter((place) => !said.has(JSON.stringify(place)) && said.add(JSON.stringify(place)))
 }
 
-/** Where a session works, as the terminal interface's monitor says it under the session: its role, then its kind and target. Its workdir is said after them, as a path is. */
-function placed(env) {
-  return env ? [env.role, env.kind, env.target].filter(Boolean).join(' · ') : ''
+/** Where a session works, as the terminal interface's monitor says it under the session: its role, then its kind and target; a chat's by its kind and target alone. Its workdir is said after them, as a path is. */
+function placed(env, chat = false) {
+  return env ? [!chat && env.role, env.kind, env.target].filter(Boolean).join(' · ') : ''
 }
 
 /** The agents as a list rather than a graph: the working first, then in the flow's order. */
@@ -1390,7 +1405,7 @@ const FACTS = {
   used: ['envs', 'Environment'],
   params: ['params', 'Options'],
   budget: ['budget', 'Limits'],
-  sessions: ['sessions', 'Sessions'],
+  sessions: ['sessions', ''],
   picked_up: ['resumed from', 'Continued from'],
   profiled: ['profiled', 'Profiled'],
 }
@@ -1419,8 +1434,8 @@ function facts(detail, chat = false) {
     h('dd', {}, Object.keys(detail.params || {}).length ? h('pre', { class: 'block' }, JSON.stringify(detail.params, null, 2)) : '—'),
     h('dt', {}, said('budget')),
     h('dd', {}, budgeted(detail.budget)),
-    h('dt', {}, said('sessions')),
-    h('dd', {}, detail.sessions.length ? sessionsOf(detail).map((one) => h('div', {}, h('span', { class: 'mono' }, one.key), ` · ${harnessName(one.backend)}`, one.provider ? `@${one.provider}` : '', h('div', { class: 'dim mono' }, one.ident))) : 'none'),
+    // A chat is one conversation, and says nothing of the sessions kept under it.
+    chat ? null : [h('dt', {}, said('sessions')), h('dd', {}, detail.sessions.length ? sessionsOf(detail).map((one) => h('div', {}, h('span', { class: 'mono' }, one.key), ` · ${harnessName(one.backend)}`, one.provider ? `@${one.provider}` : '', h('div', { class: 'dim mono' }, one.ident))) : 'none')],
     detail.picked_up ? [h('dt', {}, said('picked_up')), h('dd', {}, h('a', { href: hash(`/epics/${encodeURIComponent(detail.picked_up)}`) }, detail.picked_up))] : null,
     detail.profile_flow || detail.profile_environment
       ? [h('dt', {}, said('profiled')), h('dd', {}, [detail.profile_flow && 'flow', detail.profile_environment && 'environment'].filter(Boolean).join(' · '))]

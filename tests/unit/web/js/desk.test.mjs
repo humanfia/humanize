@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, stoppable, thousands, toggled, unmoved, usageRows, usageSaid, usedLately } from '../../../../src/hmz/web/static/desk.js'
+import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, stoppable, thousands, toggled, unmoved, usageRows, usedLately } from '../../../../src/hmz/web/static/desk.js'
 
 test('the Add menu offers the four prefixes a line starts with, each a short label', () => {
   assert.deepEqual(ADDS.map((one) => one.sigil), ['@', '/', '$', '!'])
@@ -85,15 +85,6 @@ test('what is dismissed is kept once, the latest last, and no more than asked', 
   assert.deepEqual(dismissing(['a', 'b'], 'c', 2), ['b', 'c'])
 })
 
-test('the usage chip says what was spent where priced, else the tokens, else nothing', () => {
-  assert.equal(usageSaid({ tally: ['12.4k tokens · 3 turns', '$0.42 · 80 tok/s'] }, null), '$0.42')
-  assert.equal(usageSaid({ tally: ['12.4k tokens · 3 turns', '80 tok/s'] }, null), '12.4k tokens')
-  assert.equal(usageSaid({ tally: [] }, { money: '$1.20', tokens: '9k' }), '$1.20')
-  assert.equal(usageSaid(null, { money: '', tokens: '9k' }), '9k tokens')
-  assert.equal(usageSaid(null, { money: '$0.00', tokens: '0' }), '')
-  assert.equal(usageSaid(null, null), '')
-})
-
 test('a count of tokens is cut short as the runs figures cut one', () => {
   assert.deepEqual([0, 999.4, 1000, 12345, 1e6, 2345678].map(thousands), ['0', '999', '1.0k', '12.3k', '1.00M', '2.35M'])
 })
@@ -158,12 +149,12 @@ test('what a workspace used lately is today, the last day read, and the whole of
   ])
 })
 
-test('how a chat stands is said only while it answers, waits or has failed', () => {
-  assert.equal(standing('running', 'Haiku 4.5'), 'Haiku 4.5 is responding')
-  assert.equal(standing('running'), 'The assistant is responding')
-  assert.equal(standing('asking'), 'Waiting for you')
-  assert.equal(standing('crashed'), 'The chat failed')
+test('nothing is said of how a chat stands but that it failed', () => {
+  // Neither who is answering nor that it waits on its person.
+  assert.equal(standing('running'), '')
+  assert.equal(standing('asking'), '')
   assert.equal(standing('stopped'), '')
+  for (const failed of ['failed', 'refused', 'crashed']) assert.equal(standing(failed), 'The chat failed')
 })
 
 test('the panes of a chat are its details and the three panels of its environment', () => {

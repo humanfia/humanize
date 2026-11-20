@@ -4,8 +4,9 @@
 
 import { call } from './api.js'
 import { confirming } from './confirm.js'
-import { acting, fill, h, icon, problem } from './dom.js'
+import { acting, fill, h, headline, icon, problem } from './dom.js'
 import { ask } from './held.js'
+import { t } from './i18n.js'
 import { chipSelect, composer } from './composer.js'
 import { choice, menu, section, submenu } from './shell.js'
 import { line } from './transcript.js'
@@ -205,7 +206,9 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
       placeholder: chat ? 'Ask a side question' : 'Ask about the epic',
       label: 'Side question',
       submit: async (question) => {
-        if (one.to === null && !target) throw new Error('Pick the conversation to ask first.')
+        // A chat is one conversation, and is asked about as that: the last it opened, unpicked.
+        if (one.to === null && chat) target = agents.flatMap((agent) => agent.sessions).at(-1)?.key || ''
+        if (one.to === null && !target) throw new Error(chat ? t('This chat has said nothing to ask about yet.') : 'Pick the conversation to ask first.')
         if (one.to === null) one.to = target
         Object.assign(one, { question: question.trim(), posting: true })
         changed += 1
@@ -241,12 +244,13 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
     })
     let was = ''
     const draw = () => {
-      const who = one.to === null ? unasked : `btw · ${one.to}`
-      named.textContent = who
+      // Beside a chat no session is named: an aside goes by what it first asked.
+      const who = chat ? '' : one.to === null ? unasked : `btw · ${one.to}`
+      named.textContent = !chat ? who : one.to === null ? unasked : headline(one.said[0]?.question || one.question || t('Side question'))
       tab.classList.toggle('busy', Boolean(one.question))
       tab.setAttribute('aria-pressed', String(shown === one))
       leave.hidden = one.to === null
-      picker.parentElement.hidden = one.to !== null
+      picker.parentElement.hidden = chat || one.to !== null
       if (!one.posting) box.send.disabled = Boolean(one.question)
       const now = JSON.stringify([one.to, one.said, one.question])
       if (now === was) return
@@ -257,7 +261,7 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
         one.question
           ? [
               line('you', one.question, { who }),
-              h('div', { class: 'aside-working', 'data-hmz': 'btw-working', role: 'status' }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), `${one.to} is thinking…`),
+              h('div', { class: 'aside-working', 'data-hmz': 'btw-working', role: 'status' }, h('span', { class: 'aside-dot', 'aria-hidden': 'true' }), chat ? t('Thinking…') : `${one.to} is thinking…`),
             ]
           : null,
       )
@@ -270,7 +274,7 @@ export function asides(workspace, epic = '', { chat = false } = {}) {
       /** Whether nothing was picked for it, nor typed in it. */
       untouched: () => one.to === null && !target && !box.text.value,
       /** Lets go of the conversation picked where it is no longer of the epic. */
-      offered: () => target && !agents.some((agent) => agent.sessions.some((session) => session.key === target)) && pick(''),
+      offered: () => !chat && target && !agents.some((agent) => agent.sessions.some((session) => session.key === target)) && pick(''),
     })
     return one
   }

@@ -595,9 +595,14 @@ model.
 | `notices.subscribe` | Each notice has `chat` beside `epic`: the chat's name and `""` for a chat, `""` and the epic's name for an epic. |
 
 **An epic an earlier hmz recorded for a chat** -- an `epic.jsonl` whose `began` gives `kind`
-`chat` -- is not made a chat. It stays where it is and is answered by `runs.*` as any other
-epic that has ended, its row's `kind` `chat` and `flow` `""`; no `chat.*` method knows it, and
-`chat.start` refuses to carry it on, 404.
+`chat`, or no `kind` and the `flow` `chat` -- is made a chat: each time the daemon starts,
+before it accepts a session, it [moves](/reference/files#chats) every one no process holds
+among the chats, under the name it had, and logs how many it moved and each one it left.
+From then on `chat.*` answers it as any other chat. One left -- held by a process, or its
+name taken by a chat -- is moved at a later start; until then neither `runs.*` nor `chat.*`
+knows it, and `chat.start` refuses to carry it on, 404. An epic row's `kind` is always
+`flow`. `runs.import` and `backups.pull` place such an epic among the chats, and
+`backups.epics` lists it with `chat` true.
 
 ### Asides {#asides}
 
@@ -646,8 +651,8 @@ budget.
 
 `id` counts from 1. Conversations are kept in `H/ai/<machine>/conversations.yaml` across the
 daemon's restarts. A conversation is recorded as a [chat](#chats) is, in a chat directory under
-its host's workspace -- one an earlier hmz began goes on in the epic directory it was recorded
-in -- and is on no list of chats or epics: for every session, `chat.list` and
+its host's workspace -- one an earlier hmz began as an epic is moved there as the daemon
+starts, as any chat of then is -- and is on no list of chats or epics: for every session, `chat.list` and
 `runs.list` leave out every conversation, kept or forgotten
 ([`forgotten.yaml`](/reference/files#h-ai)), and whatever the host of an `ai:` slot holds,
 and `workspaces.list` neither counts them, nor takes that host as running, nor lists a

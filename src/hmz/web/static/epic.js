@@ -14,7 +14,7 @@
 // way, in the order they were opened, so an address to a session stays one as its run ends.
 
 import { call, daemon, poll } from './api.js'
-import { chatDetail, epicRow } from './chats.js'
+import { chatDetail } from './chats.js'
 import { agentLabel } from './chips/agent.js'
 import { flowName, lane, lasting } from './dom.js'
 import { current, follow, placed } from './held.js'
@@ -86,7 +86,7 @@ export function watch(name, where, told, { chat: aChat = false } = {}) {
   const stop = name
     ? poll(aChat ? 'chat.get' : 'runs.get', aChat ? { chat: name } : { name }, 4000, (data, error) => {
         seen.error = error
-        if (data) seen.detail = aChat ? chatDetail(data) : epicRow(data)
+        if (data) seen.detail = aChat ? chatDetail(data) : data
         tell()
       })
     : () => {}
@@ -99,7 +99,7 @@ export function watch(name, where, told, { chat: aChat = false } = {}) {
 
 /** An epic, or a chat, whole, as the view reads either. */
 function whole(name, chat) {
-  return chat ? call('chat.get', { chat: name }).then(chatDetail) : call('runs.get', { name }).then(epicRow)
+  return chat ? call('chat.get', { chat: name }).then(chatDetail) : call('runs.get', { name })
 }
 
 /** Whether the start the records say is the start an epic wrote down, as the server matches them. */

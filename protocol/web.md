@@ -427,8 +427,9 @@ asking.
 **3.5.15** A chat in the sidebar MUST be drawn as a row of another kind than any other epic: its
 task's first line alone, with no mark or glyph of a state, no name of a flow and nothing that opens
 it out. After that line, in the same line, its row MUST say `Running` while its mark (3.5.10) is
-`running`, `Awaiting input` while it is `asking`, `Failed` where it is `failed`, and nothing where it
-is `stopped`. What the row says when pointed at MUST say when the chat began, and the row MUST show
+`running`, `Failed` where it is `failed`, and nothing where it is `stopped`; while it is `asking`
+it MUST say no word, and MUST draw there the dot of a row marked unread (3.5.19), once, named
+`Awaiting input` to whoever cannot see it and where it is pointed at. What the row says when pointed at MUST say when the chat began, and the row MUST show
 how long ago it began where the device has nothing to point with. The row, and what it says when
 pointed at, MUST NOT say `epic` or `flow`.
 
@@ -482,10 +483,11 @@ otherwise. What a chat a host holds waits on MUST be read from `hosts.running`, 
 so that what it waits on between turns is marked `asking` until this browser has seen it. Sorted
 by `Last updated` (3.5.17.2), a chat that rests MUST stand by its `updated`.
 
-**3.5.20.3** An epic an earlier hmz recorded for a chat (`kind` `chat`, Section 4.16.2.1 of
-[DAEMON]) MUST be listed, found and drawn as any other epic, at `#/epics/<name>`, with its flow
-said as `chat`. The page MUST NOT draw it as a chat, and MUST NOT offer to resume it, to start a
-new epic like it, or to say anything in it.
+**3.5.20.3** A chat an earlier hmz recorded as an epic is a chat as any other once the daemon has
+moved it (Section 8.7.10 of [CORE]), under the name that epic had: the page MUST list, find and
+draw it as a chat, at `#/chats/<id>`, and MUST NOT draw any epic as of a flow `chat` for having
+been one. An address `#/epics/<name>` whose name `runs.get` refuses and `chat.get` answers MUST
+become `#/chats/<name>`, without a step in the history.
 
 **3.5.20.4** The sidebar MUST leave out every archived chat (Section 8.10.3 of [CORE]), a pinned
 one included.
@@ -609,7 +611,9 @@ what the person was asked, was shown and answered; a line typed under one MUST g
 
 **3.6.6.1** A chat MUST be drawn as its conversation alone, wherever it is opened, as Section 8 of
 [CORE] specifies: the task and each line of the user's on one side, each answer of the agent's on
-the other.
+the other. The conversation MUST NOT name the chat's agent or any session it opened: the page MUST
+draw nothing as a turn of the agent's begins, and as it ends MUST say how long the turn worked,
+`Worked for <time>`, and no name.
 
 **3.6.6.2** The box under a chat MUST send the user's next turn between turns, and MUST answer what
 the agent asks while a turn is open, with the offered answers as buttons at the end of the
@@ -653,7 +657,11 @@ its host has one, and the choice of Section 3.6.6.9. The bar MUST NOT say how th
 tabs of the Environments view over the chat's `Environment`. It MUST call `Details` and `Side
 questions` what Section 3.6.3 calls `Epic` and `Aside`, MUST show under `Details` everything `Epic`
 shows that a chat has, each named in plain words, and MUST say that side questions never reach the
-chat.
+chat. `Details` MUST NOT count the chat's sessions, MUST NOT name a session or the role of an
+agent, and MUST say where the chat works by the kind and the target of its environment, each said
+once. `Side questions` MUST NOT offer a session to pick (Section 3.6.3.5): a side question about a
+chat MUST be asked of the session the chat last opened, and MUST name no session, each side
+conversation going by the first question asked in it.
 
 **3.6.6.12** The page MUST NOT call a chat an epic or a run, nor a choice of the chat's `native`,
 in the bar, the menu, the tabs, the headings, the labels and the box of a chat's view. The box
@@ -703,8 +711,9 @@ while none is picked, `No folder` (Section 3.8.2) among it, saying `Pick a folde
 the four typed by hand MUST do what it did.
 
 **3.6.6.17** The row under the box of a chat that has begun MUST hold, at its right and in this
-order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and a chip `Usage`, which MUST
-say what the chat has spent or written where the page knows it and MUST open, by the chip, a
+order, the chip of Section 3.6.6.13, the chip of Section 3.6.6.14 and a chip `Usage`, a ring
+alone, which MUST say nothing beside the ring -- neither what the chat has spent nor what it has
+written -- MUST be named `Usage` to whoever cannot see it, and MUST open, by the chip, a
 popup of its own (Section 3.6.6.17.1): it MUST NOT open the chat's `Details` nor a page of
 Settings. That row MUST NOT hold where the chat runs.
 
@@ -716,9 +725,9 @@ which opens `Usage` (Section 3.11.2.12) on that workspace. It MUST be 308 CSS pi
 the window has the room, and MUST be one of the page's popups (Section 3.4.3.4): Escape MUST
 close it and, closed so, the focus MUST go back to the chip.
 
-**3.6.6.18** While a turn of a chat is open, the page MUST say over the chat's box who is
-responding, by the model the chat's agent runs; it MUST say there, besides, that the chat waits on
-the user or has failed, and MUST say nothing there otherwise.
+**3.6.6.18** The page MUST say over the chat's box, in one line, that the chat has failed, and
+MUST say nothing there otherwise: neither who is responding while a turn is open, nor that the
+chat waits on the user.
 
 **3.6.6.19** The bar of a chat MUST hold, at its far right and in this order, a button each for
 `Details`, `Terminal`, `Changes` and `Files`, each 28 CSS pixels square, and then a menu `View
@@ -1217,7 +1226,8 @@ either set, `All` MUST list epics alone. The counts by how it went MUST be of th
 
 **3.10.7** Each epic found MUST be one line: its task, then quietly how it stands, its workspace and
 when it began. How it stands MUST be said in the words its row in the sidebar says it in (Section
-3.5.15 for a chat, which says nothing while it rests), there and wherever else `Search` says it.
+3.5.15 for a chat, which says nothing while it rests, and `Awaiting input` in words while it
+waits on the user), there and wherever else `Search` says it.
 What was found MUST stand under a quiet heading, `Recents` where nothing narrows the list and
 `Results` otherwise, with which of how many are listed; under it MUST stand `Actions`: `New chat`
 and `Import`, which MUST stay in sight however many were found.

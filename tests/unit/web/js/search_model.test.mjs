@@ -104,7 +104,7 @@ test('a chat is not found by how it went: the tab of the chats drops it', () => 
 
 test('what was found is one list, the chats and the epics newest first, a chat at its own address', () => {
   const chats = { chats: [{ id: 'c1', title: 'A chat', workspace: '/w', agent: 'claude/opus', began: '2026-01-03T00:00:00Z', updated: '2026-01-03T00:00:00Z', state: 'resting', slot: '', asking: [] }], total: 1 }
-  const epics = { runs: [{ name: 'e2', kind: 'flow', flow: 'ralph', task: 'An epic', began: '2026-01-04T00:00:00Z' }, { name: 'e1', kind: 'chat', flow: '', task: 'An old chat', began: '2026-01-02T00:00:00Z' }], total: 2, counts: { done: 2 }, flows: ['chat', 'ralph'] }
+  const epics = { runs: [{ name: 'e2', kind: 'flow', flow: 'ralph', task: 'An epic', began: '2026-01-04T00:00:00Z' }, { name: 'e1', kind: 'flow', flow: 'chat', task: 'An epic of a flow named chat', began: '2026-01-02T00:00:00Z' }], total: 2, counts: { done: 2 }, flows: ['chat', 'ralph'] }
   const all = found(chosen(), [chats, epics])
   assert.deepEqual(all.runs.map((run) => [run.name, run.kind, run.flow]), [['e2', 'flow', 'ralph'], ['c1', 'chat', ''], ['e1', 'flow', 'chat']])
   assert.deepEqual([all.total, all.offset, all.counts, all.flows], [3, 0, { done: 2 }, ['chat', 'ralph']])

@@ -6,6 +6,7 @@
 import { blocks } from './asking/blocks.js'
 import { fieldsOf, kindOf, resolved, summaryOf } from './asking/logic.js'
 import { h, lasting } from './dom.js'
+import { t } from './i18n.js'
 import { modelName } from './names.js'
 import { refusedSaid, shellOf, shellParts } from './natives.js'
 import { copy, menuOf, menuOn } from './ui.js'
@@ -123,7 +124,9 @@ function threadOf(one) {
  * asked, since it is only the reply said back. Anything else said in asking it -- that a turn
  * could not be taken, or that the conversation could not be carried on -- is the flow's own
  * word in the conversation, and is drawn there, as the terminal interface draws it. A `!`
- * command the chat ran is drawn as a shell draws it, and a line it refused with why.
+ * command the chat ran is drawn as a shell draws it, and a line it refused with why. A turn of
+ * its assistant's is closed by how long it worked and names no session: nothing is drawn as it
+ * begins.
  *
  * Given `folded`, every tool is one line to open, as Ai-chan's are drawn.
  *
@@ -181,7 +184,7 @@ export function sayer(key, { chat = false, folded = false } = {}) {
       case 'event': {
         if (!mine) return []
         if (record.kind === 'result') answer = String(record.text || '')
-        const lines = said(record, kind === 'agent' ? record.session || record.agent : '', began, folded)
+        const lines = said(record, kind === 'agent' ? record.session || record.agent : '', began, { chat, folded })
         if (record.kind === 'asks') stopped = { text: String(record.text || '').trim(), line: lines[0] }
         return lines
       }
@@ -241,15 +244,22 @@ function shown(record) {
   return one
 }
 
-function said(record, who, began, folded = false) {
+/**
+ * What one thing a turn did adds to the transcript. A turn's start and its end name whose turn
+ * it was; given `chat`, a chat's or an Ai-chan conversation's, they name nobody -- there is one
+ * assistant, and no session for its person to tell from another: `begins` draws nothing, and
+ * `ends` only how long the turn worked.
+ */
+function said(record, who, began, { chat = false, folded = false } = {}) {
   const whose = record.session || record.agent
   switch (record.kind) {
     case 'begins':
       began.set(whose, record.at)
-      return [line('begins', `${whose} is working`)]
+      return chat ? [] : [line('begins', `${whose} is working`)]
     case 'ends': {
       const since = began.get(whose)
-      return [line('ends', `Worked for ${since ? lasting(record.at - since) : '?'} · ${whose}`)]
+      const time = since ? lasting(record.at - since) : '?'
+      return [line('ends', chat ? t('Worked for {time}', { time }) : `Worked for ${time} · ${whose}`)]
     }
     // A turn's last word is the answer it ends on, which its words have said already: drawn
     // as the terminal interface draws it, once.

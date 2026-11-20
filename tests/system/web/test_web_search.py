@@ -607,16 +607,21 @@ def test_search_says_how_each_stands_in_the_sidebars_words(engine: str) -> None:
     ):
         side = page.locator("[data-hmz=sidebar] [data-hmz=epic]")
         expect(side).to_have_count(5)
+        # What each row says of how it stands: its word, or what its dot is named where a
+        # chat that waits on its person is marked by one.
         said = {
             one.locator(".side-label").first.inner_text(): one.locator(
-                ".side-status"
-            ).all_inner_texts()
+                ".side-status, [data-hmz=chat-state]"
+            ).evaluate_all(
+                "all => all.map((one) => one.textContent || one.getAttribute('aria-label'))"
+            )
             for one in side.all()
         }
         page.keyboard.press("Control+k")
         found = page.locator("[data-hmz=found] [data-hmz=epic]")
         expect(found).to_have_count(5)
-        # Side by side, the same chat is said to stand the same way: nothing while it rests.
+        # Side by side, the same chat is said to stand the same way: nothing while it rests,
+        # and in words here what the sidebar's dot is named.
         for one in found.all():
             task = one.locator(".result-task").inner_text()
             assert one.locator("[data-hmz=result-how]").all_inner_texts() == said[task]

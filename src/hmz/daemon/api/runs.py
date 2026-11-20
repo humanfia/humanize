@@ -6,7 +6,8 @@ called and the sessions it opened -- and, read back out of the logs those sessio
 each of them said and did -- of every workspace, since the daemon holds every workspace's
 epics. An epic is also carried away whole as an archive (`runs.bundle`, read through
 `files.read`) and read back in from one (`runs.import`). A chat is no epic, and is read by
-`chat.*` (:mod:`hmz.daemon.api.chats`); one an earlier hmz recorded as an epic is read here.
+`chat.*` (:mod:`hmz.daemon.api.chats`); one an earlier hmz recorded as an epic is moved among
+the chats as the daemon starts, and is no epic here before it is.
 
 The epics read and laid out are kept in one :class:`Runs` until they change on disk, which is
 also what remembers the timeline a span's id is an id in.
@@ -47,7 +48,6 @@ __all__ = [
     "calls",
     "detail",
     "held_by",
-    "kind",
     "labelled",
     "listed",
     "local",
@@ -148,6 +148,9 @@ class Runs:
         if kept is not None and kept[0] == stamp:
             return kept[1]
         ran = read(epic)
+        if ran is not None and ran.chat != (self._what == "chat"):
+            # A chat an earlier hmz kept as an epic, not yet moved among the chats.
+            ran = None
         with self._lock:
             self._read[epic] = (stamp, ran)
         return ran
@@ -278,7 +281,9 @@ class Runs:
             at = epics.imported(archive)
         except ValueError as why:
             raise refused(why) from why
-        ran = self.read(at)
+        # A chat an earlier hmz kept as an epic is read in as a chat (Section 6.12.14 of
+        # files.md).
+        ran = (CHATS if at.parent.parent.name == "chats" else self).read(at)
         return {
             "name": at.name,
             "workspace": resolved(ran.workspace) if ran is not None else "",
@@ -409,13 +414,12 @@ def row(
 
     first = ran.task.strip().splitlines()[0] if ran.task.strip() else ""
     how = ending(ran, going=held or going)
-    # An epic an earlier hmz recorded for a chat, which was of no flow (Section 4.16.2.1).
-    chat = kind(ran) == "chat"
     return {
         "name": ran.name,
         "workspace": resolved(ran.workspace),
-        "kind": "chat" if chat else "flow",
-        "flow": "" if chat else ran.flow,
+        # Every epic is of a flow (Section 4.16.2.1): a chat is no epic.
+        "kind": "flow",
+        "flow": ran.flow,
         "task": first[:_TOLD] + ("…" if len(first) > _TOLD else ""),
         "began": ran.began,
         "ended": ran.ended,
@@ -433,13 +437,6 @@ def row(
         "backup": list(ran.backup),
         "backed": ran.backed,
     }
-
-
-def kind(ran: Ran) -> str:
-    """What one epic is, `flow` or `chat`, as its record says it (Section 6.5.20 of files.md)."""
-    from hmz.runtime.doing.epics import kind
-
-    return kind(ran)
 
 
 def labelled(spent: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -598,8 +595,7 @@ def listed(
         "offset": offset,
         "limit": limit,
         "counts": counts,
-        # What `flow` finds them by: one recorded for a chat, of no flow, as `chat`.
-        "flows": sorted({"chat" if kind(ran) == "chat" else ran.flow for ran in every}),
+        "flows": sorted({ran.flow for ran in every}),
     }
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import fcntl
 import json
 import os
 from dataclasses import dataclass, field
@@ -418,28 +419,215 @@ def _old_chat(workspace: Path, **began: Any) -> Path:
     return at
 
 
-@pytest.mark.parametrize(
-    "began", [{"kind": "chat"}, {"flow": "chat", "resumable": True}]
-)
-def test_a_chat_an_earlier_humanize_wrote_is_an_epic_still_and_no_chat(
+_OLD = [{"kind": "chat"}, {"flow": "chat", "resumable": True}]
+
+
+def _moved(workspace: Path, name: str = "20260101T000000.000Z-0ldc4a") -> Path:
+    """Where a chat an earlier Humanize wrote as an epic of a workspace is moved to."""
+    return (
+        epic.under(workspace).parents[1] / "chats" / epic.under(workspace).name / name
+    )
+
+
+@pytest.mark.parametrize("began", _OLD)
+def test_a_chat_an_earlier_humanize_wrote_is_an_epic_until_it_is_moved(
     workspace: Path, began: dict[str, Any]
 ) -> None:
     at = _old_chat(workspace, **began)
 
     ran = epic.read(at)
     assert ran is not None
-    assert (ran.kind, ran.chat) == ("chat", True)
+    # A chat's record, which is of no flow whatever it was written as.
+    assert (ran.kind, ran.chat, ran.flow) == ("chat", True, "")
+    assert epic.chatted(at)
     assert epic.journal(at) == at / JOURNAL
     assert (epic.epics(workspace), epic.every()) == ([at], [at])
     assert (epic.chats(workspace), epic.chats()) == ([], [])
     with pytest.raises(ValueError, match="is not a chat"):
         epic.forked(at)
 
-    # Opened again -- which only Ai-chan's is -- it goes on in the record it has.
-    with Epic("", "more", workspace, kind="chat", picked_up=at, reopened=True) as on:
-        assert on.journal == at / JOURNAL
+
+@pytest.mark.parametrize("began", _OLD)
+def test_a_chat_an_earlier_humanize_wrote_is_moved_among_the_chats_as_it_stands(
+    workspace: Path, began: dict[str, Any]
+) -> None:
+    at = _old_chat(workspace, **began)
+    (at / SESSIONS / "claude" / "old.jsonl").write_text("said\n")
+    (at / "host.log").write_text("logged\n")
+    written = (at / JOURNAL).read_bytes()
+    with Epic("ralph", "a run", workspace) as flow:
+        pass
+    into = _moved(workspace)
+
+    assert epic.migrated() == ([at.name], {})
+
+    # The directory it was, by the name it had, and its record the bytes it was.
+    assert not at.exists()
+    assert (into / CHATTED).read_bytes() == written
+    assert not (into / JOURNAL).exists()
+    assert (into / SESSIONS / "claude" / "old.jsonl").read_text() == "said\n"
+    assert (into / "host.log").read_text() == "logged\n"
+    assert (epic.chats(workspace), epic.chats()) == ([into], [into])
+    # And the epic of a flow is where it was.
+    assert (epic.epics(workspace), epic.every()) == ([flow.path], [flow.path])
+    ran = epic.read(into)
+    assert ran is not None
+    assert (ran.kind, ran.chat, ran.flow, ran.task, ran.how) == (
+        "chat",
+        True,
+        "",
+        "hi",
+        "stopped",
+    )
+    assert [one.ident for one in ran.sessions] == ["old"]
+    assert epic.where(into, ran.sessions[0]) == into / SESSIONS / "claude"
+
+    # A second time there is nothing to move, and nothing is touched.
+    assert epic.migrated() == ([], {})
+    assert (into / CHATTED).read_bytes() == written
+
+    # Carried on, it goes on in the record it has, as any chat does.
+    with Epic("", "more", workspace, kind="chat", picked_up=into, reopened=True) as on:
+        assert on.journal == into / CHATTED
+    assert [one["event"] for one in _lines(into / CHATTED)][-2:] == [
+        "reopened",
+        "ended",
+    ]
+    assert epic.forked(into).parent == into.parent
+
+
+def test_a_move_cut_short_is_finished_by_the_next(workspace: Path) -> None:
+    at = _old_chat(workspace, kind="chat")
+    written = (at / JOURNAL).read_bytes()
+    # As a daemon killed between the two steps leaves it: its record renamed, and no more.
+    (at / JOURNAL).rename(at / CHATTED)
+    assert (epic.every(), epic.chats()) == ([], [])
+    assert epic.chatted(at)
+
+    assert epic.migrated() == ([at.name], {})
+
+    into = _moved(workspace)
+    assert (into / CHATTED).read_bytes() == written
+    assert (epic.every(), epic.chats()) == ([], [into])
+    assert epic.migrated() == ([], {})
+
+
+def test_a_chat_kept_as_an_epic_that_is_going_is_left_for_the_next_time(
+    workspace: Path,
+) -> None:
+    at = _old_chat(workspace, kind="chat")
+    written = (at / JOURNAL).read_bytes()
+    held = os.open(at / ".held", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert epic.going(at)
+        assert epic.migrated() == ([], {at.name: "it is going"})
+        # As it was, to the byte: neither its record nor its directory was touched.
+        assert (at / JOURNAL).read_bytes() == written
+        assert not (at / CHATTED).exists()
+        assert epic.chats() == []
+    finally:
+        os.close(held)
+
+    assert epic.migrated() == ([at.name], {})
+    assert (_moved(workspace) / CHATTED).read_bytes() == written
+
+
+def test_a_chat_kept_as_an_epic_is_left_where_a_chat_has_its_name(
+    workspace: Path,
+) -> None:
+    at = _old_chat(workspace, kind="chat")
+    written = (at / JOURNAL).read_bytes()
+    into = _moved(workspace)
+    into.mkdir(parents=True)
+    (into / CHATTED).write_text('{"event": "began", "task": "another"}\n')
+
+    moved, left = epic.migrated()
+
+    assert (moved, list(left)) == ([], [at.name])
+    assert str(into) in left[at.name]
+    assert (at / JOURNAL).read_bytes() == written
     assert not (at / CHATTED).exists()
-    assert epic.chats() == []
+    assert (into / CHATTED).read_text() == '{"event": "began", "task": "another"}\n'
+
+
+def test_a_chat_kept_as_an_epic_that_holds_a_chat_record_too_is_left(
+    workspace: Path,
+) -> None:
+    at = _old_chat(workspace, kind="chat")
+    (at / CHATTED).write_text("another\n")
+
+    moved, left = epic.migrated()
+
+    assert (moved, list(left)) == ([], [at.name])
+    assert (at / CHATTED).read_text() == "another\n"
+    assert (at / JOURNAL).is_file()
+
+
+def test_a_move_that_fails_leaves_the_epic_as_it_was(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    at = _old_chat(workspace, kind="chat")
+    written = (at / JOURNAL).read_bytes()
+    rename = Path.rename
+    fails = [True]
+
+    def renamed(self: Path, target: Path) -> Path:
+        if self == at and fails[0]:
+            raise OSError(18, "Cross-device link")
+        return rename(self, target)
+
+    monkeypatch.setattr(Path, "rename", renamed)
+
+    assert epic.migrated() == ([], {at.name: "Cross-device link"})
+
+    assert (at / JOURNAL).read_bytes() == written
+    assert not (at / CHATTED).exists()
+    assert (epic.every(), epic.chats()) == ([at], [])
+    fails[0] = False
+    assert epic.migrated() == ([at.name], {})
+
+
+def test_only_a_chat_kept_as_an_epic_is_moved(workspace: Path, tmp_path: Path) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    # Nothing to move where nothing was ever run.
+    assert epic.migrated() == ([], {})
+    with Epic("ralph", "a run", workspace) as flow:
+        pass
+    # A flow named `chat` is an ordinary flow, and its epic stays one.
+    with Epic("chat", "a run", workspace) as named:
+        pass
+    with Epic("", "hi", workspace, kind="chat") as chat:
+        pass
+    first = _old_chat(workspace, kind="chat")
+    second = epic.under(other) / "20250101T000000.000Z-0lder1"
+    second.mkdir(parents=True)
+    _journal(
+        second / JOURNAL,
+        "cut off mid-li",
+        {"event": "began", "flow": "chat", "task": "t", "workspace": str(other)},
+    )
+    # What an import stages there, and what somebody put there, are no epic to move.
+    staged = (
+        epic.under(workspace) / ".20260101T000000.000Z-st4ged.x" / "20260101-st4ged"
+    )
+    staged.mkdir(parents=True)
+    _journal(staged / JOURNAL, {"event": "began", "kind": "chat", "task": "t"})
+    (epic.under(workspace) / "notes").mkdir()
+    (epic.under(workspace) / "a-file").write_text("{}")
+
+    moved, left = epic.migrated()
+
+    assert (sorted(moved), left) == ([second.name, first.name], {})
+    assert epic.every() == [flow.path, named.path]
+    assert epic.chats() == [
+        _moved(other, second.name),
+        _moved(workspace),
+        chat.path,
+    ]
+    assert (staged / JOURNAL).is_file()
+    assert (epic.under(workspace) / "notes").is_dir()
 
 
 def test_chats_are_listed_oldest_first_of_one_workspace_or_of_every_one(

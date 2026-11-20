@@ -344,14 +344,27 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         assert _box(add) == (238, 206, 24, 24)
         expect(add).to_have_attribute("aria-label", "New chat in w")
 
-        # A chat says how it stands in quiet words straight after its title, and no more:
-        # no glyph, no dot, no flow, nothing that opens it out.
+        # A chat says how it stands in a quiet word straight after its title, and no more:
+        # no glyph, no flow, nothing that opens it out. One that waits on its person says
+        # no word: it is marked by the dot of a row unread, which says so to whoever
+        # cannot see it and where it is pointed at.
         said = {
             name: group.locator(f".side-item[data-epic={name}] [data-hmz=chat-state]")
             for name in ("going", "asks", "failed", "rests")
         }
         expect(said["going"]).to_have_text("Running")
-        expect(said["asks"]).to_have_text("Awaiting input")
+        expect(said["asks"]).to_have_text("")
+        expect(said["asks"]).to_have_class("side-unread")
+        expect(said["asks"]).to_have_attribute("role", "img")
+        expect(said["asks"]).to_have_attribute("aria-label", "Awaiting input")
+        expect(said["asks"]).to_have_attribute("title", "Awaiting input")
+        assert _box(said["asks"])[2:] == (6, 6)
+        expect(group.locator(".side-item[data-epic=asks]")).not_to_contain_text(
+            "Awaiting input"
+        )
+        expect(
+            group.locator(".side-item[data-epic=asks] [data-hmz=unread]")
+        ).to_have_count(0)
         expect(said["asks"]).to_have_css("animation-name", "none")
         expect(said["failed"]).to_have_text("Failed")
         expect(said["rests"]).to_have_count(0)
@@ -697,7 +710,6 @@ def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them
         offered = [
             "New chat here",
             "New epic here",
-            "Flows here",
             "Search here",
             "Copy path",
             "Settings",

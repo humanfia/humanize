@@ -221,14 +221,7 @@ def _list(call: Call) -> dict[str, Any]:
 
 
 def _get(call: Call) -> dict[str, Any]:
-    name = str(call.params["chat"])
-    try:
-        ran = CHATS.named(name)
-    except RpcError:
-        if name not in _hers():
-            raise
-        # Her conversation an earlier hmz began, which is kept as an epic.
-        ran = runs.RUNS.named(name)
+    ran = CHATS.named(str(call.params["chat"]))
     said = detail(ran, hosted().get(ran.name), going=CHATS.going(ran))
     if call.params.get("trace") is True:
         said["trace"] = CHATS.traced(ran)

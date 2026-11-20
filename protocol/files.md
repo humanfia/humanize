@@ -1100,7 +1100,8 @@ container, a swarm service or a Slurm job; its content is specified in Section 9
 is `<ws>`; its content is specified in Section 6.
 
 **4.11.2** `hmz` MUST NOT remove `<home>/epics/` or any directory in it, except the staging
-directories specified in Section 6.11.4.
+directories specified in Section 6.11.4; it MUST move out of it the epic directories Section
+6.12.14 names, whole, and no other.
 
 **4.11.3** `<home>/chats/<ws>/` holds the chat directories of the **workspace** whose workspace key
 is `<ws>`; its content is specified in Section 6.12. `hmz` MUST NOT remove `<home>/chats/` or any
@@ -1429,8 +1430,8 @@ the keys:
 earlier spelling, and MUST convert each to the spelling of Section 6.2.9.
 
 **6.5.3** A reader MUST read the event `reopened`, with the key `task` (string), in an epic record
-of kind `chat` (Section 6.5.19) as that **epic** having been opened again to go on in; `hmz` MUST
-write it into an epic record only as Section 6.12.11 states.
+of kind `chat` (Section 6.5.19) as Section 6.12.7 specifies it for a chat record; `hmz` MUST NOT
+write it into an epic record.
 
 **6.5.4** `hmz` MUST write the event `opened` into the record of the **flow** that opened a
 **session** when the **harness** of that **session** first states the identifier of the **session**,
@@ -1505,16 +1506,16 @@ last `imported` event.
 began one for each **chat**, when a **chat** was an **epic**: its `began` gives `kind` `chat`, one
 entry of `agents`, whose `agent` is `assistant`, its `workspace` and `task`, MAY give `prefer` and
 `permission` as Section 6.12.5 specifies them, and gives no `flow`, `ref`, `picked_up`, `envs`,
-`used`, `params`, `budget`, `profile_flow` or `profile_environment`. A reader MUST read it as an
-**epic** of kind `chat` and of no **flow**, and MUST NOT read it as a **chat** (Section 8.7.10 of
-[CORE]).
+`used`, `params`, `budget`, `profile_flow` or `profile_environment`. A reader MUST read it as the
+record of a **chat** an earlier `hmz` recorded as an **epic**, of no **flow**; its epic directory
+MUST be moved among the chat directories as Section 6.12.14 states, and MUST NOT be read as a chat
+directory until it is (Section 8.7.10 of [CORE]).
 
 **6.5.20** A reader MUST read a `began` that gives no `kind` as of kind `flow`, except one whose
 `flow` is `chat`, which it MUST read as of kind `chat`.
 
 **6.5.21** A reader MUST read the event `set` in an epic record of kind `chat` as Section 6.12.6
-specifies it for a chat record; `hmz` MUST write it into an epic record only as Section 6.12.11
-states.
+specifies it for a chat record; `hmz` MUST NOT write it into an epic record.
 
 **6.5.22** An epic record MUST contain no events other than those of Section 6.5.
 
@@ -1726,11 +1727,14 @@ for it but those this section names.
 **6.12.3** A chat directory MUST contain no entries other than `chat.jsonl`, the **chat record**;
 `.held`, as Section 6.9 specifies the lock file of an epic directory, held while the **chat** is
 going; `sessions/`, as Section 6.9.5 and Section 6.9.6 specify it for an epic directory; and
-`host.log`, as Section 6.9 specifies it.
+`host.log`, as Section 6.9 specifies it. A chat directory moved as Section 6.12.14 states MAY hold,
+besides, whatever its epic directory held, which a reader MUST leave as it is.
 
 **6.12.4** The chat record MUST be a JSON Lines file of events (Section 6.2.6), appended and never
 rewritten, and MUST contain no events other than those of Section 6.12.5 to Section 6.12.8 and
-of Section 6.12.13.
+of Section 6.12.13. The chat record of a chat directory moved as Section 6.12.14 states MAY hold,
+besides, the events and the keys of `began` an epic record of kind `chat` held (Section 6.5.19,
+Section 6.5.20), which a reader MUST read as Section 6.5 specifies them, and of no **flow**.
 
 **6.12.5** The first event of a chat record MUST be `began`, with the keys:
 
@@ -1782,8 +1786,8 @@ going.
 
 **6.12.11** An Ai-chan conversation (Section 14 of [CORE]) MUST be recorded as a **chat** is, in a
 chat directory under the workspace key of its host's **workspace**. One an earlier `hmz` recorded
-as an epic of kind `chat` MUST go on being recorded in that epic directory, `reopened` and `set`
-written into its epic record as Section 6.12.6 and Section 6.12.7 specify them for a chat record.
+as an epic of kind `chat` MUST be moved as Section 6.12.14 states, and MUST go on being named by
+the name it had (Section 4.16.2).
 
 **6.12.12** A **chat** made from a harness session (Section 8.11.4 of [CORE]) MUST be a new chat
 directory holding, under `sessions/<harness>/`, a copy of every file under the paths that harness
@@ -1798,6 +1802,22 @@ at `<home>/chats/<ws>/<chat name>/`, as Section 6.11.2 to Section 6.11.7 state f
 record. It MUST write `imported` into the chat record as Section 6.5.16 specifies it, a reader MUST
 read the chat record as Section 6.5.17 states for an epic record, and the chat directory MUST then
 hold `manifest.json` as Section 6.9.11 specifies it.
+
+**6.12.14** The **daemon** MUST, each time it starts and before it serves any client, move every
+epic directory `<home>/epics/<ws>/<name>/` whose epic record is of kind `chat` (Section 6.5.19,
+Section 6.5.20) to `<home>/chats/<ws>/<name>/`, creating every missing parent: it MUST first rename
+`epic.jsonl` in that directory to `chat.jsonl`, MUST then rename the directory, and MUST change
+nothing else of it -- no byte of the record and no other entry. It MUST treat a directory under
+`<home>/epics/<ws>/` that holds `chat.jsonl` and no `epic.jsonl` as one whose move stopped after
+the first rename, and MUST finish it. It MUST hold the lock file of the directory (Section 6.9)
+for the move, and MUST leave as it is, for a later start, a directory whose lock another process
+holds, one whose destination exists, one that holds both `epic.jsonl` and `chat.jsonl`, and one it
+could not rename, whose `epic.jsonl` it MUST then restore; it MUST log each directory it left, and
+why. It MUST NOT move a staging directory (Section 6.11.4) nor an epic directory of kind `flow`.
+`hmz` MUST place an imported **epic** (Section 6.11), and one downloaded from a backup target,
+whose epic record is of kind `chat` at `<home>/chats/<ws>/<name>/` likewise, its `epic.jsonl`
+renamed `chat.jsonl` before `imported` is appended (Section 6.11.7), and MUST refuse it where that
+destination exists.
 
 ## 7. This Machine
 

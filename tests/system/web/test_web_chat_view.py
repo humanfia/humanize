@@ -6,8 +6,9 @@ conversation; what a `$` name that is both a skill and a flow does is picked in 
 box holds only Add, what is typed and the button that sends, with its chips in a row under it;
 its panel and its box say what they are in plain words. A chat is no epic: it is read by
 `chat.get` and listed by `chat.list`, at `#/chats/<id>`, and the button of its box stops the
-turn open. A flow's epic, beside it, keeps the bar, the tabs and the words it had, and so does
-an epic an earlier hmz recorded for a chat, which is only read. Each in Chromium and in WebKit.
+turn open. A flow's epic, beside it, keeps the bar, the tabs and the words it had; a chat an
+earlier hmz recorded as an epic is a chat, and an address of that epic opens the chat. Each in
+Chromium and in WebKit.
 """
 
 from __future__ import annotations
@@ -135,21 +136,6 @@ _FLOWED: dict[str, Any] = {
     "foreign": "",
     "calls": [],
 }
-#: An epic an earlier hmz recorded for a chat: of the kind `chat` and of no flow, as
-#: `runs.get` answers it, and one that would be picked up were it a flow's.
-_OLDEN: dict[str, Any] = {
-    **_FLOWED,
-    "name": _OLD,
-    "kind": "chat",
-    "flow": "",
-    "ref": "chat:chat",
-    "task": "an old chat",
-    "how": "stopped",
-    "agents": [
-        {"name": "assistant", "role": "assistant", "runs": "claude/claude-haiku-4-5"}
-    ],
-    "picks_up": True,
-}
 #: What the chat's host offers: `ralph` both a skill of its CLI and a flow.
 _ENTRIES = [
     {"sigil": "/", "name": "model", "about": "", "how": "", "source": "native"},
@@ -205,10 +191,25 @@ def _wired() -> tuple[_ChatWire, dict[str, str]]:
                 "result": {"sub": _SUB, "workspace": _FAKE, "slot": _SLOT}
             },
             "epic.detach": lambda _: {"result": {}},
-            "chat.get": lambda _: {"result": _DETAIL},
-            "runs.get": lambda params: {
-                "result": _OLDEN if params["name"] == _OLD else _FLOWED
+            # A chat an earlier hmz recorded as an epic is a chat now, by the name it had,
+            # and no epic of that name is left.
+            "chat.get": lambda params: {
+                "result": _DETAIL
+                if params["chat"] != _OLD
+                else {
+                    **_DETAIL,
+                    "id": _OLD,
+                    "title": "an old chat",
+                    "task": "an old chat",
+                    "state": "resting",
+                    "slot": "",
+                }
             },
+            "runs.get": lambda params: (
+                {"error": {"code": 404, "message": f"There is no epic {_OLD}."}}
+                if params["name"] == _OLD
+                else {"result": _FLOWED}
+            ),
             "chat.commands": lambda _: {"result": {"entries": _ENTRIES, **held}},
             "chat.set": sets,
         }
@@ -315,10 +316,15 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
                 "title", f"No {pane} in this environment"
             )
 
-        # How it stands is said over its box, only while there is something to say.
-        expect(page.locator("[data-hmz=chat-status]")).to_have_text(
-            "Haiku 4.5 is responding"
+        # Nothing is said over its box of how it stands while it only answers: neither
+        # who is responding nor that it waits; and its Usage chip is its ring alone.
+        expect(page.locator("[data-hmz=chat-status]")).to_have_count(0)
+        expect(page.locator("[data-hmz=dock]")).not_to_contain_text(
+            re.compile("responding|Waiting", re.IGNORECASE)
         )
+        usage = page.locator("[data-hmz=chat-usage]")
+        expect(usage).to_have_text("")
+        expect(usage).to_have_attribute("aria-label", "Usage")
 
         # What was a row of buttons is in the menu, with what a right click offers.
         more = bar.locator("[data-hmz=chat-menu]")
@@ -482,9 +488,10 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
                 "Environment",
                 "Options",
                 "Limits",
-                "Sessions",
             ]
         )
+        # It counts no sessions, and names none.
+        expect(panel).not_to_contain_text(re.compile("session", re.IGNORECASE))
         expect(panel.locator("dd").nth(4)).to_have_text("Claude Code Haiku 4.5 Default")
         # Side questions are under View options, with Ai-chan, and no pane's button is
         # theirs.
@@ -502,6 +509,8 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
             "placeholder", "Ask a side question"
         )
         expect(panel).not_to_contain_text(re.compile("epic", re.IGNORECASE))
+        # A chat is one conversation: there is none to pick to ask it of.
+        expect(panel.locator("[data-hmz=btw-to]")).to_be_hidden()
         # Ai-chan's drawer is opened from the same menu, which then marks it.
         bar.locator("[data-hmz=chat-view]").click()
         offered.get_by_role("menuitem", name="Ai-chan").click()
@@ -622,26 +631,40 @@ def test_the_button_of_a_chats_box_stops_the_turn_open(
         expect(button).to_have_attribute("data-hmz", "send")
 
 
-def test_an_epic_recorded_for_a_chat_is_read_as_an_epic_and_never_said_to(
+def test_an_address_of_the_epic_a_chat_was_recorded_as_opens_the_chat(
     project: Path, engine: str
 ) -> None:
     wire, _ = _wired()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        go(page, "/new/chat")
+        before = page.evaluate("history.length")
         go(page, f"/epics/{_OLD}")
+        # The address becomes the chat's, by the name the epic had, with no step between.
+        expect(page).to_have_url(re.compile(rf"#/chats/{re.escape(_OLD)}$"))
+        assert page.evaluate("history.length") == before + 1
         bar = page.locator("[data-hmz=bar]")
-        # An epic's bar, its flow said as `chat`; nothing of a chat's view.
-        expect(bar.locator("h1")).to_have_text("an old chat")
-        expect(bar.locator(".bar-sub")).to_contain_text("chat")
-        expect(bar.locator("[data-hmz=chat-menu]")).to_have_count(0)
-        expect(page.locator("[data-hmz=inspector]").get_by_role("tab")).to_have_text(
-            ["Epic", "Aside"]
+        # A chat's bar and a chat's box: it is said to as any chat is, and nothing of an
+        # epic's view is drawn.
+        expect(bar.locator("[data-hmz=chat-title]")).to_have_text("an old chat")
+        expect(bar.locator("[data-hmz=chat-menu]")).to_have_count(1)
+        expect(page.locator("[data-hmz=inspector]").get_by_role("tab")).to_have_count(0)
+        expect(page.locator("[data-hmz=dock] textarea")).to_have_count(1)
+        expect(page.locator("[data-hmz=dock] textarea")).to_have_attribute(
+            "placeholder", "Reply…"
         )
-        expect(page).to_have_url(re.compile(rf"#/epics/{re.escape(_OLD)}$"))
-        # Only read: no box to say anything in, and nothing that resumes it.
-        expect(page.locator("[data-hmz=dock] textarea")).to_have_count(0)
-        expect(page.locator("[data-hmz=dock]")).not_to_contain_text("Resume")
-        expect(bar.get_by_role("link", name="Resume")).to_have_count(0)
-        assert not wire.params("chat.get")
+        expect(page.locator("body")).not_to_contain_text("Resume")
+        assert wire.params("chat.get")[-1]["chat"] == _OLD
+        # An epic of a flow that is not there is said not to be, and stays where it is.
+        go(page, "/epics/20200101T000000.000Z-000000")
+        wire.faked["runs.get"] = lambda _: {
+            "error": {"code": 404, "message": "There is no epic."}
+        }
+        wire.faked["chat.get"] = lambda _: {
+            "error": {"code": 404, "message": "There is no chat."}
+        }
+        go(page, "/epics/20200101T000000.000Z-111111")
+        expect(page.locator(".view-epic")).to_contain_text("There is no epic.")
+        expect(page).to_have_url(re.compile(r"#/epics/20200101T000000\.000Z-111111$"))
 
 
 def test_search_closed_over_a_chat_just_started_leaves_it_as_it_was(

@@ -1,11 +1,11 @@
-// The Usage chip that ends the row under a chat's box, as a chat app keeps a ring there: beside
-// the ring what the chat has spent, and a popup of its own by the chip saying the rest -- what
-// this chat has used, what its workspace has used today and over the last 7 days, and the way
-// to the Usage page of Settings (Sections 3.6.6.17.1 and 3.8.22 of protocol/web.md). The form
+// The Usage chip that ends the row under a chat's box, as a chat app keeps a ring there: the
+// ring alone, with no figure beside it, and a popup of its own by the chip saying everything --
+// what this chat has used, what its workspace has used today and over the last 7 days, and the
+// way to the Usage page of Settings (Sections 3.6.6.17 and 3.8.22 of protocol/web.md). The form
 // of a new chat keeps the same chip with no chat's figures.
 
 import { call, given, hash } from '../api.js'
-import { chipNamed, usedLately } from '../desk.js'
+import { usedLately } from '../desk.js'
 import { fill, h, problem } from '../dom.js'
 import { nameOf } from '../places.js'
 import { choice, menu } from '../shell.js'
@@ -29,12 +29,11 @@ const row = (one) => [
  * @param {(() => {label: string, value: string, share?: number}[]) | null} [made.chat] The rows
  *   of the chat it stands under (`usageRows`); none on the form of a new chat.
  * @param {() => string} made.workspace The workspace whose usage it reads, '' for every one's.
- * @returns {{node: HTMLElement, said: (value: string) => void}} `said` is told what stands
- *   beside the ring, as often as the chat is read.
+ * @returns {{node: HTMLElement, read: () => void}} `read` is called as often as the chat is
+ *   read, and draws the chat's part of the popup again while it is open.
  */
 export function usageChip({ hmz, tip, chat = null, workspace }) {
-  const value = h('span', { class: 'chip-value' })
-  const button = h('button', { class: 'chip-btn desk-chip usage-chip', type: 'button', 'aria-label': 'Usage', 'data-hmz': hmz, 'data-tip': tip }, glyph('usage'), value)
+  const button = h('button', { class: 'chip-btn desk-chip usage-chip', type: 'button', 'aria-label': 'Usage', 'data-hmz': hmz, 'data-tip': tip }, glyph('usage'))
   /** The popup's part for the chat while it is open, drawn again as the chat spends. */
   let mine = null
   /** Which opening the workspace's usage was asked for: an answer to an earlier one is dropped. */
@@ -69,9 +68,7 @@ export function usageChip({ hmz, tip, chat = null, workspace }) {
 
   return {
     node: h('div', { class: 'menu-holder usage' }, button),
-    said(spent) {
-      value.textContent = spent
-      button.setAttribute('aria-label', chipNamed('Usage', spent))
+    read() {
       if (mine && mine.isConnected) drawChat()
     },
   }

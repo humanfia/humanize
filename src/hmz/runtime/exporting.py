@@ -64,6 +64,7 @@ from hmz.runtime.epic import (
     RESUME,
     SESSIONS,
     TRACES,
+    chatted,
     journal,
     logs,
     note,
@@ -465,22 +466,31 @@ def _places(
     # Written whole beside where it goes and moved into place, one level down so
     # that nothing listing the runs there reads it half-written as one.
     beside = Path(tempfile.mkdtemp(dir=kept, prefix=f".{name}."))
+    into = kept
     try:
         fills(beside)
         epic = beside / name
         _settle(epic, beside)
+        if not chat and chatted(epic):
+            # A chat an earlier hmz kept as an epic is a chat here, its record as it was
+            # under a chat's name (Section 6.12.14 of [FILES]).
+            into = kept.parents[1] / "chats" / kept.name
+            if (into / name).exists():
+                raise ValueError(f"{name} is already here, at {into / name}")
+            into.mkdir(parents=True, exist_ok=True)
+            (epic / JOURNAL).rename(epic / CHATTED)
         note(epic, "imported", **{"from": origin, "head": head})
         try:
-            epic.rename(kept / name)
+            epic.rename(into / name)
         except OSError as why:
-            raise ValueError(f"{name} is already here, at {kept / name}") from why
+            raise ValueError(f"{name} is already here, at {into / name}") from why
     finally:
         shutil.rmtree(beside, ignore_errors=True)
         # The workspace's own directory, where this import was the first run in it
         # and it failed.
         with contextlib.suppress(OSError):
             kept.rmdir()
-    return kept / name
+    return into / name
 
 
 def _one(source: str, members: Sequence[tuple[str, str]], record: str = JOURNAL) -> str:

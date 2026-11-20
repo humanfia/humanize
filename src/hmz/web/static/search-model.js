@@ -2,7 +2,7 @@
 // what the daemon is asked for it, what it answered as one list, which result the arrows move
 // to, and what its foot says of the keys.
 
-import { chatRow, epicRow } from './chats.js'
+import { chatRow } from './chats.js'
 
 /** The kinds Search lists, as its tabs name them, in their order: a chat is never an epic. */
 export const TABS = [
@@ -98,7 +98,7 @@ export function asked(chosen) {
  * @returns {{runs: object[], total: number, offset: number, counts: Record<string, number>, flows: string[]}}
  */
 export function found(chosen, answers, running = []) {
-  const rows = answers.flatMap((one) => (one.chats ? one.chats.map((chat) => chatRow(chat, running)) : one.runs.map(epicRow)))
+  const rows = answers.flatMap((one) => (one.chats ? one.chats.map((chat) => chatRow(chat, running)) : one.runs))
   const epics = answers.find((one) => one.runs)
   const whole = { total: answers.reduce((sum, one) => sum + one.total, 0), offset: chosen.offset, counts: epics ? epics.counts : {}, flows: epics ? epics.flows : [] }
   if (answers.length < 2) return { ...whole, runs: rows }

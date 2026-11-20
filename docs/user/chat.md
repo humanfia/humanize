@@ -370,9 +370,21 @@ record, and `sessions/` beside it holds the agent's conversation.
 
 ### Chats of an earlier Humanize {#earlier-chats}
 
-A chat was once written down as an epic. Those stay where they are, as ordinary epics that are
-only read: they are listed in `/epics` and among the epics of `hmz web`, their flow said as
-`chat`, and they cannot be carried on as chats. Nothing is moved or converted.
+A chat was once written down as an epic. Each time the daemon starts, before it serves
+anything, it moves every such epic among the chats: the directory goes from
+`~/.hmz/epics/<workspace>/` to `~/.hmz/chats/<workspace>/` under the name it had, and its
+`epic.jsonl` is renamed `chat.jsonl`. Nothing in the record is rewritten. From then on it is
+a chat as any other, under the same id: listed by `/resume`, `hmz chat --list` and the
+sidebar of `hmz web`, carried on by saying something in it, renamed, forked, archived, backed
+up and deleted as a chat. A link, a pin or a notice that named the epic in `hmz web` opens
+the chat.
+
+One that some process still holds, or whose name a chat already has, is left where it is and
+moved at a later start; `daemon.log` says which were moved and which were left, with why.
+Until it is moved it is on no list of the daemon's, as an epic or as a chat. The same holds
+for one read back in from an archive or downloaded from a [backup target](/user/backups#chats):
+it lands among the chats. An earlier Humanize that still wrote chats as epics no longer finds
+a chat once it has been moved.
 
 ## From the shell {#from-the-shell}
 

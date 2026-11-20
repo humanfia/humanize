@@ -10534,8 +10534,7 @@
           "workspace": {},
           "kind": {
             "enum": [
-              "flow",
-              "chat"
+              "flow"
             ]
           },
           "flow": {},

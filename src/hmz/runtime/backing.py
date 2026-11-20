@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from hmz import machine
-from hmz.runtime.epic import BACKED, CHATTED, journal, note
+from hmz.runtime.epic import BACKED, chatted, journal, note
 from hmz.runtime.exporting import MANIFEST, placed, plain, unpacked
 from hmz.runtime.settings import Settings
 
@@ -169,7 +169,8 @@ class Stored(NamedTuple):
       ended: When it ended, or "" for one that had not when it was backed up.
       how: How it ended -- `done`, `failed`, `stopped` -- or "" for one that had not.
       head: The commit its workspace was on, or "" where it said none.
-      chat: Whether it is a chat, which is downloaded into this machine's chats.
+      chat: Whether it is a chat, which is downloaded into this machine's chats: one an
+        earlier Humanize backed up as an epic among them.
     """
 
     key: str
@@ -231,13 +232,14 @@ def listed(name: str) -> list[Stored]:
                     machine=epic.parent.parent.name,
                     workspace=str(workspace.get("at") or ""),
                     epic=epic.name,
-                    flow=str(run.get("flow") or ""),
+                    # A chat is of no flow, one an earlier Humanize backed up as an epic too.
+                    flow="" if chatted(epic) else str(run.get("flow") or ""),
                     task=str(run.get("task") or ""),
                     began=str(run.get("began") or ""),
                     ended=ended,
                     how=str(run.get("how") or "") if ended else "",
                     head=str(workspace.get("head") or ""),
-                    chat=journal(epic).name == CHATTED,
+                    chat=chatted(epic),
                 )
             )
     return sorted(found, key=lambda one: (one.epic, one.key))

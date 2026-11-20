@@ -15,7 +15,7 @@ import { chain } from './layers.js'
 import { copy, menuButton, menuOn, posted, toast } from './ui.js'
 import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from './dom.js'
 import { chatActions, retitling } from './chat-actions.js'
-import { chatRow, epicRow, harnessRow, pathOf } from './chats.js'
+import { chatRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
 import { notifying } from './notifications.js'
 import { missing, nameOf } from './places.js'
@@ -225,7 +225,7 @@ export function mountSidebar(root, context, where) {
   let stop = () => {}
   /** The list of what was read: the chats and the epics, each as a row of it. */
   const gather = () => {
-    if (read.chats && read.runs) data = { runs: [...read.chats.chats.map((one) => chatRow(one, running)), ...read.runs.runs.map(epicRow)], total: read.chats.total + read.runs.total }
+    if (read.chats && read.runs) data = { runs: [...read.chats.chats.map((one) => chatRow(one, running)), ...read.runs.runs], total: read.chats.total + read.runs.total }
   }
   const watch = () => {
     stop()
@@ -347,7 +347,7 @@ export function mountSidebar(root, context, where) {
       // An epic, else a chat by that id; one that cannot be read is no row.
       call('runs.get', { name })
         // An archived chat is listed nowhere but among its workspace's archived chats.
-        .then(epicRow, () => call('chat.get', { chat: name }).then((one) => (one.archived ? null : chatRow(one, running))))
+        .catch(() => call('chat.get', { chat: name }).then((one) => (one.archived ? null : chatRow(one, running))))
         .then(told, () => told(null))
     }
     return rows
@@ -503,7 +503,7 @@ export function mountSidebar(root, context, where) {
 
   /**
    * What a folder offers, on its heading or on its row among `Folders`: `fold` folds a heading.
-   * One whose directory went offers nothing that starts there -- no chat, no epic, no flows.
+   * One whose directory went offers nothing that starts there -- no chat, no epic.
    */
   function folderMenu(path, count, fold = null) {
     const at = encodeURIComponent(path)
@@ -514,7 +514,6 @@ export function mountSidebar(root, context, where) {
       lost ? { head: `${GONE}.` } : null,
       lost ? null : { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
       lost ? null : { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${at}`) },
-      lost ? null : { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${at}`) },
       { label: 'Search here', glyph: 'search', href: hash(`/search?workspace=${at}`) },
       '-',
       { label: 'Copy path', glyph: 'copy', act: () => copy(path, 'Path copied') },
@@ -596,7 +595,8 @@ export function mountSidebar(root, context, where) {
     // What can be done to it, opened by the button at the row's end as by a right click on it.
     const more = iconButton('more', 'More options', { class: 'side-menu', 'data-hmz': 'row-menu' })
     const row = chat
-      ? // A chat, as a chat app lists one: what was asked and, only where it goes, asks or failed, the words for it.
+      ? // A chat, as a chat app lists one: what was asked and, only where it goes or failed, the
+        // word for it; one that waits on its person is marked by a dot, as one unread is.
         h(
           'div',
           { class: ['side-run', 'side-chat', at && 'current'] },
@@ -604,8 +604,8 @@ export function mountSidebar(root, context, where) {
             'a',
             { href: link, 'aria-current': at ? 'page' : null, title, 'data-hmz': 'epic', 'data-kind': 'chat' },
             h('span', { class: 'side-label' }, headline(run.task)),
-            unseen ? marked() : null,
-            state ? h('span', { class: 'side-status', 'data-hmz': 'chat-state', 'data-state': state }, CHAT_SAID[state]) : null,
+            state === 'asking' ? awaiting() : unseen ? marked() : null,
+            state && state !== 'asking' ? h('span', { class: 'side-status', 'data-hmz': 'chat-state', 'data-state': state }, CHAT_SAID[state]) : null,
             // When it began, drawn where nothing can point at the row to be told.
             touched.matches ? h('span', { class: 'side-meta side-age', 'data-hmz': 'chat-began' }, ago(run.began)) : null,
           ),
@@ -793,6 +793,11 @@ function marked() {
   return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': 'Unread', title: 'Unread' })
 }
 
+/** What marks a chat that waits on its person: the dot of one unread, said as what it is to whoever cannot see it. */
+function awaiting() {
+  return h('span', { class: 'side-unread', 'data-hmz': 'chat-state', 'data-state': 'asking', role: 'img', 'aria-label': CHAT_SAID.asking, title: CHAT_SAID.asking })
+}
+
 /**
  * What can be done to one chat or epic, from wherever it is listed; `rename` renames a chat
  * where the menu is opened, and is offered only where given.
@@ -803,8 +808,7 @@ export function epicMenu(run, { rename = null } = {}) {
   const going = run.held || run.how === 'running'
   // A chat is its conversation alone: no log of every session, no timeline, no archive to
   // export, and never stopped from here; it is carried on by saying something in it, not resumed
-  // from a form, and one like it is a new chat with its agent. An epic an earlier hmz recorded
-  // for a chat is of no flow to start another of.
+  // from a form, and one like it is a new chat with its agent.
   const chat = chatting(run)
   const resumes = !chat && run.resumable && !going && run.how !== 'done'
   const assistant = chat ? (run.agents[0] || {}).runs || '' : ''
@@ -831,9 +835,7 @@ export function epicMenu(run, { rename = null } = {}) {
     resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
     chat
       ? { label: said.like, glyph: 'thread', href: hash(`/new/chat?${new URLSearchParams(given({ workspace: run.workspace, agent: assistant }))}`) }
-      : run.flow === 'chat'
-        ? null
-        : { label: said.like, glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
+      : { label: said.like, glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
     acts.fork,
     '-',
     { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
