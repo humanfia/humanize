@@ -539,3 +539,31 @@ def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
         expect(page.locator("[data-hmz=dialog-settings]")).not_to_contain_text(
             "Ai-chan"
         )
+
+
+def test_in_the_macos_app_a_narrow_drawers_head_keeps_clear_of_the_lights(
+    project: Path, engine: str
+) -> None:
+    """Covering the view of a narrow window, the drawer's head is the window's top left."""
+    app = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
+        " (KHTML, like Gecko) humanize-desktop/0.0.0"
+    )
+    lights = 76
+    with (
+        served() as site,
+        opened(site, engine=engine, width=700, user_agent=app) as page,
+    ):
+        go(page, "/new/chat")
+        drawer = _drawer(page)
+        assert _box(drawer)["x"] == 0
+        # Nothing of its head stands under the window's own buttons, and it is the bar's height.
+        assert _box(drawer.locator(".aichan-head h2"))["x"] >= lights
+        assert _box(drawer.locator(".aichan-head"))["height"] == 44
+        drawer.get_by_role("button", name="Close panel").click()
+    # Beside the view of a wide window it is at the right, and starts where it stands.
+    with served() as site, opened(site, engine=engine, user_agent=app) as page:
+        go(page, "/new/chat")
+        drawer = _drawer(page)
+        head = _box(drawer.locator(".aichan-head"))
+        assert _box(drawer.locator(".aichan-head h2"))["x"] - head["x"] == 16
