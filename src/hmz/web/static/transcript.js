@@ -48,8 +48,8 @@ export function line(kind, body, { who = '', folded = false } = {}) {
   )
   // A line copied whole, or the whole thread: what selecting it would take a drag to get.
   return menuOn(said, () => [
-    { label: 'Copy', glyph: 'copy', act: () => copy(text, 'Copied') },
-    { label: 'Copy thread', glyph: 'copy', act: () => copy(threadOf(said), 'Thread copied') },
+    { label: t('Copy'), glyph: 'copy', act: () => copy(text, t('Copied')) },
+    { label: t('Copy thread'), glyph: 'copy', act: () => copy(threadOf(said), t('Thread copied')) },
   ])
 }
 
@@ -68,8 +68,8 @@ export function shellLine(ran) {
     h('div', { class: 'body' }, parts.map((one) => h('pre', { class: `shell-${one.part}` }, one.text))),
   )
   return menuOn(said, () => [
-    { label: 'Copy', glyph: 'copy', act: () => copy(text, 'Copied') },
-    { label: 'Copy output', glyph: 'copy', act: () => copy([ran.out, ran.err].filter(Boolean).join('\n'), 'Copied') },
+    { label: t('Copy'), glyph: 'copy', act: () => copy(text, t('Copied')) },
+    { label: t('Copy output'), glyph: 'copy', act: () => copy([ran.out, ran.err].filter(Boolean).join('\n'), t('Copied')) },
   ])
 }
 
@@ -149,7 +149,7 @@ export function sayer(key, { chat = false, folded = false } = {}) {
     switch (record.type) {
       case 'said': {
         const toPerson = kind === 'person' && (record.to === `outworlder:${whom}` || record.role === whom || record.by === whom)
-        return mine || toPerson ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+        return mine || toPerson ? [line('you', record.text, { who: record.by ? t('{who} said', { who: record.by }) : '' })] : []
       }
       case 'asked':
         if (chat && record.mode === 'listen' && kind !== 'person') {
@@ -169,8 +169,8 @@ export function sayer(key, { chat = false, folded = false } = {}) {
           ? asking(record)
           : []
       case 'answered':
-        if (kind === 'person' && record.role === whom) return [line('you', answeredText(record, schemas), { who: record.by ? `${record.by} answered` : 'answered' })]
-        return chat && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? `${record.by} said` : '' })] : []
+        if (kind === 'person' && record.role === whom) return [line('you', answeredText(record, schemas), { who: record.by ? t('{who} answered', { who: record.by }) : t('answered') })]
+        return chat && kind !== 'person' && record.text ? [line('you', record.text, { who: record.by ? t('{who} said', { who: record.by }) : '' })] : []
       // What a flow showed a person with nothing asked, in their thread.
       case 'shown':
         return (kind === 'person' && record.role === whom) || (kind === 'session' && (of(record) === key || key === `outworlder:${record.role}`)) ? [shown(record)] : []
@@ -208,7 +208,7 @@ export function sayer(key, { chat = false, folded = false } = {}) {
  * `data-question`, for what answers it to be put by it.
  */
 function asked(record, schemas, one = null) {
-  one ||= line('asks', record.text, { who: `${record.role || 'the flow'} asks` })
+  one ||= line('asks', record.text, { who: record.role ? t('{who} asks', { who: record.role }) : t('the flow asks') })
   one.dataset.question = record.question
   const body = one.querySelector('.body')
   const context = blocks(record.context)
@@ -217,7 +217,7 @@ function asked(record, schemas, one = null) {
     schemas.set(record.question, record.schema)
     const top = resolved(record.schema).node
     const n = kindOf(top) === 'object' ? fieldsOf(top, record.schema).length : 1
-    body.append(h('div', { class: 'ask-form-note dim', 'data-hmz': 'ask-form-note' }, `form · ${n} ${n === 1 ? 'field' : 'fields'}`))
+    body.append(h('div', { class: 'ask-form-note dim', 'data-hmz': 'ask-form-note' }, t('form · {n} fields', { n })))
   }
   return one
 }
@@ -236,7 +236,7 @@ function answeredText(record, schemas) {
 
 /** Context a flow showed a person, as blocks under who it was shown to. */
 function shown(record) {
-  const one = line('notice', '', { who: `shown to ${record.role || 'you'}` })
+  const one = line('notice', '', { who: record.role ? t('shown to {who}', { who: record.role }) : t('shown to you') })
   one.classList.add('shown')
   one.dataset.hmz = 'said-shown'
   const context = blocks(record.context)
@@ -255,11 +255,11 @@ function said(record, who, began, { chat = false, folded = false } = {}) {
   switch (record.kind) {
     case 'begins':
       began.set(whose, record.at)
-      return chat ? [] : [line('begins', `${whose} is working`)]
+      return chat ? [] : [line('begins', t('{who} is working', { who: whose }))]
     case 'ends': {
       const since = began.get(whose)
       const time = since ? lasting(record.at - since) : '?'
-      return [line('ends', chat ? t('Worked for {time}', { time }) : `Worked for ${time} · ${whose}`)]
+      return [line('ends', chat ? t('Worked for {time}', { time }) : t('Worked for {time} · {who}', { time, who: whose }))]
     }
     // A turn's last word is the answer it ends on, which its words have said already: drawn
     // as the terminal interface draws it, once.
@@ -276,8 +276,8 @@ function said(record, who, began, { chat = false, folded = false } = {}) {
     case 'subagent':
     case 'subagent-ends': {
       const [named, ...about] = record.text.split(' ')
-      const doing = record.kind === 'subagent' ? 'started' : 'done'
-      return [line(record.kind, `${named}${about.length ? ` (${about.join(' ')})` : ''} ${doing}`, { who })]
+      const called = `${named}${about.length ? ` (${about.join(' ')})` : ''}`
+      return [line(record.kind, record.kind === 'subagent' ? t('{who} started', { who: called }) : t('{who} done', { who: called }), { who })]
     }
     default:
       return []

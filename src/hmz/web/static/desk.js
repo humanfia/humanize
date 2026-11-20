@@ -12,14 +12,14 @@ import { t } from './i18n.js'
  * (Section 8.9 of protocol/core.md), under a name that says what it is for.
  */
 export const ADDS = [
-  { key: 'files', label: 'Add files', sigil: '@', glyph: 'file' },
-  { key: 'commands', label: 'Slash commands', sigil: '/', glyph: 'menu' },
-  { key: 'skills', label: 'Skills and flows', sigil: '$', glyph: 'flows' },
-  { key: 'shell', label: 'Run a shell command', sigil: '!', glyph: 'chevron' },
+  { key: 'files', label: t('Add files'), sigil: '@', glyph: 'file' },
+  { key: 'commands', label: t('Slash commands'), sigil: '/', glyph: 'menu' },
+  { key: 'skills', label: t('Skills and flows'), sigil: '$', glyph: 'flows' },
+  { key: 'shell', label: t('Run a shell command'), sigil: '!', glyph: 'chevron' },
 ]
 
 /** Why `Add files` cannot be picked on a form whose folder is none: there is nothing to list. */
-export const NO_FOLDER = 'Pick a folder first'
+export const NO_FOLDER = t('Pick a folder first')
 
 /**
  * Whether the focus is still to be given: a form that reads what it offers before its box is
@@ -107,7 +107,7 @@ export function dismissing(dismissed, key, kept = 200) {
  * -- `Environment: Local` -- or what it picks alone while nothing is.
  */
 export function chipNamed(what, value = '') {
-  return value ? `${what}: ${value}` : what
+  return value ? t('{what}: {value}', { what, value }) : what
 }
 
 /**
@@ -122,7 +122,7 @@ export function paneSaid(key, has, held) {
   const pane = PANES.find((one) => one.key === key)
   if (!pane) return ''
   if (has) return pane.label
-  return held ? `No ${pane.label.toLowerCase()} in this environment` : `${pane.label} opens once the chat goes on`
+  return UNOPENED[key][held ? 0 : 1]
 }
 
 /** A count of tokens short enough for a narrow column, as the runs' own figures cut one short. */
@@ -131,8 +131,17 @@ export function thousands(count) {
   return count < 1e6 ? `${(count / 1e3).toFixed(1)}k` : `${(count / 1e6).toFixed(2)}M`
 }
 
-/** A kind of token as a person reads it: `cache_read` is `Cache read`. */
-const kindName = (kind) => `${kind[0].toUpperCase()}${kind.slice(1)}`.replaceAll('_', ' ')
+/** The kinds of token a backend counts, as a person reads each. */
+const KINDS = {
+  input: t('Input'),
+  output: t('Output'),
+  cache_read: t('Cache read'),
+  cache_write: t('Cache write'),
+  reasoning: t('Reasoning'),
+}
+
+/** A kind of token as a person reads it: `cache_read` is `Cache read`; one the page has no word for, as it is spelled. */
+const kindName = (kind) => KINDS[kind] || `${kind[0].toUpperCase()}${kind.slice(1)}`.replaceAll('_', ' ')
 
 /**
  * The rows of a chat's Usage popup: what it has spent, the tokens it has gone through and how
@@ -153,9 +162,9 @@ export function usageRows(figures, spent) {
     // A figure short of what some agent spends without counting is a floor, marked as the tally marks it.
     const floor = (whole) => (whole ? '' : '+')
     return [
-      { label: 'Spent', value: priced.startsWith('$') ? priced : '—' },
-      { label: 'Tokens', value: all ? `${thousands(all)}${floor(kinds.every((one) => one.whole))}` : tokens.replace(/ tokens$/, '') },
-      { label: 'Time', value: figures.lasting || '—' },
+      { label: t('Spent'), value: priced.startsWith('$') ? priced : '—' },
+      { label: t('Tokens'), value: all ? `${thousands(all)}${floor(kinds.every((one) => one.whole))}` : tokens.replace(/ tokens$/, '') },
+      { label: t('Time'), value: figures.lasting || '—' },
       ...kinds.map((one) => ({ label: kindName(one.kind), value: `${thousands(one.tokens)}${floor(one.whole)}`, share: all ? one.tokens / all : 0 })),
     ]
   }
@@ -163,9 +172,9 @@ export function usageRows(figures, spent) {
   const wrote = spent && spent.tokens && spent.tokens !== '0'
   if (!paid && !wrote) return []
   return [
-    { label: 'Spent', value: spent.money || '—' },
-    { label: 'Output tokens', value: spent.tokens || '—' },
-    { label: 'Time working', value: spent.worked || '—' },
+    { label: t('Spent'), value: spent.money || '—' },
+    { label: t('Output tokens'), value: spent.tokens || '—' },
+    { label: t('Time working'), value: spent.worked || '—' },
   ]
 }
 
@@ -178,14 +187,14 @@ export function usageRows(figures, spent) {
  *   tokens beside the money; `sub`, under the whole of them, over how many chats and epics.
  */
 export function usedLately(data) {
-  const row = (label, one = {}) => ({ label, value: one.money || '$0.00', about: `${one.tokens || '0'} output tokens` })
+  const row = (label, one = {}) => ({ label, value: one.money || '$0.00', about: t('{tokens} output tokens', { tokens: one.tokens || '0' }) })
   const whole = (data && data.whole) || {}
   const runs = whole.runs || 0
   return [
     // A day of the daemon's is a UTC day, as the Usage page of Settings says of its own.
-    row('Today (UTC)', ((data && data.days) || []).at(-1)),
+    row(t('Today (UTC)'), ((data && data.days) || []).at(-1)),
     // Said of none as well, so that the popup is as tall whatever the answer.
-    { ...row('Last 7 days', whole), sub: !runs ? 'No chats or epics yet' : runs === 1 ? 'Over 1 chat or epic' : `Over ${runs} chats and epics` },
+    { ...row(t('Last 7 days'), whole), sub: !runs ? t('No chats or epics yet') : t('Over {n} chats and epics', { n: runs }) },
   ]
 }
 
@@ -216,11 +225,22 @@ export function stoppable(turn = '') {
  * panels of the environment it works in, each opened on its own tab.
  */
 export const PANES = [
-  { key: 'details', label: 'Details', tab: 'epic', env: '' },
-  { key: 'terminal', label: 'Terminal', tab: 'env', env: 'terminal' },
-  { key: 'changes', label: 'Changes', tab: 'env', env: 'changes' },
-  { key: 'files', label: 'Files', tab: 'env', env: 'files' },
+  { key: 'details', label: t('Details'), tab: 'epic', env: '' },
+  { key: 'terminal', label: t('Terminal'), tab: 'env', env: 'terminal' },
+  { key: 'changes', label: t('Changes'), tab: 'env', env: 'changes' },
+  { key: 'files', label: t('Files'), tab: 'env', env: 'files' },
 ]
+
+/**
+ * Why a pane cannot be opened, by its key in `PANES`: the environment the chat has keeps no such
+ * panel, or no host holds the chat.
+ */
+const UNOPENED = {
+  details: [t('No details in this environment'), t('Details opens once the chat goes on')],
+  terminal: [t('No terminal in this environment'), t('Terminal opens once the chat goes on')],
+  changes: [t('No changes in this environment'), t('Changes opens once the chat goes on')],
+  files: [t('No files in this environment'), t('Files opens once the chat goes on')],
+}
 
 /**
  * Which pane is open beside a chat, by its key in `PANES`: none while its panel is shut, or

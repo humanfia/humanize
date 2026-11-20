@@ -2,18 +2,20 @@
 // can be held to (Section 8.3.9 of protocol/core.md), each with the name and the one line the
 // chip's menu gives it, and which of them a chat's chip shows.
 
+import { t } from '../i18n.js'
+
 /** The permission of a chat nobody gave another. */
 export const DEFAULT = 'workspace-write'
 
 /** The permissions a chat is offered, narrowest first, as the daemon names and holds them. */
 export const MODES = [
-  { value: 'read-only', label: 'Read only', about: 'Reads and runs commands, changes no file' },
-  { value: 'workspace-write', label: 'Edit this folder', about: 'Changes files in this folder only' },
-  { value: 'danger-full-access', label: 'Full access', about: 'Changes files anywhere on this machine' },
+  { value: 'read-only', label: t('Read only'), about: t('Reads and runs commands, changes no file') },
+  { value: 'workspace-write', label: t('Edit this folder'), about: t('Changes files in this folder only') },
+  { value: 'danger-full-access', label: t('Full access'), about: t('Changes files anywhere on this machine') },
 ]
 
 /** What the menu says under them: why none of them asks before acting. */
-export const NOTE = 'The assistant acts without asking first. What it may touch is what holds it.'
+export const NOTE = t('The assistant acts without asking first. What it may touch is what holds it.')
 
 /** The mode a permission names, or the default's for one that names none. */
 export function modeOf(permission) {

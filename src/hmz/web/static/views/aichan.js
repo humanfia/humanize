@@ -54,7 +54,7 @@ export function mount(app, where) {
   const body = h('div', { class: 'aichan-body' })
   const panel = sidePanel('Ai-chan', { key: 'hmz-aichan', open: false, hmz: 'aichan', kind: 'aichan', told: (open) => opened(open) })
   panel.node.id = 'aichan'
-  const fresh = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'aichan-new' }, icon('plus'), 'New')
+  const fresh = h('button', { class: 'btn small', type: 'button', 'data-hmz': 'aichan-new' }, icon('plus'), t('New'))
   fill(panel.body, dragged(h('header', { class: 'aichan-head' }, h('h2', {}, 'Ai-chan'), fresh), 'deep', 'wide'), body)
   app.append(panel.node)
 
@@ -130,7 +130,7 @@ export function mount(app, where) {
   const listing = h('div', { class: 'aichan-listing' }, refusal, listed, none)
 
   function list() {
-    if (!rows) return fill(body, refused ? problem(refused) : h('p', { class: 'loading', role: 'status' }, 'Reading her conversations…'))
+    if (!rows) return fill(body, refused ? problem(refused) : h('p', { class: 'loading', role: 'status' }, t('Reading her conversations…')))
     if (listing.parentElement !== body) fill(body, listing)
     fill(refusal, refused ? problem(refused) : null)
     const now = marks()
@@ -288,21 +288,21 @@ export function mount(app, where) {
   function form() {
     const { parts, query } = where()
     const at = scopeOf(parts, query)
-    const scope = h('select', { 'aria-label': 'Scope', 'data-hmz': 'aichan-scope' }, SCOPES.map(([value, label]) => h('option', { value, selected: value === at.scope }, label)))
+    const scope = h('select', { 'aria-label': t('Scope'), 'data-hmz': 'aichan-scope' }, SCOPES.map(([value, label]) => h('option', { value, selected: value === at.scope }, label)))
     const place = workspacePicker(at.workspace || '', () => epics())
-    const epic = h('input', { type: 'text', value: at.epic, placeholder: 'Epic name', 'aria-label': 'Epic', 'data-hmz': 'aichan-epic', list: 'aichan-epics', spellcheck: 'false', autocomplete: 'off' })
+    const epic = h('input', { type: 'text', value: at.epic, placeholder: t('Epic name'), 'aria-label': t('Epic'), 'data-hmz': 'aichan-epic', list: 'aichan-epics', spellcheck: 'false', autocomplete: 'off' })
     const named = h('datalist', { id: 'aichan-epics' })
-    const preset = h('select', { 'aria-label': 'Preset', 'data-hmz': 'aichan-preset' }, PRESETS.map((one) => h('option', { value: one }, one)))
+    const preset = h('select', { 'aria-label': t('Preset'), 'data-hmz': 'aichan-preset' }, PRESETS.map((one) => h('option', { value: one }, one)))
     const network = h('input', { type: 'checkbox', 'data-hmz': 'aichan-network' })
-    const title = h('input', { type: 'text', placeholder: 'From the task', 'aria-label': 'Title', 'data-hmz': 'aichan-title' })
+    const title = h('input', { type: 'text', placeholder: t('From the task'), 'aria-label': t('Title'), 'data-hmz': 'aichan-title' })
     // Her nous, picked as a new chat's is, under the box: the one she last used until another is.
-    const nousHolder = h('span', { class: 'aichan-nous', 'data-hmz': 'aichan-nous' }, h('span', { class: 'hint' }, 'Reading the nous…'))
+    const nousHolder = h('span', { class: 'aichan-nous', 'data-hmz': 'aichan-nous' }, h('span', { class: 'hint' }, t('Reading the nous…')))
     let chip = null
     let left = false
     const box = composer({
-      placeholder: 'Tell Ai-chan what to do',
-      label: 'Task',
-      busy: 'Starting…',
+      placeholder: t('Tell Ai-chan what to do'),
+      label: t('Task'),
+      busy: t('Starting…'),
       desk: { right: [nousHolder] },
       submit: async (task) => {
         const said = { scope: scope.value, workspace: place.value() || '', epic: epic.value, nous: chip ? chip.value() : '', preset: preset.value, network: network.checked, title: title.value, task }
@@ -322,8 +322,8 @@ export function mount(app, where) {
       },
     })
     box.node.dataset.hmz = 'aichan-task'
-    const where_ = h('div', { class: 'field', 'data-hmz': 'aichan-workspace' }, h('span', { class: 'label' }, 'Workspace'), place.node)
-    const which = h('div', { class: 'field' }, h('span', { class: 'label' }, 'Epic'), epic, named)
+    const where_ = h('div', { class: 'field', 'data-hmz': 'aichan-workspace' }, h('span', { class: 'label' }, t('Workspace')), place.node)
+    const which = h('div', { class: 'field' }, h('span', { class: 'label' }, t('Epic')), epic, named)
     const scoped = () => {
       where_.hidden = scope.value === 'daemon'
       which.hidden = scope.value !== 'epic'
@@ -365,19 +365,19 @@ export function mount(app, where) {
       },
       (error) => left || fill(nousHolder, problem(error)),
     )
-    const back = h('button', { class: 'btn quiet small', type: 'button', onclick: () => show({ kind: 'list' }) }, 'Back')
+    const back = h('button', { class: 'btn quiet small', type: 'button', onclick: () => show({ kind: 'list' }) }, t('Back'))
     fill(
       body,
       h(
         'div',
         { class: 'form aichan-form', 'data-hmz': 'aichan-form' },
-        h('div', { class: 'aichan-crumb' }, back, h('b', {}, 'New conversation')),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Scope'), scope),
+        h('div', { class: 'aichan-crumb' }, back, h('b', {}, t('New conversation'))),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Scope')), scope),
         where_,
         which,
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Preset'), preset),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Network'), h('label', { class: 'check' }, network, 'Her harness may reach the network')),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Title'), title),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Preset')), preset),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Network')), h('label', { class: 'check' }, network, t('Her harness may reach the network'))),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Title')), title),
         box.node,
       ),
     )
@@ -422,11 +422,11 @@ export function mount(app, where) {
     /** Why her chat ended failed, once it has: said in the log once, and nothing more said to it. */
     let failed = ''
     const box = composer({
-      placeholder: 'Say something to Ai-chan',
-      label: 'What to say to Ai-chan',
+      placeholder: t('Say something to Ai-chan'),
+      label: t('What to say to Ai-chan'),
       submit: async (text) => {
         // Her chat failed: no line carries it on (Section 8.4.9 of protocol/core.md).
-        if (failed) throw new Error('This conversation failed. Start a new one.')
+        if (failed) throw new Error(t('This conversation failed. Start a new one.'))
         // Folded away: attached again, which carries her on, and what she then waits on answered.
         let now = held
         if (!now || !now.connected) now = (await carried(host)) || now
@@ -436,7 +436,7 @@ export function mount(app, where) {
       },
     })
     box.node.dataset.hmz = 'aichan-say'
-    const back = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'aichan-back', onclick: () => show({ kind: 'list' }) }, 'Back')
+    const back = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'aichan-back', onclick: () => show({ kind: 'list' }) }, t('Back'))
     fill(body, fill(whole, h('div', { class: 'aichan-crumb' }, back, h('b', { class: 'aichan-title', 'data-hmz': 'aichan-title' }), stopHolder), h('div', { class: 'aichan-scroll' }, earlier, log), options, box.node))
     box.text.focus()
     titled()
@@ -500,14 +500,14 @@ export function mount(app, where) {
       whole.dataset.state = stands.state
       // Her turn open: stopped at once, without asking (Section 14.8.3 of protocol/core.md).
       const answering = held.connected && turn === 'running' && !failed
-      if (answering !== Boolean(stopHolder.firstChild)) fill(stopHolder, answering ? acting('Stop', () => ask(host, 'stop'), { kind: 'btn small danger', busy: 'Stopping…' }) : null)
+      if (answering !== Boolean(stopHolder.firstChild)) fill(stopHolder, answering ? acting(t('Stop'), () => ask(host, 'stop'), { kind: 'btn small danger', busy: t('Stopping…') }) : null)
       // What she asks mid-turn, with the answers she offers, answered by a press.
       const pending = (held.standing.pending && held.standing.pending.pending) || []
       const asked = pending.find((each) => each.options && each.options.length && (!each.owner || each.owner === held.me))
       const shown = asked ? JSON.stringify([asked.question, asked.options]) : ''
       if (options.dataset.shown !== shown) {
         options.dataset.shown = shown
-        fill(options, asked ? asked.options.map((option, index) => acting(option, () => ask(host, 'answer', { question: asked.question, text: String(index + 1) }), { kind: 'btn small', busy: 'Answering…' })) : null)
+        fill(options, asked ? asked.options.map((option, index) => acting(option, () => ask(host, 'answer', { question: asked.question, text: String(index + 1) }), { kind: 'btn small', busy: t('Answering…') })) : null)
       }
       if (!answering || asked) typing.remove()
       else if (log.lastElementChild !== typing) log.append(typing)

@@ -6,6 +6,7 @@
 
 import { chipNamed } from '../desk.js'
 import { h, icon } from '../dom.js'
+import { t } from '../i18n.js'
 import { choice, menu } from '../shell.js'
 import { toast } from '../ui.js'
 import { modeOf, NOTE, offered, shown } from './permission-modes.js'
@@ -28,7 +29,7 @@ export function permissionChip({ value = null, pick = () => {}, up = false } = {
     const mode = modeOf(permission)
     now = mode.value
     said.textContent = mode.label
-    button.setAttribute('aria-label', chipNamed('Permissions', mode.label))
+    button.setAttribute('aria-label', chipNamed(t('Permissions'), mode.label))
     button.dataset.permission = now
     button.dataset.tip = mode.about
   }
@@ -57,7 +58,7 @@ export function permissionChip({ value = null, pick = () => {}, up = false } = {
       }),
       h('p', { class: 'permission-note' }, NOTE),
     ],
-    { label: 'Permissions', up, align: 'end' },
+    { label: t('Permissions'), up, align: 'end' },
   )
   set(now)
   return { node, value: () => now, set }
