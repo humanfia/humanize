@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { FACES, PRESETS, SCOPES, actionsOf, created, faceOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, unreadOf } from '../../../../src/hmz/web/static/aichan.js'
+import { FACES, PRESETS, SCOPES, actionsOf, created, faceOf, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../../../../src/hmz/web/static/aichan.js'
 import { HOLD, SLOP, axisOf, offsetOf, restsOpen } from '../../../../src/hmz/web/static/swipe.js'
 
 const at = (path) => {
@@ -118,6 +118,18 @@ test('a conversation is unread once something is said in it after it was read, o
 test('nothing is kept of a conversation that is gone, whose number the next may take', () => {
   const marks = { pinned: [1, 2], unread: [2], failed: [2, 3], seen: { 1: 'a', 2: 'b' } }
   assert.deepEqual(settled(marks, [{ id: 1, updated: 'c' }]), { pinned: [1], unread: [], failed: [], seen: { 1: 'a' } })
+  // One deleted and made again while this browser did not look has the number, and none of the marks.
+  const old = { pinned: [7, 8], unread: [7], failed: [7], seen: { 7: '2026-01-01T10:05:00Z', 8: '2026-01-01T10:05:00Z' } }
+  const again = [
+    { id: 7, created: '2026-01-02T09:00:00Z', updated: '2026-01-02T09:01:00Z' },
+    { id: 8, created: '2026-01-01T10:00:00Z', updated: '2026-01-02T09:01:00Z' },
+  ]
+  const now = settled(old, again)
+  assert.deepEqual(now, { pinned: [8], unread: [], failed: [], seen: { 7: '2026-01-02T09:01:00Z', 8: '2026-01-01T10:05:00Z' } })
+  assert.equal(unreadOf(again[0], now), false)
+  assert.equal(unreadOf(again[1], now), true)
+  // Read up to no time, as an earlier daemon's is, it is the same one still.
+  assert.deepEqual(settled({ ...NONE, pinned: [2], seen: { 2: '' } }, [{ id: 2, created: '2026-01-01T10:00:00Z' }]).pinned, [2])
   assert.deepEqual(marked(marks, 'pinned', 2, false).pinned, [1])
   assert.deepEqual(marked(marks, 'pinned', 2, true).pinned, [1, 2])
   assert.deepEqual(marked(marks, 'pinned', 5, true).pinned, [1, 2, 5])
@@ -180,6 +192,18 @@ test('a line typed to her answers what she waits on this page may answer, else i
   assert.deepEqual(told([{ question: 'q1', owner: 'other' }], 'me', 'hi'), ['say', { text: 'hi' }])
   assert.deepEqual(told([{ question: 'q1', owner: 'other' }, { question: 'q2' }], 'me', 'hi'), ['answer', { question: 'q2', text: 'hi' }])
   assert.deepEqual(told([{ question: 'q3', owner: 'me' }], 'me', 'hi'), ['answer', { question: 'q3', text: 'hi' }])
+})
+
+test('she is typing while her turn is open, and not while she waits on the person in it', () => {
+  assert.equal(typingOf(true, [], 'me'), true)
+  assert.equal(typingOf(false, [], 'me'), false)
+  // A question of hers mid-turn, with answers offered or none.
+  assert.equal(typingOf(true, [{ question: 'q1', options: ['yes', 'no'] }], 'me'), false)
+  assert.equal(typingOf(true, [{ question: 'q1', options: [] }], 'me'), false)
+  assert.equal(typingOf(true, [{ question: 'q1' }], 'me'), false)
+  assert.equal(typingOf(true, [{ question: 'q1', owner: 'me' }], 'me'), false)
+  // One that is another's to answer leaves her typing here.
+  assert.equal(typingOf(true, [{ question: 'q1', owner: 'other' }], 'me'), true)
 })
 
 test('a conversation whose chat ended failed stands failed, with what the harness said', () => {

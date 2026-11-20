@@ -10,7 +10,7 @@
 // line to her, which carries a conversation folded away on.
 
 import { call, daemon, onDaemon, poll, refresh } from '../api.js'
-import { PRESETS, SCOPES, actionsOf, created, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, unreadOf } from '../aichan.js'
+import { PRESETS, SCOPES, actionsOf, created, faceUrl, marked, marksOf, missing, ordered, previewOf, read, scopeOf, sessionOf, settled, stateOf, titleOf, told, typingOf, unreadOf } from '../aichan.js'
 import { modelChip } from '../chips/model.js'
 import { composer } from '../composer.js'
 import { acting, empty, fill, h, icon, problem } from '../dom.js'
@@ -29,6 +29,12 @@ const EVERY = 3000
 
 /** How long a line said to a conversation folded away waits for her to be carried on. */
 const CARRYING = 30000
+
+/**
+ * How long a conversation left with her answer in view stays read whatever the list says of it,
+ * in milliseconds: the daemon writes down when she answered a moment after she did.
+ */
+const SETTLING = 2000
 
 /** What this browser keeps of her conversations, by daemon: the pinned, the unread, those seen failed, and up to when each was read. */
 const MARKS = 'hmz-aichan-marks'
@@ -51,6 +57,8 @@ export function mount(app, where) {
   /** The rows drawn, by the conversation each is of, and the one whose deleting is asked. */
   const drawn = new Map()
   let asking = null
+  /** The conversation just left with her answer in view: read still, until the list says when that was said. */
+  let lately = null
   const body = h('div', { class: 'aichan-body' })
   const panel = sidePanel('Ai-chan', { key: 'hmz-aichan', open: false, hmz: 'aichan', kind: 'aichan', told: (open) => opened(open) })
   panel.node.id = 'aichan'
@@ -98,12 +106,38 @@ export function mount(app, where) {
       if (answer) {
         rows = answer.conversations
         // Read again: what is gone is forgotten here, and the one open is read as it is said in.
-        remember(settled(marks(), rows, showing.kind === 'chat' ? showing.id : null))
+        remember(settled(marks(), rows, showing.kind === 'chat' ? showing.id : lately ? lately.id : null))
       }
       if (showing.kind === 'list') list()
       else if (showing.kind === 'chat') titled()
     })
     show(showing)
+  }
+
+  /**
+   * A conversation left while she rested: what she last said was read in it, though the list may
+   * not say yet when that was. It is read up to what the list says once the daemon has written it.
+   */
+  function left(id) {
+    const mine = { id }
+    lately = mine
+    setTimeout(() => {
+      if (lately !== mine) return
+      call('aichan.list').then(
+        (answer) => {
+          if (lately !== mine) return
+          lately = null
+          const row = answer.conversations.find((each) => each.id === id)
+          const now = marks()
+          if (!row || !(id in now.seen) || (showing.kind === 'chat' && showing.id === id)) return
+          remember({ ...now, seen: { ...now.seen, [id]: row.updated || '' } })
+          if (showing.kind === 'list' && !panel.node.hidden) list()
+        },
+        () => {
+          if (lately === mine) lately = null
+        },
+      )
+    }, SETTLING)
   }
 
   /** Draws what the drawer shows, anew. */
@@ -147,9 +181,10 @@ export function mount(app, where) {
       if (!drawn.has(row.id)) drawn.set(row.id, rowOf(row.id))
       drawn.get(row.id).draw(row, now)
     }
-    // Put in their order only where it changed: a row moved loses the focus and the finger on it.
+    // Put in their order only where it changed: a row moved loses the focus and the finger on it,
+    // so none is moved while a finger drags one; the list read next puts them in order.
     const order = sorted.map((row) => drawn.get(row.id).node)
-    if (order.some((node, at) => listed.children[at] !== node)) {
+    if (!listed.querySelector('.swiping') && order.some((node, at) => listed.children[at] !== node)) {
       const held = document.activeElement
       listed.replaceChildren(...order)
       if (held instanceof HTMLElement && listed.contains(held)) held.focus({ preventScroll: true })
@@ -165,6 +200,8 @@ export function mount(app, where) {
       return
     }
     const now = marks()
+    // Marked by hand, it is as it was marked.
+    if (key !== 'pin' && lately && lately.id === row.id) lately = null
     if (key === 'pin') remember(marked(now, 'pinned', row.id, on))
     // Marked read, it is read up to what was last said in it; unread, until it is opened.
     else remember(on ? read(now, row) : marked(now, 'unread', row.id, true))
@@ -421,6 +458,8 @@ export function mount(app, where) {
     let traced = 0
     /** Why her chat ended failed, once it has: said in the log once, and nothing more said to it. */
     let failed = ''
+    /** Whether she rests, as last drawn: what she said is all in view. */
+    let rested = false
     const box = composer({
       placeholder: t('Say something to Ai-chan'),
       label: t('What to say to Ai-chan'),
@@ -500,6 +539,7 @@ export function mount(app, where) {
       whole.dataset.state = stands.state
       // Her turn open: stopped at once, without asking (Section 14.8.3 of protocol/core.md).
       const answering = held.connected && turn === 'running' && !failed
+      rested = held.connected && Boolean(turn) && turn !== 'running'
       if (answering !== Boolean(stopHolder.firstChild)) fill(stopHolder, answering ? acting(t('Stop'), () => ask(host, 'stop'), { kind: 'btn small danger', busy: t('Stopping…') }) : null)
       // What she asks mid-turn, with the answers she offers, answered by a press.
       const pending = (held.standing.pending && held.standing.pending.pending) || []
@@ -509,14 +549,18 @@ export function mount(app, where) {
         options.dataset.shown = shown
         fill(options, asked ? asked.options.map((option, index) => acting(option, () => ask(host, 'answer', { question: asked.question, text: String(index + 1) }), { kind: 'btn small', busy: t('Answering…') })) : null)
       }
-      if (!answering || asked) typing.remove()
+      if (!typingOf(answering, pending, held.me)) typing.remove()
       else if (log.lastElementChild !== typing) log.append(typing)
       if (log.querySelector(':scope > .said, :scope > .aichan-typing')) log.querySelector(':scope > .thread-empty')?.remove()
       else if (!log.childElementCount) log.append(h('p', { class: 'dim thread-empty' }, t('Opening her conversation…')))
       if (stuck) scroller.scrollTop = scroller.scrollHeight
     }
 
-    return watch('', host, draw)
+    const unwatch = watch('', host, draw)
+    return () => {
+      unwatch()
+      if (rested) left(one.id)
+    }
   }
 
   // Opened and closed by her avatar on any view's bar, and closed by Escape from inside it:
@@ -533,6 +577,7 @@ export function mount(app, where) {
     rows = null
     refused = null
     asking = null
+    lately = null
     for (const one of drawn.values()) one.node.remove()
     drawn.clear()
     showing = { kind: 'list' }

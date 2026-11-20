@@ -7,6 +7,7 @@ is made and talked to.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -431,6 +432,37 @@ def test_a_row_swiped_left_by_a_finger_shows_what_its_menu_offers(
         assert round(last["x"] + last["width"]) == 390
         assert tray.evaluate("(el) => !el.inert")
         page.screenshot(path=str(tmp_path / "aichan-swiped.png"))
+        # The view under the drawer scrolling, as one written in does, leaves it open; its
+        # own list scrolling shuts it.
+        scrolls = "(el) => el.dispatchEvent(new Event('scroll'))"
+        page.locator("[data-hmz=page]").evaluate(scrolls)
+        expect(rows.nth(1)).to_have_class(re.compile("swiped"))
+        drawer.locator("[data-hmz=aichan-list]").evaluate(scrolls)
+        expect(rows.nth(1)).not_to_have_class(re.compile("swiped"))
+        # No row is moved while a finger drags one: the list is put in order once it lifts.
+        dragged = drawer.locator("[data-id='1']")
+        box = _box(dragged)
+        touch = """(row, [type, x, y]) => row.querySelector('.aichan-pick').dispatchEvent(
+            new PointerEvent(type, {pointerId: 5, pointerType: 'touch', isPrimary: true,
+                bubbles: true, cancelable: true, clientX: x, clientY: y}))"""
+        at = [box["x"] + box["width"] - 30, box["y"] + box["height"] / 2]
+        dragged.evaluate(touch, ["pointerdown", *at])
+        dragged.evaluate(touch, ["pointermove", at[0] - 40, at[1]])
+        expect(dragged).to_have_class(re.compile("swiping"))
+        before = _titles(drawer)
+        held[3] = {**held[3], "updated": "2026-03-01T00:00:00Z", "latest": "Moved."}
+        expect(dragged.locator("[data-hmz=aichan-latest]")).to_have_text("Moved.")
+        assert _titles(drawer) == before
+        dragged.evaluate(touch, ["pointerup", at[0] - 40, at[1]])
+        expect(dragged).not_to_have_class(re.compile("swiping"))
+        held[3] = {**held[3], "latest": "Moved up."}
+        expect(dragged.locator("[data-hmz=aichan-latest]")).to_have_text("Moved up.")
+        assert _titles(drawer)[0] == "Ai-chan #1"
+        held[3] = _conversation(1, "", "hi")
+        expect(dragged.locator("[data-hmz=aichan-latest]")).to_have_text("hi")
+        assert _titles(drawer) == before
+        _swipe(page, rows.nth(1), -160)
+        expect(rows.nth(1)).to_have_class(re.compile("swiped"))
         # One row is open at a time.
         _swipe(page, rows.nth(2), -160)
         expect(rows.nth(2)).to_have_class(re.compile("swiped"))
@@ -561,11 +593,24 @@ def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
         expect(row.locator(".aichan-title")).to_have_text("hello there")
         expect(row.locator("[data-hmz=aichan-latest]")).not_to_have_text("")
         expect(row.locator("[data-hmz=aichan-unread]")).to_have_count(0)
+        # Nor once the list says when she last answered, which the daemon writes down a
+        # moment after she did: what was read in the conversation open stays read.
+        page.wait_for_timeout(7000)
+        browser = Browser(site)
+        browser.signs_in()
+        with browser.session() as asked:
+            (listed,) = asked.call("aichan.list")["conversations"]
+        assert listed["updated"] > listed["created"]
+        expect(row.locator("[data-hmz=aichan-latest]")).to_have_text(listed["latest"])
+        expect(row.locator("[data-hmz=aichan-unread]")).to_have_count(0)
+        kept = json.loads(
+            page.evaluate("() => localStorage.getItem('hmz-aichan-marks')")
+        )
+        (marks,) = kept.values()
+        assert marks["seen"] == {str(listed["id"]): listed["updated"]}
 
         # Her nous was written down as the one last used, by making her and by nothing
         # else: the next form starts on it, and Settings offers no such field.
-        browser = Browser(site)
-        browser.signs_in()
         with browser.session() as asked:
             assert asked.call("settings.get")["ai_chan"] == "claude/claude-opus-4-1"
             (listed,) = asked.call("aichan.list")["conversations"]

@@ -1656,7 +1656,8 @@ next.
 attached to its slot by `epic.attach`, carrying it on where it has folded away (Section 14.8.5 of
 [CORE]), as a chat app draws one: Ai-chan's answers in bubbles at the left, beside the face its row
 has, the user's lines in bubbles at the right, a bubble of hers holding three dots at its foot
-while her turn is open, and a box that says the next line to her. The drawer MUST NOT name an agent
+while her turn is open and she asks the user nothing in it, and a box that says the next line to
+her. The drawer MUST NOT name an agent
 or a session, MUST NOT say in words that the conversation waits on the user or has folded away, and
 MUST NOT show what it cost.
 

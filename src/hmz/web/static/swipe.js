@@ -154,5 +154,13 @@ if (typeof document !== 'undefined') {
     },
     { capture: true },
   )
-  document.addEventListener('scroll', () => shown?.(), { capture: true, passive: true })
+  document.addEventListener(
+    'scroll',
+    (event) => {
+      // Only what scrolls the row itself: the view beside the drawer scrolls as it is written in.
+      const open = shown && document.querySelector('.swiped')
+      if (open && event.target instanceof Node && event.target.contains(open)) shown()
+    },
+    { capture: true, passive: true },
+  )
 }

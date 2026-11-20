@@ -109,19 +109,22 @@ export function marksOf(all, daemon) {
 
 /**
  * What is kept once the list was read again: nothing of a conversation that is gone, whose
- * number the next one made may take; one never listed here before read up to now, so that only
- * what is said from here on makes it unread; and the one open read, whatever was said in it.
+ * number the next one made may take -- nor of one made since this one was last read, which is
+ * another under its number; one never listed here before read up to now, so that only what is
+ * said from here on makes it unread; and the one open read, whatever was said in it.
  *
  * @param {Marks} marks
- * @param {{id: number, updated?: string}[]} rows As `aichan.list` answers them.
+ * @param {{id: number, created?: string, updated?: string}[]} rows As `aichan.list` answers them.
  * @param {number|null} [open] The conversation open in the drawer.
  * @returns {Marks}
  */
 export function settled(marks, rows, open = null) {
-  const here = new Set(rows.map((one) => one.id))
+  // Read up to a time before it was made, it was another's reading: this one is new here.
+  const renewed = (row) => Boolean(marks.seen[row.id]) && (row.created || '') > marks.seen[row.id]
+  const here = new Set(rows.filter((row) => !renewed(row)).map((one) => one.id))
   const still = (ids) => ids.filter((id) => here.has(id))
   const seen = {}
-  for (const row of rows) seen[row.id] = row.id === open || !(row.id in marks.seen) ? row.updated || '' : marks.seen[row.id]
+  for (const row of rows) seen[row.id] = row.id === open || !(row.id in marks.seen) || renewed(row) ? row.updated || '' : marks.seen[row.id]
   return { pinned: still(marks.pinned), unread: still(marks.unread).filter((id) => id !== open), failed: still(marks.failed), seen }
 }
 
@@ -210,4 +213,16 @@ export function sessionOf(records) {
 export function told(pending, me, text) {
   const one = (pending || []).find((each) => !each.owner || each.owner === me)
   return one ? ['answer', { question: one.question, text }] : ['say', { text }]
+}
+
+/**
+ * Whether she is typing: her turn is open and she waits on nothing this page may answer. A
+ * question of hers mid-turn, with answers offered or none, waits on the person, not on her.
+ *
+ * @param {boolean} answering Whether her turn is open.
+ * @param {{question: string, owner?: string}[]} pending What the host says waits on a person.
+ * @param {string} me Who this page is to the host.
+ */
+export function typingOf(answering, pending, me) {
+  return answering && told(pending, me, '')[0] === 'say'
 }
