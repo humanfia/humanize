@@ -55,12 +55,12 @@ export function mount(root, name, query) {
     const link = hash(`/epics/${encodeURIComponent(name)}`)
     const title = h('span', { class: 'crumbs' }, h('a', { href: link }, detail ? headline(detail.task) : name), h('span', { 'aria-hidden': 'true' }, ' / '), h('span', {}, 'Exomyth'))
     const sub = model
-      ? [badge(model.live ? 'running' : (detail && detail.how) || 'done'), h('span', {}, `${counted(model.summary.processes)} processes`), h('span', {}, `${counted(model.summary.spans)} spans`), h('span', { class: 'mono' }, lasted(model.end))]
+      ? [badge(model.live ? 'running' : (detail && detail.how) || 'done'), h('span', {}, t('{count} processes', { count: counted(model.summary.processes) })), h('span', {}, t('{count} spans', { count: counted(model.summary.spans) })), h('span', { class: 'mono' }, lasted(model.end))]
       : []
-    fill(head, bar({ title, sub, actions: [copier('Copy link', () => location.href), panel.toggle] }))
+    fill(head, bar({ title, sub, actions: [copier(t('Copy link'), () => location.href), panel.toggle] }))
   }
 
-  const finding = h('input', { type: 'search', class: 'exo-find', placeholder: 'Find', 'aria-label': 'Find', 'data-hmz': 'exomyth-find', spellcheck: 'false' })
+  const finding = h('input', { type: 'search', class: 'exo-find', placeholder: t('Find'), 'aria-label': t('Find'), 'data-hmz': 'exomyth-find', spellcheck: 'false' })
   const counter = h('span', { class: 'exo-found mono', 'data-hmz': 'exomyth-found', 'aria-live': 'polite' })
 
   function drawTools() {
@@ -68,8 +68,8 @@ export function mount(root, name, query) {
       tools,
       tabbed(
         [
-          ['timeline', 'Timeline'],
-          ['flame', 'Flame'],
+          ['timeline', t('Timeline')],
+          ['flame', t('Flame')],
         ],
         tab,
         shownAs,
@@ -77,12 +77,12 @@ export function mount(root, name, query) {
       h(
         'div',
         { class: 'exo-actions' },
-        h('div', { class: 'exo-search' }, icon('search'), finding, counter, iconButton('up', 'Previous', { onclick: () => step(-1) }), iconButton('down', 'Next', { onclick: () => step(1) })),
+        h('div', { class: 'exo-search' }, icon('search'), finding, counter, iconButton('up', t('Previous'), { onclick: () => step(-1) }), iconButton('down', t('Next'), { onclick: () => step(1) })),
         tab === 'timeline'
           ? [
-              h('button', { type: 'button', class: 'btn small', onclick: () => chart.foldAll(false) }, 'Expand'),
-              h('button', { type: 'button', class: 'btn small', onclick: () => chart.foldAll(true) }, 'Collapse'),
-              h('button', { type: 'button', class: 'btn small', onclick: () => chart.reset() }, icon('fit'), 'Reset'),
+              h('button', { type: 'button', class: 'btn small', onclick: () => chart.foldAll(false) }, t('Expand')),
+              h('button', { type: 'button', class: 'btn small', onclick: () => chart.foldAll(true) }, t('Collapse')),
+              h('button', { type: 'button', class: 'btn small', onclick: () => chart.reset() }, icon('fit'), t('Reset')),
             ]
           : null,
       ),
@@ -337,7 +337,7 @@ export function mount(root, name, query) {
   drawHead()
   drawTools()
   shownTab()
-  fill(panel.body, h('div', { class: 'panel-pane' }, h('p', { class: 'loading', role: 'status' }, 'Reading the timeline…')))
+  fill(panel.body, h('div', { class: 'panel-pane' }, h('p', { class: 'loading', role: 'status' }, t('Reading the timeline…'))))
   watch(null)
 
   window.__exomyth = {

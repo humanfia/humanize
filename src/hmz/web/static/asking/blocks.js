@@ -5,6 +5,7 @@
 // them, as plain text and as the table of what the chart is drawn from.
 
 import { fill, h } from '../dom.js'
+import { t } from '../i18n.js'
 import { blockSummary, chartRows, imageSource, kindWord, opened, patchFiles } from './logic.js'
 
 /** The rows of a table drawn before the rest is drawn only once asked for. */
@@ -101,10 +102,10 @@ function viewOf(one) {
       return tableView((one.columns || []).map(String), one.rows || [])
     case 'image': {
       const src = imageSource(one)
-      if (!src) return h('p', { class: 'dim' }, `An image this page cannot show (${one.mime || 'no type'}).`)
-      const image = h('img', { class: 'ask-image', src, alt: one.alt || one.title || 'An image the flow showed', loading: 'lazy', 'data-hmz': 'ask-image' })
+      if (!src) return h('p', { class: 'dim' }, t('An image this page cannot show ({type}).', { type: one.mime || t('no type') }))
+      const image = h('img', { class: 'ask-image', src, alt: one.alt || one.title || t('An image the flow showed'), loading: 'lazy', 'data-hmz': 'ask-image' })
       // Pressed, it is seen at its own size, and pressed again, fitted back.
-      const holder = h('button', { type: 'button', class: 'ask-image-hold', 'aria-label': 'Show the image at full size', 'aria-pressed': 'false' }, image)
+      const holder = h('button', { type: 'button', class: 'ask-image-hold', 'aria-label': t('Show the image at full size'), 'aria-pressed': 'false' }, image)
       holder.addEventListener('click', () => {
         const full = holder.classList.toggle('full')
         holder.setAttribute('aria-pressed', String(full))
@@ -123,7 +124,7 @@ function viewOf(one) {
 /** A unified diff, a file at a time, each with what it adds and removes. */
 function diffView(patch) {
   const files = patchFiles(patch)
-  if (!files.length) return h('p', { class: 'dim' }, 'An empty diff.')
+  if (!files.length) return h('p', { class: 'dim' }, t('An empty diff.'))
   let budget = LINES
   const drawn = files.map((file) => {
     const lines = file.lines.filter((one) => one.kind !== 'meta')
@@ -135,12 +136,12 @@ function diffView(patch) {
       ? h('button', { type: 'button', class: 'btn quiet small', onclick: (event) => {
           pre.append(...lines.slice(shown.length).map(lineOf))
           event.currentTarget.remove()
-        } }, `Show ${rest} more lines`)
+        } }, t('Show {n} more lines', { n: rest }))
       : null
     return h(
       'div',
       { class: 'ask-diff-file', 'data-hmz': 'ask-diff-file' },
-      h('div', { class: 'ask-diff-head' }, h('span', { class: 'ask-diff-name mono' }, file.name || 'patch'), h('span', { class: 'ask-diff-add' }, `+${file.added}`), h('span', { class: 'ask-diff-del' }, `−${file.removed}`)),
+      h('div', { class: 'ask-diff-head' }, h('span', { class: 'ask-diff-name mono' }, file.name || t('patch')), h('span', { class: 'ask-diff-add' }, `+${file.added}`), h('span', { class: 'ask-diff-del' }, `−${file.removed}`)),
       pre,
       more,
     )
@@ -165,9 +166,9 @@ function tableView(columns, rows) {
       ? h('button', { type: 'button', class: 'btn quiet small', onclick: (event) => {
           body.append(...rows.slice(ROWS).map(rowOf))
           event.currentTarget.remove()
-        } }, `Show all ${rows.length} rows`)
+        } }, t('Show all {n} rows', { n: rows.length }))
       : null
-  return h('div', { class: 'ask-table-wrap' }, h('div', { class: 'ask-scroll', tabindex: '0', role: 'region', 'aria-label': 'Table' }, table), more)
+  return h('div', { class: 'ask-table-wrap' }, h('div', { class: 'ask-scroll', tabindex: '0', role: 'region', 'aria-label': t('Table') }, table), more)
 }
 
 /** A value as a tree, its first levels open. */
@@ -183,7 +184,7 @@ function tree(value, key, depth) {
   return h(
     'details',
     { class: 'ask-json-node', open: depth < 2 || undefined, role: 'treeitem' },
-    h('summary', {}, named, h('span', { class: 'dim' }, `${brackets[0]} ${entries.length} ${Array.isArray(value) ? (entries.length === 1 ? 'item' : 'items') : entries.length === 1 ? 'key' : 'keys'} ${brackets[1]}`)),
+    h('summary', {}, named, h('span', { class: 'dim' }, `${brackets[0]} ${Array.isArray(value) ? t('{n} items', { n: entries.length }) : t('{n} keys', { n: entries.length })} ${brackets[1]}`)),
     h('div', { class: 'ask-json-kids', role: 'group' }, entries.map(([name, one]) => tree(one, name, depth + 1))),
   )
 }
@@ -193,7 +194,7 @@ function chartView(spec) {
   const holder = h('div', { class: 'ask-chart', 'data-hmz': 'ask-chart' })
   const fallback = () => {
     const { columns, rows } = chartRows(spec)
-    fill(holder, rows.length ? [h('p', { class: 'dim ask-chart-note' }, 'The chart’s data, as a table:'), tableView(columns, rows)] : h('p', { class: 'dim' }, 'A chart this page cannot draw.'))
+    fill(holder, rows.length ? [h('p', { class: 'dim ask-chart-note' }, t('The chart’s data, as a table:')), tableView(columns, rows)] : h('p', { class: 'dim' }, t('A chart this page cannot draw.')))
   }
   fallback()
   vegaBundle().then(async (bundle) => {
