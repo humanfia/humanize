@@ -1307,7 +1307,7 @@ function spendingOf(figures) {
             over(one.model),
             h('tr', {}, reckoned.map(({ kind }) => (one.kinds[kind] ? count(one.kinds[kind]) : h('td', { class: 'num' }, '—'))), h('td', { class: 'num' }, one.money || '—'), h('td', { class: 'num' }, one.rate)),
           ]),
-          h('tr', { class: 'whole spending-of' }, h('td', { colspan: reckoned.length + 2 }, t('All'))),
+          h('tr', { class: 'whole spending-of' }, h('td', { colspan: reckoned.length + 2 }, t('All@@total'))),
           h('tr', {}, reckoned.map((one) => count(one.tokens, !one.whole)), h('td'), h('td')),
         ),
       ),

@@ -260,7 +260,7 @@ function editor(holder, id) {
         h(
           'div',
           { class: 'row' },
-          h('a', { class: 'btn', href: hash('/settings/themes') }, t('Done')),
+          h('a', { class: 'btn', href: hash('/settings/themes') }, t('Done@@button')),
           h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.choose(one.pair), look.paint(one), toast(t('Using {name}', { name: one.name }))) }, t('Use')),
           h('button', { class: 'btn quiet', type: 'button', onclick: () => look.exported(one.pair) }, t('Export')),
           confirming({ label: t('Delete'), ask: t('Delete {name}?', { name: one.name }), yes: t('Delete'), act: () => look.remove(one.pair).then(() => (location.hash = hash('/settings/themes'))) }),

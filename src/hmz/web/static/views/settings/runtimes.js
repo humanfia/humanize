@@ -195,7 +195,7 @@ function said(answer) {
     answer.nodes.length ? t('{n} nodes', { n: answer.nodes.length }) : '',
     answer.version,
   ].filter(Boolean)
-  return h('div', {}, h('span', { class: 'ok' }, '✔ '), has.join(' · ') || t('answered'), answer.short.length ? h('div', { class: 'bad' }, t('short of: {what}', { what: answer.short.join(', ') })) : null)
+  return h('div', {}, h('span', { class: 'ok' }, '✔ '), has.join(' · ') || t('answered@@probe'), answer.short.length ? h('div', { class: 'bad' }, t('short of: {what}', { what: answer.short.join(', ') })) : null)
 }
 
 /** What a runtime's field is called on its form: its name, as words. */
@@ -218,7 +218,7 @@ function labelOf(key) {
     user: t('User'),
     port: t('Port'),
     endpoint: t('Endpoint'),
-    image: t('Image'),
+    image: t('Image@@container'),
     container: t('Container'),
     memory: t('Memory, GiB'),
     account: t('Account'),

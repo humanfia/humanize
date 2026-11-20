@@ -3,9 +3,7 @@
 
 export default {
   // views/epic.js, epic.js
-  '{n} turns': { one: '{n} turn', other: '{n} turns' },
   '{n} agents': { one: '{n} agent', other: '{n} agents' },
-  '{n} sessions': { one: '{n} session', other: '{n} sessions' },
   // transcript.js
   'form · {n} fields': { one: 'form · {n} field', other: 'form · {n} fields' },
   // desk.js

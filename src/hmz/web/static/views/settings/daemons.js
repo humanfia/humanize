@@ -28,7 +28,7 @@ const STATES = {
 }
 
 /** How far reaching has got, as the page says it. */
-const SAID = { up: t('up'), connecting: t('connecting'), installing: t('installing'), failed: t('failed'), idle: t('idle') }
+const SAID = { up: t('up'), connecting: t('connecting'), installing: t('installing'), failed: t('failed'), idle: t('idle@@link') }
 
 /** The kinds a daemon is of, as the page names them. */
 const KINDS = { code: t('Code@@pairing'), ssh: 'SSH', p2p: 'P2P' }
@@ -538,7 +538,7 @@ export function draw(holder) {
                       'li',
                       { class: 'row', 'data-hmz': 'device', 'data-name': device.name },
                       h('b', {}, device.name),
-                      h('span', { class: 'dim' }, device.live ? t('{n} live', { n: device.live }) : device.seen ? t('seen {when}', { when: ago(device.seen) }) : t('never seen')),
+                      h('span', { class: 'dim' }, device.live ? t('{n} live@@links', { n: device.live }) : device.seen ? t('seen {when}', { when: ago(device.seen) }) : t('never seen')),
                       device.name === 'local'
                         ? null
                         : confirming({

@@ -158,7 +158,7 @@ export function mountSidebar(root, context, where) {
         // The mark first, then what a desktop app's title row holds, in its order.
         h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': t('Humanize, a new chat') }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
         iconButton('sidebar', t('Hide sidebar'), { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
-        iconButton('back', t('Back'), { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
+        iconButton('back', t('Back@@history'), { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
         iconButton('forward', t('Forward'), { class: 'side-forward', 'data-hmz': 'forward', onclick: () => history.forward() }),
       ),
     ),

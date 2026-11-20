@@ -1,20 +1,19 @@
 // The page's languages: how a text is said in the one the page is written in (i18n.js), which
 // one that is (lang.js), and whether the catalogs hold every text the page says.
 //
-// The catalogs are checked in two ways. What a catalog must never be -- a translation that
-// drops a `{name}`, a text in two fragments, a call that hides its text from this scan -- fails
-// at once. What is only true once every area is translated -- every text in both Chinese
-// catalogs, no entry left over -- is REPORTED, not failed, while `STRICT` is false: the unit
-// that finishes the translation sets it to true, and from then on a text without its
-// translations fails here.
+// The catalogs are checked against the page's own source: a translation that drops a `{name}`,
+// a text in two fragments, a call that hides its text from this scan, a text one of the Chinese
+// catalogs lacks, an entry no call says and a translation left as its English each fail here.
+// With `STRICT` false the last three are only reported, which is how a text is written before
+// its translations are.
 
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import { runInNewContext } from 'node:vm'
 
-/** Whether a text the catalogs do not cover fails, or is only reported. Set to true once every area is translated. */
-const STRICT = false
+/** Whether a text the catalogs do not cover fails, or is only reported: every area is translated, so it fails. */
+const STRICT = true
 
 const STATIC = new URL('../../../../src/hmz/web/static/', import.meta.url)
 const AREAS = ['core', 'sidebar', 'chat', 'ask', 'settings', 'envs', 'themes']

@@ -1,4 +1,4 @@
-// English, `ask`: the plural forms of the texts of views/new, views/flows, views/harness, asking/*, natives, views/exomyth/*.
+// English, `ask`: the plural forms of the texts of views/new, views/flows, views/harness, asking/*, natives.
 // `'{n} flows have a newer release': { one: '{n} flow has a newer release', other: '{n} flows have a newer release' }`.
 
 export default {

@@ -33,7 +33,7 @@ const ALIASES = { antigravity: 'agy', 'claude-code': 'claude', 'cursor-cli': 'cu
 export const EFFORTS = {
   ultracode: 'Ultracode',
   ultra: t('Ultra'),
-  max: t('Max'),
+  max: t('Max@@effort'),
   xhigh: t('Extra high'),
   'extra-high': t('Extra high'),
   high: t('High'),

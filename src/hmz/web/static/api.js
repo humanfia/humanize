@@ -189,7 +189,7 @@ export async function pair(name, code, first, ice = []) {
 }
 
 /** How a daemon is reached, as a failure to reach it says it. */
-const STATES = { idle: t('idle'), connecting: t('connecting'), installing: t('installing'), up: t('up'), failed: t('failed') }
+const STATES = { idle: t('idle@@link'), connecting: t('connecting'), installing: t('installing'), up: t('up'), failed: t('failed') }
 
 /** A failure, said as the page says it: a refusal keeps its words, an unreachable daemon says so. */
 function refused(error, name) {
