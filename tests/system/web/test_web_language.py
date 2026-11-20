@@ -157,7 +157,7 @@ def test_with_none_chosen_the_page_follows_what_the_browser_asks_for(
         (
             "zh-CN",
             "跳到页面内容",
-            "聊天与 Epic",
+            "聊天和 Epic",
             "超高",
             "文件夹 ghost 已不在这台机器上。请另选一个文件夹。",
             "此浏览器未获准进入。",
