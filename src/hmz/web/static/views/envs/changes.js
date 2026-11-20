@@ -6,6 +6,7 @@
 // ends, when the window comes back, and every few seconds while it is seen.
 
 import { empty, fill, h, icon, problem, svg } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { menuOf, menuOn } from '../../ui.js'
 import { bytesText, chosen, commitPlan, decoded, fullDate, groupsOf, hunks, LARGE, MEANING, moveOf, pathsOf, picked, placeOf, relative, rowsOf, sizeOf, subjectHint } from './changes_logic.js'
 import { splitter } from './split.js'
@@ -72,11 +73,11 @@ function discardText(entries) {
   if (entries.length === 1) {
     const [one] = entries
     return one.group === 'untracked'
-      ? `Delete the untracked file ${one.name}? It is removed from the disk, and this cannot be undone.`
-      : `Discard the changes to ${one.name}? This cannot be undone.`
+      ? t('Delete the untracked file {name}? It is removed from the disk, and this cannot be undone.', { name: one.name })
+      : t('Discard the changes to {name}? This cannot be undone.', { name: one.name })
   }
-  const deleted = loose ? ` ${loose} untracked ${loose === 1 ? 'file is' : 'files are'} deleted from the disk.` : ''
-  return `Discard the changes to ${entries.length} files?${deleted} This cannot be undone.`
+  if (!loose) return t('Discard the changes to {count} files? This cannot be undone.', { count: entries.length })
+  return t('Discard the changes to {count} files? {deleted} This cannot be undone.', { count: entries.length, deleted: t('{n} untracked files are deleted from the disk.', { n: loose }) })
 }
 
 export async function mount(el, ctx) {
@@ -111,9 +112,9 @@ export async function mount(el, ctx) {
   const branch = h('span', { class: 'ch-branch', 'data-hmz': 'changes-branch' })
   const sync = h('span', { class: 'ch-sync', 'data-hmz': 'changes-sync' })
   const viewButton = tool('list', '', { 'data-hmz': 'changes-view', onclick: () => setView(view === 'list' ? 'tree' : 'list') })
-  const refreshButton = tool('refresh', 'Refresh', { 'data-hmz': 'changes-refresh', onclick: () => refresh({ hard: true }) })
+  const refreshButton = tool('refresh', t('Refresh'), { 'data-hmz': 'changes-refresh', onclick: () => refresh({ hard: true }) })
   const head = h('div', { class: 'ch-head' }, glyph('branch'), branch, sync, h('span', { class: 'ch-grow' }), viewButton, refreshButton)
-  const banner = h('p', { class: 'ch-banner', role: 'status', 'data-hmz': 'changes-closed', hidden: true }, 'This environment has closed: what is shown is as it was, and nothing more can be done to it.')
+  const banner = h('p', { class: 'ch-banner', role: 'status', 'data-hmz': 'changes-closed', hidden: true }, t('This environment has closed: what is shown is as it was, and nothing more can be done to it.'))
   // What reading the environment was refused with, cleared once it is read; and what doing
   // something in it was, kept until something else is done.
   const readError = h('div')
@@ -124,36 +125,36 @@ export async function mount(el, ctx) {
   const message = h('textarea', {
     class: 'ch-message',
     rows: 3,
-    placeholder: `Message (${/Mac|iPhone|iPad/.test(navigator.platform) ? 'Cmd' : 'Ctrl'}+Enter to commit)`,
-    'aria-label': 'Commit message',
+    placeholder: t('Message ({key}+Enter to commit)', { key: /Mac|iPhone|iPad/.test(navigator.platform) ? 'Cmd' : 'Ctrl' }),
+    'aria-label': t('Commit message'),
     'data-hmz': 'commit-message',
   })
   message.value = keep('draft') || ''
   const hint = h('span', { class: 'ch-hint', 'aria-live': 'polite' })
   const amend = h('input', { type: 'checkbox', 'data-hmz': 'commit-amend' })
-  const commitButton = h('button', { type: 'button', class: 'btn primary small ch-commit', 'data-hmz': 'changes-commit', onclick: () => commit() }, 'Commit')
+  const commitButton = h('button', { type: 'button', class: 'btn primary small ch-commit', 'data-hmz': 'changes-commit', onclick: () => commit() }, t('Commit'))
   const reason = h('p', { class: 'ch-reason', 'data-hmz': 'commit-reason' })
   const box = h(
     'div',
     { class: 'ch-box' },
     message,
-    h('div', { class: 'ch-box-row' }, h('label', { class: 'ch-amend' }, amend, 'Amend'), hint, h('span', { class: 'ch-grow' }), commitButton),
+    h('div', { class: 'ch-box-row' }, h('label', { class: 'ch-amend' }, amend, t('Amend')), hint, h('span', { class: 'ch-grow' }), commitButton),
     reason,
   )
 
   // The list, drawn a window at a time: only the rows in sight are made.
   const spacer = h('div', { class: 'ch-spacer', role: 'presentation' })
-  const list = h('div', { class: 'ch-list', tabindex: '0', role: 'tree', 'aria-label': 'Changes', 'aria-multiselectable': 'true', 'data-hmz': 'changes-list' }, spacer)
-  const none = h('p', { class: 'ch-none', 'data-hmz': 'changes-none', hidden: true }, 'No changes.')
+  const list = h('div', { class: 'ch-list', tabindex: '0', role: 'tree', 'aria-label': t('Changes'), 'aria-multiselectable': 'true', 'data-hmz': 'changes-list' }, spacer)
+  const none = h('p', { class: 'ch-none', 'data-hmz': 'changes-none', hidden: true }, t('No changes.'))
 
   // The recent commits and the snapshots, each folded away until opened.
   const commitList = h('div', { class: 'ch-commits' })
   const commitsCount = h('span', { class: 'ch-count' })
-  const commitSection = h('details', { class: 'ch-section', 'data-hmz': 'commits' }, h('summary', {}, 'Commits', commitsCount), commitList)
+  const commitSection = h('details', { class: 'ch-section', 'data-hmz': 'commits' }, h('summary', {}, t('Commits'), commitsCount), commitList)
   commitSection.open = keep('commits') === 'open'
   commitSection.addEventListener('toggle', () => keep('commits', commitSection.open ? 'open' : ''))
   const snapList = h('div', { class: 'ch-snapshots' })
-  const snapSection = caps.includes('rewind') ? h('details', { class: 'ch-section', 'data-hmz': 'snapshots' }, h('summary', {}, 'Snapshots'), snapList) : null
+  const snapSection = caps.includes('rewind') ? h('details', { class: 'ch-section', 'data-hmz': 'snapshots' }, h('summary', {}, t('Snapshots')), snapList) : null
   snapSection?.addEventListener('toggle', () => snapSection.open && loadSnapshots())
 
   const side = h('div', { class: 'ch-side' }, head, banner, errors, box, list, none, commitSection, snapSection)
@@ -162,28 +163,28 @@ export async function mount(el, ctx) {
   const diffTitle = h('span', { class: 'ch-diff-title' })
   const counter = h('span', { class: 'ch-counter', 'data-hmz': 'diff-counter' })
   const modeButton = tool('side', '', { 'data-hmz': 'diff-mode', onclick: () => setMode(drawnAs() === 'side' ? 'inline' : 'side') })
-  const diffMove = tool('plus', 'Stage Changes', { 'data-hmz': 'diff-move', onclick: () => diff && move([diff.entry]) })
+  const diffMove = tool('plus', t('Stage Changes'), { 'data-hmz': 'diff-move', onclick: () => diff && move([diff.entry]) })
   const diffHead = h(
     'div',
     { class: 'ch-diff-head' },
     diffTitle,
     h('span', { class: 'ch-grow' }),
-    tool('up', 'Previous change (Shift+F7)', { 'data-hmz': 'diff-prev', onclick: () => step(-1) }),
+    tool('up', t('Previous change (Shift+F7)'), { 'data-hmz': 'diff-prev', onclick: () => step(-1) }),
     counter,
-    tool('down', 'Next change (F7)', { 'data-hmz': 'diff-next', onclick: () => step(1) }),
+    tool('down', t('Next change (F7)'), { 'data-hmz': 'diff-next', onclick: () => step(1) }),
     modeButton,
     diffMove,
-    tool('open', 'Open File', { 'data-hmz': 'diff-open', onclick: () => diff && openFile(diff.entry) }),
-    tool('close', 'Close the diff', { 'data-hmz': 'diff-close', onclick: () => closeDiff() }),
+    tool('open', t('Open File'), { 'data-hmz': 'diff-open', onclick: () => diff && openFile(diff.entry) }),
+    tool('close', t('Close the diff'), { 'data-hmz': 'diff-close', onclick: () => closeDiff() }),
   )
   const diffBody = h('div', { class: 'ch-diff-body', 'data-hmz': 'diff-body' })
   const pane = h('div', { class: 'ch-diff', 'data-hmz': 'changes-diff', hidden: true }, diffHead, diffBody)
   // What stands in the diff's place while none is open.
-  const blank = h('div', { class: 'ch-diff', 'data-hmz': 'changes-blank', hidden: true }, h('div', { class: 'ch-notice' }, empty('No change open', 'Pick a file in the list to see its diff.')))
+  const blank = h('div', { class: 'ch-diff', 'data-hmz': 'changes-blank', hidden: true }, h('div', { class: 'ch-notice' }, empty(t('No change open'), t('Pick a file in the list to see its diff.'))))
 
   const root = h('div', { class: 'changes', 'data-hmz': 'changes' }, side, pane, blank)
   // The line that sizes the list: it takes two fifths of the panel at most and 200px at least, as changes.css lays it out.
-  const line = splitter(root, { name: '--ch-side', key: 'hmz-changes-side', label: 'Resize the list of changes', least: 200, most: (whole) => whole * 0.4, hmz: 'changes-split' })
+  const line = splitter(root, { name: '--ch-side', key: 'hmz-changes-side', label: t('Resize the list of changes'), least: 200, most: (whole) => whole * 0.4, hmz: 'changes-split' })
   side.after(line)
   fill(el, root)
 
@@ -293,14 +294,14 @@ export async function mount(el, ctx) {
   function drawHead() {
     if (!status) return
     const short = status.head ? status.head.slice(0, 7) : ''
-    branch.textContent = status.branch || (short ? `${short} (detached)` : 'No commits yet')
+    branch.textContent = status.branch || (short ? t('{commit} (detached)', { commit: short }) : t('No commits yet'))
     branch.title = status.root || ''
     if (status.upstream) {
       fill(sync, h('span', {}, `↑${status.ahead || 0}`), h('span', {}, `↓${status.behind || 0}`))
-      sync.title = `${status.ahead || 0} ahead of and ${status.behind || 0} behind ${status.upstream}`
+      sync.title = t('{ahead} ahead of and {behind} behind {upstream}', { ahead: status.ahead || 0, behind: status.behind || 0, upstream: status.upstream })
     } else {
       fill(sync)
-      sync.title = 'No upstream branch'
+      sync.title = t('No upstream branch')
     }
   }
 
@@ -312,7 +313,7 @@ export async function mount(el, ctx) {
   }
 
   function drawViewButton() {
-    const label = view === 'list' ? 'View as Tree' : 'View as List'
+    const label = view === 'list' ? t('View as Tree') : t('View as List')
     fill(viewButton, glyph(view === 'list' ? 'tree' : 'list'))
     viewButton.title = label
     viewButton.setAttribute('aria-label', label)
@@ -352,12 +353,12 @@ export async function mount(el, ctx) {
 
   /** What can be done to a row, in the order it is offered: each as its icon, its name and what `act` does by it. */
   function actionsOf(row) {
-    const all = row.kind === 'file' ? '' : ' All'
+    const one = row.kind === 'file'
     return [
-      row.kind === 'file' && row.entry.letter !== 'D' && ['open', 'Open File', 'open'],
-      row.group === 'changes' && ['discard', row.kind === 'file' ? 'Discard Changes' : 'Discard All Changes', 'discard'],
-      row.group === 'untracked' && ['trash', row.kind === 'file' ? 'Delete File' : 'Delete All Untracked Files', 'discard'],
-      row.group === 'staged' ? ['minus', `Unstage${all} Changes`, 'unstage'] : ['plus', `Stage${all} Changes`, 'stage'],
+      one && row.entry.letter !== 'D' && ['open', t('Open File'), 'open'],
+      row.group === 'changes' && ['discard', one ? t('Discard Changes') : t('Discard All Changes'), 'discard'],
+      row.group === 'untracked' && ['trash', one ? t('Delete File') : t('Delete All Untracked Files'), 'discard'],
+      row.group === 'staged' ? ['minus', one ? t('Unstage Changes') : t('Unstage All Changes'), 'unstage'] : ['plus', one ? t('Stage Changes') : t('Stage All Changes'), 'stage'],
     ].filter(Boolean)
   }
 
@@ -563,7 +564,7 @@ export async function mount(el, ctx) {
     const { length, level } = subjectHint(message.value)
     hint.textContent = length ? `${length}` : ''
     hint.className = `ch-hint ${level}`
-    hint.title = level === 'over' ? 'The first line is past 72 characters.' : level === 'long' ? 'The first line is past 50 characters.' : ''
+    hint.title = level === 'over' ? t('The first line is past 72 characters.') : level === 'long' ? t('The first line is past 50 characters.') : ''
   }
 
   /** Why the last commit was refused or failed, said until the message is changed or another is tried. */
@@ -572,8 +573,8 @@ export async function mount(el, ctx) {
   function drawCommit() {
     const conflicts = groups.merge.length > 0
     commitButton.disabled = closed || busy || conflicts
-    commitButton.textContent = amend.checked ? 'Commit (Amend)' : 'Commit'
-    reason.textContent = closed ? '' : conflicts ? 'Resolve the merge conflicts before committing.' : commitNote?.text || ''
+    commitButton.textContent = amend.checked ? t('Commit (Amend)') : t('Commit')
+    reason.textContent = closed ? '' : conflicts ? t('Resolve the merge conflicts before committing.') : commitNote?.text || ''
     reason.classList.toggle('error', Boolean(!conflicts && commitNote?.failed))
   }
 
@@ -586,7 +587,7 @@ export async function mount(el, ctx) {
     drawCommit()
     try {
       if (plan.action === 'stage') {
-        const asked = `There are no staged changes. Stage all ${plan.paths.length} ${plan.paths.length === 1 ? 'change' : 'changes'} and commit ${plan.paths.length === 1 ? 'it' : 'them'} directly?`
+        const asked = t('There are no staged changes. Stage all {n} changes and commit them directly?', { n: plan.paths.length })
         if (!(await ctx.confirm(asked))) return
         await ctx.call('env.git.stage', { paths: plan.paths })
       }
@@ -642,7 +643,7 @@ export async function mount(el, ctx) {
 
   function drawCommits() {
     commitsCount.textContent = commits.length ? String(commits.length) : ''
-    if (!commits.length) return fill(commitList, h('p', { class: 'ch-quiet' }, 'No commits yet.'))
+    if (!commits.length) return fill(commitList, h('p', { class: 'ch-quiet' }, t('No commits yet.')))
     const now = Date.now()
     fill(
       commitList,
@@ -664,7 +665,7 @@ export async function mount(el, ctx) {
 
   function drawSnapshots() {
     const note = snapNote ? problem(snapNote) : null
-    if (!snapshots.length) return fill(snapList, h('p', { class: 'ch-quiet' }, 'No snapshots yet.'), note)
+    if (!snapshots.length) return fill(snapList, h('p', { class: 'ch-quiet' }, t('No snapshots yet.')), note)
     fill(
       snapList,
       note,
@@ -673,7 +674,7 @@ export async function mount(el, ctx) {
           'div',
           { class: 'ch-snapshot', 'data-hmz': 'snapshot' },
           h('span', { class: 'ch-ref', title: ref }, ref),
-          h('button', { type: 'button', class: 'btn danger small', disabled: closed, onclick: () => rewind(ref) }, 'Rewind'),
+          h('button', { type: 'button', class: 'btn danger small', disabled: closed, onclick: () => rewind(ref) }, t('Rewind')),
         ),
       ),
     )
@@ -681,7 +682,7 @@ export async function mount(el, ctx) {
 
   async function rewind(ref) {
     if (closed) return
-    const asked = `Rewind this environment to ${ref}? Its working tree is reset to that snapshot: every change made since, committed or not, is lost.`
+    const asked = t('Rewind this environment to {ref}? Its working tree is reset to that snapshot: every change made since, committed or not, is lost.', { ref })
     if (!(await ctx.confirm(asked))) return
     snapNote = null
     try {
@@ -720,16 +721,16 @@ export async function mount(el, ctx) {
       h('span', { class: `ch-letter st-${one.letter === '?' ? 'Q' : one.letter}` }, one.letter),
       h('span', { class: 'ch-name' }, one.name),
       one.dir ? h('span', { class: 'ch-dir' }, one.dir) : null,
-      h('span', { class: 'ch-side-label' }, diff.staged ? 'Index' : 'Working Tree'),
+      h('span', { class: 'ch-side-label' }, diff.staged ? t('Index') : t('Working Tree')),
     )
     diffTitle.title = one.path
-    const label = drawnAs() === 'side' ? 'Show the diff inline' : 'Show the diff side by side'
+    const label = drawnAs() === 'side' ? t('Show the diff inline') : t('Show the diff side by side')
     fill(modeButton, glyph(drawnAs() === 'side' ? 'inline' : 'side'))
     modeButton.title = label
     modeButton.setAttribute('aria-label', label)
     const staging = diff.group !== 'staged'
     fill(diffMove, glyph(staging ? 'plus' : 'minus'))
-    diffMove.title = staging ? 'Stage Changes' : 'Unstage Changes'
+    diffMove.title = staging ? t('Stage Changes') : t('Unstage Changes')
     diffMove.setAttribute('aria-label', diffMove.title)
     diffMove.hidden = closed
     drawCounter()
@@ -738,7 +739,7 @@ export async function mount(el, ctx) {
   function drawCounter() {
     if (!diff || !diff.hunks) return (counter.textContent = '')
     const n = diff.hunks.length
-    counter.textContent = n ? `${diff.at < 0 ? '–' : diff.at + 1} of ${n}` : 'No changes'
+    counter.textContent = n ? t('{at} of {total}', { at: diff.at < 0 ? '–' : diff.at + 1, total: n }) : t('No changes')
   }
 
   async function openDiff(one) {
@@ -749,7 +750,7 @@ export async function mount(el, ctx) {
     root.classList.add('diffing')
     drawBlank()
     drawDiffHead()
-    fill(diffBody, h('p', { class: 'loading', role: 'status' }, 'Reading the diff…'))
+    fill(diffBody, h('p', { class: 'loading', role: 'status' }, t('Reading the diff…')))
     await fetchDiff(diff, true)
   }
 
@@ -763,7 +764,7 @@ export async function mount(el, ctx) {
       d.raw = null
       d.hunks = []
       drawCounter()
-      fill(diffBody, h('p', { class: 'ch-notice', 'data-hmz': 'diff-notice' }, `${d.entry.name} has no changes here any more.`))
+      fill(diffBody, h('p', { class: 'ch-notice', 'data-hmz': 'diff-notice' }, t('{name} has no changes here any more.', { name: d.entry.name })))
       return
     }
     d.entry = now
@@ -793,13 +794,13 @@ export async function mount(el, ctx) {
     d.big = largest > LARGE
     if (said.binary) return binary(d, said)
     if (d.big && !d.allowed) {
-      if (first) d.allowed = await ctx.confirm(`${d.entry.name} is ${bytesText(largest)}. A diff this large may be slow to draw. Draw it anyway?`)
+      if (first) d.allowed = await ctx.confirm(t('{name} is {size}. A diff this large may be slow to draw. Draw it anyway?', { name: d.entry.name, size: bytesText(largest) }))
       if (diff !== d) return
       if (!d.allowed) {
         d.hunks = []
         drawCounter()
-        const show = h('button', { type: 'button', class: 'btn small', onclick: () => ((d.allowed = true), (d.raw = null), fetchDiff(d, false)) }, 'Show the diff')
-        fill(diffBody, h('div', { class: 'ch-notice', 'data-hmz': 'diff-notice' }, h('p', {}, `${d.entry.name} is ${bytesText(largest)}: its diff is not drawn unless asked.`), show))
+        const show = h('button', { type: 'button', class: 'btn small', onclick: () => ((d.allowed = true), (d.raw = null), fetchDiff(d, false)) }, t('Show the diff'))
+        fill(diffBody, h('div', { class: 'ch-notice', 'data-hmz': 'diff-notice' }, h('p', {}, t('{name} is {size}: its diff is not drawn unless asked.', { name: d.entry.name, size: bytesText(largest) })), show))
         return
       }
     }
@@ -818,8 +819,9 @@ export async function mount(el, ctx) {
     d.view = null
     d.hunks = []
     drawCounter()
-    const sizes = [said.old !== null && said.old !== undefined ? `before ${bytesText(sizeOf(said.old))}` : 'added', said.new !== null && said.new !== undefined ? `after ${bytesText(sizeOf(said.new))}` : 'deleted']
-    fill(diffBody, h('p', { class: 'ch-notice', 'data-hmz': 'diff-notice' }, `${d.entry.name} is a binary file (${sizes.join(', ')}): there is no text to compare.`))
+    const before = said.old !== null && said.old !== undefined ? t('before {size}', { size: bytesText(sizeOf(said.old)) }) : t('added')
+    const after = said.new !== null && said.new !== undefined ? t('after {size}', { size: bytesText(sizeOf(said.new)) }) : t('deleted')
+    fill(diffBody, h('p', { class: 'ch-notice', 'data-hmz': 'diff-notice' }, t('{name} is a binary file ({before}, {after}): there is no text to compare.', { name: d.entry.name, before, after })))
   }
 
   async function drawEditor(d) {
@@ -827,7 +829,7 @@ export async function mount(el, ctx) {
     try {
       cm = await codemirror()
     } catch {
-      if (diff === d) fill(diffBody, problem('The editor could not be loaded.'))
+      if (diff === d) fill(diffBody, problem(t('The editor could not be loaded.')))
       return
     }
     if (diff !== d || left) return

@@ -3,14 +3,16 @@
 // from; which panels each has, by what it can really do; which panel it opens on, by what the
 // flow said it uses; and how it, and what was done in it, is said in a line.
 
+import { t } from '../../i18n.js'
+
 /**
  * The panels an environment can have, each with the capabilities any one of which gives it, in
  * the order they are shown.
  */
 export const PANELS = [
-  { key: 'files', label: 'Files', caps: ['files'] },
-  { key: 'terminal', label: 'Terminal', caps: ['shell'] },
-  { key: 'changes', label: 'Changes', caps: ['git', 'git_worktree'] },
+  { key: 'files', label: t('Files'), caps: ['files'] },
+  { key: 'terminal', label: t('Terminal'), caps: ['shell'] },
+  { key: 'changes', label: t('Changes'), caps: ['git', 'git_worktree'] },
 ]
 
 /** The panels an environment has: those one of whose capabilities it really has. */
@@ -156,12 +158,12 @@ function sized(value) {
 export function factsOf(env) {
   const facts = (env && env.facts) || {}
   const said = []
-  if (facts.cpu) said.push(`${facts.cpu} CPU${facts.cpu === 1 ? '' : 's'}`)
+  if (facts.cpu) said.push(t('{n} CPUs', { n: facts.cpu }))
   const memory = sized(facts.memory)
-  if (memory) said.push(`${memory} memory`)
+  if (memory) said.push(t('{size} memory', { size: memory }))
   if (facts.gpu_count) {
     const each = sized(facts.gpu_memory)
-    said.push(`${facts.gpu_count} GPU${facts.gpu_count === 1 ? '' : 's'}${each ? ` · ${each}` : ''}`)
+    said.push(`${t('{n} GPUs', { n: facts.gpu_count })}${each ? ` · ${each}` : ''}`)
   }
   return said
 }
@@ -170,7 +172,7 @@ export function factsOf(env) {
 export function usedLine(record, envs) {
   const env = (Array.isArray(envs) ? envs : []).find((one) => one.id === record.env)
   const where = env ? env.role || nameOf(env) : record.env
-  return [record.by || 'someone', record.what, record.path, where ? `in ${where}` : ''].filter(Boolean).join(' ')
+  return [record.by || t('someone'), record.what, record.path, where ? t('in {name}', { name: where }) : ''].filter(Boolean).join(' ')
 }
 
 /** The methods that name a terminal rather than an environment, which are not told `env`. */
