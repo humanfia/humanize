@@ -334,9 +334,10 @@ An epic that has ended keeps its graph and its panel. Opened later, it says how 
 -- its agents, environments, params and budget -- the flows it called, its sessions, what it
 spent, and how long it took, with how much of that was spent working.
 
-- **Read its turns** reads who handed to whom, and each session's turns, out of the logs it
-  kept, as [tracing](/user/tracing) does. It takes a moment on a long epic. Opening a session
-  reads its thread the same way.
+- Who handed to whom, and each session's turns, are read out of the logs it kept as soon as
+  the epic is shown, as [tracing](/user/tracing) does. It takes a moment on a long epic, and
+  the page says so while it reads; if the reading fails, **Read turns** tries again. Opening
+  a session reads its thread the same way.
 - **Export** (the arrow at the top) downloads the epic as one archive, struck of credentials;
   a chat is not exported. See [Exporting a run](/user/export).
 - **Upload** (the up arrow at the top, or in the epic's menu; in a chat's **More** menu) backs it up now to the targets it

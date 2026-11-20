@@ -785,8 +785,9 @@ workspace, where the two differ (Section 8.3.13 of [CORE]).
 parameters and budget -- the tree of flows it called, its sessions, what it spent and how long it
 took.
 
-**3.6.7.2** The page MUST offer `Read turns`, which reads the epic's handovers and each session's
-turns back out of the logs it kept.
+**3.6.7.2** The page MUST read the epic's handovers and each session's turns back out of the logs
+it kept, on its own, when the epic is shown, and MUST say so while it reads. Where the reading
+fails, the page MUST say why and MUST offer `Read turns`, which reads them again.
 
 **3.6.7.3** The page MUST offer `Export`, which downloads the epic as one archive, as Section 3 of
 [CORE] specifies, reading it in chunks (`runs.bundle` and `files.read`, Section 4.16.4.4 of

@@ -371,11 +371,13 @@ export function mount(root, { parts, query }) {
     region('graph-note', [asking, tracing, String(traceError)], () => {
       main.querySelector('.graph-note')?.remove()
       if (!asking) return
-      const reading = h('button', { class: 'btn small', type: 'button', disabled: tracing }, tracing ? 'Reading…' : 'Read turns')
+      if (!traceError) return void main.append(h('div', { class: 'graph-note', role: 'status' }, h('span', {}, 'Reading handovers and turns from the epic’s logs…')))
+      const reading = h('button', { class: 'btn small', type: 'button' }, 'Read turns')
       reading.addEventListener('click', readTrace)
-      main.append(h('div', { class: 'graph-note', role: 'status' }, traceError ? problem(traceError) : h('span', {}, 'Handovers and turns come from the epic’s logs.'), reading))
+      main.append(h('div', { class: 'graph-note', role: 'status' }, problem(traceError), reading))
     })
     drawn_.draw(model, mode.focus, detail.name)
+    if (asking && !tracing && !traceError) readTrace()
   }
 
   async function readTrace() {
@@ -778,7 +780,7 @@ export function mount(root, { parts, query }) {
         'Handovers',
         model.handovers.length
           ? h('ul', { class: 'handovers' }, model.handovers.map((one) => h('li', { class: model.latest && model.latest[0] === one.from && model.latest[1] === one.to ? 'latest' : '' }, `${one.from} → ${one.to} ×${one.count}`)))
-          : h('p', { class: 'dim' }, run ? 'Nobody has handed over yet.' : !traced ? 'Read its turns to see who handed to whom.' : traced.length ? 'Nobody handed over.' : 'Its logs held no turn to read.'),
+          : h('p', { class: 'dim' }, run ? 'Nobody has handed over yet.' : !traced ? traceError ? 'Its turns could not be read.' : 'Reading its turns…' : traced.length ? 'Nobody handed over.' : 'Its logs held no turn to read.'),
       ),
     )
     if (figures && figures.spending && figures.spending.length) parts.push(section('Spending', spendingOf(figures)))
