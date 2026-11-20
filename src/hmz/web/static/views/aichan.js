@@ -257,11 +257,14 @@ export function mount(app, where) {
         // Gone at once, here; the list read again says so of the daemon.
         rows = (rows || []).filter((one) => one.id !== id)
         remember(settled(marks(), rows))
-        list()
+        // Over the list alone: a form or a conversation opened meanwhile stays as it is.
+        if (showing.kind === 'list') list()
         refresh('aichan.list')
       })
       const question = t('Delete this conversation?')
       const asked = h('div', { class: 'aichan-ask', role: 'alertdialog', 'aria-label': question, 'data-hmz': 'aichan-ask' }, h('span', { class: 'aichan-asked' }, question, wrong), no, yes)
+      // Pressed, not rested on as the row is: a finger slow on its buttons opens no menu.
+      asked.addEventListener('pointerdown', (event) => event.stopPropagation())
       asked.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return
         // Taken back, and not the drawer's to close.

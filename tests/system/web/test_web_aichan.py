@@ -504,6 +504,63 @@ def test_a_row_swiped_left_by_a_finger_shows_what_its_menu_offers(
         expect(drawer.locator("[data-hmz=aichan-chat]")).to_have_count(0)
 
 
+def test_a_delete_answered_late_leaves_what_was_opened_meanwhile_and_takes_a_slow_press(
+    project: Path, engine: str
+) -> None:
+    held = _listed()
+    wire = _wire(held)
+    forgets = wire.faked["aichan.forget"]
+    # Answered when the test says so, as a daemon far away answers.
+    wire.faked["aichan.forget"] = lambda _: None
+    with (
+        served() as site,
+        opened(
+            site, engine=engine, width=390, height=844, touch=True, routed=wire.routes
+        ) as page,
+    ):
+        go(page, "/new/chat")
+        drawer = _drawer(page)
+        rows = drawer.locator("[data-hmz=aichan-conversation]")
+        expect(rows).to_have_count(4)
+        last = drawer.locator("[data-id='1']")
+        _swipe(page, last, -160)
+        expect(last).to_have_class(re.compile("swiped"))
+        # Slid in whole before it is pressed.
+        page.wait_for_timeout(400)
+        last.locator("[data-act=delete]").click()
+        ask = last.locator("[data-hmz=aichan-ask]")
+        expect(ask).to_be_visible()
+        # A finger slow on Delete presses it: what asks is not rested on as the row is, so
+        # no menu opens and the click that follows the lift is the button's.
+        ask.locator("[data-hmz=aichan-delete]").evaluate(
+            """async (button) => {
+                const box = button.getBoundingClientRect()
+                const touch = (type) => button.dispatchEvent(new PointerEvent(type, {
+                    pointerId: 11, pointerType: 'touch', isPrimary: true, bubbles: true,
+                    cancelable: true, clientX: box.x + 8, clientY: box.y + 8}))
+                touch('pointerdown')
+                await new Promise((done) => setTimeout(done, 700))
+                touch('pointerup')
+                button.click()
+            }"""
+        )
+        expect(ask.locator("[data-hmz=aichan-delete]")).to_have_text("Deleting…")
+        expect(page.locator(".popover.context")).to_have_count(0)
+        assert [one["id"] for one in wire.params("aichan.forget")] == [1]
+
+        # A new conversation begun before the daemon answers stays, with what was typed.
+        drawer.locator("[data-hmz=aichan-new]").click()
+        form = drawer.locator("[data-hmz=aichan-form]")
+        typed = form.locator("[data-hmz=aichan-task] textarea")
+        typed.fill("what is running")
+        forgets({"id": 1})
+        wire.answer(page, "aichan.forget", {})
+        page.wait_for_timeout(300)
+        expect(form).to_be_visible()
+        expect(typed).to_have_value("what is running")
+        expect(drawer.locator("[data-hmz=aichan-list]")).to_be_hidden()
+
+
 @pytest.mark.usefixtures("linked")
 def test_a_conversation_is_made_with_the_nous_picked_and_drawn_in_bubbles(
     project: Path, engine: str, tmp_path: Path
