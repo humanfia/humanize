@@ -1653,6 +1653,13 @@ def test_a_flow_is_opened_and_started_from_the_flows(engine: str) -> None:
         page.keyboard.press("Escape")
         card.click()
         expect(page.locator(".flow-detail h2")).to_have_text("@user/talk")
+        # What it says of the flow names no folder the page is on: it is on none.
+        facts = page.locator(".flow-detail .facts")
+        expect(facts).to_contain_text("workspace (the folder the epic runs in)")
+        expect(facts).not_to_contain_text("this directory")
+        expect(facts.locator("dt", has_text="resumable").locator("+ dd")).to_have_text(
+            re.compile("^(yes|no)$")
+        )
         expect(
             page.locator(".flow-detail").get_by_role("button", name="Copy here")
         ).to_have_count(0)
