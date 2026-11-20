@@ -408,16 +408,20 @@ def preview(text: object) -> str:
     return " ".join(str(text or "").split())[:_LATEST]
 
 
-def heard(status: Mapping[str, Any]) -> str:
-    """What Ai-chan last answered, as her host says it: what it waits between turns on, or ""."""
+def heard(status: Mapping[str, Any]) -> tuple[str, str]:
+    """What Ai-chan last answered, as her host says it: what it waits between turns on.
+
+    Returns:
+      Which wait that is, another each turn, and what she answered; or two "".
+    """
     pending = cast("list[dict[str, Any]]", status.get("pending") or [])
     return next(
         (
-            preview(one.get("text"))
+            (str(one.get("question") or ""), preview(one.get("text")))
             for one in reversed(pending)
             if one.get("mode") == "listen"
         ),
-        "",
+        ("", ""),
     )
 
 
@@ -680,6 +684,8 @@ class Links:
         ident = int(conversation["id"])
         # What its host waits on as it comes up, carried on, is what was written already.
         latest = str(conversation.get("latest") or "")
+        # Which wait she was last heard on: another one is another answer, the same words or not.
+        waited: str | None = None
         while hosted.peer is not None and not hosted.peer.closed:
             status = hosted.status()
             said: dict[str, Any] = {}
@@ -687,10 +693,13 @@ class Links:
             if not named and epic:
                 said["record"] = epic
                 named = True
-            answered = heard(status)
-            if answered and answered != latest:
-                latest = answered
-                said |= {"latest": answered, "updated": where.now()}
+            wait, answered = heard(status)
+            if answered and wait != waited:
+                carried = waited is None and answered == latest
+                waited = wait
+                if not carried:
+                    latest = answered
+                    said |= {"latest": answered, "updated": where.now()}
             if said:
                 self.kept.changed(ident, **said)
             time.sleep(_FOLLOWING if named else _NAMING)

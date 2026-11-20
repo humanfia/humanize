@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import socket
 import sys
+import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -307,6 +308,33 @@ def test_an_ai_chan_conversation_is_said_to_and_asked_as_a_chat_is(
         120,
     ), _said(user, made)
     assert "said as to a chat" in _said(user, made)
+
+    # Answered again in the same words, it is said in again: its `updated` is that answer's.
+    def listed() -> dict[str, Any]:
+        (one,) = user.call("aichan.list", {}, timeout=30)["conversations"]
+        return one
+
+    def preview(text: object) -> str:
+        return " ".join(str(text).split())[:120]
+
+    def answer(after: str) -> dict[str, Any]:
+        assert until(
+            lambda: any(one["question"] != after for one in _pending(user, made)),
+            120,
+        ), _said(user, made)
+        (now,) = _pending(user, made)
+        return now
+
+    first = answer(waiting["question"])
+    assert until(lambda: listed()["latest"] == preview(first["text"]), 30), listed()
+    was = listed()["updated"]
+    # Stamped to the second: the next answer is in a later one.
+    time.sleep(1.1)
+    user.call("chat.say", {**host, "text": "said as to a chat"}, timeout=30)
+    second = answer(first["question"])
+    assert preview(second["text"]) == preview(first["text"])
+    assert until(lambda: listed()["updated"] > was, 30), (was, listed())
+    assert listed()["latest"] == preview(first["text"])
 
     # Stopping her is stopping her open turn, by `chat.stop` or `epic.stop`: refused in her
     # own words while she is not answering, and leaving her between turns where she is.
