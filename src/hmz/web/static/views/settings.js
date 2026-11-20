@@ -16,27 +16,27 @@ import { dragged } from '../shell.js'
 
 /** Every page, by the word in the address that opens it, in its group. */
 const PAGES = {
-  themes: { group: 'app', label: 'Themes', about: 'Colours and pictures of this browser’s page', load: () => import('./settings/themes.js') },
-  daemons: { group: 'app', label: 'Daemons', about: 'Machines this page reaches', load: () => import('./settings/daemons.js') },
-  notifications: { group: 'app', label: 'Notifications', about: 'What every daemon tells you', load: () => import('./settings/notifications.js') },
+  themes: { group: 'app', label: t('Themes'), about: t('Colours and pictures of this browser’s page'), load: () => import('./settings/themes.js') },
+  daemons: { group: 'app', label: t('Daemons'), about: t('Machines this page reaches'), load: () => import('./settings/daemons.js') },
+  notifications: { group: 'app', label: t('Notifications'), about: t('What every daemon tells you'), load: () => import('./settings/notifications.js') },
   language: { group: 'app', label: t('Language'), about: t('What this browser’s page is written in'), load: () => import('./settings/language.js') },
-  general: { group: 'daemon', label: 'General', about: t('Display and reporting'), load: () => import('./settings/general.js') },
-  accounts: { group: 'daemon', label: 'Accounts', about: 'Credentials agents run as', load: () => import('./settings/accounts.js') },
-  nous: { group: 'daemon', label: 'Nous', about: 'Who takes a turn, and where it goes once it fails', load: () => import('./settings/nous.js') },
-  runtimes: { group: 'daemon', label: 'Runtimes', about: 'Machines environments run on', load: () => import('./settings/runtimes.js') },
-  backup: { group: 'daemon', label: 'Backup', about: 'Git repositories epics go to', load: () => import('./settings/backup.js') },
-  workspace: { group: 'daemon', label: 'Workspace', about: 'This directory’s saved setup', load: () => import('./settings/workspace.js') },
-  usage: { group: 'daemon', label: 'Usage', about: 'Spending by day and flow', load: () => import('./settings/usage.js') },
+  general: { group: 'daemon', label: t('General'), about: t('Display and reporting'), load: () => import('./settings/general.js') },
+  accounts: { group: 'daemon', label: t('Accounts'), about: t('Credentials agents run as'), load: () => import('./settings/accounts.js') },
+  nous: { group: 'daemon', label: t('Nous'), about: t('Who takes a turn, and where it goes once it fails'), load: () => import('./settings/nous.js') },
+  runtimes: { group: 'daemon', label: t('Runtimes'), about: t('Machines environments run on'), load: () => import('./settings/runtimes.js') },
+  backup: { group: 'daemon', label: t('Backup'), about: t('Git repositories epics go to'), load: () => import('./settings/backup.js') },
+  workspace: { group: 'daemon', label: t('Workspace'), about: t('This directory’s saved setup'), load: () => import('./settings/workspace.js') },
+  usage: { group: 'daemon', label: t('Usage'), about: t('Spending by day and flow'), load: () => import('./settings/usage.js') },
 }
 
 const GROUPS = [
-  ['app', 'App'],
-  ['daemon', 'Daemon'],
+  ['app', t('App')],
+  ['daemon', t('Daemon')],
 ]
 
 /** What a daemon is called on screen. */
 function called(one) {
-  return one.label || (one.name === 'local' ? 'Local' : one.name)
+  return one.label || (one.name === 'local' ? t('Local') : one.name)
 }
 
 /** Every daemon this browser keeps: Local alone where none can be read. */
@@ -47,14 +47,14 @@ async function daemons() {
 export function mount(root, { parts, query }) {
   const name = parts[1] in PAGES ? parts[1] : 'general'
   const page = PAGES[name]
-  let body = h('div', { class: 'settings-body', 'data-hmz': `settings-${name}` }, h('p', { class: 'loading', role: 'status' }, 'Reading the settings…'))
+  let body = h('div', { class: 'settings-body', 'data-hmz': `settings-${name}` }, h('p', { class: 'loading', role: 'status' }, t('Reading the settings…')))
   const links = {}
   let chosen = query.get('daemon') || daemon()
   const href = (key) => hash(`/settings/${key}${PAGES[key].group === 'daemon' && query.get('daemon') ? `?daemon=${encodeURIComponent(chosen)}` : ''}`)
   const nav = h(
     'nav',
-    { class: 'settings-nav', 'aria-label': 'Settings pages' },
-    h('h2', {}, 'Settings'),
+    { class: 'settings-nav', 'aria-label': t('Settings pages') },
+    h('h2', {}, t('Settings')),
     GROUPS.map(([group, label]) => [
       h('h4', { class: 'settings-group' }, label),
       Object.entries(PAGES)
@@ -63,10 +63,10 @@ export function mount(root, { parts, query }) {
         .map(([key, one]) => (links[key] = h('a', { href: href(key), 'aria-current': key === name ? 'page' : null, autofocus: key === name }, one.label))),
     ]),
   )
-  const picker = h('select', { 'aria-label': 'Daemon', 'data-hmz': 'settings-daemon' }, h('option', { value: chosen }, called({ name: chosen })))
-  const head = h('div', { class: 'settings-head' }, h('div', {}, h('h3', {}, page.label), h('p', { class: 'dim' }, page.about)), iconButton('close', 'Close', { onclick: shut }))
+  const picker = h('select', { 'aria-label': t('Daemon'), 'data-hmz': 'settings-daemon' }, h('option', { value: chosen }, called({ name: chosen })))
+  const head = h('div', { class: 'settings-head' }, h('div', {}, h('h3', {}, page.label), h('p', { class: 'dim' }, page.about)), iconButton('close', t('Close'), { onclick: shut }))
   root.classList.add('dialog-settings')
-  root.setAttribute('aria-label', 'Settings')
+  root.setAttribute('aria-label', t('Settings'))
   fill(
     root,
     // The top row of a narrow window, which it fills; on a wide one, a column inside it.
@@ -75,7 +75,7 @@ export function mount(root, { parts, query }) {
       'div',
       { class: 'settings-page' },
       head,
-      page.group === 'daemon' ? h('div', { class: 'settings-daemon' }, h('span', { class: 'label' }, 'Daemon'), picker) : null,
+      page.group === 'daemon' ? h('div', { class: 'settings-daemon' }, h('span', { class: 'label' }, t('Daemon')), picker) : null,
       body,
     ),
   )
@@ -107,7 +107,7 @@ export function mount(root, { parts, query }) {
     const fresh = body.cloneNode(false)
     body.replaceWith(fresh)
     body = fresh
-    fill(fresh, h('p', { class: 'loading', role: 'status' }, 'Reading the settings…'))
+    fill(fresh, h('p', { class: 'loading', role: 'status' }, t('Reading the settings…')))
     page
       .load()
       .then((module) => {
@@ -155,7 +155,7 @@ export function mount(root, { parts, query }) {
  * @param {boolean} small Whether the button is as small as a card's own are, not a form's.
  */
 function batchButton(root, from, known, calls, off, small) {
-  const button = h('button', { class: ['btn quiet', small && 'small'], type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, 'Batch apply')
+  const button = h('button', { class: ['btn quiet', small && 'small'], type: 'button', 'data-hmz': 'batch-apply', disabled: Boolean(off) }, t('Batch apply'))
   const group = h('span', { class: 'row' }, off ? h('span', { class: 'hint', 'data-hmz': 'batch-off' }, off) : null, button)
   if (off) return group
   button.addEventListener('click', () => {
@@ -165,17 +165,17 @@ function batchButton(root, from, known, calls, off, small) {
     all.addEventListener('change', () => boxes.forEach(({ box }) => (box.checked = all.checked)))
     for (const { box } of boxes) box.addEventListener('change', () => (all.checked = boxes.every((each) => each.box.checked)))
     const results = h('ul', { class: 'batch-results', 'data-hmz': 'batch-results', 'aria-live': 'polite' })
-    const apply = h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'batch-go' }, 'Apply')
+    const apply = h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'batch-go' }, t('Apply'))
     const dialog = h(
       'dialog',
-      { class: 'batch-dialog', 'data-hmz': 'batch-dialog', 'aria-label': 'Batch apply' },
-      h('h3', {}, 'Batch apply'),
-      h('p', { class: 'dim' }, `From ${called({ name: from })}`),
+      { class: 'batch-dialog', 'data-hmz': 'batch-dialog', 'aria-label': t('Batch apply') },
+      h('h3', {}, t('Batch apply')),
+      h('p', { class: 'dim' }, t('From {name}', { name: called({ name: from }) })),
       others.length
-        ? h('div', { class: 'form' }, h('label', { class: 'check' }, all, h('b', {}, 'All')), boxes.map(({ one, box }) => h('label', { class: 'check' }, box, called(one))))
-        : h('p', { class: 'dim' }, 'No other daemon.'),
+        ? h('div', { class: 'form' }, h('label', { class: 'check' }, all, h('b', {}, t('All'))), boxes.map(({ one, box }) => h('label', { class: 'check' }, box, called(one))))
+        : h('p', { class: 'dim' }, t('No other daemon.')),
       results,
-      h('div', { class: 'row' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, 'Close'), others.length ? apply : null),
+      h('div', { class: 'row' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => dialog.close() }, t('Close')), others.length ? apply : null),
     )
     // Closed, the button it was opened by has the focus back in every browser.
     dialog.addEventListener('close', () => (dialog.remove(), button.focus()))
@@ -187,7 +187,7 @@ function batchButton(root, from, known, calls, off, small) {
       let sent
       try {
         sent = await calls()
-        if (!sent.length) throw new Error('Nothing to apply.')
+        if (!sent.length) throw new Error(t('Nothing to apply.'))
       } catch (error) {
         fill(results, h('li', {}, problem(error)))
         apply.disabled = false
@@ -195,11 +195,11 @@ function batchButton(root, from, known, calls, off, small) {
       }
       await Promise.all(
         picked.map(async (one) => {
-          const line = h('li', { 'data-hmz': 'batch-result', 'data-daemon': one.name }, h('b', {}, called(one)), ' ', h('span', { class: 'dim' }, 'Applying…'))
+          const line = h('li', { 'data-hmz': 'batch-result', 'data-daemon': one.name }, h('b', {}, called(one)), ' ', h('span', { class: 'dim' }, t('Applying…')))
           results.append(line)
           try {
             for (const [method, params] of sent) await call(method, params, { on: one.name })
-            fill(line, h('b', {}, called(one)), ' ', h('span', { class: 'ok' }, 'Applied'))
+            fill(line, h('b', {}, called(one)), ' ', h('span', { class: 'ok' }, t('Applied')))
             line.dataset.ok = 'true'
           } catch (error) {
             fill(line, h('b', {}, called(one)), ' ', h('span', { class: 'bad' }, error.message))

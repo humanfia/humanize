@@ -4,23 +4,29 @@
 // click here; Humanize Desktop needs nothing more.
 
 import { fill, h, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { kept } from '../../notifications.js'
 import { inApp, shell } from '../../shell.js'
 
 /** Every kind, by its word in the settings, and what the page calls it. */
 const KINDS = [
-  ['done', 'Done'],
-  ['failed', 'Failed'],
-  ['stopped', 'Stopped'],
-  ['asked', 'Questions'],
-  ['listening', 'Waiting'],
+  ['done', t('Done')],
+  ['failed', t('Failed')],
+  ['stopped', t('Stopped')],
+  ['asked', t('Questions')],
+  ['listening', t('Waiting')],
 ]
 
 /** What the browser says of showing notifications, as the page says it. */
-const PERMISSIONS = { granted: 'Allowed', denied: 'Blocked', default: 'Not asked' }
+const PERMISSIONS = { granted: t('Allowed'), denied: t('Blocked'), default: t('Not asked') }
 
 /** Who shows them in a browser, by what it says of showing them: none where it has no way to. */
-const SHOWN = { granted: 'Shown by the browser.', denied: 'Blocked in this browser’s settings for this site: allow them there.', default: 'Shown by the browser, once you allow it.', none: 'This browser shows none.' }
+const SHOWN = {
+  granted: t('Shown by the browser.'),
+  denied: t('Blocked in this browser’s settings for this site: allow them there.'),
+  default: t('Shown by the browser, once you allow it.'),
+  none: t('This browser shows none.'),
+}
 
 export function draw(holder) {
   const shown = (settings) => {
@@ -31,7 +37,7 @@ export function draw(holder) {
       said.replaceChildren()
       try {
         await kept.prefer({ kinds, system })
-        said.textContent = 'Saved'
+        said.textContent = t('Saved')
       } catch (error) {
         said.replaceChildren(problem(error))
       }
@@ -45,11 +51,11 @@ export function draw(holder) {
       return h('label', { class: 'check' }, box, label)
     }
     const allowing = h('div', { class: 'row', 'data-hmz': 'notifications-permission' })
-    const shownBy = h('span', { class: 'hint', 'data-hmz': 'notifications-shown-by' }, inApp ? `Shown by ${shell === 'windows' ? 'Windows' : 'macOS'}.` : '')
+    const shownBy = h('span', { class: 'hint', 'data-hmz': 'notifications-shown-by' }, inApp ? t('Shown by {system}.', { system: shell === 'windows' ? 'Windows' : 'macOS' }) : '')
     const drawAllowing = () => {
       if (inApp) return fill(allowing)
       shownBy.textContent = 'Notification' in window ? SHOWN[Notification.permission] || SHOWN.default : SHOWN.none
-      if (!('Notification' in window)) return fill(allowing, h('span', { class: 'dim' }, 'Unsupported'))
+      if (!('Notification' in window)) return fill(allowing, h('span', { class: 'dim' }, t('Unsupported')))
       const now = Notification.permission
       // `Allow` goes once it is answered: the focus it held is kept on it, or on what says the answer.
       const held = allowing.contains(document.activeElement)
@@ -73,7 +79,7 @@ export function draw(holder) {
                   }
                 },
               },
-              'Allow',
+              t('Allow'),
             ),
       )
       if (held && !allowing.contains(document.activeElement)) allowing.querySelector('[data-hmz=allow-notifications], [data-hmz=permission-state]').focus()
@@ -90,19 +96,19 @@ export function draw(holder) {
           h(
             'div',
             { class: 'field' },
-            h('span', { class: 'label' }, 'Kinds'),
+            h('span', { class: 'label' }, t('Kinds')),
             h(
               'div',
               { class: 'notification-kinds' },
               KINDS.map(([kind, label]) => toggle(label, kinds[kind], (on) => (kinds[kind] = on), `notify-${kind}`)),
             ),
-            h('span', { class: 'hint' }, 'Of every daemon, as they happen.'),
+            h('span', { class: 'hint' }, t('Of every daemon, as they happen.')),
           ),
           h(
             'div',
             { class: 'field' },
-            h('span', { class: 'label' }, 'System'),
-            toggle('On', system, (on) => (system = on), 'notify-system'),
+            h('span', { class: 'label' }, t('System@@notifications')),
+            toggle(t('On'), system, (on) => (system = on), 'notify-system'),
             allowing,
             shownBy,
           ),

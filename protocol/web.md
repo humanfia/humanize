@@ -1414,7 +1414,9 @@ open, and each page MUST stay on the view it was on.
 **3.12.2** The page MUST offer the presets: Humanize's own, `Humanize Green`, `Temperate Gold`,
 `Concordant Scarlet`, `Restrained Crimson`, `Critical Teal`, `Desirous Indigo`, `Peaceful Lilac`,
 `Hateful Silver`, `Devoted Pink`, `Self-Negating Plum`, `Dominant Azure`, `Surviving Jade` and
-`Lamenting Orchid`.
+`Lamenting Orchid`. Written in another language, the page MUST name each by its translation
+(Section 3.4.4.13), `Humanize` kept in Latin script; a theme the user made MUST keep the name it
+was given.
 
 **3.12.3** The page MUST be drawn in the light side of the theme chosen where the browser prefers
 light and in its dark side where it prefers dark, and MUST offer no other choice of the side.
