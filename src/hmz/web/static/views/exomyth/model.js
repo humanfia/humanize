@@ -42,7 +42,7 @@ export const CATEGORIES = ['flow', 'session', 'turn', 'llm', 'tool', 'message', 
 
 /** Reads a timeline document into the model; throws on a version this page does not know. */
 export function load(doc) {
-  if (doc.version !== VERSION) throw new Error(t('This page draws timelines of version {mine}, not {theirs}.', { mine: VERSION, theirs: doc.version }))
+  if (doc.version !== VERSION) throw new Error(t('This page draws timelines of version {ours}, not {theirs}.', { ours: VERSION, theirs: doc.version }))
   const strings = doc.strings
   const said = (index) => strings[index] || ''
   const tracks = doc.tracks.map((one, id) => {
@@ -181,9 +181,9 @@ export function within(model, from, to) {
 }
 
 /** A moment, µs from the start, said to the precision a step between moments asks for. */
-export function clock(moment, step = 1) {
-  const sign = moment < 0 ? '-' : ''
-  const time = Math.abs(moment)
+export function clock(time, step = 1) {
+  const sign = time < 0 ? '-' : ''
+  time = Math.abs(time)
   if (step >= 60e6) {
     const minutes = Math.round(time / 60e6)
     const hours = Math.floor(minutes / 60)

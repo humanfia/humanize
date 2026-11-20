@@ -34,7 +34,7 @@ function categories(by, model) {
     h(
       'table',
       { class: 'spending exo-cats', 'data-hmz': 'exomyth-categories' },
-      h('thead', {}, h('tr', {}, h('th', {}, t('Category')), h('th', { class: 'num' }, t('Spans')), h('th', { class: 'num' }, t('Time')), h('th', { class: 'num' }, t('In@@tokens')), h('th', { class: 'num' }, t('Out@@tokens')))),
+      h('thead', {}, h('tr', {}, h('th', {}, t('Category')), h('th', { class: 'num' }, t('Spans')), h('th', { class: 'num' }, t('Time')), h('th', { class: 'num' }, t('In')), h('th', { class: 'num' }, t('Out')))),
       h(
         'tbody',
         {},
@@ -158,8 +158,8 @@ export function rangeOf(model, range, act) {
     section(
       t('Range'),
       facts([
-        [t('from@@time'), at(model, range.from)],
-        [t('to@@time'), at(model, range.to)],
+        [t('from'), at(model, range.from)],
+        [t('to'), at(model, range.to)],
         [t('lasted'), h('span', { 'data-hmz': 'exomyth-range' }, lasted(range.to - range.from))],
         [t('spans'), counted(held.count)],
         [t('tokens'), t('{in} in · {out} out', { in: counted(held.in), out: counted(held.out) })],

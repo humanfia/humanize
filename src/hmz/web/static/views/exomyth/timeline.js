@@ -607,7 +607,7 @@ export function timeline(told) {
     const i = at.index
     const said = (index) => model.strings[index]
     const tokens = track.in[i] || track.out[i] ? ` · ${t('{in} in · {out} out', { in: track.in[i], out: track.out[i] })}` : ''
-    tip.textContent = `${said(track.name_[i])}\n${t('{category} · {lasted} at {start}', { category: said(track.cat[i]), lasted: lasted(track.dur[i]), start: clock(track.start[i], 1000) })}${said(track.model[i]) ? ` · ${said(track.model[i])}` : ''}${tokens}`
+    tip.textContent = `${said(track.name_[i])}\n${said(track.cat[i])} · ${t('{lasted} at {when}', { lasted: lasted(track.dur[i]), when: clock(track.start[i], 1000) })}${said(track.model[i]) ? ` · ${said(track.model[i])}` : ''}${tokens}`
     tip.hidden = false
     const box = tip.getBoundingClientRect()
     // Kept over the chart, clear of the panel beside it.

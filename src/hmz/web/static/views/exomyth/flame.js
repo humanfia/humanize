@@ -560,13 +560,13 @@ export function mount(el, model, range, told = {}) {
       return n
     }
     const scale = width / laid.total[zoomed]
-    const at = laid.x[zoomed] + px / scale
+    const time = laid.x[zoomed] + px / scale
     let n = zoomed
     while (agg.depth[n] < d) {
       let next = -1
       for (let k = laid.from[n]; k < laid.from[n + 1]; k++) {
         const kid = laid.kids[k]
-        if (at >= laid.x[kid] && at < laid.x[kid] + laid.total[kid]) {
+        if (time >= laid.x[kid] && time < laid.x[kid] + laid.total[kid]) {
           next = kid
           break
         }
@@ -584,8 +584,8 @@ export function mount(el, model, range, told = {}) {
     }
     const whole = laid.total[agg.root]
     const part = whole ? (laid.total[n] / whole) * 100 : 0
-    const held = { count: counted(agg.own.count[n]) }
-    tip.textContent = `${text(agg.name[n])}\n${t('{total} total · {self} self · {share}%', { total: said(weight, laid.total[n]), self: said(weight, laid.self[n]), share: part.toFixed(part < 10 ? 2 : 1) })}\n${agg.own.count[n] === 1 ? t('{count} span', held) : t('{count} spans', held)}`
+    const spans = agg.own.count[n] === 1 ? t('{count} span', { count: counted(agg.own.count[n]) }) : t('{count} spans', { count: counted(agg.own.count[n]) })
+    tip.textContent = `${text(agg.name[n])}\n${t('{total} total · {self} self · {share}%', { total: said(weight, laid.total[n]), self: said(weight, laid.self[n]), share: part.toFixed(part < 10 ? 2 : 1) })}\n${spans}`
     tip.hidden = false
     const shape = tip.getBoundingClientRect()
     // Kept over the chart, clear of the panel beside it.

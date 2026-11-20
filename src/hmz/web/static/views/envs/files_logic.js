@@ -4,6 +4,8 @@
 // picture), what a file is called by its language, the tabs open, the explorer's rows, and how
 // a search's matches are grouped. Nothing here touches the DOM, so the node tests run it.
 
+import { t } from '../../i18n.js'
+
 /** The most bytes `env.read` hands back at once. */
 export const CHUNK = 1048576
 
@@ -81,11 +83,11 @@ export function ancestors(path, root) {
 /** A new name refused, with why, or null where it would do. */
 export function badName(name, siblings = []) {
   const said = String(name).trim()
-  if (!said) return 'A name is needed.'
-  if (said === '.' || said === '..') return 'That name is not allowed.'
-  if (said.includes('\0')) return 'A name cannot hold a NUL.'
-  if (said.split('/').some((part) => part === '..')) return 'A name cannot climb out with `..`.'
-  if (!said.includes('/') && siblings.includes(said)) return `${said} is there already.`
+  if (!said) return t('A name is needed.')
+  if (said === '.' || said === '..') return t('That name is not allowed.')
+  if (said.includes('\0')) return t('A name cannot hold a NUL.')
+  if (said.split('/').some((part) => part === '..')) return t('A name cannot climb out with `..`.')
+  if (!said.includes('/') && siblings.includes(said)) return t('{name} is there already.', { name: said })
   return null
 }
 
@@ -119,13 +121,13 @@ function boundary(target, j) {
  */
 export function score(query, target) {
   const q = String(query)
-  const t = String(target)
+  const goal = String(target)
   const n = q.length
-  const m = t.length
+  const m = goal.length
   if (!n) return { score: 0, hits: [] }
   if (n > m) return null
   const ql = q.toLowerCase()
-  const tl = t.toLowerCase()
+  const tl = goal.toLowerCase()
   // Cheap first: every letter in order at all.
   let k = 0
   for (let j = 0; j < m && k < n; j++) if (tl[j] === ql[k]) k++
@@ -147,7 +149,7 @@ export function score(query, target) {
       }
       if (i > 0 && carried !== NONE) carried -= GAP
       if (tl[j] !== ql[i]) continue
-      const own = 1 + boundary(t, j) + (t[j] === q[i] ? CASE : 0)
+      const own = 1 + boundary(goal, j) + (goal[j] === q[i] ? CASE : 0)
       if (i === 0) {
         best[0][j] = own - Math.min(j, 8) * 0.25
         run[0][j] = 1
@@ -609,7 +611,7 @@ export function treeRows(tree, filter = '') {
     const entries = tree.listed.get(dir)
     if (!entries) {
       if (tree.failed?.has(dir)) rows.push({ path: `${dir}/\0error`, name: tree.failed.get(dir), kind: 'error', depth, open: false })
-      else rows.push({ path: `${dir}/\0loading`, name: 'Loading…', kind: 'loading', depth, open: false })
+      else rows.push({ path: `${dir}/\0loading`, name: t('Loading…'), kind: 'loading', depth, open: false })
       return
     }
     for (const entry of entries) {

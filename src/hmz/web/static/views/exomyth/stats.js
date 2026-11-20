@@ -20,8 +20,8 @@ const COLUMNS = [
   ['p50', 'P50', lasted, true],
   ['p95', 'P95', lasted, true],
   ['max', t('Max'), lasted, true],
-  ['in', t('In@@tokens'), counted, true],
-  ['out', t('Out@@tokens'), counted, true],
+  ['in', t('In'), counted, true],
+  ['out', t('Out'), counted, true],
 ]
 
 /**
@@ -99,7 +99,7 @@ export function stats(told) {
         ),
       ),
     )
-    more.textContent = rows.length > ROWS ? t('{shown} of {all}', { shown: counted(ROWS), all: counted(rows.length) }) : ''
+    more.textContent = rows.length > ROWS ? t('{at} of {total}', { at: counted(ROWS), total: counted(rows.length) }) : ''
   }
 
   return {
