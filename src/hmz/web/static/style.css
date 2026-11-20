@@ -7238,10 +7238,12 @@ pre.ask-plain {
 }
 
 /* One conversation: her face, its title, and under it one line of what was last said. What can
-   be done to it stands past its right edge, and comes in with the row a finger swipes left. */
+   be done to it stands past its right edge, and comes in with the row a finger swipes left.
+   Clipped, not hidden: a row that hides what is past its edge scrolls to it once it is focused
+   or brought into view, which moves the row aside and, as a scroll of it, shuts it. */
 .aichan-row {
   position: relative;
-  overflow: hidden;
+  overflow: clip;
   touch-action: pan-y;
 }
 
