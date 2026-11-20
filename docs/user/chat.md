@@ -268,7 +268,10 @@ going.
 
 In the terminal a chat's status line says `running` while its agent answers and `done` between
 turns. A chat nobody has looked at for a minute between turns **folds away**: its host goes,
-and the chat rests, keeping its conversation. Say something in it and it is carried on, the
+and the chat rests, keeping its conversation. A chat that rests is as ready as one that does
+not: its environment opens all the same -- **Terminal**, **Changes** and **Files** on the web
+page, `/env` in the terminal -- by carrying it on with nothing said, which opens no conversation
+and writes nothing into the chat. Say something in it and it is carried on, the
 same chat, by an agent that remembers what was said and keeps the name the chat wrote it down
 under, so a side question reaches every session it opened:
 
@@ -294,7 +297,7 @@ talking in it, a chat can be:
 | forked | `chat.fork` | makes a new chat of the same directory from a copy of the conversation so far, with the same title, agent, preference and permission, working where the chat works. The new chat rests until you say something in it, and the chat forked is left as it is. Refused while a turn is open, and where the agent's CLI keeps the conversation outside the chat |
 | archived, and put back | `chat.archive`, `chat.unarchive` | takes it off the lists of chats, or puts it back, and changes nothing else of it; `chat.list` with `archived` lists the archived ones |
 | backed up now | `chat.backup` | uploads it to its [backup targets](/user/backups), as an epic is backed up: **Upload** in a chat's menu in `hmz web` |
-| deleted | `chat.delete` | removes its record and the sessions kept with it, for good: Humanize cannot bring it back. Refused while the chat is going -- a host holds it, between turns included -- so delete it once it has folded away. No epic and no [worktree](#worktree) is removed |
+| deleted | `chat.delete` | removes its record and the sessions kept with it, for good: Humanize cannot bring it back. Refused while a turn of it is open -- `Chat <id> has a turn open; delete it once it is done.` -- or another process holds it; a host that holds it between turns is ended first. No epic and no [worktree](#worktree) is removed |
 
 In `hmz web` each is in the chat's menu, and the archived chats of a directory are listed in
 its settings: see [Managing a chat](/user/web#managing-a-chat).

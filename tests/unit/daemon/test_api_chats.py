@@ -701,7 +701,7 @@ def test_a_resting_chat_is_deleted_with_all_it_kept_and_a_going_one_never(
     for name in ("c2", "c3"):
         assert _refused("chat.delete", chat=name) == (
             409,
-            f"Chat {name} is going on; delete it once it rests.",
+            f"Chat {name} has a turn open; delete it once it is done.",
         )
     assert _refused("chat.delete", chat="none") == (404, "There is no chat none.")
     assert all(one.is_dir() for one in made.values())

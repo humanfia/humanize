@@ -3319,7 +3319,8 @@ pseudo-terminal.
 the host it is attached to -- every root env of its roles, the workspace of a chat, and every
 derived env, until its flow destroys it -- while that env is open: browse, read and write its files,
 open terminals in it, and see and work its git repository, through the calls of Section 4.24 of
-[DAEMON].
+[DAEMON]. A frontend MUST let the user reach the workspace of a chat whether or not a host holds
+the chat when it is asked for, by carrying the chat on with nothing said (Section 8.7.4).
 
 **7.13.3** What the user can do in an env MUST be what the env serves (Section 7.3.2.3 and Section
 7.3.2.4), whatever its role declares: its files where it serves `FilesEnvMixin`, terminals where it
@@ -3510,8 +3511,11 @@ the terminal interface says where its turn is instead (Section 11.4 of [TUI]).
 
 **8.5.3** A chat that has ended MUST be reported as resting, or as failed where Section 8.4.9
 applies; a chat MUST NOT be reported as `done`. A frontend MAY mark a chat, in place of any of
-these, while it waits on a reply a person has not yet seen, and MAY say going and resting in the
-words it says an epic's state in, as Section 3.5 of [WEB] does.
+these, while it waits on a reply a person has not yet seen. Going and resting say only whether a
+host holds the chat: a frontend MUST NOT show a chat as going or as resting, and MUST NOT
+withhold from a chat that rests anything it offers one that is going -- saying something in it
+and reaching its workspace (Section 7.13.2) among them -- except where Section 8.7.7 applies or
+its workspace is gone, which it MUST then say.
 
 **8.5.4** A frontend MUST offer a way to stop the open turn of a chat (`chat.stop` in Section 4 of
 [DAEMON]). Stopping MUST interrupt that turn, MUST say in the conversation that the turn was
@@ -3549,7 +3553,12 @@ period Section 3 of [DAEMON] states.
 its conversation drawn from its first message.
 
 **8.7.4** A chat that has folded away MUST, when opened from a list of chats, be drawn with what was
-said in it, and the next message the user says in it MUST carry it on.
+said in it, and the next message the user says in it MUST carry it on. Reaching its workspace
+(Section 7.13.2) MUST carry it on with nothing said: a chat carried on with nothing said MUST hold
+its workspace open and wait, between turns, for what is said next; MUST NOT open a conversation,
+record that it was opened again, or write anything else into its record until something is said;
+and MUST end as it was where nothing is. What is then said MUST carry it on as Section 8.7.5
+states.
 
 **8.7.5** Carrying on a chat MUST continue the same chat record, MUST continue the same
 conversation, and MUST take the message that carried it on as the next turn.
@@ -3565,7 +3574,8 @@ saying that the chat cannot be continued here.
 only from a list of chats, by `/resume` in a chat (Section 8.9.8), by its name (`hmz chat --resume`
 in [CLI]) or by saying something in it.
 
-**8.7.9** A chat that is carried on MUST record that it was opened again, MUST read back as going
+**8.7.9** A chat that is carried on MUST record that it was opened again, once something is said
+in it (Section 8.7.4), MUST read back as going
 until it ends again, and MUST read back as having spent the sum of what each opening spent.
 
 **8.7.10** An epic an earlier hmz recorded for a chat (Section 3.2.13) MUST be made a chat: the
@@ -3698,8 +3708,9 @@ back among the others by `chat.unarchive`.
 
 **8.10.4** Deleting a chat (`chat.delete`) MUST remove its chat directory, the sessions kept in it
 included, and nothing else: no epic directory, and no worktree the chat worked in. It MUST be
-refused while the chat is going -- a host or any other process holding it -- and what is deleted
-MUST NOT be recoverable through hmz.
+refused while a turn of the chat is open or a process that is no host holds it; a host that holds
+it between turns MUST be ended first, as an empty next message ends it. What is deleted MUST NOT
+be recoverable through hmz.
 
 **8.10.5** Section 8.10.2 to Section 8.10.4 MUST NOT apply to an Ai-chan conversation, which is
 forgotten as Section 14 states.

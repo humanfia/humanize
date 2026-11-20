@@ -9117,9 +9117,9 @@
           "name": "task",
           "required": true,
           "schema": {
-            "type": "string",
-            "minLength": 1
-          }
+            "type": "string"
+          },
+          "description": "The chat's first message, or the one that carries it on; empty only with resume, which carries the chat on with nothing said."
         },
         {
           "name": "resume",

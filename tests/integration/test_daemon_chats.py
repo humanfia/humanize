@@ -380,7 +380,7 @@ def test_a_chat_carried_on_while_it_is_going_elsewhere_is_refused_saying_so(
             assert _row(peer, chat.path.name)["state"] == "going"
             assert _refused(peer, "chat.delete", chat=chat.path.name) == (
                 409,
-                f"Chat {chat.path.name} is going on; delete it once it rests.",
+                f"Chat {chat.path.name} has a turn open; delete it once it is done.",
             )
         finally:
             peer.close()
@@ -940,20 +940,24 @@ def test_a_chat_is_backed_up_as_a_run_is(
     assert user.call("runs.list", {}, timeout=30)["runs"] == []
 
 
-def test_a_chat_is_deleted_with_what_it_kept_and_never_while_it_goes(
+def test_a_chat_is_deleted_with_what_it_kept_and_never_while_its_turn_is_open(
     project: Path, user: Peer
 ) -> None:
-    link, _, _, name = _chat(project, "hello")
+    link, heard, slot, name = _chat(project, "hello")
     at = _directory(name)
     with Epic("ralph", "a run", project) as ran:
         pass
 
-    # Going, on its host: refused, and all of it still there.
+    # A turn open, on its host: refused, and all of it still there.
+    link.chat_say(SLOW)
+    assert until(lambda: _row(user, name)["state"] == "turn")
     assert _refused(user, "chat.delete", chat=name) == (
         409,
-        f"Chat {name} is going on; delete it once it rests.",
+        f"Chat {name} has a turn open; delete it once it is done.",
     )
     assert (at / CHATTED).is_file()
+    user.call("chat.stop", {"workspace": str(project), "slot": slot}, timeout=30)
+    assert until(_asked(heard, STOPPED))
     # An epic is no chat, and is never removed by this.
     assert _refused(user, "chat.delete", chat=ran.path.name) == (
         404,
@@ -1309,6 +1313,95 @@ def test_a_chat_carried_on_is_named_by_its_name_alone(
         user, "chat.start", workspace=str(project), task="twice", resume=name
     )
     assert (code, f"{name} is going on already" in why) == (400, True)
+
+
+def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_nothing(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    link, _, _, name = _chat(project, "the word is papaya")
+    _ended(link, user, name)
+    at = _directory(name)
+    wrote = (at / CHATTED).read_bytes()
+    (project / "kept.txt").write_text("kept")
+    carried = {"workspace": str(project), "task": "", "resume": name}
+
+    # A new chat still starts with something said.
+    assert _refused(
+        user, "chat.start", workspace=str(project), agent=AGENT, task=""
+    ) == (400, "a chat starts with something said")
+    woke = user.call("chat.start", carried, timeout=60)
+    assert woke["chat"] == name
+    assert woke["slot"].startswith("chat:")
+    # Asked again, it is the one host; said to by chat.start, it is going there already.
+    assert user.call("chat.start", carried, timeout=60) == woke
+    code, why = _refused(user, "chat.start", **{**carried, "task": "twice"})
+    assert (code, why) == (400, f"{name} is going on already")
+    row = _row(user, name)
+    assert (row["state"], row["slot"]) == ("going", woke["slot"])
+    # Nothing is written into it, and no conversation is opened for it.
+    assert (at / CHATTED).read_bytes() == wrote
+    assert len(started(tmp_path)) == 1
+
+    # Its workspace is open there, before anything is said.
+    again = daemon.attach("sdk", workspace=project, slot=woke["slot"])
+    heard = Heard()
+    again.heard(heard)
+    try:
+        assert until(lambda: any(one["envs"] for one in heard.of("envs")))
+        (env,) = heard.of("envs")[-1]["envs"]
+        assert (env["role"], env["open"]) == ("workspace", True)
+        listed = again.asked({"do": "env.list", "env": env["id"], "path": ""})
+        assert "kept.txt" in [one["name"] for one in listed["entries"]]
+        assert heard.of("started")[-1]["task"] == ""
+        assert (at / CHATTED).read_bytes() == wrote
+
+        # What is said then carries it on: the same chat, in the conversation it had.
+        again.chat_say("what was the word?")
+        assert until(_asked(heard, "did: what was the word?"))
+        first, then = started(tmp_path)
+        assert then["argv"][then["argv"].index("--resume") + 1] == first["session"]
+        events = [one["event"] for one in _events(at)]
+        assert events.count("reopened") == 1
+        assert written_chats() == [at]
+    finally:
+        again.close()
+
+
+def test_a_chat_carried_on_with_nothing_said_ends_as_it_was_and_is_deleted_between_turns(
+    project: Path, user: Peer
+) -> None:
+    link, _, _, name = _chat(project, "hello")
+    _ended(link, user, name)
+    at = _directory(name)
+    wrote = (at / CHATTED).read_bytes()
+    carried = {"workspace": str(project), "task": "", "resume": name}
+
+    # Ended with nothing said, it is as it was.
+    woke = user.call("chat.start", carried, timeout=60)
+    named = {"workspace": str(project), "slot": woke["slot"]}
+    assert user.call("chat.say", {**named, "text": ""}, timeout=30) == {}
+    assert until(lambda: _row(user, name)["state"] == "resting")
+    assert (at / CHATTED).read_bytes() == wrote
+
+    # Held between turns, it is ended and deleted: only an open turn keeps it.
+    woke = user.call("chat.start", carried, timeout=60)
+    assert _row(user, name)["slot"] == woke["slot"]
+    assert user.call("chat.delete", {"chat": name}, timeout=60) == {}
+    assert not at.exists()
+    assert _refused(user, "chat.get", chat=name)[0] == 404
+
+    # One whose folder has gone says so, and nothing is started for it.
+    import shutil
+
+    gone = project.parent / "vanish"
+    gone.mkdir()
+    link, _, _, lost = _chat(gone, "hello")
+    _ended(link, user, lost)
+    shutil.rmtree(gone)
+    assert _refused(user, "chat.start", workspace=str(gone), task="", resume=lost) == (
+        404,
+        f"There is no directory {gone}.",
+    )
 
 
 def test_a_chats_turn_done_is_a_notice_that_names_the_chat(

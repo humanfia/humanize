@@ -17,6 +17,8 @@ import os
 import pkgutil
 import socket
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -87,6 +89,12 @@ ENV = (
 _TERMINAL = ("env.term.open", "env.term.input")
 _NO_TERMINALS = "Terminals are off for paired devices; turn on envs.paired_terminals."
 
+
+#: The states of a host whose chat is going.
+_GOING = ("running", "stopping")
+
+#: How long, in seconds, a chat ended to be deleted is waited for.
+_ENDING = 10.0
 
 #: Why a chat whose host folded it away takes nothing more (Section 4.25.2.4).
 _FOLDED = "this chat has folded away; carry it on with chat.start"
@@ -167,6 +175,9 @@ class _Methods:
     def __init__(self, router: Router, families: Mapping[str, Handler]) -> None:
         self._router = router
         self._families = families
+        #: Held while a chat is carried on with nothing said, so that two who ask at once
+        #: are answered the one host.
+        self._carrying = threading.Lock()
 
     # -- sessions and pairing
 
@@ -469,6 +480,59 @@ class _Methods:
         resumed = Path(checked["resume"] or "").name
         if resumed in self._router.links.kept.epics():
             raise _refused(404, f"{resumed} is not a chat of {named}.")
+        if resumed and not checked["task"]:
+            # Carried on with nothing said, for its workspace to be reached: by one caller
+            # at a time, and by none where a host holds it already (Section 4.25.1.7).
+            with self._carrying:
+                return self._held_or(resumed) or self._chat_started(
+                    call, named, slotted, checked, resumed
+                )
+        if resumed and self._held_or(resumed):
+            raise _refused(400, f"{resumed} is going on already")
+        return self._chat_started(call, named, slotted, checked, resumed)
+
+    def _holding(self, chat: str) -> tuple[Hosted, dict[str, Any]] | None:
+        """The host going with a chat, by the chat's name, and how it stands; else None."""
+        for hosted in self._router.hosts.listed():
+            if not hosted.slot.startswith("chat:"):
+                continue
+            with contextlib.suppress(Exception):
+                status = hosted.status()
+                if status.get("chat") == chat and status.get("state") in _GOING:
+                    return hosted, status
+        return None
+
+    def _held_or(self, chat: str) -> dict[str, Any] | None:
+        """The slot and name of a chat a host holds, as `chat.start` answers; else None."""
+        holding = self._holding(chat)
+        return None if holding is None else {"slot": holding[0].slot, "chat": chat}
+
+    def chat_delete(self, call: Call) -> dict[str, Any]:
+        """Deletes a chat, ending first the host that holds it between turns (4.25.7.6).
+
+        Ended as an empty next message ends it, and waited for a while; one with a turn
+        open is left, and refused as the family refuses it.
+        """
+        name = str(call.params.get("chat"))
+        holding = self._holding(name)
+        if holding is not None and holding[1].get("turn") == "done":
+            with contextlib.suppress(Exception):
+                holding[0].chat({"do": "say", "text": ""})
+            ended = time.monotonic() + _ENDING
+            while self._holding(name) is not None and time.monotonic() < ended:
+                time.sleep(0.05)
+        return self._families["chat.delete"](call)
+
+    def _chat_started(
+        self,
+        call: Call,
+        named: str,
+        slotted: str,
+        checked: Mapping[str, Any],
+        resumed: str,
+    ) -> dict[str, Any]:
+        """Starts a chat checked on a host of its own, and answers its slot and its name."""
+        params = call.params
         hosted = self._router.hosts.opened(named, slotted)
         started = self._chatted(
             call,
@@ -649,6 +713,7 @@ class _Methods:
             "chat.commands": self.chat_commands,
             "chat.set": self.chat_set,
             "chat.stop": self.chat_stop,
+            "chat.delete": self.chat_delete,
         }
 
 

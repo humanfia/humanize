@@ -1128,6 +1128,8 @@ class Humanize(App[None]):
         #: The chat the next line typed carries on, by its id, as `/resume` or `/chat` went
         #: back to it, or None for a line that starts a conversation of its own.
         self._continuing: str | None = None
+        #: What `/env` named of a chat no host held yet, opened once its host lists its envs.
+        self._env_wanted: str | None = None
         #: Whether a flow is on the screen rather than this interface's chat: from the moment
         #: one is started or found running on the host attached to, until the chat is put
         #: back on it. The chat is what this opens on (Section 3.1 of [TUI]).
@@ -3154,15 +3156,28 @@ class Humanize(App[None]):
         return bool(self._no_resume)
 
     def refused_env(self) -> str:
-        """Why `/env` cannot be run: there being no environment here to open."""
-        return "" if self._opened_envs else "no environment is open here"
+        """Why `/env` cannot be run: there being no environment here to open.
+
+        Never for a chat to be carried on, which no host holds: its workspace is brought up
+        as it is asked for.
+        """
+        if self._opened_envs or self._continuing is not None:
+            return ""
+        return "no environment is open here"
 
     def action_env(self, named: str = "") -> None:
         """Opens the environments of the run in front of us, or one's panels where named.
 
+        A chat to be carried on, which no host holds, is carried on with nothing said
+        (Section 8.7.4 of [CORE]), and its environments open once its host lists them.
+
         Args:
           named: A role, a chain of roles or an environment's id, or "" for all of them.
         """
+        if not self._opened_envs and self._continuing is not None:
+            self._env_wanted = named
+            self._chat_starts("")
+            return
         if why := opens_env(self, self._reach, named):
             self.show(f"hmz: {why}", "red")
 
@@ -5542,6 +5557,10 @@ class Humanize(App[None]):
         elif kind == "envs":
             self._opened_envs = [dict(one) for one in message.get("envs") or ()]
             self._reach.moved()
+            if self._env_wanted is not None and self._opened_envs:
+                # Asked for before its host was up: opened now that it lists them.
+                named, self._env_wanted = self._env_wanted, None
+                self.action_env(named)
         elif kind == "clients":
             self._frontends = {
                 one["client"]: one["name"] for one in message.get("clients") or ()

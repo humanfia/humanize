@@ -2942,7 +2942,8 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     """What a chat is to be started with, checked before anything is started for it.
 
     What `chat.start` refuses before a host is asked (Section 4.25.1.6 of daemon.md), the same
-    whoever asks: no task, no agent and no chat carried on to take one from, an agent that is
+    whoever asks: no task for a chat that is not carried on, no agent and no chat carried on
+    to take one from, an agent that is
     not one, a preference that is neither, a permission that is no preset, a chat to carry
     on that is no chat of this workspace, and a worktree asked for a chat carried on.
 
@@ -2957,9 +2958,10 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
       `permission` and `worktree`; or `ok` false with `why` and the `code` to refuse it with.
     """
     task, prefer = said.get("task"), said.get("prefer")
-    # An Ai-chan conversation started with nothing said waits, between turns, for what is.
+    # An Ai-chan conversation started with nothing said waits, between turns, for what is;
+    # and so does a chat carried on with nothing said, whose workspace is reached meanwhile.
     ai = said.get("ai") is not None
-    if not isinstance(task, str) or not (task or ai):
+    if not isinstance(task, str) or not (task or ai or said.get("resume")):
         return _no("a chat starts with something said", 400)
     if prefer not in (None, "native", "flow"):
         return _no("prefer is native or flow", 400)

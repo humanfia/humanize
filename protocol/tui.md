@@ -584,7 +584,10 @@ this interface follows -- a chat's workspace among them -- as the snapshot `envs
 chain and marked where it is closed; `/env <role>` MUST open the first env of that role, and MUST be
 refused, naming the roles it takes, for a role that has none.
 
-**7.20.2** `/env` MUST be refused while the host holds no env.
+**7.20.2** `/env` MUST be refused while the host holds no env, except for a chat to be carried on
+that no host holds (Section 7.12.5.2): `/env` MUST then carry that chat on with nothing said
+(`chat.start` with `resume` the chat's id and an empty `task`, Section 4.25.1.9 of [DAEMON]) and
+MUST open once its host lists its envs.
 
 **7.20.3** An env MUST open on its pages as Section 7.13.3 of [CORE] chooses them: `Files` where it
 serves files, `Changes` where it serves git, and `Shell` where it serves a shell; it MUST open on

@@ -277,7 +277,7 @@ View names in messages: `the monitor`, `the home transcript`, `one agent's trans
 | <span id="cmd-btw"></span>`/btw` | `[question]` | all | out of btw mode: off a `session` view, an [Ai-chan conversation](#ai-chan) followed, or the session gone (see [btw](#btw)) | — |
 | <span id="cmd-epics"></span>`/epics` | `[@daemon]` | all | never | — |
 | <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing; in a [chat](#chat), no earlier chat here |
-| <span id="cmd-env"></span>`/env` | `[role]` | all | no environment is open (the host's `envs` snapshot is empty) | — |
+| <span id="cmd-env"></span>`/env` | `[role]` | all | no environment is open (the host's `envs` snapshot is empty), unless a chat picked with `/resume` waits to be carried on: it is then carried on with nothing said, and its environments open once its host lists them | — |
 | <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
 | <span id="cmd-clear"></span>`/clear` | — | all | never | — |
 | <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all | on an outworlder another frontend holds | — |
@@ -408,7 +408,7 @@ and what became of it said on the line under the list, a refusal in red:
 | `fork` | `chat.fork`, then closes the list on the new chat, drawn with what was said in it, `say something to continue chat <id>` | the daemon's refusal where a turn is open or the conversation is kept elsewhere |
 | `archive` | `chat.archive`; the chat leaves the list | `archived <title>; /settings workspace puts it back` |
 | `upload` | offered where a backup target exists: `chat.backup`, to the chat's targets or the defaults, not waited on | `backing up to <targets>` |
-| `delete` | opens the box `Delete <title>?`, `Permanent: the chat and the conversation kept with it are removed, and cannot be brought back.`, buttons **keep** (focused) and **delete**; **delete** calls `chat.delete`, and the chat leaves the list | `deleted <title>`; for one still going, `Chat <id> is going on; delete it once it rests.` |
+| `delete` | opens the box `Delete <title>?`, `Permanent: the chat and the conversation kept with it are removed, and cannot be brought back.`, buttons **keep** (focused) and **delete**; **delete** calls `chat.delete`, and the chat leaves the list | `deleted <title>`; for one whose turn is open, `Chat <id> has a turn open; delete it once it is done.` |
 | `copy id` | copies the chat's id | `id copied` |
 
 Where the chat on the screen was archived or deleted, closing the list starts a new chat, as

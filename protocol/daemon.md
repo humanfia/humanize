@@ -2244,7 +2244,7 @@ the role of the session, while a session working in that env has a turn open.
 
 **4.25.1.1** `chat.start` MUST take `workspace`, `slot` (a chat slot, or `chat:` alone for a new
 one, `chat:`), `agent` (an agent spec, as `epic.start` takes one for a role), `task` (text,
-required, not empty), `resume` (the name of a chat of the workspace, `null`), `prefer` (`native`,
+required; not empty but with `resume`), `resume` (the name of a chat of the workspace, `null`), `prefer` (`native`,
 `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`),
 `worktree` (boolean, `false`) and `remember` (boolean, `false`), and MUST be a write.
 
@@ -2264,7 +2264,7 @@ workspace (Section 3.5.1.9 of [FILES]) once the host has taken the start; a refu
 leave it as it was.
 
 **4.25.1.6** `chat.start` MUST be refused 400 with `a chat starts with something said` for an empty
-`task`, `<slot> is not a chat slot.` for a slot that is not one, `an agent for the chat is named`
+`task` without `resume`, `<slot> is not a chat slot.` for a slot that is not one, `an agent for the chat is named`
 for a missing `agent` without `resume`, `permission is read-only, workspace-write or
 danger-full-access` for a `permission` that is none of them, and the reason of Section 8.3.7 of
 [CORE] for an agent it refuses; 404 with `<resume> is not a chat of <workspace>.` for a `resume`
@@ -2280,6 +2280,14 @@ chat records (Section 8.3.11 of [CORE]).
 workspace (Section 8.3.13 of [CORE]); it MUST be refused 400 with `a chat carried on works where it
 worked` where `resume` is given too, and with what git said where no worktree can be added, no
 chat being recorded.
+
+**4.25.1.9** With `resume` and an empty `task`, `chat.start` MUST carry the chat on with nothing
+said (Section 8.7.4 of [CORE]): its host MUST hold the chat's workspace open (Section 4.24.2.1)
+and wait between turns, and what `chat.say` then says MUST be the turn that carries it on. Where
+a host already holds that chat, `chat.start` MUST start nothing and MUST be answered with that
+host's `slot` and the chat's name; two such calls made at once MUST be answered the one host.
+With `resume` and a `task` that is not empty, `chat.start` MUST be refused 400 with `<resume> is
+going on already` where a host holds that chat.
 
 #### 4.25.2. `chat.say`
 
@@ -2402,8 +2410,10 @@ started with), MUST back the chat up as `runs.backup` backs up an epic (Section 
 answered and refused as `runs.backup` is.
 
 **4.25.7.6** `chat.delete` MUST remove the chat's directory (Section 8.10.4 of [CORE]) and MUST be
-answered `{}`; it MUST be refused 409 with `Chat <name> is going on; delete it once it rests.`
-while a host or any other process holds the chat.
+answered `{}`. Where a host holds the chat between turns, the daemon MUST first end the chat there
+as an empty `chat.say` does (Section 4.25.2). It MUST be refused 409 with `Chat <name> has a turn
+open; delete it once it is done.` while the chat's turn is open or a process that is no host
+holds the chat.
 
 #### 4.25.8. `chat.harness.list`, `chat.harness.get` and `chat.harness.adopt`
 

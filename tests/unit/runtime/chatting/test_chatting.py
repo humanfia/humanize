@@ -904,6 +904,62 @@ def test_a_chat_carried_on_goes_on_in_its_epic_and_its_conversation(
     assert ran.spent == {"cost": 1.5, "output_tokens": 6, "seconds": 3.0}
 
 
+def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_nothing(
+    wired: Wired,
+) -> None:
+    first = _had(wired, Person())
+    wrote = epic.journal(first.at).read_bytes()
+    seen: list[tuple[object, object, bool, bool]] = []
+
+    @dataclass
+    class Waits(Person):
+        chat: Chat | None = None
+
+        async def next(self, answered: str) -> str:
+            chat = self.chat
+            assert chat is not None
+            held = chat.envs
+            seen.append(
+                (
+                    chat.at,
+                    held and [one.role for one in held.held_envs()],
+                    chat.between,
+                    epic.going(first.at),
+                )
+            )
+            return await super().next(answered)
+
+    # Ended with nothing said: nothing was opened, and nothing written down.
+    person = Waits()
+    person.chat = _chat(wired, person, task="", resume=first.at)
+    ended = asyncio.run(person.chat.run())
+
+    assert (ended.at, ended.state) == (first.at, "stopped")
+    assert seen == [(first.at, ["workspace"], True, False)]
+    assert person.chat.envs is None
+    assert epic.journal(first.at).read_bytes() == wrote
+    assert len(wired.driver.sessions) == 1
+    assert wired.env.closes == 2
+
+    # Said something, it is carried on by that, as one carried on with it is.
+    person = Waits(["and now?"])
+    person.chat = _chat(wired, person, task="", resume=first.at)
+    again = asyncio.run(person.chat.run())
+
+    assert again.at == first.at
+    _, carried = wired.driver.sessions
+    assert carried.carried == Kept(
+        HarnessKind.CLAUDE, "s1", first.at / epic.SESSIONS / "claude"
+    )
+    assert carried.requests[0].prompt == "and now?"
+    assert person.shown == ["", "did: and now?"]
+    events = _events(first.at)
+    assert [one["event"] for one in events].count("reopened") == 1
+    assert next(one for one in events if one["event"] == "reopened")["task"] == (
+        "and now?"
+    )
+
+
 def test_a_chat_started_in_a_worktree_works_there_and_says_where(
     wired: Wired, tmp_path: Path
 ) -> None:

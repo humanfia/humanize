@@ -1753,6 +1753,26 @@ def test_an_ai_chan_conversation_is_a_chat_whose_assistant_plays_her_role(
         host.close()
 
 
+def test_a_chat_carried_on_needs_nothing_said_and_a_new_one_does(
+    where: Workspace,
+) -> None:
+    where.epics.kept["20260101-chat"] = where.workspace / "20260101-chat"
+    checked = hosting.chat_checked(
+        cast("Any", where), {"task": "", "resume": "20260101-chat"}
+    )
+    assert (checked["ok"], checked["task"]) == (True, "")
+    assert hosting.chat_checked(
+        cast("Any", where), {"task": "", "resume": "20200101-nothing"}
+    ) == {
+        "ok": False,
+        "why": f"20200101-nothing is not a chat of {where.workspace}.",
+        "code": 404,
+    }
+    assert hosting.chat_checked(
+        cast("Any", where), {"agent": "claude/opus", "task": ""}
+    ) == {"ok": False, "why": "a chat starts with something said", "code": 400}
+
+
 def test_an_ai_chan_conversation_carried_on_needs_nothing_said(
     where: Workspace,
 ) -> None:

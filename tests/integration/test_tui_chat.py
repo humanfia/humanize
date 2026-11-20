@@ -25,6 +25,7 @@ from hmz.runtime.epic import Ran, chats, epics, read
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.chats import Resumes
+from hmz.tui.envs import Envs
 from hmz.tui.flows import Flows
 from hmz.tui.monitoring import Monitoring
 from tests.integration.doubles_tui import (
@@ -300,6 +301,14 @@ async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
             < drawn.index("say something to continue")
         )
 
+        # Its environment opens with nothing said: no host holding it is no reason not to.
+        await typed(pilot, "/env")
+        await on(pilot, Envs)
+        await shows(pilot, "Environments", "workspace")
+        await pilot.press("escape")
+        await until(pilot, lambda: len(app.screen_stack) == 1, "the sheet to close")
+        assert (read(chat) or Ran(chat)).reopened == ""
+
         await typed(pilot, "more")
         await shows(pilot, "heard more", "◉ done")
         assert "could not be carried on" not in screen(app)
@@ -312,6 +321,8 @@ async def test_a_chat_folded_away_is_carried_on_by_resume_as_the_same_chat(
     assert listed == [{"offset": 0, "limit": 200}]
     starts = [said for method, said in asked if method == "chat.start"]
     assert [one["resume"] for one in starts] == [None, chat.name]
+    # Carried on with nothing said, for its environment; what was said then was said to it.
+    assert starts[1]["task"] == ""
     began, carried = started(workspace)
     session = began[began.index("--session-id") + 1]
     assert carried[carried.index("--resume") + 1] == session
