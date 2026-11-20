@@ -135,6 +135,25 @@ def test_the_page_is_its_own_files_and_nothing_beside_them(project: Path) -> Non
             == 304
         )
 
+        # The language is set by a script of its own, before the page's: nothing is drawn in
+        # another. The catalogs of every language are the page's files, a fragment an area.
+        scripts = re.findall(r'<script[^>]*src="([^"]+)"', page.body.decode())
+        assert scripts.index("/lang.js") < scripts.index("/app.js")
+        for path in (
+            "/lang.js",
+            "/i18n.js",
+            "/i18n/en.js",
+            "/i18n/zh-Hans.js",
+            "/i18n/zh-Hant.js",
+            "/i18n/zh-Hans/core.js",
+            "/i18n/zh-Hant/settings.js",
+            "/views/settings/language.js",
+        ):
+            catalog = browser.get(path)
+            assert catalog.status == 200, path
+            assert catalog.headers["content-type"].startswith("text/javascript"), path
+            assert catalog.headers["cache-control"] == "no-cache", path
+
         for nothing in (
             "/../pyproject.toml",
             "/site.py",

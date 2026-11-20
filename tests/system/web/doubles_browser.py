@@ -65,6 +65,7 @@ def opened(
     height: int = 860,
     dark: bool = False,
     touch: bool = False,
+    locale: str = "en-US",
     user_agent: str | None = None,
     init: str | None = None,
     routed: Callable[[Page], object] | None = None,
@@ -78,6 +79,8 @@ def opened(
       height: How tall it is.
       dark: Whether the system the browser runs on asks for dark colours.
       touch: Whether the device is touched, with nothing to point at the page with.
+      locale: The language the browser asks for, which the page is written in where none is
+        chosen: American English, whatever the machine the test runs on speaks.
       user_agent: What the browser says it is, where not its own: as the macOS app's window.
       init: A script run in the page before any of its own.
       routed: Told the page before it is opened, to answer some of its requests itself.
@@ -99,6 +102,7 @@ def opened(
             context = browser.new_context(
                 viewport={"width": width, "height": height},
                 color_scheme="dark" if dark else "light",
+                locale=locale,
                 user_agent=user_agent,
                 has_touch=touch,
                 is_mobile=touch,

@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 _PAGES = (
     "general",
     "themes",
+    "language",
     "accounts",
     "nous",
     "runtimes",

@@ -145,7 +145,8 @@ once, naming the version:
 - **Later** leaves it until you quit Humanize Desktop, which installs it then.
 
 To look now, choose **Check for Updates…** -- from the **Humanize** menu on macOS, from
-the tray icon's menu on Windows. A small window shows it looking, then how far the download is.
+the tray icon's menu on Windows. (The app's own menus and these windows are in English, whatever
+[language](/user/web#language) the page is written in.) A small window shows it looking, then how far the download is.
 Then it offers the new release, or says Humanize Desktop is up to date, or why it could not
 look. Only releases are offered, never a pre-release, unless the app you run is a pre-release
 itself: then the newest release or pre-release is.

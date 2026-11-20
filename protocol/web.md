@@ -292,6 +292,29 @@ does, from one table the page carries -- `claude` as `Claude Code`, `claude-fabl
 hold as it is written. An agent MUST be written as `-a` spells it only where it is typed, where it
 is copied, and where what names it is pointed at.
 
+**3.4.4.12** The page MUST be written in one language at a time -- English, Simplified Chinese or
+Traditional Chinese -- and MUST say which as the `lang` of its document, `en`, `zh-Hans` or
+`zh-Hant`, before anything of it is drawn.
+
+**3.4.4.13** The labels and texts this document quotes are the English ones. Written in another
+language, the page MUST say its translation of each in their place, and MUST say the English one
+wherever it has no translation. It MUST NOT say Traditional Chinese in Simplified Chinese's words,
+nor Simplified Chinese in Traditional Chinese's.
+
+**3.4.4.14** The page MUST NOT translate what it did not write: the name of a harness or of a model
+(Section 3.4.4.11), a path, an identifier, a name the user gave, the text of a task, of a flow's
+description or options, of an agent's output or of a question, and the sentence a daemon refuses or
+fails with. In every language it MUST write `Humanize`, `Ai-chan`, `Nous`, `Epic`, `Flow`,
+`Flowverse`, `Harness`, `Daemon`, `Exomyth`, `Agent` and `Worktree` in Latin script.
+
+**3.4.4.15** The page MUST write a date and a time of day as its language writes them, and as the
+browser's own region of that language does where the browser names one.
+
+**3.4.4.16** With no language chosen (Section 3.11.3.6), the page MUST be written in the first
+language the browser asks for that the page has: Traditional Chinese for a Chinese tagged `Hant`,
+or one of Taiwan, Hong Kong or Macao not tagged `Hans`; Simplified Chinese for any other Chinese;
+English for an English, and where the browser asks for none of the three.
+
 #### 3.4.5. Paths
 
 **3.4.5.1** Every field that takes a path on this machine MUST offer a browser of directories,
@@ -1232,8 +1255,8 @@ to and the groups it stands in.
 
 **3.11.1.1** Settings MUST be a dialog with two groups of pages: `App` and `Daemon`.
 
-**3.11.1.2** `App` MUST hold `Themes`, `Daemons` and `Notifications`, and MUST be the same whichever
-daemon is shown.
+**3.11.1.2** `App` MUST hold `Themes`, `Daemons`, `Notifications` and `Language`, and MUST be the
+same whichever daemon is shown.
 
 **3.11.1.3** `Daemon` MUST hold `General`, `Accounts`, `Nous`, `Runtimes`, `Backup`, `Workspace`
 and `Usage`, each of the daemon picked above them.
@@ -1323,6 +1346,11 @@ leave to show system notifications only when the user presses it.
 
 **3.11.3.5** The App settings MUST be kept in the browser's storage alone, and MUST NOT be kept in
 any daemon's settings.
+
+**3.11.3.6** `Language` MUST let the user choose `System`, `English`, `简体中文` or `繁體中文`, each
+language named in its own words whatever the page is written in. `System`, the default, MUST be no
+language chosen (Section 3.4.4.16). A choice MUST take effect at once, in every page the browser has
+open, and each page MUST stay on the view it was on.
 
 ### 3.12. Themes
 

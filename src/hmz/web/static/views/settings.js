@@ -1,7 +1,7 @@
 // What Humanize remembers, as ChatGPT keeps its settings: a dialog over the page with its pages
 // down the side, in two groups. The app's own -- how this page is drawn, which daemons it
-// reaches and what it tells you of them -- are this browser's, or this machine's, whichever
-// daemon is on screen. The daemon's -- what is true wherever Humanize runs, who its agents are
+// reaches, what it tells you of them and the language it is written in -- are this browser's,
+// or this machine's, whichever daemon is on screen. The daemon's -- what is true wherever Humanize runs, who its agents are
 // and what takes over when one fails, where their work goes, where epics are backed up, one
 // directory, and last what the runs there spent -- are read from and written to the daemon
 // picked above them, the one on screen unless another is, and each page that saves can copy
@@ -10,6 +10,7 @@
 import { call, daemon, hash, known } from '../api.js'
 import { shut, stays } from '../app.js'
 import { fill, h, iconButton, problem } from '../dom.js'
+import { t } from '../i18n.js'
 import { modal } from '../layers.js'
 import { dragged } from '../shell.js'
 
@@ -18,6 +19,7 @@ const PAGES = {
   themes: { group: 'app', label: 'Themes', about: 'Colours and pictures of this browser’s page', load: () => import('./settings/themes.js') },
   daemons: { group: 'app', label: 'Daemons', about: 'Machines this page reaches', load: () => import('./settings/daemons.js') },
   notifications: { group: 'app', label: 'Notifications', about: 'What every daemon tells you', load: () => import('./settings/notifications.js') },
+  language: { group: 'app', label: t('Language'), about: t('What this browser’s page is written in'), load: () => import('./settings/language.js') },
   general: { group: 'daemon', label: 'General', about: 'Display, Ai-chan and reporting', load: () => import('./settings/general.js') },
   accounts: { group: 'daemon', label: 'Accounts', about: 'Credentials agents run as', load: () => import('./settings/accounts.js') },
   nous: { group: 'daemon', label: 'Nous', about: 'Who takes a turn, and where it goes once it fails', load: () => import('./settings/nous.js') },

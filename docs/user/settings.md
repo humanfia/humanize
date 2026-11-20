@@ -127,8 +127,9 @@ change you have not saved yet.
 
 The [web page](/user/web#settings) has the same pages, under **Daemon**, for whichever daemon
 it reaches -- this machine or an ssh host -- with **Batch apply** to copy one to several; its
-**App** pages, themes, daemons and notifications, belong to the page and this machine alone;
-its notifications are the same settings as `hmz`'s Notifications page.
+**App** pages, themes, daemons, notifications and [language](/user/web#language), belong to the
+page and this machine alone; its notifications are the same settings as `hmz`'s Notifications
+page.
 
 ### How a page is laid out {#layout}
 

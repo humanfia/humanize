@@ -526,8 +526,9 @@ it and saying something.
 
 ### Settings {#settings}
 
-Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches and
-what it tells you of them. It is the same whichever daemon is on screen. **Daemon** is the same
+Settings has two groups. **App** is the page's own: how it is drawn, the daemons it reaches,
+what it tells you of them and the [language](#language) it is written in. It is the same
+whichever daemon is on screen. **Daemon** is the same
 pages as [`/settings`](/user/settings), in the same order, and what the epics spent, all of one
 daemon:
 
@@ -543,6 +544,7 @@ daemon:
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
 | **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
+| **Language** | The [language](#language) the page is written in: **System**, **English**, **简体中文** or **繁體中文**. Kept in this browser, never per daemon |
 
 Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
 until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
@@ -843,6 +845,32 @@ so there: a blocked one is allowed again in the browser's own settings for the s
 settings: they are kept by this browser and hold for every
 daemon, never one daemon apart. `hmz` has its own, on its
 [Notifications page](/user/settings#notifications).
+
+## Language {#language}
+
+The page is written in English, Simplified Chinese or Traditional Chinese. **Settings →
+Language** chooses which:
+
+| Choice | The page is written in |
+| --- | --- |
+| **System** | What your browser asks for, and the default: Traditional Chinese for `zh-TW`, `zh-HK`, `zh-MO` and anything tagged `Hant`, Simplified Chinese for any other Chinese, English for everything else |
+| **English** | English |
+| **简体中文** | Simplified Chinese |
+| **繁體中文** | Traditional Chinese, in Taiwan's words |
+
+A choice takes effect at once: the page opens again where it was, written in that language, and
+so does every other tab of it. Dates and times follow the language too. It is an App setting,
+kept by this browser and the same for every daemon; another browser starts on **System**.
+
+Some things stay as they were written, whatever the language:
+
+- **Names.** Humanize, Ai-chan, Nous, Epic, Flow, Flowverse, Harness, Daemon, Exomyth, Agent and
+  Worktree, and the names of harnesses and models, are written in Latin script.
+- **What the page did not write.** Tasks, what agents answer, a flow's own description and
+  options, paths, and what a daemon refuses with are shown as they are.
+- **A text not translated yet** is shown in English.
+
+`hmz` in the terminal, and the desktop app's own menu and update windows, are in English.
 
 ## From another machine {#over-ssh}
 
