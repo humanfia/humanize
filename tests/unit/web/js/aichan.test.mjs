@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 
 import { PRESETS, SCOPES, created, missing, permissionSaid, scopeOf, scopeSaid, sessionOf, stateOf, stateSaid, told } from '../../../../src/hmz/web/static/aichan.js'
@@ -89,4 +90,19 @@ test('a conversation whose chat ended failed stands failed, with what the harnes
   assert.deepEqual(stateOf({ connected: false, turn: '', records: open }), { state: 'folded', why: '' })
   // A chat stopped is one folded away, carried on by the next line.
   assert.deepEqual(stateOf({ connected: false, turn: '', records: [...open, { type: 'ended', run: 1, how: 'stopped' }] }), { state: 'folded', why: '' })
+})
+
+test('her avatar and her sixteen faces are WebP files of the page, and the docs carry the same', () => {
+  const names = ['avatar.webp', ...Array.from({ length: 16 }, (_, at) => `face-${String(at + 1).padStart(2, '0')}.webp`)].sort()
+  const page = new URL('../../../../src/hmz/web/static/ai-chan/', import.meta.url)
+  const docs = new URL('../../../../docs/public/ai-chan/', import.meta.url)
+  assert.deepEqual(readdirSync(page).sort(), names)
+  assert.deepEqual(readdirSync(docs).sort(), names)
+  for (const name of names) {
+    const file = readFileSync(new URL(name, page))
+    assert.equal(file.subarray(0, 4).toString('latin1'), 'RIFF', name)
+    assert.equal(file.subarray(8, 12).toString('latin1'), 'WEBP', name)
+    assert.ok(file.length < 64 * 1024, name)
+    assert.ok(file.equals(readFileSync(new URL(name, docs))), name)
+  }
 })

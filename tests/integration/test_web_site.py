@@ -231,7 +231,9 @@ def test_a_picture_of_the_page_is_served_as_one(
 
     package = tmp_path / "web"
     (package / "static" / "ai-chan").mkdir(parents=True)
-    (package / "static" / "ai-chan" / "avatar.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (package / "static" / "ai-chan" / "avatar.webp").write_bytes(
+        b"RIFF\x04\x00\x00\x00WEBP"
+    )
 
     def files(_: str) -> Path:
         return package
@@ -239,10 +241,10 @@ def test_a_picture_of_the_page_is_served_as_one(
     # The page's own files alone are looked for in `package`.
     monkeypatch.setattr(serving, "resources", SimpleNamespace(files=files))
     with served() as site:
-        avatar = Browser(site).get("/ai-chan/avatar.png")
+        avatar = Browser(site).get("/ai-chan/avatar.webp")
         assert avatar.status == 200
-        assert avatar.headers["content-type"] == "image/png"
-        assert avatar.body == b"\x89PNG\r\n\x1a\n"
+        assert avatar.headers["content-type"] == "image/webp"
+        assert avatar.body == b"RIFF\x04\x00\x00\x00WEBP"
 
 
 def test_a_face_is_framed_by_the_page_alone_and_reaches_nothing(

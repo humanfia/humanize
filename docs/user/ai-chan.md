@@ -1,6 +1,6 @@
 # Ai-chan
 
-<img class="ai-chan-avatar" src="/ai-chan/avatar-128.png" alt="Ai-chan, drawn in pixel art" width="96" height="96">
+<img class="ai-chan-avatar" src="/ai-chan/avatar.webp" alt="Ai-chan" width="96" height="96">
 
 Ai-chan is Humanize's own operator: you tell her what you want in words, and she does it on
 your epics as you would from the prompt or the page. Ask her what your epics did today, have her
@@ -20,7 +20,6 @@ steer a session, or run the tests in an epic's environment.
 .ai-chan-avatar {
   float: right;
   margin: 0 0 12px 16px;
-  image-rendering: pixelated;
 }
 </style>
 

@@ -1609,7 +1609,7 @@ about: its epic on its daemon, or its chat, at `#/chats/<id>`.
 ### 3.16. Ai-chan
 
 **3.16.1** Every view of the page MUST offer a button, drawn as Ai-chan's avatar, the file
-`ai-chan/avatar.png` among the page's files (Section 4.5.3), that opens and closes the **Ai-chan
+`ai-chan/avatar.webp` among the page's files (Section 4.5.3), that opens and closes the **Ai-chan
 drawer** beside the view; the view of a chat MUST offer it as `Ai-chan` in `View options` (Section
 3.6.6.19) in place of that button. The drawer MUST stay open, as it was, while the user goes from
 view to view of one daemon, until it is closed.
@@ -1847,7 +1847,8 @@ and `X-Frame-Options: DENY`, but `faces/frame.html`, which MUST carry `X-Frame-O
 **4.5.2** A refusal MUST carry `{"error": "<sentence>"}`, `application/json; charset=utf-8`.
 
 **4.5.3** `GET /` MUST serve `index.html`, and `GET /<path>` the file of that path among the page's
-files, with the media type of its extension (`.html`, `.js`, `.css`, `.svg`, `.png`, `.json`).
+files, with the media type of its extension (`.html`, `.js`, `.css`, `.svg`, `.png`, `.webp`,
+`.json`).
 
 **4.5.4** A path whose components are not each one or more letters, digits, `_` or `-`, whose last
 component lacks one extension of lowercase letters or digits, or that is longer than 200 characters,

@@ -7167,10 +7167,10 @@ pre.ask-plain {
 
 /* ------------------------------------------------------------------ Ai-chan's drawer */
 
-/* She is pixel art: drawn in hard pixels at every size. */
+/* Her avatar: a round face. */
 .aichan-avatar {
-  image-rendering: pixelated;
   display: block;
+  border-radius: 50%;
 }
 
 .aichan-btn .aichan-avatar {
@@ -7339,8 +7339,7 @@ pre.ask-plain {
   align-self: start;
   margin-top: 0;
   color: transparent;
-  background: url('ai-chan/avatar-32.png') center / contain no-repeat;
-  image-rendering: pixelated;
+  background: url('ai-chan/avatar.webp') center / contain no-repeat;
 }
 
 .aichan-log .said {

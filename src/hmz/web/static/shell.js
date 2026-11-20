@@ -444,7 +444,7 @@ export function aiChanButton() {
       'data-hmz': 'aichan-toggle',
       onclick: () => dispatchEvent(new CustomEvent('hmz:aichan')),
     },
-    h('img', { class: 'aichan-avatar', src: '/ai-chan/avatar.png', alt: '', width: '24', height: '24' }),
+    h('img', { class: 'aichan-avatar', src: '/ai-chan/avatar.webp', alt: '', width: '24', height: '24' }),
   )
 }
 

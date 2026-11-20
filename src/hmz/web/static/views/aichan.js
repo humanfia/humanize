@@ -18,7 +18,7 @@ import { dragged, sidePanel } from '../shell.js'
 import { line, saidTraced, sayer } from '../transcript.js'
 
 /** Her avatar, as drawn beside what she says and over her drawer. */
-const AVATAR = '/ai-chan/avatar.png'
+const AVATAR = '/ai-chan/avatar.webp'
 
 /** How often her conversations are read again while the drawer is open, in milliseconds. */
 const EVERY = 3000
