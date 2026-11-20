@@ -179,8 +179,6 @@ export function mountSidebar(root, context, where) {
     ),
     splitter(),
   )
-  // The band across its top, above the row.
-  dragged(root, '')
   // What is offered between the epics, rather than on one of them.
   menuOn(list, () => [{ label: 'Import', glyph: 'file', act: pick }])
   root.addEventListener('click', (event) => {

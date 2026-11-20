@@ -1479,26 +1479,40 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
     project: Path, engine: str
 ) -> None:
     """The app's window draws the page to its top edge, its traffic lights over the top left."""
-    # How far across, and how far down, they reach, at most.
+    # How far across they reach, at most, and how high the row they stand in is.
     lights = 76
-    strip = 30
+    row = 44
     clicked = "a, button, input, select, textarea, summary, [role=tab]"
+    # What can be clicked where they stand, the window's left 76 pixels and its top 44: what is
+    # drawn there, every 4 pixels.
+    under = (
+        "(() => { const found = new Set(); for (let x = 0; x < 76; x += 4) for (let y = 0;"
+        " y < 44; y += 4) { const el = document.elementFromPoint(x, y)?.closest('a, button,"
+        " input, select, textarea, summary, [role=tab]'); if (el) found.add(el.outerHTML"
+        ".slice(0, 80)) } return [...found] })()"
+    )
+
+    def box(page: Page, selector: str) -> dict[str, float]:
+        found = page.locator(selector).first.bounding_box()
+        assert found
+        return {key: found[key] for key in ("x", "y", "width", "height")}
 
     def left(page: Page, selector: str) -> float:
-        box = page.locator(selector).first.bounding_box()
-        assert box
-        return box["x"]
+        return box(page, selector)["x"]
 
     def top(page: Page, selector: str) -> float:
-        box = page.locator(selector).first.bounding_box()
-        assert box
-        return box["y"]
+        return box(page, selector)["y"]
+
+    def foot(page: Page, selector: str) -> float:
+        found = box(page, selector)
+        return found["y"] + found["height"]
 
     with served() as site, opened(site, engine=engine) as page:
         assert page.evaluate("document.documentElement.dataset.shell") is None
         expect(page.locator("[data-tauri-drag-region]")).to_have_count(0)
         assert left(page, ".brand") < lights
-        assert top(page, ".brand") < strip
+        assert top(page, ".brand") < row
+        assert page.evaluate(under) != []
 
     # Said before the page is drawn: by the time its body is, so it never moves.
     at_body = (
@@ -1511,10 +1525,17 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         opened(site, engine=engine, user_agent=_APP, init=at_body) as page,
     ):
         assert page.evaluate("window.shellAtBody") == "macos"
-        # The sidebar's top row stands beside them, in their strip: what hides the sidebar
-        # straight after them, and the mark, which they took the place of, at the row's far end.
+        # One row across the window, the lights in it: the sidebar's title row and the bar over
+        # the view are as high, their feet on one line, and the first entry stands under it.
+        assert top(page, ".side-top") == 0
+        assert foot(page, ".side-top") == row
+        assert top(page, "[data-hmz=bar]") == 0
+        assert foot(page, "[data-hmz=bar]") == row
+        assert top(page, ".side-nav a") >= row
+        # What hides the sidebar stands straight after them, and the mark, which they took the
+        # place of, at the row's far end: in the row's middle, as far from the sidebar's edge
+        # as it stands from it in a browser.
         assert left(page, ".side-fold") >= lights
-        assert top(page, ".side-fold") < strip
         assert left(page, ".brand") > left(page, ".side-forward")
         assert page.evaluate(
             "document.querySelector('.side-top .brand').getBoundingClientRect().right"
@@ -1523,15 +1544,21 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
             " return row.getBoundingClientRect().right"
             " - parseFloat(getComputedStyle(row).paddingRight) })()"
         )
-        for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
-            expect(page.locator(row)).to_have_attribute(
+        mark = box(page, ".side-top .brand img")
+        side = box(page, "[data-hmz=sidebar] .side-top")
+        assert (mark["width"], mark["height"]) == (24, 24)
+        assert mark["y"] == row - mark["y"] - mark["height"] == 10
+        assert side["x"] + side["width"] - mark["x"] - mark["width"] == 16
+        for one in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
+            expect(page.locator(one)).to_have_attribute(
                 "data-tauri-drag-region", "deep"
             )
-        # The view itself, whose strip over what it draws is all of it not covered.
-        expect(page.locator("[data-hmz=page]")).to_have_attribute(
-            "data-tauri-drag-region", ""
+        # Nothing but the rows moves the window: no strip is kept over the view.
+        expect(page.locator("[data-hmz=page]")).not_to_have_attribute(
+            "data-tauri-drag-region", re.compile("")
         )
         expect(page.locator(f":is({clicked})[data-tauri-drag-region]")).to_have_count(0)
+        assert page.evaluate(under) == []
         # A menu opened in a row is not what the window is dragged by.
         page.locator("[data-hmz=daemon-bar]").click()
         expect(page.locator("[role=menu]")).to_have_attribute(
@@ -1539,21 +1566,41 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         )
         page.keyboard.press("Escape")
 
-        # Across the whole window: the view is drawn under the strip too.
+        # The sidebar hidden, the bar is the top left: no higher, and what shows the sidebar
+        # stands straight after them.
         page.locator(".side-fold").click()
-        assert top(page, "[data-hmz=bar] .bar-side") >= strip
-        assert left(page, "[data-hmz=bar] .bar-side") < lights
+        assert top(page, "[data-hmz=bar]") == 0
+        assert foot(page, "[data-hmz=bar]") == row
+        assert left(page, "[data-hmz=bar] .bar-side") >= lights
+        assert page.evaluate(under) == []
         # Full screen, where they are gone, it is drawn as in a browser.
         page.evaluate(
             "document.documentElement.toggleAttribute('data-fullscreen', true)"
         )
-        assert top(page, "[data-hmz=bar] .bar-side") < strip
-
-        page.set_viewport_size({"width": 700, "height": 800})
+        assert left(page, "[data-hmz=bar] .bar-side") < lights
+        assert page.evaluate(under) != []
         page.evaluate(
             "document.documentElement.toggleAttribute('data-fullscreen', false)"
         )
-        assert top(page, "[data-hmz=bar] .bar-side") >= strip
+
+        # A narrow window: the bar, the sidebar drawn over it, and a dialog that fills it.
+        page.set_viewport_size({"width": 700, "height": 800})
+        assert top(page, "[data-hmz=bar]") == 0
+        assert left(page, "[data-hmz=bar] .bar-side") >= lights
+        assert page.evaluate(under) == []
+        page.locator("[data-hmz=bar] .bar-side").click()
+        expect(page.locator("[data-hmz=sidebar]")).to_be_in_viewport(ratio=1)
+        assert left(page, ".side-fold") >= lights
+        assert page.evaluate(under) == []
+        page.keyboard.press("Escape")
+        page.keyboard.press("Meta+k")
+        expect(page.locator("[data-hmz=dialog-search]")).to_be_visible()
+        assert top(page, "[data-hmz=dialog-search]") == 0
+        assert page.evaluate(under) == []
+        go(page, "/settings/general")
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        assert top(page, ".settings-nav") == 0
+        assert page.evaluate(under) == []
 
 
 def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(

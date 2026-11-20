@@ -1,18 +1,25 @@
-//! The window's chrome, one with the page: no title bar of its own but the traffic lights, where
-//! macOS puts them, over a strip the page keeps for them, and the page told it is in the app, and
-//! when the window is full screen and they are gone, to keep it no more. On Windows, the caption
-//! buttons, drawn by the app over the top right of whichever page the window shows.
+//! The window's chrome, one with the page: no title bar of its own but the traffic lights, set in
+//! the page's top row, which keeps room at its left for them, and the page told it is in the app,
+//! and when the window is full screen and they are gone, to keep it no more. On Windows, the
+//! caption buttons, drawn by the app over the top right of whichever page the window shows.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(target_os = "macos")]
-use tauri::TitleBarStyle;
+use tauri::{LogicalPosition, TitleBarStyle};
 use tauri::{Manager, Runtime, WebviewWindow, WebviewWindowBuilder, Window};
 
 /// What WKWebView says it is where it is not told otherwise.
 #[cfg(target_os = "macos")]
 const WEBKIT: &str =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)";
+
+/// Where the traffic lights stand, in points: 16 in from the window's left edge, so that they end
+/// within the 84 the page's top row keeps for them (`--lights`), and in a title bar taller than
+/// they are by 28, which for lights 16 high is the 44 of that row (`--bar-h`): AppKit centres
+/// them in it.
+#[cfg(target_os = "macos")]
+const LIGHTS: (f64, f64) = (16.0, 28.0);
 
 /// Minimize, maximize and close, 46×32 px each as Windows draws them, in a shadow root the page's
 /// style never reaches, and outside its body, which may drag the window. Styled by a sheet built
@@ -61,7 +68,7 @@ const CAPTION: &str = r#"addEventListener('DOMContentLoaded', () => {
 static FULL: AtomicBool = AtomicBool::new(false);
 static MAX: AtomicBool = AtomicBool::new(false);
 
-/// The window's chrome: the page drawn up to its top edge, under the traffic lights.
+/// The window's chrome: the page drawn up to its top edge, the traffic lights in its top row.
 #[cfg(target_os = "macos")]
 pub fn dress<'a, R: Runtime, M: Manager<R>>(
     window: WebviewWindowBuilder<'a, R, M>,
@@ -69,6 +76,7 @@ pub fn dress<'a, R: Runtime, M: Manager<R>>(
 ) -> WebviewWindowBuilder<'a, R, M> {
     window
         .title_bar_style(TitleBarStyle::Overlay)
+        .traffic_light_position(LogicalPosition::new(LIGHTS.0, LIGHTS.1))
         .hidden_title(true)
         .user_agent(&user_agent(version))
 }
