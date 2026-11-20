@@ -317,6 +317,12 @@ language the browser asks for that the page has: Traditional Chinese for a Chine
 or one of Taiwan, Hong Kong or Macao not tagged `Hans`; Simplified Chinese for any other Chinese;
 English for an English, and where the browser asks for none of the three.
 
+**3.4.4.11** A touch held still on a thing the page draws MUST open, after about half a second,
+what a right click on it opens; moving or scrolling away, or lifting first, MUST leave it closed.
+
+**3.4.4.12** A right click and a held touch MUST leave the browser's own menu, and what is
+selected, where there is text to read or to write.
+
 #### 3.4.5. Paths
 
 **3.4.5.1** Every field that takes a path on this machine MUST offer a browser of directories,

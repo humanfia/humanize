@@ -198,6 +198,17 @@ function open(items, { x = 0, y = 0, kind = '', anchor = null, of = null, back =
   return true
 }
 
+/** Opens what is offered at `target`, where it has a menu of its own. */
+function offer(target, x, y) {
+  // The thing nearest the pointer that has a menu of its own.
+  let at = target
+  while (at && !menus.has(at)) at = at.parentElement
+  if (!at || (readable(target) && String(getSelection()))) return false
+  const box = at.getBoundingClientRect()
+  const { items, kind } = menus.get(at)
+  return open(items, { x: x || box.left + 8, y: y || box.bottom, kind, of: at })
+}
+
 document.addEventListener('contextmenu', (event) => {
   const target = event.target instanceof Element ? event.target : null
   if (!target) return
@@ -207,18 +218,94 @@ document.addEventListener('contextmenu', (event) => {
     if (!readable(target)) event.preventDefault()
     return
   }
-  // The thing nearest the pointer that has a menu of its own.
-  let at = target
-  while (at && !menus.has(at)) at = at.parentElement
-  if (at && !(readable(target) && String(getSelection()))) {
+  // A hold opens the menu itself, and a phone may raise this event for the same hold:
+  // it must not open the menu a second time.
+  if (holding || swallow) {
     event.preventDefault()
-    const { items, kind } = menus.get(at)
-    open(items, { x: event.clientX, y: event.clientY, kind, of: at, keyed: byKey })
+    return
+  }
+  if (offer(target, event.clientX, event.clientY)) {
+    event.preventDefault()
     return
   }
   // Nothing to offer here, and nothing to read or write: the browser's menu is no app's.
   if (!readable(target)) event.preventDefault()
 })
+
+// -------------------------------------------------------- a finger held still
+
+// A phone has no right click. A finger held still on a thing opens what a right click
+// opens; moving, scrolling or lifting first gives up, so that scrolling and selecting
+// keep working, and the browser's own menu stays where there is text to read or write.
+const HOLD = 500
+const SLOP = 10
+let holding = null
+let swallow = null
+
+function release() {
+  if (!holding) return
+  clearTimeout(holding.timer)
+  holding = null
+}
+
+function liftSettled() {
+  swallow = null
+}
+
+function openHeld() {
+  const { at, x, y, pointerId } = holding
+  holding = null
+  const { items, kind } = menus.get(at)
+  open(items, { x, y, kind, of: at })
+  // The menu opens under the finger: the click its lift makes must not choose an item,
+  // where the browser makes one, and only that click. It stays armed until that finger
+  // lifts, however long the hold goes on.
+  swallow = { pointerId }
+}
+
+document.addEventListener('pointerdown', (event) => {
+  release()
+  if (!['touch', 'pen'].includes(event.pointerType) || event.button !== 0) return
+  const target = event.target instanceof Element ? event.target : null
+  if (!target || readable(target)) return
+  let at = target
+  while (at && !menus.has(at)) at = at.parentElement
+  if (!at) return
+  holding = { at, x: event.clientX, y: event.clientY, pointerId: event.pointerId,
+    timer: setTimeout(openHeld, HOLD) }
+}, true)
+
+document.addEventListener('pointermove', (event) => {
+  if (holding?.pointerId !== event.pointerId) return
+  if (Math.hypot(event.clientX - holding.x, event.clientY - holding.y) > SLOP) release()
+}, true)
+
+document.addEventListener('pointerup', (event) => {
+  if (holding?.pointerId === event.pointerId) release()
+  // A little after that finger lifts, its click -- where the browser made one -- is past,
+  // and a tap of the user's own must not be eaten.
+  if (swallow?.pointerId === event.pointerId) setTimeout(liftSettled, 150)
+}, true)
+
+document.addEventListener('pointercancel', (event) => {
+  release()
+  if (swallow?.pointerId === event.pointerId) liftSettled()
+}, true)
+document.addEventListener('scroll', () => {
+  release()
+  liftSettled()
+}, true)
+window.addEventListener('blur', () => {
+  release()
+  liftSettled()
+})
+
+document.addEventListener('click', (event) => {
+  if (!swallow) return
+  liftSettled()
+  event.stopPropagation()
+  event.preventDefault()
+}, true)
 
 // ------------------------------------------------------------------ tips
 
