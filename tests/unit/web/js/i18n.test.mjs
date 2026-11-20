@@ -100,17 +100,18 @@ test('a text is said in the language of the page, and in English where that lang
 })
 
 test('a text that differs by number is picked by `n`, by the rules of the language it is said in', () => {
-  const key = '{n} flows have a newer release'
-  const forms = { one: '{n} flow has a newer release', other: '{n} flows have a newer release' }
+  // A text no catalog holds: what is put in for it here is all there is of it, and is taken out again.
+  const key = '{n} lamps have a newer wick'
+  const forms = { one: '{n} lamp has a newer wick', other: '{n} lamps have a newer wick' }
   holding({ en: { [key]: forms } }, () => {
-    assert.equal(t(key, { n: 1 }), '1 flow has a newer release')
-    assert.equal(t(key, { n: 2 }), '2 flows have a newer release')
-    assert.equal(t(key, { n: 0 }), '0 flows have a newer release')
+    assert.equal(t(key, { n: 1 }), '1 lamp has a newer wick')
+    assert.equal(t(key, { n: 2 }), '2 lamps have a newer wick')
+    assert.equal(t(key, { n: 0 }), '0 lamps have a newer wick')
     // A language without the text says the English one, by English's rules.
-    assert.equal(written('zh-Hans', () => t(key, { n: 1 })), '1 flow has a newer release')
-    holding({ 'zh-Hans': { [key]: '{n} 个 Flow 有新版本' }, 'zh-Hant': { [key]: { other: '{n} 個 Flow 有新版本' } } }, () => {
-      assert.equal(written('zh-Hans', () => t(key, { n: 1 })), '1 个 Flow 有新版本')
-      assert.equal(written('zh-Hant', () => t(key, { n: 1 })), '1 個 Flow 有新版本')
+    assert.equal(written('zh-Hans', () => t(key, { n: 1 })), '1 lamp has a newer wick')
+    holding({ 'zh-Hans': { [key]: '{n} 盏灯有新灯芯' }, 'zh-Hant': { [key]: { other: '{n} 盞燈有新燈芯' } } }, () => {
+      assert.equal(written('zh-Hans', () => t(key, { n: 1 })), '1 盏灯有新灯芯')
+      assert.equal(written('zh-Hant', () => t(key, { n: 1 })), '1 盞燈有新燈芯')
     })
   })
 })

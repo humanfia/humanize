@@ -7,9 +7,9 @@ import { t } from './i18n.js'
 
 /** The kinds Search lists, as its tabs name them, in their order: a chat is never an epic. */
 export const TABS = [
-  ['', 'All'],
-  ['chat', 'Chats'],
-  ['flow', 'Epics'],
+  ['', t('All')],
+  ['chat', t('Chats')],
+  ['flow', t('Epics')],
 ]
 
 /**
@@ -18,12 +18,12 @@ export const TABS = [
  */
 export function hints(mac) {
   return [
-    ['Close', ['Esc']],
-    ['Change type', ['←', '→']],
-    ['Filters', ['/']],
-    ['Actions', [mac ? 'Option' : 'Alt', 'Enter']],
-    ['Move', ['↑', '↓']],
-    ['Open', ['Enter']],
+    [t('Close'), ['Esc']],
+    [t('Change type'), ['←', '→']],
+    [t('Filters'), ['/']],
+    [t('Actions'), [mac ? 'Option' : 'Alt', 'Enter']],
+    [t('Move'), ['↑', '↓']],
+    [t('Open'), ['Enter']],
   ]
 }
 
@@ -152,7 +152,7 @@ export function cleared(chosen) {
 
 /** What stands over the results: the newest of everything, or what was found. */
 export function heading(chosen) {
-  return narrowed(chosen) ? 'Results' : 'Recents'
+  return narrowed(chosen) ? t('Results') : t('Recents')
 }
 
 /**
@@ -170,5 +170,5 @@ export function moved(at, count, key) {
 
 /** Which rows a page shows of how many, as the foot says it. */
 export function paged(data) {
-  return data.total ? `${data.offset + 1}–${data.offset + data.runs.length} of ${data.total}` : ''
+  return data.total ? t('{from}–{to} of {total}', { from: data.offset + 1, to: data.offset + data.runs.length, total: data.total }) : ''
 }

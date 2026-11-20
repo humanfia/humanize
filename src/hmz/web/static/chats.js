@@ -6,6 +6,8 @@
 // daemon moves it among the chats as it starts (Section 3.5.20.3). Nothing here touches the
 // page, so it is read the same by the views and by their tests.
 
+import { t } from './i18n.js'
+
 /**
  * A chat as `chat.list` rows it, as a row of the page's lists: named by its id, told by its
  * title, of the kind `chat`, going while a host or another process holds it, with its turn as
@@ -98,10 +100,10 @@ export function worksIn(chat) {
 }
 
 /** What deleting a chat does, as it is said before it is done (Section 8.10.4 of protocol/core.md). */
-export const DELETING = 'This permanently removes the chat’s record and the sessions kept with it, and cannot be undone. A worktree it worked in is left on disk.'
+export const DELETING = t('This permanently removes the chat’s record and the sessions kept with it, and cannot be undone. A worktree it worked in is left on disk.')
 
 /** Why a new chat cannot be started in a worktree, by what is known of its folder. */
-export const NO_WORKTREE = { none: 'A worktree needs a folder', plain: 'This folder is not a git repository' }
+export const NO_WORKTREE = { none: t('A worktree needs a folder'), plain: t('This folder is not a git repository') }
 
 /**
  * Whether a folder is in a git repository, as far as the daemon's listing of directories tells:

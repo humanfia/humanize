@@ -8,6 +8,7 @@ import { call, hash, refresh } from './api.js'
 import { covered, go } from './app.js'
 import { TITLE_MOST, pathOf, titled } from './chats.js'
 import { h } from './dom.js'
+import { t } from './i18n.js'
 import { toast } from './ui.js'
 
 /** How long a refusal is said for, in milliseconds: a sentence, read whole. */
@@ -30,7 +31,7 @@ const refused = (error) => toast(error.message, REFUSED)
  */
 export function retitling(shown, chat) {
   if (shown.hidden) return
-  const field = h('input', { class: 'title-edit', type: 'text', 'aria-label': 'Chat title', maxlength: TITLE_MOST, value: chat.title, 'data-hmz': 'title-edit' })
+  const field = h('input', { class: 'title-edit', type: 'text', 'aria-label': t('Chat title'), maxlength: TITLE_MOST, value: chat.title, 'data-hmz': 'title-edit' })
   let over = false
   let saving = false
   const end = (back) => {
@@ -111,11 +112,11 @@ export function deletingAt(chat, { on = '' } = {}) {
  */
 export function chatActions(chat, { rename = null } = {}) {
   return {
-    rename: rename ? { label: 'Rename', glyph: 'compose', act: rename } : null,
-    fork: { label: 'Fork', glyph: 'fork', act: () => forking(chat) },
+    rename: rename ? { label: t('Rename'), glyph: 'compose', act: rename } : null,
+    fork: { label: t('Fork'), glyph: 'fork', act: () => forking(chat) },
     archive: chat.archived
-      ? { label: 'Unarchive', glyph: 'archive', act: () => archiving(chat, false).then(() => toast('Unarchived'), refused) }
-      : { label: 'Archive', glyph: 'archive', act: () => archiving(chat, true).then(() => toast('Archived'), refused) },
-    delete: { label: 'Delete', glyph: 'trash', danger: true, href: deletingAt(chat) },
+      ? { label: t('Unarchive'), glyph: 'archive', act: () => archiving(chat, false).then(() => toast(t('Unarchived')), refused) }
+      : { label: t('Archive'), glyph: 'archive', act: () => archiving(chat, true).then(() => toast(t('Archived')), refused) },
+    delete: { label: t('Delete'), glyph: 'trash', danger: true, href: deletingAt(chat) },
   }
 }
