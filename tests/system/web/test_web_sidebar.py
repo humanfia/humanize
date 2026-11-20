@@ -668,12 +668,23 @@ def test_a_list_by_folder_with_nothing_to_show_keeps_a_heading(engine: str) -> N
         expect(page.locator("[data-hmz=epics] .side-quiet")).to_have_text(
             "Nothing here yet"
         )
+        # Where its rows would be, what starts a chat in it.
+        fresh = page.locator("[data-hmz=epics] [data-hmz=group-empty-new]")
+        expect(fresh).to_have_text("New chat")
         # What brings the chat back is on that heading.
         menu = _group_and_sort(page)
         menu.get_by_role("menuitem", name="Show").hover()
         page.get_by_role("menuitemcheckbox", name="Chats").click()
         expect(epics).to_have_count(1)
         _named(page, "No folder")
+        expect(fresh).to_have_count(0)
+        page.keyboard.press("Escape")
+        menu = _group_and_sort(page)
+        menu.get_by_role("menuitem", name="Show").hover()
+        page.get_by_role("menuitemcheckbox", name="Chats").click()
+        page.keyboard.press("Escape")
+        fresh.click()
+        expect(page).to_have_url(re.compile(r"#/new/chat$"))
 
 
 def test_the_folders_are_rows_of_their_own_where_the_list_is_not_grouped_by_them(

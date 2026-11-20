@@ -453,7 +453,16 @@ export function mountSidebar(root, context, where) {
             ? null
             : group.kind === 'folders'
               ? h('ul', { role: 'list' }, group.folders.map(place))
-              : [rows.length ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run)))) : h('p', { class: 'side-quiet nested' }, t('Nothing here yet')), last],
+              : [
+                  rows.length
+                    ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run))))
+                    : [
+                        h('p', { class: 'side-quiet nested' }, t('Nothing here yet')),
+                        // What puts something in it, where its rows would be; a folder that went offers nothing.
+                        lost ? null : h('button', { class: 'side-more', type: 'button', 'data-hmz': 'group-empty-new', 'aria-describedby': `side-group-${at}`, onclick: () => (location.hash = hash(fresh)) }, t('New chat')),
+                      ],
+                  last,
+                ],
         )
       }),
       // Every row read is shown and the daemon holds more: the list ends with what reads a page

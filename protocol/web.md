@@ -364,7 +364,8 @@ in the sidebar from then on, save as Section 3.5.7.1 states.
 their latest epic, newest first, as the list is sorted (3.5.17).
 
 **3.5.4** Each group MUST list its epics in the order the list is sorted in (3.5.17), chats among the
-others, and MUST say `Nothing here yet` where it has none.
+others, and MUST say `Nothing here yet` where it has none, with the button of Section 3.4.6.1
+that starts a chat in it.
 
 **3.5.5** The user MUST be able to fold a group away and open it again by its heading; the page MUST
 remember which groups are folded in this browser.

@@ -98,7 +98,8 @@ under the list. In **Search**, where nothing matches what you typed or filtered 
 ### The list {#the-list}
 
 **Group and sort**, on any heading of the list, arranges it; the browser keeps what you chose.
-A heading is always there to hold it: with nothing to show, a group says **Nothing here yet**.
+A heading is always there to hold it: with nothing to show, a group says **Nothing here yet** over a
+**New chat** button that starts a chat in it.
 
 | Choice | What it does |
 | --- | --- |
