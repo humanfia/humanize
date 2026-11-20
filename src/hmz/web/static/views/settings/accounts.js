@@ -5,7 +5,8 @@
 // through the local LiteLLM gateway are listed last, under a group of their own -- and where the
 // extra they need is missing, the group says so and the line that adds it is said under it.
 
-import { ago, fill, h, iconButton, problem } from '../../dom.js'
+import { ago, empty, fill, h, iconButton, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { closed, opened, place } from '../../layers.js'
 import { harnessName } from '../../names.js'
 import { menuButton, menuOn, toast } from '../../ui.js'
@@ -107,7 +108,14 @@ export function draw(holder, query, parts, scope) {
             { class: 'table-wrap' },
             h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'CLI'), h('th', {}, 'Account'), h('th', {}, 'Sets'), h('th', {}, 'Models'), h('th', {}, ''))), h('tbody', {}, rows)),
           )
-        : h('p', { class: 'dim' }, 'Nobody has made an account yet: every agent runs as this machine’s own sign-in.'),
+        : empty(
+            t('No account yet.'),
+            t(' Every agent runs as this machine’s own sign-in until you add one.'),
+            h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'account-add', onclick: () => {
+              making.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              making.querySelector('#account-name')?.focus({ preventScroll: true })
+            } }, t('Add account')),
+          ),
     )
   }
 

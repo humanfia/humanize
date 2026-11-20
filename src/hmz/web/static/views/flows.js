@@ -1,19 +1,21 @@
 // The flows, in the two pages `/flow` opens on in the terminal interface. Installed: a card for
 // each flow on offer on the daemon, by where it came from, each installed out of an index with
 // its release and any newer one -- and, one opened, what it declares, with starting it, updating
-// it and uninstalling it. The page picks no workspace: an address that names one (a folder's
-// `Flows here`) adds that folder's own flows, and copying one into it whole. Flowverses: a tab
-// for every index flows are installed out of, fetched or written into -- not this project's
-// flows or yours, which are no index -- the first open with no press, showing every flow it
-// lists, every release of each, installing, switching and uninstalling one; with adding,
-// fetching and removing one. What a card or a tab opens stands under them, so that none moves.
+// it and uninstalling it. The page is the daemon's and no folder's: it names, picks and depends
+// on no workspace, and a workspace an address names is left out of it. Flowverses: a tab for
+// every index flows are installed out of, fetched or written into -- not a project's flows or
+// yours, which are no index -- the first open with no press, showing every flow it lists, every
+// release of each, installing, switching and uninstalling one; with adding, fetching and
+// removing one. What a card or a tab opens stands under them, so that none moves. Where there
+// is nothing to list, the page says so and offers what gets something there (Section 3.4.6 of
+// protocol/web.md).
 
 import { call, given, hash, poll, refresh } from '../api.js'
 import { stays } from '../app.js'
 import { confirming } from '../confirm.js'
-import { acting, fill, h, icon, iconButton, pathText, permitted, problem } from '../dom.js'
+import { acting, empty, fill, h, icon, iconButton, permitted, problem } from '../dom.js'
+import { t } from '../i18n.js'
 import { harnessName, verseName } from '../names.js'
-import { missing, workspaces } from '../places.js'
 import { bar, picks, tabbed } from '../shell.js'
 import { copy, menuOn, toast } from '../ui.js'
 
@@ -21,12 +23,6 @@ export function mount(root, { query }) {
   let tab = query.get('tab') === 'verses' ? 'verses' : 'installed'
   let chosen = query.get('flow') || ''
   let verse = query.get('verse') || ''
-  // The folder whose own flows are listed with the rest, where the address names one: said in
-  // the bar, and picked nowhere on this page.
-  const workspace = query.get('workspace') || ''
-  // Whether that folder's directory went: said in the bar, and nothing is then copied into it.
-  let lost = false
-  const where = h('span', {}, workspace ? pathText(workspace) : null)
   const tabs = h('div', { class: 'flows-tabs' })
   const said = h('div', { class: 'flows-said', 'aria-live': 'polite' })
   const list = h('div', { class: 'gallery', 'data-hmz': 'flows' }, h('p', { class: 'loading', role: 'status' }, 'Reading the flows…'))
@@ -36,7 +32,7 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view' },
-      bar({ title: 'Flows', sub: workspace ? where : null }),
+      bar({ title: 'Flows' }),
       h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, tabs, said, list, shown)),
     ),
   )
@@ -49,7 +45,7 @@ export function mount(root, { query }) {
   const watch = () => {
     stop()
     stopVerses()
-    stays({ tab: tab === 'verses' ? 'verses' : '', workspace, flow: tab === 'installed' ? chosen : '', verse: tab === 'verses' ? verse : '' })
+    stays({ tab: tab === 'verses' ? 'verses' : '', flow: tab === 'installed' ? chosen : '', verse: tab === 'verses' ? verse : '' })
     // Picked by the keys, a tab is drawn again: the focus stays on it.
     const held = tabs.contains(document.activeElement)
     fill(tabs, tabbed([['installed', 'Installed'], ['verses', 'Flowverses']], tab, (key) => {
@@ -63,7 +59,7 @@ export function mount(root, { query }) {
       if (tab === 'verses') drawVerses(error)
     })
     if (tab === 'installed') {
-      stop = poll('flows.list', given({ workspace }), 30000, drawFlows)
+      stop = poll('flows.list', {}, 30000, drawFlows)
       if (chosen) show(chosen)
       else open()
     } else {
@@ -135,8 +131,16 @@ export function mount(root, { query }) {
 
   // ------------------------------------------------------------------ installed
 
-  /** Where an epic of the flow is started: in the folder the address names, where it names one. */
-  const newEpic = (flow) => hash(`/new?flow=${encodeURIComponent(flow)}${workspace ? `&workspace=${encodeURIComponent(workspace)}` : ''}`)
+  /** Where an epic of the flow is started. */
+  const newEpic = (flow) => hash(`/new?flow=${encodeURIComponent(flow)}`)
+
+  /** Opens `Flowverses`, where a flow is installed from. */
+  const browse = () => {
+    tab = 'verses'
+    chosen = ''
+    watch()
+    tabs.querySelector('[aria-selected=true]')?.focus()
+  }
 
   function drawFlows(data, error) {
     if (!data) {
@@ -145,6 +149,17 @@ export function mount(root, { query }) {
     }
     const installed = Object.fromEntries(((verses && verses.installed) || []).map((one) => [one.flow, one]))
     const updates = Object.fromEntries(((verses && verses.updates) || []).map((one) => [one.flow, one]))
+    if (!data.flows.length) {
+      fill(
+        list,
+        empty(
+          t('No flows installed yet.'),
+          t(' A flow is what an epic runs. Install one from a flowverse.'),
+          h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'flows-browse', onclick: browse }, t('Browse Flowverses')),
+        ),
+      )
+      return
+    }
     const whose = {}
     for (const one of data.flows) (whose[one.whose] ||= []).push(one)
     fill(
@@ -166,7 +181,6 @@ export function mount(root, { query }) {
                   'span',
                   { class: 'card-name' },
                   one.name,
-                  one.name === data.flow ? h('span', { class: 'node-tag' }, 'Default') : null,
                   installed[one.name] ? h('span', { class: 'node-tag' }, installed[one.name].version) : null,
                   updates[one.name] ? h('span', { class: 'node-tag fresh' }, `${updates[one.name].to} out`) : null,
                 ),
@@ -179,7 +193,6 @@ export function mount(root, { query }) {
                 { label: 'Show', glyph: 'open', act: () => show(one.name) },
                 '-',
                 updates[one.name] ? { label: `Update to ${updates[one.name].to}`, glyph: 'download', act: () => busy(`Updating ${one.name}…`, 'flowverses.install', { flow: one.name, version: updates[one.name].to }) } : null,
-                !workspace || lost || one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => busy(`Copying ${one.name}…`, 'flows.fork', { flow: one.name, workspace }) },
                 { label: 'Copy name', glyph: 'copy', act: () => copy(one.name, 'Name copied') },
               ])
             }),
@@ -191,7 +204,7 @@ export function mount(root, { query }) {
 
   async function show(name) {
     chosen = name
-    stays({ workspace, flow: name })
+    stays({ flow: name })
     for (const card of list.querySelectorAll('.card')) {
       card.classList.toggle('chosen', card.dataset.flow === name)
       card.setAttribute('aria-pressed', String(card.dataset.flow === name))
@@ -199,7 +212,7 @@ export function mount(root, { query }) {
     put(h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let flow
     try {
-      flow = await call('flows.get', given({ name, workspace }))
+      flow = await call('flows.get', { name })
     } catch (error) {
       if (chosen === name) open(problem(error))
       return
@@ -210,7 +223,6 @@ export function mount(root, { query }) {
     const update = ((verses && verses.updates) || []).find((one) => one.flow === name)
     const actions = [h('a', { class: 'btn primary', href: newEpic(flow.name) }, icon('new'), 'New epic')]
     if (update) actions.push(acting(`Update to ${update.to}`, () => change('flowverses.install', { flow: name, version: update.to }), { busy: 'Updating…' }))
-    if (workspace && !lost && !name.startsWith('@local/')) actions.push(acting('Copy here', () => change('flows.fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
     if (installed) actions.push(confirming({ label: 'Uninstall', ask: `Uninstall ${name}?`, yes: 'Uninstall', no: 'Cancel', act: () => change('flowverses.uninstall', { flow: name }) }))
     const params = Object.entries(flow.params.properties || {})
     open(
@@ -263,7 +275,7 @@ export function mount(root, { query }) {
     const add = iconButton('plus', 'Add flowverse', { 'data-hmz': 'add-verse', 'aria-pressed': String(adding()), onclick: () => {
       if (adding()) return openVerse(verses.verses[0].name)
       verse = ''
-      stays({ tab: 'verses', workspace })
+      stays({ tab: 'verses' })
       choose('')
       add.setAttribute('aria-pressed', 'true')
       put(addVerse())
@@ -334,7 +346,7 @@ export function mount(root, { query }) {
   async function openVerse(name) {
     verse = name
     missed = ''
-    stays({ tab: 'verses', workspace, verse: name })
+    stays({ tab: 'verses', verse: name })
     choose(name)
     put(h('p', { class: 'loading', role: 'status' }, `Reading ${verseName(name)}…`))
     let index
@@ -376,13 +388,36 @@ export function mount(root, { query }) {
       // The first is Humanize's own, which is never removed.
       openVerse(verses.verses[0].name)
     } })
+    // Nothing listed: fetched, it lists none, and another flowverse may; else it is yet to be
+    // fetched, which the arrow by its name does, pressed from here.
+    const adds = () => {
+      list.querySelector('[data-hmz=add-verse]')?.click()
+      shown.querySelector('[data-hmz=add-verse-form] input')?.focus()
+    }
+    // The arrow takes the focus, and keeps it once what it fetched is drawn.
+    const fetches = () => {
+      fetching.focus()
+      fetching.click()
+    }
+    const nothing = () =>
+      index.fetched || !fetching
+        ? empty(
+            t('This flowverse lists no flow.'),
+            t(' Add another flowverse to find more.'),
+            h('button', { class: 'btn', type: 'button', 'data-hmz': 'verse-add', onclick: adds }, t('Add flowverse')),
+          )
+        : empty(
+            t('Not fetched yet.'),
+            t(' Fetch this flowverse to see what it lists.'),
+            h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'verse-fetch', onclick: fetches }, t('Fetch')),
+          )
     put(
       h('header', {}, h('div', { class: 'verse-head' }, h('h2', { title: verseName(name) }, verseName(name)), fetching, fetching ? going : null), remove ? h('div', { class: 'row' }, remove) : null),
       h('p', { class: 'dim mono' }, index.url || 'local'),
       index.edited ? h('p', { class: 'note' }, 'Something is written into it: fetching resets it to what its repository says.') : null,
       index.flows.length
         ? h('div', { class: 'releases', 'data-hmz': 'index' }, index.flows.map((one) => release(name, one)))
-        : h('p', { class: 'dim' }, index.fetched ? 'Its index lists no flow.' : 'Fetch it to see what it lists.'),
+        : nothing(),
       index.skipped.length
         ? h('details', {}, h('summary', {}, `${index.skipped.length} skipped`), h('ul', { class: 'tree' }, index.skipped.map((one) => h('li', {}, h('span', { class: 'mono' }, one.at), h('div', { class: 'dim' }, one.why)))))
         : null,
@@ -415,16 +450,6 @@ export function mount(root, { query }) {
     )
   }
 
-  if (workspace) {
-    workspaces(true)
-      .then((answer) => {
-        if (!(lost = missing(workspace, answer))) return
-        where.append(h('span', { class: 'folder-missing', 'data-hmz': 'folder-missing', title: `This folder is no longer on this machine: ${workspace}` }, ' (missing)'))
-        // What is open already offered copying into it: drawn again, it does not.
-        if (tab === 'installed' && chosen) show(chosen)
-      })
-      .catch(() => {})
-  }
   watch()
   return () => {
     stop()

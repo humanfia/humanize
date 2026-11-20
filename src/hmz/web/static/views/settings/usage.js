@@ -4,7 +4,8 @@
 
 import { given, hash, poll } from '../../api.js'
 import { stays } from '../../app.js'
-import { badge, fill, flowName, h, problem } from '../../dom.js'
+import { badge, empty, fill, flowName, h, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 
 /** How far back the page can look, in days. */
 const RANGES = [7, 30, 90, 365]
@@ -87,7 +88,7 @@ export function draw(holder, query, parts, scope) {
               ),
               h('div', { class: 'bars-axis', 'aria-hidden': 'true' }, h('span', {}, data.days[0].day), h('span', {}, data.days[data.days.length - 1].day)),
             ]
-          : h('p', { class: 'dim' }, 'No epic here spent any money in these days.'),
+          : h('p', { class: 'dim' }, t('Nothing spent in this range.')),
         h(
           'details',
           {},
@@ -134,7 +135,11 @@ export function draw(holder, query, parts, scope) {
                 ),
               ),
             )
-          : h('p', { class: 'dim' }, 'No epic in this range.'),
+          : empty(
+              t('Nothing ran in this range.'),
+              t(' What a chat or an epic spends is counted here as it goes.'),
+              h('a', { class: 'btn primary', href: scope.name === 'local' ? '#/new/chat' : `#/@${encodeURIComponent(scope.name)}/new/chat`, 'data-hmz': 'usage-start' }, t('New chat')),
+            ),
       ),
     )
   }

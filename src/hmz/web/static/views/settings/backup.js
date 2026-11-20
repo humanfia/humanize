@@ -5,7 +5,8 @@
 // as written.
 
 import { confirming } from '../../confirm.js'
-import { acting, fill, h, problem } from '../../dom.js'
+import { acting, empty, fill, h, problem } from '../../dom.js'
+import { t } from '../../i18n.js'
 import { toast } from '../../ui.js'
 
 /** Each policy, as it is ticked. */
@@ -96,7 +97,11 @@ export function draw(holder, query, parts, scope) {
       ),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Repository'), h('th', {}, 'When'), h('th', {}, ''))), h('tbody', {}, rows)))
-        : h('p', { class: 'dim' }, 'None yet: no epic is backed up.'),
+        : empty(
+            t('No backup target yet.'),
+            t(' Add a git repository, and chats and epics are backed up to it.'),
+            h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'backup-add', onclick: () => edit(null) }, t('Add target')),
+          ),
     )
   }
 
@@ -104,6 +109,8 @@ export function draw(holder, query, parts, scope) {
     editing = one
     drawWriting()
     writing.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // A new one starts at its name; one edited keeps its name, and is read first.
+    if (!one) writing.querySelector('#backup-name').focus({ preventScroll: true })
   }
 
   function drawWriting() {

@@ -7,6 +7,7 @@
 import { call, hash, refresh } from '../api.js'
 import { go, shut, stays } from '../app.js'
 import { ago, badge, empty, fill, flowName, h, headline, icon, iconButton, problem, when } from '../dom.js'
+import { t } from '../i18n.js'
 import { nameOf } from '../places.js'
 import { dragged } from '../shell.js'
 
@@ -46,7 +47,14 @@ export function mount(root, { query }) {
     }
     if (gone || asking !== target) return
     if (!answer.epics.length) {
-      fill(body, empty('No epic here yet.', ` ${target} holds none: an epic is backed up to it as its policies say, or by Upload.`))
+      fill(
+        body,
+        empty(
+          t('No epic here yet.'),
+          t(' {target} holds none: an epic is backed up to it as its policies say, or by Upload.', { target }),
+          h('a', { class: 'btn', href: hash('/settings/backup'), 'data-hmz': 'download-settings' }, t('Backup settings')),
+        ),
+      )
       return
     }
     // Each machine, then each workspace on it, in the order their newest epic came.

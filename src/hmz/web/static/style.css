@@ -2161,7 +2161,16 @@ p + .panel {
 }
 
 .empty .row {
-  margin-top: var(--space-12);
+  margin: var(--space-12) 0 0;
+}
+
+/* In a panel, which has room of its own about it, it stands where the list would. */
+.panel > .empty {
+  margin: var(--space-12) 0 0;
+}
+
+.flow-detail > .empty {
+  margin: 0;
 }
 
 /* What went wrong, and what is worth knowing: a wash of the one colour that says which. A path

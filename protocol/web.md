@@ -326,6 +326,19 @@ is typed.
 
 **3.4.5.3** The page MUST NOT accept a path that is not a directory as a workspace.
 
+#### 3.4.6. Empty lists
+
+**3.4.6.1** Where a list the page draws holds nothing yet and the page offers what puts something
+in it -- installing a flow, starting a chat or an epic, adding a backup target, a nous, a runtime
+or an account -- the page MUST say that the list is empty in place of the list, and MUST offer
+there a button that opens what puts something in it.
+
+**3.4.6.2** Where a list holds nothing because of what the user typed or filtered for, the button
+MUST clear what was typed and filtered for instead.
+
+**3.4.6.3** What such a button opens MUST be what the page offers elsewhere: it MUST NOT write
+anything by itself.
+
 ### 3.5. Workspaces and the epics list
 
 **3.5.1** While its list is grouped by folder (3.5.17), the sidebar MUST show every workspace of
@@ -358,13 +371,13 @@ remember which groups are folded in this browser.
 opens a new chat: in that workspace, for a folder. The two MUST be shown where the heading is
 pointed at or holds the focus, and always where the device has nothing to point with.
 
-**3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, its flows, searching
+**3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, searching
 it, copying its
 path, folding or opening it, its workspace settings, its usage, and, where no epic ran there,
 forgetting it.
 
 **3.5.7.1** A folder whose directory is no longer there MUST say so by its name and in its menu,
-and MUST NOT offer a new chat there, a new epic there or its flows, neither in its menu nor by `+`
+and MUST NOT offer a new chat there or a new epic there, neither in its menu nor by `+`
 (3.5.6); as a row of `Folders` (3.5.1.1) it MUST open the search of what it holds. One that is
 gone and holds no epic and no chat MUST NOT be listed.
 
@@ -1155,13 +1168,16 @@ MUST hold, at its left, `Environment` (Section 3.8.22) and the workspace control
 **3.9.1** `Flows` MUST have an `Installed` tab and a `Flowverses` tab.
 
 **3.9.2** `Installed` MUST list each flow on offer on the daemon shown whatever the workspace --
-those installed from a flowverse and the user's own -- and, where the address names a workspace,
-that workspace's own flows too, with what each declares, and, for one installed from a flowverse,
-its release and any newer release its flowverse lists. `Flows` MUST NOT offer a control that picks
-a workspace, and MUST say the workspace its address names in its bar.
+those installed from a flowverse and the user's own -- with what each declares, and, for one
+installed from a flowverse, its release and any newer release its flowverse lists. `Flows` MUST NOT
+name, pick or depend on a workspace: it MUST NOT list a workspace's own flows, and a workspace its
+address names MUST be left out of what it asks and of its address.
 
-**3.9.3** `Installed` MUST let the user start, update and uninstall a flow, and, where the address
-names a workspace, copy it whole into that workspace.
+**3.9.2.1** Where no flow is on offer, `Installed` MUST say so and MUST offer `Browse Flowverses`,
+which opens `Flowverses`.
+
+**3.9.3** `Installed` MUST let the user start, update and uninstall a flow, and MUST NOT offer to
+copy one into a workspace.
 
 **3.9.4** `Flowverses` MUST list every flowverse except the project's and the user's own as a row
 of tabs, each saying its name alone and Humanize's own saying `Official`, and MUST open on the
@@ -1172,6 +1188,10 @@ that fetches it. The form that adds one MUST NOT be shown until the user chooses
 **3.9.5** A flowverse opened MUST show whether its index is fetched or written into, the flows it
 lists, and every release of each, newest first, with prereleases and the installed release marked,
 and MUST name every manifest it skipped.
+
+**3.9.5.1** A flowverse opened that lists no flow MUST say so: one not fetched yet, where it can be
+fetched, with `Fetch`, which fetches it as the button after its name does; any other with
+`Add flowverse`, which opens the form that adds one.
 
 **3.9.6** `Flowverses` MUST let the user install, switch to and uninstall a release, and add, fetch
 and remove a flowverse; removing a flowverse MUST remove what was installed from it, and MUST ask

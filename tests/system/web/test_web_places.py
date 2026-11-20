@@ -243,16 +243,13 @@ def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
             shutil.rmtree(other)
             page.locator("[data-hmz=composer-text]").press("Enter")
             expect(page.locator(".composer-said [role=alert]")).to_have_text(gone)
-            # Its flows say that it is missing, and offer to copy nothing into it.
+            # The flows name no folder, this one neither: nothing there says it is missing.
             go(page, f"/flows?workspace={other}")
             expect(
-                page.locator("[data-hmz=bar] [data-hmz=folder-missing]")
-            ).to_have_text("(missing)", timeout=20000)
-            page.locator("[data-hmz=flows] .card").first.click()
-            expect(page.locator(".flow-detail header .btn").first).to_be_visible()
-            expect(
-                page.locator(".flow-detail").get_by_role("button", name="Copy here")
-            ).to_have_count(0)
+                page.locator("[data-hmz=flows] :is(.card, .empty)").first
+            ).to_be_visible()
+            expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_count(0)
+            expect(page.locator("#page [data-hmz=folder-missing]")).to_have_count(0)
 
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -406,9 +403,11 @@ def test_a_long_name_stays_inside_what_shows_it(
     long = "a_flow_whose_name_runs_on_and_on_with_nowhere_at_all_to_break"
     at = tmp_path / "a-workspace-whose-name-runs-on-and-on-with-nowhere-to-break"
     write_flow(at / ".hmz" / "flows", long, _OWN)
+    # The same under the user's own flows, which the flows list whatever the workspace.
+    write_flow(tmp_path / "home" / ".hmz" / "flows", long, _OWN)
     with served() as site, opened(site, engine=engine, width=390, height=844) as page:
-        go(page, f"/flows?workspace={at.resolve()}&flow=@local/{long}")
-        expect(page.locator(".flow-detail h2")).to_have_text(f"@local/{long}")
+        go(page, f"/flows?flow=@user/{long}")
+        expect(page.locator(".flow-detail h2")).to_have_text(f"@user/{long}")
         out = page.evaluate(
             """() => [...document.querySelectorAll(
                 '[data-hmz=bar], .card, .flow-detail'
@@ -416,10 +415,8 @@ def test_a_long_name_stays_inside_what_shows_it(
         )
         assert not out, f"run out of: {out}"
         assert page.evaluate("document.documentElement.scrollWidth") <= 390
-        # What is cut short says itself in full on hover.
         expect(page.locator("[data-hmz=workspace-picker]")).to_have_count(0)
-        page.locator("[data-hmz=bar] .bar-sub .path").hover()
-        expect(page.locator(".tip")).to_have_text(str(at.resolve()))
+        # What is cut short says itself in full on hover.
         go(page, f"/new?workspace={at.resolve()}&flow=@local/{long}")
         page.locator("[data-hmz=flow-picker] b").hover()
         expect(page.locator(".tip")).to_have_text(f"@local/{long}")

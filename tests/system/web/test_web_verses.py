@@ -148,6 +148,73 @@ def test_a_flow_is_installed_updated_and_uninstalled_out_of_a_flowverse(
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+def test_with_nothing_to_list_the_flows_say_so_and_offer_what_gets_it_there(
+    index: Path, tmp_path: Path, engine: str
+) -> None:
+    # An index that lists nothing: a repository of one commit and no flow.
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / "README.md").write_text("No flow yet.\n")
+    _git(bare, "init", "-q")
+    _git(bare, "add", ".")
+    _git(bare, "commit", "-qm", "index")
+    # A daemon nothing is installed on yet, as one is before its first flowverse is fetched.
+    wire = Wire(faked={"flows.list": lambda _: {"result": {"flows": [], "flow": ""}}})
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        # No flow installed: said where the cards would be, whatever folder the address names,
+        # which the page asks nothing of and drops.
+        go(page, f"/flows?workspace={site.here}")
+        empty = page.locator("[data-hmz=flows] .empty")
+        expect(empty.locator("strong")).to_have_text("No flows installed yet.")
+        expect(page.locator("[data-hmz=flows] .card")).to_have_count(0)
+        expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_count(0)
+        page.wait_for_url(lambda url: "workspace" not in url)
+        assert wire.params("flows.list")
+        assert not [one for one in wire.params("flows.list") if one]
+        assert page.evaluate(_SHADOWED) == []
+        # Its button opens the Flowverses, the first open, and the keys on their tab.
+        empty.get_by_role("button", name="Browse Flowverses").click()
+        tab = page.get_by_role("tab", name="Flowverses")
+        expect(tab).to_have_attribute("aria-selected", "true")
+        expect(tab).to_be_focused()
+        page.wait_for_url(lambda url: "tab=verses" in url)
+        shown = page.locator(".flow-detail")
+        expect(shown.locator("h2")).to_have_text("Official")
+
+        # A flowverse that lists none says so, and offers adding another: the form, at its URL.
+        page.get_by_role("button", name="Add flowverse").click()
+        form = page.locator("[data-hmz=add-verse-form]")
+        form.get_by_role("textbox", name="URL").fill(str(bare))
+        form.get_by_role("textbox", name="Name").fill("bare")
+        form.get_by_role("button", name="Add").click()
+        expect(shown.locator("h2")).to_have_text("bare")
+        none = shown.locator(".empty")
+        expect(none.locator("strong")).to_have_text("This flowverse lists no flow.")
+        none.get_by_role("button", name="Add flowverse").click()
+        expect(form).to_be_visible()
+        expect(form.get_by_role("textbox", name="URL")).to_be_focused()
+
+        # One not fetched yet offers fetching it, which is the arrow after its name pressed.
+        unfetched: dict[str, Any] = {
+            "name": "bare",
+            "url": str(bare),
+            "fixed": False,
+            "fetched": False,
+            "edited": False,
+            "flows": [],
+            "skipped": [],
+        }
+        wire.faked["flowverses.get"] = lambda _: {"result": unfetched}
+        page.locator("[role=tab][data-verse=bare]").click()
+        expect(none.locator("strong")).to_have_text("Not fetched yet.")
+        del wire.faked["flowverses.get"]
+        none.get_by_role("button", name="Fetch").click()
+        expect(page.locator(".flows-said .note")).to_have_text("Fetched bare.")
+        expect(none.locator("strong")).to_have_text("This flowverse lists no flow.")
+        expect(page.locator("[data-hmz=fetch-verse]")).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_the_flows_page_installs_out_of_a_flowverse_and_says_what_is_newer(
     index: Path, engine: str
 ) -> None:
