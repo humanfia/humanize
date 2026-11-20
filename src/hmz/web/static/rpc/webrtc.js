@@ -15,26 +15,25 @@ const CHUNK = 16384
 const BUFFERED = 1048576
 
 /**
- * @param {{certificate: () => Promise<RTCCertificate>, iceServers?: () => Promise<RTCIceServer[]>,
- *   RTCPeerConnection?: typeof RTCPeerConnection, WebSocket?: typeof WebSocket,
- *   subtle?: SubtleCrypto}} options `certificate` the browser's DTLS certificate (`registry`'s);
- *   `iceServers` the STUN and TURN servers the page keeps.
+ * @param {{certificate: () => Promise<RTCCertificate>, RTCPeerConnection?: typeof RTCPeerConnection,
+ *   WebSocket?: typeof WebSocket, subtle?: SubtleCrypto}} options `certificate` the browser's DTLS
+ *   certificate (`registry`'s). A route is opened with the STUN and TURN servers of the daemon it
+ *   reaches, as `open` is given them, and with none where it is given none.
  * @returns {import('./client.js').Provider}
  */
 export function webrtc({
   certificate,
-  iceServers = async () => [],
   RTCPeerConnection: Connection = globalThis.RTCPeerConnection,
   WebSocket: Socket = globalThis.WebSocket,
   subtle = globalThis.crypto.subtle,
 }) {
   return {
     opens: (route) => routeKind(route) === 'webrtc',
-    async open(route, id, { state, signal }) {
-      const [cert, servers] = await Promise.all([certificate(), iceServers()])
+    async open(route, id, { state, signal, iceServers = [] }) {
+      const cert = await certificate()
       return new Promise((resolve, reject) => {
         const relay = new Socket(route.slice('webrtc:'.length))
-        const peer = new Connection({ certificates: [cert], iceServers: servers })
+        const peer = new Connection({ certificates: [cert], iceServers })
         const channel = peer.createDataChannel('hmz', { ordered: true })
         channel.binaryType = 'arraybuffer'
         /** @type {Pipe | null} */

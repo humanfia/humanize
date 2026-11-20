@@ -29,13 +29,16 @@ export class NotPinned extends Error {}
  * @property {string} name
  * @property {string} id The daemon id pinned, '' until first reached over a trusted carrier.
  * @property {string[]} routes In the order they are tried.
+ * @property {RTCIceServer[]} [ice] The STUN and TURN servers its `webrtc:` routes are opened
+ *   with (Section 3.13.21 of protocol/web.md); none where absent.
  *
  * @typedef {object} Provider What opens carriers of some routes for the page.
  * @property {(route: string) => boolean} opens Whether it opens this route.
  * @property {(route: string, id: string, options: {state: (state: string, detail: string) => void,
- *   signal: AbortSignal}) => Promise<import('./pipe.js').Pipe>} open Opens one, telling `state`
- *   `connecting` or `installing` and what was said last until it is open; closes it and rejects
- *   once `signal` aborts.
+ *   signal: AbortSignal, iceServers: RTCIceServer[]}) => Promise<import('./pipe.js').Pipe>} open
+ *   Opens one, telling `state` `connecting` or `installing` and what was said last until it is
+ *   open; closes it and rejects once `signal` aborts. `iceServers` are the daemon's own STUN and
+ *   TURN servers, which a provider of `webrtc:` routes alone uses.
  *
  * @typedef {object} Session
  * @property {Peer} peer
@@ -84,6 +87,7 @@ export function reach(entry, providers, { client = { name: '', kind: 'web' }, st
     try {
       const pipe = await provider.open(route, entry.id, {
         signal: both,
+        iceServers: entry.ice ?? [],
         state: (now, detail) => {
           // The 30 seconds wait while hmz is installed, and start afresh after.
           if (now === 'installing') clearTimeout(timer)

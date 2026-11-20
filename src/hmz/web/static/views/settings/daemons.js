@@ -3,12 +3,16 @@
 // it has got. A new one is of a kind: Code, a pairing code claimed at once; SSH › SSH Config, a
 // Host of the ssh config picked; SSH › Custom, written a part at a time as a runtime's SSH host
 // is, or filled from the ssh config; or P2P › EasyTier, a secret, the shared nodes its network
-// meets on and a pairing code claimed over it. One is reached again, changed, or taken away, asked first. Each daemon that is up
-// makes a pairing code for another device, and lists the devices paired with it.
+// meets on and a pairing code claimed over it. Beside the form, what the kind chosen is and what
+// the other machine needs for it. One is reached again, changed, or taken away, asked first.
+// Under each daemon's line is what is its own: once it is up, a pairing code made for another
+// device and the devices paired with it; and, for a remote one, the STUN and TURN servers its
+// `webrtc:` routes are opened with (Section 3.13.20 and 3.13.21 of protocol/web.md).
 
 import { call, daemons, forget, hello, kindOf as kindNamed, known, onState, pair, providers, reconnect, stateOf } from '../../api.js'
 import { confirming } from '../../confirm.js'
 import { acting, ago, fill, h, icon, iconButton, problem } from '../../dom.js'
+import { locale, pieces, t } from '../../i18n.js'
 import { pathPicker } from '../../paths.js'
 import { easytier } from '../../rpc/easytier.js'
 import { parsePairing } from '../../rpc/index.js'
@@ -29,6 +33,44 @@ const KINDS = { code: 'Code', ssh: 'SSH', p2p: 'P2P' }
 /** How a daemon is reached: its kind, and the mode's name under it. */
 const MODES = { code: ['code', 'Code'], config: ['ssh', 'SSH Config'], stored: ['ssh', 'Custom'], easytier: ['p2p', 'EasyTier'] }
 
+/**
+ * What each kind is and what the other machine needs for it, said beside the form: what it is
+ * called, then a paragraph each.
+ */
+const ABOUT = {
+  code: () => [
+    t('Pair with a code'),
+    pieces('The other machine makes a one-time pairing code: run {command} there, or press Pair a device on a page that already reaches it. Paste the code here within 10 minutes; it works once.', {
+      command: h('code', { class: 'mono' }, 'hmz daemon pair'),
+    }),
+    t('Its daemon has to listen somewhere this one can reach: a port, a relay or WebRTC.'),
+  ],
+  ssh: () => [
+    t('Reach over SSH'),
+    t('Reaches a machine the way ssh does, with your own keys and SSH config. Nothing has to run there first: hmz is started over the connection, and installed where it is missing. You are never asked for a password.'),
+  ],
+  p2p: () => [
+    t('Peer to peer'),
+    t('Both machines join one private EasyTier network, so they reach each other behind NAT, with no open port and no ssh. Give both the same secret and at least one node in common, and the first time that machine’s pairing code.'),
+  ],
+}
+
+/** What a mode under a kind is, said under what its kind is. */
+const MODE_ABOUT = {
+  config: () => t('SSH Config: pick a Host of ~/.ssh/config. It is resolved through your config every time, so editing the config edits the daemon.'),
+  stored: () => t('Custom: write the host a part at a time, or import one from your SSH config. This page keeps what you write, and the config is not read again.'),
+}
+
+/** What the STUN and TURN servers of a daemon are for, and how they are written. */
+const ICE_ABOUT = () =>
+  t('Only used where this daemon is reached over a webrtc: route. STUN finds a direct path between the two; TURN relays where there is none. One a line: the URL, then a TURN server’s username and credential. Empty suits a simple network.')
+
+/** A STUN or TURN server's URL, as one is typed. */
+const ICE = /^(stun|stuns|turn|turns):\S+$/
+
+/** What stands for a credential kept: it is never shown again. */
+const MASKED = '••••'
+
 /** A route of each kind but Code, as the page's pipe providers are asked whether they open it. */
 const OPENED = { ssh: 'stdio:ssh://host', p2p: 'easytier:name' }
 
@@ -44,10 +86,10 @@ const NODE = /^(tcp|udp|ws|wss|quic|wg):\/\/\S+:(\d{1,5})$/
 export function draw(holder) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'daemons' }, h('p', { class: 'loading', role: 'status' }, 'Reading the daemons…'))
   const writing = h('section', { class: 'panel', 'data-hmz': 'write-daemon' })
-  const pairing = h('section', { class: 'panel', 'data-hmz': 'pairing' })
-  const ice = h('section', { class: 'panel', 'data-hmz': 'ice-servers' })
-  fill(holder, listing, writing, pairing, ice)
+  fill(holder, listing, writing)
   let entries = []
+  /** What stands under each daemon's line, by its name, kept for as long as its entry is as it was. */
+  let under = new Map()
   let editing = null
   let gone = false
   const states = new Map()
@@ -61,22 +103,26 @@ export function draw(holder) {
     if (gone) return
     entries = mine
     drawListing()
-    drawPairing()
   }
 
-  // A daemon's state, drawn again where it changes; the daemons up offer pairing.
+  // A daemon's state, drawn again where it changes; one that is up offers pairing.
   const unwatch = onState((name, now) => {
     if (gone) return
     if (states.has(name)) fill(states.get(name), shownState(now))
-    drawPairing()
+    if (under.has(name)) drawDevices(under.get(name))
   })
 
   function drawListing() {
     states.clear()
+    const kept = new Map()
     const rows = entries.map((one) => {
       const local = one.name === 'local'
       states.set(one.name, h('td', {}, shownState(stateOf(one.name))))
-      return h(
+      // What is under its line stays as it is drawn while its entry does: a code just made, a list half typed.
+      const own = under.get(one.name)?.key === keyOf(one) ? under.get(one.name) : drawOwn(one)
+      kept.set(one.name, own)
+      drawDevices(own)
+      const line = h(
         'tr',
         { 'data-hmz': 'daemon', 'data-name': one.name },
         h('td', {}, h('b', {}, local ? 'Local' : one.name)),
@@ -109,10 +155,18 @@ export function draw(holder) {
               ),
         ),
       )
+      return [line, h('tr', { class: 'daemon-own', 'data-hmz': 'daemon-own', 'data-name': one.name }, h('td', { colspan: '5' }, own.node))]
     })
+    under = kept
     fill(
       listing,
       h('h2', {}, 'Daemons'),
+      h(
+        'p',
+        { class: 'dim', 'data-hmz': 'daemons-about' },
+        t('Every machine this page reaches. Under each are its devices: the browsers and machines paired with it, which may reach it. Pair a device makes a one-time code to enter under New daemon › Code on the other device.'),
+      ),
+      entries.length > 1 ? null : h('p', { class: 'dim', 'data-hmz': 'daemons-none' }, t('Only Local so far. Add another machine under New daemon.')),
       h('div', { class: 'table-wrap' }, h('table', { class: 'daemons-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Kind'), h('th', {}, 'Address'), h('th', {}, 'State'), h('th', {}, ''))), h('tbody', {}, rows))),
     )
   }
@@ -135,6 +189,7 @@ export function draw(holder) {
     const kinds = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Kind', 'data-hmz': 'daemon-kind' })
     const modes = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Mode', 'data-hmz': 'daemon-mode' })
     const body = h('div', { class: 'grid' })
+    const about = h('aside', { class: 'daemon-about', 'data-hmz': 'daemon-about', 'aria-live': 'polite' })
     // Every route of a paired daemon, or those after the one its kind writes, in the order tried.
     const more = routeList(mode === 'code' ? was.routes : was.routes.slice(1), 'daemon-routes')
     const routes = h('div', { class: 'grid' })
@@ -158,7 +213,13 @@ export function draw(holder) {
               .map(([key, [, label]]) => pressed(label, key === chosen, () => pick(key))),
       )
       made = { code: drawCode, config: drawConfig, stored: drawStored, easytier: drawEasyTier }[chosen]()
-      fill(routes, editing ? part(chosen === 'code' ? 'Routes' : 'More routes', 'daemon-routes', more.node, true) : null)
+      fill(
+        routes,
+        editing ? part(chosen === 'code' ? 'Routes' : 'More routes', 'daemon-routes', more.node, true, t('Tried in this order, each as tcp://host:port, relay:wss://…, webrtc:wss://… or another route.')) : null,
+      )
+      // One paired already has no code to paste: what is said is what is left to change.
+      const [title, ...said] = editing && kind === 'code' ? [t('Paired with a code'), t('Paired with a one-time code that machine made, and held to that machine’s id since. What is left to change is what this page calls it and the routes it is reached by.')] : ABOUT[kind]()
+      fill(about, h('h3', {}, title), said.map((one) => h('p', {}, one)), MODE_ABOUT[chosen] ? h('p', {}, MODE_ABOUT[chosen]()) : null)
     }
 
     /** Code: a pairing code, claimed at once over its routes; kept only once claimed. */
@@ -168,8 +229,19 @@ export function draw(holder) {
         return () => ({ routes: more.read() })
       }
       const code = h('input', { type: 'password', id: 'daemon-code', autocomplete: 'off', spellcheck: 'false', placeholder: 'hmz-pair:…' })
-      fill(body, part('Pairing code', 'daemon-code', code, true))
-      return () => ({ code: code.value.trim() })
+      // Its servers are asked before it is claimed: a code whose routes are WebRTC's may need them to be.
+      const servers = iceBox('daemon-ice', [])
+      const advanced = h('details', { class: 'fold field wide', 'data-hmz': 'daemon-advanced' }, h('summary', {}, t('Advanced')), part(t('STUN and TURN'), 'daemon-ice', servers, true, ICE_ABOUT()))
+      // Opened by a code that is reached over WebRTC, which is where they matter.
+      code.addEventListener('input', () => {
+        try {
+          if (parsePairing(code.value).routes.some((route) => route.startsWith('webrtc:'))) advanced.open = true
+        } catch {
+          // Not a code yet.
+        }
+      })
+      fill(body, part('Pairing code', 'daemon-code', code, true, CODE_ABOUT()), advanced)
+      return () => ({ code: code.value.trim(), ice: readIce(servers.value) })
     }
 
     /** SSH › SSH Config: a host of the ssh config, picked, and reached as ssh resolves it. */
@@ -190,7 +262,7 @@ export function draw(holder) {
       alias.addEventListener('change', () => {
         if (alias.value && !name.value.trim()) name.value = alias.value.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^[._-]+/, '')
       })
-      fill(body, part('Host', 'daemon-alias', h('div', {}, alias, said)))
+      fill(body, part('Host', 'daemon-alias', h('div', {}, alias, said), false, t('Hosts come from ~/.ssh/config.')))
       return () => {
         if (!alias.value) throw new Error('Pick a host of your SSH config.')
         return { route: sshRoute({ host: alias.value }) }
@@ -229,7 +301,7 @@ export function draw(holder) {
       })
       fill(
         body,
-        part('Import from SSH config', 'daemon-import', h('div', {}, h('div', { class: 'row' }, from, importing), said), true),
+        part('Import from SSH config', 'daemon-import', h('div', {}, h('div', { class: 'row' }, from, importing), said), true, t('Hosts come from ~/.ssh/config.')),
         part('Host', 'daemon-host', host),
         part('User', 'daemon-user', user),
         part('Port', 'daemon-port', port),
@@ -304,13 +376,14 @@ export function draw(holder) {
       const code = editing ? null : h('input', { type: 'password', id: 'daemon-code', autocomplete: 'off', spellcheck: 'false', placeholder: 'hmz-pair:…' })
       fill(
         body,
-        part('Secret', 'daemon-secret', secret),
-        code ? part('Pairing code', 'daemon-code', code, true) : null,
+        part('Secret', 'daemon-secret', secret, false, t('The secret the other machine’s EasyTier entry holds.')),
+        code ? part('Pairing code', 'daemon-code', code, true, CODE_ABOUT()) : null,
         part(
           'Nodes',
           'daemon-node',
           h('div', { class: 'list-editor', 'data-hmz': 'daemon-nodes' }, said, community, own, h('div', { class: 'list-row' }, typed, h('button', { class: 'btn small quiet', type: 'button', onclick: add }, icon('plus'), 'Add node')), wrong),
           true,
+          t('Where the two machines meet: tick at least one the other machine uses too.'),
         ),
       )
       return () => {
@@ -338,7 +411,7 @@ export function draw(holder) {
         said.route = `easytier:${called}`
       }
       if (said.code !== undefined) {
-        await pair(called, said.code, said.route)
+        await pair(called, said.code, said.route, said.ice)
       } else {
         const routes = said.route ? [said.route, ...more.read().filter((one) => one !== said.route)] : said.routes
         if (!routes.length) throw new Error('A daemon needs at least one route.')
@@ -360,128 +433,136 @@ export function draw(holder) {
       writing,
       h('h2', {}, editing ? `Edit ${editing.name}` : 'New daemon'),
       h(
-        'form',
-        { class: 'form', onsubmit: (event) => event.preventDefault() },
-        h('div', { class: 'row' }, kinds, modes),
-        h('div', { class: 'grid' }, part('Name', 'daemon-name', name)),
-        body,
-        routes,
+        'div',
+        { class: 'daemon-write' },
         h(
-          'div',
-          { class: 'row' },
-          acting(editing ? 'Save' : 'Add', save, { kind: 'btn primary', busy: 'Saving…' }),
-          editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'New daemon') : null,
+          'form',
+          { class: 'form', onsubmit: (event) => event.preventDefault() },
+          h('div', { class: 'row' }, kinds, modes),
+          h('div', { class: 'grid' }, part('Name', 'daemon-name', name, false, t('What this page calls it: letters, digits, ., _ and -.'))),
+          body,
+          routes,
+          h(
+            'div',
+            { class: 'row' },
+            acting(editing ? 'Save' : 'Add', save, { kind: 'btn primary', busy: 'Saving…' }),
+            editing ? h('button', { class: 'btn quiet', type: 'button', onclick: () => ((editing = null), drawWriting()) }, 'New daemon') : null,
+          ),
         ),
+        about,
       ),
     )
     pick(mode)
   }
 
-  /** For each daemon up: a pairing code for another device, and the devices paired with it. */
-  function drawPairing() {
-    const up = entries.filter((one) => stateOf(one.name).state === 'up')
-    if (!up.length) {
-      // Drawn afresh once one is up again.
-      pairing.dataset.drawn = ''
-      return fill(pairing)
-    }
-    if (pairing.dataset.drawn === up.map((one) => one.name).join('\n')) return
-    pairing.dataset.drawn = up.map((one) => one.name).join('\n')
-    fill(
-      pairing,
-      h('h2', {}, 'Devices'),
-      up.map((one) => {
-        const on = one.name
-        const code = h('div', { 'aria-live': 'polite', 'data-hmz': 'pairing-code' })
-        const devices = h('div', { 'data-hmz': 'devices' })
-        const list = () =>
-          call('devices.list', {}, { on }).then(
-            (answer) =>
-              fill(
-                devices,
-                answer.devices.length
-                  ? h(
-                      'ul',
-                      { class: 'list-rows' },
-                      answer.devices.map((device) =>
-                        h(
-                          'li',
-                          { class: 'row', 'data-hmz': 'device', 'data-name': device.name },
-                          h('b', {}, device.name),
-                          h('span', { class: 'dim' }, device.live ? `${device.live} live` : device.seen ? `seen ${ago(device.seen)}` : 'never seen'),
-                          device.name === 'local'
-                            ? null
-                            : confirming({ label: 'Revoke', ask: `Revoke ${device.name}?`, yes: 'Revoke', small: true, act: async () => (await call('devices.revoke', { name: device.name }, { on }), list()) }),
-                        ),
-                      ),
-                    )
-                  : h('p', { class: 'dim' }, 'No device paired.'),
-              ),
-            (error) => fill(devices, problem(error)),
-          )
-        list()
-        return h(
+  /**
+   * What is a daemon's own, to stand under its line: its devices, and for a remote one its STUN
+   * and TURN servers, folded away unless a route of it is WebRTC's.
+   */
+  function drawOwn(one) {
+    const devices = h('div', { class: 'form', 'data-hmz': 'daemon-devices', 'data-name': one.name })
+    const own = { name: one.name, key: keyOf(one), devices, up: null, node: h('div', { class: 'daemon-own-body' }, devices) }
+    if (one.name === 'local') return own
+    const id = `daemon-ice-${one.name}`
+    const servers = iceBox(id, one.ice || [])
+    own.node.append(
+      h(
+        'details',
+        { class: 'fold', 'data-hmz': 'daemon-ice', 'data-name': one.name, open: one.routes.some((route) => route.startsWith('webrtc:')) },
+        h('summary', {}, t('WebRTC servers')),
+        h(
           'div',
-          { class: 'form', 'data-hmz': 'daemon-devices', 'data-name': on },
-          h('h3', {}, on === 'local' ? 'Local' : on),
+          { class: 'form' },
+          part(t('STUN and TURN'), id, servers, true, ICE_ABOUT()),
           h(
             'div',
             { class: 'row' },
             acting(
-              'Pair a device',
+              t('Save'),
               async () => {
-                const made = await call('pair.create', {}, { on })
-                fill(
-                  code,
-                  h('code', { class: 'mono pairing-code' }, made.code),
-                  h('span', { class: 'dim' }, ` Expires ${new Date(made.expires * 1000).toLocaleTimeString()}`),
-                  iconButton('copy', 'Copy code', { class: 'small', onclick: () => copy(made.code, 'Code copied') }),
-                )
+                const written = readIce(servers.value, one.ice || [])
+                await daemons.update(one.name, { ice: written })
+                // Kept as they are drawn, a credential masked from here on.
+                one.ice = written
+                own.key = keyOf(one)
+                servers.value = shownIce(written)
+                // Reached afresh with them, where it was being reached.
+                if (stateOf(one.name).state !== 'idle') await reconnect(one.name)
               },
-              { kind: 'btn small', busy: 'Making…' },
+              { kind: 'btn small', busy: t('Saving…'), done: t('Saved') },
             ),
-          ),
-          code,
-          devices,
-        )
-      }),
-    )
-  }
-
-  /** The STUN and TURN servers WebRTC uses, as this browser keeps them. */
-  function drawIce(servers) {
-    const shown = servers.map((one) => [].concat(one.urls).join(' ') + (one.username ? ` ${one.username}${one.credential ? ' ••••' : ''}` : '')).join('\n')
-    const lines = h('textarea', { id: 'ice-servers', rows: '3', spellcheck: 'false', placeholder: 'stun:stun.example:3478\nturn:turn.example:3478 user password' }, shown)
-    fill(
-      ice,
-      h('h2', {}, 'WebRTC servers'),
-      h(
-        'div',
-        { class: 'form' },
-        part('STUN and TURN', 'ice-servers', lines, true),
-        h(
-          'div',
-          { class: 'row' },
-          acting(
-            'Save',
-            async () => {
-              const written = lines.value
-                .split('\n')
-                .map((line) => line.trim().split(/\s+/))
-                .filter((words) => words[0])
-                .map(([urls, username, credential]) => {
-                  // A credential left as it was shown is the one kept.
-                  const was = servers.find((one) => [].concat(one.urls).join(' ') === urls)
-                  const kept = credential === '••••' ? was?.credential : credential
-                  return { urls, ...(username ? { username } : {}), ...(kept ? { credential: kept } : {}) }
-                })
-              await daemons.setIceServers(written)
-              drawIce(written)
-            },
-            { kind: 'btn small', busy: 'Saving…', done: 'Saved' },
           ),
         ),
       ),
+    )
+    return own
+  }
+
+  /** A daemon's devices: once it is up, a pairing code for another device, and the devices paired with it. */
+  function drawDevices(own) {
+    const on = own.name
+    const up = stateOf(on).state === 'up'
+    if (own.up === up) return
+    own.up = up
+    const heading = h('h3', {}, t('Devices'))
+    if (!up) return fill(own.devices, heading, h('p', { class: 'dim', 'data-hmz': 'devices-none' }, t('Not reached. Connect to it to pair a device and to see the devices paired with it.')))
+    const code = h('div', { 'aria-live': 'polite', 'data-hmz': 'pairing-code' })
+    // A line is held for them while they are read, so that what is under it moves the least.
+    const devices = h('div', { 'data-hmz': 'devices' }, h('p', { class: 'loading', role: 'status' }, t('Reading the devices…')))
+    const list = () =>
+      call('devices.list', {}, { on }).then(
+        (answer) =>
+          fill(
+            devices,
+            answer.devices.length
+              ? h(
+                  'ul',
+                  { class: 'list-rows' },
+                  answer.devices.map((device) =>
+                    h(
+                      'li',
+                      { class: 'row', 'data-hmz': 'device', 'data-name': device.name },
+                      h('b', {}, device.name),
+                      h('span', { class: 'dim' }, device.live ? t('{n} live', { n: device.live }) : device.seen ? t('seen {when}', { when: ago(device.seen) }) : t('never seen')),
+                      device.name === 'local'
+                        ? null
+                        : confirming({
+                            label: t('Revoke'),
+                            ask: t('Revoke {name}?', { name: device.name }),
+                            yes: t('Revoke'),
+                            small: true,
+                            act: async () => (await call('devices.revoke', { name: device.name }, { on }), list()),
+                          }),
+                    ),
+                  ),
+                )
+              : h('p', { class: 'dim' }, t('No device paired yet. Pair a device makes a code to enter on the other device.')),
+          ),
+        (error) => fill(devices, problem(error)),
+      )
+    list()
+    fill(
+      own.devices,
+      heading,
+      h(
+        'div',
+        { class: 'row' },
+        acting(
+          t('Pair a device'),
+          async () => {
+            const made = await call('pair.create', {}, { on })
+            fill(
+              code,
+              h('code', { class: 'mono pairing-code' }, made.code),
+              h('span', { class: 'dim' }, t('Expires {time}', { time: new Date(made.expires * 1000).toLocaleTimeString(locale()) })),
+              iconButton('copy', t('Copy code'), { class: 'small', onclick: () => copy(made.code, t('Code copied')) }),
+            )
+          },
+          { kind: 'btn small', busy: t('Making…') },
+        ),
+      ),
+      code,
+      devices,
     )
   }
 
@@ -490,7 +571,6 @@ export function draw(holder) {
     .then(() => {
       if (holder.contains(writing)) drawWriting()
     })
-  daemons.iceServers().then(drawIce, (error) => fill(ice, problem(error)))
   return () => {
     gone = true
     unwatch()
@@ -564,8 +644,44 @@ function text(id, value, placeholder, extra = {}) {
   return h('input', { type: 'text', id, value: value || '', placeholder, autocomplete: 'off', spellcheck: 'false', ...extra })
 }
 
-function part(label, id, input, wide = false) {
-  return h('div', { class: ['field', wide && 'wide'] }, h('label', { for: id }, label), input)
+/** A field: what it is called, what is written in it, and under it, where given, what it is for. */
+function part(label, id, input, wide = false, hint = '') {
+  return h('div', { class: ['field', wide && 'wide'] }, h('label', { for: id }, label), input, hint ? h('div', { class: 'hint' }, hint) : null)
+}
+
+/** What a pairing code is, said under where one is pasted. */
+const CODE_ABOUT = () => t('Starts with hmz-pair: and is made on the other machine.')
+
+/** What tells a daemon's entry from another of its name: its routes and its STUN and TURN servers. */
+function keyOf(one) {
+  return JSON.stringify([one.routes, one.ice || []])
+}
+
+/** Where a daemon's STUN and TURN servers are written, a line each. */
+function iceBox(id, servers) {
+  return h('textarea', { id, rows: '3', spellcheck: 'false', 'data-hmz': 'ice-lines', placeholder: 'stun:stun.example:3478\nturn:turn.example:3478 user password' }, shownIce(servers))
+}
+
+/** STUN and TURN servers as they are written, a line each: the URLs, then the username, a credential masked. */
+function shownIce(servers) {
+  return servers.map((one) => [].concat(one.urls).join(',') + (one.username ? ` ${one.username}${one.credential ? ` ${MASKED}` : ''}` : '')).join('\n')
+}
+
+/**
+ * The STUN and TURN servers written, a line each: the URL, or several with commas between, then
+ * the username and the credential. A credential left as it was shown is the one `was` kept.
+ */
+function readIce(text, was = []) {
+  return text
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .filter((words) => words[0])
+    .map(([urls, username, credential]) => {
+      const each = urls.split(',').filter(Boolean)
+      for (const url of each) if (!ICE.test(url)) throw new Error(t('{url} is not a STUN or TURN server: write one as stun:host:port or turn:host:port.', { url }))
+      const kept = credential === MASKED ? was.find((one) => [].concat(one.urls).join(',') === urls)?.credential : credential
+      return { urls: each.length === 1 ? each[0] : each, ...(username ? { username } : {}), ...(kept ? { credential: kept } : {}) }
+    })
 }
 
 /** Where a daemon is reached, as its routes say, the first first. */

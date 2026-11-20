@@ -50,7 +50,91 @@ test('a remote daemon is not named local, nor anything not a name, and its route
   await assert.rejects(store.update('ok', { name: 'local' }))
 })
 
-test('the DTLS certificate is made once and kept until it expires; the ICE servers are kept', async () => {
+test('a daemon keeps its own STUN and TURN servers, and only ones that are', async () => {
+  const store = registry(fakeIndexedDB())
+  const turn = { urls: ['turn:turn.example:3478', 'turns:turn.example:5349'], username: 'ann', credential: 'secret' }
+  await store.add({ name: 'box', id: ID, routes: ['webrtc:wss://relay.example/r'], ice: [{ urls: 'stun:stun.example' }] })
+  await store.add({ name: 'plain', id: ID, routes: ['tcp://plain:1'], ice: [] })
+  assert.deepEqual(await store.list(), [
+    { name: 'box', id: ID, routes: ['webrtc:wss://relay.example/r'], ice: [{ urls: 'stun:stun.example' }] },
+    // One with none keeps no list.
+    { name: 'plain', id: ID, routes: ['tcp://plain:1'] },
+  ])
+  await store.update('plain', { ice: [turn] })
+  // Whatever else changes, they stay; given none, they go.
+  await store.update('box', { routes: ['tcp://box:1'] })
+  await store.update('box', { name: 'crate' })
+  assert.deepEqual((await store.list()).map((one) => one.ice), [[{ urls: 'stun:stun.example' }], [turn]])
+  await store.update('crate', { ice: [] })
+  assert.deepEqual((await store.list())[0], { name: 'crate', id: ID, routes: ['tcp://box:1'] })
+
+  for (const [bad, why] of [
+    ['stun:stun.example', /are a list/],
+    [[{}], /needs its URL/],
+    [[{ urls: [] }], /needs its URL/],
+    [[null], /needs its URL/],
+    [[{ urls: 'https://stun.example' }], /https:\/\/stun\.example is not a STUN or TURN server\./],
+    [[{ urls: ['stun:ok.example', 'nope'] }], /nope is not a STUN or TURN server\./],
+    [[{ urls: 'turn:turn.example', username: 7 }], /username is text/],
+    [[{ urls: 'turn:turn.example', credential: {} }], /credential is text/],
+  ]) {
+    await assert.rejects(store.add({ name: 'other', id: '', routes: [], ice: bad }), why)
+    await assert.rejects(store.update('crate', { ice: bad }), why)
+  }
+  assert.deepEqual((await store.list()).map((one) => one.name), ['crate', 'plain'])
+})
+
+/** A base as version 1 of the page left it: the daemons, and one list of servers for them all. */
+function versionOne(indexedDB, daemons, keys) {
+  return new Promise((resolve) => {
+    const asked = indexedDB.open('hmz-daemons', 1)
+    asked.onupgradeneeded = () => {
+      asked.result.createObjectStore('daemons', { keyPath: 'name' })
+      asked.result.createObjectStore('keys')
+      for (const one of daemons) asked.transaction.objectStore('daemons').put(one)
+      for (const [key, value] of Object.entries(keys)) asked.transaction.objectStore('keys').put(value, key)
+    }
+    asked.onsuccess = () => resolve(asked.result)
+  })
+}
+
+test('the servers version 1 kept for every daemon move onto each daemon with a webrtc route', async () => {
+  const servers = [{ urls: 'stun:stun.example' }, { urls: 'turn:turn.example', username: 'ann', credential: 'secret' }]
+  const cert = { expires: Date.now() + 1e9 }
+  const indexedDB = fakeIndexedDB()
+  const base = await versionOne(
+    indexedDB,
+    [
+      { name: 'relayed', id: ID, routes: ['tcp://relayed:1', 'webrtc:wss://relay.example/r'] },
+      { name: 'ssh', id: '', routes: ['stdio:ssh://ssh'] },
+      { name: 'paired', id: ID, routes: ['tcp://paired:1'] },
+    ],
+    { ice: servers, certificate: cert },
+  )
+  const store = registry(indexedDB)
+  assert.deepEqual(await store.list(), [
+    { name: 'paired', id: ID, routes: ['tcp://paired:1'] },
+    { name: 'relayed', id: ID, routes: ['tcp://relayed:1', 'webrtc:wss://relay.example/r'], ice: servers },
+    { name: 'ssh', id: '', routes: ['stdio:ssh://ssh'] },
+  ])
+  // The one list is gone; the certificate beside it is the one kept.
+  assert.deepEqual([...base.stores.get('keys').data.keys()], ['certificate'])
+  assert.equal(base.version, 2)
+  assert.deepEqual(await store.certificate(async () => assert.fail('made anew')), cert)
+
+  // Opened again, nothing is moved a second time; and a base that kept no list keeps none.
+  await store.update('relayed', { ice: [] })
+  assert.equal((await registry(indexedDB).list())[1].ice, undefined)
+  const none = fakeIndexedDB()
+  await versionOne(none, [{ name: 'relayed', id: ID, routes: ['webrtc:wss://relay.example/r'] }], {})
+  assert.deepEqual(await registry(none).list(), [{ name: 'relayed', id: ID, routes: ['webrtc:wss://relay.example/r'] }])
+  const empty = fakeIndexedDB()
+  await versionOne(empty, [{ name: 'relayed', id: ID, routes: ['webrtc:wss://relay.example/r'] }], { ice: [] })
+  assert.deepEqual(await registry(empty).list(), [{ name: 'relayed', id: ID, routes: ['webrtc:wss://relay.example/r'] }])
+  assert.deepEqual([...(await versionOne(empty, [], {})).stores.get('keys').data.keys()], [])
+})
+
+test('the DTLS certificate is made once and kept until it expires', async () => {
   const store = registry(fakeIndexedDB())
   let made = 0
   const make = async () => ({ made: ++made, expires: made === 1 ? Date.now() - 1 : Date.now() + 1e9 })
@@ -64,9 +148,6 @@ test('the DTLS certificate is made once and kept until it expires; the ICE serve
   const once = async () => ({ made: ++count, expires: Date.now() + 1e9 })
   const all = await Promise.all([fresh.certificate(once), fresh.certificate(once), fresh.certificate(once)])
   assert.deepEqual(all.map((one) => one.made), [1, 1, 1])
-  assert.deepEqual(await store.iceServers(), [])
-  await store.setIceServers([{ urls: 'stun:stun.example' }])
-  assert.deepEqual(await store.iceServers(), [{ urls: 'stun:stun.example' }])
 })
 
 test('a pairing code is read; anything else is not', () => {
@@ -96,6 +177,26 @@ test('a claimed code keeps the daemon; a refused claim keeps nothing', async () 
   await assert.rejects(claim(store, { name: 'other', code: code({ token: 'x' }), device: 'browser' }, [provider(served)]), /not valid/)
   await assert.rejects(claim(store, { name: 'box', code: code(), device: 'browser' }, [provider(served)]), /already/)
   assert.deepEqual((await store.list()).map((one) => one.name), ['box'])
+})
+
+test('a daemon is reached with its own STUN and TURN servers, claimed with them, and kept with them', async () => {
+  const served = daemon({ methods: { 'pair.claim': (params) => ({ daemon_id: ID, device: params.name }) } })
+  const store = registry(fakeIndexedDB())
+  const ice = [{ urls: 'turn:turn.example', username: 'ann', credential: 'secret' }]
+  const given = []
+  const asked = { name: 'box', code: code({ routes: ['webrtc:wss://relay.example/r'] }), device: 'browser', ice }
+  const entry = await claim(store, asked, [provider(served, [], given)])
+  // Before it is kept: a code whose one route is WebRTC may need them to be claimed at all.
+  assert.deepEqual(given, [ice])
+  assert.deepEqual(entry, { name: 'box', id: ID, routes: ['webrtc:wss://relay.example/r'], ice })
+  assert.deepEqual(await store.list(), [entry])
+  await assert.rejects(claim(store, { ...asked, name: 'bad', ice: [{ urls: 'nope' }] }, [provider(served, [], given)]), /nope is not a STUN or TURN server\./)
+  assert.equal(given.length, 1)
+
+  // Each daemon with its own, and one with none with none.
+  const other = { name: 'other', id: ID, routes: ['webrtc:wss://relay.example/o'], ice: [{ urls: 'stun:stun.example' }] }
+  for (const one of [entry, other, { name: 'plain', id: ID, routes: ['tcp://plain:1'] }]) (await reach(one, [provider(served, [], given)])).peer.close('Done.')
+  assert.deepEqual(given.slice(1), [ice, [{ urls: 'stun:stun.example' }], []])
 })
 
 test('a P2P daemon is claimed over its easytier route here and kept with the id its code gives', async () => {

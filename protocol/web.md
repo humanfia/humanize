@@ -1389,8 +1389,8 @@ left out.
 **3.11.3.1** `Themes` MUST let the user choose a theme as Section 3.12 specifies.
 
 **3.11.3.2** `Daemons` MUST list Local and every remote daemon with its state, and MUST let the
-user add, edit, connect and remove remote daemons, pair devices and revoke them, as Section 3.13
-specifies.
+user add, edit, connect and remove remote daemons, pair devices and revoke them, and set each
+remote daemon's STUN and TURN servers, as Section 3.13 specifies.
 
 **3.11.3.3** `Notifications` MUST let the user switch each kind of notification on and off --
 `Done`, `Failed`, `Stopped`, `Questions` and `Waiting` -- and switch system notifications on and
@@ -1458,7 +1458,10 @@ token, a value that is not a colour, and a picture that is not an image.
 
 **3.13.1** The page MUST keep the remote daemons in the browser's IndexedDB, each as Section 3.8.1
 of [DAEMON] states -- its name, the daemon id it pins and its routes in order -- together with the
-STUN and TURN servers it uses for WebRTC, and MUST NOT keep them in any daemon's settings.
+STUN and TURN servers it uses to reach that daemon over WebRTC, and MUST NOT keep them in any
+daemon's settings. STUN and TURN servers an earlier version of the page kept for every daemon
+together MUST be kept, from the first time the page is opened, for each remote daemon that has a
+`webrtc:` route, and for no other.
 
 **3.13.2** Local MUST NOT be removable or renamable, and a remote daemon MUST NOT be named `local`.
 
@@ -1467,7 +1470,9 @@ letters, digits, `.`, `_` and `-`.
 
 **3.13.4** The `New daemon` form MUST offer three kinds: `Code`, `SSH` and `P2P`. `Code` MUST ask a
 name and a pairing code, MUST claim the code at once over its routes as Section 4.5.7 of [WIRE]
-states, and MUST keep the daemon only where the claim succeeds, saying why otherwise.
+states, and MUST keep the daemon only where the claim succeeds, saying why otherwise. Beside the
+form, the page MUST say in a few sentences what the kind chosen is and what the other machine
+needs for it, and under `SSH` what the mode chosen is.
 
 **3.13.5** `SSH` MUST offer two modes: `SSH Config`, which offers only a dropdown of the hosts of
 Local's ssh config (`runtimes.hosts`, Section 4.18.4.4 of [DAEMON]) not yet added and writes the
@@ -1528,10 +1533,21 @@ something, with its state.
 **3.13.19** The page MUST offer `SSH` and `P2P` only where its pipe provider can open their routes
 (Section 4.9).
 
-**3.13.20** `Settings` › `Daemons` MUST offer, for each daemon that is `up`, `Pair a device`, which
-makes a pairing code (`pair.create`, Section 4.14.2 of [DAEMON]) and shows it with when it expires,
-offering to copy it; and `Devices`, which lists the devices paired with that daemon and revokes one
-after confirmation (`devices.*`, Section 4.14.3 of [DAEMON]).
+**3.13.20** `Settings` › `Daemons` MUST offer, with each daemon that is `up` and where that daemon
+is listed, `Pair a device`, which makes a pairing code (`pair.create`, Section 4.14.2 of [DAEMON])
+and shows it with when it expires, offering to copy it; and `Devices`, which lists the devices
+paired with that daemon and revokes one after confirmation (`devices.*`, Section 4.14.3 of
+[DAEMON]). The page MUST say what a daemon's devices are, and, of a daemon that is not `up`, that
+its devices are shown once it is reached.
+
+**3.13.21** `Settings` › `Daemons` MUST let the user set, with each remote daemon and where that
+daemon is listed, that daemon's own STUN and TURN servers, each the URLs of one server and, for a
+TURN server, its username and credential, as Section 3.4.9.1 of [FILES] writes one; the page MUST
+refuse what is not a STUN or TURN server, MUST NOT show a credential once written, and MUST keep a
+credential left as it is shown. The page MUST open a daemon's `webrtc:` routes with that daemon's
+servers alone, and with none where it has none (Section 4.7.8 of [WIRE]). For a new `Code` daemon
+the form MUST ask them under `Advanced`, folded away until the pairing code written has a
+`webrtc:` route, and MUST claim the code with them.
 
 ### 3.14. Release notice
 

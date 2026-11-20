@@ -2660,7 +2660,8 @@ pre.block {
 
 /* What a card folds away is opened by a line with the chevron every folded thing has: two
    strokes, each a gradient in the quiet ink, turned down once it is open. */
-:is(.panel, .flow-detail) > details > summary {
+:is(.panel, .flow-detail) > details > summary,
+details.fold > summary {
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -2671,11 +2672,13 @@ pre.block {
   cursor: pointer;
 }
 
-:is(.panel, .flow-detail) > details > summary::-webkit-details-marker {
+:is(.panel, .flow-detail) > details > summary::-webkit-details-marker,
+details.fold > summary::-webkit-details-marker {
   display: none;
 }
 
-:is(.panel, .flow-detail) > details > summary::before {
+:is(.panel, .flow-detail) > details > summary::before,
+details.fold > summary::before {
   --stroke: transparent calc(50% - 0.5px), var(--ink-3) 0, var(--ink-3) calc(50% + 0.5px), transparent 0;
   content: '';
   flex: none;
@@ -2686,11 +2689,13 @@ pre.block {
     linear-gradient(to bottom right, var(--stroke)) bottom / 4px 4px no-repeat;
 }
 
-:is(.panel, .flow-detail) > details[open] > summary::before {
+:is(.panel, .flow-detail) > details[open] > summary::before,
+details.fold[open] > summary::before {
   transform: rotate(90deg);
 }
 
-:is(.panel, .flow-detail) > details[open] > summary {
+:is(.panel, .flow-detail) > details[open] > summary,
+details.fold[open] > summary {
   margin-bottom: var(--space-8);
 }
 
@@ -6180,6 +6185,85 @@ input[aria-invalid='true'] {
 .daemon-detail {
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
+}
+
+/* What is a daemon's own stands under its line and is read with it: no line between the two,
+   and it is set from the left whatever its cell does with a button. */
+.daemons-table tr[data-hmz='daemon'] > td {
+  border-bottom: 0;
+}
+
+.daemons-table .daemon-own > td {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-16);
+  text-align: left;
+}
+
+.daemon-own-body {
+  display: grid;
+  gap: var(--space-12);
+  padding-left: var(--space-16);
+  border-left: var(--border);
+}
+
+.daemon-own-body .form {
+  gap: var(--space-8);
+}
+
+.daemon-own-body h3 {
+  margin: 0;
+  font: 500 var(--text-sm)/16px var(--sans);
+  color: var(--ink-3);
+}
+
+.daemon-own-body p {
+  margin: 0;
+}
+
+@container (max-width: 640px) {
+  .table-wrap:has(td:last-child .btn) .daemons-table tr.daemon-own {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+/* A new daemon's form, and beside it what the kind chosen is: under the form's kinds where there
+   is no room beside. */
+.daemon-write {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
+  gap: var(--space-24);
+  align-items: start;
+}
+
+.daemon-about {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-md);
+  background: var(--quiet);
+  color: var(--ink-2);
+  font: var(--text-sm)/20px var(--sans);
+}
+
+.daemon-about h3 {
+  margin: 0;
+  font: 500 var(--text-md)/20px var(--sans);
+  color: var(--ink);
+}
+
+.daemon-about p {
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .daemon-write {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .daemon-about {
+    order: -1;
+  }
 }
 
 /* A code made for a device to pair with: said in a quiet block, with what copies it. */

@@ -308,7 +308,6 @@ test('webrtc joins the relay, offers, checks the answer, and carries bytes in ch
   const cert = { expires: Date.now() + 1e9 }
   const provider = webrtc({
     certificate: async () => cert,
-    iceServers: async () => [{ urls: 'stun:stun.example' }],
     RTCPeerConnection: FakeConnection,
     WebSocket: relayAnswering(async (offer) => ({
       type: 'answer',
@@ -318,7 +317,7 @@ test('webrtc joins the relay, offers, checks the answer, and carries bytes in ch
     })),
   })
   assert.ok(provider.opens('webrtc:wss://relay.example') && !provider.opens('relay:wss://relay.example'))
-  const pipe = await provider.open('webrtc:wss://relay.example/r', id, { state: noState, signal: new AbortController().signal })
+  const pipe = await provider.open('webrtc:wss://relay.example/r', id, { state: noState, signal: new AbortController().signal, iceServers: [{ urls: 'stun:stun.example' }] })
   const relay = FakeSocket.made[0]
   const connection = FakeConnection.last
   assert.equal(relay.url, 'wss://relay.example/r')
@@ -354,6 +353,8 @@ test('webrtc refuses an answer not signed by the daemon pinned, before any frame
     await assert.rejects(provider.open('webrtc:ws://relay', id, { state: noState, signal: new AbortController().signal }), NotPinned)
     assert.ok(FakeConnection.last.closed)
     assert.equal(FakeConnection.last.remoteDescription, undefined)
+    // Given no STUN or TURN servers of the daemon, it is opened with none.
+    assert.deepEqual(FakeConnection.last.config.iceServers, [])
   }
 })
 

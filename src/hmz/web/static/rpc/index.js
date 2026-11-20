@@ -8,8 +8,8 @@
 //
 //   const store = registry()
 //   const providers = window.__TAURI_INTERNALS__
-//     ? [tauri(), webrtc({ certificate: () => store.certificate(), iceServers: store.iceServers })]
-//     : [bridge(), webrtc({ certificate: () => store.certificate(), iceServers: store.iceServers })]
+//     ? [tauri(), webrtc({ certificate: () => store.certificate() })]
+//     : [bridge(), webrtc({ certificate: () => store.certificate() })]
 //   const here = connect(local(), providers, { client: { name: '', kind: 'web' } })
 //   const remote = connect((await store.list())[0], providers, { client: { name: '', kind: 'web' } })
 //
@@ -37,14 +37,14 @@
 // or rejected with `Dropped` where the session closed before it was answered.
 //
 // Pipe providers: `bridge()` for `hmz web` (`unix:` over `/rpc`, other native routes over
-// `/dial`), `webrtc({certificate, iceServers})` for `webrtc:` routes, and `tauri()` for the
-// desktop application's pipes.
+// `/dial`), `webrtc({certificate})` for `webrtc:` routes, opened with the STUN and TURN servers of
+// the daemon reached (`entry.ice`), and `tauri()` for the desktop application's pipes.
 //
 // The daemons the page keeps: `local()`, Local's entry -- `unix:` in `hmz web`, `stdio:local` on
 // macOS and `stdio:wsl` on Windows in the desktop application -- and `registry()` -- `list()`,
-// `add(entry)`, `update(name, changes)`, `remove(name)`, `iceServers()`, `setIceServers(servers)`
-// and `certificate()` -- and
-// `claim(store, {name, code, device}, providers)`, which adds one from a pairing code;
+// `add(entry)`, `update(name, changes)`, `remove(name)` and `certificate()`, an entry its `name`,
+// `id`, `routes` and, where it has any, `ice`, its STUN and TURN servers -- and
+// `claim(store, {name, code, device, ice}, providers)`, which adds one from a pairing code;
 // `parsePairing(code)` reads one.
 
 export { bridge } from './bridge.js'

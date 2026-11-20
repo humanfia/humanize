@@ -571,7 +571,7 @@ daemon:
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there; a directory that was deleted is marked `(missing)` in the list, and can still be forgotten; and under **Archived chats**, the chats of that directory that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
-| **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
+| **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; under each, its **Devices** and **Pair a device** once it is up, and a remote daemon's own **WebRTC servers** |
 | **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 | **Language** | The [language](#language) the page is written in: **System**, **English**, **简体中文** or **繁體中文**. Kept in this browser, never per daemon |
 
@@ -731,11 +731,12 @@ A daemon is in one of these states:
 `SSH · SSH Config`, `SSH · Custom` or `P2P · EasyTier` -- what reaches it, and its state.
 **New daemon** asks you to pick a kind, **Code**, **SSH** or **P2P**, and a mode under it; then
 the **name** the page calls it -- letters, digits, `.`, `_` and `-`; `local` is Local's and
-cannot be taken -- and how to reach it:
+cannot be taken -- and how to reach it. Beside the form, the page says what the kind you picked
+is and what the other machine needs for it, and each field says under it what it is for:
 
 | Kind | Mode | What you give |
 | --- | --- | --- |
-| **Code** | | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair` or by **Pair a device** on a page that reaches it. It is claimed at once, over the routes it carries, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. |
+| **Code** | | A pairing code, `hmz-pair:…`, made on that machine by `hmz daemon pair` or by **Pair a device** on a page that reaches it. It is claimed at once, over the routes it carries, and the daemon is kept only once the claim succeeds -- held to that machine's id from then on; otherwise the form says why. **Advanced** holds the [STUN and TURN servers](#webrtc-servers) to claim it with, and opens by itself for a code that is reached over WebRTC. |
 | **SSH** | **SSH Config** | A `Host` of your `~/.ssh/config` not yet added, picked from a list; picking one fills in the name. Nothing here writes to the config. It is resolved through your config every time, so editing the config edits the daemon. |
 | **SSH** | **Custom** | The host, user, port, identity file, proxy jump and options, a part at a time, as for an [ssh runtime](/user/settings#an-ssh-host). **Import from SSH config**: pick one of its hosts and **Import** fills them in from what your config says of it; they are kept by the page, and the config is not read again. |
 | **P2P** | **EasyTier** | The secret that machine's EasyTier entry holds: at least 16 bytes in UTF-8, shown masked. And the [**Nodes**](#easytier-nodes) both machines meet on, at least one: tick any of the EasyTier community's shared nodes, each listed with whether it is up and how much of the last 24 hours it was, or type one in as `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, `wg`) and **Add node**. Where the community list cannot be read, the page says why, and you type the nodes in. For a new daemon, also that machine's pairing code: it is claimed at once over EasyTier, and the daemon is kept, held to that machine's id, only once the claim succeeds. |
@@ -752,13 +753,40 @@ A daemon removed can be added again from a new pairing code: this machine is not
 paired a second time, and keeps the name it was paired under.
 
 The daemons are kept by this browser, in its IndexedDB: each its name, the daemon id pinned,
-and its [routes](/reference/settings#settings-yaml). Another browser, Humanize Desktop, and `hmz`
-in a terminal each keep their own.
+its [routes](/reference/settings#settings-yaml) and its own STUN and TURN servers. Another
+browser, Humanize Desktop, and `hmz` in a terminal each keep their own.
 
-Below the form, **Devices** has, for each daemon that is up, **Pair a device**, which makes a
-pairing code for another machine or browser to claim -- shown with when it expires, and a
-button that copies it -- and the devices paired with that daemon, each with when it was last
-seen; **Revoke** one, asked first, and it can reach that daemon no more.
+### Devices {#devices}
+
+A daemon's **devices** are the browsers and machines paired with it: the ones that may reach
+it. They are the other way round from **New daemon**, which is about the machines this page
+reaches. Under each daemon's line in the list, once it is up, **Devices** has **Pair a
+device**, which makes a one-time pairing code for another machine or browser to claim -- under
+**New daemon → Code** there -- shown with when it expires, and a button that copies it; and
+the devices paired with that daemon, each with when it was last seen. **Revoke** one, asked
+first, and it can reach that daemon no more. A daemon that is not up says so there instead:
+**Connect** to it first.
+
+### WebRTC servers {#webrtc-servers}
+
+A browser reaches a daemon behind a [relay](/user/relay) over WebRTC, by a `webrtc:` route.
+The two then look for a direct path between them: a **STUN** server tells each its address as
+the other sees it, and a **TURN** server carries the traffic where no direct path exists. On a
+simple network neither is needed.
+
+Each remote daemon has its own, under its line in the list: **WebRTC servers**, folded away
+unless one of its routes is a `webrtc:` route. Write one server a line -- its URL, as
+`stun:host:port` or `turn:host:port`, then for a TURN server its username and its credential
+-- and **Save**. A credential is shown as `••••` from then on, and is kept where you leave it
+so. They are used for that daemon's `webrtc:` routes only; a daemon reached another way never
+uses them. For a new **Code** daemon they are asked under **Advanced**, before the code is
+claimed.
+
+They are this browser's side. The daemon's own side is the
+`ice_servers` setting of its machine, which its [listeners](/reference/daemon#listeners) answer WebRTC with.
+
+An earlier version kept one list of servers for every daemon: it is moved, the first time the
+page is opened, onto each daemon that has a `webrtc:` route.
 
 ### What happens on connect {#on-connect}
 
