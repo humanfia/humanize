@@ -1,6 +1,6 @@
-// How the page looks: every theme Humanize comes with and every one made here, each a light
-// and a dark chosen as one -- the system says which of the two is shown -- and one made here
-// opened to be changed: its name, each of its two sides' colours and a picture behind any of
+// How the page looks: which side is shown -- Light, Dark, or Auto, the one the system asks for
+// -- every theme Humanize comes with and every one made here, each a light and a dark chosen
+// as one, and one made here opened to be changed: its name, each of its two sides' colours and a picture behind any of
 // the large planes, shown on the page as it is changed and kept at once, and written out as a
 // `.hmztheme` file. A theme of the user's own is made of the one in use, or read in from a file.
 
@@ -27,6 +27,13 @@ const NAMES = {
   'Surviving Jade': t('Surviving Jade'),
   'Lamenting Orchid': t('Lamenting Orchid'),
 }
+
+/** Which side of the theme in use is drawn, each as it is kept and as it is said. */
+const MODES = [
+  ['auto', t('Auto')],
+  ['light', t('Light')],
+  ['dark', t('Dark')],
+]
 
 /** What a theme is called: one made here as the user named it. */
 const called = (one) => (one.mine ? one.name : NAMES[one.name] || one.name)
@@ -78,11 +85,24 @@ function list(holder) {
     )
     return menuOn(node, () => [{ head: name }, { label: t('Use'), glyph: 'check', act: () => use(one.key) }, edit ? { label: t('Edit'), glyph: 'new', href: edit } : null])
   }
+  // Which side is drawn, of whichever theme is in use: chosen, the rows open the side now shown.
+  const modes = () =>
+    h(
+      'div',
+      { class: 'segmented', role: 'group', 'aria-label': t('Appearance'), 'data-hmz': 'theme-mode' },
+      MODES.map(([mode, said]) => h('button', { type: 'button', 'data-mode': mode, 'aria-pressed': String(look.mode() === mode), onclick: () => (look.prefer(mode), redraw()) }, said)),
+    )
   const redraw = () => {
     const all = look.themes()
     const mine = all.filter((one) => one.mine)
     fill(
       holder,
+      h(
+        'section',
+        { class: 'panel', 'data-hmz': 'appearance' },
+        h('header', {}, h('h2', {}, t('Appearance')), h('div', { class: 'row' }, modes())),
+        h('p', { class: 'dim' }, t('Which side of the theme in use is shown. Auto follows the system.')),
+      ),
       h('section', { class: 'panel', 'data-hmz': 'presets' }, h('header', {}, h('h2', {}, t('Presets'))), h('div', { class: 'theme-list' }, all.filter((one) => !one.mine).map(row))),
       h(
         'section',
@@ -256,7 +276,7 @@ function editor(holder, id) {
         'div',
         { class: 'form' },
         h('div', { class: 'field' }, h('span', { class: 'label' }, t('Name')), name),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Side')), sides, h('span', { class: 'hint' }, t('Light is shown where the system is light, Dark where it is dark.'))),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Side')), sides, h('span', { class: 'hint' }, t('Appearance, under Themes, says which side is shown.'))),
         h(
           'div',
           { class: 'row' },

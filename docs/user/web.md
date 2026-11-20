@@ -583,7 +583,7 @@ daemon:
 
 | Page | What is there |
 | --- | --- |
-| **Themes** | The [themes](#themes) of this browser, and which one is in use |
+| **Themes** | The [themes](#themes) of this browser, which one is in use, and whether its light or its dark is shown |
 | **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: **Edit** it (what you leave blank stays as it was), or make one; under **More options** at the end of its row, or on a right click of it, ask what it runs again (**Refresh models**), copy it to another CLI, or remove it, which asks first in the row |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node. A concrete nous is listed by its names -- **Claude Code - Opus 4.1 · High** -- with what `-a` spells where you point at it; typed into a graph, it is typed as `-a` spells it |
@@ -624,16 +624,25 @@ offered as `(at a terminal)` and made from `/settings` in `hmz`.
 ### Themes {#themes}
 
 The page is drawn in a theme. A theme always has two sides, a light one and a dark one, under
-one name; your system says which is shown, the light where it is light and the dark where it is
-dark, and the page follows it as it changes. Humanize comes with **presets**: its own,
+one name, and you choose which is shown apart from the theme. Humanize comes with **presets**: its own,
 **Humanize Green**, and **Temperate Gold**, **Concordant Scarlet**,
 **Restrained Crimson**, **Critical Teal**, **Desirous Indigo**, **Peaceful Lilac**,
 **Hateful Silver**, **Devoted Pink**, **Self-Negating Plum**, **Dominant Azure**,
 **Surviving Jade** and **Lamenting Orchid**.
 
 A theme is picked only under **Settings → Themes**: **Use** beside one chooses it, both sides at
-once. Humanize Green is in use until you choose another. Nothing there picks light or dark:
-change your system's appearance for that.
+once. Humanize Green is in use until you choose another.
+
+**Appearance**, at the top of the same page, says which side of the theme in use is shown:
+
+| Choice | What is shown |
+| --- | --- |
+| **Auto** | The light side where your system is light and the dark where it is dark, followed as it changes. This is what you have until you choose. |
+| **Light** | The light side, whatever your system says |
+| **Dark** | The dark side, whatever your system says |
+
+The choice is kept by the browser, as the theme is, and holds for whichever theme you use next;
+[the app](/user/desktop) has the same three.
 
 Under **Custom** are the themes of your own. **New** makes one from the theme in use, copying
 both its sides -- to start from a preset, use it first -- and **Import** reads one from a file.
@@ -677,7 +686,9 @@ A `.hmztheme` file is JSON, holding both sides, each with its `colors` and `imag
 
 An earlier Humanize let a theme have one side alone, and let a light and a dark be picked apart.
 What it kept in your browser is kept: a theme of one side gets the other, plain, and two sides
-picked apart become one theme of your own, called **Custom**, which stays in use. A file it
+picked apart become one theme of your own, called **Custom**, which stays in use. One side you
+had picked to show whatever your system said is still shown: its theme is in use, with
+**Appearance** on **Light** or **Dark**. A file it
 wrote for one side -- `"base": "dark"` with `colors` and `images`, in place of `light` and
 `dark` -- is still imported, as a theme whose other side is plain.
 

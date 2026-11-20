@@ -1341,7 +1341,7 @@ def _kept(page: Page, name: str) -> str | None:
     return page.evaluate("(name) => localStorage.getItem(name)", name)
 
 
-def test_a_theme_is_chosen_whole_and_the_system_says_which_side_is_shown(
+def test_a_theme_is_chosen_whole_and_under_auto_the_system_says_which_side_is_shown(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
@@ -1354,11 +1354,18 @@ def test_a_theme_is_chosen_whole_and_the_system_says_which_side_is_shown(
         go(page, "/settings/themes")
         presets = page.locator("[data-hmz=presets] [data-hmz=theme]")
         expect(presets.locator(".theme-name b")).to_have_text(_PRESETS)
-        # Each is drawn as its two sides, and nothing picks one of them: no Auto, no light or
-        # dark to choose, nothing copied or written out from the list.
+        # Each is drawn as its two sides, and no row picks one of them: nothing is copied or
+        # written out from the list. Which side is shown is one choice for them all, Auto
+        # where none was made.
         expect(presets.locator(".theme-swatch")).to_have_count(2 * len(_PRESETS))
         expect(presets.locator("button")).to_have_text(["Use"] * len(_PRESETS))
-        expect(page.locator("[data-hmz=theme-auto]")).to_have_count(0)
+        expect(page.locator("[data-hmz=theme-mode] button")).to_have_text(
+            ["Auto", "Light", "Dark"]
+        )
+        expect(page.locator("[data-hmz=theme-mode] [aria-pressed=true]")).to_have_text(
+            "Auto"
+        )
+        assert _kept(page, "hmz-mode") is None
         expect(page.locator("[data-hmz=presets] select")).to_have_count(0)
         custom = page.locator("[data-hmz=custom]")
         expect(custom.locator("h2")).to_have_text("Custom")
@@ -1503,6 +1510,82 @@ def test_a_theme_is_made_of_the_one_in_use_written_out_and_read_back(
         assert _kept(page, "hmz-pair") is None
 
 
+def test_the_side_shown_is_the_one_chosen_and_under_auto_the_systems(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/themes")
+        mode = page.locator("[data-hmz=theme-mode]")
+        pressed = mode.locator("[aria-pressed=true]")
+        root = page.locator("html")
+        page.locator("[data-hmz=theme][data-key=peaceful-lilac]").get_by_role(
+            "button", name="Use"
+        ).click()
+        _painted(page, "--paper", "#f7f2f7")
+
+        # Dark is drawn at once, where the system is light, and stays whatever the system says.
+        mode.get_by_role("button", name="Dark").click()
+        expect(pressed).to_have_text("Dark")
+        expect(root).to_have_attribute("data-theme", "dark")
+        _painted(page, "--paper", "#151019")
+        assert _kept(page, "hmz-mode") == "dark"
+        assert _kept(page, "hmz-pair") == "peaceful-lilac"
+        for scheme in ("dark", "light"):
+            page.emulate_media(color_scheme=scheme)
+            page.wait_for_timeout(150)
+            expect(root).to_have_attribute("data-theme", "dark")
+            assert "#151019" in _paints(page, "--paper")
+
+        # Another theme used is drawn on the same side.
+        page.locator("[data-hmz=theme][data-key=devoted-pink]").get_by_role(
+            "button", name="Use"
+        ).click()
+        _painted(page, "--paper", "#1a1016")
+        expect(root).to_have_attribute("data-theme", "dark")
+        expect(pressed).to_have_text("Dark")
+
+        # Light, where the system is dark.
+        page.emulate_media(color_scheme="dark")
+        mode.get_by_role("button", name="Light").click()
+        expect(pressed).to_have_text("Light")
+        expect(root).to_have_attribute("data-theme", "light")
+        _painted(page, "--paper", "#fdf6f5")
+        assert _kept(page, "hmz-mode") == "light"
+        page.emulate_media(color_scheme="light")
+        page.emulate_media(color_scheme="dark")
+        page.wait_for_timeout(150)
+        expect(root).to_have_attribute("data-theme", "light")
+
+        # Opened again, the side chosen is painted before the page is drawn, and another page
+        # this browser has open follows the choice made here.
+        again = page.context.new_page()
+        again.emulate_media(color_scheme="dark")
+        again.goto(site.address)
+        assert again.evaluate("document.documentElement.dataset.theme") == "light"
+        assert "#fdf6f5" in _paints(again, "--paper")
+
+        # Auto keeps nothing, and follows the system as it changes.
+        mode.get_by_role("button", name="Auto").click()
+        expect(pressed).to_have_text("Auto")
+        assert _kept(page, "hmz-mode") is None
+        _painted(page, "--paper", "#1a1016")
+        expect(root).to_have_attribute("data-theme", "dark")
+        _painted(again, "--paper", "#1a1016")
+        again.close()
+        page.emulate_media(color_scheme="light")
+        expect(root).to_have_attribute("data-theme", "light")
+        _painted(page, "--paper", "#fdf6f5")
+        page.emulate_media(color_scheme="dark")
+        expect(root).to_have_attribute("data-theme", "dark")
+
+        # A theme of one's own is opened on the side shown, not the system's.
+        mode.get_by_role("button", name="Light").click()
+        page.locator("[data-hmz=custom]").get_by_role("button", name="New").click()
+        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
+            "Light"
+        )
+
+
 #: What an earlier Humanize kept in a browser: a theme of one side, a dark alone, shown where
 #: the system is dark, and the light of a preset where it is light. Kept once: the page it is
 #: kept for is the first this browser opens.
@@ -1550,7 +1633,8 @@ def test_what_an_earlier_version_kept_is_kept_as_themes_of_two_sides(
         _painted(page, "--paper", "#102030")
         page.emulate_media(color_scheme="light")
 
-        # One side chosen outright, whatever the system was: its theme is chosen.
+        # One side chosen outright, whatever the system was: its theme is chosen, and that
+        # side of it stays the one shown.
         page.evaluate(
             """() => {
               localStorage.removeItem('hmz-pair')
@@ -1558,9 +1642,16 @@ def test_what_an_earlier_version_kept_is_kept_as_themes_of_two_sides(
             }"""
         )
         page.reload()
-        _painted(page, "--paper", "#fdf6f5")
+        _painted(page, "--paper", "#1a1016")
         assert _kept(page, "hmz-pair") == "devoted-pink"
+        assert _kept(page, "hmz-mode") == "dark"
         assert _kept(page, "hmz-theme") is None
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        go(page, "/settings/themes")
+        expect(page.locator("[data-hmz=theme-mode] [aria-pressed=true]")).to_have_text(
+            "Dark"
+        )
+        page.locator("[data-hmz=theme-mode]").get_by_role("button", name="Auto").click()
         expect(page.locator("html")).to_have_attribute("data-theme", "light")
 
         # A file an earlier version wrote for one side is read as a theme of two.

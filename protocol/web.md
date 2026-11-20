@@ -1422,9 +1422,11 @@ open, and each page MUST stay on the view it was on.
 (Section 3.4.4.13), `Humanize` kept in Latin script; a theme the user made MUST keep the name it
 was given.
 
-**3.12.3** The page MUST be drawn in the light side of the theme chosen where the browser prefers
-light and in its dark side where it prefers dark, and MUST offer no other choice of the side.
-`Humanize Green` MUST be chosen where the user chose none.
+**3.12.3** The page MUST let the user choose which side of the theme chosen it is drawn in, one of
+`Auto`, `Light` and `Dark`, apart from the theme: `Light` and `Dark` MUST draw that side whatever
+the browser prefers, and `Auto`, the default, MUST draw the light side where the browser prefers
+light and the dark side where it prefers dark, following the preference as it changes. `Humanize
+Green` MUST be chosen where the user chose no theme.
 
 **3.12.4** Every theme MUST hold both a light side and a dark side, and the user MUST choose the
 two together, as one theme.
@@ -1445,10 +1447,11 @@ that side.
 
 **3.12.9** The page MUST keep themes in the browser, per browser. What an earlier version of the
 page kept there MUST be kept: a theme of one side as a theme whose other side sets nothing, a side
-chosen alone as its theme chosen, and a light side and a dark side of two themes, chosen apart, as
-one theme of the user's own holding both, chosen.
+chosen alone as its theme chosen and drawn in that side, and a light side and a dark side of two
+themes, chosen apart, as one theme of the user's own holding both, chosen.
 
-**3.12.10** A theme MUST be chosen only in `Settings`, in a browser and in the desktop app alike.
+**3.12.10** A theme and the side it is drawn in MUST be chosen only in `Settings`, in a browser and
+in the desktop app alike.
 
 **3.12.11** Where the system asks for reduced motion, the page MUST hold every moving picture still.
 

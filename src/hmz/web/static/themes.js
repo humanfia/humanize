@@ -1,9 +1,9 @@
 // Themes, as an editor keeps them: those Humanize comes with and any made in this browser, each
 // a light side and a dark side under one name -- the colours a side changes and a picture for
-// any of the page's large planes, still or drawn moving. One theme is chosen, whole: the page is
-// drawn in its light where the system is light and in its dark where it is dark. A theme made
-// here is written out whole as a `.hmztheme` file, which is read back in here or in any other
-// browser.
+// any of the page's large planes, still or drawn moving. One theme is chosen, whole, and which
+// of its sides the page is drawn in is chosen apart: Light, Dark, or Auto, its light where the
+// system is light and its dark where it is dark. A theme made here is written out whole as a
+// `.hmztheme` file, which is read back in here or in any other browser.
 //
 // What a side changes is kept beside the choice, for theme.js to paint before the page is
 // drawn -- the sides of the theme chosen as well, where Humanize comes with it; its pictures,
@@ -79,9 +79,22 @@ export function choose(key) {
   paint()
 }
 
-/** The side of a theme, the one chosen where none is given, that the system asks for now. */
+/** Which side is drawn: `light`, `dark`, or `auto`, the one the system asks for, where none is chosen. */
+export function mode() {
+  const said = kept('hmz-mode', null)
+  return said === 'light' || said === 'dark' ? said : 'auto'
+}
+
+/** Chooses which side is drawn: `light`, `dark` or `auto`. */
+export function prefer(said) {
+  keep('hmz-mode', said === 'light' || said === 'dark' ? said : null)
+  paint()
+}
+
+/** The side of a theme, the one chosen where none is given, that is drawn now. */
 export function shown(key = chosen()) {
-  return sides(key)[matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0]
+  const dark = mode() === 'auto' ? matchMedia('(prefers-color-scheme: dark)').matches : mode() === 'dark'
+  return sides(key)[dark ? 1 : 0]
 }
 
 /**
@@ -181,7 +194,7 @@ export async function paint(given) {
 const still = matchMedia('(prefers-reduced-motion: reduce)')
 still.addEventListener('change', () => paint())
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => paint())
-window.addEventListener('storage', (event) => ['hmz-pair', 'hmz-themes'].includes(event.key) && paint())
+window.addEventListener('storage', (event) => ['hmz-pair', 'hmz-mode', 'hmz-themes'].includes(event.key) && paint())
 
 const stills = new Map()
 
@@ -322,6 +335,7 @@ const was = migrated(
 if (was) {
   keep('hmz-themes', JSON.stringify(was.themes))
   keep('hmz-pair', was.pair)
+  if (was.mode && kept('hmz-mode', null) === null) keep('hmz-mode', was.mode)
   for (const name of ['hmz-theme', 'hmz-theme-light', 'hmz-theme-dark']) keep(name, null)
 }
 const moved = Promise.all(
