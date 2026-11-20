@@ -1,53 +1,42 @@
-// How the page looks: the pair -- or any two themes -- Auto follows the system with, every pair
-// Humanize comes with and every pair and theme made here -- used, copied, written out as a
-// `.hmztheme` file or read in from one -- and one made here opened to be changed: its name, what
-// it is made on, each of its colours and a picture behind any of the large planes, shown on the
-// page as it is changed and kept at once.
+// How the page looks: every theme Humanize comes with and every one made here, each a light
+// and a dark chosen as one -- the system says which of the two is shown -- and one made here
+// opened to be changed: its name, each of its two sides' colours and a picture behind any of
+// the large planes, shown on the page as it is changed and kept at once, and written out as a
+// `.hmztheme` file. A theme of the user's own is made of the one in use, or read in from a file.
 
 import { hash } from '../../api.js'
 import { confirming } from '../../confirm.js'
 import { fill, h, iconButton, problem } from '../../dom.js'
-import { choice, menu } from '../../shell.js'
+import { t } from '../../i18n.js'
 import { menuOn, toast } from '../../ui.js'
 import * as look from '../../themes.js'
+
+/** The names of the themes Humanize comes with, as the page's language says them. */
+const NAMES = {
+  'Humanize Green': t('Humanize Green'),
+  'Temperate Gold': t('Temperate Gold'),
+  'Concordant Scarlet': t('Concordant Scarlet'),
+  'Restrained Crimson': t('Restrained Crimson'),
+  'Critical Teal': t('Critical Teal'),
+  'Desirous Indigo': t('Desirous Indigo'),
+  'Peaceful Lilac': t('Peaceful Lilac'),
+  'Hateful Silver': t('Hateful Silver'),
+  'Devoted Pink': t('Devoted Pink'),
+  'Self-Negating Plum': t('Self-Negating Plum'),
+  'Dominant Azure': t('Dominant Azure'),
+  'Surviving Jade': t('Surviving Jade'),
+  'Lamenting Orchid': t('Lamenting Orchid'),
+}
+
+/** What a theme is called: one made here as the user named it. */
+const called = (one) => (one.mine ? one.name : NAMES[one.name] || one.name)
 
 export function draw(holder, query, parts) {
   if (parts[2]) return editor(holder, parts[2])
   list(holder)
 }
 
-/** The theme shown now: the one chosen, or the one Auto shows for the system as it is. */
-function shown() {
-  const id = look.chosen()
-  if (id !== 'auto') return look.theme(id) || look.OWN[0]
-  return look.theme(look.paired()[matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'])
-}
-
 function list(holder) {
-  const auto = () => look.chosen() === 'auto'
-  // The pair Auto follows the system with, set at once; or its light and its dark apart.
-  const pairs = () => {
-    const now = look.pairing()
-    const select = h(
-      'select',
-      { 'aria-label': 'Auto pair', 'data-hmz': 'auto-pair' },
-      now ? null : h('option', { value: '', selected: true, disabled: true }, 'Custom'),
-      look.pairs().map((one) => h('option', { value: one.key, selected: now === one.key }, one.name)),
-    )
-    select.addEventListener('change', () => {
-      look.usePair(select.value)
-      redraw()
-    })
-    return select
-  }
-  const pick = (scheme) => {
-    const select = h('select', { 'aria-label': `Auto ${scheme}`, 'data-hmz': `auto-${scheme}` }, look.themes().map((one) => h('option', { value: one.id, selected: look.paired()[scheme] === one.id }, look.label(one))))
-    select.addEventListener('change', () => {
-      look.pair(scheme, select.value)
-      redraw()
-    })
-    return select
-  }
   const file = h('input', { type: 'file', accept: '.hmztheme,application/json', hidden: true, 'data-hmz': 'theme-file' })
   file.addEventListener('change', async () => {
     const [chosen] = file.files
@@ -55,132 +44,69 @@ function list(holder) {
     if (!chosen) return
     try {
       const [one] = await look.imported(await chosen.text())
-      toast(`Imported ${one.name}`)
+      toast(t('Imported {name}', { name: one.name }))
       redraw()
     } catch (error) {
       toast(error.message)
     }
   })
-  const fresh = async (from, name) => {
-    const one = await look.create(from, name)
-    location.hash = hash(`/settings/themes/${one.id}`)
+  // A theme of the user's own, of both sides of the one in use, opened on the side now shown.
+  const fresh = async () => {
+    const [one] = await look.create(look.sides(look.chosen()), t('New theme'))
+    location.hash = hash(`/settings/themes/${look.shown(one.pair).id}`)
   }
-  const freshPair = async ([light, dark], name) => {
-    const [one] = await look.createPair(light, dark, name)
-    location.hash = hash(`/settings/themes/${one.id}`)
-  }
-  const use = (one) => {
-    look.choose(one.id)
+  const use = (key) => {
+    look.choose(key)
     redraw()
   }
-  // What can be done to one theme Humanize comes with or one made here.
-  const offered = (one) => [
-    { head: look.label(one) },
-    { label: 'Use', glyph: 'check', act: () => use(one) },
-    look.OWN.includes(one) ? null : { label: 'Edit', glyph: 'new', href: hash(`/settings/themes/${one.id}`) },
-    { label: 'Duplicate', glyph: 'copy', act: () => fresh(one, `${one.name} copy`) },
-    { label: 'Export', glyph: 'download', act: () => look.exported(one) },
-  ]
-  // A button opening a choice of the whole pair, where it can be done to it, or its light or dark.
-  const either = (label, two, act, whole = null) => {
-    const button = h('button', { class: 'btn quiet small', type: 'button', 'aria-label': label }, label)
-    const holding = h('span', { class: 'menu-holder' }, button)
-    menu(
-      button,
-      (close) => [whole ? choice({ label: 'Pair', act: whole, close }) : null, two.map((one) => choice({ label: one.base === 'dark' ? 'Dark' : 'Light', act: () => act(one), close }))],
-      { label, align: 'end' },
-    )
-    return holding
-  }
-  const pairRow = (pair) => {
-    const two = look.members(pair.key)
-    const on = auto() && look.pairing() === pair.key
-    const node = h(
-      'div',
-      { class: ['theme-row', on && 'chosen'], 'data-hmz': 'pair', 'data-key': pair.key },
-      two.map((one) =>
-        menuOn(
-          h('button', { class: ['theme-swatch-button', look.chosen() === one.id && 'chosen'], type: 'button', title: `Use ${look.label(one)}`, 'aria-label': `Use ${look.label(one)}`, onclick: () => use(one) }, swatch(one)),
-          () => offered(one),
-        ),
-      ),
-      h('div', { class: 'theme-name' }, h('b', {}, pair.name), h('span', { class: 'dim' }, on ? 'Light · Dark · In use' : 'Light · Dark')),
-      h(
-        'div',
-        { class: 'row' },
-        h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => (look.usePair(pair.key), redraw()) }, 'Use pair'),
-        pair.mine ? either('Edit', two, (one) => (location.hash = hash(`/settings/themes/${one.id}`))) : null,
-        either('Duplicate', two, (one) => fresh(one, `${pair.name} ${one.base}`), () => freshPair(two, `${pair.name} copy`)),
-        either('Export', two, (one) => look.exported(one), () => look.exported(pair.key)),
-        pair.mine ? confirming({ label: 'Delete', ask: `Delete ${pair.name}?`, yes: 'Delete', small: true, act: () => look.removePair(pair.key).then(redraw) }) : null,
-      ),
-    )
-    return menuOn(node, () => [{ head: pair.name }, { label: 'Use pair', glyph: 'check', act: () => (look.usePair(pair.key), redraw()) }])
-  }
   const row = (one) => {
-    const on = look.chosen() === one.id
+    const on = look.chosen() === one.key
+    const name = called(one)
+    const edit = one.mine ? hash(`/settings/themes/${look.shown(one.key).id}`) : null
     const node = h(
       'div',
-      { class: ['theme-row', on && 'chosen'], 'data-hmz': 'theme', 'data-id': one.id },
-      swatch(one),
-      h('div', { class: 'theme-name' }, h('b', {}, one.name), h('span', { class: 'dim' }, one.base === 'dark' ? 'Dark' : 'Light', on ? ' · In use' : '')),
+      { class: ['theme-row', on && 'chosen'], 'data-hmz': 'theme', 'data-key': one.key },
+      h('div', { class: 'theme-sides' }, look.sides(one.key).map(swatch)),
+      h('div', { class: 'theme-name' }, h('b', {}, name), on ? h('span', { class: 'dim' }, t('In use')) : null),
       h(
         'div',
         { class: 'row' },
-        h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => use(one) }, 'Use'),
-        h('a', { class: 'btn quiet small', href: hash(`/settings/themes/${one.id}`) }, 'Edit'),
-        h('button', { class: 'btn quiet small', type: 'button', onclick: () => fresh(one, `${one.name} copy`) }, 'Duplicate'),
-        h('button', { class: 'btn quiet small', type: 'button', onclick: () => look.exported(one) }, 'Export'),
-        confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', small: true, act: () => look.remove(one.id).then(redraw) }),
+        h('button', { class: 'btn small', type: 'button', disabled: on, onclick: () => use(one.key) }, t('Use')),
+        edit ? h('a', { class: 'btn quiet small', href: edit }, t('Edit')) : null,
+        edit ? confirming({ label: t('Delete'), ask: t('Delete {name}?', { name }), yes: t('Delete'), small: true, act: () => look.remove(one.key).then(redraw) }) : null,
       ),
     )
-    return menuOn(node, () => offered(one))
+    return menuOn(node, () => [{ head: name }, { label: t('Use'), glyph: 'check', act: () => use(one.key) }, edit ? { label: t('Edit'), glyph: 'new', href: edit } : null])
   }
   const redraw = () => {
-    const mine = look.themes().filter((one) => !look.OWN.includes(one) && !one.pair)
-    const pairsMine = look.pairs().filter((one) => one.mine)
+    const all = look.themes()
+    const mine = all.filter((one) => one.mine)
     fill(
       holder,
+      h('section', { class: 'panel', 'data-hmz': 'presets' }, h('header', {}, h('h2', {}, t('Presets'))), h('div', { class: 'theme-list' }, all.filter((one) => !one.mine).map(row))),
       h(
         'section',
-        { class: 'panel', 'data-hmz': 'theme-auto' },
-        h('header', {}, h('h2', {}, 'Auto')),
-        h(
-          'div',
-          { class: 'form' },
-          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Pair'), pairs(), h('span', { class: 'hint' }, 'A light and a dark at once, or each below.')),
-          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Light'), pick('light')),
-          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Dark'), pick('dark'), h('span', { class: 'hint' }, 'Under Auto, the page follows the system with these.')),
-          h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', disabled: auto(), onclick: () => (look.choose('auto'), redraw()) }, auto() ? 'In use' : 'Use Auto')),
-        ),
-      ),
-      h('section', { class: 'panel', 'data-hmz': 'pairs' }, h('header', {}, h('h2', {}, 'Presets')), h('div', { class: 'theme-list' }, look.PAIRS.map(pairRow))),
-      h(
-        'section',
-        { class: 'panel', 'data-hmz': 'themes' },
+        { class: 'panel', 'data-hmz': 'custom' },
         h(
           'header',
           {},
-          h('h2', {}, 'Yours'),
+          h('h2', {}, t('Custom')),
           h(
             'div',
             { class: 'row' },
-            h('button', { class: 'btn small', type: 'button', onclick: () => fresh(shown(), 'New theme') }, 'New'),
-            h('button', { class: 'btn quiet small', type: 'button', onclick: () => freshPair(look.members(look.pairing() || 'humanize'), 'New pair') }, 'New pair'),
-            h('button', { class: 'btn quiet small', type: 'button', onclick: () => file.click() }, 'Import'),
+            h('button', { class: 'btn small', type: 'button', onclick: fresh }, t('New')),
+            h('button', { class: 'btn quiet small', type: 'button', onclick: () => file.click() }, t('Import')),
             file,
           ),
         ),
-        pairsMine.length || mine.length
-          ? h('div', { class: 'theme-list' }, pairsMine.map(pairRow), mine.map(row))
-          : h('p', { class: 'dim' }, 'None yet: make a theme or a pair, duplicate a preset or import a file.'),
+        mine.length ? h('div', { class: 'theme-list' }, mine.map(row)) : h('p', { class: 'dim' }, t('No custom themes yet.')),
       ),
     )
   }
   redraw()
 }
 
-/** A theme drawn small: its page, sidebar, text and accents, in its own colours. */
+/** A side drawn small: its page, sidebar, text and accents, in its own colours. */
 function swatch(one) {
   const node = h(
     'div',
@@ -208,55 +134,38 @@ function hex(colour) {
   return `#${rgba(colour).slice(0, 3).map((n) => n.toString(16).padStart(2, '0')).join('')}`
 }
 
+/** One side of a theme made here, by its id, opened to be changed; the other a press away. */
 function editor(holder, id) {
-  const one = look.theme(id)
+  const one = look.side(id)
   if (!one || look.OWN.includes(one)) {
-    fill(holder, problem('No such theme'), h('p', { class: 'row' }, h('a', { class: 'btn', href: hash('/settings/themes') }, 'Themes')))
+    fill(holder, problem(t('No such theme')), h('p', { class: 'row' }, h('a', { class: 'btn', href: hash('/settings/themes') }, t('Themes'))))
     return
   }
-  // What the theme's colours are where it sets none: its base's, as a theme on it works them out.
+  // What the side's colours are where it sets none: Humanize's own for that side.
   const probe = h('div', { 'data-theme': one.base, hidden: true })
   const fallback = (token) => getComputedStyle(probe).getPropertyValue(`--${token}`).trim()
   const changed = () => {
     look.save(one)
     look.paint(one)
   }
-  const name = h('input', { type: 'text', value: one.name, 'aria-label': 'Name', 'data-hmz': 'theme-name', maxlength: '60' })
-  // A pair's name is both its themes'.
+  const name = h('input', { type: 'text', value: one.name, 'aria-label': t('Name'), 'data-hmz': 'theme-name', maxlength: '60' })
+  // A theme's name is both its sides'.
   name.addEventListener('input', () => {
     if (!name.value.trim()) return
     one.name = name.value.trim()
-    if (one.pair) look.rename(one.pair, one.name)
-    else look.save(one)
+    look.rename(one.pair, one.name)
   })
-  // In a pair, which of its two is open, each a press away.
-  const sides = one.pair
-    ? h(
-        'div',
-        { class: 'segmented', role: 'group', 'aria-label': 'Side', 'data-hmz': 'theme-side' },
-        look.members(one.pair).map((other) =>
-          h('button', { type: 'button', 'aria-pressed': String(other.id === one.id), onclick: () => (location.hash = hash(`/settings/themes/${other.id}`)) }, other.base === 'dark' ? 'Dark' : 'Light'),
-        ),
-      )
-    : null
-  const base = h('select', { 'aria-label': 'Base', 'data-hmz': 'theme-base' }, h('option', { value: 'light', selected: one.base === 'light' }, 'Light'), h('option', { value: 'dark', selected: one.base === 'dark' }, 'Dark'))
-  base.addEventListener('change', () => {
-    one.base = probe.dataset.theme = base.value
-    changed()
-    colours()
-  })
-  const tints = h('div', { class: 'theme-colours' })
-  const colours = () =>
-    fill(
-      tints,
-      look.COLOURS.map(([group, tokens]) =>
-        h('section', { class: 'panel' }, h('header', {}, h('h2', {}, group)), h('div', { class: 'theme-grid' }, tokens.map(([token, label]) => colour(token, label)))),
-      ),
-    )
+  const sides = h(
+    'div',
+    { class: 'segmented', role: 'group', 'aria-label': t('Side'), 'data-hmz': 'theme-side' },
+    look.sides(one.pair).map((other) =>
+      h('button', { type: 'button', 'aria-pressed': String(other.id === one.id), onclick: () => (location.hash = hash(`/settings/themes/${other.id}`)) }, other.base === 'dark' ? t('Dark') : t('Light')),
+    ),
+  )
   const colour = (token, label) => {
     const text = h('input', { type: 'text', value: one.colors[token] || '', placeholder: fallback(token), spellcheck: 'false', 'aria-label': label, 'data-hmz': `colour-${token}` })
-    const pick = h('input', { type: 'color', value: hex(one.colors[token] || fallback(token)), 'aria-label': `${label} picker` })
-    const reset = iconButton('close', `Reset ${label}`, { class: 'theme-reset' })
+    const pick = h('input', { type: 'color', value: hex(one.colors[token] || fallback(token)), 'aria-label': t('{name} picker', { name: label }) })
+    const reset = iconButton('close', t('Reset {name}', { name: label }), { class: 'theme-reset' })
     const set = (value) => {
       if (value) one.colors[token] = value
       else delete one.colors[token]
@@ -287,6 +196,7 @@ function editor(holder, id) {
     reset.hidden = !one.colors[token]
     return h('label', { class: 'theme-colour' }, h('span', { class: 'label' }, label), h('span', { class: 'theme-colour-row' }, pick, text, reset))
   }
+  const tints = h('div', { class: 'theme-colours' })
   const planes = h('div', { class: 'theme-grid' })
   const pictures = async () => {
     const read = await Promise.all(look.AREAS.map(([area]) => (one.images[area] ? look.picture(one.id, area).catch(() => null) : null)))
@@ -307,7 +217,7 @@ function editor(holder, id) {
         toast(error.message)
       }
     })
-    const fit = h('select', { 'aria-label': `${label} fit`, disabled: !data }, Object.entries(look.FITS).map(([key, said]) => h('option', { value: key, selected: (one.images[area]?.fit || 'cover') === key }, said)))
+    const fit = h('select', { 'aria-label': t('{name} fit', { name: label }), disabled: !data }, Object.entries(look.FITS).map(([key, said]) => h('option', { value: key, selected: (one.images[area]?.fit || 'cover') === key }, said)))
     fit.addEventListener('change', () => {
       one.images[area] = { fit: fit.value }
       changed()
@@ -322,7 +232,7 @@ function editor(holder, id) {
         'div',
         { class: 'row' },
         thumb,
-        h('button', { class: 'btn small', type: 'button', onclick: () => file.click() }, data ? 'Replace' : 'Choose'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => file.click() }, data ? t('Replace') : t('Choose')),
         fit,
         data
           ? h('button', { class: 'btn quiet small', type: 'button', onclick: async () => {
@@ -330,7 +240,7 @@ function editor(holder, id) {
               delete one.images[area]
               changed()
               pictures()
-            } }, 'Remove')
+            } }, t('Remove'))
           : null,
         file,
       ),
@@ -345,26 +255,26 @@ function editor(holder, id) {
       h(
         'div',
         { class: 'form' },
-        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Name'), name),
-        one.pair
-          ? h('div', { class: 'field' }, h('span', { class: 'label' }, 'Side'), sides, h('span', { class: 'hint' }, 'A pair’s light is shown where the system is light, its dark where it is dark.'))
-          : h('div', { class: 'field' }, h('span', { class: 'label' }, 'Base'), base, h('span', { class: 'hint' }, 'What any colour left blank is taken from.')),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Name')), name),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, t('Side')), sides, h('span', { class: 'hint' }, t('Light is shown where the system is light, Dark where it is dark.'))),
         h(
           'div',
           { class: 'row' },
-          h('a', { class: 'btn', href: hash('/settings/themes') }, 'Done'),
-          one.pair
-            ? h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.usePair(one.pair), toast(`Using ${one.name}`)) }, 'Use pair')
-            : h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.choose(one.id), toast(`Using ${one.name}`)) }, 'Use'),
-          h('button', { class: 'btn quiet', type: 'button', onclick: () => look.exported(one.pair || one) }, 'Export'),
-          confirming({ label: 'Delete', ask: `Delete ${one.name}?`, yes: 'Delete', act: () => (one.pair ? look.removePair(one.pair) : look.remove(one.id)).then(() => (location.hash = hash('/settings/themes'))) }),
+          h('a', { class: 'btn', href: hash('/settings/themes') }, t('Done')),
+          h('button', { class: 'btn quiet', type: 'button', onclick: () => (look.choose(one.pair), look.paint(one), toast(t('Using {name}', { name: one.name }))) }, t('Use')),
+          h('button', { class: 'btn quiet', type: 'button', onclick: () => look.exported(one.pair) }, t('Export')),
+          confirming({ label: t('Delete'), ask: t('Delete {name}?', { name: one.name }), yes: t('Delete'), act: () => look.remove(one.pair).then(() => (location.hash = hash('/settings/themes'))) }),
         ),
       ),
     ),
     tints,
-    h('section', { class: 'panel' }, h('header', {}, h('h2', {}, 'Pictures')), h('p', { class: 'dim' }, 'Behind each large plane: a still picture, a GIF, or an SVG, moving or not.'), planes),
+    h('section', { class: 'panel' }, h('header', {}, h('h2', {}, t('Pictures'))), h('p', { class: 'dim' }, t('Behind each large plane: a still picture, a GIF, or an SVG, moving or not.')), planes),
   )
-  colours()
+  // Drawn once the probe is in the page: only there has it colours to be asked.
+  fill(
+    tints,
+    look.COLOURS.map(([group, tokens]) => h('section', { class: 'panel' }, h('header', {}, h('h2', {}, group)), h('div', { class: 'theme-grid' }, tokens.map(([token, label]) => colour(token, label))))),
+  )
   pictures()
   look.paint(one)
   // Left, the page is drawn in the theme chosen again.

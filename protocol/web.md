@@ -127,8 +127,8 @@ tells it to the user through the system, with the daemon it came from.
 
 **3.2.9** The **Exomyth** of an epic is the page's view of that epic's timeline and flame graph.
 
-**3.2.10** A **theme** is a set of colours and pictures the page is drawn in. A **pair** is a light
-theme and a dark theme kept together under one name. A **preset** is a pair that comes with hmz.
+**3.2.10** A **theme** is a light side and a dark side, each a set of colours and pictures the page
+is drawn in, kept together under one name. A **preset** is a theme that comes with hmz.
 
 **3.2.11** **App settings** are the settings pages that belong to the page in this browser alone.
 **Daemon settings** are the settings pages that each daemon keeps for itself.
@@ -1361,24 +1361,31 @@ open, and each page MUST stay on the view it was on.
 `Hateful Silver`, `Devoted Pink`, `Self-Negating Plum`, `Dominant Azure`, `Surviving Jade` and
 `Lamenting Orchid`.
 
-**3.12.3** Under `Auto`, the default, the page MUST follow the browser's light or dark preference
-with a pair, or with one theme picked for light and one picked for dark.
+**3.12.3** The page MUST be drawn in the light side of the theme chosen where the browser prefers
+light and in its dark side where it prefers dark, and MUST offer no other choice of the side.
+`Humanize Green` MUST be chosen where the user chose none.
 
-**3.12.4** The user MUST be able to pick one theme to use whatever the browser's preference is.
+**3.12.4** Every theme MUST hold both a light side and a dark side, and the user MUST choose the
+two together, as one theme.
 
-**3.12.5** The user MUST be able to make a theme on `Light` or `Dark`, or a pair of the user's own,
-to duplicate any theme or pair, and to edit any of the user's own.
+**3.12.5** The user MUST be able to make a theme of the user's own, from the theme chosen or from a
+`.hmztheme` file, and to edit and delete any of the user's own. The page MUST offer no other way to
+make one.
 
-**3.12.6** Editing a theme MUST let the user set its name, its base, each of its colours, and a
-picture -- still or moving -- behind the page, the sidebar, the panel and dialogs, each to cover,
-fit or tile its plane; a colour left blank MUST be the base's.
+**3.12.6** Editing a theme MUST let the user set its name and, for each of its two sides, each of
+its colours and a picture -- still or moving -- behind the page, the sidebar, the panel and
+dialogs, each to cover, fit or tile its plane; a colour left blank MUST be `Humanize Green`'s for
+that side.
 
 **3.12.7** The page MUST show a theme as it is changed, and MUST keep each change at once.
 
-**3.12.8** The user MUST be able to export a theme, or a pair with both its themes, as a `.hmztheme`
-file, and to import one, as Section 3.12.13 specifies the file.
+**3.12.8** The user MUST be able to export a theme of the user's own, where it is edited, as a
+`.hmztheme` file, and to import one, as Section 3.12.13 specifies the file.
 
-**3.12.9** The page MUST keep themes in the browser, per browser.
+**3.12.9** The page MUST keep themes in the browser, per browser. What an earlier version of the
+page kept there MUST be kept: a theme of one side as a theme whose other side sets nothing, a side
+chosen alone as its theme chosen, and a light side and a dark side of two themes, chosen apart, as
+one theme of the user's own holding both, chosen.
 
 **3.12.10** A theme MUST be chosen only in `Settings`, in a browser and in the desktop app alike.
 
@@ -1387,10 +1394,11 @@ file, and to import one, as Section 3.12.13 specifies the file.
 **3.12.12** The page MUST be usable in every theme it offers, including on a screen as narrow as a
 phone's.
 
-**3.12.13** A `.hmztheme` file MUST be one JSON object holding `"hmztheme": 1` and `name`, and
-either `base` (`light` or `dark`) with `colors` and `images` for one theme, or `light` and `dark`,
-each holding `colors` and `images`, for a pair. `colors` MUST be keyed by the page's colour tokens:
-`paper`, `side`, `surface`, `raised`, `ink`, `ink-2`, `ink-3`, `on-ink`, `on-fill`, `link`,
+**3.12.13** A `.hmztheme` file MUST be one JSON object holding `"hmztheme": 1`, `name`, and `light`
+and `dark`, each holding the `colors` and `images` of that side. A file that holds `base` (`light`
+or `dark`) with `colors` and `images` in place of both, as an earlier version wrote for one side,
+MUST be read as a theme whose other side sets nothing. `colors` MUST be keyed by the page's colour
+tokens: `paper`, `side`, `surface`, `raised`, `ink`, `ink-2`, `ink-3`, `on-ink`, `on-fill`, `link`,
 `control`, `control-ink`, `primary`, `on-primary`, `field`, `edge`, `line`, `line-strong`, `hover`,
 `scrim`, `green`, `cyan`, `cyan-ink`, `pink`, `pink-ink`, `lavender`, `gold`, `done`, `fail`, and
 `lane-1` to `lane-6`. `images` MUST be keyed by plane -- `page`, `sidebar`, `panel`, `dialog` --

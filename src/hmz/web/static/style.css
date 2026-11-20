@@ -5826,9 +5826,9 @@ body:has(> .overlay > .dialog-settings) {
   display: grid;
 }
 
-/* A pair, or a theme: what it looks like, what it is called and what is done with it, in one
-   line of the card that lists them, a hairline between two. The one in use is said by the ink
-   edge of its picture. */
+/* A theme: what its light and its dark look like, what it is called and what is done with it,
+   in one line of the card that lists them, a hairline between two. The one in use is said by
+   the ink edge of its pictures. */
 .theme-row {
   display: flex;
   align-items: center;
@@ -5847,20 +5847,13 @@ body:has(> .overlay > .dialog-settings) {
   border-bottom: 0;
 }
 
-.theme-swatch-button {
+.theme-sides {
   flex: none;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: none;
-  cursor: pointer;
+  display: flex;
+  gap: var(--space-4);
 }
 
-.theme-swatch-button:hover .theme-swatch {
-  border-color: var(--ink-3);
-}
-
-.theme-swatch-button.chosen .theme-swatch {
+.theme-row.chosen .theme-swatch {
   border-color: var(--ink);
 }
 
@@ -5878,8 +5871,8 @@ body:has(> .overlay > .dialog-settings) {
   font: var(--text-sm)/16px var(--sans);
 }
 
-/* A theme drawn small, in its own colours: a strip of its sidebar, its text on its page, and
-   its accents. */
+/* A side of a theme drawn small, in its own colours: a strip of its sidebar, its text on its
+   page, and its accents. */
 .theme-swatch {
   position: relative;
   flex: none;
@@ -5894,7 +5887,6 @@ body:has(> .overlay > .dialog-settings) {
   border: var(--border-strong);
   border-radius: var(--radius-md);
   color: var(--ink);
-  transition: border-color var(--dur) var(--ease);
 }
 
 .theme-swatch-side {
