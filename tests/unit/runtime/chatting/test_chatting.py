@@ -1056,7 +1056,7 @@ def test_a_chat_with_no_conversation_kept_is_carried_on_in_a_new_one(
     )
 
 
-def test_a_chat_an_earlier_humanize_wrote_as_the_flow_chat_is_carried_on(
+def test_a_chat_an_earlier_humanize_wrote_as_the_flow_chat_is_carried_on_once_moved(
     wired: Wired,
 ) -> None:
     at = epic.under(wired.workspace) / "20260101T000000.000Z-abcdef"
@@ -1081,6 +1081,9 @@ def test_a_chat_an_earlier_humanize_wrote_as_the_flow_chat_is_carried_on(
         {"event": "ended", "how": "done"},
     ]
     (at / epic.JOURNAL).write_text("".join(json.dumps(one) + "\n" for one in written))
+    # Moved among the chats, as the daemon moves it as it starts, it is a chat as any other.
+    assert epic.migrated() == ([at.name], {})
+    (at,) = epic.chats(wired.workspace)
 
     _had(wired, Person(), task="go", resume=at)
 

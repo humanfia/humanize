@@ -1078,45 +1078,198 @@ def test_a_worktree_is_refused_where_the_workspace_is_no_repository(
 # --------------------------------------------- what an earlier hmz wrote for a chat
 
 
-def test_an_epic_an_earlier_hmz_recorded_for_a_chat_is_an_epic_and_no_chat(
-    project: Path, user: Peer
+@pytest.fixture
+def legacy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """A project of a home an earlier hmz left, which no daemon has started on yet."""
+    at = install(tmp_path, monkeypatch)
+    with hosting():
+        yield at
+
+
+def _dialed() -> Peer:
+    peer, _ = dialed(where.at())
+    return peer
+
+
+def _moved(old: Path) -> Path:
+    """Where the daemon moves a chat an earlier hmz kept as an epic."""
+    return home() / "chats" / old.parent.name / old.name
+
+
+def test_the_chats_an_earlier_hmz_kept_as_epics_are_chats_once_the_daemon_starts(
+    legacy: Path, tmp_path: Path
 ) -> None:
-    old = old_chat(project, "old words")
-    older = old_chat(project, "still older words", flow="chat", resumable=True)
+    from hmz.daemon import reach
 
-    # Read by `runs.*` as the epics they are, of kind `chat` and no flow.
-    listed = user.call("runs.list", {"workspace": str(project)}, timeout=30)
-    assert {
-        one["name"]: (one["kind"], one["flow"], one["how"]) for one in listed["runs"]
-    } == {
-        old.name: ("chat", "", "stopped"),
-        older.name: ("chat", "", "stopped"),
+    old = old_chat(legacy, "old words")
+    older = old_chat(legacy, "still older words", flow="chat", resumable=True)
+    # One a daemon was killed halfway through moving: its record renamed, and no more.
+    half = old_chat(legacy, "half moved")
+    (half / JOURNAL).rename(half / CHATTED)
+    # Her conversation an earlier hmz began, which her list names by its record.
+    hers = old_chat(legacy, "what is going on here?")
+    kept = reach.Conversations()
+    made = kept.made(
+        {
+            "title": "what is going on here?",
+            "scope": "workspace",
+            "workspace": str(legacy.resolve()),
+            "epic": "",
+            "nous": AGENT,
+            "preset": "read-only",
+            "network": False,
+            "slot": "ai:0ld",
+        }
+    )
+    kept.changed(made["id"], record=hers.name)
+    with Epic("ralph", "a run", legacy) as flow:
+        pass
+    (old / SESSIONS / "claude" / "kept.txt").write_text("kept")
+    wrote = {
+        one.name: (one / (CHATTED if one == half else JOURNAL)).read_bytes()
+        for one in (old, older, half, hers)
     }
-    assert listed["flows"] == ["chat"]
-    for at, task in ((old, "old words"), (older, "still older words")):
-        whole = user.call("runs.get", {"name": at.name}, timeout=30)
-        assert (whole["kind"], whole["flow"], whole["task"]) == ("chat", "", task)
-        # Nothing of a chat's is said of an epic any more.
-        for absent in ("earlier", "permission", "prefer", "turn"):
-            assert absent not in whole
+    mine = sorted(one.name for one in (old, older, half))
 
-    # And they are no chats: not listed, not read, not changed, and not carried on.
-    assert user.call("chat.list", {}, timeout=30)["total"] == 0
-    assert user.call("chat.list", {"archived": True}, timeout=30)["total"] == 0
-    for at in (old, older):
-        gone = (404, f"There is no chat {at.name}.")
-        assert _refused(user, "chat.get", chat=at.name) == gone
-        assert _refused(user, "chat.rename", chat=at.name, title="mine") == gone
-        assert _refused(user, "chat.fork", chat=at.name) == gone
-        assert _refused(user, "chat.archive", chat=at.name) == gone
-        assert _refused(user, "chat.delete", chat=at.name) == gone
-        for resume in (at.name, str(at)):
-            assert _refused(
-                user, "chat.start", workspace=str(project), task="more", resume=resume
-            ) == (404, f"{resume} is not a chat of {project.resolve()}.")
-        assert (at / JOURNAL).is_file()
-    assert written_chats() == []
-    assert user.call("hosts.running", {}, timeout=30)["running"] == []
+    daemon.start()
+    user = _dialed()
+    try:
+        # Each is the directory it was, among the chats, its record the bytes it was.
+        for name, written_down in wrote.items():
+            at = _moved(old.parent / name)
+            assert (at / CHATTED).read_bytes() == written_down
+            assert not (at / JOURNAL).exists()
+            assert not (old.parent / name).exists()
+        assert (_moved(old) / SESSIONS / "claude" / "kept.txt").read_text() == "kept"
+        assert every() == [flow.path]
+
+        # Listed, read and found as the chats they are; hers is hers, and left out.
+        listed = user.call("chat.list", {"workspace": str(legacy)}, timeout=30)
+        assert sorted(one["id"] for one in listed["chats"]) == mine
+        for one in listed["chats"]:
+            assert set(one) == ROW
+            assert (one["state"], one["slot"], one["model"]) == (
+                "resting",
+                "",
+                "claude-haiku-4-5",
+            )
+        whole = user.call("chat.get", {"chat": old.name, "trace": True}, timeout=30)
+        assert (whole["id"], whole["task"], whole["title"], len(whole["sessions"])) == (
+            old.name,
+            "old words",
+            "old words",
+            1,
+        )
+        # The session it says it opened kept no log an earlier hmz could have left here.
+        assert whole["trace"] == []
+        assert user.call("chat.get", {"chat": hers.name}, timeout=30)["task"] == (
+            "what is going on here?"
+        )
+        assert _refused(user, "chat.rename", chat=hers.name, title="mine") == (
+            404,
+            f"There is no chat {hers.name}.",
+        )
+
+        # And none of them is an epic any more: the runs are the one run of a flow.
+        runs = user.call("runs.list", {"workspace": str(legacy)}, timeout=30)
+        assert [(one["name"], one["kind"]) for one in runs["runs"]] == [
+            (flow.path.name, "flow")
+        ]
+        assert runs["flows"] == ["ralph"]
+        for name in wrote:
+            assert _refused(user, "runs.get", name=name) == (
+                404,
+                f"There is no epic {name}.",
+            )
+
+        # Changed as any chat is, in the record it has.
+        renamed = user.call(
+            "chat.rename", {"chat": older.name, "title": "Older"}, timeout=30
+        )
+        assert (renamed["id"], renamed["title"]) == (older.name, "Older")
+        forked = user.call("chat.fork", {"chat": old.name}, timeout=30)["chat"]
+        assert (_moved(old).parent / forked / CHATTED).is_file()
+
+        # Carried on by its name, in the same chat.
+        said = user.call(
+            "chat.start",
+            {"workspace": str(legacy), "task": "and now?", "resume": old.name},
+            timeout=60,
+        )
+        assert said["chat"] == old.name
+        assert until(lambda: _row(user, old.name)["state"] == "going")
+        assert until(lambda: len(started(tmp_path)) == 1)
+        # What it says and does from here on is read back as any chat's is.
+        assert until(
+            lambda: any(
+                one["actions"]
+                for one in user.call(
+                    "chat.get", {"chat": old.name, "trace": True}, timeout=30
+                )["trace"]
+            )
+        )
+    finally:
+        user.close()
+
+    record = (_moved(old) / CHATTED).read_bytes()
+    # Appended to, and never rewritten: what the earlier hmz wrote is what it begins with.
+    assert record.startswith(wrote[old.name])
+    events = [json.loads(one)["event"] for one in record.splitlines()]
+    assert events[:3] == ["began", "opened", "ended"]
+    assert "reopened" in events[3:]
+
+
+def test_a_daemon_started_again_moves_nothing_and_leaves_one_going_for_later(
+    legacy: Path,
+) -> None:
+    import fcntl
+    import os
+
+    old = old_chat(legacy, "old words")
+    going_on = old_chat(legacy, "going on elsewhere")
+    wrote = (going_on / JOURNAL).read_bytes()
+    # Held, as the process going with it holds it.
+    lock = os.open(going_on / ".held", os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        with hosting():
+            daemon.start()
+            first = int(where.held(where.at())["pid"])
+            user = _dialed()
+            try:
+                listed = user.call("chat.list", {}, timeout=30)
+                assert [one["id"] for one in listed["chats"]] == [old.name]
+                # The one going is where it was, as it was, and neither chat nor epic yet.
+                assert (going_on / JOURNAL).read_bytes() == wrote
+                assert not (going_on / CHATTED).exists()
+                assert user.call("runs.list", {}, timeout=30)["total"] == 0
+                assert _refused(user, "chat.get", chat=going_on.name) == (
+                    404,
+                    f"There is no chat {going_on.name}.",
+                )
+            finally:
+                user.close()
+        log = (where.at() / where.LOG).read_text()
+        assert f"moved 1 chat(s) kept as epics: {old.name}" in log
+        assert f"left the chat {going_on.name} among the epics: it is going" in log
+    finally:
+        os.close(lock)
+    moved = (_moved(old) / CHATTED).read_bytes()
+
+    # Started again once that one has ended, it moves it, and touches nothing it moved.
+    assert until(lambda: not where.alive(first))
+    daemon.start()
+    user = _dialed()
+    try:
+        listed = user.call("chat.list", {}, timeout=30)
+        assert sorted(one["id"] for one in listed["chats"]) == sorted(
+            [old.name, going_on.name]
+        )
+        assert (_moved(going_on) / CHATTED).read_bytes() == wrote
+        assert (_moved(old) / CHATTED).read_bytes() == moved
+        assert every() == []
+    finally:
+        user.close()
 
 
 def test_a_chat_carried_on_is_named_by_its_name_alone(

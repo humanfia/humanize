@@ -383,10 +383,11 @@ host's.
 
 **3.2.12** **Price list**: the list of per-token model prices kept on this machine (Section 10.3.3).
 
-**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow, or `chat`, an epic an earlier hmz
-recorded for a chat, when a chat was an epic (Section 8.7.10). Where this section speaks of an
-epic's flow, roles, parameters, budget, stopping or picking up, it speaks of epics of kind `flow`
-alone; a chat is no epic, and is started, limited and ended as Section 8 states.
+**3.2.13** **Kind**: what an epic is: `flow`, an epic of a flow. An earlier hmz recorded each chat
+as an epic of kind `chat`, when a chat was an epic; such an epic is made a chat (Section 8.7.10).
+Where this section speaks of an epic's flow, roles, parameters, budget, stopping or picking up, it
+speaks of epics of kind `flow` alone; a chat is no epic, and is started, limited and ended as
+Section 8 states.
 
 ### 3.3. Lifecycle
 
@@ -582,8 +583,7 @@ other than a stop or a budget exhaustion.
 **3.3.6.6** An epic MUST read back as `unfinished` while it has recorded no end and no process on
 this machine holds it.
 
-**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end, except the epic an earlier hmz
-recorded for an Ai-chan conversation, where that conversation is carried on (Section 14.8.5).
+**3.3.6.7** hmz MUST NOT reopen an epic that has recorded an end.
 
 **3.3.6.8** Where a frontend reports how the last epic of a host slot ended, it MUST distinguish an
 epic refused before its flow was called, an epic ended by its budget, an error the flow raised and
@@ -3421,8 +3421,8 @@ its spending.
 
 **8.3.5** hmz MUST record a chat in a chat record (Section 6.12 of [FILES]) and MUST NOT record it
 as an epic; hmz MUST record every epic with kind `flow`, and MUST read an epic record that gives
-kind `chat`, or that gives no kind and whose flow is `chat`, as an epic of kind `chat` (Section
-8.7.10, Section 6.5 of [FILES]).
+kind `chat`, or that gives no kind and whose flow is `chat`, as the record of a chat an earlier hmz
+recorded as an epic (Section 8.7.10, Section 6.5 of [FILES]).
 
 **8.3.6** The name `chat` MUST NOT be reserved: a flow named `chat` MUST be an ordinary flow, and an
 epic of it MUST be of kind `flow`.
@@ -3568,9 +3568,15 @@ in [CLI]) or by saying something in it.
 **8.7.9** A chat that is carried on MUST record that it was opened again, MUST read back as going
 until it ends again, and MUST read back as having spent the sum of what each opening spent.
 
-**8.7.10** An epic an earlier hmz recorded for a chat (Section 3.2.13) MUST NOT be made a chat: it
-MUST stay where it is, MUST be listed and read as an epic of no flow, as any other epic that has
-ended is, and MUST NOT be carried on; a request to carry it on MUST be refused as naming no chat.
+**8.7.10** An epic an earlier hmz recorded for a chat (Section 3.2.13) MUST be made a chat: the
+daemon MUST, each time it starts and before it serves any client, move every such epic that no
+process holds among the chats of its workspace (Section 6.12.14 of [FILES]), under the name it has
+and with its record as it was written. From then on it MUST be a chat as any other, by that name:
+listed, read, carried on, forked, archived, backed up and deleted as one. One that a process holds,
+or whose name a chat already has, MUST be left as it is for a later start; until it is moved the
+daemon MUST NOT list or read it, as an epic or as a chat, and it MUST NOT be carried on: a request
+to carry it on MUST be refused as naming no chat. Such an epic imported, or held by a backup
+target, MUST be listed there as a chat and placed among this machine's chats likewise.
 
 ### 8.8. Drawing a chat
 
@@ -5087,8 +5093,8 @@ folds away.
 **14.8.5** An Ai-chan conversation that has folded away MUST be carried on by attaching to its slot
 (Section 4.22.5 of [DAEMON]): carrying on MUST continue the same record and the same conversation,
 as Section 8.7.5 states, or a new conversation in the same record, as Section 8.7.6 states; a
-conversation an earlier hmz recorded as an epic MUST be carried on in that epic (Section 6.12.11 of
-[FILES]).
+conversation an earlier hmz recorded as an epic MUST be carried on in the chat that epic was made
+(Section 8.7.10, Section 6.12.11 of [FILES]).
 
 **14.8.6** An Ai-chan conversation MUST be kept, folded away or not, until it is forgotten
 (Section 4.22.4 of [DAEMON]).

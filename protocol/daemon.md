@@ -1315,18 +1315,27 @@ workspace since removed; every workspace's where absent), `status` (an ending of
 **4.16.1.2** `runs.list` MUST answer `runs` (epic rows, newest first), `total`, `offset`, `limit`,
 `counts` (`{ending: n}` over every epic) and `flows` (every flow, sorted).
 
-**4.16.1.3** `runs.list` MUST leave out, whatever session calls it, the epic an earlier hmz
-recorded for an Ai-chan conversation, kept or forgotten (Section 14.7.4 of [CORE], Section 4.16.6 of
+**4.16.1.3** `runs.list` MUST leave out, whatever session calls it, the epic recorded for an
+Ai-chan conversation, kept or forgotten (Section 14.7.4 of [CORE], Section 4.16.6 of
 [FILES]), and the epic the host of an `ai:` slot holds.
 
 **4.16.1.4** No method of Section 4.16 but `runs.usage` and `backups.*` MUST answer anything of a
 chat (Section 8 of [CORE]): a chat is no epic, and is read by `chat.*` (Section 4.25). An epic an
-earlier hmz recorded for a chat (Section 6.5.19 of [FILES]) MUST be answered as any other epic is.
+earlier hmz recorded for a chat (Section 6.5.19 of [FILES]) is a chat once the daemon has moved it
+(Section 4.16.1.5); one not yet moved MUST be answered by no method of Section 4.16 and none of
+Section 4.25: every list MUST leave it out, and a method that names it MUST be refused 404 as
+naming none.
+
+**4.16.1.5** The daemon MUST, each time it starts and before it accepts a session, move the epics
+an earlier hmz recorded for chats among the chats, as Section 8.7.10 of [CORE] and Section 6.12.14
+of [FILES] state, and MUST log how many it moved and each one it left, with why. A failure to move
+them MUST NOT keep the daemon from starting. `runs.import` and `backups.pull` of such an epic MUST
+place it among the chats, and answer its name; `backups.epics` MUST answer it with `chat` true and
+`flow` `""`.
 
 #### 4.16.2. Epic rows
 
-**4.16.2.1** An epic row MUST hold `name`, `workspace`, `kind` (`flow`, or `chat` for an epic an
-earlier hmz recorded for a chat), `flow` (`""` for an epic of kind `chat`), `task` (its first line,
+**4.16.2.1** An epic row MUST hold `name`, `workspace`, `kind` (`flow`), `flow`, `task` (its first line,
 cut at 240 characters with `…`), `began`, `ended`, `how` (its ending, `running` while going,
 `unfinished` where its process went before it ended), `agents` (`[{name, role, runs}]`), `sessions`
 (a count), `resumable`, `spent`, `held` (whether a host is going with it), `slot` (that host's),
@@ -2234,7 +2243,8 @@ leave it as it was.
 for a missing `agent` without `resume`, `permission is read-only, workspace-write or
 danger-full-access` for a `permission` that is none of them, and the reason of Section 8.3.7 of
 [CORE] for an agent it refuses; 404 with `<resume> is not a chat of <workspace>.` for a `resume`
-that names none, an epic an earlier hmz recorded for a chat among them (Section 8.7.10 of [CORE]);
+that names none, an epic an earlier hmz recorded for a chat that the daemon has not yet moved
+among them (Section 8.7.10 of [CORE]);
 and 409 with `a chat is already going on <slot>` for a slot whose host holds one.
 
 **4.25.1.7** With `permission`, `chat.start` MUST start the chat with that permission (Section
@@ -2333,8 +2343,7 @@ method of Section 4.25 that takes `chat`.
 
 **4.25.5.6** `chat.list` MUST leave out every Ai-chan conversation, kept or forgotten, and the one
 the host of an `ai:` slot holds (Section 14.7.4 of [CORE]); every method of Section 4.25.7 MUST
-refuse one as Section 4.25.5.5 states; and `chat.get` MUST answer one, one an earlier hmz recorded
-as an epic included.
+refuse one as Section 4.25.5.5 states; and `chat.get` MUST answer one.
 
 #### 4.25.6. `chat.stop`
 

@@ -427,7 +427,7 @@ def test_her_conversation_is_named_by_the_chat_its_host_writes(
     assert kept.epics() == {"20260101-hers"}
 
 
-def test_what_her_conversation_is_kept_in_is_a_chat_or_an_earlier_epic(
+def test_what_a_reach_names_is_a_chat_or_an_epic_by_its_name(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import hmz.runtime.epic
@@ -444,6 +444,6 @@ def test_what_her_conversation_is_kept_in_is_a_chat_or_an_earlier_epic(
     monkeypatch.setattr(hmz.runtime.epic, "every", every)
 
     assert reaching.epic_at("c1") == chat
-    # One an earlier hmz began is kept as an epic, and is carried on there.
+    # An epic is found as a chat is: where it was run is what a reach asks of either.
     assert reaching.epic_at("e1") == epic
     assert reaching.epic_at("none") is None

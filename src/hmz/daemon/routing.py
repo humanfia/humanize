@@ -526,6 +526,7 @@ def serves(
             },
         )
         _logs(at)
+        _migrates()
         router = Router(
             at,
             listening,
@@ -592,6 +593,25 @@ def _listened() -> list[str]:
             continue
         found.append(str(one))
     return found
+
+
+def _migrates() -> None:
+    """Moves the chats an earlier hmz kept as epics among the chats (Section 8.7.10 of core.md).
+
+    Before anything is served, so that no client reads one as an epic; and never what keeps
+    the daemon from coming up.
+    """
+    from hmz.runtime.epic import migrated
+
+    try:
+        moved, left = migrated()
+    except Exception:  # noqa: BLE001 -- the daemon comes up whatever was left on disk
+        _log.exception("the chats an earlier hmz kept as epics could not be moved")
+        return
+    if moved:
+        _log.info("moved %d chat(s) kept as epics: %s", len(moved), ", ".join(moved))
+    for name, why in left.items():
+        _log.warning("left the chat %s among the epics: %s", name, why)
 
 
 def _logs(at: Path) -> None:

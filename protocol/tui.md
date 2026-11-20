@@ -425,8 +425,9 @@ one MUST leave it on the screen.
 stands, by attaching to that host; any other MUST be carried on by the next line said (`chat.start`
 with `resume` the chat's id), the interface saying so.
 
-**7.12.5.3** `/resume` MUST NOT list or carry on an epic an earlier Humanize recorded for a chat
-(Section 17.2.3).
+**7.12.5.3** `/resume` MUST list and carry on a chat an earlier Humanize recorded as an epic as any
+other chat, once the daemon has moved it among the chats (Section 8.7.10 of [CORE]), and MUST NOT
+list or carry on one not yet moved (Section 17.2.3).
 
 **7.12.5.4** While the setting `harness_sessions` is `true` (Section 3.4.14 of [FILES]), and only
 then, the pick list MUST hold, after the chats, the harness sessions of this directory (Section
@@ -1170,7 +1171,8 @@ path`.
 another directory, saying where it ran; while an epic is going; and for an epic whose flow is not
 resumable or that cannot be resumed here, saying why.
 
-**17.2.3** An epic an earlier Humanize recorded for a chat (kind `chat`) MUST be listed as an epic,
+**17.2.3** An epic an earlier Humanize recorded for a chat (kind `chat`) that the daemon has not
+yet moved among the chats (Section 8.7.10 of [CORE]) MUST be listed as an epic,
 named `chat` where another names its flow, MUST be read as any other, and MUST NOT be offered
 `resume epic` or any way to carry it on, saying that it cannot be carried on.
 
