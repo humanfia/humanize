@@ -3,10 +3,12 @@
 // or marked unread in this browser, and how wide the sidebar may be dragged. Nothing here touches
 // the page, so it is read the same by the sidebar and by its tests.
 
+import { t } from './i18n.js'
+
 /** What `Group and sort` offers, the first of each the default. */
-export const GROUPS = /** @type {const} */ ([['folder', 'Folder'], ['date', 'Date'], ['none', 'None']])
-export const SORTS = /** @type {const} */ ([['updated', 'Last updated'], ['created', 'Created']])
-export const SHOWS = /** @type {const} */ ([['chats', 'Chats'], ['epics', 'Epics']])
+export const GROUPS = /** @type {const} */ ([['folder', t('Folder')], ['date', t('Date')], ['none', t('None@@group')]])
+export const SORTS = /** @type {const} */ ([['updated', t('Last updated')], ['created', t('Created')]])
+export const SHOWS = /** @type {const} */ ([['chats', t('Chats')], ['epics', t('Epics')]])
 
 /** The list as it is until `Group and sort` says otherwise. */
 export const DEFAULTS = Object.freeze({ group: 'folder', sort: 'updated', chats: true, epics: true })
@@ -78,11 +80,11 @@ export function sorted(runs, view, now = Date.now(), chat = byKind) {
 
 /** The groups `Date` makes, by how many days ago a row stands. */
 const DAYS = [
-  [0, 'today', 'Today'],
-  [1, 'yesterday', 'Yesterday'],
-  [7, 'week', 'Last 7 days'],
-  [30, 'month', 'Last 30 days'],
-  [Infinity, 'older', 'Older'],
+  [0, 'today', t('Today')],
+  [1, 'yesterday', t('Yesterday')],
+  [7, 'week', t('Last 7 days')],
+  [30, 'month', t('Last 30 days')],
+  [Infinity, 'older', t('Older')],
 ]
 
 /** How many midnights of this place lie between a moment and now. */
@@ -106,7 +108,7 @@ export function shownFolders(workspaces = []) {
 }
 
 /** What the group of the rows that have no folder is called, and what it is kept by. */
-export const NO_FOLDER = 'No folder'
+export const NO_FOLDER = t('No folder')
 const NOWHERE = ':nowhere'
 
 /**
@@ -124,7 +126,7 @@ export function arranged({ workspaces = [], runs = [], view, pinned = new Set(),
   const rows = sorted(runs, view, now, chat)
   const kept = rows.filter((run) => pinned.has(run.name))
   const rest = rows.filter((run) => !pinned.has(run.name))
-  const groups = kept.length ? [{ key: ':pinned', kind: 'pinned', label: 'Pinned', path: '', runs: kept }] : []
+  const groups = kept.length ? [{ key: ':pinned', kind: 'pinned', label: t('Pinned'), path: '', runs: kept }] : []
   const folders = new Map()
   for (const one of workspaces || []) if (one.path) folders.set(one.path, { key: one.path, kind: 'folder', label: '', path: one.path, runs: [] })
   for (const run of rest) {
@@ -139,8 +141,8 @@ export function arranged({ workspaces = [], runs = [], view, pinned = new Set(),
   if (view.group === 'folder') return groups.length || ordered.length ? [...groups, ...ordered] : [{ key: NOWHERE, kind: 'folder', label: NO_FOLDER, path: '', runs: [] }]
   // Every folder, reachable though the list is not grouped by them.
   const named = ordered.filter((one) => one.path).map((one) => ({ path: one.path, count: one.runs.length }))
-  const places = named.length ? [{ key: ':folders', kind: 'folders', label: 'Folders', path: '', runs: [], folders: named }] : []
-  if (view.group === 'none') return [...groups, { key: ':all', kind: 'all', label: 'All', path: '', runs: rest }, ...places]
+  const places = named.length ? [{ key: ':folders', kind: 'folders', label: t('Folders'), path: '', runs: [], folders: named }] : []
+  if (view.group === 'none') return [...groups, { key: ':all', kind: 'all', label: t('All'), path: '', runs: rest }, ...places]
   const days = DAYS.map(([, key, label]) => ({ key: `:date:${key}`, kind: 'date', label, path: '', runs: [] }))
   for (const run of rest) days[DAYS.findIndex(([most]) => daysAgo(stamp(run, view.sort, now), now) <= most)].runs.push(run)
   const full = days.filter((one) => one.runs.length)

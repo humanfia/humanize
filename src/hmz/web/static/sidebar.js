@@ -9,6 +9,7 @@
 
 import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
+import { t } from './i18n.js'
 import { harnessName } from './names.js'
 import { pick } from './importing.js'
 import { chain } from './layers.js'
@@ -75,7 +76,7 @@ const unreadHere = (name) => marksHere(UNREAD).has(name)
  * sidebar, as wide as this browser last left it; double-clicked, it is as wide as it usually is.
  */
 function splitter() {
-  const el = h('div', { class: 'side-split', role: 'separator', tabindex: '0', 'aria-orientation': 'vertical', 'aria-label': 'Resize sidebar', title: 'Resize sidebar', 'aria-controls': 'sidebar', 'aria-valuemin': WIDTHS.least, 'aria-valuemax': WIDTHS.most, 'data-hmz': 'side-split' })
+  const el = h('div', { class: 'side-split', role: 'separator', tabindex: '0', 'aria-orientation': 'vertical', 'aria-label': t('Resize sidebar'), title: t('Resize sidebar'), 'aria-controls': 'sidebar', 'aria-valuemin': WIDTHS.least, 'aria-valuemax': WIDTHS.most, 'data-hmz': 'side-split' })
   const set = (wide, keeps) => {
     const now = widthOf(wide)
     // On the frame it sizes, not the root, whose own properties a theme painted takes away.
@@ -127,14 +128,14 @@ function splitter() {
  * @param {() => {parts: string[], query: URLSearchParams}} where Where the page is.
  */
 export function mountSidebar(root, context, where) {
-  const list = h('nav', { class: 'side-runs', 'aria-label': 'Chats and epics', 'data-hmz': 'epics' }, h('p', { class: 'side-quiet', role: 'status' }, 'Loading…'))
+  const list = h('nav', { class: 'side-runs', 'aria-label': t('Chats and epics'), 'data-hmz': 'epics' }, h('p', { class: 'side-quiet', role: 'status' }, t('Loading…')))
   // How many installed flows have a newer release, as the indexes were fetched as it started.
   const updates = h('span', { class: 'side-badge', 'data-hmz': 'updates', hidden: true })
   poll('flowverses.list', {}, 60000, (answer) => {
     const count = answer ? answer.updates.length : 0
     updates.hidden = !count
     updates.textContent = String(count)
-    updates.title = count ? `${count} flow${count === 1 ? ' has' : 's have'} a newer release` : ''
+    updates.title = count ? t('{n} flows have a newer release', { n: count }) : ''
   })
   const bar = daemonBar()
   // The keys the shortcuts are pressed with, as this system writes them: at a row's end a key
@@ -155,32 +156,32 @@ export function mountSidebar(root, context, where) {
         'div',
         { class: 'side-top' },
         // The mark first, then what a desktop app's title row holds, in its order.
-        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': 'Humanize, a new chat' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
-        iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
-        iconButton('back', 'Back', { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
-        iconButton('forward', 'Forward', { class: 'side-forward', 'data-hmz': 'forward', onclick: () => history.forward() }),
+        h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': t('Humanize, a new chat') }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
+        iconButton('sidebar', t('Hide sidebar'), { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
+        iconButton('back', t('Back'), { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
+        iconButton('forward', t('Forward'), { class: 'side-forward', 'data-hmz': 'forward', onclick: () => history.forward() }),
       ),
     ),
     h(
       'div',
       { class: 'side-nav' },
       // A new chat first, as a chat app's sidebar begins; a new epic of a flow apart from it.
-      h('a', { href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-keyshortcuts': pressed('chat') }, icon('compose'), h('span', {}, 'New chat'), keys('chat')),
-      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('epic'), h('span', {}, 'New epic')),
-      h('a', { href: hash('/search'), 'data-nav': 'search', 'aria-keyshortcuts': pressed('search') }, icon('search'), h('span', {}, 'Search'), keys('search')),
-      h('a', { href: hash('/flows'), 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
+      h('a', { href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-keyshortcuts': pressed('chat') }, icon('compose'), h('span', {}, t('New chat')), keys('chat')),
+      h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('epic'), h('span', {}, t('New epic'))),
+      h('a', { href: hash('/search'), 'data-nav': 'search', 'aria-keyshortcuts': pressed('search') }, icon('search'), h('span', {}, t('Search')), keys('search')),
+      h('a', { href: hash('/flows'), 'data-nav': 'flows' }, icon('flows'), h('span', {}, t('Flows')), updates),
     ),
     h('div', { class: 'side-scroll' }, list),
     h(
       'div',
       { class: 'side-foot' },
       bar.el,
-      iconButton('gear', 'Settings', { class: 'side-gear', 'data-hmz': 'settings-open', onclick: () => (location.hash = hash('/settings/general')) }),
+      iconButton('gear', t('Settings'), { class: 'side-gear', 'data-hmz': 'settings-open', onclick: () => (location.hash = hash('/settings/general')) }),
     ),
     splitter(),
   )
   // What is offered between the epics, rather than on one of them.
-  menuOn(list, () => [{ label: 'Import', glyph: 'file', act: pick }])
+  menuOn(list, () => [{ label: t('Import'), glyph: 'file', act: pick }])
   root.addEventListener('click', (event) => {
     if (event.target.closest('a[href]')) settleSidebar()
   })
@@ -241,7 +242,7 @@ export function mountSidebar(root, context, where) {
         asked = null
         loading = null
       }
-      if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : 'Loading…'))
+      if (!data) fill(list, h('p', { class: 'error', role: 'alert' }, error ? error.message : t('Loading…')))
       else draw()
     }
     const stops = [poll('chat.list', { limit }, 4000, heard('chats')), poll('runs.list', { limit }, 4000, heard('runs'))]
@@ -320,11 +321,11 @@ export function mountSidebar(root, context, where) {
     return h(
       'div',
       { class: 'list-menu', 'data-hmz': 'list-menu' },
-      submenu({ label: 'Group by', about: said(GROUPS, view.group), hmz: 'group-by', items: () => GROUPS.map(([key, label]) => one('menuitemradio', label, view.group === key, { group: key })) }),
-      submenu({ label: 'Sort by', about: said(SORTS, view.sort), hmz: 'sort-by', items: () => SORTS.map(([key, label]) => one('menuitemradio', label, view.sort === key, { sort: key })) }),
-      submenu({ label: 'Show', hmz: 'show', items: () => SHOWS.map(([key, label]) => one('menuitemcheckbox', label, view[key], { [key]: !view[key] })) }),
+      submenu({ label: t('Group by'), about: said(GROUPS, view.group), hmz: 'group-by', items: () => GROUPS.map(([key, label]) => one('menuitemradio', label, view.group === key, { group: key })) }),
+      submenu({ label: t('Sort by'), about: said(SORTS, view.sort), hmz: 'sort-by', items: () => SORTS.map(([key, label]) => one('menuitemradio', label, view.sort === key, { sort: key })) }),
+      submenu({ label: t('Show'), hmz: 'show', items: () => SHOWS.map(([key, label]) => one('menuitemcheckbox', label, view[key], { [key]: !view[key] })) }),
       h('hr'),
-      choice({ label: 'Reset to defaults', act: () => choose(DEFAULTS), close }),
+      choice({ label: t('Reset to defaults'), act: () => choose(DEFAULTS), close }),
     )
   }
 
@@ -394,7 +395,7 @@ export function mountSidebar(root, context, where) {
         const toggle = h(
           'button',
           { class: 'side-toggle', type: 'button', 'aria-expanded': String(open) },
-          h('span', { class: 'side-folder-name', id: `side-group-${at}`, title: folder ? (lost ? `${GONE}: ${group.path}` : group.path) : null }, h('span', { class: 'side-label' }, called), lost ? h('span', { class: 'side-gone', 'data-hmz': 'folder-missing' }, 'missing') : null),
+          h('span', { class: 'side-folder-name', id: `side-group-${at}`, title: folder ? (lost ? goneAt(group.path) : group.path) : null }, h('span', { class: 'side-label' }, called), lost ? h('span', { class: 'side-gone', 'data-hmz': 'folder-missing' }, t('missing')) : null),
           icon('chevron'),
         )
         /** Gives the focus back to something of this group, once the list was drawn again. */
@@ -408,8 +409,8 @@ export function mountSidebar(root, context, where) {
           draw()
           focus('.side-toggle')
         })
-        const sort = iconButton('sliders', 'Group and sort', { class: 'side-sort', 'data-hmz': 'list-menu-open' })
-        menu(sort, listMenu, { label: 'Group and sort' })
+        const sort = iconButton('sliders', t('Group and sort'), { class: 'side-sort', 'data-hmz': 'list-menu-open' })
+        menu(sort, listMenu, { label: t('Group and sort') })
         const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : '/new/chat'
         const head = h(
           'div',
@@ -417,9 +418,9 @@ export function mountSidebar(root, context, where) {
           h('h3', { class: 'side-folder-head' }, toggle),
           !open && group.runs.some(unseen) ? marked() : null,
           sort,
-          lost ? null : iconButton('plus', folder ? `New chat in ${called}` : 'New chat', { class: 'side-add', 'data-hmz': 'group-add', onclick: () => (location.hash = hash(fresh)) }),
+          lost ? null : iconButton('plus', folder ? t('New chat in {name}', { name: called }) : t('New chat'), { class: 'side-add', 'data-hmz': 'group-add', onclick: () => (location.hash = hash(fresh)) }),
         )
-        if (folder) menuOn(head, () => folderMenu(group.path, group.runs.length, { label: open ? 'Collapse' : 'Expand', glyph: 'chevron', act: () => toggle.click() }))
+        if (folder) menuOn(head, () => folderMenu(group.path, group.runs.length, { label: open ? t('Collapse') : t('Expand'), glyph: 'chevron', act: () => toggle.click() }))
         // What the group does not show, brought by its last row: all of it that was read, and,
         // where the daemon holds more than was, a page more of the list.
         const last = rest
@@ -439,10 +440,10 @@ export function mountSidebar(root, context, where) {
                   focus('.side-more')
                 },
               },
-              `Show ${rest} more`,
+              t('Show {n} more', { n: rest }),
             )
           : loading === group.key
-            ? h('button', { class: 'side-more', type: 'button', 'data-hmz': 'group-more', disabled: true }, 'Loading…')
+            ? h('button', { class: 'side-more', type: 'button', 'data-hmz': 'group-more', disabled: true }, t('Loading…'))
             : null
         return h(
           'section',
@@ -452,7 +453,7 @@ export function mountSidebar(root, context, where) {
             ? null
             : group.kind === 'folders'
               ? h('ul', { role: 'list' }, group.folders.map(place))
-              : [rows.length ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run)))) : h('p', { class: 'side-quiet nested' }, 'Nothing here yet'), last],
+              : [rows.length ? h('ul', { role: 'list' }, rows.map((run) => item(run, here, parts, unseen(run)))) : h('p', { class: 'side-quiet nested' }, t('Nothing here yet')), last],
         )
       }),
       // Every row read is shown and the daemon holds more: the list ends with what reads a page
@@ -461,7 +462,7 @@ export function mountSidebar(root, context, where) {
         ? h(
             'button',
             { class: 'side-more side-more-list', type: 'button', 'data-hmz': 'list-more', disabled: loading !== null, onclick: () => further(':list') },
-            loading === null ? 'Show more' : 'Loading…',
+            loading === null ? t('Show more') : t('Loading…'),
           )
         : null,
     )
@@ -496,8 +497,8 @@ export function mountSidebar(root, context, where) {
     found?.focus({ preventScroll: true })
   }
 
-  /** What is said of a folder whose directory went. */
-  const GONE = 'This folder is no longer on this machine'
+  /** What is said of a folder whose directory went, before its path. */
+  const goneAt = (path) => t('This folder is no longer on this machine: {path}', { path })
   /** Whether a folder's directory went, as the daemon answered last. */
   const gone = (path) => missing(path, places)
 
@@ -511,23 +512,23 @@ export function mountSidebar(root, context, where) {
     return [
       { head: path, path: true },
       // Under its path, which is cut short from its start: said whole.
-      lost ? { head: `${GONE}.` } : null,
-      lost ? null : { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
-      lost ? null : { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${at}`) },
-      { label: 'Search here', glyph: 'search', href: hash(`/search?workspace=${at}`) },
+      lost ? { head: t('This folder is no longer on this machine.') } : null,
+      lost ? null : { label: t('New chat here'), glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
+      lost ? null : { label: t('New epic here'), glyph: 'new', href: hash(`/new?workspace=${at}`) },
+      { label: t('Search here'), glyph: 'search', href: hash(`/search?workspace=${at}`) },
       '-',
-      { label: 'Copy path', glyph: 'copy', act: () => copy(path, 'Path copied') },
+      { label: t('Copy path'), glyph: 'copy', act: () => copy(path, t('Path copied')) },
       fold,
       '-',
-      { label: 'Settings', glyph: 'gear', href: hash(`/settings/workspace?workspace=${at}`) },
-      { label: 'Usage', glyph: 'chart', href: hash(`/settings/usage?workspace=${at}`) },
-      count ? null : { label: 'Forget', danger: true, act: () => forget(path) },
+      { label: t('Settings'), glyph: 'gear', href: hash(`/settings/workspace?workspace=${at}`) },
+      { label: t('Usage'), glyph: 'chart', href: hash(`/settings/usage?workspace=${at}`) },
+      count ? null : { label: t('Forget'), danger: true, act: () => forget(path) },
     ]
   }
 
   /** A folder as a row of `Folders`, where the list is not grouped by them: a new chat in it, and its menu. */
   function place(folder) {
-    const more = iconButton('more', 'More options', { class: 'side-menu', 'data-hmz': 'row-menu' })
+    const more = iconButton('more', t('More options'), { class: 'side-menu', 'data-hmz': 'row-menu' })
     // One whose directory went opens what it still holds, searched, where another opens a new chat.
     const lost = gone(folder.path)
     const row = h(
@@ -535,9 +536,9 @@ export function mountSidebar(root, context, where) {
       { class: ['side-run side-place', lost && 'gone'] },
       h(
         'a',
-        { href: hash(`/${lost ? 'search' : 'new/chat'}?workspace=${encodeURIComponent(folder.path)}`), title: lost ? `${GONE}: ${folder.path}` : folder.path, 'data-hmz': 'place' },
+        { href: hash(`/${lost ? 'search' : 'new/chat'}?workspace=${encodeURIComponent(folder.path)}`), title: lost ? goneAt(folder.path) : folder.path, 'data-hmz': 'place' },
         h('span', { class: 'side-label' }, nameOf(folder.path)),
-        lost ? h('span', { class: 'side-status side-gone', 'data-hmz': 'folder-missing' }, 'missing') : null,
+        lost ? h('span', { class: 'side-status side-gone', 'data-hmz': 'folder-missing' }, t('missing')) : null,
       ),
       more,
     )
@@ -551,17 +552,17 @@ export function mountSidebar(root, context, where) {
     const at = run.name === here
     const link = h(
       'a',
-      { href: hash(pathOf(run)), 'aria-current': at ? 'page' : null, title: `${run.task}\n${harnessName(run.harness)} session · ${when(run.updated)}`, 'data-hmz': 'harness-session', 'data-harness': run.harness },
+      { href: hash(pathOf(run)), 'aria-current': at ? 'page' : null, title: `${run.task}\n${t('{harness} session', { harness: harnessName(run.harness) })} · ${when(run.updated)}`, 'data-hmz': 'harness-session', 'data-harness': run.harness },
       h('span', { class: 'side-label' }, headline(run.task)),
       h('span', { class: 'side-status side-harness-name' }, harnessName(run.harness)),
     )
     const row = h('div', { class: ['side-run', 'side-chat', 'side-harness', at && 'current'] }, link)
     menuOn(row, () => [
-      { head: `${harnessName(run.harness)} session` },
-      { label: 'Open', glyph: 'open', href: hash(pathOf(run)) },
+      { head: t('{harness} session', { harness: harnessName(run.harness) }) },
+      { label: t('Open'), glyph: 'open', href: hash(pathOf(run)) },
       '-',
-      { label: 'Copy first message', glyph: 'copy', act: () => copy(run.task, 'Message copied') },
-      { label: 'Copy session ID', glyph: 'copy', act: () => copy(run.id, 'Session ID copied') },
+      { label: t('Copy first message'), glyph: 'copy', act: () => copy(run.task, t('Message copied')) },
+      { label: t('Copy session ID'), glyph: 'copy', act: () => copy(run.id, t('Session ID copied')) },
     ])
     return h('li', { class: 'side-item', 'data-epic': run.name }, row)
   }
@@ -573,7 +574,7 @@ export function mountSidebar(root, context, where) {
     const chat = chatting(run)
     const shown = !chat && (opened.has(run.name) || run.name === here) && !folded.has(run.name)
     const link = hash(pathOf(run))
-    const toggle = chat ? null : h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? 'Collapse' : 'Expand' }, icon('chevron'))
+    const toggle = chat ? null : h('button', { class: 'side-toggle', type: 'button', 'aria-expanded': String(shown), 'aria-label': shown ? t('Collapse') : t('Expand') }, icon('chevron'))
     toggle?.addEventListener('click', () => {
       if (shown) {
         opened.delete(run.name)
@@ -593,7 +594,7 @@ export function mountSidebar(root, context, where) {
     const state = chat ? chatState(how) : ''
     const title = rowTitle(run, { chat, state, how, flow: flowName(run.flow), began: when(run.began) })
     // What can be done to it, opened by the button at the row's end as by a right click on it.
-    const more = iconButton('more', 'More options', { class: 'side-menu', 'data-hmz': 'row-menu' })
+    const more = iconButton('more', t('More options'), { class: 'side-menu', 'data-hmz': 'row-menu' })
     const row = chat
       ? // A chat, as a chat app lists one: what was asked and, only where it goes or failed, the
         // word for it; one that waits on its person is marked by a dot, as one unread is.
@@ -629,8 +630,8 @@ export function mountSidebar(root, context, where) {
             h(
               'span',
               { class: 'side-line side-sub' },
-              h('span', { class: 'side-tag', 'data-hmz': 'epic-flow' }, icon('flows'), h('span', { class: 'side-label' }, flowName(run.flow) || 'flow')),
-              h('span', { class: 'side-meta' }, run.held ? h('span', { class: 'pill-live' }, 'live') : ago(run.began)),
+              h('span', { class: 'side-tag', 'data-hmz': 'epic-flow' }, icon('flows'), h('span', { class: 'side-label' }, flowName(run.flow) || t('flow'))),
+              h('span', { class: 'side-meta' }, run.held ? h('span', { class: 'pill-live' }, t('live')) : ago(run.began)),
             ),
           ),
           more,
@@ -665,7 +666,7 @@ export function mountSidebar(root, context, where) {
     const detail = read && read.detail
     const sessions = detail ? sessionsOf(detail) : []
     const agents = run.agents.map((one) => ({ name: one.name, role: one.role, runs: one.runs, sessions: sessions.filter((session) => session.agent === one.name) }))
-    if (!agents.length) return h('p', { class: 'side-quiet nested' }, 'No agents')
+    if (!agents.length) return h('p', { class: 'side-quiet nested' }, t('No agents'))
     const base = hash(`/epics/${encodeURIComponent(run.name)}`)
     return h(
       'ul',
@@ -685,10 +686,10 @@ export function mountSidebar(root, context, where) {
             ),
             () => [
               { head: `${agent.role} · ${agent.runs}` },
-              { label: 'Show on graph', glyph: 'flows', href: `${base}/agents/${encodeURIComponent(agent.name)}` },
-              { label: 'Open log', glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.name)}` },
+              { label: t('Show on graph'), glyph: 'flows', href: `${base}/agents/${encodeURIComponent(agent.name)}` },
+              { label: t('Open log'), glyph: 'thread', href: `${base}/logs/${encodeURIComponent(agent.name)}` },
               '-',
-              { label: 'Copy agent', glyph: 'copy', act: () => copy(agent.runs, 'Agent copied') },
+              { label: t('Copy agent'), glyph: 'copy', act: () => copy(agent.runs, t('Agent copied')) },
             ],
           ),
           agent.sessions.length
@@ -709,9 +710,9 @@ export function mountSidebar(root, context, where) {
                       ),
                       () => [
                         { head: session.ident ? `${session.backend} ${session.ident}` : session.key },
-                        { label: 'Open', glyph: 'open', href: `${base}/sessions/${encodeURIComponent(session.key)}` },
-                        { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}/sessions/${encodeURIComponent(session.key)}`, 'Link copied') },
-                        session.ident ? { label: 'Copy session ID', glyph: 'copy', act: () => copy(session.ident, 'Session ID copied') } : null,
+                        { label: t('Open'), glyph: 'open', href: `${base}/sessions/${encodeURIComponent(session.key)}` },
+                        { label: t('Copy link'), glyph: 'link', act: () => copy(`${location.origin}/${base}/sessions/${encodeURIComponent(session.key)}`, t('Link copied')) },
+                        session.ident ? { label: t('Copy session ID'), glyph: 'copy', act: () => copy(session.ident, t('Session ID copied')) } : null,
                       ],
                     ),
                   )
@@ -728,7 +729,7 @@ export function mountSidebar(root, context, where) {
     const read = details.get(run.name)
     if (!run.agents.length) return null
     if (read && read.error && !read.detail) return h('p', { class: 'side-quiet nested', role: 'alert' }, read.error.message)
-    return read && 'detail' in read ? null : h('p', { class: 'side-quiet nested', role: 'status', 'data-hmz': 'reading' }, 'Reading…')
+    return read && 'detail' in read ? null : h('p', { class: 'side-quiet nested', role: 'status', 'data-hmz': 'reading' }, t('Reading…'))
   }
 
   watch()
@@ -782,7 +783,7 @@ export function mountSidebar(root, context, where) {
     details.clear()
     strays.clear()
     harnessed.clear()
-    fill(list, h('p', { class: 'side-quiet', role: 'status' }, 'Loading…'))
+    fill(list, h('p', { class: 'side-quiet', role: 'status' }, t('Loading…')))
     watch()
     watchPlaces()
   })
@@ -790,7 +791,7 @@ export function mountSidebar(root, context, where) {
 
 /** The mark of a notice unread, on its chat or epic and on the folded workspace that lists it. */
 function marked() {
-  return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': 'Unread', title: 'Unread' })
+  return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': t('Unread'), title: t('Unread') })
 }
 
 /** What marks a chat that waits on its person: the dot of one unread, said as what it is to whoever cannot see it. */
@@ -820,31 +821,31 @@ export function epicMenu(run, { rename = null } = {}) {
   const acts = chat ? chatActions(run, { rename }) : {}
   return [
     { head: run.task.split('\n')[0] },
-    { label: 'Open', glyph: 'open', href: base },
+    { label: t('Open'), glyph: 'open', href: base },
     '-',
     // Kept in this browser, as a desktop app keeps them: pinned, it stands first in the list.
-    { label: pinned ? 'Unpin' : 'Pin', glyph: 'pin', act: () => mark(PINNED, run.name, !pinned) },
+    { label: pinned ? t('Unpin') : t('Pin'), glyph: 'pin', act: () => mark(PINNED, run.name, !pinned) },
     {
-      label: unseen ? 'Mark as read' : 'Mark as unread',
+      label: unseen ? t('Mark as read') : t('Mark as unread'),
       glyph: 'bell',
       act: () => mark(UNREAD, run.name, !unseen),
     },
     acts.rename,
     '-',
-    chat ? null : { label: 'Exomyth', glyph: 'chart', href: `${base}/exomyth` },
-    resumes ? { label: 'Resume', glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
+    chat ? null : { label: t('Exomyth'), glyph: 'chart', href: `${base}/exomyth` },
+    resumes ? { label: t('Resume'), glyph: 'resume', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&resume=${encodeURIComponent(run.name)}&workspace=${encodeURIComponent(run.workspace)}`) } : null,
     chat
       ? { label: said.like, glyph: 'thread', href: hash(`/new/chat?${new URLSearchParams(given({ workspace: run.workspace, agent: assistant }))}`) }
       : { label: said.like, glyph: 'new', href: hash(`/new?flow=${encodeURIComponent(run.flow)}&workspace=${encodeURIComponent(run.workspace)}`) },
     acts.fork,
     '-',
-    { label: 'Copy link', glyph: 'link', act: () => copy(`${location.origin}/${base}`, 'Link copied') },
+    { label: t('Copy link'), glyph: 'link', act: () => copy(`${location.origin}/${base}`, t('Link copied')) },
     { label: said.task, glyph: 'copy', act: () => copy(run.task, said.tasked) },
     { label: said.name, glyph: 'copy', act: () => copy(run.name, said.named) },
-    going || chat ? null : { label: 'Export', glyph: 'download', act: () => working('Exporting', exported(run.name)).catch((error) => toast(error.message)) },
-    { label: 'Upload', glyph: 'up', title: backedSaid(run.backed), act: () => upload(run) },
+    going || chat ? null : { label: t('Export'), glyph: 'download', act: () => working(t('Exporting…'), exported(run.name)).catch((error) => toast(error.message)) },
+    { label: t('Upload'), glyph: 'up', title: backedSaid(run.backed), act: () => upload(run) },
     run.held && !chat ? '-' : null,
-    run.held && !chat ? { label: 'Stop', glyph: 'stop', danger: true, act: () => working('Stopping', ask({ workspace: run.workspace, slot: run.slot }, 'stop')).then(() => toast('Stopping'), (error) => toast(error.message)) } : null,
+    run.held && !chat ? { label: t('Stop'), glyph: 'stop', danger: true, act: () => working(t('Stopping…'), ask({ workspace: run.workspace, slot: run.slot }, 'stop')).then(() => toast(t('Stopping')), (error) => toast(error.message)) } : null,
     chat ? '-' : null,
     acts.archive,
     acts.delete,
@@ -855,12 +856,12 @@ export function epicMenu(run, { rename = null } = {}) {
 let done = () => {}
 
 /**
- * Says what was asked of the server is going, in a toast that stays until it answers -- the menu
+ * Says what was asked of the server is going, in the words given, in a toast that stays until it answers -- the menu
  * it was asked from is closed by then -- and gives back the answer.
  */
 function working(said, asked) {
   done()
-  const mine = (done = posted(h('div', { class: 'toast notice working', role: 'status', 'data-hmz': 'working' }, h('span', { class: 'dot live', 'aria-hidden': 'true' }), `${said}…`)))
+  const mine = (done = posted(h('div', { class: 'toast notice working', role: 'status', 'data-hmz': 'working' }, h('span', { class: 'dot live', 'aria-hidden': 'true' }), said)))
   return asked.finally(mine)
 }
 
@@ -870,22 +871,22 @@ function working(said, asked) {
  */
 export function upload(run, { noticed = true } = {}) {
   const asked = chatting(run) ? call('chat.backup', { chat: run.name }) : call('runs.backup', { name: run.name })
-  return (noticed ? working('Uploading', asked) : asked).then((answer) => toast(`Uploading to ${answer.queued.join(', ')}`), (error) => toast(error.message))
+  return (noticed ? working(t('Uploading…'), asked) : asked).then((answer) => toast(t('Uploading to {targets}', { targets: answer.queued.join(', ') })), (error) => toast(error.message))
 }
 
 /** How an epic's last backup to each target went, each in turn, or '' where it has none. */
 export function backedSaid(backed) {
   return Object.entries(backed || {})
-    .map(([name, one]) => `${name}: ${one.ok ? 'uploaded' : `failed, ${one.error}`} ${when(one.at)}`)
+    .map(([name, one]) => (one.ok ? t('{name}: uploaded {when}', { name, when: when(one.at) }) : t('{name}: failed, {error} {when}', { name, error: one.error, when: when(one.at) })))
     .join(' · ')
 }
 
 /** How a daemon stands, as its dot says it, and the word for it where it is not up. */
-const STATES = { up: 'up', connecting: 'connecting', installing: 'installing', failed: 'failed', idle: 'not connected' }
+const STATES = { up: t('up'), connecting: t('connecting'), installing: t('installing'), failed: t('failed'), idle: t('not connected') }
 
 /** What a daemon is called on the page. */
 function named(name) {
-  return name === 'local' ? 'Local' : name
+  return name === 'local' ? t('Local') : name
 }
 
 /** A daemon's host, as it says it: its machine's name, or the WSL distribution hmz runs in. */
@@ -934,7 +935,7 @@ function daemonBar() {
         if (name === 'local' && said.newer) {
           newer = said.newer
           badge.hidden = false
-          badge.title = `hmz ${newer} is out`
+          badge.title = t('hmz {version} is out', { version: newer })
         }
         draw()
       },
@@ -953,7 +954,7 @@ function daemonBar() {
     el.dataset.state = how
     const going = live.of === name ? live.count : 0
     dot.className = `dot daemon-${how}${up && going ? ' live' : ''}`
-    say(state, up ? (going ? `${going} live` : 'idle') : STATES[how] || how)
+    say(state, up ? (going ? t('{n} live', { n: going }) : t('idle')) : STATES[how] || how)
   }
   const read = () =>
     known().then(
@@ -964,13 +965,13 @@ function daemonBar() {
       () => {},
     )
   const connect = (name) => {
-    working(`Connecting ${named(name)}`, reconnect(name)).then(() => toast(`Connecting ${named(name)}`), (error) => toast(error.message))
+    working(t('Connecting {name}…', { name: named(name) }), reconnect(name)).then(() => toast(t('Connecting {name}', { name: named(name) })), (error) => toast(error.message))
   }
   menu(
     el,
     (close) => [
       submenu({
-        label: 'Daemon',
+        label: t('Daemon'),
         about: named(daemon()),
         glyph: 'home',
         hmz: 'daemons',
@@ -988,18 +989,18 @@ function daemonBar() {
                 },
                 close,
               }),
-              how === 'failed' && one.name !== 'local' ? choice({ label: 'Connect', about: named(one.name), glyph: 'resume', act: () => connect(one.name), close }) : null,
+              how === 'failed' && one.name !== 'local' ? choice({ label: t('Connect'), about: named(one.name), glyph: 'resume', act: () => connect(one.name), close }) : null,
             ]
           }),
           h('hr'),
-          choice({ label: 'Manage', glyph: 'sliders', href: hash('/settings/daemons'), close }),
+          choice({ label: t('Manage'), glyph: 'sliders', href: hash('/settings/daemons'), close }),
         ],
       }),
-      newer ? choice({ label: 'Update', about: `hmz ${newer}`, glyph: 'up', act: () => copy('hmz update', 'Copied hmz update'), close }) : null,
-      choice({ label: 'Settings', glyph: 'gear', href: hash('/settings/general'), close }),
-      choice({ label: 'Usage', glyph: 'chart', href: hash('/settings/usage'), close }),
+      newer ? choice({ label: t('Update'), about: `hmz ${newer}`, glyph: 'up', act: () => copy('hmz update', t('Copied hmz update')), close }) : null,
+      choice({ label: t('Settings'), glyph: 'gear', href: hash('/settings/general'), close }),
+      choice({ label: t('Usage'), glyph: 'chart', href: hash('/settings/usage'), close }),
     ],
-    { up: true, label: 'Daemon' },
+    { up: true, label: t('Daemon') },
   )
   // The menu is drawn as it opens: the daemons kept now, as another tab may have added one.
   el.addEventListener('pointerdown', read)
@@ -1025,8 +1026,8 @@ function daemonBar() {
 
 /** Forgets a workspace nothing ran in, which takes it out of the list. */
 function forget(path) {
-  working('Forgetting', call('workspaces.forget', { workspace: path })).then(() => {
+  working(t('Forgetting…'), call('workspaces.forget', { workspace: path })).then(() => {
     refresh('workspaces.list')
-    toast('Forgotten')
+    toast(t('Forgotten'))
   }, (error) => toast(error.message))
 }

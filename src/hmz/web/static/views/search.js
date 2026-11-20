@@ -34,9 +34,9 @@ export function mount(root, { query }) {
     role: 'combobox',
     inputmode: 'search',
     enterkeyhint: 'go',
-    placeholder: 'Search',
+    placeholder: t('Search'),
     value: chosen.q,
-    'aria-label': 'Search',
+    'aria-label': t('Search'),
     'aria-controls': 'search-list',
     'aria-expanded': 'true',
     'aria-autocomplete': 'list',
@@ -50,23 +50,23 @@ export function mount(root, { query }) {
     return el
   }
   const tabOf = new Map(TABS.map(([kind, name]) => [kind, h('button', { type: 'button', role: 'tab', 'data-kind': kind || 'all', onclick: () => choose(onTab(chosen, kind)) }, name)]))
-  const tabs = pressed(h('div', { class: 'search-tabs', role: 'tablist', 'aria-label': 'Type', 'data-hmz': 'search-tabs' }, [...tabOf.values()]))
+  const tabs = pressed(h('div', { class: 'search-tabs', role: 'tablist', 'aria-label': t('Type'), 'data-hmz': 'search-tabs' }, [...tabOf.values()]))
   const statusOf = new Map(
-    [['', 'All'], ...ENDINGS.map((how) => [how, epicSaid(how)])].map(([how, name]) => {
+    [['', t('All')], ...ENDINGS.map((how) => [how, epicSaid(how)])].map(([how, name]) => {
       const count = h('span', { class: 'count' })
       return [how, { count, button: h('button', { type: 'button', 'data-how': how || 'all', onclick: () => choose({ ...chosen, status: how, offset: 0 }) }, name, count) }]
     }),
   )
-  const statuses = pressed(h('div', { class: 'segmented', role: 'group', 'aria-label': 'How it went' }, [...statusOf.values()].map((one) => one.button)))
-  const flows = h('select', { 'aria-label': 'Flow', 'data-hmz': 'search-flow' })
-  const places = h('select', { 'aria-label': 'Folder', 'data-hmz': 'search-workspace' }, h('option', { value: '' }, 'All folders'))
+  const statuses = pressed(h('div', { class: 'segmented', role: 'group', 'aria-label': t('How it went') }, [...statusOf.values()].map((one) => one.button)))
+  const flows = h('select', { 'aria-label': t('Flow'), 'data-hmz': 'search-flow' })
+  const places = h('select', { 'aria-label': t('Folder'), 'data-hmz': 'search-workspace' }, h('option', { value: '' }, t('All folders')))
   const filters = h('div', { class: 'dialog-filters', id: 'search-filters', 'data-hmz': 'search-filters', hidden: !filtered(chosen) }, statuses, places, flows)
-  const filtering = pressed(h('button', { class: 'search-filtering', type: 'button', 'aria-controls': 'search-filters', 'aria-expanded': String(!filters.hidden), 'data-hmz': 'search-filtering' }, icon('sliders'), 'Filters'))
-  const body = h('div', { class: 'dialog-body', 'data-hmz': 'found' }, h('p', { class: 'loading', role: 'status' }, 'Reading the list…'))
+  const filtering = pressed(h('button', { class: 'search-filtering', type: 'button', 'aria-controls': 'search-filters', 'aria-expanded': String(!filters.hidden), 'data-hmz': 'search-filtering' }, icon('sliders'), t('Filters')))
+  const body = h('div', { class: 'dialog-body', 'data-hmz': 'found' }, h('p', { class: 'loading', role: 'status' }, t('Reading the list…')))
   const detail = h('div', { class: 'search-detail', 'data-hmz': 'search-detail' })
   const turn = (label, step) => h('button', { class: 'btn quiet small', type: 'button', onclick: () => choose({ ...chosen, offset: Math.max(0, chosen.offset + step * PAGE) }) }, label)
-  const newer = turn('Newer', -1)
-  const older = turn('Older', 1)
+  const newer = turn(t('Newer'), -1)
+  const older = turn(t('Older'), 1)
   const pages = pressed(h('div', { class: 'search-pages', hidden: true }, newer, older))
   // The keys, as this system writes them.
   const mac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -77,15 +77,15 @@ export function mount(root, { query }) {
     pages,
   )
   workspaces().then((answer) => {
-    fill(places, h('option', { value: '' }, 'All folders'), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === chosen.workspace, title: one.path }, one.name)))
+    fill(places, h('option', { value: '' }, t('All folders')), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === chosen.workspace, title: one.path }, one.name)))
   }, () => {})
   root.classList.add('dialog-search-box')
-  root.setAttribute('aria-label', 'Search')
+  root.setAttribute('aria-label', t('Search'))
   fill(
     root,
     // The top row of a narrow window, which it fills.
-    dragged(h('div', { class: 'dialog-head' }, search, iconButton('close', 'Close', { onclick: shut })), 'deep', 'narrow'),
-    h('div', { class: 'search-types', role: 'group', 'aria-label': 'Filters' }, tabs, filtering),
+    dragged(h('div', { class: 'dialog-head' }, search, iconButton('close', t('Close'), { onclick: shut })), 'deep', 'narrow'),
+    h('div', { class: 'search-types', role: 'group', 'aria-label': t('Filters') }, tabs, filtering),
     filters,
     body,
     detail,
@@ -277,21 +277,21 @@ export function mount(root, { query }) {
       h('span', { class: 'mono', title: run.workspace }, nameOf(run.workspace)),
       run.flow ? h('span', { class: 'mono', title: run.flow }, flowName(run.flow)) : null,
       run.agents.map((one) => h('span', { class: 'chip', title: `${one.role} · ${one.runs}` }, one.name, h('span', { class: 'dim' }, nousSaid(one.runs).model ? `${nousSaid(one.runs).harness} ${nousSaid(one.runs).model}` : one.runs))),
-      h('span', { class: 'mono' }, run.spent ? `${run.spent.money || '—'} · ${run.spent.tokens} out` : '—'),
+      h('span', { class: 'mono' }, run.spent ? t('{money} · {tokens} out', { money: run.spent.money || '—', tokens: run.spent.tokens }) : '—'),
       // A chat is never over: when it was last heard of is no end to have taken until.
-      run.ended && !chatting(run) ? h('span', { class: 'mono' }, `took ${lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000)}`) : null,
-      typeof run.sessions === 'number' ? h('span', { class: 'mono' }, `${run.sessions} session${run.sessions === 1 ? '' : 's'}`) : null,
-      run.resumable && !run.held && run.how !== 'running' && run.how !== 'done' ? h('span', { class: 'node-tag' }, 'Resumable') : null,
+      run.ended && !chatting(run) ? h('span', { class: 'mono' }, t('took {time}', { time: lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000) })) : null,
+      typeof run.sessions === 'number' ? h('span', { class: 'mono' }, t('{n} sessions', { n: run.sessions })) : null,
+      run.resumable && !run.held && run.how !== 'running' && run.how !== 'done' ? h('span', { class: 'node-tag' }, t('Resumable')) : null,
     )
 
   /** What can be done from Search, under what was found: a new chat, and an epic brought in. */
   const actions = () =>
     h(
       'div',
-      { class: 'search-group', role: 'group', 'aria-label': 'Actions', onpointerleave: () => (detail.style.minHeight = '') },
-      h('div', { class: 'search-heading', 'aria-hidden': 'true' }, 'Actions'),
-      option(h('a', { class: 'search-action', href: hash('/new/chat'), 'data-hmz': 'search-new-chat' }, 'New chat'), 'new-chat'),
-      option(h('button', { class: 'search-action', type: 'button', 'data-hmz': 'import', onclick: pick }, 'Import'), 'import'),
+      { class: 'search-group', role: 'group', 'aria-label': t('Actions'), onpointerleave: () => (detail.style.minHeight = '') },
+      h('div', { class: 'search-heading', 'aria-hidden': 'true' }, t('Actions')),
+      option(h('a', { class: 'search-action', href: hash('/new/chat'), 'data-hmz': 'search-new-chat' }, t('New chat')), 'new-chat'),
+      option(h('button', { class: 'search-action', type: 'button', 'data-hmz': 'import', onclick: pick }, t('Import')), 'import'),
     )
 
   /**
@@ -320,7 +320,7 @@ export function mount(root, { query }) {
     body.removeAttribute('aria-busy')
     if (!data) {
       opening = false
-      fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : h('p', { class: 'loading' }, 'Reading the list…'))
+      fill(body, error ? h('p', { class: 'error', role: 'alert' }, error.message) : h('p', { class: 'loading' }, t('Reading the list…')))
       return
     }
     // How many went each way, of the tab's kind (Section 4.16.1.2 of protocol/daemon.md).
@@ -328,16 +328,16 @@ export function mount(root, { query }) {
     for (const [how, { count }] of statusOf) count.textContent = String(how ? data.counts[how] || 0 : all)
     // A chat is of no flow: the tab `Chats` finds them, not this.
     const names = [...new Set([...data.flows, chosen.flow].filter((name) => name && name !== 'chat'))].sort()
-    fill(flows, h('option', { value: '' }, 'All flows'), names.map((name) => h('option', { value: name, selected: name === chosen.flow }, name)))
+    fill(flows, h('option', { value: '' }, t('All flows')), names.map((name) => h('option', { value: name, selected: name === chosen.flow }, name)))
     runs = new Map(data.runs.map((run) => [run.name, run]))
     // Only what the arrows move along is in the list: what is said beside it stands over it.
     const list = h(
       'div',
-      { class: 'search-list', id: 'search-list', role: 'listbox', 'aria-label': 'Found' },
+      { class: 'search-list', id: 'search-list', role: 'listbox', 'aria-label': t('Found') },
       data.total
         ? h(
             'div',
-            { class: 'search-group', role: 'group', 'aria-label': `${heading(chosen)}, ${paged(data)}` },
+            { class: 'search-group', role: 'group', 'aria-label': t('{heading}, {range}', { heading: heading(chosen), range: paged(data) }) },
             h('div', { class: 'search-heading', 'aria-hidden': 'true' }, h('span', {}, heading(chosen)), h('span', { 'data-hmz': 'search-count' }, paged(data))),
             h(
               'div',

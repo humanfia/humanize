@@ -12,10 +12,10 @@ import { nameOf } from '../places.js'
 import { dragged } from '../shell.js'
 
 export function mount(root, { query }) {
-  const picker = h('select', { 'aria-label': 'Target', 'data-hmz': 'download-target', hidden: true })
-  const body = h('div', { class: 'dialog-body', 'data-hmz': 'stored' }, h('p', { class: 'loading', role: 'status' }, 'Reading the targets…'))
-  root.setAttribute('aria-label', 'Download')
-  fill(root, dragged(h('div', { class: 'dialog-head' }, icon('download'), h('h2', { class: 'dialog-title' }, 'Download'), picker, iconButton('close', 'Close', { onclick: shut })), 'deep', 'narrow'), body)
+  const picker = h('select', { 'aria-label': t('Target'), 'data-hmz': 'download-target', hidden: true })
+  const body = h('div', { class: 'dialog-body', 'data-hmz': 'stored' }, h('p', { class: 'loading', role: 'status' }, t('Reading the targets…')))
+  root.setAttribute('aria-label', t('Download'))
+  fill(root, dragged(h('div', { class: 'dialog-head' }, icon('download'), h('h2', { class: 'dialog-title' }, t('Download')), picker, iconButton('close', t('Close'), { onclick: shut })), 'deep', 'narrow'), body)
   /** Which target was asked of last: one answering after another was picked draws nothing. */
   let asking = ''
   let gone = false
@@ -23,7 +23,7 @@ export function mount(root, { query }) {
   call('settings.get').then((settings) => {
     const names = settings.backup.targets.map((one) => one.name)
     if (!names.length) {
-      fill(body, empty('No backup target.', ' Add one, and the epics it holds are downloaded from here.', h('a', { class: 'btn primary', href: hash('/settings/backup') }, 'Backup')))
+      fill(body, empty(t('No backup target.'), t(' Add one, and the epics it holds are downloaded from here.'), h('a', { class: 'btn primary', href: hash('/settings/backup') }, t('Backup'))))
       return
     }
     const chosen = names.includes(query.get('target')) ? query.get('target') : names[0]
@@ -37,7 +37,7 @@ export function mount(root, { query }) {
   async function read(target) {
     asking = target
     stays({ target })
-    fill(body, h('p', { class: 'loading', role: 'status' }, `Fetching ${target}…`))
+    fill(body, h('p', { class: 'loading', role: 'status' }, t('Fetching {target}…', { target })))
     let answer
     try {
       answer = await call('backups.epics', { target })
@@ -90,19 +90,19 @@ export function mount(root, { query }) {
 
   function row(target, one) {
     const action = one.here
-      ? h('a', { class: 'btn small quiet', href: hash(at(one, one.epic)) }, 'Open')
-      : h('button', { class: 'btn small', type: 'button', onclick: (event) => pull(target, one, event.currentTarget) }, 'Download')
+      ? h('a', { class: 'btn small quiet', href: hash(at(one, one.epic)) }, t('Open'))
+      : h('button', { class: 'btn small', type: 'button', onclick: (event) => pull(target, one, event.currentTarget) }, t('Download'))
     return h(
       'div',
       { class: 'result', title: one.task, 'data-hmz': 'stored-epic', 'data-epic': one.epic },
       h('span', { class: 'result-top' }, badge(one.how || 'unfinished'), h('span', { class: 'result-task' }, headline(one.task)), h('span', { class: 'result-when', title: when(one.began) }, ago(one.began)), action),
-      h('span', { class: 'result-meta' }, one.chat ? h('span', { class: 'mono' }, 'chat') : h('span', { class: 'mono', title: one.flow }, flowName(one.flow)), h('span', { class: 'mono' }, one.epic), one.here ? h('span', { class: 'node-tag' }, 'Here') : null),
+      h('span', { class: 'result-meta' }, one.chat ? h('span', { class: 'mono' }, t('chat')) : h('span', { class: 'mono', title: one.flow }, flowName(one.flow)), h('span', { class: 'mono' }, one.epic), one.here ? h('span', { class: 'node-tag' }, t('Here')) : null),
     )
   }
 
   async function pull(target, one, button) {
     button.disabled = true
-    button.textContent = 'Downloading…'
+    button.textContent = t('Downloading…')
     const row = button.closest('[data-hmz=stored-epic]')
     row.querySelector('.error')?.remove()
     try {
@@ -115,7 +115,7 @@ export function mount(root, { query }) {
       // Said on the epic it was refused for.
       row.append(problem(error))
       button.disabled = false
-      button.textContent = 'Download'
+      button.textContent = t('Download')
     }
   }
 
