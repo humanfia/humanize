@@ -215,16 +215,16 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
             "Local"
         )
         models = role.locator("[data-hmz=pick-model] option")
-        expect(models).to_have_text(["claude-haiku-4-5", "claude-opus-4-1", "Other…"])
+        expect(models).to_have_text(["Haiku 4.5", "Opus 4.1", "Other…"])
 
         role.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
         efforts = role.locator("[data-hmz=pick-effort] option")
         expect(efforts).to_have_text(
-            ["Default", "ultracode", "max", "high", "medium", "low"]
+            ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
         role.locator("[data-hmz=pick-effort]").select_option("max")
         expect(page.locator(".composer-summary")).to_contain_text(
-            "assistant: claude/claude-opus-4-1:max"
+            "assistant: Claude Code Opus 4.1 Max"
         )
 
 
@@ -391,7 +391,7 @@ def test_a_model_no_cli_would_list_is_typed(
         typed = role.locator("[data-hmz=pick-model-typed]")
         typed.fill("claude-sonnet-4-5")
         expect(page.locator(".composer-summary")).to_contain_text(
-            "assistant: claude/claude-sonnet-4-5"
+            "assistant: Claude Code Sonnet 4.5 Default"
         )
 
 
@@ -473,9 +473,7 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
             assert (under["y"], under["height"]) == (760, 24)
 
         # Under the box: where it runs at the left, how at the right, each 24px high.
-        chips = view.locator(
-            "[data-hmz=composer-under] button:visible, [data-hmz=composer-under] a"
-        )
+        chips = view.locator("[data-hmz=composer-under] button:visible")
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
             "environment",
             "workspace-picker",
@@ -645,8 +643,13 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new/chat")
         chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        # It says the model as a person reads it, and is what `-a` spells.
-        expect(chip).to_have_text("Haiku 4.5")
+        # It says the harness, the model and the effort by name, and is what `-a` spells.
+        expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
+        # Each of the three is told from the next by its colour.
+        inks = chip.locator(".nous-said > span").evaluate_all(
+            "all => all.map((one) => getComputedStyle(one).color)"
+        )
+        assert len(set(inks)) == 3
         expect(chip).to_have_attribute("data-agent", "claude/claude-haiku-4-5")
         expect(page.get_by_role("button", name="Options")).to_have_count(0)
         # Under the box, at its right, before what the chat may touch: never in it.
@@ -668,13 +671,22 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         assert (send_box["width"], send_box["height"]) == (28, 28)
 
         chip.click()
-        menu = page.get_by_role("menu", name="Model")
-        models = menu.locator(".model-menu > [role=menuitem][data-value]")
+        menu = page.get_by_role("menu", name="Nous")
+        # It opens from the chip: its foot by the chip's top, over the box.
+        opened_at = menu.bounding_box()
+        assert opened_at
+        assert boxed["y"] < opened_at["y"] + opened_at["height"] <= chip_box["y"]
+        assert chip_box["y"] - opened_at["y"] - opened_at["height"] <= 6
+        models = menu.locator(".nous-list > [role=menuitem][data-cli=claude]")
         expect(models).to_have_count(2)
         expect(models.nth(0)).to_have_class(re.compile("chosen"))
-        # One row a model, by the name a person reads; its own is said where pointed at.
-        expect(models.nth(0)).to_have_text("Haiku 4.5")
-        expect(models.nth(0)).to_have_attribute("data-tip", "claude-haiku-4-5")
+        # One row a nous, its harness and then its model; as `-a` spells it where pointed at.
+        expect(models.nth(0)).to_have_text("Claude Code - Haiku 4.5")
+        expect(models.nth(0)).to_have_attribute("data-tip", "claude/claude-haiku-4-5")
+        # Every other harness here is in the same list, not under More.
+        expect(
+            menu.locator(".nous-list > [role=menuitem][data-cli=dsh]")
+        ).not_to_have_count(0)
         expect(menu.locator(".popover-head")).to_have_count(0)
         assert set(
             models.evaluate_all(
@@ -683,7 +695,7 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         ) == {28}
         menu.locator("[data-value=claude-opus-4-1]").click()
         expect(menu).to_have_count(0)
-        expect(chip).to_have_text("Opus 4.1")
+        expect(chip).to_have_text("Claude Code Opus 4.1 Default")
 
         chip.click()
         menu.get_by_role("menuitem", name="Effort").click()
@@ -692,17 +704,14 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
         efforts.nth(2).click()
-        expect(chip).to_have_text("Opus 4.1 Max")
+        expect(chip).to_have_text("Claude Code Opus 4.1 Max")
         expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
 
-        # The harness and the account it runs as are under More, one row of the same menu.
+        # The account it runs as is under More, one row of the same menu; the harness is not.
         chip.click()
-        expect(menu.get_by_role("menuitem", name="CLI")).to_have_count(0)
         menu.get_by_role("menuitem", name="More").click()
-        menu.get_by_role("menuitem", name="CLI").click()
-        expect(page.locator("[data-hmz=pick-cli] [role=menuitem]")).to_have_text(
-            ["claude", "dsh", "litellm"]
-        )
+        expect(page.locator("[data-hmz=pick-more]")).to_be_visible()
+        expect(page.locator("[data-hmz=pick-cli]")).to_have_count(0)
         menu.get_by_role("menuitem", name="Account").click()
         accounts = page.locator("[data-hmz=pick-account] [role=menuitem]")
         expect(accounts).to_have_text(["Local", "Add account…"])
@@ -713,7 +722,7 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         typed.press("Enter")
         expect(menu).to_have_count(0)
         expect(page).to_have_url(re.compile(r"#/new/chat"))
-        expect(chip).to_have_text("Sonnet 4.5")
+        expect(chip).to_have_text("Claude Code Sonnet 4.5 Default")
         expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
 
 
@@ -729,13 +738,13 @@ def test_a_chat_model_no_cli_would_list_is_typed_in_the_chip(
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/new/chat")
         chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
-        expect(chip).to_have_text("Pick a model")
+        expect(chip).to_have_text("Pick a nous")
         chip.click()
-        menu = page.get_by_role("menu", name="Model")
+        menu = page.get_by_role("menu", name="Nous")
         expect(menu.locator(".hint")).to_contain_text("claude is not answering")
         menu.get_by_role("menuitem", name="More").click()
         menu.locator("[data-hmz=pick-model-typed]").fill("claude-sonnet-4-5")
-        expect(chip).to_have_text("Sonnet 4.5")
+        expect(chip).to_have_text("Claude Code Sonnet 4.5 Default")
         expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
 
 
@@ -751,15 +760,13 @@ def test_a_chat_says_its_model_on_the_chip_of_its_box(
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
         said = page.locator("[data-hmz=say] [data-hmz=chat-model]")
-        expect(said).to_have_text("Opus 4.1")
+        expect(said).to_have_text("Claude Code Opus 4.1 Default")
         said.click()
-        about = page.get_by_role("menu", name="Model")
+        about = page.get_by_role("menu", name="Nous")
         expect(about.locator("[data-value=claude-opus-4-1]")).to_have_class(
             re.compile("chosen")
         )
-        expect(about.locator(".model-fact")).to_contain_text(
-            ["CLIclaude", "AccountLocal"]
-        )
+        expect(about.locator(".model-fact")).to_contain_text(["AccountLocal"])
         about.get_by_role("menuitem", name="New chat").click()
         expect(page).to_have_url(re.compile(r"#/new/chat\?workspace="))
 
@@ -825,7 +832,7 @@ def test_a_chat_is_its_conversation_alone_answered_and_read(
         )
         expect(page.locator("[data-hmz=inspector]").get_by_role("tab")).to_have_count(0)
         expect(page.locator("[data-hmz=inspector] dt")).to_contain_text(
-            ["Chat ID", "Saved at", "Folder", "Started", "Model"]
+            ["Chat ID", "Saved at", "Folder", "Started", "Nous"]
         )
         # What a `$` name that is both a skill and a flow does is picked in that menu, in
         # plain words, saying where what is in force comes from.
@@ -1441,7 +1448,16 @@ def test_a_newer_release_is_offered_under_the_machine(
 @pytest.mark.usefixtures("talking")
 def test_a_flow_is_opened_and_started_from_the_flows(engine: str) -> None:
     with served() as site, opened(site, engine=engine) as page:
+        # Flows picks no workspace, and lists no project's own flows until its address names
+        # one, as a folder's `Flows here` does: then the bar says which.
         page.get_by_role("link", name="Flows").click()
+        expect(
+            page.locator("[data-hmz=flows] :is(.card, .error, p)").first
+        ).to_be_visible()
+        expect(page.locator("[data-hmz=workspace-picker]")).to_have_count(0)
+        expect(page.locator(".card[data-flow='@local/talk']")).to_have_count(0)
+        go(page, f"/flows?workspace={site.here}")
+        expect(page.locator("[data-hmz=bar] .bar-sub")).to_have_text(str(site.here))
         page.locator(".card[data-flow='@local/talk']").click()
         expect(page.locator(".flow-detail h2")).to_have_text("@local/talk")
         page.get_by_role("link", name="New epic").last.click()
@@ -1495,11 +1511,17 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
     ):
         assert page.evaluate("window.shellAtBody") == "macos"
         # The sidebar's top row stands beside them, in their strip: what hides the sidebar
-        # straight after them, and the mark, which they took the place of, before the bell.
+        # straight after them, and the mark, which they took the place of, at the row's far end.
         assert left(page, ".side-fold") >= lights
         assert top(page, ".side-fold") < strip
         assert left(page, ".brand") > left(page, ".side-forward")
-        assert left(page, ".brand") < left(page, "[data-hmz=notifications]")
+        assert page.evaluate(
+            "document.querySelector('.side-top .brand').getBoundingClientRect().right"
+        ) == page.evaluate(
+            "(() => { const row = document.querySelector('.side-top');"
+            " return row.getBoundingClientRect().right"
+            " - parseFloat(getComputedStyle(row).paddingRight) })()"
+        )
         for row in ("[data-hmz=sidebar] .side-top", "[data-hmz=bar]"):
             expect(page.locator(row)).to_have_attribute(
                 "data-tauri-drag-region", "deep"
@@ -1554,8 +1576,21 @@ def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
         expect(page.locator("[data-hmz=bar]")).to_have_attribute(
             "data-tauri-drag-region", "deep"
         )
-        # The shortcuts as Windows writes them.
-        expect(page.locator(".side-nav kbd")).to_have_text(["Ctrl+Shift+O", "Ctrl+K"])
+        # The shortcuts as Windows writes them: a key apiece, in the row's own face, in no box,
+        # each row's ending where the other's does.
+        expect(page.locator(".side-keys")).to_have_text(["Ctrl+Shift+O", "Ctrl+K"])
+        expect(page.locator(".side-keys kbd")).to_have_text(
+            ["Ctrl", "Shift", "O", "Ctrl", "K"]
+        )
+        assert page.evaluate(
+            "(() => { const keys = [...document.querySelectorAll('.side-keys')], style ="
+            " getComputedStyle(keys[0]); return !/mono/i.test(style.fontFamily) &&"
+            " style.fontSize === '12px' && style.borderTopWidth === '0px' && new Set(keys.map("
+            "(el) => Math.round(el.getBoundingClientRect().right))).size === 1 })()"
+        )
+        expect(page.get_by_role("link", name="New chat", exact=True)).to_have_attribute(
+            "aria-keyshortcuts", "Control+Shift+O"
+        )
         assert page.evaluate(under) == []
 
         # The panel beside the epic, open, is the top right; and shut, the bar is.
@@ -1622,7 +1657,7 @@ def test_a_setup_is_saved_without_starting_an_epic(project: Path, engine: str) -
         _options(page)
         role = page.locator("[data-role=assistant]")
         expect(role.locator("[data-hmz=pick-model] option").first).to_have_text(
-            "claude-haiku-4-5"
+            "Haiku 4.5"
         )
         role.locator("[data-hmz=pick-model]").select_option("claude-opus-4-1")
         page.locator("[data-hmz=options]").get_by_role("button", name="Save").click()
@@ -1727,9 +1762,7 @@ def test_an_epic_is_read_by_its_agents_logs_and_its_agents_as_a_list(
         _start_talk(page, "log me")
 
         inspector = page.locator("[data-hmz=inspector]")
-        expect(inspector.locator("[data-hmz=spending]")).to_contain_text(
-            "claude-haiku-4-5"
-        )
+        expect(inspector.locator("[data-hmz=spending]")).to_contain_text("Haiku 4.5")
         expect(inspector.locator("[data-hmz=frontends]")).to_contain_text("this page")
 
         # No log of every session, and no Exomyth, under the epic in the sidebar: Exomyth is
@@ -2019,13 +2052,13 @@ def test_ai_chan_drawer_opens_from_every_view_with_her_avatar_and_new_form(
             == "pixelated"
         )
         # Open from view to view, until closed.
-        go(page, "/flows")
+        go(page, f"/flows?workspace={project.resolve()}")
         expect(drawer).to_be_visible()
         # New: the scope the page shows, a preset, the network off, and the task.
         drawer.locator("[data-hmz=aichan-new]").click()
         form = drawer.locator("[data-hmz=aichan-form]")
         expect(form).to_be_visible()
-        # The flows of a workspace show it: the scope starts on it.
+        # A folder's flows show a workspace: the scope starts on it.
         expect(form.locator("[data-hmz=aichan-scope]")).to_have_value("workspace")
         expect(form.locator("[data-hmz=aichan-workspace]")).to_be_visible()
         expect(form.locator("[data-hmz=aichan-preset]")).to_have_value("read-only")

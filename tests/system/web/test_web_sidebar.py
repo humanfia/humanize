@@ -278,16 +278,16 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
         assert _box(side.locator("[data-hmz=side-split]")) == (272, 0, 8, 792)
 
         # The title row: the mark, where a desktop app's window keeps its traffic lights, then
-        # hiding it, back and forward, side by side from 84 in; the bell last.
+        # hiding it, back and forward, side by side from 84 in.
         top = side.locator(".side-top")
-        expect(top.locator(":scope > *")).to_have_count(5)
+        expect(top.locator(":scope > *")).to_have_count(4)
         assert _box(top.locator(".brand")) == (8, 8, 76, 28)
         boxes = [
             _box(top.get_by_role("button", name=name, exact=True))
-            for name in ("Hide sidebar", "Back", "Forward", "Notifications")
+            for name in ("Hide sidebar", "Back", "Forward")
         ]
-        assert [box[1:] for box in boxes] == [(8, 28, 28)] * 4
-        assert [box[0] for box in boxes] == [84, 112, 140, 238]
+        assert [box[1:] for box in boxes] == [(8, 28, 28)] * 3
+        assert [box[0] for box in boxes] == [84, 112, 140]
 
         # Hidden and shown again: the button that undoes each has the focus, and the mark,
         # under the pointer that pressed `Show sidebar`, says nothing over the first entry.
@@ -310,6 +310,20 @@ def test_the_sidebar_is_laid_out_as_a_desktop_chat_apps(engine: str) -> None:
             for one in entries.all()
         }
         assert len(weights) == 1
+        # A shortcut ends where its row's words may, 8px in from the row's end, on both rows,
+        # and at the sidebar's least width no entry is wider than its row.
+        ends = "(el) => Math.round(el.getBoundingClientRect().right)"
+        assert {one.evaluate(ends) for one in side.locator(".side-keys").all()} == {258}
+        page.evaluate(
+            "document.querySelector('.app').style.setProperty('--side-wide', '200px')"
+        )
+        assert not any(
+            one.evaluate("(el) => el.scrollWidth > el.clientWidth")
+            for one in entries.all()
+        )
+        page.evaluate(
+            "document.querySelector('.app').style.removeProperty('--side-wide')"
+        )
 
         # A heading as wide and as tall as a row, a chat's row 258 by 32 under it, rows 2px apart.
         group = side.locator("[data-hmz=workspace][data-path='/w']")

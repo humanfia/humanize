@@ -61,7 +61,7 @@ fills it as it fills a flow's role: the first CLI it finds. Change it:
 
 - in the terminal, with **Chat agent** on the [Workspace page of
   `/settings`](/user/settings#workspace);
-- in the browser, from the model chip under the box of **New chat**, or of a chat
+- in the browser, from the nous chip under the box of **New chat**, or of a chat
   going, whose menu says the `/model` or `/effort` line below for you;
 - in the chat, with the CLI's own `/model` or `/effort`, where it has them (Claude Code,
   Codex): the chat goes on with the new model or effort, and the directory remembers it;

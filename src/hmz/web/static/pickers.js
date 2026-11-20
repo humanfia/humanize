@@ -4,8 +4,9 @@
 // backend, the runtime of it, and a directory there. Each comes to what `-a` or `-e` spells.
 
 import { call, daemon, hash, onDaemon } from './api.js'
-import { offering, parted, spelled } from './chips/agent.js'
+import { nousOffered, offering, parted, spelled } from './chips/agent.js'
 import { fill, h, iconButton } from './dom.js'
+import { effortName, harnessName } from './names.js'
 import { pathPicker } from './paths.js'
 
 /** The CLIs here, each with its accounts and the models each runs, shared by every picker. */
@@ -151,8 +152,11 @@ export function agentChoice(role, kept, draw, { effort: withEffort = true, chang
     if (value() !== was) changed()
   }
 
+  /** Every nous the role's CLIs are known to run, a group a harness (`nousOffered`). */
+  const nous = () => (backends ? nousOffered(chosen, backends.clis, role.clis, asked) : [])
+
   told.add(read)
-  return { chosen, again, refresh, value, leave: () => told.delete(read) }
+  return { chosen, again, refresh, value, nous, leave: () => told.delete(read) }
 }
 
 /**
@@ -195,11 +199,11 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
     model.hidden = typing && !offered.models.length
     typed.hidden = !typing
     if (typing && typed.value !== chosen.model) typed.value = chosen.model
-    fill(effort, h('option', { value: '' }, 'Default'), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, one)))
+    fill(effort, h('option', { value: '' }, 'Default'), offered.efforts.map((one) => h('option', { value: one, selected: one === chosen.effort }, effortName(one))))
     effort.disabled = !offered.efforts.length
     again.disabled = !chosen.cli || offered.asking
     // One line, cut short where it is long: its tip says the whole of it.
-    said.textContent = said.dataset.tip = offered.asking ? `Asking ${chosen.cli} for models…` : offered.failed ? `No models: ${offered.failed}` : ''
+    said.textContent = said.dataset.tip = offered.asking ? `Asking ${harnessName(chosen.cli)} for models…` : offered.failed ? `No models: ${offered.failed}` : ''
   }
 
   cli.addEventListener('change', () => {

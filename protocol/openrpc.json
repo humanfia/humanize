@@ -5571,12 +5571,11 @@
     },
     {
       "name": "flows.list",
-      "summary": "The flows on offer in a workspace.",
+      "summary": "The flows on offer, with those of a workspace where one is named.",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "workspace",
-          "required": true,
           "schema": {
             "$ref": "#/components/schemas/Workspace"
           }
@@ -5637,7 +5636,6 @@
       "params": [
         {
           "name": "workspace",
-          "required": true,
           "schema": {
             "$ref": "#/components/schemas/Workspace"
           }

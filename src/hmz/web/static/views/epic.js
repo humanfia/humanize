@@ -20,11 +20,14 @@ import { call, exported, given, hash } from '../api.js'
 import { go, renamed } from '../app.js'
 import { confirming } from '../confirm.js'
 import { acting, ago, badge, flowName, pathText, copier, empty, fill, h, headline, icon, lasting, problem, secondsOf, when } from '../dom.js'
-import { modelName, parted } from '../chips/agent.js'
+import { agentLabel, parted } from '../chips/agent.js'
 import { modelFact } from '../chips/model.js'
-import { PANES, chipNamed, paneOf, standing as standingSaid, stoppable, toggled, usageSaid } from '../desk.js'
+import { PANES, paneOf, standing as standingSaid, stoppable, thousands, toggled, usageRows, usageSaid } from '../desk.js'
 import { ask, chatAsk, follow } from '../held.js'
 import { chatPermission } from '../chips/permission.js'
+import { usageChip } from '../chips/usage.js'
+import { harnessName, modelName } from '../names.js'
+import { lostSaid, unplaced } from '../places.js'
 import { composer as composed } from '../composer.js'
 import { archiving, retitling } from '../chat-actions.js'
 import { pathOf, worksIn } from '../chats.js'
@@ -35,7 +38,7 @@ import { backedSaid, epicMenu, upload } from '../sidebar.js'
 import { copy, menuOn, toast } from '../ui.js'
 import { saidTraced, sayer, walked } from '../transcript.js'
 import { completions, pathItems, pathParts, preferSaid, RESERVED, route, typing } from '../natives.js'
-import { barButton, glyph, paneButtons } from './chatbar.js'
+import { barButton, paneButtons } from './chatbar.js'
 import { panelsOf, usedLine } from './envs/tree.js'
 
 /** The most lines of a run going drawn at once: past it, the oldest go. */
@@ -629,10 +632,7 @@ export function mount(root, { parts, query }) {
       else dock.append(line)
     })
     const spent = usageSaid(going ? held().figures : null, detail.spent)
-    for (const chip of dock.querySelectorAll('[data-hmz=chat-usage]')) {
-      chip.setAttribute('aria-label', chipNamed('Usage', spent))
-      chip.querySelector('.chip-value').textContent = spent
-    }
+    for (const chip of usages) chip.said(spent)
   }
 
   // ------------------------------------------------------------------ the panel beside it
@@ -741,7 +741,7 @@ export function mount(root, { parts, query }) {
         section(
           agent.name,
           h('div', { class: 'focus', style: { '--lane': agent.color }, 'data-hmz': 'focus' },
-            h('div', { class: 'mono dim' }, [agent.role !== agent.name && agent.role, agent.spec].filter(Boolean).join(' · ') || '—'),
+            h('div', { class: 'dim', title: agent.spec || null }, [agent.role !== agent.name && agent.role, agent.said].filter(Boolean).join(' · ') || '—'),
             h('div', {}, [agent.status, agent.turns !== null && agent.turns !== undefined ? `${agent.turns} turn${agent.turns === 1 ? '' : 's'}` : '', agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
             agent.sessions.length
               ? h('ul', { class: 'links' }, agent.sessions.map((one) => h('li', {}, h('a', { href: `${base}/sessions/${encodeURIComponent(one.key)}` }, one.working ? '● ' : '○ ', h('span', { class: 'mono' }, one.key)), one.about ? h('span', { class: 'dim' }, ` ${one.about}`) : null)))
@@ -883,8 +883,13 @@ export function mount(root, { parts, query }) {
    */
   function carrying(detail) {
     const box = chatBox(detail, async (text) => {
-      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.name, prefer: preferring, permission: box.permission.picked() })
+      // A folder that went is said as the forms that start in one say it, with no other to pick.
+      const started = await call('chat.start', { workspace: detail.workspace, slot: 'chat:', task: text, resume: detail.name, prefer: preferring, permission: box.permission.picked() }).catch((error) => {
+        throw unplaced(error, detail.workspace, lostSaid)
+      })
       carry = null
+      // Its box is drawn no more: its chip is told nothing more of what the chat spends.
+      usages.delete(box.usage)
       carryingOn = true
       stop()
       stop = watch(name, { workspace: detail.workspace, slot: started.slot }, told, { chat: true })
@@ -1057,6 +1062,9 @@ export function mount(root, { parts, query }) {
     return { from: typed.from, to: typed.to, groups }
   }
 
+  /** The Usage chips of the chat's boxes, each told what the chat has spent as it is read. */
+  const usages = new Set()
+
   /**
    * The box under a chat: it completes the chat's native input, serves the names hmz keeps and
    * starts the flows a line names, and says every other line as `say` does.
@@ -1074,11 +1082,17 @@ export function mount(root, { parts, query }) {
     const permission = chatPermission(first, sets)
     if (catalogue && catalogue.slot === here.slot) permission.host(catalogue)
     // What the chat has used, as a chat app keeps a ring there: what it has spent beside it once
-    // there is something to say, and its details say the rest.
-    const usage = h('button', { class: 'chip-btn desk-chip usage-chip', type: 'button', 'aria-label': 'Usage', 'data-hmz': 'chat-usage', 'data-tip': 'What this chat has used', onclick: () => showPane('epic') }, glyph('usage'), h('span', { class: 'chip-value' }))
+    // there is something to say, and its popup says the rest (Section 3.6.6.17.1 of protocol/web.md).
+    const usage = usageChip({
+      hmz: 'chat-usage',
+      tip: 'What this chat has used',
+      chat: () => usageRows(seen && seen.going ? held().figures : null, now().spent),
+      workspace: () => now().workspace || '',
+    })
+    usages.add(usage)
     const box = composed({
       // Under the box, at its right: how the chat runs. Where it runs is settled once it has begun.
-      desk: { add: true, right: [model.node, permission.node, usage] },
+      desk: { add: true, right: [model.node, permission.node, usage.node] },
       placeholder: 'Reply…',
       label: 'What to say',
       complete: (text, caret) => completing(now(), text, caret),
@@ -1098,7 +1112,7 @@ export function mount(root, { parts, query }) {
     // whoever cannot see that menu.
     box.text.setAttribute('aria-description', INPUT_HINT)
     box.node.dataset.hmz = 'say'
-    return Object.assign(box, { model, permission })
+    return Object.assign(box, { model, permission, usage })
   }
 
   /** What the page does for a name hmz keeps, as Section 8.9.8 of protocol/core.md has it done. */
@@ -1255,7 +1269,7 @@ function reading(mode) {
 function spendingOf(figures) {
   const reckoned = figures.reckoning || []
   const named = (kind) => (kind ? kind.replace(/_/g, ' ') : 'unsorted')
-  const over = (name) => h('tr', { class: 'spending-of' }, h('td', { class: 'mono', colspan: reckoned.length + 2, title: name }, name))
+  const over = (name) => h('tr', { class: 'spending-of' }, h('td', { colspan: reckoned.length + 2, title: name }, modelName(name)))
   const count = (tokens, floor = false) => h('td', { class: 'num', title: `${floor ? 'at least ' : ''}${Math.round(tokens)}${floor ? ': a backend here does not count this kind' : ''}` }, `${floor ? '≥' : ''}${thousands(tokens)}`)
   return [
     h(
@@ -1278,12 +1292,6 @@ function spendingOf(figures) {
       ),
     ),
   ]
-}
-
-/** A count of tokens short enough for a narrow column, as the runs' own figures cut one short. */
-function thousands(count) {
-  if (count < 1e3) return String(Math.round(count))
-  return count < 1e6 ? `${(count / 1e3).toFixed(1)}k` : `${(count / 1e6).toFixed(2)}M`
 }
 
 /** Where each session of an epic works, and where its harness was put, as each opened. */
@@ -1312,7 +1320,7 @@ function listOf(model, epic, focus) {
         { class: 'list-head', href: agent.person ? `${base}/logs/${encodeURIComponent(agent.name)}` : `${base}/agents/${encodeURIComponent(agent.name)}` },
         h('i', { class: 'swatch', 'aria-hidden': 'true' }),
         h('b', {}, agent.name),
-        h('span', { class: 'mono dim' }, [agent.role !== agent.name && agent.role, agent.spec].filter(Boolean).join(' · ') || '—'),
+        h('span', { class: 'dim', title: agent.spec || null }, [agent.role !== agent.name && agent.role, agent.said].filter(Boolean).join(' · ') || '—'),
         h('span', { class: 'list-state' }, agent.working ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, [agent.status, agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
       ),
       h(
@@ -1376,7 +1384,7 @@ const FACTS = {
   workspace: ['workdir', 'Folder'],
   workdir: ['', 'Works in'],
   began: ['', 'Started'],
-  agents: ['agents', 'Model'],
+  agents: ['agents', 'Nous'],
   used: ['envs', 'Environment'],
   params: ['params', 'Options'],
   budget: ['budget', 'Limits'],
@@ -1402,7 +1410,7 @@ function facts(detail, chat = false) {
     chat && detail.began ? [h('dt', {}, said('began')), h('dd', { title: when(detail.began) }, ago(detail.began))] : null,
     h('dt', {}, said('agents')),
     // A chat has one agent, in the one role every chat has: what it runs says which it is.
-    h('dd', {}, detail.agents.length ? detail.agents.map((one) => h('div', { class: 'mono' }, chat ? one.runs : [one.name !== one.role && one.name, `${one.role}=${one.runs}`].filter(Boolean).join(' · '))) : '—'),
+    h('dd', {}, detail.agents.length ? detail.agents.map((one) => h('div', { title: one.runs }, [!chat && one.name !== one.role && one.name, !chat && one.role, agentLabel(one.runs) || one.runs].filter(Boolean).join(' · '))) : '—'),
     h('dt', {}, said('used')),
     h('dd', {}, detail.used.length ? detail.used.map((one) => h('div', { class: 'mono' }, one)) : '—'),
     h('dt', {}, said('params')),
@@ -1410,7 +1418,7 @@ function facts(detail, chat = false) {
     h('dt', {}, said('budget')),
     h('dd', {}, budgeted(detail.budget)),
     h('dt', {}, said('sessions')),
-    h('dd', {}, detail.sessions.length ? sessionsOf(detail).map((one) => h('div', {}, h('span', { class: 'mono' }, one.key), ` · ${one.backend}`, one.provider ? `@${one.provider}` : '', h('div', { class: 'dim mono' }, one.ident))) : 'none'),
+    h('dd', {}, detail.sessions.length ? sessionsOf(detail).map((one) => h('div', {}, h('span', { class: 'mono' }, one.key), ` · ${harnessName(one.backend)}`, one.provider ? `@${one.provider}` : '', h('div', { class: 'dim mono' }, one.ident))) : 'none'),
     detail.picked_up ? [h('dt', {}, said('picked_up')), h('dd', {}, h('a', { href: hash(`/epics/${encodeURIComponent(detail.picked_up)}`) }, detail.picked_up))] : null,
     detail.profile_flow || detail.profile_environment
       ? [h('dt', {}, said('profiled')), h('dd', {}, [detail.profile_flow && 'flow', detail.profile_environment && 'environment'].filter(Boolean).join(' · '))]

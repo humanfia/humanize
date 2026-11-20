@@ -381,7 +381,7 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
             "permission",
             "chat-usage",
         ]
-        expect(chips.first).to_have_text("Haiku 4.5")
+        expect(chips.first).to_have_text("Claude Code Haiku 4.5 Default")
         for hook in ("chat-model", "permission", "chat-usage"):
             assert _box(page, f"[data-hmz=say] [data-hmz={hook}]")["height"] == 24
         # Usage is a ring 24px square while the chat has spent nothing to say, the last
@@ -392,6 +392,21 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
         expect(page.locator("[data-hmz=say] [data-hmz=chat-usage]")).to_have_attribute(
             "aria-label", "Usage"
         )
+        # It opens a popup of its own by the ring -- this chat, then its folder -- and
+        # not the chat's Details.
+        page.locator("[data-hmz=say] [data-hmz=chat-usage]").click()
+        popup = page.get_by_role("dialog", name="Usage")
+        expect(popup).to_be_visible()
+        expect(popup.locator(".popover-head").first).to_have_text("This chat")
+        expect(popup.locator("[data-hmz=usage-settings]")).to_have_text(
+            "Usage settings"
+        )
+        expect(
+            page.locator("[data-hmz=bar] [data-hmz=pane-details]")
+        ).to_have_attribute("aria-pressed", "false")
+        page.keyboard.press("Escape")
+        expect(popup).to_have_count(0)
+        expect(page.locator("[data-hmz=say] [data-hmz=chat-usage]")).to_be_focused()
         last = _box(page, "[data-hmz=say] [data-hmz=permission]")
         assert last["x"] > boxed["x"] + boxed["width"] / 2
         expect(
@@ -463,14 +478,14 @@ def test_a_chat_is_drawn_as_a_chat_apps_session(project: Path, engine: str) -> N
                 "Saved at",
                 "Folder",
                 "Started",
-                "Model",
+                "Nous",
                 "Environment",
                 "Options",
                 "Limits",
                 "Sessions",
             ]
         )
-        expect(panel.locator("dd").nth(4)).to_have_text("claude/claude-haiku-4-5")
+        expect(panel.locator("dd").nth(4)).to_have_text("Claude Code Haiku 4.5 Default")
         # Side questions are under View options, with Ai-chan, and no pane's button is
         # theirs.
         bar.locator("[data-hmz=chat-view]").click()
@@ -685,7 +700,7 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         go(page, "/new/chat")
         under = page.locator("[data-hmz=composer-under]")
         model = under.locator("[data-hmz=pick-model]")
-        expect(model).to_have_text("Haiku 4.5")
+        expect(model).to_have_text("Claude Code Haiku 4.5 Default")
         # Each chip is named by what it picks and what is picked; the row ends with Usage.
         chips = under.locator(".under-left button:visible, .under-right > *")
         assert chips.evaluate_all(
@@ -694,7 +709,7 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         ) == [
             "Environment: Local",
             "Folder: project",
-            "Model: Haiku 4.5",
+            "Nous: Claude Code Haiku 4.5 Default",
             "Permissions: Edit this folder",
             "Usage",
         ]
@@ -702,9 +717,37 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         assert (usage["width"], usage["height"]) == (24, 24)
         permission = _box(page, "[data-hmz=permission]")
         assert usage["x"] >= permission["x"] + permission["width"]
-        expect(under.locator("[data-hmz=new-usage]")).to_have_attribute(
+        # Usage opens a popup of its own by the ring, not a page of Settings: what the
+        # folder has used today and over 7 days, and the way to the whole page.
+        ring = under.locator("[data-hmz=new-usage]")
+        ring.click()
+        used = page.get_by_role("dialog", name="Usage")
+        expect(used).to_be_visible()
+        expect(page).to_have_url(re.compile(r"#/new/chat"))
+        expect(used.locator(".popover-head")).to_have_text(["project"])
+        expect(used.locator("dt")).to_have_text(["Today (UTC)", "Last 7 days"])
+        expect(used.locator("[data-hmz=usage-settings]")).to_have_attribute(
             "href", re.compile(r"#/settings/usage\?workspace=")
         )
+        popped = _box(page, "[role=dialog][aria-label=Usage]")
+        assert popped["width"] == min(308, width - 16)
+        assert popped["y"] + popped["height"] <= usage["y"]
+        page.keyboard.press("Escape")
+        expect(used).to_have_count(0)
+        expect(ring).to_be_focused()
+        # Tab past its last stop leaves it as Escape does: closed, the focus on the ring.
+        page.keyboard.press("Enter")
+        expect(used.locator("[data-hmz=usage-settings]")).to_be_focused()
+        page.keyboard.press("Tab")
+        expect(used).to_have_count(0)
+        expect(ring).to_be_focused()
+        if width >= 860:
+            # What a chip says where pointed at stands over the whole box, never on it.
+            model.hover()
+            expect(page.locator(".tip")).to_have_text("claude/claude-haiku-4-5")
+            tip, typed = _box(page, ".tip"), _box(page, ".composer-box")
+            assert tip["y"] + tip["height"] <= typed["y"]
+            page.mouse.move(1, 1)
 
         # Permissions: 308 wide where there is room, the three in rows of 44 under no
         # heading, opened on the one in force.
@@ -716,30 +759,52 @@ def test_a_new_chats_chips_and_menus_are_a_chat_apps(
         assert set(menu.get_by_role("menuitem").evaluate_all(_TALL)) == {44}
         expect(menu.locator("[data-permission=workspace-write]")).to_be_focused()
         expect(menu.locator(".permission-note")).to_be_visible()
+        # It opens from its chip, its foot by the chip's top and its right edge on the chip's.
+        chip, popped = permission, _box(page, "[role=menu][aria-label=Permissions]")
+        assert 0 <= chip["y"] - popped["y"] - popped["height"] <= 6
+        assert abs(chip["x"] + chip["width"] - popped["x"] - popped["width"]) <= 1
         page.keyboard.press("Escape")
 
-        # Model: a model a row, then Effort and More, each one row that opens beside it.
+        # Nous: a harness and a model a row, then Effort and More, each one row that opens
+        # beside it.
         model.click()
-        menu = page.get_by_role("menu", name="Model")
-        rows = menu.locator(".model-menu > [role=menuitem], .model-menu > .choice-sub")
-        expect(rows).to_have_text(["Haiku 4.5", "Opus 4.1", "EffortDefault", "More"])
+        menu = page.get_by_role("menu", name="Nous")
+        rows = menu.locator(
+            ".nous-list > [role=menuitem][data-cli=claude], .model-menu > .choice-sub"
+        )
+        expect(rows).to_have_text(
+            [
+                "Claude Code - Haiku 4.5",
+                "Claude Code - Opus 4.1",
+                "EffortDefault",
+                "More",
+            ]
+        )
         assert set(rows.evaluate_all(_TALL)) == {28}
+        chip, popped = (
+            _box(page, "[data-hmz=pick-model]"),
+            _box(page, "[role=menu][aria-label=Nous]"),
+        )
+        assert 0 <= chip["y"] - popped["y"] - popped["height"] <= 6
         expect(menu.locator("[data-value=claude-haiku-4-5]")).to_be_focused()
         # One opened beside it takes the other's place: never two side by side.
         menu.get_by_role("menuitem", name="Effort").click()
         expect(page.locator("[data-hmz=pick-effort]")).to_be_visible()
+        # It ends no lower than the menu it came from: never on the chips, nor the box.
+        beside = _box(page, "[data-hmz=pick-effort]")
+        assert beside["y"] + beside["height"] <= popped["y"] + popped["height"] + 1
         menu.get_by_role("menuitem", name="More").click()
         expect(page.locator("[data-hmz=pick-effort]")).to_have_count(0)
         more = page.locator("[data-hmz=pick-more]")
         expect(more.locator("[data-hmz=pick-model-typed]")).to_be_visible()
         expect(
             more.locator(":scope > .choice-sub, :scope > [role=menuitem]")
-        ).to_have_text(["CLIclaude", "AccountLocal", "Refresh models"])
+        ).to_have_text(["AccountLocal", "Refresh models"])
         # A menu opened from More shuts alone, by the left arrow.
-        more.get_by_role("menuitem", name="CLI").click()
-        expect(page.locator("[data-hmz=pick-cli]")).to_be_visible()
+        more.get_by_role("menuitem", name="Account").click()
+        expect(page.locator("[data-hmz=pick-account]")).to_be_visible()
         page.keyboard.press("ArrowLeft")
-        expect(page.locator("[data-hmz=pick-cli]")).to_have_count(0)
+        expect(page.locator("[data-hmz=pick-account]")).to_have_count(0)
         expect(more).to_be_visible()
         # And so does More, by Escape: one press closes one menu, the topmost.
         page.keyboard.press("Escape")
@@ -781,7 +846,7 @@ def test_a_form_read_late_leaves_the_focus_where_it_was_put(
         reads("/new/chat", "settings.get")
         expect(model).to_have_count(0)
         wire.lets_through()
-        expect(model).to_have_text("Haiku 4.5")
+        expect(model).to_have_text("Claude Code Haiku 4.5 Default")
         assert page.evaluate(_FOCUSED) == "composer-text"
 
         # A chip's menu opened and closed while it is read: the chip has the focus back, and
@@ -792,7 +857,7 @@ def test_a_form_read_late_leaves_the_focus_where_it_was_put(
         page.keyboard.press("Escape")
         expect(permission).to_be_focused()
         wire.lets_through()
-        expect(model).to_have_text("Haiku 4.5")
+        expect(model).to_have_text("Claude Code Haiku 4.5 Default")
         assert page.evaluate(_FOCUSED) == "permission"
 
         # And so with a dialog opened from the chip and closed, which gives it the focus back.
@@ -804,7 +869,7 @@ def test_a_form_read_late_leaves_the_focus_where_it_was_put(
         expect(page.locator("[data-hmz=dialog-search]")).to_have_count(0)
         expect(permission).to_be_focused()
         wire.lets_through()
-        expect(model).to_have_text("Haiku 4.5")
+        expect(model).to_have_text("Claude Code Haiku 4.5 Default")
         assert page.evaluate(_FOCUSED) == "permission"
 
         # A dialog closed over a form nothing held the focus in leaves it on the page as a
@@ -815,7 +880,7 @@ def test_a_form_read_late_leaves_the_focus_where_it_was_put(
         page.keyboard.press("Escape")
         expect(page.locator("[data-hmz=page]")).to_be_focused()
         wire.lets_through()
-        expect(model).to_have_text("Haiku 4.5")
+        expect(model).to_have_text("Claude Code Haiku 4.5 Default")
         assert page.evaluate(_FOCUSED) == "composer-text"
 
         # A new epic's form reads its flow the same way.

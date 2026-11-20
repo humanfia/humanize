@@ -1,7 +1,7 @@
 // Which notifications may appear, of every daemon at once: an epic done, failed or stopped, a
-// question to you, a chat turn over -- and whether they are shown by the system as well as on
-// the page. This browser's own, kept in its storage, never a daemon's. A browser shows them only
-// once you allow it, from a click here; Humanize Desktop needs nothing more.
+// question to you, a chat turn over -- and whether the system shows them. This browser's own,
+// kept in its storage, never a daemon's. A browser shows them only once you allow it, from a
+// click here; Humanize Desktop needs nothing more.
 
 import { fill, h, problem } from '../../dom.js'
 import { kept } from '../../notifications.js'
@@ -18,6 +18,9 @@ const KINDS = [
 
 /** What the browser says of showing notifications, as the page says it. */
 const PERMISSIONS = { granted: 'Allowed', denied: 'Blocked', default: 'Not asked' }
+
+/** Who shows them in a browser, by what it says of showing them: none where it has no way to. */
+const SHOWN = { granted: 'Shown by the browser.', denied: 'Blocked in this browser’s settings for this site: allow them there.', default: 'Shown by the browser, once you allow it.', none: 'This browser shows none.' }
 
 export function draw(holder) {
   const shown = (settings) => {
@@ -42,13 +45,17 @@ export function draw(holder) {
       return h('label', { class: 'check' }, box, label)
     }
     const allowing = h('div', { class: 'row', 'data-hmz': 'notifications-permission' })
+    const shownBy = h('span', { class: 'hint', 'data-hmz': 'notifications-shown-by' }, inApp ? `Shown by ${shell === 'windows' ? 'Windows' : 'macOS'}.` : '')
     const drawAllowing = () => {
       if (inApp) return fill(allowing)
+      shownBy.textContent = 'Notification' in window ? SHOWN[Notification.permission] || SHOWN.default : SHOWN.none
       if (!('Notification' in window)) return fill(allowing, h('span', { class: 'dim' }, 'Unsupported'))
       const now = Notification.permission
+      // `Allow` goes once it is answered: the focus it held is kept on it, or on what says the answer.
+      const held = allowing.contains(document.activeElement)
       fill(
         allowing,
-        h('span', { class: 'dim', 'data-hmz': 'permission-state' }, PERMISSIONS[now] || now),
+        h('span', { class: 'dim', 'data-hmz': 'permission-state', tabindex: '-1' }, PERMISSIONS[now] || now),
         now === 'granted' || now === 'denied'
           ? null
           : h(
@@ -69,6 +76,7 @@ export function draw(holder) {
               'Allow',
             ),
       )
+      if (held && !allowing.contains(document.activeElement)) allowing.querySelector('[data-hmz=allow-notifications], [data-hmz=permission-state]').focus()
     }
     drawAllowing()
     fill(
@@ -96,7 +104,7 @@ export function draw(holder) {
             h('span', { class: 'label' }, 'System'),
             toggle('On', system, (on) => (system = on), 'notify-system'),
             allowing,
-            h('span', { class: 'hint' }, inApp ? `Shown by ${shell === 'windows' ? 'Windows' : 'macOS'} while the window is away.` : 'Shown by the browser while the page is away.'),
+            shownBy,
           ),
           said,
         ),

@@ -262,12 +262,20 @@ module that opens one:
   listener of its own for an outside press, Escape, scroll, resize or blur;
 - shows a `<dialog>` with `modal(dialog)` rather than `showModal()`, and calls
   `dismiss('dialog')` before any other dialog of its own is shown;
-- puts it with `place()` or `follow()`, and says anything for a moment through `posted()` or
+- puts it with `place()` or `follow()` -- which open a chip's menu from the chip itself, and
+  what opens from inside `.composer-box` clear of the whole box -- and says anything for a moment through `posted()` or
   `toast()` of `ui.js`, which keep the one `.toasts` region.
 
 `menu()` and `submenu()` of `shell.js`, `menuOn()` and `menuButton()` of `ui.js` and
 `confirming()` of `dom.js` already do all of it. `layers.js` imports nothing and keeps its chain
 without a document, so `tests/unit/web/js/layers.test.mjs` tests it under `node --test`.
+
+A harness, a model and an effort are named on the page by `web/static/names.js` alone
+(`harnessName`, `modelName`, `effortName`): each harness and each rung by its vendor's name, a
+model by its family's row, and an id the table does not hold as it is written. Draw a name
+through it and keep the id where it is data -- a `data-` attribute, a tip, an agent as `-a`
+spells it. A harness added to `DRIVEN` gets a row there; `tests/unit/web/js/names.test.mjs`
+lists the ids.
 
 ## Vendored web code {#vendored-web-code}
 

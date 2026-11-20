@@ -275,10 +275,10 @@ and the page MUST then draw its top row around the window controls from its firs
 
 **3.7.8** The app MUST keep the window's size and position from one launch to the next.
 
-**3.7.9** On macOS, the app MUST have the menus of a Mac app: the app menu, with `About Humanize
-Desktop` and `Check for Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all; `View`,
-with `Reload`, `Actual Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`, with the
-documentation.
+**3.7.9** On macOS, the app MUST have the menus of a Mac app: the app menu, titled `Humanize`, with
+`About Humanize` and `Check for Updates…`; `Edit`, with undo, redo, cut, copy, paste and select all;
+`View`, with `Reload`, `Actual Size`, `Zoom In`, `Zoom Out` and full screen; `Window`; and `Help`,
+with the documentation.
 
 **3.7.10** On macOS, the menus MUST NOT take a shortcut the page binds: the shortcuts of Section
 3.4.3.1 of [WEB] to Section 3.4.3.3 of [WEB] MUST reach the page.

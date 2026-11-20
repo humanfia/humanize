@@ -151,6 +151,20 @@ def test_otherwise_what_was_written_down_is_the_answer(
     assert telemetry.enabled() is answer
 
 
+def test_what_was_written_down_is_read_in_a_directory_since_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A daemon outlives the directory it was started in, and the answer is the machine's.
+    monkeypatch.delenv(SAYS)
+    doubles.store(monkeypatch, {"enable_sentry": True})
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    monkeypatch.chdir(gone)
+    gone.rmdir()
+
+    assert telemetry.enabled() is True
+
+
 def test_what_was_written_down_is_read_once_until_forgotten(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

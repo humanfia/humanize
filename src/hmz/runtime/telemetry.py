@@ -225,7 +225,8 @@ def enabled() -> bool | None:
     if not _answered:
         from hmz.runtime.settings import Settings
 
-        _answered.append(Settings().enable_sentry)
+        # This machine's answer: read for the home, not for a directory since removed.
+        _answered.append(Settings(Path.home()).enable_sentry)
     return _answered[0]
 
 
@@ -246,7 +247,7 @@ def asked(*, enable_sentry: bool) -> None:
     """
     from hmz.runtime.settings import Settings
 
-    Settings().answers(enable_sentry=enable_sentry)
+    Settings(Path.home()).answers(enable_sentry=enable_sentry)
     again()
     if enable_sentry:
         start()

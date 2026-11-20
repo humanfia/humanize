@@ -1,15 +1,17 @@
-// The notifications list, as this browser keeps it (Section 3.15.2 of protocol/web.md): the
-// notices of every daemon the page follows gathered into one list, the newest 200, each naming
-// its daemon and whether it is read; where each daemon's notices are taken up again; and which
-// kinds the user wants told of, read afresh for every notice. Kept in a store of values by key --
-// IndexedDB's, on the page -- and never in any daemon's settings. What a notice is of, and where
-// it opens, and what its text says in one line, is said here too.
+// What this browser keeps of the notices of the daemons the page follows (Section 3.15.2 of
+// protocol/web.md): where each daemon's notices are taken up again, and which kinds the user
+// wants told of, read afresh for every notice. Kept in a store of values by key -- IndexedDB's,
+// on the page -- and never in any daemon's settings; no list of them is kept. What a notice is
+// of, where it opens, what the system shows of it, and whether it is shown at all, is said here too.
 
 /** Every kind the user can switch on or off, by its word, as `Notifications` names it. */
 export const KINDS = /** @type {const} */ (['done', 'failed', 'stopped', 'asked', 'listening'])
 
-/** How many notifications are kept. */
-export const KEPT = 200
+/** How old a notice may be, in seconds, and still be shown by the system: one older is of an absence, and is marked alone. */
+export const STALE = 600
+
+/** What each kind is called. */
+const LABELS = { done: 'Done', failed: 'Failed', stopped: 'Stopped', asked: 'Question', listening: 'Waiting' }
 
 /**
  * Which of the user's kinds a notice is: a chat's turn done is a chat turn, as is a flow waiting
@@ -58,27 +60,43 @@ export function preferred(said) {
 }
 
 /**
- * The notifications list over a store.
+ * What the system shows of a notice: its kind and daemon over its flow -- of a chat, which has
+ * none, the first line of its task, which says which chat -- and what it says in one line, else
+ * its task's first line, else its name; with where it opens and what it replaces.
+ *
+ * @returns {{title: string, body: string, address: string, tag: string}}
+ */
+export function shownAs(item) {
+  const daemon = !item.daemon || item.daemon === 'local' ? 'Local' : item.daemon
+  const task = String(item.task || '').trim().split('\n')[0]
+  const said = lineOf(item.text) || task || of(item)
+  const from = item.chat ? task : item.flow
+  return { title: `${LABELS[kindOf(item)] || item.kind} · ${daemon}`, body: [from !== said && from, said].filter(Boolean).join(' · '), address: addressOf(item), tag: item.key }
+}
+
+/**
+ * Whether a notice is of the chat or epic the page is on, while it is looked at.
+ *
+ * @param {object} item A notice with its daemon.
+ * @param {{looked: boolean, daemon: string, parts: string[], query: URLSearchParams}} at Whether the page is visible and focused, the daemon it shows, and where it is.
+ */
+export function onScreen(item, { looked, daemon, parts, query }) {
+  if (!looked || (item.daemon || 'local') !== daemon) return false
+  if (parts[0] === 'live') return Boolean(item.workspace) && query.get('workspace') === item.workspace && (query.get('slot') || '') === (item.slot || '')
+  if (parts[0] === 'chats') return Boolean(item.chat) && parts[1] === item.chat
+  return parts[0] === 'epics' && Boolean(item.epic) && parts[1] === item.epic
+}
+
+/** Whether a notice was made lately enough for the system to show it: `at` and `now` in seconds. */
+export const fresh = (notice, now = Date.now() / 1000) => now - Number(notice.at || now) <= STALE
+
+/**
+ * What is kept of the notices followed, over a store.
  *
  * @param {{get: (key: string) => Promise<any>, put: (key: string, value: any) => Promise<void>}} store
  */
-export function gathered(store) {
-  /** Each change after the last, so that two notices heard at once both stay. */
-  let queue = Promise.resolve()
-  const changes = (change) => {
-    const done = queue.then(async () => {
-      const items = (await store.get('items')) || []
-      const [now, answer] = await change(items)
-      if (now !== items) await store.put('items', now)
-      return answer
-    })
-    queue = done.catch(() => {})
-    return done
-  }
+export function followed(store) {
   return {
-    /** Every notification kept, newest first. */
-    items: async () => (await store.get('items')) || [],
-
     /** What the user wants told: `{kinds, system}`. */
     preferences: async () => preferred(await store.get('preferences')),
 
@@ -94,26 +112,14 @@ export function gathered(store) {
     },
 
     /**
-     * Keeps a notice of a daemon as a notification, where its kind is wanted.
+     * Takes a daemon's notices up after this one, and names it by its daemon where its kind is wanted.
      *
-     * @returns {Promise<object | null>} The notification, or null where it is not kept.
+     * @returns {Promise<object | null>} The notice with its `daemon` and `key`, or null where its kind is switched off.
      */
     async heard(daemon, notice) {
       await store.put(`after:${daemon}`, notice.id)
       const { kinds } = preferred(await store.get('preferences'))
-      if (kinds[kindOf(notice)] === false) return null
-      const key = `${daemon}:${notice.id}`
-      return changes((items) => {
-        if (items.some((one) => one.key === key)) return [items, null]
-        const made = { ...notice, key, daemon, read: false }
-        return [[made, ...items].slice(0, KEPT), made]
-      })
+      return kinds[kindOf(notice)] === false ? null : { ...notice, daemon, key: `${daemon}:${notice.id}` }
     },
-
-    /** Marks those of `keys` read, or every one where `keys` is null. */
-    read: (keys) => changes((items) => [items.map((one) => (!keys || keys.includes(one.key) ? { ...one, read: true } : one)), null]),
-
-    /** Forgets every notification. */
-    clear: () => changes(() => [[], null]),
   }
 }

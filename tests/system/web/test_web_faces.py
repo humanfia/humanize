@@ -412,7 +412,7 @@ def test_the_plain_form_is_a_click_away_and_the_face_waits_behind_it(
     wire = _wire()
     with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
         # A menu of the page's, open as the face arrives.
-        bell = page.locator("[data-hmz=notifications]")
+        bell = page.locator("[data-hmz=daemon-bar]")
         bell.click()
         expect(bell).to_have_attribute("aria-expanded", "true")
         page.evaluate(_MOUNT, _question("q1", "review"))

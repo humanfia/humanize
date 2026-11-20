@@ -7,6 +7,7 @@
 
 import { ago, fill, h, iconButton, problem } from '../../dom.js'
 import { closed, opened, place } from '../../layers.js'
+import { harnessName } from '../../names.js'
 import { menuButton, menuOn, toast } from '../../ui.js'
 
 export function draw(holder, query, parts, scope) {
@@ -43,7 +44,7 @@ export function draw(holder, query, parts, scope) {
    */
   const more = (one, button) => [
     { label: 'Refresh models', glyph: 'resume', act: () => doing('Asking…', 'accounts.models', { cli: one.cli, name: one.name }, 'Models refreshed') },
-    ...one.serves.map((cli) => ({ label: `Copy to ${cli}`, glyph: 'copy', act: () => doing('Copying…', 'accounts.copy', { cli: one.cli, name: one.name, into: cli }, `Copied to ${cli}`) })),
+    ...one.serves.map((cli) => ({ label: `Copy to ${harnessName(cli)}`, glyph: 'copy', act: () => doing('Copying…', 'accounts.copy', { cli: one.cli, name: one.name, into: cli }, `Copied to ${harnessName(cli)}`) })),
     one.name ? '-' : null,
     one.name ? { label: 'Remove', glyph: 'trash', danger: true, act: () => removing(one, button) } : null,
   ]
@@ -54,7 +55,7 @@ export function draw(holder, query, parts, scope) {
    * that takes the question back has the focus, and whatever closes a menu takes it back too.
    */
   function removing(one, button) {
-    const ask = `Remove ${one.cli}@${one.name}, credentials and all?`
+    const ask = `Remove ${harnessName(one.cli)} · ${one.name}, credentials and all?`
     const no = h('button', { class: 'btn quiet small', type: 'button' }, 'Cancel')
     const yes = h('button', { class: 'btn small danger', type: 'button' }, 'Remove')
     const asked = h('div', { class: 'popover row', role: 'dialog', 'aria-label': ask, 'data-hmz': 'account-removing' }, h('span', {}, ask), no, yes)
@@ -85,7 +86,7 @@ export function draw(holder, query, parts, scope) {
       const row = h(
         'tr',
         { 'data-hmz': 'account' },
-        h('td', { class: 'mono' }, one.cli),
+        h('td', { title: one.cli }, harnessName(one.cli)),
         h('td', {}, h('b', {}, one.name || 'Local'), h('div', { class: 'dim' }, one.name ? `made by ${one.way}` : 'signed in outside Humanize')),
         h('td', { 'data-label': 'Sets' }, one.sets.length ? h('div', { class: 'row' }, one.sets.map((name) => h('span', { class: 'chip mono' }, name))) : h('span', { class: 'dim' }, 'nothing')),
         h('td', { 'data-label': 'Models' }, one.models.length ? h('span', { title: one.models.join('\n') }, `${one.models.length} model${one.models.length === 1 ? '' : 's'}`) : h('span', { class: 'dim' }, 'None'), one.asked ? h('div', { class: 'dim' }, `asked ${ago(one.asked)}`) : null),
@@ -120,7 +121,7 @@ export function draw(holder, query, parts, scope) {
     const said = h('div', { 'aria-live': 'polite' })
     const close = h('button', { class: 'btn quiet', type: 'button', onclick: () => drawMaking() }, 'Cancel')
     if (way && way.terminal) {
-      fill(making, h('h2', {}, `Edit ${one.cli}@${one.name}`), h('p', { class: 'note' }, `${one.way} runs ${one.cli}’s own sign-in: sign in again from `, h('code', {}, '/settings'), ' in ', h('code', {}, 'hmz'), '.'), close)
+      fill(making, h('h2', { title: `${one.cli}@${one.name}` }, `Edit ${harnessName(one.cli)} · ${one.name}`), h('p', { class: 'note' }, `${one.way} runs ${harnessName(one.cli)}’s own sign-in: sign in again from `, h('code', {}, '/settings'), ' in ', h('code', {}, 'hmz'), '.'), close)
       return
     }
     const asks = way ? way.asks : one.sets.map((env) => ({ env, about: '', secret: true, fixed: '' }))
@@ -156,12 +157,12 @@ export function draw(holder, query, parts, scope) {
         save.textContent = 'Save'
       }
     })
-    fill(making, h('h2', {}, `Edit ${one.cli}@${one.name}`), form)
+    fill(making, h('h2', { title: `${one.cli}@${one.name}` }, `Edit ${harnessName(one.cli)} · ${one.name}`), form)
     making.scrollIntoView({ block: 'nearest' })
   }
 
   function drawMaking() {
-    const cli = h('select', { 'aria-label': 'CLI', id: 'account-cli' }, data.backends.map((one) => h('option', { value: one.cli }, one.cli)))
+    const cli = h('select', { 'aria-label': 'CLI', id: 'account-cli' }, data.backends.map((one) => h('option', { value: one.cli }, harnessName(one.cli))))
     const way = h('select', { 'aria-label': 'Sign-in method', id: 'account-way' })
     const name = h('input', { type: 'text', id: 'account-name', placeholder: 'work', required: true, autocomplete: 'off' })
     const about = h('p', { class: 'hint' })

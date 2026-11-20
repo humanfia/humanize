@@ -2,7 +2,11 @@
 // read when it is picked -- and of a stretch of time.
 
 import { h, problem } from '../../dom.js'
+import { modelName } from '../../names.js'
 import { clock, counted, lasted, locate, within } from './model.js'
+
+/** A model by its name (names.js), its id where it is pointed at; '' for none. */
+const named = (id) => (id ? h('span', { title: id }, modelName(id)) : '')
 
 function section(title, ...kids) {
   return h('section', { class: 'side-section' }, h('h3', {}, title), kids)
@@ -91,7 +95,7 @@ export function processOf(model, id, act) {
         ['agent', one.agent],
         ['role', one.role],
         ['backend', one.backend],
-        ['model', one.model],
+        ['model', named(one.model)],
         ['label', one.label],
         ['pid', one.pid || ''],
         ['parent', parent ? parent.name : ''],
@@ -126,7 +130,7 @@ export function spanOf(model, id, read, act) {
         ['category', said(track.cat[i])],
         ['start', at(model, track.start[i])],
         ['lasted', lasted(track.dur[i])],
-        ['model', said(track.model[i])],
+        ['model', named(said(track.model[i]))],
         ['tokens', track.in[i] || track.out[i] ? `${counted(track.in[i])} in · ${counted(track.out[i])} out` : ''],
         ['process', h('button', { type: 'button', class: 'exo-link', onclick: () => act.pick({ process: process.id }) }, process.name)],
         ['track', track.name],

@@ -53,6 +53,18 @@ export function rowTitle(run, { chat, state = '', how = '', flow = '', began }) 
 }
 
 /**
+ * The keys a shortcut of the sidebar is pressed with, one apiece, as the system writes them.
+ *
+ * @param {'chat' | 'search'} which Whose: a new chat's, or `Search`'s.
+ * @param {boolean} mac Whether the system is Apple's.
+ * @returns {string[]}
+ */
+export function shortcut(which, mac) {
+  if (which === 'chat') return mac ? ['⇧', '⌘', 'O'] : ['Ctrl', 'Shift', 'O']
+  return mac ? ['⌘', 'K'] : ['Ctrl', 'K']
+}
+
+/**
  * The words a row's menu goes by: a chat's never name an epic, a flow or a task.
  *
  * @param {boolean} chat Whether the row is a chat.

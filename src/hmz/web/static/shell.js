@@ -139,14 +139,15 @@ const LAP = 4
  *
  * @param {HTMLElement} anchor What it opens under.
  * @param {() => Node[]} items What it holds, made each time it opens.
- * @param {{align?: 'start'|'end', up?: boolean, span?: boolean, by?: Element|null, label: string}} where
+ * @param {{align?: 'start'|'end', up?: boolean, span?: boolean, by?: Element|null, label: string, role?: 'menu'|'dialog'}} where
  *   See `place`: `by`, what it opens clear of with its button -- the box typed into that the
- *   button stands over, which it would lie on.
+ *   button stands over, which it would lie on; `role`, `dialog` for one that holds what is read
+ *   and not choices, which the arrow keys have nothing to move through.
  */
-export function menu(anchor, items, { align = 'start', up = false, span = false, by = null, label }) {
+export function menu(anchor, items, { align = 'start', up = false, span = false, by = null, label, role = 'menu' }) {
   let open = null
   let unfollow = () => {}
-  anchor.setAttribute('aria-haspopup', 'menu')
+  anchor.setAttribute('aria-haspopup', role)
   anchor.setAttribute('aria-expanded', 'false')
   const layer = { node: null, anchor, close }
   function close() {
@@ -160,12 +161,21 @@ export function menu(anchor, items, { align = 'start', up = false, span = false,
   anchor.addEventListener('click', (event) => {
     if (open) return close()
     // Not what the window is dragged by, though it opens in a row that is.
-    open = dragged(h('div', { class: 'popover', role: 'menu', 'aria-label': label }, items(close)), 'false')
+    open = dragged(h('div', { class: 'popover', role, 'aria-label': label }, items(close)), 'false')
     anchor.after(open)
     layer.node = open
     opened(layer)
     unfollow = follow(open, anchor, { align, up, span, by })
     anchor.setAttribute('aria-expanded', 'true')
+    // What is read and not chosen from is left by Tab as by Escape: past its last stop, or back
+    // past its first, it closes and what opened it has the focus, from where Tab goes on.
+    if (role === 'dialog') {
+      open.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab' || event.target !== [...open.querySelectorAll('a[href], button, input, select, textarea')].at(event.shiftKey ? 0 : -1)) return
+        event.preventDefault()
+        close()
+      })
+    }
     enter(open, !event.detail)
   })
   return close
@@ -268,14 +278,13 @@ export function submenu({ label, about = '', glyph = null, items, hmz = null }) 
  * took, never back over those it came from. With no room there -- on a phone -- it stands over
  * its menu, edge on edge and as wide at least, under the choice or, with no room there, above:
  * never on the choice that opened it, and over all of its menu on that side of the choice, so
- * that no other choice shows cut through. Opened from a menu that stands over a box typed
- * into, it ends over that box as well.
+ * that no other choice shows cut through. Opened from a menu that stands over a chip of the row
+ * under a box typed into, it ends no lower than that menu: never on the chips, nor on the box.
  */
 function beside(pop, parent, opener) {
   const outer = parent.getBoundingClientRect()
   const row = opener.getBoundingClientRect()
-  const typed = opener.closest('.composer-desk')?.querySelector('.composer-box').getBoundingClientRect()
-  const foot = typed && outer.bottom <= typed.top ? typed.top - GAP : innerHeight - EDGE
+  const foot = opener.closest('.composer-under') ? Math.min(outer.bottom, innerHeight - EDGE) : innerHeight - EDGE
   pop.style.setProperty('--room', `${foot - EDGE}px`)
   // Measured from the window's own edge, as `place` measures.
   pop.style.left = '0'
@@ -439,15 +448,37 @@ export function aiChanButton() {
   )
 }
 
-/** Tabs over what a panel holds, each drawn when picked. */
+/**
+ * Tabs over what a panel holds, each drawn when picked. The row is one stop of the Tab key, on
+ * the tab picked; the arrow keys, Home and End move among its tabs, and Enter or Space picks.
+ */
 export function tabbed(tabs, picked, told) {
   const list = h('div', { class: 'tabs', role: 'tablist' })
   for (const [key, label] of tabs) {
-    const tab = h('button', { type: 'button', role: 'tab', 'aria-selected': String(key === picked) }, label)
+    const tab = h('button', { type: 'button', role: 'tab', 'data-tab': key }, label)
     tab.addEventListener('click', () => told(key))
     list.append(tab)
   }
+  list.addEventListener('keydown', (event) => {
+    const all = [...list.querySelectorAll('[role=tab]')]
+    const at = all.indexOf(event.target)
+    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: all.length - 1 }[event.key]
+    if (at < 0 || to === undefined) return
+    event.preventDefault()
+    all[(to + all.length) % all.length].focus()
+  })
+  picks(list, picked)
   return list
+}
+
+/** Marks the tab of a key picked among a row's, and no other: it alone is a stop of the Tab key, the first where none is. */
+export function picks(list, key) {
+  const all = [...list.querySelectorAll('[role=tab]')]
+  const at = all.findIndex((tab) => tab.dataset.tab === key)
+  all.forEach((tab, n) => {
+    tab.setAttribute('aria-selected', String(n === at))
+    tab.setAttribute('tabindex', n === Math.max(at, 0) ? '0' : '-1')
+  })
 }
 
 narrow.addEventListener('change', () => {

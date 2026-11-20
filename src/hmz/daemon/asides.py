@@ -380,7 +380,7 @@ class Asides:
 
     def listed(self, call: Call) -> dict[str, Any]:
         """`btw.list`: the asides open about one epic or one chat, attaching to nothing."""
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         epic = str(call.params.get("chat") or call.params.get("epic") or "")
         with self._lock:
             held = self._held.get(named)
@@ -401,7 +401,7 @@ class Asides:
 
     def leave(self, call: Call) -> dict[str, Any]:
         """`btw.leave`: closes one aside, or every one of the workspace."""
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         aside = call.params.get("aside")
         with self._lock:
             held = self._held.get(named)

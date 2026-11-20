@@ -16,11 +16,11 @@ import { NO_FOLDER, dismissing, nextSteps, stepKey } from '../desk.js'
 import { fill, h, headline, iconButton, problem } from '../dom.js'
 import { markOf, waitsOn } from '../epic.js'
 import { permissionChip } from '../chips/permission.js'
+import { usageChip } from '../chips/usage.js'
 import { chatAsk } from '../held.js'
 import { readBackends } from '../pickers.js'
-import { firstWorkspace, folderFiles, workspacePicker } from '../places.js'
+import { firstWorkspace, folderFiles, goneNote, goneSaid, missing, unplaced, workspacePicker, workspaces } from '../places.js'
 import { bar, keep, kept } from '../shell.js'
-import { glyph } from './chatbar.js'
 
 export function mount(root, { query }) {
   // Where the chat works: the workspace the address names, or none -- a directory of its own made
@@ -31,7 +31,8 @@ export function mount(root, { query }) {
     scratch = path === null
     workspace = path || ''
     load('')
-  }, { none: true, plain: true })
+    // Gone since, or back: the form says so, or reads what the folder remembers again.
+  }, { none: true, plain: true, went: (lost) => !scratch && lost !== gone && load('') })
   const permission = permissionChip({ up: true })
   // Whether the chat works in a new git worktree of its folder, as a chat app's session may:
   // not on offer with no folder, nor in one known to be no git repository.
@@ -50,9 +51,7 @@ export function mount(root, { query }) {
   // A chat of no folder works in a directory made as it starts, which holds nothing to name yet.
   const files = folderFiles(() => (scratch ? '' : workspace))
   // What the folder has used, where a chat begun says what it has (Section 3.8.22 of protocol/web.md).
-  const usage = h('a', { class: 'chip-btn desk-chip usage-chip', 'aria-label': 'Usage', 'data-hmz': 'new-usage', 'data-tip': 'What this folder has used' }, glyph('usage'))
-  const used = () => usage.setAttribute('href', hash(`/settings/usage${!scratch && workspace ? `?workspace=${encodeURIComponent(workspace)}` : ''}`))
-  used()
+  const usage = usageChip({ hmz: 'new-usage', tip: 'What this folder has used', workspace: () => (scratch ? '' : workspace || '') })
   const box = composer({
     placeholder: 'Message',
     label: 'First message',
@@ -60,7 +59,7 @@ export function mount(root, { query }) {
     submit: (task) => start(task),
     complete: files.complete,
     // So Add offers the files alone: what `/`, `$` and `!` start is the chat's host's to say.
-    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new/chat').node, place.node, worktree], right: [permission.node, usage] },
+    desk: { add: ['files'], able: () => (scratch || !workspace ? NO_FOLDER : ''), left: [environmentChip('/new/chat').node, place.node, worktree], right: [permission.node, usage.node] },
   })
   box.node.dataset.hmz = 'start'
   const steps = h('section', { class: 'next-steps', 'aria-label': 'Next steps', 'data-hmz': 'next-steps', hidden: true })
@@ -135,6 +134,8 @@ export function mount(root, { query }) {
   let picker = null
   /** Which workspace was read last: one read after another was picked draws nothing. */
   let loading = ''
+  /** Whether the directory of the folder picked is gone: nothing is read of it, and nothing started in it. */
+  let gone = false
 
   /** Reads the CLIs here and the chat agent a workspace remembers, and sets the agent up from it. */
   async function load(agent) {
@@ -145,9 +146,20 @@ export function mount(root, { query }) {
     files.clear()
     picker?.node.classList.add('stale')
     try {
-      if (!workspace) workspace = await firstWorkspace()
+      // Never one that went: the first that is there, which the control then names.
+      if (!workspace) {
+        workspace = await firstWorkspace()
+        if (!scratch) place.set(workspace)
+      }
+      // One the address named, or picked and gone since, stays picked and is said to be gone,
+      // rather than swapped for a folder nobody asked for. Unread, the daemon says so itself.
+      gone = !scratch && missing(workspace, await workspaces().catch(() => null))
       if (mine !== loading) return
-      used()
+      if (gone) {
+        offered(NO_WORKTREE.none)
+        fill(box.said, goneNote(workspace))
+        return
+      }
       offered(scratch ? NO_WORKTREE.none : '')
       // Told apart from what the agent is read by: a folder no repository is found over offers none.
       if (!scratch)
@@ -181,13 +193,16 @@ export function mount(root, { query }) {
   }
 
   async function start(task) {
+    if (gone) throw new Error(goneSaid(workspace))
     const agent = picker ? picker.value() : ''
     if (!agent) {
       picker?.open()
-      throw new Error('Pick a model for the chat.')
+      throw new Error('Pick a nous for the chat.')
     }
     // A new chat's own host, beside every epic here; the agent is remembered for the next.
-    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), worktree: inWorktree.checked && !inWorktree.disabled, remember: !scratch, scratch })
+    const started = await chatAsk(workspace, 'start', { agent, task, permission: permission.value(), worktree: inWorktree.checked && !inWorktree.disabled, remember: !scratch, scratch }).catch((error) => {
+      throw unplaced(error, workspace)
+    })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 
@@ -203,6 +218,7 @@ export function mount(root, { query }) {
     unheld()
     window.removeEventListener('hmz:seen', drawSteps)
     window.removeEventListener('hashchange', back)
+    place.leave()
     picker?.leave()
   }
 }

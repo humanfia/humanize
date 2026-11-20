@@ -140,6 +140,70 @@ export function usageSaid(figures, spent) {
   return ''
 }
 
+/** A count of tokens short enough for a narrow column, as the runs' own figures cut one short. */
+export function thousands(count) {
+  if (count < 1e3) return String(Math.round(count))
+  return count < 1e6 ? `${(count / 1e3).toFixed(1)}k` : `${(count / 1e6).toFixed(2)}M`
+}
+
+/** A kind of token as a person reads it: `cache_read` is `Cache read`. */
+const kindName = (kind) => `${kind[0].toUpperCase()}${kind.slice(1)}`.replaceAll('_', ' ')
+
+/**
+ * The rows of a chat's Usage popup: what it has spent, the tokens it has gone through and how
+ * long it has run, and while it runs each kind of token with its share of them all; what the
+ * chat written down spent once it has folded away; none while nothing was spent.
+ *
+ * @param {{tally?: string[], lasting?: string, reckoning?: {kind: string, tokens: number, whole: boolean}[]} | null} figures
+ *   A chat going's figures, as its host says them.
+ * @param {{money?: string, tokens?: string, worked?: string} | null} spent What a chat written down spent.
+ * @returns {{label: string, value: string, share?: number}[]} A row with a `share`, 0 to 1, is a kind of token.
+ */
+export function usageRows(figures, spent) {
+  const [tokens = '', money = ''] = (figures && figures.tally) || []
+  if (tokens) {
+    const priced = money.split(' · ')[0]
+    const kinds = figures.reckoning || []
+    const all = kinds.reduce((sum, one) => sum + one.tokens, 0)
+    // A figure short of what some agent spends without counting is a floor, marked as the tally marks it.
+    const floor = (whole) => (whole ? '' : '+')
+    return [
+      { label: 'Spent', value: priced.startsWith('$') ? priced : '—' },
+      { label: 'Tokens', value: all ? `${thousands(all)}${floor(kinds.every((one) => one.whole))}` : tokens.replace(/ tokens$/, '') },
+      { label: 'Time', value: figures.lasting || '—' },
+      ...kinds.map((one) => ({ label: kindName(one.kind), value: `${thousands(one.tokens)}${floor(one.whole)}`, share: all ? one.tokens / all : 0 })),
+    ]
+  }
+  const paid = spent && spent.money && spent.money !== '$0.00'
+  const wrote = spent && spent.tokens && spent.tokens !== '0'
+  if (!paid && !wrote) return []
+  return [
+    { label: 'Spent', value: spent.money || '—' },
+    { label: 'Output tokens', value: spent.tokens || '—' },
+    { label: 'Time working', value: spent.worked || '—' },
+  ]
+}
+
+/**
+ * The rows of what a workspace has used lately, out of what `runs.usage` answers for 7 days:
+ * today, the last of its days, and the whole of them.
+ *
+ * @param {{days?: object[], whole?: object}} data
+ * @returns {{label: string, value: string, about: string, sub?: string}[]} `about`, the output
+ *   tokens beside the money; `sub`, under the whole of them, over how many chats and epics.
+ */
+export function usedLately(data) {
+  const row = (label, one = {}) => ({ label, value: one.money || '$0.00', about: `${one.tokens || '0'} output tokens` })
+  const whole = (data && data.whole) || {}
+  const runs = whole.runs || 0
+  return [
+    // A day of the daemon's is a UTC day, as the Usage page of Settings says of its own.
+    row('Today (UTC)', ((data && data.days) || []).at(-1)),
+    // Said of none as well, so that the popup is as tall whatever the answer.
+    { ...row('Last 7 days', whole), sub: !runs ? 'No chats or epics yet' : runs === 1 ? 'Over 1 chat or epic' : `Over ${runs} chats and epics` },
+  ]
+}
+
 /**
  * How a chat stands, said in a line over its box only while there is something to say: who is
  * answering while a turn is open, that it waits on its person, or that it failed.

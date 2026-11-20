@@ -30,10 +30,13 @@ export function ordered(graph) {
   return out
 }
 
-/** One node as a line says it: its nous, or its strategy and its nous with their weights. */
-export function nodeSaid(one) {
-  if (one.use) return one.use
-  const among = (one.among || []).map(({ nous, weight }) => (weight > 1 ? `${nous} ×${weight}` : nous)).join(', ')
+/**
+ * One node as a line says it: its nous, or its strategy and its nous with their weights; each
+ * nous as `named` names it, as written where nothing does.
+ */
+export function nodeSaid(one, named = (nous) => nous) {
+  if (one.use) return named(one.use)
+  const among = (one.among || []).map(({ nous, weight }) => (weight > 1 ? `${named(nous)} ×${weight}` : named(nous))).join(', ')
   return `${one.balance}: ${among}${one.spread ? `, ${one.spread} at most` : ''}`
 }
 
@@ -45,8 +48,8 @@ export function edgesSaid(one) {
 }
 
 /** A graph as the list says it: a line per node in order from the start, or none. */
-export function graphSaid(graph) {
-  return ordered(graph).map((one) => ({ id: one.id, start: one.id === graph.start, text: nodeSaid(one), edges: edgesSaid(one) }))
+export function graphSaid(graph, named) {
+  return ordered(graph).map((one) => ({ id: one.id, start: one.id === graph.start, text: nodeSaid(one, named), edges: edgesSaid(one) }))
 }
 
 /**

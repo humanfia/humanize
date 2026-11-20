@@ -62,11 +62,11 @@ lists its chats, and an epic opens out into its agents and the sessions each ope
 
 | Where | What it shows | What you can do there |
 | --- | --- | --- |
-| **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back**, **Forward** and the bell; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark before the bell -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Awaiting input** while it asks, **Failed** where it failed, and nothing once it rests; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
+| **Sidebar** | A title row -- the mark, **Hide sidebar**, **Back** and **Forward**; in Humanize Desktop on macOS it stands beside the window's traffic lights, the mark at its far end -- then **New chat**, **New epic**, **Search**, **Flows**, then a quiet heading per directory -- every one an epic ran in or that was opened here -- with its chats and epics under it, the last updated first. Every row is its title and, straight after it in the same line, how it stands in quiet words. A [chat](/user/chat) is that one line and nothing else, as a chat app lists a conversation: **Running** while its agent answers, **Awaiting input** while it asks, **Failed** where it failed, and nothing once it rests; when it began is said where you point at it, and drawn at the row's end on a touch screen. A flow's epic is a row of two lines: its arrow, task and state -- `Running`, `Asking` (blinking while it asks a person something nobody has looked at here yet) and `Waiting` once you have, `Stopping`, `Done`, `Failed`, `Stopped`, `Budget spent`, `Unfinished` -- then its flow's name, and `live` where a host goes with it; `Running` without `live` is one another process goes with, read as it writes itself down. A directory shows its first 20 rows and ends with **Show N more**; the list reads 60 chats and epics at first, and ends with **Show more** while the daemon holds more and nothing else would bring them | Open a chat or an epic; press an epic's arrow to open it out into its agents, and each agent into its sessions; press a directory's name to fold it away; point at a heading for **Group and sort** and **+**, which starts a chat there, and right-click it for a chat or an epic there; point at a row for **More options**, the menu a right click on it opens. See [The list](#the-list) |
 | **New chat**, **New epic** | Two forms, each opened from the sidebar; the page opens on **New chat**. A plain heading at the top, the chats that wait on you listed in the middle, and at the foot a box for the first message or the task, with where it runs under it at the left and, for an epic, the flow picked beside the heading | Start it; a chat's model and what it may touch are picked from the chips under the box at its right, and **Options** under an epic's box sets the rest up. See [Starting an epic](#starting-an-epic) |
 | **An epic** | Its graph: who handed to whom -- a chat is only its conversation | Read it, steer it while it goes, export it, pick it up. See [An epic](#an-epic) |
 | **A session** | Its thread, as the terminal draws it | Say a line into it, or answer what it asks, while the epic goes |
-| **Flows** | **Installed**: a card for each flow on offer in the directory picked, its release and any newer one, and, one chosen, what it declares under the cards. **Flowverses**: a card for each index flows are installed from, saying where it is fetched from and how many of its flows are installed, and, one chosen, every release it lists | Start one, update, uninstall or copy it into the directory; install, switch or uninstall a release; add, fetch or remove a flowverse |
+| **Flows** | **Installed**: a card for each flow on offer -- those installed from a flowverse and your own, whatever the directory -- its release and any newer one, and, one chosen, what it declares under the cards. The page picks no directory: a folder's **Flows here** opens it on that folder, named in the bar, with the folder's own flows listed too. **Flowverses**: a tab for each index flows are installed from, **Official** first and open at once, showing where it is fetched from and every release it lists | Start one, update or uninstall it, and, opened on a folder, copy it into that folder -- unless its directory was deleted, which the bar says as **missing**; install, switch or uninstall a release; fetch a flowverse again with the arrow after its name, add one with **+** after the tabs, or remove one. A row of tabs is one stop of <kbd>Tab</kbd>: <kbd>←</kbd> <kbd>→</kbd>, <kbd>Home</kbd> and <kbd>End</kbd> move among its tabs, <kbd>Enter</kbd> picks |
 | **Search** (<kbd>⌘K</kbd>, or <kbd>Ctrl+K</kbd> off a Mac) | A box over the middle of the window: the field, the tabs **All**, **Chats** and **Epics**, then every chat and epic a line apiece, newest first, each saying how it stands in the words its row in the sidebar says it in -- a chat that rests says nothing -- and under them **Actions**, which stay in sight however many were found. Once you move to one, by key or pointer, a line over the foot says the rest of it: its folder, flow, agents, what it spent and how long it took; on a phone or a touch screen that stands under each | Type a word of the task; <kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens (what you typed, even before it is listed), <kbd>Alt</kbd> <kbd>Enter</kbd> (<kbd>⌥</kbd> on a Mac) or the menu key opens the menu of the one you are on, <kbd>Esc</kbd> closes, and gives the keys back to where they were -- the box you were typing into; <kbd>Tab</kbd> stays within it; <kbd>←</kbd> <kbd>→</kbd> change the tab and <kbd>/</kbd> opens **Filters** -- how it went, folder, and, off **Chats**, flow -- while the field is empty; **New chat** or **Import** under **Actions**. Search leaves no step behind: **Back** after it is closed goes to what was open before, and from a chat it opened to the view it was opened over. See [Importing an epic](#importing-an-epic) |
 | **Settings** | What Humanize remembers, and what the epics here spent | Change it, as [`/settings`](/user/settings) does |
 
@@ -75,10 +75,12 @@ opens **Settings**. The bar names the daemon the page shows,
 its host and whether it is reached, and says how many epics are going on it. Its menu holds
 **Daemon**, which opens a list of the daemons beside it to switch to, then **Settings** and
 **Usage**. Where a newer Humanize is out, the bar is marked ↑ and its menu offers
-**Update**, which copies `hmz update` to run in a terminal. The bell at the end of the sidebar's
-title row opens your [notifications](#notifications); **Back** and **Forward** there step through
+**Update**, which copies `hmz update` to run in a terminal. **Back** and **Forward** in the
+sidebar's title row step through
 where the page has been, as a browser's do. <kbd>⇧⌘O</kbd> opens a new chat and <kbd>⌘.</kbd> folds the sidebar away;
-off a Mac, as on Windows, they are <kbd>Ctrl+Shift+O</kbd> and <kbd>Ctrl+.</kbd>. Drag the
+off a Mac, as on Windows, they are <kbd>Ctrl+Shift+O</kbd> and <kbd>Ctrl+.</kbd>. **New chat** and
+**Search** say their keys at the end of their rows, except on a touch screen and, off a Mac, in a
+sidebar too narrow for them. Drag the
 sidebar's right edge to size it -- the arrow keys do the same once it holds the focus, and a
 double click makes it 275 pixels wide again, as it starts; the browser keeps the width. On a phone
 the sidebar is a drawer behind the button in the corner: open, it holds the keys, and
@@ -100,9 +102,9 @@ A heading is always there to hold it: with nothing to show, a group says **Nothi
 
 A row's menu -- **More options** at its end, or a right click -- starts with **Open**, **Pin**
 and **Mark as unread**. A pinned chat or epic stands first, under **Pinned**, however the list is
-grouped, until you **Unpin** it. **Mark as unread** puts the square of an unread notification
-beside it until you open it or choose **Mark as read**, which also reads its notifications. Both
-are kept by this browser.
+grouped, until you **Unpin** it. **Mark as unread** puts the square a
+[notification](#notifications) marks a row with beside it until you open it or choose
+**Mark as read**. Both are kept by this browser.
 
 With **Harness sessions** on in [Settings › General](#settings), a folder also lists, after its
 chats and epics, the [sessions each CLI had of its own](/user/chat#harness-sessions) there: quieter
@@ -118,20 +120,20 @@ daemon it shows, `#/@devbox/epics/…`, so a kept address opens on the same mach
 `@` is Local's.
 
 **Right-click** anything for what can be done to it: a folder in the sidebar (new chat here, new epic here, its
-flows, search it, copy its path, settings), an epic (open, pin, mark as unread, its Exomyth, resume, a new
+flows, search it, copy its path, settings -- one whose directory was deleted says **missing** after its name, offers nothing that starts there, and is listed only while it still holds a chat or an epic), an epic (open, pin, mark as unread, its Exomyth, resume, a new
 epic like it, copy its link, task or name, export, upload, stop), a chat (open, pin, mark as unread, rename, a new chat
-like it, fork, copy its link, first message or ID, upload, archive, delete -- see [Managing a chat](#managing-a-chat)), an agent or a session, a node on the graph, a flow or flowverse card, a search
+like it, fork, copy its link, first message or ID, upload, archive, delete -- see [Managing a chat](#managing-a-chat)), an agent or a session, a node on the graph, a flow's card or a flowverse's tab, a search
 result, a line of a thread (copy it, or the whole thread; by the keys, <kbd>Tab</kbd> to the thread,
 <kbd>↑</kbd> <kbd>↓</kbd> to a line, then <kbd>Alt</kbd> <kbd>Enter</kbd> or the menu key). Only text to read or write -- a thread,
 a task, a path, an error -- is selected as on a web page, and keeps the browser's own menu; the
 page's buttons, tabs, labels and headings are not. What a menu sends off -- stopping or uploading an
 epic, forgetting a folder, connecting a daemon -- says `Stopping…`, `Uploading…` and the like at
-the top right of the page, under its bar, where [toasts](#notifications) are, until the daemon
+the top right of the page, under its bar, where toasts are, until the daemon
 answers. **Hover** over anything cut short -- a folder's name,
 a task, a path -- to read it in full.
 
 **Menus**, and whatever else floats over the page for a moment -- the list a choice opens beside
-its menu, the bell's list, a form a button opens to be typed into -- are open one at a time:
+its menu, a form a button opens to be typed into -- are open one at a time:
 opening one closes the others, save the one it was opened from. A menu opens on the choice in
 force, or its first; <kbd>↑</kbd> <kbd>↓</kbd> move through its choices and go round at its ends,
 <kbd>Home</kbd> and <kbd>End</kbd> go to the first and the last, <kbd>→</kbd> opens the list
@@ -142,6 +144,8 @@ the button of another menu opens that one in the same click. They also close whe
 that opened one is pressed again, when the keys move out of them, when what one stands by is
 scrolled away, when a dialog opens, the sidebar is folded or the page goes to another view, and,
 for a menu, when the window is sized or left; a form being typed into stays through those two.
+A menu opened from a chip under the box you type in opens over that chip, its foot just above
+it; **+** in the box opens clear of the box.
 Nothing on the page casts a shadow: what floats is set off by its own surface and a line a pixel
 thick around it, and a dialog by the dimmed page behind it.
 
@@ -246,8 +250,8 @@ new one. A chat an earlier Humanize wrote down as an epic is listed among the ep
 said as `chat`: it is read as any epic written down, and nothing is said in it.
 
 The box under a chat holds only **+**, what you type and the button that sends; what else
-there is to pick is a row of quiet chips under it, at its right. The first says the model that
-answers the chat, and its effort where one is set. Its menu says the rest of the chat's agent -- its CLI and its account -- and
+there is to pick is a row of quiet chips under it, at its right. The first says the nous that
+answers the chat: its harness, its model and its effort, as on [a new chat](#starting-an-epic). Its menu says the rest of the chat's agent -- its account -- and
 **New chat** opens a new one in the same directory, where every part is picked. Where the
 chat's CLI has a `/model` or an `/effort` of its own (Claude Code, Codex), the menu also lists
 the other models its account runs, a box for one it does not list, and the efforts its model
@@ -289,7 +293,7 @@ settings or from this chat. Picking the other sets this chat's own
 The pane beside a chat has **Details** in place of **Epic** -- its usage, its first
 message, where it works, and under **About this chat** its ID, where it is saved, its
 folder, **Works in** where it works in [a worktree](/user/chat#worktree) rather than in its
-folder, when it started, its model, options, limits and sessions -- and **Side questions**
+folder, when it started, its nous, options, limits and sessions -- and **Side questions**
 in place of **Aside**, which works the same.
 
 #### Managing a chat {#managing-a-chat}
@@ -310,7 +314,11 @@ this folder** or **Full access** -- and opens a menu of the three, the one in fo
 Picking another sets the chat's [permission](/user/chat#permission) from your next message; on
 a chat that has folded away, it is what the chat is carried on with. The last is **Usage**, a
 ring with, once there is something to say, what the chat has spent or the tokens it has written
-beside it: click it for **Details**.
+beside it: click it for a small popup by the ring -- what this chat has spent, its tokens and
+how long it has run, with a bar for each kind of token while it runs; what the chat's folder
+has spent today and over the last 7 days, with the output tokens written, over how many chats
+and epics; and **Usage settings**, which opens the
+[Usage](#settings) page on that folder.
 
 Each node's **log** row is that agent's transcript across its sessions, and a person's node
 opens what they were asked and answered, and what the flow showed them without asking. A line typed under one goes to whose it is. There is
@@ -406,8 +414,16 @@ as the daemon bar at the foot of the sidebar does; **New environment** opens the
 settings. The folder chip names the directory: click it to pick another by its name -- point at
 one for its whole path -- **Open folder…**, or **No folder**.
 
+The forms follow which directories still exist, and keep looking while they are open. They open
+on the directory `hmz web` was started in while it is there, else on the one worked in last that
+is, else on your home; the chip's menu lists only directories that are there. A directory that
+is deleted while it is picked -- or named by an address you kept -- stays picked: the chip reads
+`<name> (missing)`, and over the box the form says **The folder `<name>` is no longer on this
+machine. Pick another folder.** Nothing is started there; put the directory back and the form
+reads it again by itself.
+
 A new chat starts a [chat](/user/chat): pick the directory, or **No folder**, from the folder chip; the
-model, from the chip under the box at its right; and type the first
+nous -- a harness and a model -- from the chip under the box at its right; and type the first
 message. Tick **Worktree**, after the folder chip, to start it in [a git worktree of its
 own](/user/chat#worktree): it cannot be ticked with **No folder**, nor in a directory that is in
 no git repository, and says which where you point at it. <kbd>Enter</kbd> starts the chat, and the page goes to its conversation. There is no
@@ -420,25 +436,35 @@ The middle of the page is empty, but for the chats of this daemon that wait on y
 saying **Asked a question** that opens its chat. **✕** in a row takes it off the list, in this
 browser, until that chat asks something else.
 
-The chip says the model that will answer, and its effort where one is set, starting from the
-agent that directory last chatted with. It opens a menu:
+The chip says the nous that will answer -- its harness, its model and its effort, each in its
+own shade, as **Claude Code Haiku 4.5 Default**; **Default** is no effort set -- starting from
+the agent that directory last chatted with. It opens a menu:
 
-- The models the CLI runs as the account chosen, one a row, the one chosen marked; point at one
-  for the name its CLI knows it by.
+- Every nous the harnesses installed here run, one a row naming the harness and then the model,
+  as **Codex - GPT-6.2 Sol**, a harness after another, the one chosen marked; point at one for
+  what `-a` spells it. A harness never asked what it runs is one row, **Not asked yet**: picking
+  it asks it, which takes a few seconds, and lists what it answers. Where a harness lists one
+  model by several routes, each row says who routes it after the model, as **LiteLLM - Opus 4.5
+  (azure_ai)**. With more than ten rows, **Find a nous** stays over the list and narrows it as
+  you type -- on a row as well as in the field -- and says **No nous matches** where nothing
+  does; only the rows scroll, so **Effort** and **More** stay in reach under them.
 - **Effort**, one row saying the effort chosen, opens the efforts the model chosen takes, where
   it takes any; **Default** leaves it to the model.
-- **More**, one row, opens the rest: **Other model**, where a model the CLI does not list is
-  typed; the **CLI** that runs the chat; the **Account** it runs as (**Local** is this machine's
-  own sign-in; **Add account…** opens Settings); and **Refresh models**, which asks the CLI what
-  it runs again. A CLI never asked what it runs is asked the first time it is picked, which
-  takes a few seconds.
+- **More**, one row, opens the rest: **Other model**, where a model the harness chosen does not
+  list is typed; the **Account** it runs as (**Local** is this machine's own sign-in; **Add
+  account…** opens Settings); and **Refresh models**, which asks that harness what it runs again.
+
+Harnesses, models and efforts are named everywhere on the page as their vendors name them --
+`claude` is **Claude Code**, `claude-haiku-4-5` is **Haiku 4.5**, `xhigh` is **Extra high** --
+and one the page has no name for is shown as it is written.
 
 What is picked is an agent as `-a` spells one, `cli[@account]/model[:effort]`; resting the
 pointer on the chip says it in full.
 
 The chip after it, **Edit this folder** to begin with, is what the agent may touch: its
-[permission](/user/chat#permission). The ring that ends the row is **Usage**: it opens what the
-folder picked has used, in Settings.
+[permission](/user/chat#permission). The ring that ends the row is **Usage**: it opens a small
+popup of what the folder picked has used today and over the last 7 days -- every folder's where
+none is picked -- with **Usage settings** for the whole page.
 
 **New epic** opens on the directory `hmz web` started in, or the folder whose **New epic here** was
 picked from its right-click menu -- its **+** opens a chat there -- and on the flow that directory
@@ -510,13 +536,13 @@ daemon:
 | **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
 | **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: **Edit** it (what you leave blank stays as it was), or make one; under **More options** at the end of its row, or on a right click of it, ask what it runs again (**Refresh models**), copy it to another CLI, or remove it, which asks first in the row |
-| **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node |
+| **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node. A concrete nous is listed by its names -- **Claude Code - Opus 4.1 · High** -- with what `-a` spells where you point at it; typed into a graph, it is typed as `-a` spells it |
 | **Runtimes** | Every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
-| **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there; and under **Archived chats**, the chats of that directory that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
+| **Workspace** | What a directory was last set up with, and forgetting it -- which also takes it out of the sidebar where no epic ran there; a directory that was deleted is marked `(missing)` in the list, and can still be forgotten; and under **Archived chats**, the chats of that directory that were [archived](#managing-a-chat), each with **Unarchive** and **Delete** |
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |
 | **Daemons** | **Local**, always there, and every remote daemon with its kind and state (up, connecting, installing, failed or idle): add or **Edit** one as [Adding one](#adding-a-daemon) says, **Connect** or **Remove** one, asked first; **Pair a device** and **Devices** for each that is up; the STUN and TURN servers WebRTC uses |
-| **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them too. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
+| **Notifications** | Which notifications appear, of every daemon: **Done**, **Failed**, **Stopped**, **Questions** and **Waiting**, and whether the **System** shows them. In a browser, **Allow** asks it for permission; the desktop app needs nothing more. Kept in this browser, never per daemon |
 
 Above the **Daemon** pages, **Daemon** picks which daemon they read and write: the one on screen
 until another is picked. It goes into the address as `?daemon=<name>`, so a daemon's page can be
@@ -615,7 +641,7 @@ and drops the rest: an unknown token, a value that is not a colour, a picture th
 
 Start `hmz web` in a project, which opens on **New chat**:
 
-1. Pick a model from the chip under the box, such as **Haiku 4.5**, type a first
+1. Pick a nous from the chip under the box, such as **Claude Code - Haiku 4.5**, type a first
    message and press <kbd>Enter</kbd>. The page goes to the chat, `#/chats/<id>`.
 2. When the agent has answered, the chat waits for your next line, typed in the box under it.
 3. In a terminal in the same directory, run `hmz`, which opens on a new chat of its own. Type
@@ -793,32 +819,28 @@ not only the one showing:
 Each says which daemon, which directory and which epic or chat it came from, and what was asked
 or how it ended.
 
-- **The bell**, at the top of the sidebar, counts the ones you have not read. Click it for the
-  **menu**: the latest notifications of every daemon, newest first, each labelled with its
-  daemon. Click one to open its epic or its chat, switching to its daemon; mark them all read, or clear
-  them. This browser keeps the newest 200.
-- **Toasts.** A new notification also shows as a card at the top right of the page, under its
-  bar, for six seconds or until you close it: three at the most, the newest first, in one column
-  with what a menu sent off and what was copied. While a dialog is open only the newest is
-  shown, at the foot of the window.
-- **System notifications.** While the page is hidden or not focused, a notification is also
-  one of your system's: the browser's, or, in [Humanize Desktop](/user/desktop#notifications), a
-  macOS one. Clicking it brings the page back on what it is about.
-- **Sidebar marks.** An epic or a chat with a notification unread has a square beside it in the
-  sidebar, and so does its workspace while folded. Opening it reads them, as does
+- **System notifications.** Each is one of your system's: the browser's, or, in
+  [Humanize Desktop](/user/desktop#notifications), a macOS or Windows one, labelled with its
+  kind and its daemon. Clicking it brings the page back on what it is about -- its epic or its
+  chat, switching to its daemon. The page draws none of its own: no bell, no list, no card.
+- **Sidebar marks.** An epic or a chat a notification came of has a square beside it in the
+  sidebar, and so does its workspace while folded. Opening it takes the square away, as does
   **Mark as read** in its menu.
 
-None is shown of the epic or chat you are looking at -- a question or a chat turn there included: it is
-read as it comes.
+None is shown of the epic or chat you are looking at -- a question or a chat turn there
+included -- and its row is not marked. Look away from the page, or at another window, and it is
+shown.
 
 The page asks each daemon for its notices itself, while it is reached: Local always, a remote
 daemon once it is `up`. It takes up again after the last it heard of each, so what happened while
-the page was closed, or a daemon out of reach, is told once it is back.
+the page was closed, or a daemon out of reach, marks its rows once it is back; only what happened
+in the last ten minutes is also shown by the system, so a night's worth does not arrive at once.
 
 **Settings → Notifications** switches each kind on or off, and system notifications as a whole.
 A browser shows system notifications only once you allow it: press the button on that page,
-which asks the browser. A kind switched off is not shown, kept or counted. These are App
-settings: they are kept by this browser, with the notifications themselves, and hold for every
+which asks the browser. Where the browser has blocked them, or shows none at all, the page says
+so there: a blocked one is allowed again in the browser's own settings for the site. A kind switched off is neither shown nor marked. These are App
+settings: they are kept by this browser and hold for every
 daemon, never one daemon apart. `hmz` has its own, on its
 [Notifications page](/user/settings#notifications).
 
@@ -926,7 +948,8 @@ left as it is. Once they have ended, press **Connect** again; or update it on th
 
 ### No system notifications
 
-They come only while the page is hidden or not focused, and in a browser only once it is
+None comes of the chat or epic you are looking at, nor of what happened more than ten minutes
+before the page heard of it; and in a browser they come only once it is
 allowed: press the button in **Settings → Notifications**, and check that the browser's site
 settings, and your system's, let it notify. Check too that **Settings → Notifications** has the
 kind, and system notifications, switched on.

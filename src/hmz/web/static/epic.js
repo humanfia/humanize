@@ -15,8 +15,10 @@
 
 import { call, daemon, poll } from './api.js'
 import { chatDetail, epicRow } from './chats.js'
+import { agentLabel } from './chips/agent.js'
 import { flowName, lane, lasting } from './dom.js'
 import { current, follow, placed } from './held.js'
+import { harnessName, modelName } from './names.js'
 import { keep, kept } from './shell.js'
 
 /**
@@ -312,7 +314,8 @@ export function live(held, run, detail) {
       role,
       person,
       color: lane(person ? -1 : index),
-      spec: person ? 'a person' : specs[name] || given,
+      spec: person ? '' : specs[name] || given,
+      said: person ? 'a person' : runsSaid(specs[name] || given),
       working: Boolean(figure && figure.working),
       status: figure ? (figure.working ? `working ${figure.lasting}` : `idle ${figure.lasting}`) : person ? '' : 'not started',
       turns: figure ? figure.turns : sessions.filter((one) => one.agent === name).reduce((sum, one) => sum + one.turns.length, 0),
@@ -320,7 +323,7 @@ export function live(held, run, detail) {
       under: figure ? figure.under : [],
       sessions: sessions
         .filter((one) => one.agent === name)
-        .map((one) => ({ key: one.key, about: [one.cli, one.model].filter(Boolean).join(' · '), working: working.has(one.key) || one.turns.some((turn) => turn.end === null), turns: one.turns, unread: unread(epic, one.key, records) })),
+        .map((one) => ({ key: one.key, about: [harnessName(one.cli), modelName(one.model)].filter(Boolean).join(' · '), working: working.has(one.key) || one.turns.some((turn) => turn.end === null), turns: one.turns, unread: unread(epic, one.key, records) })),
     }
   })
   return {
@@ -334,6 +337,9 @@ export function live(held, run, detail) {
     live: run.live,
   }
 }
+
+/** What an agent runs as the page names it (Section 3.4.4.11 of protocol/web.md): a nous that is no harness's model, as written. */
+const runsSaid = (spec) => agentLabel(spec) || spec
 
 /** What each agent of a run written down was, from its epic and -- once read -- its logs. */
 export function written(detail, traced) {
@@ -360,13 +366,14 @@ export function written(detail, traced) {
       person: false,
       color: lane(index),
       spec: given[name] ? given[name].runs : '',
+      said: runsSaid(given[name] ? given[name].runs : ''),
       working: false,
       status: traced ? `${count} turn${count === 1 ? '' : 's'}` : `${mine.length} session${mine.length === 1 ? '' : 's'}`,
       // Its status says them already.
       turns: null,
       tokens: '',
       under: [],
-      sessions: mine.map((one) => ({ key: one.key, about: [one.backend, one.provider].filter(Boolean).join('@'), working: false, turns: turns.get(one.traced) || [] })),
+      sessions: mine.map((one) => ({ key: one.key, about: [harnessName(one.backend), one.provider].filter(Boolean).join('@'), working: false, turns: turns.get(one.traced) || [] })),
     }
   })
   const all = [...turns.values()].flat()

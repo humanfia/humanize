@@ -1184,3 +1184,62 @@ def test_a_chats_turn_done_is_a_notice_that_names_the_chat(
         ) == {"asides": []}
     finally:
         link.close()
+
+
+def test_a_chat_is_still_reached_once_its_directory_is_removed(
+    project: Path, user: Peer
+) -> None:
+    # Section 4.5.2 of daemon.md: a host held already is named, not its directory.
+    import shutil
+
+    gone = project.parent / "vanish"
+    gone.mkdir()
+    link, _, slot, _ = _chat(gone, "hello")
+    link.close()
+    shutil.rmtree(gone)
+    named = {"workspace": str(gone), "slot": slot}
+
+    listed = user.call("chat.commands", named, timeout=30)
+    assert listed["prefer"] in ("native", "flow")
+    assert any(one["source"] == "hmz" for one in listed["entries"])
+    assert user.call("chat.set", {**named, "prefer": "flow"}, timeout=30) == {}
+    assert user.call("chat.commands", named, timeout=30)["prefer"] == "flow"
+    assert user.call("btw.leave", {"workspace": str(gone)}, timeout=30) == {}
+    # A frontend follows it as before, and is told the workspace it had.
+    attached = user.call("epic.attach", {**named, "replay": False}, timeout=30)
+    assert (attached["workspace"], attached["slot"]) == (where.workspace(gone), slot)
+    # Between turns there is nothing to stop, which is the host's own answer.
+    assert _refused(user, "chat.stop", **named)[0] == 409
+    assert user.call("chat.say", {**named, "text": "more"}, timeout=30) == {}
+    # One to start a host in must be there.
+    assert _refused(user, "epic.attach", workspace=str(gone)) == (
+        404,
+        f"There is no directory {gone}.",
+    )
+
+
+def test_the_daemon_answers_once_the_directory_it_was_started_in_is_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    at = install(tmp_path, monkeypatch)
+    ghost = tmp_path / "ghost"
+    ghost.mkdir()
+    monkeypatch.chdir(ghost)
+    with hosting():
+        daemon.start()
+        monkeypatch.chdir(at)
+        shutil.rmtree(ghost)
+        peer, _ = dialed(where.at())
+        try:
+            assert "listen" in peer.call("settings.get", {}, timeout=30)
+            # A CLI is asked what it runs from a directory that is there.
+            asked = peer.call(
+                "accounts.models", {"cli": "claude", "name": ""}, timeout=60
+            )
+            assert "accounts" in asked
+            held = peer.call("flows.backends", {}, timeout=60)["clis"]["claude"]
+            assert held["accounts"][0]["models"]
+        finally:
+            peer.close()

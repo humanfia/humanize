@@ -451,6 +451,8 @@ jobs:
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           pnpm tauri build --debug --bundles app,dmg
+          named=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' src-tauri/target/debug/bundle/macos/*.app/Contents/Info.plist)
+          test "$named" = Humanize || { echo "::error::The menu bar names the app $named, not Humanize."; exit 1; }
           hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" src-tauri/target/debug/bundle/dmg/*.dmg
           test -f "$RUNNER_TEMP/dmg/.DS_Store" || { echo "::error::The disk image was not laid out."; exit 1; }
 

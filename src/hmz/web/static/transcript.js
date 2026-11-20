@@ -6,6 +6,7 @@
 import { blocks } from './asking/blocks.js'
 import { fieldsOf, kindOf, resolved, summaryOf } from './asking/logic.js'
 import { h, lasting } from './dom.js'
+import { modelName } from './names.js'
 import { refusedSaid, shellOf, shellParts } from './natives.js'
 import { copy, menuOf, menuOn } from './ui.js'
 
@@ -307,7 +308,7 @@ export function saidTraced(...sessions) {
         break
       }
       case 'llm':
-        lines.push(line('reasoning', [action.name, args.model, args.thinking].filter(Boolean).join(' · '), { folded: Boolean(args.thinking) }))
+        lines.push(line('reasoning', [action.name, modelName(args.model), args.thinking].filter(Boolean).join(' · '), { folded: Boolean(args.thinking) }))
         break
       default:
         lines.push(line('notice', action.name))

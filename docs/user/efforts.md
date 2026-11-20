@@ -159,6 +159,9 @@ A word that is not on the backend's ladder is refused before anything runs. On C
 Agent, MiniMax Code and Oh My Pi each model takes only some of the rungs, and the agent sheet
 offers each model its own.
 
+The web page names a rung in words -- `xhigh` is **Extra high**, `medium` **Medium**, none set
+**Default** -- and an agent written as `-a` spells it keeps the word above.
+
 ::: details The same ladders, as a table
 
 | Backend | Efforts, hardest first |
