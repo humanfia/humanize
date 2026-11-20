@@ -551,7 +551,7 @@ def test_a_harness_session_is_offered_a_chat_only_where_its_harness_carries_one_
         go(page, f"/harness/opencode/ses_1?workspace={workspace}")
         expect(page.locator("[data-hmz=thread]")).to_contain_text("the word is plum")
         expect(note).to_have_text(
-            "Read-only. A session of opencode cannot be continued in a chat."
+            "Read-only. A session of OpenCode cannot be continued in a chat."
         )
         expect(adopt).to_have_count(0)
         refused = page.evaluate(

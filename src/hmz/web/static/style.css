@@ -497,10 +497,33 @@ code {
   color: var(--ink-2);
 }
 
-.side-nav kbd {
+/* A shortcut at a row's end, said quietly in the row's own face and in no box: a key apiece. */
+.side-keys {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin-left: auto;
-  font: var(--text-xs) / 16px var(--mono);
+  font: 400 var(--text-sm) / 16px var(--sans);
+  font-variant-numeric: tabular-nums;
   color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.side-keys kbd {
+  font: inherit;
+}
+
+/* On a Mac every key is one sign: each stands in a cell as wide as the next, so that the keys of
+   two rows stand in line from the row's end. */
+.side-keys[data-os='mac'] kbd {
+  min-width: var(--space-12);
+  text-align: center;
+}
+
+/* Off a Mac the keys are words with a plus between, which is their gap. */
+.side-keys[data-os='pc'] {
+  gap: 1px;
 }
 
 /* A count at a row's end: how many flows have something newer, that the daemon has. */
@@ -618,7 +641,7 @@ code {
   color: var(--ink-3);
 }
 
-/* A notification unread of the epic, or of a folded workspace: the dot the bell's menu marks one with. */
+/* A chat or an epic unread, or a folded workspace that lists one. */
 .side-unread {
   flex: none;
   width: 6px;
@@ -1274,7 +1297,7 @@ body:has(> .overlay:not([hidden])) > .toasts > :nth-child(n + 2),
 
 /* On the dark page it stands over fills like its own, a hairline lost among them: its edge is
    drawn in the quiet ink there, which tells it from any of them. */
-[data-theme='dark'] :is(.toast, .notify-card) {
+[data-theme='dark'] .toast {
   border-color: var(--ink-3);
 }
 
@@ -4840,7 +4863,7 @@ td:has(> .exo-key) {
 /* ------------------------------------------------------------------ flows */
 
 /* The cards stand a step under whatever is said over them, and what one of them opens a
-   larger step under them all. */
+   larger step under them all; what a flowverse's tab opens, a small step under the tabs. */
 .gallery {
   margin-top: var(--space-16);
 }
@@ -4856,8 +4879,8 @@ td:has(> .exo-key) {
   margin-top: var(--space-8);
 }
 
-/* A flow, or a flowverse, to pick: its mark, its name and what it is for, in one hairline frame
-   that darkens when pointed at and is ink once chosen. */
+/* A flow to pick: its mark, its name and what it is for, in one hairline frame that darkens
+   when pointed at and is ink once chosen. */
 .card {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
@@ -4875,27 +4898,6 @@ td:has(> .exo-key) {
 
 .card:hover {
   border-color: var(--line-strong);
-}
-
-/* The card that adds one: a dashed frame around a plus, quieter than the cards it stands by. */
-.card-add {
-  align-items: center;
-  border: var(--border-w) dashed var(--line-strong);
-  background: none;
-}
-
-.card-add:hover {
-  border-color: var(--ink-3);
-}
-
-.card-add .card-mark {
-  background: none;
-  color: var(--ink-3);
-}
-
-.card-add .card-name {
-  color: var(--ink-2);
-  font-weight: 500;
 }
 
 .card.chosen,
@@ -4932,13 +4934,6 @@ td:has(> .exo-key) {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* Where a flowverse is fetched from: one line, set as an id is, and cut at a whole letter so
-   that the mark of the cut stands on the card's text edge. */
-.card-about .path {
-  font-size: var(--text-sm);
-  max-width: calc(round(down, 100% - 1px, 1ch) + 1px);
 }
 
 /* A card holding its name alone stands it level with its mark. */
@@ -4986,6 +4981,60 @@ td:has(> .exo-key) {
 
 .flows-tabs .tabs {
   margin-bottom: var(--space-16);
+}
+
+/* The flowverses, picked by tabs, and the button that adds one right after the last of them. */
+.verse-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* A tab says its name on one line, cut short where the name is longer than the row. */
+.verse-tabs {
+  min-width: 0;
+}
+
+.verse-tabs button {
+  display: block;
+  max-width: 100%;
+  height: 29px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery:has(> .verse-bar) + .flow-detail {
+  margin-top: var(--space-12);
+}
+
+/* A flowverse's name, and fetching it again right after it: the arrow as tall as the name. */
+.verse-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* A long name is cut short on its line, so that the arrow stays right after it. */
+.verse-head h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Its line is as tall with nothing to remove as with: the name stands where it stood. */
+.flow-detail header:has(> .verse-head) {
+  align-items: center;
+  min-width: 0;
+  min-height: var(--control-h);
+}
+
+.verse-head > .icon-btn {
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
 }
 
 .flows-said:empty {
@@ -5063,8 +5112,8 @@ td:has(> .exo-key) {
 
 /* Every release's versions are picked in a box of one width, and what is done with it is said
    on buttons of one width -- wide enough for what each says while it is busy -- so that the
-   boxes and the buttons stand in columns and stay there: a release with one button leaves the
-   last column bare. */
+   boxes and the buttons stand in columns and stay there. The box and what installs end every
+   line at its right edge, and what takes a release away stands before them. */
 .release select {
   width: 80px;
   height: var(--control-h-sm);
@@ -5076,8 +5125,10 @@ td:has(> .exo-key) {
   min-width: 88px;
 }
 
-.release .row > .confirm:nth-child(2):last-child {
-  margin-right: calc(88px + var(--space-8));
+/* Gone under the words where the line is narrow, they still end it at its right edge. */
+.release > .row {
+  margin-left: auto;
+  justify-content: flex-end;
 }
 
 /* What takes a release away is said as quietly as what is beside it until it is pointed at,
@@ -5396,10 +5447,6 @@ body:has(> .overlay > .dialog-settings) {
     overflow-y: auto;
   }
 
-  /* A card says what it is about in one line there. */
-  body:has(> .overlay:not([hidden]) > .dialog-settings) > .toasts .choice-about {
-    -webkit-line-clamp: 1;
-  }
 }
 
 /* One level of cards, each a section of the page, set further apart than what is inside one:
@@ -5664,14 +5711,13 @@ body:has(> .overlay > .dialog-settings) {
   }
 
   /* In the sidebar's list one line stands right under another, and a line's menu over the end
-     of its own line: there the room reaches across the line and no higher or lower than it.
-     Nothing stands near the bell that the sidebar's head sets at its far end. */
+     of its own line: there the room reaches across the line and no higher or lower than it. */
   :is(.side-run, .side-folder) > .icon-btn::after {
     top: calc(-1 * var(--space-4));
     bottom: calc(-1 * var(--space-4));
   }
 
-  :is(.side-run > .icon-btn, .side-top > .notify-bell) {
+  .side-run > .icon-btn {
     --reach-left: 40px;
   }
 
@@ -6199,164 +6245,6 @@ input[aria-invalid='true'] {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8) var(--space-16);
-}
-
-/* notifications */
-
-.notify-bell {
-  position: relative;
-  margin-left: auto;
-}
-
-/* How many are unread, hung on the bell's corner, so that the bell is seen beside it: ringed in
-   the sidebar's own colour, which parts the two where they meet. */
-.notify-count {
-  position: absolute;
-  top: calc(-1 * var(--space-6));
-  right: calc(-1 * var(--space-6));
-  min-width: 18px;
-  height: 18px;
-  padding: 0 var(--space-2);
-  border: 2px solid var(--side);
-  border-radius: var(--radius-full);
-  background: var(--pink);
-  color: var(--on-fill);
-  font: 600 var(--text-xs)/14px var(--sans);
-  text-align: center;
-  pointer-events: none;
-}
-
-/* Beside the window's traffic lights the row has no room over the bell: there it hangs level
-   with the bell's top. */
-:root[data-shell='macos']:not([data-fullscreen]) .notify-count {
-  top: calc(-1 * var(--space-2));
-}
-
-/* The list the bell opens: a panel, its head over what was said, which scrolls under it. */
-.popover:has(> .notify-menu) {
-  display: flex;
-  flex-direction: column;
-  width: min(var(--menu-max), calc(100vw - 32px));
-  padding: 0;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.notify-menu {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.notify-head {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-8);
-  border-bottom: var(--border);
-}
-
-.notify-head .popover-head {
-  flex: 1;
-  padding: 0 var(--space-8);
-}
-
-/* Each is as tall as what it says, however many there are: the list scrolls, and none is
-   squeezed. */
-.notify-list {
-  display: grid;
-  grid-auto-rows: max-content;
-  gap: var(--space-2);
-  min-height: 0;
-  padding: var(--space-8);
-  overflow-y: auto;
-}
-
-.notify-item {
-  padding: var(--space-8);
-}
-
-/* The mark is drawn in its tone's ink, which reads on the surface as the tone itself may not. */
-.notify-item .glyph,
-.notify-open .glyph {
-  color: var(--tone-ink, var(--tone));
-}
-
-.notify-item .choice-label,
-.notify-open .choice-label {
-  font: 500 var(--text-md)/20px var(--sans);
-}
-
-.notify-item.notify-unread .choice-label::after {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: var(--space-6);
-  vertical-align: 2px;
-  border-radius: var(--radius-full);
-  background: var(--pink);
-}
-
-.notify-when {
-  margin-top: var(--space-2);
-  font: var(--text-xs)/16px var(--mono);
-  color: var(--ink-3);
-}
-
-.notify-none {
-  margin: 0;
-  padding: var(--space-8);
-  font: var(--text-sm)/16px var(--sans);
-  color: var(--ink-3);
-}
-
-/* A notification as it comes: a card among whatever else is said for a moment, the whole of it
-   pressed to open what it is about, with what dismisses it at its corner. */
-.notify-card {
-  display: flex;
-  align-items: flex-start;
-  width: 100%;
-  background: var(--raised);
-  border: var(--border-strong);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.notify-open {
-  display: flex;
-  align-items: flex-start;
-  flex: 1;
-  min-width: 0;
-  gap: var(--space-8);
-  padding: var(--space-8) var(--space-4) var(--space-8) var(--space-12);
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font: var(--text-md)/20px var(--sans);
-  text-align: left;
-  cursor: pointer;
-}
-
-/* Pointed at, the whole card takes the fill, over the surface that keeps it opaque. */
-.notify-card:has(> .notify-open:hover) {
-  background-image: linear-gradient(var(--hover), var(--hover));
-}
-
-.notify-open:focus-visible {
-  outline-offset: -2px;
-}
-
-.notify-open .choice-about {
-  color: var(--ink-2);
-}
-
-.notify-card .notify-shut {
-  width: var(--control-h-xs);
-  height: var(--control-h-xs);
-  margin: var(--space-6) var(--space-6) 0 var(--space-2);
-  border-radius: var(--radius-sm);
 }
 
 /* asks ------------------------------------------------------------- a question asked of you */

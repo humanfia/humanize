@@ -1,8 +1,8 @@
 //! A notification as the system posts one for an app -- on macOS through
 //! `UNUserNotificationCenter`, on Windows a toast: what the page asks for when an epic
-//! ends, a flow asks, or a chat turn is done while the window is not looked at. Clicking one
-//! brings the window forward, and opens on the page the address it was given -- a hash
-//! of that page, and never anywhere else.
+//! ends, a flow asks, or a chat turn is done, unless the window is looked at and shows that
+//! chat or epic. Clicking one brings the window forward, and opens on the page the address
+//! it was given -- a hash of that page, and never anywhere else.
 
 use std::sync::OnceLock;
 #[cfg(target_os = "macos")]
@@ -56,8 +56,8 @@ define_class!(
     unsafe impl NSObjectProtocol for Delegate {}
 
     unsafe impl UNUserNotificationCenterDelegate for Delegate {
-        /// Shown even while the app is in front: the page asks only while its window is not
-        /// looked at.
+        /// Shown even while the app is in front: the page asks unless its window is looked at
+        /// and shows what the notification is of.
         #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
         fn will_present(
             &self,

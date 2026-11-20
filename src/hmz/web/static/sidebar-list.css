@@ -117,6 +117,15 @@
   opacity: 1;
 }
 
+/* A folder whose directory went says so after its name, quietly, in the colour of what waits. */
+.side-gone {
+  flex: none;
+  margin-left: var(--space-6);
+  font: 400 var(--text-sm) / 20px var(--sans);
+  color: var(--budget-ink);
+  white-space: nowrap;
+}
+
 /* That it holds nothing is said under its name, where its rows would start. */
 .side-group > .side-quiet.nested {
   padding-block: var(--space-6);
@@ -327,5 +336,5 @@
 
 .side-harness-name {
   margin-left: auto;
-  font: var(--text-xs) / 16px var(--mono);
+  font: var(--text-xs) / 16px var(--sans);
 }

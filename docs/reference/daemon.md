@@ -140,8 +140,8 @@ end of a socket pair, which is its link:
 | 1 | caller | Creates a pipe; flushes stdout/stderr; starts the process in a new session (`setsid`: no controlling terminal), stdin from `/dev/null`, fds 1, 2 to `daemon.log`, its environment the caller's. Waits on the pipe (polled every 0.1 s, up to `seconds`), then reaps it. |
 | 2 | started | Forks, while it has no other thread, and exits `0`, so that the fork leads no session and can never take a controlling terminal. |
 | 3 | daemon or host | Ignores `SIGHUP`; unwinds on `SIGTERM`, whatever the caller made of it. |
-| 4 | daemon | Takes the lock, binds the socket, writes `daemon.json`, writes `listening\n` to the pipe, takes [sessions](#sessions) and opens its [listeners](#listeners). |
-| 4 | host | Changes to the workspace; ignores `SIGINT`; `Hmz().reports()`; makes the `Host`; fds 1, 2 to a pipe a thread appends to the run's `host.log` (`daemon.log` before any run); replaces `sys.stdout` and `sys.stderr` with `Printed`; on `SIGTERM` closes the host from a new thread. Writes `listening\n` to the pipe and serves its [link](#links). |
+| 4 | daemon | Changes to the home directory, or to `/` where there is none, so that it outlives the directory it was started from; takes the lock, binds the socket, writes `daemon.json`, writes `listening\n` to the pipe, takes [sessions](#sessions) and opens its [listeners](#listeners). |
+| 4 | host | Changes to the workspace; ignores `SIGINT`; `Hmz(workspace).reports()`; makes the `Host`; fds 1, 2 to a pipe a thread appends to the run's `host.log` (`daemon.log` before any run); replaces `sys.stdout` and `sys.stderr` with `Printed`; on `SIGTERM` closes the host from a new thread. Writes `listening\n` to the pipe and serves its [link](#links). |
 | — | either, on failure | Writes `the run could not be held: <why>\n` to the pipe, closes it, puts fds 1, 2 back on `daemon.log` and logs a traceback there, exits `1`. |
 
 **Environment.** A host runs in the daemon's environment, and the daemon in that of the client
@@ -279,7 +279,15 @@ and when its link to the daemon closes. `hosts.*` calls do not count as attachin
 
 `hosts.*` ask about a host without attaching to it; all but `hosts.open` start none, and a
 workspace and slot no host holds is refused 404, `no runs are held in <workspace>`, and ` for <slot>`
-after it for a slot. `Daemon.asked(said)` calls `hosts.<do>` with the daemon's `workspace` and `slot`
+after it for a slot. A host is looked up by its workspace whether or not the directory is still
+there, so one whose directory was removed is still asked, detached and stopped; `hosts.open`
+refuses a directory that is not there (404, `There is no directory <path>.`), as `epic.attach`
+does where it would start a host: a host held already is attached to whatever became of its
+directory. The same holds for
+`hosts.env.*`, `btw.list`, `btw.leave` and the `chat.*` methods that name a chat's host.
+`flows.list` and `flows.get` take `workspace` optionally: without it they answer the flows
+installed and your own, none of a project's (`local`), and for a directory that is not there the
+same; `settings.forget` forgets a workspace whose directory is gone. `Daemon.asked(said)` calls `hosts.<do>` with the daemon's `workspace` and `slot`
 over a session of its own (5 s) and returns `{}` on any failure.
 
 | Method | Answer |

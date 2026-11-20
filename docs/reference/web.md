@@ -212,7 +212,7 @@ Each view is an address after `#`, so it can be kept and opened again:
 
 | Address | View |
 | --- | --- |
-| `#/new[?workspace=&flow=&resume=<name>]` | A new epic, **Chat** or **Flow**: in the workspace picked (where `hmz web` started by default), a [chat](/user/chat) with the agent that workspace remembers, the flow picked, or the epic named picked up. The page opens here. |
+| `#/new[?workspace=&flow=&resume=<name>]` | A new epic, **Chat** or **Flow**: in the workspace picked (where `hmz web` started by default, or the first listed whose directory is there where that one is gone), a [chat](/user/chat) with the agent that workspace remembers, the flow picked, or the epic named picked up. The page opens here. |
 | `#/live[?workspace=&slot=]` | The epic going on that host -- the workspace's own -- or the chat going on a chat's; its address becomes `#/epics/<name>` once it is written down -- a chat's, `#/chats/<id>`. |
 | `#/chats/<id>` | One chat, by its id: its conversation, read with `chat.get`; live where a host holds it. |
 | `#/harness/<harness>/<id>?workspace=<path>` | One [harness session](/reference/daemon#harness-sessions) of that workspace, read with `chat.harness.get` and only read; **Continue in chat** calls `chat.harness.adopt` and opens the chat it answers, and is offered only where the row is `continuable`: otherwise the view says `A session of <harness> cannot be continued in a chat.` |
@@ -222,8 +222,8 @@ Each view is an address after `#`, so it can be kept and opened again:
 | `#/epics/<name>/sessions/<agent>/<n>` | The thread of the `n`-th session that agent opened, as the epic going names it (`/` written `%2F`). |
 | `#/epics/<name>/logs/<role>` | One agent's log, across its sessions; or one person's, what they are asked and answer. `#/epics/<name>/logs`, with neither, opens `#/epics/<name>`. |
 | `#/epics/<name>/exomyth[?tab=flame]` | The epic's [Exomyth](/user/web#exomyth): its timeline, or its flame graph. |
-| `#/flows[?workspace=&flow=]` | The flows on offer in a workspace, one opened. |
-| `#/flows?tab=verses[&verse=]` | The flowverses, one opened. |
+| `#/flows[?workspace=&flow=]` | The flows on offer, one opened; with `workspace`, that folder's own flows too. |
+| `#/flows?tab=verses[&verse=]` | The flowverses, the one named opened, or the first. |
 | `#/search[?status=&flow=&q=&offset=]` | A dialog finding epics. `status`: how it went, `running` or `unfinished`. |
 | `#/download[?target=]` | A dialog downloading an epic out of a backup target: the first in settings without `target`. |
 | `#/settings/<page>[?daemon=&days=]` | A dialog: `themes`, `daemons` or `notifications`, the page's own; or `general`, `accounts`, `nous`, `runtimes`, `backup`, `workspace` or `usage`, of the daemon `daemon` names (the one shown without it); `days` is how far `usage` looks back (7, 30, 90 or 365; default 30), by UTC day. |
@@ -233,7 +233,7 @@ Every address above is of one daemon. `#/@<name>/<view>` -- `#/@local/new`, `#/@
 -- is that view of the daemon named; an address naming none is Local's. The page shows only the
 daemon its address names: every link it draws keeps the `@<name>` the address carries, and going
 to another daemon's address draws the view and the sidebar again, of that daemon, letting go of
-what the page followed of the last. The notifications, the daemons and the page's own settings
+what the page followed of the last. What is told, the daemons and the page's own settings
 are the same whichever daemon is shown.
 
 Every view's bar carries Ai-chan's avatar at its right, the page's file `ai-chan/avatar.png`, a button that
@@ -251,7 +251,7 @@ origin -- which is why `hmz web` keeps its port:
 | Where | What |
 | --- | --- |
 | IndexedDB `hmz-daemons` | The remote daemons, each its name, the daemon id it pins (`""` until it is first reached over a trusted route) and its routes in order; the STUN and TURN servers WebRTC uses; and the browser's own certificate, which a daemon paired with it knows it by. |
-| IndexedDB `hmz-notifications` | The notifications: the notices every reached daemon's `notices.subscribe` told, the newest **200**, each with its daemon and whether it is read; where each daemon's notices are taken up again; and which kinds are told, and whether the system shows them. |
+| IndexedDB `hmz-notifications` | Where each reached daemon's notices (`notices.subscribe`) are taken up again; and which kinds are told, and whether the system shows them. No list of notifications is kept. |
 | IndexedDB `hmz` | The pictures of the [themes](/user/web#themes) made here. |
 | `localStorage` | Conveniences, each forgotten without harm: the theme chosen as `hmz-theme` (and under Auto `hmz-theme-light` and `hmz-theme-dark`), the themes made here as `hmz-themes`, a sidebar folded away as `hmz-sidebar` and how wide it was dragged as `hmz-side-wide`, how wide the lists of an [environment](/features/environments) were dragged as `hmz-envs-tree`, `hmz-files-side` and `hmz-changes-side`, a side panel closed as `hmz-panel`, which epics are opened out in the sidebar as `hmz-opened` and which of its groups folded away as `hmz-shut`, how its list is grouped, sorted and filtered as `hmz-list`, which epics are pinned as `hmz-pinned` and which marked unread as `hmz-unread`, whether an epic's agents are drawn as a list as `hmz-shape`, and which questions were looked at as `hmz-seen`. |
 

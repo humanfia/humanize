@@ -6,7 +6,9 @@
 // which node a turn goes to once it fails there.
 
 import { confirming } from '../../confirm.js'
+import { nousNamed } from '../../chips/agent.js'
 import { acting, fill, h, iconButton, lasting, problem } from '../../dom.js'
+import { effortName } from '../../names.js'
 import { batched, concrete, freshId, graphSaid, held, removed, renamed, withEffort, written } from '../../nous.js'
 import { parted, readBackends } from '../../pickers.js'
 
@@ -23,7 +25,8 @@ export function draw(holder, query, parts, scope) {
   const shown = (answer) => {
     data = answer
     const virtual = data.nous.filter((one) => one.virtual).map((one) => one.name)
-    fill(offered, [...virtual, ...data.concrete].map((one) => h('option', { value: one })))
+    // What is typed is what `-a` spells; each concrete one offered says its names beside it.
+    fill(offered, [...virtual, ...data.concrete].map((one) => h('option', { value: one, label: concrete(one) ? nousNamed(one) : null })))
     drawListing()
     drawWriting()
   }
@@ -59,12 +62,12 @@ export function draw(holder, query, parts, scope) {
   /** A graph as a cell says it: a line per node from the start, or what none means. */
   const graphCell = (graph, none) =>
     graph
-      ? graphSaid(graph).map((one) =>
+      ? graphSaid(graph, nousNamed).map((one) =>
           h(
             'div',
-            { 'data-hmz': 'nous-node' },
+            { 'data-hmz': 'nous-node', title: graphSaid(graph).find((each) => each.id === one.id).text },
             h('span', { class: 'dim' }, `${one.id}${one.start ? ' (start)' : ''}: `),
-            h('span', { class: 'mono' }, worded(one.text)),
+            h('span', {}, worded(one.text)),
             one.edges ? h('span', { class: 'dim' }, ` · ${one.edges}`) : null,
           ),
         )
@@ -75,7 +78,7 @@ export function draw(holder, query, parts, scope) {
       h(
         'tr',
         { 'data-hmz': 'nous-row', 'data-name': one.name },
-        h('td', {}, h('div', { class: 'mono' }, worded(one.name)), h('span', { class: 'chip', 'data-hmz': 'nous-kind' }, one.virtual ? 'virtual' : 'concrete')),
+        h('td', {}, h('div', { title: one.name }, worded(nousNamed(one.name))), h('span', { class: 'chip', 'data-hmz': 'nous-kind' }, one.virtual ? 'virtual' : 'concrete')),
         h('td', { 'data-label': 'Tried' }, one.tries ? `${one.tries} more ${one.tries === 1 ? 'go' : 'goes'}, ${one.policy}` : h('span', { class: 'dim' }, 'once'), h('div', { class: 'dim' }, one.timeout ? `at most ${lasting(one.timeout)}` : 'no limit')),
         h('td', { 'data-label': 'Graph' }, graphCell(one.graph, '—')),
         h('td', { 'data-label': 'Then' }, graphCell(one.then, 'nowhere')),
@@ -101,7 +104,7 @@ export function draw(holder, query, parts, scope) {
       one.virtual ? h('button', { class: 'btn small quiet', type: 'button', 'data-hmz': 'nous-rename', onclick: () => ((renaming = one.name), drawListing()) }, 'Rename') : null,
       confirming({
         label: 'Remove',
-        ask: `Remove ${one.name}?`,
+        ask: `Remove ${nousNamed(one.name)}?`,
         yes: 'Remove',
         small: true,
         act: async () => {
@@ -146,7 +149,7 @@ export function draw(holder, query, parts, scope) {
   /** The name of a new nous: a concrete one picked, or typed, with an effort; or a virtual name. */
   function nameField() {
     const kind = h('select', { id: 'nous-kind', 'data-hmz': 'nous-kind-pick' }, h('option', { value: 'concrete' }, 'Concrete'), h('option', { value: 'virtual' }, 'Virtual'))
-    const spec = h('select', { id: 'nous-spec', 'data-hmz': 'nous-spec' }, data.concrete.map((one) => h('option', { value: one }, one)), h('option', { value: '…' }, 'Other…'))
+    const spec = h('select', { id: 'nous-spec', 'data-hmz': 'nous-spec' }, data.concrete.map((one) => h('option', { value: one, title: one }, nousNamed(one))), h('option', { value: '…' }, 'Other…'))
     const typed = h('input', { type: 'text', 'aria-label': 'Concrete nous', placeholder: 'HARNESS[@ACCOUNT]/MODEL', 'data-hmz': 'nous-spec-typed', spellcheck: 'false', hidden: data.concrete.length > 0 })
     if (!data.concrete.length) spec.hidden = true
     const effort = h('select', { id: 'nous-effort', 'data-hmz': 'nous-effort' })
@@ -155,7 +158,7 @@ export function draw(holder, query, parts, scope) {
     const picked = () => (spec.hidden || spec.value === '…' ? typed.value.trim() : spec.value)
     const efforts = () => {
       const offered = effortsOf(picked())
-      fill(effort, h('option', { value: '' }, 'Default'), offered.map((one) => h('option', { value: one }, one)))
+      fill(effort, h('option', { value: '' }, 'Default'), offered.map((one) => h('option', { value: one }, effortName(one))))
       effort.disabled = !offered.length
     }
     const concreteFields = h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'nous-spec' }, 'Nous'), spec, typed), h('div', { class: 'field' }, h('label', { for: 'nous-effort' }, 'Effort'), effort))
@@ -195,7 +198,7 @@ export function draw(holder, query, parts, scope) {
     const form = h(
       'form',
       { class: 'form' },
-      name ? name.node : h('div', { class: 'field' }, h('span', { class: 'label' }, editing.virtual ? 'Virtual nous' : 'Concrete nous'), h('span', { class: 'mono' }, editing.name)),
+      name ? name.node : h('div', { class: 'field' }, h('span', { class: 'label' }, editing.virtual ? 'Virtual nous' : 'Concrete nous'), h('span', { title: editing.name }, nousNamed(editing.name))),
       h(
         'div',
         { class: 'row' },
@@ -230,7 +233,7 @@ export function draw(holder, query, parts, scope) {
     )
     if (name) name.switched()
     form.addEventListener('submit', (event) => event.preventDefault())
-    fill(writing, h('h2', {}, editing ? `Edit ${editing.name}` : 'New nous'), form)
+    fill(writing, h('h2', {}, editing ? `Edit ${nousNamed(editing.name)}` : 'New nous'), form)
   }
 
   /**

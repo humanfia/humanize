@@ -13,7 +13,7 @@ import { acting, fill, h, icon, problem } from '../dom.js'
 import { sessionsOf, watch } from '../epic.js'
 import { ask, current, follow } from '../held.js'
 import { nousField } from '../pickers.js'
-import { firstWorkspace, workspacePicker } from '../places.js'
+import { firstWorkspace, goneSaid, workspacePicker } from '../places.js'
 import { dragged, sidePanel } from '../shell.js'
 import { line, saidTraced, sayer } from '../transcript.js'
 
@@ -143,6 +143,8 @@ export function mount(app, where) {
         const said = { scope: scope.value, workspace: place.value() || '', epic: epic.value, nous: nous ? nous.input.value : '', preset: preset.value, network: network.checked, title: title.value, task }
         const why = missing(said, setting)
         if (why) throw new Error(why)
+        // Nothing is made in a folder that went; the daemon's scope names none (`created`).
+        if (said.scope === 'workspace' && place.gone()) throw new Error(goneSaid(said.workspace))
         const made = await call('aichan.create', created(said))
         refresh('aichan.list')
         show({ kind: 'chat', ...made })
@@ -210,7 +212,7 @@ export function mount(app, where) {
       ),
     )
     box.text.focus()
-    return () => {}
+    return () => place.leave()
   }
 
   /** Names the conversation drawn as the list names it, once the list has it. */

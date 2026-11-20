@@ -16,9 +16,11 @@ import { composer } from '../composer.js'
 import { NO_FOLDER } from '../desk.js'
 import { acting, empty, fill, h, icon, permitted, problem, secondsOf } from '../dom.js'
 import { ask } from '../held.js'
+import { harnessName } from '../names.js'
 import { paramsForm } from '../asking/form.js'
+import { agentLabel } from '../chips/agent.js'
 import { agentPicker, envPicker, readBackends } from '../pickers.js'
-import { firstWorkspace, folderFiles, workspacePicker } from '../places.js'
+import { firstWorkspace, folderFiles, goneNote, goneSaid, missing, unplaced, workspacePicker, workspaces } from '../places.js'
 import { bar, choice, menu, section } from '../shell.js'
 
 export function mount(root, { query }) {
@@ -34,7 +36,8 @@ export function mount(root, { query }) {
     workspace = path || ''
     files.clear()
     load(query.get('flow') || '')
-  }, { none: true, plain: true })
+    // Gone since, or back: the form says so, or reads what the folder offers again.
+  }, { none: true, plain: true, went: (lost) => !scratch && lost !== gone && load(picked ? picked.name : query.get('flow') || '') })
   // A task names a file as a first message does: `@` completes the paths of the folder picked.
   // An epic of no folder works in a directory made as it starts, which holds nothing to name yet.
   const files = folderFiles(() => (scratch ? '' : workspace))
@@ -76,6 +79,8 @@ export function mount(root, { query }) {
     ),
   )
 
+  /** Whether the directory of the folder picked is gone: nothing is read of it, and nothing started in it. */
+  let gone = false
   let flows = []
   let backends = { clis: {}, installable: {}, envs: ['local'] }
   let runtimes = []
@@ -129,7 +134,32 @@ export function mount(root, { query }) {
         workspace = ran.workspace
         place.set(workspace)
       }
-      if (!workspace) workspace = await firstWorkspace()
+      // Never one that went: the first that is there, which the control then names.
+      if (!workspace) {
+        workspace = await firstWorkspace()
+        if (!scratch) place.set(workspace)
+      }
+      // One the address named, or picked and gone since, stays picked and is said to be gone,
+      // rather than swapped for a folder nobody asked for. Unread, the daemon says so itself.
+      gone = !scratch && missing(workspace, await workspaces().catch(() => null))
+      if (mine !== loading) return
+      if (gone) {
+        choosing = ''
+        picked = null
+        setup = null
+        flows = []
+        reading(false)
+        lacking.hidden = true
+        optionsChip.disabled = true
+        fill(picker.querySelector('b'), 'None')
+        fill(resumed)
+        fill(options)
+        options.hidden = true
+        optionsChip.setAttribute('aria-expanded', 'false')
+        fill(summary)
+        fill(box.said, goneNote(workspace))
+        return
+      }
       const [found, installed, saved, settings] = await Promise.all([call('flows.list', { workspace }), readBackends(workspace), call('runtimes.list'), call('settings.get').catch(() => null)])
       if (mine !== loading) return
       flows = found.flows
@@ -204,7 +234,7 @@ export function mount(root, { query }) {
   function summarise() {
     if (!setup) return
     const said = setup.summary()
-    fill(summary, said.map((one) => h('span', { class: 'chip' }, one)))
+    fill(summary, said.map((one) => (typeof one === 'string' ? h('span', { class: 'chip' }, one) : h('span', { class: 'chip', title: one.spec }, one.said))))
   }
 
   function drawOptions(flow, ran) {
@@ -227,7 +257,7 @@ export function mount(root, { query }) {
       return h(
         'div',
         { class: 'role', 'data-hmz': 'role', 'data-role': role.name },
-        h('h3', {}, role.name, role.harness ? h('span', { class: 'chip' }, role.harness) : null, role.required ? null : h('span', { class: 'dim' }, 'Optional')),
+        h('h3', {}, role.name, role.harness ? h('span', { class: 'chip', title: role.harness }, harnessName(role.harness)) : null, role.required ? null : h('span', { class: 'dim' }, 'Optional')),
         pickers[role.name].node,
         h('div', { class: 'hint' }, permitted(role.permission), role.skills.length ? ` · skills: ${role.skills.join(', ')}` : ''),
       )
@@ -278,7 +308,8 @@ export function mount(root, { query }) {
     )
     return {
       summary() {
-        const said = Object.entries(pickers).map(([role, one]) => `${role}: ${one.value() || '—'}`)
+        // Each agent by its names (Section 3.4.4.11 of protocol/web.md), what `-a` spells where it is pointed at.
+        const said = Object.entries(pickers).map(([role, one]) => ({ said: `${role}: ${agentLabel(one.value()) || one.value() || '—'}`, spec: one.value() || null }))
         const limit = budget.said()
         if (limit) said.push(limit)
         return said
@@ -288,6 +319,7 @@ export function mount(root, { query }) {
   }
 
   async function start(task) {
+    if (gone) throw new Error(goneSaid(workspace))
     if (!flows.length) throw new Error('Install a flow first, from Flows.')
     if (!picked || !setup) throw new Error('Pick a flow first.')
     let read
@@ -299,7 +331,9 @@ export function mount(root, { query }) {
       throw error
     }
     // The answer says which host the epic went to, which the page follows.
-    const started = await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false, ...(scratch ? { scratch } : {}) })
+    const started = await ask(workspace, 'start', { flow: picked.name, task, ...read, resume: run ? run.at : false, ...(scratch ? { scratch } : {}) }).catch((error) => {
+      throw unplaced(error, workspace)
+    })
     go(`/live?${new URLSearchParams(given({ workspace: started.workspace, slot: started.slot }))}`)
   }
 
@@ -314,6 +348,7 @@ export function mount(root, { query }) {
     loading = null
     choosing = null
     window.removeEventListener('hashchange', back)
+    place.leave()
     for (const one of leaving) one()
   }
 }

@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Error, expect
 
+from tests.conftest import THEIRS
 from tests.integration.doubles_web import served
 from tests.system.web.doubles_browser import ENGINES, opened
 
@@ -194,8 +195,9 @@ _SHOTS = os.environ.get("HMZ_WEB_SHOTS", "")
 @pytest.fixture(scope="module")
 def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """The xterm library and its addons, bundled as `/vendor/xterm.js`, with its CSS beside it."""
-    pnpm = shutil.which("pnpm")
-    if not shutil.which("node") or not pnpm:
+    # Found as whoever runs the suite finds them: before any test, `PATH` is the suite's.
+    pnpm = shutil.which("pnpm", path=THEIRS["PATH"])
+    if not shutil.which("node", path=THEIRS["PATH"]) or not pnpm:
         pytest.skip("node and pnpm are needed to bundle xterm")
     at = tmp_path_factory.mktemp("xterm")
     deps = ",".join(f'"{name}":"{version}"' for name, version in _PACKAGES.items())
@@ -208,7 +210,7 @@ def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "onlyBuiltDependencies:\n  - esbuild\nallowBuilds:\n  esbuild: true\n"
     )
     (at / "entry.js").write_text(_ENTRY)
-    env = {**os.environ, "CI": "1"}
+    env = {**os.environ, **THEIRS, "CI": "1"}
     try:
         subprocess.run(
             [pnpm, "install", "--reporter=silent"],

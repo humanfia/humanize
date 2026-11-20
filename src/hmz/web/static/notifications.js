@@ -1,74 +1,42 @@
-// The notifications, of every daemon at once rather than the one shown: a bell with how many are
-// unread, a menu of them newest first, a card for each as it comes, and -- while the page is not
-// looked at -- one the system shows, by Humanize Desktop or by the browser. Each opens what it is
-// about: the chat, by its id; the epic going, for a question; or the epic that ended. None is
-// told of the chat or epic the page is on while it is looked at: that one is read as it comes.
+// The notifications, of every daemon at once rather than the one shown (Section 3.15 of
+// protocol/web.md): each notice marks its chat or epic unread in the sidebar and is shown by the
+// system -- by Humanize Desktop, or by the browser once it allows it -- and by nothing the page
+// draws. A click on one opens what it is about: the chat, by its id; the epic going, for a
+// question; or the epic that ended. None of the chat or epic the page is on is marked, nor
+// shown while the page is looked at, and one made long before it is heard is marked alone.
 
 import { call, client, daemon, onState } from './api.js'
-import { ago, fill, h, headline, icon, iconButton } from './dom.js'
-import { addressOf, gathered, kindOf as wantedAs, lineOf, of } from './notified.js'
-import { inApp, menu, section, settleSidebar } from './shell.js'
+import { followed, fresh, of, onScreen, shownAs } from './notified.js'
+import { inApp, settleSidebar } from './shell.js'
 import { stored } from './stored.js'
-import { posted } from './ui.js'
 
-/** What each kind is called, and the icon and the tone it is marked with: a chat that waits on a word is marked as a chat is, a question by a mark of its own. */
-const KINDS = {
-  done: ['Done', 'check', 'done'],
-  failed: ['Failed', 'close', 'failed'],
-  stopped: ['Stopped', 'stop', 'stopped'],
-  asked: ['Question', 'question', 'asking'],
-  listening: ['Waiting', 'thread', 'asking'],
-}
-
-/** How long a card stays. */
-const SHOWN = 6000
-
-/** The notifications this browser keeps, and what it wants told of them. */
-export const kept = gathered(stored('hmz-notifications'))
-
-/** The notifications held, newest first. */
-let items = []
-let button = null
-let count = null
-let drawMenu = null
-/** Where the page is, as the sidebar is told it. */
-let where = null
-
-/**
- * The bell, made once and the notices of every daemon followed with it.
- *
- * @param {() => {parts: string[], query: URLSearchParams}} at Where the page is.
- */
-export function bell(at) {
-  if (button) return button
-  where = at
-  count = h('span', { class: 'notify-count', 'data-hmz': 'notification-count', hidden: true })
-  button = h('button', { class: 'icon-btn notify-bell', type: 'button', 'aria-label': 'Notifications', title: 'Notifications', 'data-hmz': 'notifications' }, icon('bell'), count)
-  menu(button, (close) => {
-    const list = h('div', { class: 'notify-list' })
-    drawMenu = () => drawList(list, close)
-    drawMenu()
-    const read = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'notifications-read', onclick: () => markRead(null) }, 'Mark read')
-    const clear = h('button', { class: 'btn quiet small', type: 'button', 'data-hmz': 'notifications-clear', onclick: clearAll }, 'Clear')
-    return [h('div', { class: 'notify-menu', 'data-hmz': 'notification-menu' }, h('div', { class: 'notify-head' }, section('Notifications'), read, clear), list)]
-  }, { label: 'Notifications', align: 'end' })
-  start()
-  return button
-}
+/** Where each daemon's notices are taken up, and what this browser wants told of them. */
+const store = stored('hmz-notifications')
+export const kept = followed(store)
 
 /** Each daemon followed, by name: the client its subscription is on. */
 const following = new Map()
+/** Every notice told by this page, by its key: one sent again is told once. */
+const told = new Set()
+/** Where the page is, and what marks a row unread, as the sidebar gives them. */
+let where = null
+let unread = null
 
-async function start() {
-  await reread().catch(() => {})
+/**
+ * Follows the notices of every daemon the page reaches; once.
+ *
+ * @param {() => {parts: string[], query: URLSearchParams}} at Where the page is.
+ * @param {(daemon: string, name: string, on?: boolean) => void} mark Marks a chat or epic of a daemon unread, or read.
+ */
+export function notifying(at, mark) {
+  if (where) return
+  where = at
+  unread = mark
+  // The list an earlier page kept here is kept no longer (Section 3.15.2.1 of protocol/web.md).
+  store.drop('items').catch(() => {})
   // Local, and every remote daemon once the page has reached it, while it is up.
   onState((name, now) => now.state === 'up' && follow(name))
   follow('local')
-  // Read again as the page is looked at again, for what another tab read or cleared.
-  document.addEventListener('visibilitychange', () => document.hidden || reread().catch(() => {}))
-  // What is of the epic the page comes to, or is looked at again on, is read there.
-  addEventListener('hashchange', seen)
-  addEventListener('focus', seen)
 }
 
 /**
@@ -98,129 +66,36 @@ async function follow(name) {
   }
 }
 
-/** Whether a notification is of the chat or epic the page is on, while it is looked at. */
-function here(item) {
-  if (document.hidden || !document.hasFocus() || (item.daemon || 'local') !== daemon()) return false
-  const { parts, query } = where()
-  if (parts[0] === 'live') return Boolean(item.workspace) && query.get('workspace') === item.workspace && (query.get('slot') || '') === (item.slot || '')
-  if (parts[0] === 'chats') return Boolean(item.chat) && parts[1] === item.chat
-  return parts[0] === 'epics' && Boolean(item.epic) && parts[1] === item.epic
-}
-
-/** Reads every notification of the epic the page is on. */
-function seen() {
-  const keys = items.filter((one) => !one.read && here(one)).map((one) => one.key)
-  if (keys.length) markRead(keys)
-}
-
-/** The chats and epics, by name, and the workspaces they are of, that a notification unread is of on a daemon. */
-export function unreadOn(name) {
-  const mine = items.filter((one) => !one.read && (one.daemon || 'local') === name)
-  return { epics: new Set(mine.map(of)), workspaces: new Set(mine.map((one) => one.workspace)) }
-}
-
-/** Reads every notification of one chat or epic of a daemon, as its row's menu asks. */
-export function readOf(name, epic) {
-  const keys = items.filter((one) => !one.read && (one.daemon || 'local') === name && of(one) === epic).map((one) => one.key)
-  if (keys.length) markRead(keys)
-}
-
-async function reread() {
-  items = await kept.items()
-  draw()
-  seen()
-}
-
 async function heard(name, notice) {
   const item = await kept.heard(name, notice).catch(() => null)
-  if (!item) return
-  items = [item, ...items.filter((one) => one.key !== item.key)].slice(0, 200)
-  if (here(item)) return markRead([item.key])
-  draw()
-  card(item)
-  system(item)
+  if (!item || told.has(item.key)) return
+  told.add(item.key)
+  // On what it is of, the page has no row to mark; looked at as well, it has nothing to tell.
+  const at = { daemon: daemon(), ...where() }
+  if (onScreen(item, { ...at, looked: !document.hidden && document.hasFocus() })) return
+  if (!onScreen(item, { ...at, looked: true })) unread(item.daemon, of(item))
+  if (fresh(item)) system(item)
 }
 
-function draw() {
-  const unread = items.filter((one) => !one.read).length
-  count.hidden = !unread
-  count.textContent = unread > 99 ? '99+' : String(unread)
-  if (drawMenu && button.getAttribute('aria-expanded') === 'true') drawMenu()
-  // For the sidebar's marks of what is unread.
-  window.dispatchEvent(new CustomEvent('hmz:notifications'))
-}
-
-function drawList(list, close) {
-  if (!items.length) return fill(list, h('p', { class: 'notify-none' }, 'Nothing yet'))
-  fill(
-    list,
-    items.map((item) =>
-      h(
-        'button',
-        { class: ['choice', 'notify-item', !item.read && 'notify-unread'], type: 'button', role: 'menuitem', 'data-hmz': 'notification', onclick: () => (close(), opens(item)) },
-        mark(item),
-        h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, `${kindOf(item)} · ${daemonOf(item)}`), h('span', { class: 'choice-about' }, about(item)), h('span', { class: 'notify-when' }, ago(item.at))),
-      ),
-    ),
-  )
-}
-
-function mark(item) {
-  const [, glyph, tone] = KINDS[wantedAs(item)] || ['', 'bell', 'idle']
-  return h('span', { class: `choice-mark glyph tone-${tone}`, 'aria-hidden': 'true' }, icon(glyph))
-}
-
-const kindOf = (item) => (KINDS[wantedAs(item)] || [item.kind])[0]
-const daemonOf = (item) => (!item.daemon || item.daemon === 'local' ? 'Local' : item.daemon)
-const about = (item) => [item.flow, lineOf(item.text) || (item.task ? headline(item.task) : of(item))].filter(Boolean).join(' · ')
-
-function opens(item) {
-  if (items.some((one) => one.key === item.key && !one.read)) markRead([item.key])
-  // Where the page is on it already the address does not change, and the drawer is still not left over it.
-  settleSidebar()
-  location.hash = addressOf(item)
-}
-
-async function markRead(keys) {
-  for (const one of items) if (!keys || keys.includes(one.key)) one.read = true
-  draw()
-  await kept.read(keys).catch(() => {})
-}
-
-async function clearAll() {
-  items = []
-  draw()
-  await kept.clear().catch(() => {})
-}
-
-/** A card for a notification as it comes, in the corner of the page kept for what is said for a moment, gone after one. */
-function card(item) {
-  const one = h('div', { class: 'notify-card', role: 'status', 'data-hmz': 'notification-toast' })
-  const away = posted(one, SHOWN)
-  one.append(
-    h('button', { class: 'notify-open', type: 'button', onclick: () => (away(), opens(item)) }, mark(item), h('span', { class: 'choice-text' }, h('span', { class: 'choice-label' }, `${kindOf(item)} · ${daemonOf(item)}`), h('span', { class: 'choice-about' }, about(item)))),
-    iconButton('close', 'Dismiss', { class: 'notify-shut', onclick: away }),
-  )
-}
-
-/** One the system shows, while the page is not looked at and the settings let it. */
+/** One the system shows, where the settings let it. */
 async function system(item) {
-  if (!document.hidden && document.hasFocus()) return
   // Read as one comes, rare as they are, so a change in Settings holds at once.
   const said = await kept.preferences().catch(() => null)
   if (!said || !said.system) return
-  const title = `${kindOf(item)} · ${daemonOf(item)}`
-  const body = about(item)
-  const address = addressOf(item)
+  const { title, body, address, tag } = shownAs(item)
   if (inApp) {
     window.__TAURI_INTERNALS__?.invoke('notify', { title, body, address })?.catch?.(() => {})
     return
   }
   if (!('Notification' in window) || Notification.permission !== 'granted') return
-  const shown = new Notification(title, { body, tag: item.key })
+  const shown = new Notification(title, { body, tag })
   shown.onclick = () => {
     window.focus()
-    opens(item)
+    // The page comes to what it is of, wherever its address leads.
+    unread(item.daemon, of(item), false)
+    // Where the page is on it already the address does not change, and the drawer is still not left over it.
+    settleSidebar()
+    location.hash = address
     shown.close()
   }
 }

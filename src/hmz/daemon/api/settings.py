@@ -331,5 +331,5 @@ def _hmz(call: Call, *, made: bool) -> Any:
 METHODS: Mapping[str, Handler] = {
     "settings.get": lambda call: read(_hmz(call, made=True)),
     "settings.set": lambda call: write(_hmz(call, made=False), call.params),
-    "settings.forget": lambda call: forget(_hmz(call, made=False)),
+    "settings.forget": lambda call: forget(_hmz(call, made=True)),
 }

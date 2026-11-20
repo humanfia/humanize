@@ -194,6 +194,13 @@ run fails if any file under pytest's temporary directories holds one of those re
 (`_copies_no_sign_in` in `tests/conftest.py`).
 :::
 
+Every test runs with a home (`HUMANIZE_HOME`) and a temporary directory (`TMPDIR`, where the
+daemon's socket is) of its own, over ones of the whole run's, so that a thread that outlives its
+test still writes nowhere of yours (`_suite_places`). A test after which your own `~/.hmz` holds
+an epic, a chat or a workspace setting naming one of the run's temporary directories fails, and
+so does the run (`_writes_no_real_home`). Tests outside `tests/` get none of this: give a scratch
+script its own `HUMANIZE_HOME` and `TMPDIR`.
+
 ## What the code is held to
 
 - **`pyright` in strict mode**, over `src` and `tests`. `# type: ignore` is switched off: a

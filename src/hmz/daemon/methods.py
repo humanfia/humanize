@@ -114,8 +114,13 @@ def _unanswered(call: Call, said: dict[str, Any]) -> None:
     del call, said
 
 
-def workspace(said: object) -> str:
+def workspace(said: object, *, made: bool = False) -> str:
     """A `workspace` parameter, as the daemon knows a workspace (Section 4.5.2).
+
+    Args:
+      said: As the call says it, `~` and all.
+      made: Whether a directory that is not there may still be named: the call looks up a
+        host already held, whose directory may have been removed under it.
 
     Raises:
       RpcError: 400 for a path that is not absolute, 404 for one naming no directory.
@@ -123,7 +128,7 @@ def workspace(said: object) -> str:
     path = Path(str(said)).expanduser()
     if not path.is_absolute():
         raise _refused(400, f"Say the workspace as a whole path, not {said}.")
-    if not path.is_dir():
+    if not made and not path.is_dir():
         raise _refused(404, f"There is no directory {path}.")
     return where.workspace(path)
 
@@ -317,7 +322,7 @@ class _Methods:
         return {**hosted.keys, "slot": hosted.slot}
 
     def _held(self, call: Call) -> Hosted:
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         slotted = slot(call.params.get("slot"))
         hosted = self._router.hosts.get(named, slotted)
         if hosted is None:
@@ -347,7 +352,11 @@ class _Methods:
         if params.get("scratch"):
             named = where.workspace(tempfile.mkdtemp(prefix="hmz-"))
         elif "workspace" in params:
-            named = workspace(params["workspace"])
+            # A host already held is attached to whatever became of its directory; one
+            # is started only in a directory that is there (Section 4.5.2).
+            named = workspace(params["workspace"], made=True)
+            if router.hosts.get(named, slot(params.get("slot"), new=True)) is None:
+                named = workspace(params["workspace"])
         else:
             raise _refused(-32602, "epic.attach needs workspace.")
         hosted = router.hosts.opened(named, slot(params.get("slot"), new=True))
@@ -413,7 +422,7 @@ class _Methods:
           RpcError: 400 for a slot that is not a chat's, 404 where no host holds it, and
             409 where its chat has folded away and its host gone with it.
         """
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         slotted = slot(call.params.get("slot"))
         if not slotted.startswith(("chat:", "ai:")):
             raise _refused(400, f"{slotted or '(the workspace)'} is not a chat slot.")

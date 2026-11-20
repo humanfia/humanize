@@ -30,6 +30,8 @@ test('a graph is said from its start along its edges, each node once', () => {
     { id: 'wait', start: false, text: 'codex/gpt-5', edges: '* → last' },
   ])
   assert.deepEqual(ordered(null), [])
+  // Each nous by the name it is given, where it is given one.
+  assert.deepEqual(graphSaid(GRAPH, (nous) => nous.toUpperCase()).map((one) => one.text), ['shuffle: CLAUDE@WORK/CLAUDE-OPUS-5:HIGH ×2, FAST, 1 at most', 'CLAUDE/CLAUDE-HAIKU-4-5', 'CODEX/GPT-5'])
 })
 
 test('a graph held by the form is written back as it was read', () => {

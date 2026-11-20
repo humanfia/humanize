@@ -1,31 +1,32 @@
 // The flows, in the two pages `/flow` opens on in the terminal interface. Installed: a card for
-// each flow on offer in a workspace, by where it came from, each installed out of an index with
+// each flow on offer on the daemon, by where it came from, each installed out of an index with
 // its release and any newer one -- and, one opened, what it declares, with starting it, updating
-// it, uninstalling it and copying it into the workspace whole. Flowverses: every index flows are
-// installed out of, fetched or written into -- not this project's flows or yours, which are no
-// index -- and, one opened, every flow it lists, every release of each, installing, switching
-// and uninstalling one; with adding, fetching and removing one. Nothing opens until chosen, and
-// what a card opens stands under the cards, so that none of them moves as it does.
+// it and uninstalling it. The page picks no workspace: an address that names one (a folder's
+// `Flows here`) adds that folder's own flows, and copying one into it whole. Flowverses: a tab
+// for every index flows are installed out of, fetched or written into -- not this project's
+// flows or yours, which are no index -- the first open with no press, showing every flow it
+// lists, every release of each, installing, switching and uninstalling one; with adding,
+// fetching and removing one. What a card or a tab opens stands under them, so that none moves.
 
 import { call, given, hash, poll, refresh } from '../api.js'
 import { stays } from '../app.js'
 import { confirming } from '../confirm.js'
-import { acting, fill, h, icon, pathText, permitted, problem } from '../dom.js'
-import { firstWorkspace, workspacePicker } from '../places.js'
-import { bar, tabbed } from '../shell.js'
+import { acting, fill, h, icon, iconButton, pathText, permitted, problem } from '../dom.js'
+import { harnessName, verseName } from '../names.js'
+import { missing, workspaces } from '../places.js'
+import { bar, picks, tabbed } from '../shell.js'
 import { copy, menuOn, toast } from '../ui.js'
 
 export function mount(root, { query }) {
   let tab = query.get('tab') === 'verses' ? 'verses' : 'installed'
   let chosen = query.get('flow') || ''
   let verse = query.get('verse') || ''
-  // A workspace's flows: its own and yours, and the flowverses installed.
-  let workspace = query.get('workspace') || ''
-  const place = workspacePicker(workspace, (path) => {
-    workspace = path
-    chosen = ''
-    watch()
-  }, { end: true })
+  // The folder whose own flows are listed with the rest, where the address names one: said in
+  // the bar, and picked nowhere on this page.
+  const workspace = query.get('workspace') || ''
+  // Whether that folder's directory went: said in the bar, and nothing is then copied into it.
+  let lost = false
+  const where = h('span', {}, workspace ? pathText(workspace) : null)
   const tabs = h('div', { class: 'flows-tabs' })
   const said = h('div', { class: 'flows-said', 'aria-live': 'polite' })
   const list = h('div', { class: 'gallery', 'data-hmz': 'flows' }, h('p', { class: 'loading', role: 'status' }, 'Reading the flows…'))
@@ -35,7 +36,7 @@ export function mount(root, { query }) {
     h(
       'div',
       { class: 'view' },
-      bar({ title: 'Flows', actions: [place.node] }),
+      bar({ title: 'Flows', sub: workspace ? where : null }),
       h('div', { class: 'view-scroll' }, h('div', { class: 'view-pad wide' }, tabs, said, list, shown)),
     ),
   )
@@ -49,28 +50,32 @@ export function mount(root, { query }) {
     stop()
     stopVerses()
     stays({ tab: tab === 'verses' ? 'verses' : '', workspace, flow: tab === 'installed' ? chosen : '', verse: tab === 'verses' ? verse : '' })
+    // Picked by the keys, a tab is drawn again: the focus stays on it.
+    const held = tabs.contains(document.activeElement)
     fill(tabs, tabbed([['installed', 'Installed'], ['verses', 'Flowverses']], tab, (key) => {
       tab = key
       watch()
     }))
+    if (held) tabs.querySelector('[aria-selected=true]').focus()
     stopVerses = poll('flowverses.list', {}, 30000, (data, error) => {
       if (data) verses = data
       drawUpdates(error)
       if (tab === 'verses') drawVerses(error)
     })
     if (tab === 'installed') {
-      stop = poll('flows.list', { workspace }, 30000, drawFlows)
+      stop = poll('flows.list', given({ workspace }), 30000, drawFlows)
       if (chosen) show(chosen)
       else open()
     } else {
       stop = () => {}
-      // Nothing of a flowverse is shown, nor the form adding one, until its card is chosen.
+      // The one the address names, or the first: the tabs, once read, open that one.
       if (verse) openVerse(verse)
-      else close()
+      else if (verses) openVerse(verses.verses[0].name)
+      else put()
     }
   }
 
-  /** Puts what a card opened under the cards, or, of nothing, nothing: where the view is, unmoved. */
+  /** Puts what a card or a tab opened under them, or, of nothing, nothing: where the view is, unmoved. */
   function put(...made) {
     shown.hidden = !made.length
     fill(shown, ...made)
@@ -93,19 +98,19 @@ export function mount(root, { query }) {
     scroller.scrollTop += Math.max(0, kept < 0 ? needed : Math.min(needed, kept))
   }
 
-  /** Says what changed, and reads again what it changed. */
-  async function change(method, body) {
+  /** Says what changed -- in the page's words where it has them, else the daemon's -- and reads again what it changed. */
+  async function change(method, body, done = '') {
     const answer = await call(method, given(body))
-    fill(said, h('p', { class: 'note', role: 'status' }, answer.said || 'Done.'))
+    fill(said, h('p', { class: 'note', role: 'status' }, done || answer.said || 'Done.'))
     refresh('flowverses.list')
     refresh('flows.list')
     return answer
   }
 
   /** What a card's menu does, said while it goes: then what changed, or a toast of why not. */
-  function busy(doing, method, body) {
+  function busy(doing, method, body, done) {
     fill(said, said.querySelector('[data-hmz=update-banner]'), h('p', { class: 'loading', role: 'status', 'data-hmz': 'busy' }, doing))
-    change(method, body).catch((error) => {
+    change(method, body, done).catch((error) => {
       said.querySelector('[data-hmz=busy]')?.remove()
       toast(error.message)
     })
@@ -130,6 +135,9 @@ export function mount(root, { query }) {
 
   // ------------------------------------------------------------------ installed
 
+  /** Where an epic of the flow is started: in the folder the address names, where it names one. */
+  const newEpic = (flow) => hash(`/new?flow=${encodeURIComponent(flow)}${workspace ? `&workspace=${encodeURIComponent(workspace)}` : ''}`)
+
   function drawFlows(data, error) {
     if (!data) {
       fill(list, error ? problem(error) : h('p', { class: 'loading' }, 'Reading the flows…'))
@@ -145,7 +153,7 @@ export function mount(root, { query }) {
         h(
           'section',
           { class: 'gallery-group' },
-          h('h2', { class: 'kicker' }, from),
+          h('h2', { class: 'kicker' }, verseName(from)),
           h(
             'div',
             { class: 'cards' },
@@ -165,14 +173,13 @@ export function mount(root, { query }) {
                 one.about ? h('span', { class: 'card-about' }, one.about) : null,
               )
               card.addEventListener('click', () => show(one.name))
-              const newEpic = hash(`/new?flow=${encodeURIComponent(one.name)}&workspace=${encodeURIComponent(workspace)}`)
               return menuOn(card, () => [
                 { head: one.name },
-                { label: 'New epic', glyph: 'new', href: newEpic },
+                { label: 'New epic', glyph: 'new', href: newEpic(one.name) },
                 { label: 'Show', glyph: 'open', act: () => show(one.name) },
                 '-',
                 updates[one.name] ? { label: `Update to ${updates[one.name].to}`, glyph: 'download', act: () => busy(`Updating ${one.name}…`, 'flowverses.install', { flow: one.name, version: updates[one.name].to }) } : null,
-                one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => busy(`Copying ${one.name}…`, 'flows.fork', { flow: one.name, workspace }) },
+                !workspace || lost || one.name.startsWith('@local/') ? null : { label: 'Copy here', glyph: 'copy', act: () => busy(`Copying ${one.name}…`, 'flows.fork', { flow: one.name, workspace }) },
                 { label: 'Copy name', glyph: 'copy', act: () => copy(one.name, 'Name copied') },
               ])
             }),
@@ -192,7 +199,7 @@ export function mount(root, { query }) {
     put(h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
     let flow
     try {
-      flow = await call('flows.get', { name, workspace })
+      flow = await call('flows.get', given({ name, workspace }))
     } catch (error) {
       if (chosen === name) open(problem(error))
       return
@@ -201,13 +208,13 @@ export function mount(root, { query }) {
     if (chosen !== name) return
     const installed = ((verses && verses.installed) || []).find((one) => one.flow === name)
     const update = ((verses && verses.updates) || []).find((one) => one.flow === name)
-    const actions = [h('a', { class: 'btn primary', href: hash(`/new?flow=${encodeURIComponent(flow.name)}&workspace=${encodeURIComponent(workspace)}`) }, icon('new'), 'New epic')]
+    const actions = [h('a', { class: 'btn primary', href: newEpic(flow.name) }, icon('new'), 'New epic')]
     if (update) actions.push(acting(`Update to ${update.to}`, () => change('flowverses.install', { flow: name, version: update.to }), { busy: 'Updating…' }))
-    if (!name.startsWith('@local/')) actions.push(acting('Copy here', () => change('flows.fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
+    if (workspace && !lost && !name.startsWith('@local/')) actions.push(acting('Copy here', () => change('flows.fork', { flow: name, workspace }), { kind: 'btn quiet', busy: 'Copying…' }))
     if (installed) actions.push(confirming({ label: 'Uninstall', ask: `Uninstall ${name}?`, yes: 'Uninstall', no: 'Cancel', act: () => change('flowverses.uninstall', { flow: name }) }))
     const params = Object.entries(flow.params.properties || {})
     open(
-      h('header', {}, h('div', {}, h('div', { class: 'kicker' }, installed ? `${installed.verse} · ${installed.version}` : 'flow'), h('h2', {}, flow.name)), h('div', { class: 'row' }, actions)),
+      h('header', {}, h('div', {}, h('div', { class: 'kicker' }, installed ? `${verseName(installed.verse)} · ${installed.version}` : 'flow'), h('h2', {}, flow.name)), h('div', { class: 'row' }, actions)),
       flow.description ? h('p', { class: 'prose' }, flow.description) : null,
       h(
         'dl',
@@ -217,7 +224,7 @@ export function mount(root, { query }) {
         h('dt', {}, 'resumable'),
         h('dd', {}, flow.resumable ? (flow.resumes ? 'yes, with an epic here to resume' : 'yes') : 'no'),
         h('dt', {}, 'agents'),
-        h('dd', {}, flow.agents.length ? flow.agents.map((role) => h('div', {}, h('b', {}, role.name), role.auto ? h('span', { class: 'dim' }, ' (a person, answering here)') : null, role.harness ? [' ', h('span', { class: 'chip' }, role.harness)] : null, role.auto ? null : h('div', { class: 'dim' }, permitted(role.permission)))) : '—'),
+        h('dd', {}, flow.agents.length ? flow.agents.map((role) => h('div', {}, h('b', {}, role.name), role.auto ? h('span', { class: 'dim' }, ' (a person, answering here)') : null, role.harness ? [' ', h('span', { class: 'chip', title: role.harness }, harnessName(role.harness))] : null, role.auto ? null : h('div', { class: 'dim' }, permitted(role.permission)))) : '—'),
         h('dt', {}, 'environments'),
         h('dd', {}, flow.envs.length ? flow.envs.map((role) => h('div', {}, h('b', {}, role.name), role.auto ? h('span', { class: 'dim' }, ' (this directory)') : null)) : '—'),
         h('dt', {}, 'params'),
@@ -233,66 +240,69 @@ export function mount(root, { query }) {
       fill(list, error ? problem(error) : h('p', { class: 'loading' }, 'Reading the flowverses…'))
       return
     }
-    fill(
-      list,
-      h(
-        'div',
-        { class: 'cards', 'data-hmz': 'verses' },
-        verses.verses.map((one) => {
-          const card = h(
-            'button',
-            { class: ['card', one.name === verse && 'chosen'], type: 'button', 'data-verse': one.name, 'aria-pressed': String(one.name === verse) },
-            h('span', { class: 'card-mark', 'aria-hidden': 'true' }, one.name.slice(0, 1).toUpperCase()),
-            h(
-              'span',
-              { class: 'card-name' },
-              one.name,
-              one.fixed ? h('span', { class: 'node-tag' }, 'Built in') : null,
-              one.edited ? h('span', { class: 'node-tag' }, 'Edited') : null,
-              !one.fetched ? h('span', { class: 'node-tag' }, 'Not fetched') : null,
-              one.installed ? h('span', { class: 'node-tag' }, `${one.installed} installed`) : null,
-            ),
-            // Where it is fetched from, its end kept: a path's start says the least of it.
-            h('span', { class: 'card-about' }, one.url ? pathText(one.url) : 'local'),
-          )
-          // The one open closes when chosen again.
-          card.addEventListener('click', () => (one.name === verse ? close() : openVerse(one.name)))
-          return menuOn(card, () => [
-            { head: one.url || one.name },
-            { label: 'Open', glyph: 'open', act: () => openVerse(one.name) },
-            !one.fixed || one.name === 'official' ? { label: 'Fetch', glyph: 'resume', act: () => busy(`Fetching ${one.name}…`, 'flowverses.fetch', { name: one.name }) } : null,
-            one.url ? { label: 'Copy URL', glyph: 'copy', act: () => copy(one.url, 'URL copied') } : null,
-          ])
-        }),
-        // Its form, too, closes when chosen again.
-        h('button', { class: 'card card-add', type: 'button', 'data-hmz': 'add-verse', 'aria-pressed': String(adding()), onclick: (event) => {
-          const was = adding()
-          close()
-          if (was) return
-          event.currentTarget.setAttribute('aria-pressed', 'true')
-          open(addVerse())
-        } }, h('span', { class: 'card-mark', 'aria-hidden': 'true' }, icon('plus')), h('span', { class: 'card-name' }, 'Add flowverse')),
-      ),
-    )
+    // A tab says the name alone: where one is fetched from, and what state it is in, is said
+    // once, in what it opens.
+    const row = tabbed(verses.verses.map((one) => [one.name, verseName(one.name)]), verse, openVerse)
+    row.classList.add('verse-tabs')
+    row.setAttribute('aria-label', 'Flowverses')
+    row.dataset.hmz = 'verses'
+    verses.verses.forEach((one, at) => {
+      const tab = row.children[at]
+      tab.dataset.verse = one.name
+      tab.id = `verse-tab-${at}`
+      // A long name is cut short on its tab, and said whole where it is pointed at.
+      tab.title = verseName(one.name)
+      menuOn(tab, () => [
+        { head: one.url || verseName(one.name) },
+        { label: 'Open', glyph: 'open', act: () => openVerse(one.name) },
+        !one.fixed || one.name === 'official' ? { label: 'Fetch', glyph: 'resume', act: () => busy(`Fetching ${verseName(one.name)}…`, 'flowverses.fetch', { name: one.name }, fetched(one.name)) } : null,
+        one.url ? { label: 'Copy URL', glyph: 'copy', act: () => copy(one.url, 'URL copied') } : null,
+      ])
+    })
+    // Its form closes when chosen again, onto the first flowverse.
+    const add = iconButton('plus', 'Add flowverse', { 'data-hmz': 'add-verse', 'aria-pressed': String(adding()), onclick: () => {
+      if (adding()) return openVerse(verses.verses[0].name)
+      verse = ''
+      stays({ tab: 'verses', workspace })
+      choose('')
+      add.setAttribute('aria-pressed', 'true')
+      put(addVerse())
+    } })
+    fill(list, h('div', { class: 'verse-bar' }, row, add))
+    labelled()
+    // No press is asked for: the first is open, save where the form adding one is -- and in
+    // place of one the address names that is not listed.
+    if (!adding() && (!verse || (missed === verse && !listed(verse)))) openVerse(verses.verses[0].name)
+  }
+
+  /** Whether a flowverse of a name is among those listed. */
+  const listed = (name) => verses.verses.some((one) => one.name === name)
+  /** The flowverse asked for last that could not be read. */
+  let missed = ''
+  /** What is said once a flowverse is fetched, by the name the page gives it. */
+  const fetched = (name) => `Fetched ${verseName(name)}.`
+
+  /** Says what is under the tabs is the panel of the tab picked, where one is. */
+  function labelled() {
+    const tab = list.querySelector('[role=tab][data-verse][aria-selected=true]')
+    if (tab) {
+      shown.setAttribute('role', 'tabpanel')
+      shown.setAttribute('aria-labelledby', tab.id)
+    } else {
+      shown.removeAttribute('role')
+      shown.removeAttribute('aria-labelledby')
+    }
   }
 
   /** Whether the form adding a flowverse is what is shown. */
   const adding = () => Boolean(shown.querySelector('[data-hmz=add-verse-form]'))
 
-  /** Marks the card of the flowverse called `name` chosen, and no other: Add flowverse's neither. */
+  /** Marks the tab of the flowverse called `name` picked, and no other: Add flowverse's neither. */
   function choose(name) {
-    for (const card of list.querySelectorAll('.card[data-verse], [data-hmz=add-verse]')) {
-      card.classList.toggle('chosen', card.dataset.verse === name)
-      card.setAttribute('aria-pressed', String(card.dataset.verse === name))
-    }
-  }
-
-  /** Shows no flowverse, and nothing in its place. */
-  function close() {
-    verse = ''
-    stays({ tab: 'verses', workspace })
-    choose('')
-    open()
+    const row = list.querySelector('[data-hmz=verses]')
+    if (row) picks(row, name)
+    labelled()
+    list.querySelector('[data-hmz=add-verse]')?.setAttribute('aria-pressed', 'false')
   }
 
   function addVerse() {
@@ -319,30 +329,55 @@ export function mount(root, { query }) {
     return form
   }
 
+  // What a tab opens stands right under the tabs, and is put there unscrolled: it is there on
+  // arrival, and a long index must not carry the tabs out of the view.
   async function openVerse(name) {
     verse = name
+    missed = ''
     stays({ tab: 'verses', workspace, verse: name })
     choose(name)
-    put(h('p', { class: 'loading', role: 'status' }, `Reading ${name}…`))
+    put(h('p', { class: 'loading', role: 'status' }, `Reading ${verseName(name)}…`))
     let index
     try {
       index = await call('flowverses.get', { name })
     } catch (error) {
-      if (verse === name) open(problem(error))
+      if (verse !== name) return
+      // One that is not listed gives way to the first, at once or once they are read.
+      if (verses && !listed(name)) return openVerse(verses.verses[0].name)
+      missed = name
+      put(problem(error))
       return
     }
     if (verse !== name) return
-    const actions = []
-    if (!index.fixed || name === 'official') actions.push(acting(index.fetched ? 'Fetch' : 'Fetch now', async () => {
-      await change('flowverses.fetch', { name })
-      openVerse(name)
-    }, { kind: 'btn', busy: 'Fetching…' }))
-    if (!index.fixed) actions.push(confirming({ label: 'Remove', ask: `Remove ${name} and every flow installed out of it?`, yes: 'Remove', no: 'Cancel', act: async () => {
+    // Fetching it again is the arrow right after its name: busy itself while it goes, and said
+    // so where nothing moves for it, so that the arrow stays under what pressed it.
+    const fetching = !index.fixed || name === 'official' ? iconButton('resume', 'Fetch', { 'data-hmz': 'fetch-verse' }) : null
+    const going = h('span', { class: 'sr-only', role: 'status', 'data-hmz': 'fetching-verse' })
+    fetching?.addEventListener('click', async () => {
+      if (fetching.getAttribute('aria-busy')) return
+      fetching.setAttribute('aria-busy', 'true')
+      going.textContent = `Fetching ${verseName(name)}…`
+      try {
+        await change('flowverses.fetch', { name }, fetched(name))
+        if (verse !== name) return
+        // What it opened is drawn again, the arrow with it: the focus it held stays on it.
+        const held = document.activeElement === fetching
+        await openVerse(name)
+        if (held && verse === name) shown.querySelector('[data-hmz=fetch-verse]')?.focus()
+      } catch (error) {
+        toast(error.message)
+      } finally {
+        going.textContent = ''
+        fetching.removeAttribute('aria-busy')
+      }
+    })
+    const remove = index.fixed ? null : confirming({ label: 'Remove', ask: `Remove ${name} and every flow installed out of it?`, yes: 'Remove', no: 'Cancel', act: async () => {
       await change('flowverses.remove', { name })
-      close()
-    } }))
-    open(
-      h('header', {}, h('div', {}, h('div', { class: 'kicker' }, 'flowverse'), h('h2', {}, name)), h('div', { class: 'row' }, actions)),
+      // The first is Humanize's own, which is never removed.
+      openVerse(verses.verses[0].name)
+    } })
+    put(
+      h('header', {}, h('div', { class: 'verse-head' }, h('h2', { title: verseName(name) }, verseName(name)), fetching, fetching ? going : null), remove ? h('div', { class: 'row' }, remove) : null),
       h('p', { class: 'dim mono' }, index.url || 'local'),
       index.edited ? h('p', { class: 'note' }, 'Something is written into it: fetching resets it to what its repository says.') : null,
       index.flows.length
@@ -375,24 +410,23 @@ export function mount(root, { query }) {
       'div',
       { class: 'release', 'data-hmz': 'release', 'data-flow': one.flow },
       h('div', {}, h('b', {}, one.listed), one.installed ? h('span', { class: 'node-tag' }, `${one.installed} installed`) : null, about ? h('div', { class: 'dim' }, about) : null),
-      h('div', { class: 'row' }, pick, go, remove),
+      // The release and what installs it end the line, whatever else it offers standing before them.
+      h('div', { class: 'row' }, remove, pick, go),
     )
   }
 
-  // A workspace named by none of the address is the one offered first.
-  let left = false
-  if (workspace) watch()
-  else
-    firstWorkspace().then(
-      (to) => {
-        if (left) return
-        workspace = workspace || to
-        watch()
-      },
-      (error) => !left && fill(list, problem(error)),
-    )
+  if (workspace) {
+    workspaces(true)
+      .then((answer) => {
+        if (!(lost = missing(workspace, answer))) return
+        where.append(h('span', { class: 'folder-missing', 'data-hmz': 'folder-missing', title: `This folder is no longer on this machine: ${workspace}` }, ' (missing)'))
+        // What is open already offered copying into it: drawn again, it does not.
+        if (tab === 'installed' && chosen) show(chosen)
+      })
+      .catch(() => {})
+  }
+  watch()
   return () => {
-    left = true
     stop()
     stopVerses()
   }

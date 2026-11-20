@@ -348,10 +348,6 @@ input.title-edit {
   min-height: 0;
 }
 
-.harness-tag {
-  font-family: var(--mono);
-}
-
 .harness-note {
   display: flex;
   flex-wrap: wrap;

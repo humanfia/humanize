@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, stoppable, toggled, unmoved, usageSaid } from '../../../../src/hmz/web/static/desk.js'
+import { ADDS, NO_FOLDER, PANES, added, addsOf, chipNamed, dismissing, nextSteps, paneOf, paneSaid, standing, stepKey, stoppable, thousands, toggled, unmoved, usageRows, usageSaid, usedLately } from '../../../../src/hmz/web/static/desk.js'
 
 test('the Add menu offers the four prefixes a line starts with, each a short label', () => {
   assert.deepEqual(ADDS.map((one) => one.sigil), ['@', '/', '$', '!'])
@@ -68,7 +68,7 @@ test('a chip is called by what it picks and what is picked', () => {
   assert.equal(chipNamed('Environment', 'Local'), 'Environment: Local')
   assert.equal(chipNamed('Usage', '$0.42'), 'Usage: $0.42')
   assert.equal(chipNamed('Folder', 'No folder'), 'Folder: No folder')
-  assert.equal(chipNamed('Model', 'Haiku 4.5 High'), 'Model: Haiku 4.5 High')
+  assert.equal(chipNamed('Nous', 'Claude Code Haiku 4.5 High'), 'Nous: Claude Code Haiku 4.5 High')
   assert.equal(chipNamed('Permissions', 'Edit this folder'), 'Permissions: Edit this folder')
   assert.equal(chipNamed('Usage', ''), 'Usage')
 })
@@ -92,6 +92,70 @@ test('the usage chip says what was spent where priced, else the tokens, else not
   assert.equal(usageSaid(null, { money: '', tokens: '9k' }), '9k tokens')
   assert.equal(usageSaid(null, { money: '$0.00', tokens: '0' }), '')
   assert.equal(usageSaid(null, null), '')
+})
+
+test('a count of tokens is cut short as the runs figures cut one', () => {
+  assert.deepEqual([0, 999.4, 1000, 12345, 1e6, 2345678].map(thousands), ['0', '999', '1.0k', '12.3k', '1.00M', '2.35M'])
+})
+
+test('a chat going says what it spent, its tokens, its time and each kind with its share', () => {
+  const reckoning = [
+    { kind: 'input', tokens: 12000, whole: true },
+    { kind: 'output', tokens: 3000, whole: true },
+    { kind: 'cache_read', tokens: 85000, whole: true },
+  ]
+  const rows = usageRows({ tally: ['input 12.0k · output 3.0k · cache_read 85.0k', '$0.42 · 80 out/s'], lasting: '3m 12s', reckoning }, null)
+  assert.deepEqual(rows.slice(0, 3), [
+    { label: 'Spent', value: '$0.42' },
+    { label: 'Tokens', value: '100.0k' },
+    { label: 'Time', value: '3m 12s' },
+  ])
+  assert.deepEqual(rows.slice(3).map((one) => [one.label, one.value]), [['Input', '12.0k'], ['Output', '3.0k'], ['Cache read', '85.0k']])
+  assert.deepEqual(rows.slice(3).map((one) => one.share), [0.12, 0.03, 0.85])
+  assert.equal(rows.slice(0, 3).some((one) => 'share' in one), false)
+})
+
+test('a chat going nobody prices says no money, and a floor stays marked', () => {
+  const reckoning = [
+    { kind: 'input', tokens: 20, whole: false },
+    { kind: 'output', tokens: 14, whole: true },
+  ]
+  const rows = usageRows({ tally: ['input 20+ · output 14', '3 out/s'], lasting: '41s', reckoning }, { money: '$9.00' })
+  assert.deepEqual(rows.map((one) => one.value), ['—', '34+', '41s', '20+', '14'])
+  // Counted in a lump, of no kind: the tokens as the tally says them, and no bars.
+  assert.deepEqual(usageRows({ tally: ['12.4k tokens', '$0.10+ · 9 out/s'], lasting: '2s', reckoning: [] }, null), [
+    { label: 'Spent', value: '$0.10+' },
+    { label: 'Tokens', value: '12.4k' },
+    { label: 'Time', value: '2s' },
+  ])
+})
+
+test('a chat folded away says what was written down, and one that spent nothing says nothing', () => {
+  assert.deepEqual(usageRows(null, { money: '$1.20', tokens: '9.0k', worked: '2m 3s' }), [
+    { label: 'Spent', value: '$1.20' },
+    { label: 'Output tokens', value: '9.0k' },
+    { label: 'Time working', value: '2m 3s' },
+  ])
+  assert.deepEqual(usageRows({ tally: [] }, { money: '', tokens: '28', worked: '' }).map((one) => one.value), ['—', '28', '—'])
+  assert.deepEqual(usageRows(null, { money: '$0.00', tokens: '0', worked: '0s' }), [])
+  assert.deepEqual(usageRows({ tally: [] }, null), [])
+  assert.deepEqual(usageRows(null, null), [])
+})
+
+test('what a workspace used lately is today, the last day read, and the whole of the 7', () => {
+  const data = {
+    days: [{ money: '$3.00', tokens: '40.0k' }, { money: '$1.20', tokens: '9.0k' }],
+    whole: { runs: 14, money: '$8.40', tokens: '120.4k' },
+  }
+  assert.deepEqual(usedLately(data), [
+    { label: 'Today (UTC)', value: '$1.20', about: '9.0k output tokens' },
+    { label: 'Last 7 days', value: '$8.40', about: '120.4k output tokens', sub: 'Over 14 chats and epics' },
+  ])
+  assert.equal(usedLately({ days: [], whole: { runs: 1, money: '$0.10', tokens: '5' } })[1].sub, 'Over 1 chat or epic')
+  assert.deepEqual(usedLately({ days: [], whole: { runs: 0 } }), [
+    { label: 'Today (UTC)', value: '$0.00', about: '0 output tokens' },
+    { label: 'Last 7 days', value: '$0.00', about: '0 output tokens', sub: 'No chats or epics yet' },
+  ])
 })
 
 test('how a chat stands is said only while it answers, waits or has failed', () => {

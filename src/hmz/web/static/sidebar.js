@@ -9,6 +9,7 @@
 
 import { call, daemon, exported, given, hash, hello, known, onState, poll, reconnect, refresh, stateOf, toDaemon } from './api.js'
 import { ask } from './held.js'
+import { harnessName } from './names.js'
 import { pick } from './importing.js'
 import { chain } from './layers.js'
 import { copy, menuButton, menuOn, posted, toast } from './ui.js'
@@ -16,10 +17,10 @@ import { ago, fill, flowName, h, headline, icon, iconButton, tone, when } from '
 import { chatActions, retitling } from './chat-actions.js'
 import { chatRow, epicRow, harnessRow, pathOf } from './chats.js'
 import { chatting, markOf, sessionsOf } from './epic.js'
-import { bell, readOf, unreadOn } from './notifications.js'
-import { nameOf } from './places.js'
-import { CHAT_SAID, chatState, epicSaid, rowTitle, wording } from './sidebar-rows.js'
-import { DEFAULTS, GROUPS, SHOWS, SORTS, WIDTHS, arranged, paged, toggled, viewOf, viewText, widthOf } from './sidebar-view.js'
+import { notifying } from './notifications.js'
+import { missing, nameOf } from './places.js'
+import { CHAT_SAID, chatState, epicSaid, rowTitle, shortcut, wording } from './sidebar-rows.js'
+import { DEFAULTS, GROUPS, SHOWS, SORTS, WIDTHS, arranged, paged, shownFolders, toggled, viewOf, viewText, widthOf } from './sidebar-view.js'
 import { choice, dragged, keep, kept, menu, settleSidebar, submenu, toggleSidebar } from './shell.js'
 
 /** How many chats, and how many epics, a page of the list holds. */
@@ -41,7 +42,7 @@ const VIEW = 'hmz-list'
 const touched = matchMedia('(hover: none)')
 
 /** A row by the daemon it is of, as two daemons may name theirs alike. */
-const markKey = (name) => `${daemon()} ${name}`
+const markKey = (name, of = daemon()) => `${of} ${name}`
 
 /** The names kept under a key, of whichever daemon. */
 function marks(key) {
@@ -60,14 +61,14 @@ function marksHere(key) {
 }
 
 /** Keeps a row under a key, or forgets it there, and says so for the list drawn. */
-function mark(key, name, on) {
-  const now = toggled(marks(key), markKey(name), on)
+function mark(key, name, on, of) {
+  const now = toggled(marks(key), markKey(name, of), on)
   keep(key, now.length ? JSON.stringify(now) : null)
   window.dispatchEvent(new CustomEvent('hmz:list'))
 }
 
-/** Whether a row is unread: marked so here, or with a notification unread. */
-const unreadHere = (name) => marksHere(UNREAD).has(name) || unreadOn(daemon()).epics.has(name)
+/** Whether a row is unread: marked so here, by its menu or by a notice of it. */
+const unreadHere = (name) => marksHere(UNREAD).has(name)
 
 /**
  * The splitter on the sidebar's right edge: dragged, or moved by the arrow keys, it sizes the
@@ -136,29 +137,37 @@ export function mountSidebar(root, context, where) {
     updates.title = count ? `${count} flow${count === 1 ? ' has' : 's have'} a newer release` : ''
   })
   const bar = daemonBar()
-  // The keys the shortcuts are pressed with, as this system writes them.
+  // The keys the shortcuts are pressed with, as this system writes them: at a row's end a key
+  // apiece, and off a Mac a plus between them. They are drawn for the eye; the row says them to
+  // a reader by `aria-keyshortcuts`, and is named by its label alone.
   const mac = /Mac|iPhone|iPad/.test(navigator.platform)
+  const keys = (which) =>
+    h(
+      'kbd',
+      { class: 'side-keys', 'data-os': mac ? 'mac' : 'pc', 'aria-hidden': 'true' },
+      shortcut(which, mac).map((key, at) => [at && !mac ? '+' : null, h('kbd', {}, key)]),
+    )
+  const pressed = (which) => [mac ? 'Meta' : 'Control', ...shortcut(which, false).slice(1)].join('+')
   fill(
     root,
     dragged(
       h(
         'div',
         { class: 'side-top' },
-        // The mark first, then what a desktop app's title row holds, in its order; the bell last.
+        // The mark first, then what a desktop app's title row holds, in its order.
         h('a', { class: 'brand', href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-label': 'Humanize, a new chat' }, h('img', { src: '/mark.svg', alt: '', width: '24', height: '24' }), h('strong', {}, 'humanize')),
         iconButton('sidebar', 'Hide sidebar', { class: 'side-fold', onclick: () => toggleSidebar(false), 'aria-controls': 'sidebar' }),
         iconButton('back', 'Back', { class: 'side-back', 'data-hmz': 'back', onclick: () => history.back() }),
         iconButton('forward', 'Forward', { class: 'side-forward', 'data-hmz': 'forward', onclick: () => history.forward() }),
-        bell(where),
       ),
     ),
     h(
       'div',
       { class: 'side-nav' },
       // A new chat first, as a chat app's sidebar begins; a new epic of a flow apart from it.
-      h('a', { href: hash('/new/chat'), 'data-nav': 'new/chat' }, icon('compose'), h('span', {}, 'New chat'), h('kbd', {}, mac ? '⇧⌘O' : 'Ctrl+Shift+O')),
+      h('a', { href: hash('/new/chat'), 'data-nav': 'new/chat', 'aria-keyshortcuts': pressed('chat') }, icon('compose'), h('span', {}, 'New chat'), keys('chat')),
       h('a', { href: hash('/new'), 'data-nav': 'new' }, icon('epic'), h('span', {}, 'New epic')),
-      h('a', { href: hash('/search'), 'data-nav': 'search' }, icon('search'), h('span', {}, 'Search'), h('kbd', {}, mac ? '⌘K' : 'Ctrl+K')),
+      h('a', { href: hash('/search'), 'data-nav': 'search', 'aria-keyshortcuts': pressed('search') }, icon('search'), h('span', {}, 'Search'), keys('search')),
       h('a', { href: hash('/flows'), 'data-nav': 'flows' }, icon('flows'), h('span', {}, 'Flows'), updates),
     ),
     h('div', { class: 'side-scroll' }, list),
@@ -362,11 +371,10 @@ export function mountSidebar(root, context, where) {
       else link.removeAttribute('aria-current')
     }
     const pins = marksHere(PINNED)
-    const manual = marksHere(UNREAD)
-    const unread = unreadOn(daemon())
-    const unseen = (run) => manual.has(run.name) || unread.epics.has(run.name)
+    const unread = marksHere(UNREAD)
+    const unseen = (run) => unread.has(run.name)
     // The rows pinned first, then every group `Group and sort` makes of the rest.
-    const groups = arranged({ workspaces: places ? places.workspaces : [], runs: [...data.runs, ...strayed(pins)], view, pinned: pins, chat: chatting })
+    const groups = arranged({ workspaces: shownFolders(places ? places.workspaces : []), runs: [...data.runs, ...strayed(pins)], view, pinned: pins, chat: chatting })
     const scrolled = list.parentElement.scrollTop
     const chosen = parts[0] === 'new' ? query.get('workspace') || '' : ''
     const more = data.runs.length < data.total && !dry
@@ -378,6 +386,8 @@ export function mountSidebar(root, context, where) {
         const folder = group.kind === 'folder' && Boolean(group.path)
         const open = !shut.has(group.key)
         const called = folder ? nameOf(group.path) : group.label
+        // A folder whose directory went keeps its rows, which are still read, and starts nothing.
+        const lost = folder && gone(group.path)
         // After its chats and epics, the sessions each harness had of its own there, where listed.
         const { rows, more: rest } = paged(folder && open ? [...group.runs, ...outsiders(group.path)] : group.runs, shown.get(group.key), here)
         hidden += rest
@@ -386,7 +396,7 @@ export function mountSidebar(root, context, where) {
         const toggle = h(
           'button',
           { class: 'side-toggle', type: 'button', 'aria-expanded': String(open) },
-          h('span', { class: 'side-folder-name', id: `side-group-${at}`, title: folder ? group.path : null }, h('span', { class: 'side-label' }, called)),
+          h('span', { class: 'side-folder-name', id: `side-group-${at}`, title: folder ? (lost ? `${GONE}: ${group.path}` : group.path) : null }, h('span', { class: 'side-label' }, called), lost ? h('span', { class: 'side-gone', 'data-hmz': 'folder-missing' }, 'missing') : null),
           icon('chevron'),
         )
         /** Gives the focus back to something of this group, once the list was drawn again. */
@@ -405,11 +415,11 @@ export function mountSidebar(root, context, where) {
         const fresh = folder ? `/new/chat?workspace=${encodeURIComponent(group.path)}` : '/new/chat'
         const head = h(
           'div',
-          { class: ['side-folder', folder && chosen === group.path && 'current'] },
+          { class: ['side-folder', folder && chosen === group.path && 'current', lost && 'gone'] },
           h('h3', { class: 'side-folder-head' }, toggle),
-          !open && (group.runs.some(unseen) || (folder && unread.workspaces.has(group.path))) ? marked() : null,
+          !open && group.runs.some(unseen) ? marked() : null,
           sort,
-          iconButton('plus', folder ? `New chat in ${called}` : 'New chat', { class: 'side-add', 'data-hmz': 'group-add', onclick: () => (location.hash = hash(fresh)) }),
+          lost ? null : iconButton('plus', folder ? `New chat in ${called}` : 'New chat', { class: 'side-add', 'data-hmz': 'group-add', onclick: () => (location.hash = hash(fresh)) }),
         )
         if (folder) menuOn(head, () => folderMenu(group.path, group.runs.length, { label: open ? 'Collapse' : 'Expand', glyph: 'chevron', act: () => toggle.click() }))
         // What the group does not show, brought by its last row: all of it that was read, and,
@@ -488,14 +498,25 @@ export function mountSidebar(root, context, where) {
     found?.focus({ preventScroll: true })
   }
 
-  /** What a folder offers, on its heading or on its row among `Folders`: `fold` folds a heading. */
+  /** What is said of a folder whose directory went. */
+  const GONE = 'This folder is no longer on this machine'
+  /** Whether a folder's directory went, as the daemon answered last. */
+  const gone = (path) => missing(path, places)
+
+  /**
+   * What a folder offers, on its heading or on its row among `Folders`: `fold` folds a heading.
+   * One whose directory went offers nothing that starts there -- no chat, no epic, no flows.
+   */
   function folderMenu(path, count, fold = null) {
     const at = encodeURIComponent(path)
+    const lost = gone(path)
     return [
       { head: path, path: true },
-      { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
-      { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${at}`) },
-      { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${at}`) },
+      // Under its path, which is cut short from its start: said whole.
+      lost ? { head: `${GONE}.` } : null,
+      lost ? null : { label: 'New chat here', glyph: 'thread', href: hash(`/new/chat?workspace=${at}`) },
+      lost ? null : { label: 'New epic here', glyph: 'new', href: hash(`/new?workspace=${at}`) },
+      lost ? null : { label: 'Flows here', glyph: 'flows', href: hash(`/flows?workspace=${at}`) },
       { label: 'Search here', glyph: 'search', href: hash(`/search?workspace=${at}`) },
       '-',
       { label: 'Copy path', glyph: 'copy', act: () => copy(path, 'Path copied') },
@@ -510,10 +531,17 @@ export function mountSidebar(root, context, where) {
   /** A folder as a row of `Folders`, where the list is not grouped by them: a new chat in it, and its menu. */
   function place(folder) {
     const more = iconButton('more', 'More options', { class: 'side-menu', 'data-hmz': 'row-menu' })
+    // One whose directory went opens what it still holds, searched, where another opens a new chat.
+    const lost = gone(folder.path)
     const row = h(
       'div',
-      { class: 'side-run side-place' },
-      h('a', { href: hash(`/new/chat?workspace=${encodeURIComponent(folder.path)}`), title: folder.path, 'data-hmz': 'place' }, h('span', { class: 'side-label' }, nameOf(folder.path))),
+      { class: ['side-run side-place', lost && 'gone'] },
+      h(
+        'a',
+        { href: hash(`/${lost ? 'search' : 'new/chat'}?workspace=${encodeURIComponent(folder.path)}`), title: lost ? `${GONE}: ${folder.path}` : folder.path, 'data-hmz': 'place' },
+        h('span', { class: 'side-label' }, nameOf(folder.path)),
+        lost ? h('span', { class: 'side-status side-gone', 'data-hmz': 'folder-missing' }, 'missing') : null,
+      ),
       more,
     )
     menuOn(row, () => folderMenu(folder.path, folder.count))
@@ -526,13 +554,13 @@ export function mountSidebar(root, context, where) {
     const at = run.name === here
     const link = h(
       'a',
-      { href: hash(pathOf(run)), 'aria-current': at ? 'page' : null, title: `${run.task}\n${run.harness} session · ${when(run.updated)}`, 'data-hmz': 'harness-session', 'data-harness': run.harness },
+      { href: hash(pathOf(run)), 'aria-current': at ? 'page' : null, title: `${run.task}\n${harnessName(run.harness)} session · ${when(run.updated)}`, 'data-hmz': 'harness-session', 'data-harness': run.harness },
       h('span', { class: 'side-label' }, headline(run.task)),
-      h('span', { class: 'side-status side-harness-name' }, run.harness),
+      h('span', { class: 'side-status side-harness-name' }, harnessName(run.harness)),
     )
     const row = h('div', { class: ['side-run', 'side-chat', 'side-harness', at && 'current'] }, link)
     menuOn(row, () => [
-      { head: `${run.harness} session` },
+      { head: `${harnessName(run.harness)} session` },
       { label: 'Open', glyph: 'open', href: hash(pathOf(run)) },
       '-',
       { label: 'Copy first message', glyph: 'copy', act: () => copy(run.task, 'Message copied') },
@@ -655,7 +683,7 @@ export function mountSidebar(root, context, where) {
               { class: ['side-agent', at && 'current'], href: `${base}/agents/${encodeURIComponent(agent.name)}`, 'aria-current': at ? 'page' : null, title: `${agent.role} · ${agent.runs}`, 'data-hmz': 'agent' },
               icon('agent'),
               h('span', { class: 'side-label' }, agent.name),
-              h('span', { class: 'side-meta mono' }, agent.runs.split('/')[0]),
+              h('span', { class: 'side-meta' }, harnessName(agent.runs.split(/[@/]/)[0])),
             ),
             () => [
               { head: `${agent.role} · ${agent.runs}` },
@@ -706,17 +734,27 @@ export function mountSidebar(root, context, where) {
   }
 
   watch()
+  // A notice of a chat or epic the page is not on marks its row, of whichever daemon.
+  notifying(where, (of, name, on = true) => name && mark(UNREAD, name, on, of))
+  // A row marked unread here is read once the page comes to it: as it is loaded, as its address
+  // changes, and as the view drawn takes its address.
+  const seen = () => {
+    const { parts } = where()
+    if ((parts[0] === 'epics' || parts[0] === 'chats') && marksHere(UNREAD).has(parts[1])) mark(UNREAD, parts[1], false)
+  }
+  seen()
   window.addEventListener('hashchange', () => {
     // The links that stay go on to the daemon the address names, as it names it.
     for (const link of root.querySelectorAll('.side-top .brand, .side-nav a')) link.setAttribute('href', hash(`/${link.dataset.nav || 'new'}`))
-    // A row marked unread here is read once the page comes to it.
-    const { parts } = where()
-    if ((parts[0] === 'epics' || parts[0] === 'chats') && marksHere(UNREAD).has(parts[1])) mark(UNREAD, parts[1], false)
+    seen()
     if (data) draw()
   })
-  // The view drawn took another address -- a chat just started, named -- whose row is marked.
-  window.addEventListener('hmz:renamed', () => data && draw())
-  window.addEventListener('hmz:notifications', () => data && draw())
+  // The view drawn took another address -- a chat just started, an epic going, named -- whose
+  // row is marked.
+  window.addEventListener('hmz:renamed', () => {
+    seen()
+    if (data) draw()
+  })
   window.addEventListener('hmz:seen', () => data && draw())
   // A harness session was continued as a chat: what was read of them is read again.
   window.addEventListener('hmz:harness', () => {
@@ -752,7 +790,7 @@ export function mountSidebar(root, context, where) {
   })
 }
 
-/** The mark of a notification unread, on its chat or epic and on the folded workspace of it. */
+/** The mark of a notice unread, on its chat or epic and on the folded workspace that lists it. */
 function marked() {
   return h('span', { class: 'side-unread', 'data-hmz': 'unread', role: 'img', 'aria-label': 'Unread', title: 'Unread' })
 }
@@ -787,10 +825,7 @@ export function epicMenu(run, { rename = null } = {}) {
     {
       label: unseen ? 'Mark as read' : 'Mark as unread',
       glyph: 'bell',
-      act: () => {
-        if (unseen) readOf(daemon(), run.name)
-        mark(UNREAD, run.name, !unseen)
-      },
+      act: () => mark(UNREAD, run.name, !unseen),
     },
     acts.rename,
     '-',

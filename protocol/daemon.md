@@ -572,7 +572,12 @@ does not take MUST be refused as Section 6.6.3 of [WIRE] states.
 **4.5.2** `workspace` MUST name a **workspace** by an absolute path of the daemon's machine, `~`
 expanded there; one that is not absolute after that MUST be refused 400, `Say the workspace as a
 whole path, not <workspace>.`, and one naming no directory 404, `There is no directory <path>.`,
-except where a method states it reads an epic of a workspace since removed.
+except where a method states the workspace need not exist or that it reads an epic of a workspace
+since removed. A method that names a host by `workspace` and `slot` and MUST NOT start one -- those
+of Section 4.6 but `hosts.open`, of Section 4.23, `btw.list`, `btw.leave`, `chat.say`,
+`chat.commands`, `chat.set` and `chat.stop` -- MUST NOT refuse a `workspace` for naming no
+directory: it MUST answer as it does for the host that holds it, or for none. Nor MUST
+`epic.attach` refuse one where a host of that `workspace` and `slot` is held already.
 
 **4.5.3** `slot` absent or `""` MUST mean the workspace's own host; one that is not a slot, nor
 `chat:` or `exec:` alone where Section 4.7.1.2 or Section 4.25.1.1 permits it, MUST be refused 400,
@@ -1425,13 +1430,16 @@ the flow `chat`.
 
 #### 4.17.1. `flows.list`
 
-**4.17.1.1** `flows.list` MUST take `workspace` and answer `flows` (`[{whose, name, about}]`),
-`flow` (the flow last set up in that workspace, or `""`) and `running`
-(`[{ref, name, depth, since, task}]`).
+**4.17.1.1** `flows.list` MUST take `workspace`, which MAY be absent and need not exist, and answer
+`flows` (`[{whose, name, about}]`), `flow` (the flow last set up in that workspace, or `""`) and
+`running` (`[{ref, name, depth, since, task}]`). Absent, it MUST leave out the flows of a project
+(`local`), and `flow` MUST be the one last set up in the user's home; one naming no directory MUST
+be answered as a workspace with no flows of its own.
 
 #### 4.17.2. `flows.get`
 
-**4.17.2.1** `flows.get` MUST take `name` and `workspace`, and MUST answer what the flow declares:
+**4.17.2.1** `flows.get` MUST take `name` and `workspace`, which MAY be absent and need not exist
+as Section 4.17.1.1 states, and MUST answer what the flow declares:
 `name`, `ref`, `description`, `resumable`, `resumes`, `agents` (each `name`, `required`, `auto`,
 `harness`, `permission` (`{preset, network, granular: [{path, access}]}`), `skills`, and `clis`: the
 CLIs installed on the daemon's machine that can fill it), `envs` (each `name`, `required`, `auto`,
@@ -1561,8 +1569,9 @@ the URL written; a `url` still holding `***@` otherwise MUST be refused 400.
 **4.18.1.5** A value of another type, or a listener spec that is not one, MUST be refused 400 and
 nothing written.
 
-**4.18.1.6** `settings.forget` MUST take `workspace`, forget what that workspace was set up with,
-be a write, and answer `forgot` (whether there was anything) beside what `settings.get` answers.
+**4.18.1.6** `settings.forget` MUST take `workspace`, for a workspace that need not exist, forget
+what that workspace was set up with, be a write, and answer `forgot` (whether there was anything)
+beside what `settings.get` answers.
 
 **4.18.1.7** `settings.get` MUST answer an `ice_servers` entry with its `credential` replaced by
 `true` where one is written, and `settings.set` given an entry whose `credential` is `true` MUST
@@ -1739,9 +1748,8 @@ stands for the path or method name of the row before.
 
 **4.20.2** The remote-daemon registry -- `GET` and `POST /api/daemons`, `POST /api/daemons/remove`,
 `GET /api/daemons/hosts`, `POST /api/daemons/import`, `GET /api/daemons/{name}/state`, `POST
-/api/daemons/{name}/connect` and `/d/{name}/api/...` -- and the notifications list -- every path
-under `/api/notifications` -- MUST NOT be methods: each client keeps them for itself (Section 3.8.1
-and Section 3.15 of [WEB]), and reaches each daemon itself.
+/api/daemons/{name}/connect` and `/d/{name}/api/...` -- MUST NOT be methods: each client keeps it
+for itself (Section 3.8.1 of [WEB]), and reaches each daemon itself.
 
 ### 4.21. Reach
 

@@ -27,7 +27,7 @@ def _carried(method: str) -> Handler:
         from hmz.daemon import routing
         from hmz.runtime.doing.envs import NO_FLOW
 
-        named = workspace(call.params["workspace"])
+        named = workspace(call.params["workspace"], made=True)
         slotted = slot(call.params.get("slot"))
         router = routing.serving
         hosted = None if router is None else router.hosts.get(named, slotted)

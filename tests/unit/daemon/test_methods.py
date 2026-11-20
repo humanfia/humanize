@@ -45,6 +45,16 @@ def test_a_workspace_naming_no_directory_is_refused_404(tmp_path: Path) -> None:
     assert refused.value.message == f"There is no directory {tmp_path / 'nowhere'}."
 
 
+def test_a_workspace_looked_up_need_not_be_there_any_more(tmp_path: Path) -> None:
+    # A host already held is found by its workspace after the directory was removed.
+    gone = tmp_path / "nowhere"
+
+    assert workspace(str(gone), made=True) == where.workspace(gone)
+    with pytest.raises(RpcError) as refused:
+        workspace("here", made=True)
+    assert refused.value.code == 400
+
+
 @pytest.mark.parametrize("said", [None, "", "chat:0a", "exec:1"])
 def test_a_slot_is_one_of_the_workspaces_hosts(said: str | None) -> None:
     assert slot(said) == (said or "")

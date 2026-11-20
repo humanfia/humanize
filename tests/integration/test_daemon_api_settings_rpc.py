@@ -86,6 +86,34 @@ def test_each_family_names_every_method_of_its_namespace() -> None:
         assert set(family.METHODS) == {n for n in listed if n.startswith(prefix)}
 
 
+def test_settings_are_read_and_forgotten_where_no_directory_is_left(
+    client: Peer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace, started = tmp_path / "workspace", tmp_path / "started"
+    for one in (workspace, started):
+        one.mkdir()
+    chat = _call(client, "settings.set", workspace=str(workspace), chat="claude/opus")[
+        "chat"
+    ]
+    assert chat
+    assert str(workspace.resolve()) in _file()["workspaces"]
+    # The daemon outlives the directory it was started in, and a workspace its directory.
+    monkeypatch.chdir(started)
+    for one in (workspace, started):
+        one.rmdir()
+
+    assert _call(client, "settings.get")["chat"] == ""
+    assert _call(client, "settings.get", workspace=str(workspace))["chat"] == chat
+    for method in ("accounts.list", "nous.list", "runtimes.list"):
+        assert _call(client, method)
+    forgot = _call(client, "settings.forget", workspace=str(workspace))
+    assert (forgot["forgot"], forgot["chat"]) == (True, "")
+    assert str(workspace.resolve()) not in (_file().get("workspaces") or {})
+    assert _refused(client, 404, "settings.set", workspace=str(workspace)) == (
+        f"There is no directory {workspace}."
+    )
+
+
 def test_settings_are_written_read_back_and_never_echo_a_secret(
     client: Peer, tmp_path: Path
 ) -> None:

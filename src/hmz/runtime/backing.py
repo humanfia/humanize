@@ -27,6 +27,7 @@ import shutil
 import socket
 import subprocess
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from hmz import machine
@@ -36,7 +37,6 @@ from hmz.runtime.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Sequence
-    from pathlib import Path
 
     from hmz.runtime.settings import Target
 
@@ -74,7 +74,9 @@ _WORKING: dict[str, threading.Thread] = {}
 
 def configured() -> tuple[tuple[Target, ...], tuple[str, ...]]:
     """Every backup target in settings, and the names of the defaults among them."""
-    return Settings().backups()
+    # This machine's, whatever the workspace: read for the home, not for the directory being
+    # run in, which a daemon outlives.
+    return Settings(Path.home()).backups()
 
 
 def chosen(names: Iterable[str] | None) -> tuple[str, ...]:

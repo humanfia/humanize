@@ -204,7 +204,7 @@ _DOT = " · "
 _HERE = "❯"
 _INFORCE = "✔"
 
-#: What marks a thing told of that has not been opened since, as the bell's list marks one.
+#: What marks a thing told of that has not been opened since, as the page's sidebar marks one.
 _UNREAD = "●"
 
 #: What says a row opens onto a sheet of its own, and what says its values are dropped under

@@ -260,8 +260,9 @@ const CLEAR = 4
 export function place(pop, anchor, { align = 'start', up = false, span = false, by = null, clear = true } = {}) {
   const box = anchor.getBoundingClientRect()
   const also = (by ?? anchor).getBoundingClientRect()
-  // A chip under a box that is typed into opens over the whole box, never on it.
-  const typed = (anchor.closest('.composer-desk')?.querySelector('.composer-box') ?? anchor).getBoundingClientRect()
+  // What opens from inside a box that is typed into opens over the whole box, never on it; a
+  // chip of the row under the box opens from the chip itself.
+  const typed = (anchor.closest('.composer-box') ?? anchor).getBoundingClientRect()
   const top = Math.min(box.top, also.top, typed.top)
   const bar = clear ? anchor.closest('.bar')?.getBoundingClientRect() : null
   const under = Math.max(Math.max(box.bottom, also.bottom) + GAP, bar ? bar.bottom + CLEAR : 0)

@@ -8,6 +8,7 @@ workspace is opened by its path and forgotten again.
 from __future__ import annotations
 
 import re
+import shutil
 import tempfile
 import uuid
 from typing import TYPE_CHECKING, Any
@@ -163,6 +164,95 @@ def test_an_epic_is_started_in_a_folder_opened_by_its_path(
         folder = page.locator(f"[data-hmz=workspace][data-path='{other}']")
         expect(folder.locator("[data-hmz=epic]")).to_contain_text("over there")
         stop(page)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_folder_that_is_gone_is_never_opened_on_and_says_so_where_it_is_named(
+    project: Path, other: Path, tmp_path: Path, engine: str
+) -> None:
+    """Sections 3.3.5.1, 3.5.7.1 and 3.8.2.3 of protocol/web.md."""
+    written = tmp_path / "written"
+    written.mkdir()
+    gone = "The folder other is no longer on this machine. Pick another folder."
+    with served() as site:
+        browser = Browser(site)
+        browser.signs_in()
+        _ran(browser, project.resolve(), "first task")
+        # The one worked in last, and one only written down: both deleted since.
+        _ran(browser, other, "second task")
+        with browser.session() as page:
+            _writes(page, "workspaces.add", workspace=str(written.resolve()))
+        shutil.rmtree(other)
+        written.rmdir()
+
+        with opened(site, engine=engine) as page:
+            chip = page.locator("[data-hmz=composer-under] [data-hmz=workspace-picker]")
+            # Neither form opens on it, nor offers it.
+            for address in ("/new/chat", "/new"):
+                go(page, address)
+                expect(chip.locator("b")).to_have_text(project.name)
+                expect(page.locator("#page")).not_to_contain_text(
+                    "There is no directory"
+                )
+                expect(page.locator("#page [data-hmz=folder-gone]")).to_have_count(0)
+                chip.click()
+                expect(
+                    page.get_by_role("menu", name="Folders").get_by_role("menuitem")
+                ).to_have_text([project.name, "Open folder…", "No folder"])
+                page.keyboard.press("Escape")
+            # The sidebar keeps the one that holds a chat, said to be missing, and starts
+            # nothing there; the one that holds nothing is not listed.
+            folder = page.locator(f"[data-hmz=workspace][data-path='{other}']")
+            expect(folder.locator("[data-hmz=folder-missing]")).to_have_text("missing")
+            expect(folder.locator("[data-hmz=group-add]")).to_have_count(0)
+            expect(
+                page.locator(f"[data-hmz=workspace][data-path='{written.resolve()}']")
+            ).to_have_count(0)
+            folder.locator(".side-folder").click(button="right")
+            menu = page.locator(".popover.context")
+            expect(menu.get_by_role("menuitem", name="Search here")).to_be_visible()
+            for label in ("New chat here", "New epic here", "Flows here"):
+                expect(menu.get_by_role("menuitem", name=label)).to_have_count(0)
+            page.keyboard.press("Escape")
+            # Named by the address, it stays picked, says so, and starts nothing.
+            for address in ("/new/chat", "/new"):
+                go(page, f"{address}?workspace={other}")
+                expect(page.locator("#page [data-hmz=folder-gone]")).to_have_text(gone)
+                expect(chip.locator("b")).to_have_text("other (missing)")
+                expect(chip).to_have_attribute("aria-invalid", "true")
+                expect(page.locator("#page")).not_to_contain_text(
+                    "There is no directory"
+                )
+                chip.click()
+                rows = page.get_by_role("menu", name="Folders")
+                expect(rows.locator("[data-missing]")).to_have_text("otherMissing")
+                page.keyboard.press("Escape")
+                page.locator("[data-hmz=composer-text]").fill("anything")
+                page.locator("[data-hmz=composer-text]").press("Enter")
+                expect(page.locator(".composer-said [role=alert]")).to_have_text(gone)
+            # Put back, the form reads it again by itself.
+            other.mkdir()
+            expect(page.locator("#page [data-hmz=folder-gone]")).to_have_count(
+                0, timeout=20000
+            )
+            expect(chip.locator("b")).to_have_text("other")
+            # Gone again before the form reads so, the daemon's own refusal is said the same.
+            go(page, f"/new/chat?workspace={other}")
+            expect(chip.locator("b")).to_have_text("other")
+            page.locator("[data-hmz=composer-text]").fill("anything")
+            shutil.rmtree(other)
+            page.locator("[data-hmz=composer-text]").press("Enter")
+            expect(page.locator(".composer-said [role=alert]")).to_have_text(gone)
+            # Its flows say that it is missing, and offer to copy nothing into it.
+            go(page, f"/flows?workspace={other}")
+            expect(
+                page.locator("[data-hmz=bar] [data-hmz=folder-missing]")
+            ).to_have_text("(missing)", timeout=20000)
+            page.locator("[data-hmz=flows] .card").first.click()
+            expect(page.locator(".flow-detail header .btn").first).to_be_visible()
+            expect(
+                page.locator(".flow-detail").get_by_role("button", name="Copy here")
+            ).to_have_count(0)
 
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -327,7 +417,8 @@ def test_a_long_name_stays_inside_what_shows_it(
         assert not out, f"run out of: {out}"
         assert page.evaluate("document.documentElement.scrollWidth") <= 390
         # What is cut short says itself in full on hover.
-        page.locator("[data-hmz=workspace-picker]").hover()
+        expect(page.locator("[data-hmz=workspace-picker]")).to_have_count(0)
+        page.locator("[data-hmz=bar] .bar-sub .path").hover()
         expect(page.locator(".tip")).to_have_text(str(at.resolve()))
         go(page, f"/new?workspace={at.resolve()}&flow=@local/{long}")
         page.locator("[data-hmz=flow-picker] b").hover()

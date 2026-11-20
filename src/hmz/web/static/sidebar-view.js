@@ -94,6 +94,17 @@ function daysAgo(at, now) {
   return Math.max(0, Math.round((day(now) - day(at)) / 86400000))
 }
 
+/**
+ * The workspaces the list gives a heading: every one `workspaces.list` answers but those whose
+ * directory is gone (`there` false) and that hold nothing -- no epic, no chat, nothing going --
+ * which have nothing to show and nowhere to start anything.
+ *
+ * @param {{path: string, there?: boolean, epics?: number, chats?: number, running?: boolean}[]} [workspaces]
+ */
+export function shownFolders(workspaces = []) {
+  return (workspaces || []).filter((one) => one.there !== false || one.epics || one.chats || one.running)
+}
+
 /** What the group of the rows that have no folder is called, and what it is kept by. */
 export const NO_FOLDER = 'No folder'
 const NOWHERE = ':nowhere'

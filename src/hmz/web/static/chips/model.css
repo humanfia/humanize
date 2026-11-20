@@ -1,4 +1,4 @@
-/* The chip on a chat's box that says which model answers it (chips/model.js): a chip as the ones
+/* The chip on a chat's box that says which nous answers it (chips/model.js): a chip as the ones
    beside it are, at the right under the box, and what its menu draws that no other does. */
 
 .model-pick {
@@ -16,8 +16,95 @@
   opacity: 0.5;
 }
 
+/* Its harness, its model and its effort, told apart by their ink alone, each a step from the
+   next: the model darkest, the harness as a chip is, the effort quietest. */
+.model-chip .nous-harness {
+  color: var(--ink-2);
+}
+
+.model-chip .nous-model {
+  color: var(--ink);
+}
+
+.model-chip .nous-effort {
+  color: var(--ink-3);
+}
+
+/* Three names are one line, wider than a chip of one. Where it is cut short the harness and the
+   effort are said whole and the model, the longest of them, is cut with the mark that it is. */
+.chip-btn.model-chip .chip-value {
+  display: flex;
+  gap: 0.25em;
+  max-width: min(44ch, 60vw);
+}
+
+.model-chip .chip-value > span {
+  flex: none;
+}
+
+.model-chip .chip-value > .nous-model {
+  flex: 0 1 auto;
+  min-width: 2ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Under a box the chip is cut short before the row it is in wraps: its end of the row takes
+   the room the other end leaves, and stands under that one only where it would be left too
+   little to say a nous in. The chip gives way there, never the chips after it. */
+.under-right:has(> .model-pick) {
+  flex: 1 1 16rem;
+  flex-wrap: nowrap;
+}
+
+.under-right:has(> .model-pick) > * {
+  flex: none;
+}
+
+.under-right:has(> .model-pick) > .model-pick {
+  flex: 0 1 auto;
+}
+
+.composer-under .chip-btn.model-chip .chip-value {
+  max-width: 44ch;
+}
+
+/* A row names a harness and then a model: wider than a menu of one name a row. */
+.popover[role='menu'][aria-label='Nous'] {
+  max-width: min(380px, calc(100vw - 16px));
+}
+
+/* The rows that name a nous are the one part of it that scrolls: the field they are found by
+   stays over them, and the effort and everything else under them, however many they are. */
+.popover[role='menu'][aria-label='Nous'],
 .model-menu {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+}
+
+.model-menu {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.model-menu > * {
+  flex: none;
+}
+
+.model-menu > .nous-list {
+  flex: 0 1 auto;
+  min-height: 28px;
+  overflow-y: auto;
+}
+
+/* Searched, it stays as wide as it opened, however few are found. */
+.model-menu > .menu-filter + .nous-list {
+  min-width: min(300px, calc(100vw - 30px));
+}
+
+/* A row found by typing leaves no room where the others were. */
+.model-menu [hidden] {
+  display: none;
 }
 
 /* What the menu has to say of its list: that it is being read, or why there is none. */
@@ -54,7 +141,7 @@
   color: var(--ink-3);
 }
 
-.model-fact .mono {
+.model-fact .fact-value {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

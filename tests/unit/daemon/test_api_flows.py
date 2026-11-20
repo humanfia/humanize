@@ -199,6 +199,67 @@ def test_a_flow_not_on_offer_is_not_found() -> None:
     assert missing.value.message == "./mine is not a flow on offer here."
 
 
+def _offering(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
+    """Stands in for Humanize: every workspace offers `theirs`, `@local/mine` and `@user/own`."""
+    import hmz.runtime
+
+    made: list[Path] = []
+
+    def built(at: Path) -> Any:
+        made.append(at)
+        offers = [
+            SimpleNamespace(whose=whose, name=name, about="")
+            for whose, name in (
+                ("official", "theirs"),
+                ("local", "@local/mine"),
+                ("user", "@user/own"),
+            )
+        ]
+        return SimpleNamespace(
+            workspace=str(at),
+            flows=SimpleNamespace(all=lambda: offers, running=list),
+            settings=SimpleNamespace(flow="theirs"),
+        )
+
+    monkeypatch.setattr(hmz.runtime, "Hmz", built, raising=False)
+    monkeypatch.setattr(hmz.runtime, "Holding", built, raising=False)
+    return made
+
+
+def test_flows_are_listed_without_a_workspace_and_for_one_since_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    made = _offering(monkeypatch)
+    gone = tmp_path / "gone"
+
+    bare = flows.METHODS["flows.list"](_call())
+    # No project is named: its own flows are not on offer, and the home's are the user's.
+    assert [one["name"] for one in bare["flows"]] == ["theirs", "@user/own"]
+    assert (bare["flow"], bare["running"]) == ("theirs", [])
+    with pytest.raises(RpcError) as local:
+        flows.METHODS["flows.get"](_call(name="@local/mine"))
+    assert local.value.message == "@local/mine is not a flow on offer here."
+    removed = flows.METHODS["flows.list"](_call(workspace=str(gone)))
+    assert [one["whose"] for one in removed["flows"]] == ["official", "local", "user"]
+    assert made == [Path.home(), Path.home(), gone.resolve()]
+    with pytest.raises(RpcError) as relative:
+        flows.METHODS["flows.list"](_call(workspace="here"))
+    assert relative.value.code == Code.REFUSED
+
+
+@pytest.mark.parametrize("method", ["flows.setup", "flows.fork", "flows.check"])
+def test_a_flow_is_set_up_copied_and_checked_only_where_the_directory_is(
+    method: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    made = _offering(monkeypatch)
+
+    with pytest.raises(RpcError) as missing:
+        flows.METHODS[method](_call(workspace=str(tmp_path / "gone"), flow="theirs"))
+    assert missing.value.code == Code.NOT_FOUND
+    assert missing.value.message == f"There is no directory {tmp_path / 'gone'}."
+    assert made == []
+
+
 def test_a_flows_params_carry_a_title_only_where_the_flow_wrote_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

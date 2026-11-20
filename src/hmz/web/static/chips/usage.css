@@ -1,0 +1,73 @@
+/* The popup of the Usage chip (chips/usage.js): as wide as the Permissions menu beside it, and
+   figures in rows -- what is counted at the left, the figure at the right, each under the last. */
+.popover[role='dialog'][aria-label='Usage'] {
+  width: 308px;
+  max-width: calc(100vw - 16px);
+}
+
+.usage-rows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: var(--space-12);
+  align-items: center;
+  margin: 0;
+  padding: 0 var(--space-8) var(--space-4);
+  font: var(--text-sm) / 20px var(--sans);
+}
+
+.usage-rows dt {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.usage-rows dd {
+  margin: 0;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage-rows .usage-about {
+  color: var(--ink-3);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usage-rows .usage-value {
+  color: var(--ink);
+  text-align: right;
+}
+
+/* A share is a bar between its kind and its figure, at the middle of their line. */
+.usage-rows .share {
+  min-width: 0;
+  margin: 0;
+}
+
+.usage-rows .usage-sub,
+.usage-none {
+  margin: 0;
+  font: var(--text-sm) / 16px var(--sans);
+  color: var(--ink-3);
+}
+
+.usage-rows .usage-sub {
+  grid-column: 1 / -1;
+  padding-bottom: var(--space-2);
+}
+
+.usage-none {
+  padding: var(--space-2) var(--space-8) var(--space-6);
+}
+
+.usage-lately > .error {
+  margin: var(--space-2) var(--space-4) var(--space-6);
+  font-size: var(--text-sm);
+}
+
+/* As tall while it is read as once it is: two rows of 20px, the line of 18px under them and
+   the 4px the rows end with, so that the popup does not grow over its chip as the answer comes. */
+.usage-lately {
+  min-height: 62px;
+}

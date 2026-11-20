@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { addressOf, gathered, KEPT, kindOf, lineOf, of } from '../../../../src/hmz/web/static/notified.js'
+import { addressOf, followed, fresh, kindOf, lineOf, of, onScreen, shownAs, STALE } from '../../../../src/hmz/web/static/notified.js'
 import { stored } from '../../../../src/hmz/web/static/stored.js'
 import { fakeIndexedDB } from './helpers.mjs'
 
@@ -15,47 +15,74 @@ test('a chat turn done and a flow listening are chat turns; every other notice i
   assert.equal(kindOf(notice(1, { kind: 'asked', slot: 'chat:ab' })), 'asked')
 })
 
-test('notices of every daemon gather into one list, newest first, each naming its daemon', async () => {
-  const kept = gathered(stored('n', fakeIndexedDB()))
-  await kept.heard('local', notice(1))
-  await kept.heard('box', notice(1))
-  // Heard twice, kept once.
-  assert.equal(await kept.heard('local', notice(1)), null)
-  const items = await kept.items()
-  assert.deepEqual(items.map((one) => [one.daemon, one.id, one.read]), [['box', 1, false], ['local', 1, false]])
+test('a notice heard names its daemon and moves where its daemon is taken up', async () => {
+  const kept = followed(stored('n', fakeIndexedDB()))
+  const local = await kept.heard('local', notice(1))
+  const box = await kept.heard('box', notice(2))
+  assert.deepEqual([local.daemon, local.key, local.epic], ['local', 'local:1', 'e1'])
+  assert.deepEqual([box.daemon, box.key], ['box', 'box:2'])
   assert.equal(await kept.after('local'), 1)
-  assert.equal(await kept.after('box'), 1)
+  assert.equal(await kept.after('box'), 2)
   assert.equal(await kept.after('other'), undefined)
+  // No list of them is kept.
+  assert.equal(kept.items, undefined)
 })
 
-test('a kind switched off is not kept, but where to take up again moves past it', async () => {
-  const kept = gathered(stored('n', fakeIndexedDB()))
+test('a kind switched off is not told, but where to take up again moves past it', async () => {
+  const kept = followed(stored('n', fakeIndexedDB()))
   assert.deepEqual((await kept.preferences()).kinds, { done: true, failed: true, stopped: true, asked: true, listening: true })
   await kept.prefer({ kinds: { listening: false }, system: false })
   assert.equal(await kept.heard('local', notice(4, { slot: 'chat:1' })), null)
+  assert.equal(await kept.after('local'), 4)
   assert.notEqual(await kept.heard('local', notice(5)), null)
   assert.equal(await kept.after('local'), 5)
   assert.equal((await kept.preferences()).system, false)
-  assert.deepEqual((await kept.items()).map((one) => one.id), [5])
 })
 
-test('the list keeps the newest 200, marks one or all read, and clears', async () => {
-  const kept = gathered(stored('n', fakeIndexedDB()))
-  await Promise.all(Array.from({ length: KEPT + 5 }, (_, at) => kept.heard('local', notice(at + 1))))
-  let items = await kept.items()
-  assert.equal(items.length, KEPT)
-  assert.equal(items[0].id, KEPT + 5)
-  await kept.read([items[0].key])
-  items = await kept.items()
-  assert.deepEqual([items[0].read, items[1].read], [true, false])
-  await kept.read(null)
-  assert.ok((await kept.items()).every((one) => one.read))
-  await kept.clear()
-  assert.deepEqual(await kept.items(), [])
+test('the system shows a notice by its kind and daemon, over its flow and what it says', () => {
+  assert.deepEqual(shownAs({ ...notice(5, { flow: 'ralph', text: '## All green' }), daemon: 'local', key: 'local:5' }), { title: 'Done · Local', body: 'ralph · All green', address: '#/epics/e5', tag: 'local:5' })
+  const asked = shownAs({ ...notice(6, { kind: 'asked', slot: 's', flow: 'goal', text: 'Which one?' }), daemon: 'box', key: 'box:6' })
+  assert.deepEqual([asked.title, asked.body, asked.address], ['Question · box', 'goal · Which one?', '#/@box/live?workspace=%2Fw&slot=s'])
+  const turn = shownAs({ ...notice(7, { slot: 'chat:ab', epic: '', chat: 'ab', flow: '', text: '' , task: 'Cut the tiles\nand more' }), daemon: 'local', key: 'local:7' })
+  assert.deepEqual([turn.title, turn.body, turn.address], ['Waiting · Local', 'Cut the tiles', '#/chats/ab'])
+  // A chat's flow is told as `chat`: what says which chat is its task, before what was answered.
+  const answered = shownAs({ ...notice(7, { slot: 'chat:ab', epic: '', chat: 'ab', flow: 'chat', text: 'did: the tiles', task: 'Cut the tiles\nand more' }), daemon: 'local', key: 'local:7' })
+  assert.equal(answered.body, 'Cut the tiles · did: the tiles')
+  // With neither text nor task, by its name.
+  assert.equal(shownAs({ ...notice(8, { flow: '', task: '' }), daemon: 'local', key: 'local:8' }).body, 'e8')
+})
+
+test('a notice is on screen only of the chat or epic the page is on, of its daemon, while looked at', () => {
+  const at = (hash, said = {}) => {
+    const url = new URL(hash, 'http://page')
+    return { looked: true, daemon: 'local', parts: url.pathname.split('/').filter(Boolean), query: url.searchParams, ...said }
+  }
+  const epic = { ...notice(7), daemon: 'local' }
+  const chat = { ...notice(8, { epic: '', chat: 'ab', slot: 'chat:ab' }), daemon: 'local' }
+  const asked = { ...notice(9, { kind: 'asked', slot: 's' }), daemon: 'local' }
+  assert.equal(onScreen(epic, at('/epics/e7')), true)
+  assert.equal(onScreen(epic, at('/epics/e7', { looked: false })), false)
+  assert.equal(onScreen(epic, at('/epics/e7', { daemon: 'box' })), false)
+  assert.equal(onScreen(epic, at('/epics/e8')), false)
+  assert.equal(onScreen(epic, at('/chats/e7')), false)
+  assert.equal(onScreen(chat, at('/chats/ab')), true)
+  assert.equal(onScreen(chat, at('/chats/cd')), false)
+  assert.equal(onScreen(asked, at('/live?workspace=%2Fw&slot=s')), true)
+  assert.equal(onScreen(asked, at('/live?workspace=%2Fw&slot=other')), false)
+  assert.equal(onScreen(asked, at('/settings/notifications')), false)
+})
+
+test('a notice made long before it is heard is not for the system to show', () => {
+  const now = 10000
+  assert.equal(fresh({ at: now }, now), true)
+  assert.equal(fresh({ at: now - STALE + 1 }, now), true)
+  assert.equal(fresh({ at: now - STALE - 1 }, now), false)
+  // One that does not say when it was made is taken as made now.
+  assert.equal(fresh({}, now), true)
 })
 
 test('a daemon never heard of is taken up from where its first subscription stood, once', async () => {
-  const kept = gathered(stored('n', fakeIndexedDB()))
+  const kept = followed(stored('n', fakeIndexedDB()))
   await kept.from('box', 7)
   await kept.from('box', 9)
   assert.equal(await kept.after('box'), 7)

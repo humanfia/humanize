@@ -75,11 +75,10 @@ afterEach(async () => {
 })
 
 test('one opening closes every other it was not opened from', () => {
-  const bell = el('bell')
-  layer('notifications', { anchor: bell })
+  layer('list-menu', { anchor: el('list-menu-open') })
   layer('daemon', { anchor: el('daemon-bar') })
   assert.deepEqual(names(), ['daemon'])
-  assert.deepEqual(log, ['notifications'])
+  assert.deepEqual(log, ['list-menu'])
   // One at the pointer stands by nothing, and is opened from nothing.
   layer('context')
   assert.deepEqual(names(), ['context'])
@@ -501,7 +500,7 @@ test('the focus nothing holds goes to what opened one its owner or Escape closed
   dismiss('route')
   assert.equal(document.activeElement, null)
   layer('root', { anchor: chip })
-  layer('other', { anchor: el('bell') })
+  layer('other', { anchor: el('settings-open') })
   assert.equal(document.activeElement, null)
 })
 
@@ -636,8 +635,11 @@ test('one is put clear of another box as of what opened it: under both, or over 
   const low = el('box', null, { left: 100, top: 744, width: 320, height: 46 })
   place(pop, opener({ left: 100, top: 708, width: 180, height: 28 }), { by: low })
   assert.deepEqual(pop.at(), [100, 526])
-  // A chip under its composer's box opens over the whole box, unasked.
-  const desk = { querySelector: () => el('box', null, { left: 100, top: 690, width: 600, height: 46 }) }
-  place(pop, opener({ left: 500, top: 744, width: 90, height: 28 }, { '.composer-desk': desk }), { up: true })
-  assert.deepEqual(pop.at(), [500, 508])
+  // A chip of the row under its composer's box opens from the chip: its foot 6 over the chip's top.
+  place(pop, opener({ left: 500, top: 744, width: 90, height: 28 }), { up: true, align: 'end' })
+  assert.deepEqual(pop.at(), [410, 562])
+  // What opens from inside the box that is typed into opens over the whole box, unasked.
+  const box = el('box', null, { left: 100, top: 690, width: 600, height: 46 })
+  place(pop, opener({ left: 108, top: 700, width: 28, height: 28 }, { '.composer-box': box }), { up: true })
+  assert.deepEqual(pop.at(), [108, 508])
 })

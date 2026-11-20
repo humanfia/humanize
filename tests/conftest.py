@@ -19,6 +19,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import re
 import shutil
 import signal
 import stat
@@ -43,6 +44,14 @@ if TYPE_CHECKING:
 
 #: Asking a backend what it runs, kept so that `asking` can give it back.
 _ASKS = hmz.coganchor.models.ask
+
+#: The home of whoever runs the suite, read before any fixture names another: what no test
+#: may write into.
+_THEIR_HOME = Path(os.environ.get("HUMANIZE_HOME") or Path.home() / ".hmz")
+
+#: Their `HOME` and `PATH`, read as early: what `tests/system`, which signs in as them and runs
+#: what they installed, is given back for a test (`as_them`), the suite's own being neither.
+THEIRS = {"HOME": str(Path.home()), "PATH": os.environ.get("PATH", os.defpath)}
 
 
 @pytest.fixture(autouse=True)
@@ -70,6 +79,18 @@ def _no_real_agents(_temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     hide_agents(_temporary, monkeypatch)
 
 
+#: The system's own directories and this Python's: a `PATH` no coding agent is found on.
+_SEARCHED = os.pathsep.join(
+    (str(Path(sys.executable).parent), "/usr/bin", "/bin", "/usr/sbin", "/sbin")
+)
+
+
+def as_them(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Gives one test the `HOME` and `PATH` of whoever runs the suite: `tests/system` alone."""
+    for name, value in THEIRS.items():
+        monkeypatch.setenv(name, value)
+
+
 def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Hides every coding agent installed here, so a test that forgot its stand-in fails.
 
@@ -78,14 +99,7 @@ def hide_agents(temporary: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     those under the home, which is the test's own.
     """
     monkeypatch.setenv("HOME", tempfile.mkdtemp(prefix="home-", dir=temporary))
-    searched = [
-        str(Path(sys.executable).parent),
-        "/usr/bin",
-        "/bin",
-        "/usr/sbin",
-        "/sbin",
-    ]
-    monkeypatch.setenv("PATH", os.pathsep.join(searched))
+    monkeypatch.setenv("PATH", _SEARCHED)
     installed = hmz.coganchor.backends._INSTALLED_AT  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
     monkeypatch.setattr(
         hmz.coganchor.backends,
@@ -102,6 +116,151 @@ def _temporary() -> Iterator[Path]:
         yield held
     finally:
         shutil.rmtree(held, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _suite_places(_temporary: Path, tmp_path_factory: pytest.TempPathFactory) -> None:
+    """A home and a `TMPDIR` of the suite's own under every test's, never given back.
+
+    `hmz.home()` and `hmz.machine()` read the environment at each call, and a test's own
+    (`_humanize_home`, `_machine_temp`) are undone as it ends: a thread that outlives its test
+    -- a host letting go of a chat, a flowverse fetch -- would write into the home, and reach
+    the daemon, of whoever runs the suite. What a test's are undone to is the suite's, which
+    stay named after the last test for the same reason. So are `HOME` and `PATH`, which
+    `_no_real_agents` sets for a test and undoes as well: `~` there would be their home --
+    `~/.hmz/flows`, a workspace `~` -- and their `PATH` holds the agents they installed.
+    `tests/system`, which signs in as them, takes theirs back for each test (`as_them`).
+    """
+    # Pytest's own base is worked out of the temporary directory once: before that moves.
+    tmp_path_factory.getbasetemp()
+    between = _temporary / "between"
+    between.mkdir()
+    nobody = _temporary / "nobody"
+    nobody.mkdir()
+    os.environ |= {
+        "HOME": str(nobody),
+        "PATH": _SEARCHED,
+        "HUMANIZE_HOME": str(_temporary / "home"),
+        "HUMANIZE_SHADOWS": str(_temporary / "shadows"),
+        "HUMANIZE_SENTRY": "off",
+        "HUMANIZE_PRICES": "off",
+        "HUMANIZE_RELEASES": "off",
+        "TMPDIR": str(between),
+    }
+    tempfile.tempdir = str(between)
+
+
+#: A file of that home is read for a test directory's name only this far back from its end.
+_TAIL = 1 << 20
+
+
+def kept_there() -> dict[str, tuple[int, int]]:
+    """What the home of whoever runs the suite holds, each as it was last written.
+
+    A directory's entries by name alone (an epic, a chat, a flowverse, a provider), a file by
+    when it was written and how long it is (`settings.yaml`, `history.jsonl`).
+    """
+    held: dict[str, tuple[int, int]] = {}
+    try:
+        top = list(os.scandir(_THEIR_HOME))
+    except OSError:
+        return held
+    for one in top:
+        try:
+            if one.is_dir(follow_symlinks=False):
+                held.update(
+                    {f"{one.name}/{under.name}": (0, 0) for under in os.scandir(one)}
+                )
+            else:
+                found = one.stat(follow_symlinks=False)
+                held[one.name] = (found.st_mtime_ns, found.st_size)
+        except OSError:
+            continue
+    return held
+
+
+def _slug(path: str) -> str:
+    """A path as a directory kept for it is named: every other character a dash."""
+    return re.sub(r"[^A-Za-z0-9]", "-", path)
+
+
+def _names(path: Path, since: int, marks: frozenset[bytes]) -> bool:
+    """Whether a file names one of the suite's directories in what was added past `since`."""
+    try:
+        with path.open("rb") as held:
+            held.seek(0, os.SEEK_END)
+            # A little before, so that a name written across the old end is still whole.
+            held.seek(max(0, since - 4096, held.tell() - _TAIL))
+            said = held.read()
+    except OSError:
+        return False
+    return any(mark in said for mark in marks)
+
+
+def written_there(
+    before: dict[str, tuple[int, int]], marks: frozenset[str]
+) -> list[str]:
+    """What changed in that home since `before` that names one of the suite's directories.
+
+    Whoever runs the suite may be using Humanize meanwhile: only what names a directory of
+    the suite's (`marks`) is a test's doing. Read, never written.
+    """
+    encoded = frozenset(mark.encode() for mark in marks)
+    found: list[str] = []
+    for name, (written, size) in sorted(kept_there().items()):
+        was = before.get(name)
+        if was == (written, size):
+            continue
+        at = _THEIR_HOME / name
+        if "/" not in name:
+            # Read from where it ended if it only grew, as a history does; whole otherwise.
+            grown = was is not None and size >= was[1]
+            named = _names(at, was[1] if was and grown else 0, encoded)
+        else:
+            named = any(_slug(mark) in name for mark in marks) or bool(
+                _holding(at, encoded)
+            )
+        if named:
+            found.append(str(at))
+    return found
+
+
+class _TheirHome:
+    """That home as it was last looked at, and what names one of the suite's directories."""
+
+    def __init__(self, marks: frozenset[str]) -> None:
+        self._marks = marks
+        self._before = kept_there()
+
+    def check(self) -> None:
+        """Fails whatever is running if a test's directory was written there since last asked."""
+        before, self._before = self._before, kept_there()
+        if written := written_there(before, self._marks):
+            pytest.fail(
+                f"wrote into the home of whoever runs the suite: {', '.join(written)} -- "
+                "a test writes only under the home `_humanize_home` gives it",
+                pytrace=False,
+            )
+
+
+@pytest.fixture(scope="session")
+def _their_home(
+    _suite_places: None, _temporary: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[_TheirHome]:
+    """The home of whoever runs the suite, looked at once more after the last test."""
+    places = (_temporary, tmp_path_factory.getbasetemp())
+    held = _TheirHome(
+        frozenset(str(one) for place in places for one in (place, place.resolve()))
+    )
+    yield held
+    held.check()
+
+
+@pytest.fixture(autouse=True)
+def _writes_no_real_home(_their_home: _TheirHome) -> Iterator[None]:
+    """Fails the test after which the home of whoever runs the suite names a test directory."""
+    yield
+    _their_home.check()
 
 
 _tests = itertools.count(1)
@@ -196,7 +355,7 @@ def _refresh_tokens() -> frozenset[bytes]:
                 walk(value)
 
     for variable, default, name in _SIGN_INS:
-        home = Path(os.environ.get(variable) or Path.home() / default)
+        home = Path(os.environ.get(variable) or Path(THEIRS["HOME"]) / default)
         try:
             walk(json.loads((home / name).read_bytes()))
         except (OSError, ValueError):

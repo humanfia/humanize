@@ -327,12 +327,12 @@ export function graph({ open }) {
   function agentNode(agent, box, focused, epic, going) {
     const base = hash(`/epics/${encodeURIComponent(epic)}`)
     // The role an agent fills is said after its name, beside what it runs as; a person's is its name.
-    const about = [agent.role !== agent.name && agent.role, agent.spec].filter(Boolean).join(' · ')
+    const about = [agent.role !== agent.name && agent.role, agent.said].filter(Boolean).join(' · ')
     const head = h(
       'button',
       { class: 'node-head', type: 'button', 'aria-pressed': String(focused) },
       h('span', { class: 'node-name' }, h('i', { class: 'swatch', 'aria-hidden': 'true' }), agent.name, agent.person ? h('span', { class: 'node-tag' }, 'person') : null),
-      h('span', { class: 'node-spec mono' }, about || '—'),
+      h('span', { class: 'node-spec', 'data-tip': agent.spec || null }, about || '—'),
       h('span', { class: 'node-state' }, agent.working ? h('span', { class: 'dot live', 'aria-hidden': 'true' }) : null, [agent.status, agent.tokens ? `${agent.tokens} tokens` : ''].filter(Boolean).join(' · ')),
     )
     head.addEventListener('click', () => open(agent.name))

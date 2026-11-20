@@ -125,9 +125,9 @@ machine says why on its own page, as any [imported epic](/user/web#importing-an-
 ## Notifications {#notifications}
 
 The page's [notifications](/user/web#notifications) -- an epic done, failed or stopped, a question
-for you, a [chat](/user/chat) waiting for your next line, on any daemon -- show in the window's bell and toasts
-as in a browser, and, while the window is hidden or not in front, as system notifications from
-Humanize Desktop. Click one: the window comes to the front, on the epic it is about.
+for you, a [chat](/user/chat) waiting for your next line, on any daemon -- show as system
+notifications from Humanize Desktop, unless the window is in front and on that chat or epic.
+Click one: the window comes to the front, on the epic or chat it is about.
 
 The kinds that appear are set in **Settings → Notifications**; the app needs no permission asked
 there, as a browser does. On macOS, the first one asks whether Humanize Desktop may send them:
@@ -144,7 +144,7 @@ once, naming the version:
 - **Restart** installs it, and opens Humanize Desktop again on it.
 - **Later** leaves it until you quit Humanize Desktop, which installs it then.
 
-To look now, choose **Check for Updates…** -- from the **Humanize Desktop** menu on macOS, from
+To look now, choose **Check for Updates…** -- from the **Humanize** menu on macOS, from
 the tray icon's menu on Windows. A small window shows it looking, then how far the download is.
 Then it offers the new release, or says Humanize Desktop is up to date, or why it could not
 look. Only releases are offered, never a pre-release, unless the app you run is a pre-release
@@ -199,7 +199,7 @@ Windows only. WSL shut the distribution down: see [Your epics and WSL](#your-epi
 
 ### No system notifications
 
-They come only while the window is hidden or not in front. Check that **Settings →
+None comes of the chat or epic the window is in front on. Check that **Settings →
 Notifications** in the app has them switched on, and that the system's notification settings
 allow Humanize Desktop.
 

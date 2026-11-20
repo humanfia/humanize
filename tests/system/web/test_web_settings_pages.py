@@ -188,10 +188,16 @@ def test_notifications_are_allowed_from_a_click(project: Path, engine: str) -> N
     with served() as site, opened(site, engine=engine, init=_NOTIFICATION) as page:
         go(page, "/settings/notifications")
         state = page.locator("[data-hmz=permission-state]")
+        shown_by = page.locator("[data-hmz=notifications-shown-by]")
         expect(state).to_have_text("Not asked")
-        page.locator("[data-hmz=allow-notifications]").click()
+        expect(shown_by).to_have_text("Shown by the browser, once you allow it.")
+        # From the keyboard: the button goes once answered, and the focus stays in its place.
+        page.locator("[data-hmz=allow-notifications]").focus()
+        page.keyboard.press("Enter")
         expect(state).to_have_text("Allowed")
+        expect(shown_by).to_have_text("Shown by the browser.")
         expect(page.locator("[data-hmz=allow-notifications]")).to_have_count(0)
+        expect(state).to_be_focused()
         assert page.evaluate("window.__asked") == 1
 
 
@@ -324,10 +330,10 @@ def test_what_else_is_done_with_an_account_is_behind_more_options(
         more.click()
         menu = page.get_by_role("menu")
         expect(menu.get_by_role("menuitem")).to_have_text(
-            ["Refresh models", "Copy to pi", "Remove"]
+            ["Refresh models", "Copy to Pi", "Remove"]
         )
-        menu.get_by_role("menuitem", name="Copy to pi").click()
-        expect(page.locator(".toast")).to_have_text("Copied to pi")
+        menu.get_by_role("menuitem", name="Copy to Pi").click()
+        expect(page.locator(".toast")).to_have_text("Copied to Pi")
         ((copied),) = wire.params("accounts.copy")
         assert copied["into"] == "pi"
 
@@ -336,7 +342,7 @@ def test_what_else_is_done_with_an_account_is_behind_more_options(
         more.click()
         page.get_by_role("menuitem", name="Remove").click()
         asked = row.locator("[data-hmz=account-removing]")
-        expect(asked).to_contain_text("Remove claude@work, credentials and all?")
+        expect(asked).to_contain_text("Remove Claude Code · work, credentials and all?")
         expect(asked.get_by_role("button", name="Cancel")).to_be_focused()
         page.keyboard.press("Escape")
         expect(asked).to_have_count(0)

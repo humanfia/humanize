@@ -6,6 +6,7 @@
 
 import { call, hash, refresh } from '../api.js'
 import { acting, fill, h, headline, problem, when } from '../dom.js'
+import { harnessName } from '../names.js'
 import { nameOf } from '../places.js'
 import { bar } from '../shell.js'
 import { saidTraced, walked } from '../transcript.js'
@@ -36,11 +37,11 @@ export function mount(root, { parts, query }) {
   call('chat.harness.get', { ...named, trace: true }).then(
     (one) => {
       if (gone) return
-      const sub = [h('span', { class: 'harness-tag', 'data-hmz': 'harness-name' }, one.harness), h('span', {}, nameOf(one.workspace)), h('span', {}, when(one.updated))]
+      const sub = [h('span', { class: 'harness-tag', 'data-hmz': 'harness-name', 'data-harness': one.harness }, harnessName(one.harness)), h('span', {}, nameOf(one.workspace)), h('span', {}, when(one.updated))]
       fill(head, bar({ title: headline(one.title || one.id), sub }))
       const read = one.trace.filter((each) => each.actions.length)
       fill(box, read.length ? saidTraced(...read.map((each) => ({ ...each, label: each.key }))) : h('p', { class: 'dim' }, 'Its logs held nothing said.'))
-      const note = one.continuable ? `Read-only. Continuing copies it into a chat here; the ${one.harness} session stays as it is.` : `Read-only. A session of ${one.harness} cannot be continued in a chat.`
+      const note = one.continuable ? `Read-only. Continuing copies it into a chat here; the ${harnessName(one.harness)} session stays as it is.` : `Read-only. A session of ${harnessName(one.harness)} cannot be continued in a chat.`
       fill(dock, h('p', { class: 'dock-note harness-note', 'data-hmz': 'harness-note' }, h('span', {}, note), one.continuable ? adopt : null))
     },
     (error) => !gone && fill(box, problem(error)),

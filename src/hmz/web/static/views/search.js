@@ -9,6 +9,7 @@
 
 import { given, hash, poll } from '../api.js'
 import { pathOf } from '../chats.js'
+import { nousSaid } from '../chips/agent.js'
 import { shut, stays } from '../app.js'
 import { chatting, markOf } from '../epic.js'
 import { nameOf, workspaces } from '../places.js'
@@ -274,7 +275,7 @@ export function mount(root, { query }) {
       said ? h('span', { class: `badge tone-${tone(how)}`, 'data-hmz': 'result-state' }, said) : null,
       h('span', { class: 'mono', title: run.workspace }, nameOf(run.workspace)),
       run.flow ? h('span', { class: 'mono', title: run.flow }, flowName(run.flow)) : null,
-      run.agents.map((one) => h('span', { class: 'chip', title: `${one.role} · ${one.runs}` }, one.name, h('span', { class: 'dim' }, one.runs.split(':')[0]))),
+      run.agents.map((one) => h('span', { class: 'chip', title: `${one.role} · ${one.runs}` }, one.name, h('span', { class: 'dim' }, nousSaid(one.runs).model ? `${nousSaid(one.runs).harness} ${nousSaid(one.runs).model}` : one.runs))),
       h('span', { class: 'mono' }, run.spent ? `${run.spent.money || '—'} · ${run.spent.tokens} out` : '—'),
       // A chat is never over: when it was last heard of is no end to have taken until.
       run.ended && !chatting(run) ? h('span', { class: 'mono' }, `took ${lasting((Date.parse(run.ended) - Date.parse(run.began)) / 1000)}`) : null,

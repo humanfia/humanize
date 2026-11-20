@@ -2,7 +2,7 @@
 // opens what can be done to the thing under it -- its own menu, never the browser's -- save in
 // what is there to be read or written, where the browser's own menu copies and pastes; a tip
 // says in full what is cut short, at once rather than when the browser gets round to it; and
-// what is said for a moment -- a toast, a notice, a notification's card -- stands in one corner
+// what is said for a moment -- a toast, a notice -- stands in one corner
 // of the page, clear of what is typed.
 
 import { h, icon } from './dom.js'
@@ -78,7 +78,7 @@ const MOST = 3
 
 /**
  * Says something for a moment in the corner of the page kept for it, over whatever was said
- * before: a toast, a notice that stays until what it is about answers, a notification's card.
+ * before: a toast, a notice that stays until what it is about answers.
  *
  * @param {HTMLElement} card What is said, drawn by whoever says it.
  * @param {number} [ms] How long it stays; 0, until what is given back is called.
@@ -293,10 +293,13 @@ function show(el, text) {
   if (beside) put(beside, box.top)
   else if (box.width > width && !el.closest('.composer-desk')) put(px + BY[0], py + BY[1] + height + EDGE <= innerHeight ? py + BY[1] : Math.min(py, box.top) - GAP - height)
   else {
-    // On its other side where something floats on the first.
-    const up = Boolean(el.closest('.composer-box'))
-    place(tip, el, { up, clear: false })
-    if (floated(tip.getBoundingClientRect(), el)) place(tip, el, { up: !up, clear: false })
+    // Over the whole box typed into, by a control of it or a chip of the row under it: a menu
+    // opened from a chip stands by its chip, a tip nobody opened never on what is typed. On its
+    // other side where something floats on the first.
+    const by = el.closest('.composer-desk')?.querySelector('.composer-box') ?? null
+    const up = Boolean(by)
+    place(tip, el, { up, by, clear: false })
+    if (floated(tip.getBoundingClientRect(), el)) place(tip, el, { up: !up, by, clear: false })
   }
   if (floated(tip.getBoundingClientRect(), el)) lower()
 }

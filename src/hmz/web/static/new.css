@@ -270,6 +270,24 @@
   height: var(--icon-sm);
 }
 
+/* ------------------------------------------------------------------ a folder that went */
+
+/* The folder picked, once its directory is gone: the control says so in the colour of what
+   waits on its person, as the note over the box does, and its row in the menu beside its name --
+   and so does the bar of the flows listed for it. */
+.flow-picker.gone,
+.flow-picker.gone:hover,
+.bar-sub .folder-missing,
+.choice[data-missing] .choice-about {
+  color: var(--budget-ink);
+}
+
+/* Said over the box, on the edge the box keeps, with no room of its own around it. */
+.composer-said .folder-gone {
+  margin: 0;
+  color: var(--ink);
+}
+
 /* On a phone a chip says less of what it holds, so that the row under the box wraps less. */
 @media (max-width: 860px) {
   .composer-under .chip-btn .chip-value,

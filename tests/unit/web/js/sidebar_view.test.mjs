@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { DEFAULTS, GROUP_ROWS, NO_FOLDER, WIDTHS, arranged, paged, sorted, toggled, viewOf, viewText, widthOf } from '../../../../src/hmz/web/static/sidebar-view.js'
+import { DEFAULTS, GROUP_ROWS, NO_FOLDER, WIDTHS, arranged, paged, shownFolders, sorted, toggled, viewOf, viewText, widthOf } from '../../../../src/hmz/web/static/sidebar-view.js'
 
 const run = (name, workspace, began, more = {}) => ({ name, workspace, began, task: name, kind: 'chat', ...more })
 const names = (groups) => groups.filter((one) => one.kind !== 'folders').map((one) => [one.kind === 'folder' && one.path ? one.path : one.label, one.runs.map((row) => row.name)])
@@ -158,4 +158,18 @@ test('the sidebar is as wide as it was dragged, within its bounds, and the usual
   assert.equal(widthOf(10), WIDTHS.least)
   assert.equal(widthOf(4000), WIDTHS.most)
   assert.equal(WIDTHS.usual, 275)
+})
+
+test('a folder whose directory is gone is listed only while it holds something', () => {
+  const rows = [
+    { path: '/there', there: true },
+    { path: '/unsaid' },
+    { path: '/gone-empty', there: false, epics: 0, chats: 0, running: false },
+    { path: '/gone-epic', there: false, epics: 1, chats: 0, running: false },
+    { path: '/gone-chat', there: false, epics: 0, chats: 2, running: false },
+    { path: '/gone-going', there: false, epics: 0, chats: 0, running: true },
+  ]
+  assert.deepEqual(shownFolders(rows).map((one) => one.path), ['/there', '/unsaid', '/gone-epic', '/gone-chat', '/gone-going'])
+  assert.deepEqual(shownFolders(null), [])
+  assert.deepEqual(shownFolders(), [])
 })
