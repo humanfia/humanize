@@ -563,7 +563,7 @@ daemon:
 
 | Page | What is there |
 | --- | --- |
-| **Themes** | The [themes](#themes) of this browser, and which two **Auto** follows your system with |
+| **Themes** | The [themes](#themes) of this browser, and which one is in use |
 | **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- **Ai-chan** -- the nous a new [Ai-chan](#ai-chan) conversation starts with, none until one is picked -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: **Edit** it (what you leave blank stays as it was), or make one; under **More options** at the end of its row, or on a right click of it, ask what it runs again (**Refresh models**), copy it to another CLI, or remove it, which asks first in the row |
 | **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node. A concrete nous is listed by its names -- **Claude Code - Opus 4.1 · High** -- with what `-a` spells where you point at it; typed into a graph, it is typed as `-a` spells it |
@@ -603,23 +603,25 @@ offered as `(at a terminal)` and made from `/settings` in `hmz`.
 
 ### Themes {#themes}
 
-The page is drawn in a theme. Humanize comes with **presets**, each a pair of a light theme and a
-dark one: its own, **Humanize Green**, and **Temperate Gold**, **Concordant Scarlet**,
+The page is drawn in a theme. A theme always has two sides, a light one and a dark one, under
+one name; your system says which is shown, the light where it is light and the dark where it is
+dark, and the page follows it as it changes. Humanize comes with **presets**: its own,
+**Humanize Green**, and **Temperate Gold**, **Concordant Scarlet**,
 **Restrained Crimson**, **Critical Teal**, **Desirous Indigo**, **Peaceful Lilac**,
 **Hateful Silver**, **Devoted Pink**, **Self-Negating Plum**, **Dominant Azure**,
 **Surviving Jade** and **Lamenting Orchid**.
 
-A theme is picked only under **Settings → Themes**. **Auto**, the default, follows your system
-with a pair: under **Auto** pick a **Pair** -- or any theme for the system's **Light** and any
-for its **Dark**, your own included. Click a preset's light or dark
-swatch to use that one theme whatever the system is.
+A theme is picked only under **Settings → Themes**: **Use** beside one chooses it, both sides at
+once. Humanize Green is in use until you choose another. Nothing there picks light or dark:
+change your system's appearance for that.
 
-**New** makes a theme from the one showing, and **New pair** a pair of your own -- a light theme
-and a dark one, which Auto can follow your system with as it does a preset -- from the pair
-showing. **Duplicate** copies any theme, or a whole pair. **Edit** opens one of yours:
+Under **Custom** are the themes of your own. **New** makes one from the theme in use, copying
+both its sides -- to start from a preset, use it first -- and **Import** reads one from a file.
+**Edit** opens one of yours, **Delete** forgets it:
 
-- **Name**, and the **Base** it is made on, Light or Dark, whose colour any you leave blank is.
-  In a pair, the name is both themes', and **Side** switches between its light and its dark.
+- **Name**, which both sides have, and **Side**, which switches between its light and its dark.
+  Each side has its own colours and pictures; a colour you leave blank is Humanize Green's for
+  that side.
 - Every colour, by what it colours: **Backgrounds** (page, sidebar, surface, raised),
   **Text**, **Controls** (button, its text, primary button, its text, field, edge), **Lines**
   (line, strong line, hover, scrim), **Accents** and the **Graph**'s lanes. **Edge** is the line
@@ -628,38 +630,36 @@ showing. **Duplicate** copies any theme, or a whole pair. **Edit** opens one of 
   what is selected or pressed is a stronger tint of the text's colour, worked out from it, and
   no colour of its own. The **strong line** is around what floats and what is typed into, the
   **line** between everything else, and the **scrim** dims the page behind a dialog. Pick one or type any CSS colour, such as
-  `#102030` or `rgba(255, 255, 255, 0.1)`; × gives back the base's.
+  `#102030` or `rgba(255, 255, 255, 0.1)`; × gives back Humanize Green's.
 - **Pictures** behind the **Page**, **Sidebar**, **Panel** and **Dialog**: a PNG, JPEG, GIF,
   WebP, AVIF or SVG -- an animated SVG moves -- each to **Cover**, **Fit** or **Tile** its plane.
   Where your system asks for reduced motion, a moving picture is held still.
 
-The page shows a theme as you change it, and keeps every change at once. **Export** saves a
-theme, or a pair with both its themes, pictures and all, as a `.hmztheme` file; **Import** reads
-one back, here or in any other browser. Themes are kept by the browser, as the rest of what the page remembers is, so another
-browser -- or [the app](/user/desktop) -- has its own until you import them there.
+The page shows a theme as you change it, and keeps every change at once. **Export**, beside
+**Done** where a theme of yours is edited, saves it with both its sides, pictures and all, as a
+`.hmztheme` file; **Import** reads one back, here or in any other browser. Themes are kept by the
+browser, as the rest of what the page remembers is, so another browser -- or
+[the app](/user/desktop) -- has its own until you import them there.
 
-A `.hmztheme` file is JSON:
-
-```json
-{
-  "hmztheme": 1,
-  "name": "Night",
-  "base": "dark",
-  "colors": { "paper": "#102030", "primary": "#ec6fa3" },
-  "images": { "page": { "fit": "cover", "data": "data:image/svg+xml;base64,…" } }
-}
-```
-
-A pair holds both its themes, each with its `colors` and `images`, in place of a `base`:
+A `.hmztheme` file is JSON, holding both sides, each with its `colors` and `images`:
 
 ```json
 {
   "hmztheme": 1,
   "name": "Dusk",
   "light": { "colors": { "paper": "#fff8e0" }, "images": {} },
-  "dark": { "colors": { "paper": "#201008" }, "images": {} }
+  "dark": {
+    "colors": { "paper": "#201008", "primary": "#ec6fa3" },
+    "images": { "page": { "fit": "cover", "data": "data:image/svg+xml;base64,…" } }
+  }
 }
 ```
+
+An earlier Humanize let a theme have one side alone, and let a light and a dark be picked apart.
+What it kept in your browser is kept: a theme of one side gets the other, plain, and two sides
+picked apart become one theme of your own, called **Custom**, which stays in use. A file it
+wrote for one side -- `"base": "dark"` with `colors` and `images`, in place of `light` and
+`dark` -- is still imported, as a theme whose other side is plain.
 
 `colors` is keyed by the page's colour tokens (`paper`, `side`, `surface`, `raised`, `ink`,
 `ink-2`, `ink-3`, `on-ink`, `on-fill`, `link`, `control`, `control-ink`, `primary`,

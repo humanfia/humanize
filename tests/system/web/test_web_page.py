@@ -1313,9 +1313,9 @@ def _painted(page: Page, token: str, said: str) -> None:
     raise AssertionError(f"{token} is {_paints(page, token)!r}, not {said!r}")
 
 
-#: Every pair of themes Humanize comes with: its own, then twelve more, each named for a mood
-#: and its colour.
-_PAIRS = [
+#: Every theme Humanize comes with: its own, then twelve more, each named for a mood and its
+#: colour.
+_PRESETS = [
     "Humanize Green",
     "Temperate Gold",
     "Concordant Scarlet",
@@ -1332,7 +1332,12 @@ _PAIRS = [
 ]
 
 
-def test_the_colours_are_a_pair_under_auto_or_a_theme(
+def _kept(page: Page, name: str) -> str | None:
+    """What the browser keeps under a name; None where it keeps nothing."""
+    return page.evaluate("(name) => localStorage.getItem(name)", name)
+
+
+def test_a_theme_is_chosen_whole_and_the_system_says_which_side_is_shown(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
@@ -1343,53 +1348,87 @@ def test_the_colours_are_a_pair_under_auto_or_a_theme(
         )
         page.keyboard.press("Escape")
         go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=pair]")).to_have_count(len(_PAIRS))
-        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("humanize")
-        page.locator("[data-hmz=auto-pair]").select_option(label="Peaceful Lilac")
+        presets = page.locator("[data-hmz=presets] [data-hmz=theme]")
+        expect(presets.locator(".theme-name b")).to_have_text(_PRESETS)
+        # Each is drawn as its two sides, and nothing picks one of them: no Auto, no light or
+        # dark to choose, nothing copied or written out from the list.
+        expect(presets.locator(".theme-swatch")).to_have_count(2 * len(_PRESETS))
+        expect(presets.locator("button")).to_have_text(["Use"] * len(_PRESETS))
+        expect(page.locator("[data-hmz=theme-auto]")).to_have_count(0)
+        expect(page.locator("[data-hmz=presets] select")).to_have_count(0)
+        custom = page.locator("[data-hmz=custom]")
+        expect(custom.locator("h2")).to_have_text("Custom")
+        expect(custom.locator("header button")).to_have_text(["New", "Import"])
+        expect(custom.locator("p")).to_have_text("No custom themes yet.")
+        expect(custom.locator("select")).to_have_count(0)
+
+        # Humanize's own is in use where none was chosen.
+        own = page.locator("[data-hmz=theme][data-key=humanize]")
+        expect(own).to_have_class(re.compile("chosen"))
+        expect(own.locator(".theme-name .dim")).to_have_text("In use")
+        expect(own.get_by_role("button", name="Use")).to_be_disabled()
+
+        lilac = page.locator("[data-hmz=theme][data-key=peaceful-lilac]")
+        lilac.get_by_role("button", name="Use").click()
+        expect(lilac).to_have_class(re.compile("chosen"))
+        expect(own).not_to_have_class(re.compile("chosen"))
         expect(page.locator("html")).to_have_attribute("data-theme", "light")
         _painted(page, "--paper", "#f7f2f7")
         page.emulate_media(color_scheme="dark")
         expect(page.locator("html")).to_have_attribute("data-theme", "dark")
         _painted(page, "--paper", "#151019")
-        # Opened again, the pair is painted before the page is drawn.
+        assert _kept(page, "hmz-pair") == "peaceful-lilac"
+        # Opened again, the theme is painted before the page is drawn.
         again = page.context.new_page()
         again.emulate_media(color_scheme="dark")
         again.goto(site.address)
         assert _paints(again, "--paper") == "#151019"
         again.close()
 
-        # One theme of a pair, chosen outright, holds whatever the system is.
-        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("peaceful-lilac")
-        page.get_by_role("button", name="Use Devoted Pink · Light").click()
-        expect(page.locator("html")).to_have_attribute("data-theme", "light")
-        _painted(page, "--paper", "#fdf6f5")
-        page.locator("[data-hmz=auto-pair]").select_option(label="Critical Teal")
-        _painted(page, "--paper", "#0f1518")
-        page.locator("[data-hmz=auto-light]").select_option(
-            label="Hateful Silver · Light"
-        )
-        expect(page.locator("[data-hmz=auto-pair]")).to_have_value("")
+        # What a right click offers is the theme, whole.
+        lilac.click(button="right", position={"x": 300, "y": 20})
+        expect(page.locator(".popover.context [role=menuitem]")).to_have_text(["Use"])
+        page.keyboard.press("Escape")
+        own.get_by_role("button", name="Use").click()
+        expect(own).to_have_class(re.compile("chosen"))
+        assert _kept(page, "hmz-pair") is None
+        assert page.evaluate("document.documentElement.style.length") == 0
 
 
-def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
+def test_a_theme_is_made_of_the_one_in_use_written_out_and_read_back(
     project: Path, engine: str
 ) -> None:
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=theme]")).to_have_count(0)
+        custom = page.locator("[data-hmz=custom] [data-hmz=theme]")
+        expect(custom).to_have_count(0)
+        pink = page.locator("[data-hmz=theme][data-key=devoted-pink]")
+        pink.get_by_role("button", name="Use").click()
+        _painted(page, "--paper", "#fdf6f5")
+
+        # New copies both sides of the theme in use, and opens the side the system shows.
         page.get_by_role("button", name="New", exact=True).click()
         editor = page.locator("[data-hmz=theme-editor]")
         expect(editor).to_be_visible()
-        page.locator("[data-hmz=theme-name]").fill("Night")
-        page.locator("[data-hmz=theme-base]").select_option("dark")
-        # Shown on the page as it is changed, while it is edited.
-        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
-        page.locator("[data-hmz=colour-paper]").fill("#102030")
+        side = page.locator("[data-hmz=theme-side]")
+        expect(side.locator("button")).to_have_text(["Light", "Dark"])
+        expect(side.locator("[aria-pressed=true]")).to_have_text("Light")
+        expect(page.locator("[data-hmz=theme-base]")).to_have_count(0)
+        expect(page.locator("[data-hmz=theme-name]")).to_have_value("New theme")
+        expect(page.locator("[data-hmz=colour-paper]")).to_have_value("#fdf6f5")
+        page.locator("[data-hmz=theme-name]").fill("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#fff8e0")
         page.locator("[data-hmz=colour-control]").fill("not a colour")
         expect(page.locator("[data-hmz=colour-control]")).to_have_attribute(
             "aria-invalid", "true"
         )
-        assert _paints(page, "--paper") == "#102030"
+        # Shown on the page as it is changed, while it is edited.
+        assert _paints(page, "--paper") == "#fff8e0"
+        side.get_by_role("button", name="Dark").click()
+        expect(side.locator("[aria-pressed=true]")).to_have_text("Dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+        expect(page.locator("[data-hmz=theme-name]")).to_have_value("Dusk")
+        page.locator("[data-hmz=colour-paper]").fill("#201008")
         page.locator("[data-hmz=picture-page]").set_input_files(
             {"name": "moving.svg", "mimeType": "image/svg+xml", "buffer": _MOVING}
         )
@@ -1401,76 +1440,29 @@ def test_a_theme_is_made_written_out_read_back_and_paired_under_auto(
         # Left, the page is drawn in the theme chosen again.
         page.get_by_role("link", name="Done").click()
         expect(page.locator("html")).to_have_attribute("data-theme", "light")
-        night = page.locator("[data-hmz=theme]", has_text="Night")
+        _painted(page, "--paper", "#fdf6f5")
+        dusk = custom.filter(has_text="Dusk")
+        expect(dusk.locator(".theme-swatch")).to_have_count(2)
+        # It is written out where it is edited, and nowhere else.
+        expect(dusk.locator(".row").locator("button, a")).to_have_text(
+            ["Use", "Edit", "Delete"]
+        )
+        dusk.get_by_role("link", name="Edit").click()
         with page.expect_download() as saving:
-            night.get_by_role("button", name="Export").click()
-        saved = saving.value
-        assert saved.suggested_filename == "Night.hmztheme"
-        written = Path(saved.path()).read_text()
-        night.get_by_role("button", name="Delete").click()
-        _answer(night, "Delete Night?", "Delete")
-        expect(night).to_have_count(0)
-
-        page.locator("[data-hmz=theme-file]").set_input_files(
-            {
-                "name": "Night.hmztheme",
-                "mimeType": "application/json",
-                "buffer": written.encode(),
-            }
-        )
-        expect(night).to_have_count(1)
-        page.locator("[data-hmz=auto-dark]").select_option(label="Night · Dark")
-        page.emulate_media(color_scheme="dark")
-        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
-        _painted(page, "--paper", "#102030")
-        _painted(page, "--page-image", "data:image/svg+xml")
-        # Where motion is asked to be reduced, the picture is held as it is first drawn.
-        page.emulate_media(reduced_motion="reduce")
-        _painted(page, "--page-image", "data:image/png")
-        page.emulate_media(color_scheme="light")
-        expect(page.locator("html")).to_have_attribute("data-theme", "light")
-        # Opened again, it is painted before the page is drawn.
-        again = page.context.new_page()
-        again.emulate_media(color_scheme="dark")
-        again.goto(site.address)
-        assert again.evaluate("document.documentElement.dataset.theme") == "dark"
-        assert _paints(again, "--paper") == "#102030"
-        again.close()
-
-
-def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
-    project: Path, engine: str
-) -> None:
-    with served() as site, opened(site, engine=engine) as page:
-        go(page, "/settings/themes")
-        page.get_by_role("button", name="New pair").click()
-        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
-            "Light"
-        )
-        page.locator("[data-hmz=theme-name]").fill("Dusk")
-        page.locator("[data-hmz=colour-paper]").fill("#fff8e0")
-        page.locator("[data-hmz=theme-side]").get_by_role("button", name="Dark").click()
-        expect(page.locator("[data-hmz=theme-side] [aria-pressed=true]")).to_have_text(
-            "Dark"
-        )
-        expect(page.locator("[data-hmz=theme-name]")).to_have_value("Dusk")
-        page.locator("[data-hmz=colour-paper]").fill("#201008")
-        page.get_by_role("link", name="Done").click()
-
-        dusk = page.locator("[data-hmz=pair]", has_text="Dusk")
-        dusk.get_by_role("button", name="Export").click()
-        with page.expect_download() as saving:
-            page.get_by_role("menuitem", name="Pair").click()
+            editor.get_by_role("button", name="Export").click()
         saved = saving.value
         assert saved.suggested_filename == "Dusk.hmztheme"
         written = json.loads(Path(saved.path()).read_text())
+        assert sorted(written) == ["dark", "hmztheme", "light", "name"]
         assert written["name"] == "Dusk"
         assert written["light"]["colors"]["paper"] == "#fff8e0"
         assert written["dark"]["colors"]["paper"] == "#201008"
+        assert written["dark"]["images"]["page"]["data"].startswith("data:image/svg")
+        page.get_by_role("link", name="Done").click()
 
         dusk.get_by_role("button", name="Delete").click()
         _answer(dusk, "Delete Dusk?", "Delete")
-        expect(dusk).to_have_count(0)
+        expect(custom).to_have_count(0)
         page.locator("[data-hmz=theme-file]").set_input_files(
             {
                 "name": "Dusk.hmztheme",
@@ -1479,11 +1471,117 @@ def test_a_pair_is_made_written_out_with_both_its_themes_and_read_back(
             }
         )
         expect(dusk).to_have_count(1)
-        page.locator("[data-hmz=auto-pair]").select_option(label="Dusk")
+        dusk.get_by_role("button", name="Use").click()
+        expect(dusk).to_have_class(re.compile("chosen"))
         _painted(page, "--paper", "#fff8e0")
         page.emulate_media(color_scheme="dark")
+        expect(page.locator("html")).to_have_attribute("data-theme", "dark")
         _painted(page, "--paper", "#201008")
-        expect(dusk).to_have_class(re.compile("chosen"))
+        _painted(page, "--page-image", "data:image/svg+xml")
+        # Where motion is asked to be reduced, the picture is held as it is first drawn.
+        page.emulate_media(reduced_motion="reduce")
+        _painted(page, "--page-image", "data:image/png")
+        # Opened again, it is painted before the page is drawn.
+        again = page.context.new_page()
+        again.emulate_media(color_scheme="dark")
+        again.goto(site.address)
+        assert again.evaluate("document.documentElement.dataset.theme") == "dark"
+        assert _paints(again, "--paper") == "#201008"
+        again.close()
+
+        # Deleted while in use, Humanize's own is shown instead.
+        dusk.get_by_role("button", name="Delete").click()
+        _answer(dusk, "Delete Dusk?", "Delete")
+        expect(custom).to_have_count(0)
+        expect(page.locator("[data-hmz=theme][data-key=humanize]")).to_have_class(
+            re.compile("chosen")
+        )
+        assert _kept(page, "hmz-pair") is None
+
+
+#: What an earlier Humanize kept in a browser: a theme of one side, a dark alone, shown where
+#: the system is dark, and the light of a preset where it is light. Kept once: the page it is
+#: kept for is the first this browser opens.
+_EARLIER = """
+if (!localStorage.getItem('seeded')) {
+  localStorage.setItem('seeded', '1')
+  localStorage.setItem('hmz-themes', JSON.stringify([
+    { id: 'tnight', name: 'Night', base: 'dark', colors: { paper: '#102030' }, images: {} },
+  ]))
+  localStorage.setItem('hmz-theme-light', 'hateful-silver-light')
+  localStorage.setItem('hmz-theme-dark', 'tnight')
+}
+"""
+
+
+def test_what_an_earlier_version_kept_is_kept_as_themes_of_two_sides(
+    project: Path, engine: str
+) -> None:
+    with served() as site, opened(site, engine=engine, init=_EARLIER) as page:
+        go(page, "/settings/themes")
+        custom = page.locator("[data-hmz=custom] [data-hmz=theme]")
+        # The theme of one side has both now, and the two picked apart are one theme, in use.
+        expect(custom.locator(".theme-name b")).to_have_text(["Night", "Custom"])
+        expect(custom.locator(".theme-swatch")).to_have_count(4)
+        mixed = custom.filter(has_text="Custom")
+        expect(mixed).to_have_class(re.compile("chosen"))
+        silver = page.locator("[data-hmz=theme][data-key=hateful-silver]")
+        paper = silver.locator(".theme-swatch").first.evaluate(
+            "(one) => one.style.getPropertyValue('--paper')"
+        )
+        assert paper.startswith("#")
+        _painted(page, "--paper", paper)
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#102030")
+        for gone in ("hmz-theme", "hmz-theme-light", "hmz-theme-dark"):
+            assert _kept(page, gone) is None
+        assert (_kept(page, "hmz-pair") or "").startswith("p")
+        # Night's other side sets nothing: used where the system is light, it is Humanize's own.
+        page.emulate_media(color_scheme="light")
+        night = custom.filter(has_text="Night")
+        night.get_by_role("button", name="Use").click()
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        assert page.evaluate("document.documentElement.style.length") == 0
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#102030")
+        page.emulate_media(color_scheme="light")
+
+        # One side chosen outright, whatever the system was: its theme is chosen.
+        page.evaluate(
+            """() => {
+              localStorage.removeItem('hmz-pair')
+              localStorage.setItem('hmz-theme', 'devoted-pink-dark')
+            }"""
+        )
+        page.reload()
+        _painted(page, "--paper", "#fdf6f5")
+        assert _kept(page, "hmz-pair") == "devoted-pink"
+        assert _kept(page, "hmz-theme") is None
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+
+        # A file an earlier version wrote for one side is read as a theme of two.
+        go(page, "/settings/themes")
+        page.locator("[data-hmz=theme-file]").set_input_files(
+            {
+                "name": "Solo.hmztheme",
+                "mimeType": "application/json",
+                "buffer": json.dumps(
+                    {
+                        "hmztheme": 1,
+                        "name": "Solo",
+                        "base": "dark",
+                        "colors": {"paper": "#0a0b0c", "nothing": "#fff"},
+                    }
+                ).encode(),
+            }
+        )
+        expect(page.locator(".toast")).to_have_text("Imported Solo")
+        solo = custom.filter(has_text="Solo")
+        expect(solo.locator(".theme-swatch")).to_have_count(2)
+        solo.get_by_role("button", name="Use").click()
+        assert page.evaluate("document.documentElement.style.length") == 0
+        page.emulate_media(color_scheme="dark")
+        _painted(page, "--paper", "#0a0b0c")
 
 
 def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> None:
@@ -1493,7 +1591,7 @@ def test_a_file_that_is_not_a_theme_is_refused(project: Path, engine: str) -> No
             {"name": "x.hmztheme", "mimeType": "application/json", "buffer": b"{}"}
         )
         expect(page.locator(".toast")).to_have_text("This is not a theme file")
-        expect(page.locator("[data-hmz=theme]")).to_have_count(0)
+        expect(page.locator("[data-hmz=custom] [data-hmz=theme]")).to_have_count(0)
 
 
 def test_a_newer_release_is_offered_under_the_machine(

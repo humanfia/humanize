@@ -223,22 +223,6 @@ def _whole(page: Page, popup: Locator) -> None:
 def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -> None:
     """A menu opens on the side of its button there is room on, however far down a list it is."""
     with served() as site, opened(site, engine=engine, width=900, height=420) as page:
-        # The last of a list that scrolls, in a dialog: its menu opens over the button.
-        go(page, "/settings/themes")
-        last = page.locator("[data-hmz=pair]").last
-        last.evaluate("(row) => row.scrollIntoView({ block: 'end' })")
-        last.get_by_role("button", name="Export").click()
-        menu = page.get_by_role("menu", name="Export")
-        expect(menu.get_by_role("menuitem")).to_have_text(["Pair", "Light", "Dark"])
-        _whole(page, menu)
-        button = last.get_by_role("button", name="Export").bounding_box()
-        drawn = menu.bounding_box()
-        assert button is not None
-        assert drawn is not None
-        assert drawn["y"] + drawn["height"] <= button["y"]
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-
         # The daemon picker, at the foot of the window: over its button, as wide as it.
         page.locator("[data-hmz=daemon-bar]").click()
         _whole(page, page.get_by_role("menu", name="Daemon"))
@@ -257,7 +241,7 @@ def test_every_popup_opens_whole_within_the_window(project: Path, engine: str) -
 
         # What a right click opens, at the window's foot.
         go(page, "/settings/themes")
-        row = page.locator("[data-hmz=pair]").last
+        row = page.locator("[data-hmz=theme]").last
         row.scroll_into_view_if_needed()
         row.click(button="right", position={"x": 300, "y": 20})
         _whole(page, page.locator(".popover.context"))
@@ -341,6 +325,6 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
         page.locator("[data-hmz=path-browse]").click()
         expect(panel).to_be_visible()
         go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=pair]").first).to_be_visible()
+        expect(page.locator("[data-hmz=theme]").first).to_be_visible()
         assert _popups(page) == []
         assert _flat(page)
