@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 296" role="img">
+  <title>One params class becomes the -p flag, the form in the app, the sheet in the terminal and a mapping from Python; each is validated into the params your flow reads, or refused before the run</title>
+  <rect width="760" height="296" rx="12" fill="#f4f8f9"/>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#5d6a72"/>
+    </marker>
+  </defs>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+    <rect x="24" y="104" width="208" height="88" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+    <text x="128" y="142" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12">class Params(FlowParams)</text>
+    <text x="128" y="166" text-anchor="middle" font-size="12" fill="#435058">one field per param</text>
+
+    <g fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5">
+      <rect x="296" y="32" width="184" height="44" rx="8"/>
+      <rect x="296" y="94" width="184" height="44" rx="8"/>
+      <rect x="296" y="156" width="184" height="44" rx="8"/>
+      <rect x="296" y="218" width="184" height="44" rx="8"/>
+    </g>
+    <text x="388" y="59" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-p rounds=3</text>
+    <text x="388" y="121" text-anchor="middle">Form in the app</text>
+    <text x="388" y="183" text-anchor="middle">Sheet in the terminal</text>
+    <text x="388" y="245" text-anchor="middle">Mapping from Python</text>
+
+    <g fill="none" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)">
+      <path d="M232 132 C264 132 264 54 294 54"/>
+      <path d="M232 142 C264 142 264 116 294 116"/>
+      <path d="M232 154 C264 154 264 178 294 178"/>
+      <path d="M232 164 C264 164 264 240 294 240"/>
+      <path d="M480 54 C512 54 512 132 542 132"/>
+      <path d="M480 116 C512 116 512 142 542 142"/>
+      <path d="M480 178 C512 178 512 154 542 154"/>
+      <path d="M480 240 C512 240 512 164 542 164"/>
+    </g>
+
+    <rect x="544" y="104" width="192" height="88" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+    <text x="640" y="142" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">params.rounds</text>
+    <text x="640" y="166" text-anchor="middle" font-size="12" fill="#435058">a validated instance</text>
+    <text x="640" y="218" text-anchor="middle" font-size="12" fill="#80590c">or refused before the run</text>
+  </g>
+</svg>

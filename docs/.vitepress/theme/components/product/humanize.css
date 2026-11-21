@@ -4,8 +4,8 @@
  * bands that alternate paper and ink, and the start state of everything that moves.
  *
  * Scoped under .hz-root. The ink band (.hz-ink) re-points the theme's own colour variables at
- * their dark values, so any component dropped into it -- the Deep Tech diagrams, the anchor --
- * is drawn inverted without knowing it.
+ * their dark values, so any component dropped into it -- the installer -- is drawn inverted
+ * without knowing it.
  */
 
 .hz-root {
@@ -139,9 +139,6 @@
 .hz-head .hz-lead {
   grid-column: 2;
 }
-.hz-head.solo {
-  grid-template-columns: minmax(0, 1fr);
-}
 .hz-num {
   grid-column: 1 / -1;
   display: flex;
@@ -152,10 +149,6 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--hz-ink-3);
-}
-.hz-num b {
-  color: var(--hf-cyan-deep);
-  font-weight: 700;
 }
 .hz-num::after {
   content: '';
@@ -188,26 +181,6 @@
   color: var(--hz-ink-2);
   text-wrap: pretty;
 }
-.hz-lead code,
-.hz-copy code {
-  font-size: 0.86em;
-  padding: 1px 6px;
-  background: var(--hz-line-2);
-  color: var(--hz-ink);
-}
-.hz-copy {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.65;
-  color: var(--hz-ink-2);
-  text-wrap: pretty;
-}
-.hz-copy + .hz-copy {
-  margin-top: 14px;
-}
-.hz-copy b {
-  color: var(--hz-ink);
-}
 
 .hz-kicker {
   display: flex;
@@ -225,20 +198,6 @@
   width: 28px;
   height: 6px;
   background: var(--hz-mark);
-}
-
-.hz-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--hz-accent) !important;
-}
-.hz-link:hover {
-  text-decoration: underline !important;
-  text-decoration-thickness: 2px !important;
-  text-underline-offset: 4px;
 }
 
 /* -------------------------------------------------------------------------------- buttons */

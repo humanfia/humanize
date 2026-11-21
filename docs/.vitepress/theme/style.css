@@ -702,3 +702,28 @@
 ::selection {
   background: color-mix(in srgb, var(--hmz-accent-2) 30%, transparent);
 }
+
+/* ---------------------------------------------------------------------------------------
+   Pictures. Every picture in the documentation is an SVG file: the real interface, captured
+   (public/shots/, made by tests/system/docs/), or a diagram (public/diagrams/). Each carries its
+   own paper, so it is framed the same on the light page and the dark one. */
+.vp-doc img[src*='/shots/'],
+.vp-doc img[src*='/diagrams/'] {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 20px 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: #f4f8f9;
+}
+/* The line under a picture that says what it shows: an emphasised paragraph right after it. */
+.vp-doc p:has(> img[src*='/shots/']) + p > em:only-child,
+.vp-doc p:has(> img[src*='/diagrams/']) + p > em:only-child {
+  display: block;
+  margin-top: -8px;
+  font-size: 13px;
+  font-style: normal;
+  color: var(--vp-c-text-2);
+  text-align: center;
+}

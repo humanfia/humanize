@@ -3,39 +3,42 @@
 // on humanfia.ai (humanfia.ai/humanize/) and the front page of its documentation at once.
 //
 // A product page, as an open-source project's home page is one: what it is and the button that
-// gets it (the hero), why it is worth it (the ablation), what you get (six cards), which agents
-// it runs, what it looks like, how to install it, and the way into each section of the
-// documentation. How it works inside is those sections' to say, and which flows there are is
-// the Flows pages' on humanfia.ai.
+// gets it (the hero), what it does (six cards), which agents it runs, what it looks like, how to
+// install it, and the way into each section of the documentation. How it works is those
+// sections' to say, and which flows there are is the Flows pages' on humanfia.ai.
 //
-// Motion is switched on by one class, after mount, and only when the reader allows it: the
-// server-rendered page, and a reader who asked for less motion, see every section at rest.
+// Its pictures are reels of the real interfaces, written by tests/system/docs/test_docs_home.py:
+// SVG files that play by themselves in an <img>, and stand still for a reader who asked for less
+// motion. Each is given the size of its file, so the page keeps its place before it loads.
+//
+// The page's own motion is switched on by one class, after mount, and only when the reader
+// allows it: the server-rendered page, and a reader who asked for less motion, see every section
+// at rest.
 import { withBase } from 'vitepress'
 import { onMounted, ref } from 'vue'
-import NumberTicker from './NumberTicker.vue'
 import Install from './Install.vue'
 import { prefersReducedMotion, vReveal } from './motion'
-import DemoVideo from './DemoVideo.vue'
-import HzAblation from './HzAblation.vue'
 import HzHero from './HzHero.vue'
-import { AGENTS, FEATURES, HUMANFIA } from './data'
+import { AGENTS, FEATURES, HUMANFIA, REPO } from './data'
 import './palette.css'
 import './humanize.css'
 
 const motion = ref(false)
 onMounted(() => (motion.value = !prefersReducedMotion()))
 
-// A path is a page of these docs; anything else is written out in full, and is humanfia.ai's.
+// A path is a page of these docs; anything else is written out in full, and is humanfia.ai's
+// or GitHub's.
 const link = (href: string) => (href.startsWith('/') ? withBase(href) : href)
 
-// The way into the documentation, a section each, and the flows, which are humanfia.ai's.
+// The way into the documentation, a section each; the flows, which are humanfia.ai's; and the
+// source, which is where contributing is written.
 const NEXT = [
-  { kicker: 'Docs', title: 'User Guide', body: 'Running flows: the app, the terminal and the browser, agents and accounts, and reading a run back.', href: '/user/' },
-  { kicker: 'Docs', title: 'Writing Flows', body: 'Your own flow, in Python: loops, goals, hooks and worktrees, and how to test one.', href: '/weaver/' },
-  { kicker: 'Docs', title: 'Features', body: 'How Humanize works, drawn: one diagram per capability.', href: '/features/' },
-  { kicker: 'Docs', title: 'Reference', body: 'Every command, key, flag and Python call, spelled out.', href: '/reference/' },
-  { kicker: 'Flows', title: 'Browse the flows', body: 'Every loop there is to run, each played step by step.', href: `${HUMANFIA}/flows/` },
-  { kicker: 'Source', title: 'Contributing', body: 'Working on Humanize itself: the layers, the checks, and these docs. Apache-2.0.', href: '/contributing/' },
+  { kicker: 'Docs', title: 'Tutorials', body: 'Walk through one complete job per tutorial, starting with your first task.', href: '/tutorials/' },
+  { kicker: 'Docs', title: 'User Guide', body: 'Learn one feature per page across the app, browser, terminal and CLI.', href: '/user/' },
+  { kicker: 'Docs', title: 'Builder Guide', body: 'Write your own flows in Python with loops, budgets, hooks, worktrees and tests.', href: '/builder/' },
+  { kicker: 'Docs', title: 'Reference', body: 'Look up every command, key, setting and Python call.', href: '/reference/' },
+  { kicker: 'Flows', title: 'Browse the flows', body: 'Read how each official flow works.', href: `${HUMANFIA}/flows/` },
+  { kicker: 'Source', title: 'Source and contributing', body: 'Find the code and contributing guide on GitHub. Apache-2.0.', href: `${REPO}/blob/main/CONTRIBUTING.md` },
 ]
 </script>
 
@@ -43,31 +46,12 @@ const NEXT = [
   <div class="hz-root" :class="{ 'hz-motion': motion }">
     <HzHero :motion="motion" />
 
-    <!-- Why ------------------------------------------------------------------------------- -->
-    <section id="what-the-loop-is-worth" class="hz-band hz-ink">
-      <div class="hz-wrap">
-        <div class="hz-proof">
-          <div class="hz-proof-num" v-reveal>
-            <p class="hz-num">Same model, better results</p>
-            <p class="hz-big"><NumberTicker :value="47" :from="1" :duration="1800" /><small>/50</small></p>
-            <p class="hz-lead">
-              PutnamBench problems Kimi-K3 solved inside a Humanize flow, against <b>4</b> through
-              its own coding CLI alone.
-            </p>
-          </div>
-          <div class="hz-proof-chart" v-reveal="120">
-            <HzAblation />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- What you get ------------------------------------------------------------------------ -->
-    <section id="what-it-does" class="hz-band">
+    <!-- What it does ------------------------------------------------------------------------ -->
+    <section id="what-it-does" class="hz-band alt">
       <div class="hz-wrap">
         <header class="hz-head" v-reveal>
-          <p class="hz-num">What you get</p>
-          <h2 class="hz-h2">Hand the agent a task. <span class="hz-accent">Come back to it done.</span></h2>
+          <p class="hz-num">What it does</p>
+          <h2 class="hz-h2">Hand a flow a task. <span class="hz-accent">It runs the agents until the task is done.</span></h2>
         </header>
         <ul class="hz-feats">
           <li v-for="(f, i) in FEATURES" :key="f.title" v-reveal="(i % 3) * 60">
@@ -82,44 +66,50 @@ const NEXT = [
     </section>
 
     <!-- Agents ------------------------------------------------------------------------------ -->
-    <section id="every-harness" class="hz-band alt tight">
+    <section id="every-harness" class="hz-band tight">
       <div class="hz-wrap">
         <header class="hz-head" v-reveal>
           <p class="hz-num">Works with</p>
-          <h2 class="hz-h2">Thirteen coding agents, <span class="hz-accent">and any that speaks ACP.</span></h2>
+          <h2 class="hz-h2">Thirteen coding agents, <span class="hz-accent">and any agent that speaks ACP.</span></h2>
         </header>
         <ul class="hz-agents" v-reveal="80">
           <li v-for="a in AGENTS" :key="a">{{ a }}</li>
           <li class="more">any ACP agent</li>
-          <li class="more">any model, through litellm</li>
+          <li class="more">any model, through LiteLLM</li>
         </ul>
       </div>
     </section>
 
-    <!-- Demos ------------------------------------------------------------------------------- -->
-    <section id="the-real-thing-recorded" class="hz-band">
+    <!-- See it run -------------------------------------------------------------------------- -->
+    <section id="see-it-run" class="hz-band alt">
       <div class="hz-wrap">
         <header class="hz-head" v-reveal>
           <p class="hz-num">See it run</p>
-          <h2 class="hz-h2">One line from your shell, <span class="hz-accent">or a few keys in the app.</span></h2>
+          <h2 class="hz-h2">In the terminal, <span class="hz-accent">or as one command.</span></h2>
         </header>
-        <div class="hz-videos">
-          <div v-reveal>
-            <DemoVideo
-              :src="withBase('/media/ralph-loop-cli.mp4')"
-              :poster="withBase('/media/ralph-loop-cli.webp')"
-              title="A Ralph loop started with hmz exec: two fresh rounds, each picking up from the repository"
-              caption="hmz exec -f ralph_loop: two rounds, each in a fresh session, finish TASK.md."
+        <div class="hz-reels">
+          <figure v-reveal>
+            <img
+              :src="withBase('/shots/home-terminal.svg')"
+              width="1190"
+              height="786"
+              loading="lazy"
+              decoding="async"
+              alt="The terminal interface: pick a flow with /flow, set a budget, and enter a task to run its agents to the end."
             />
-          </div>
-          <div v-reveal="120">
-            <DemoVideo
-              :src="withBase('/media/ralph-loop-tui.mp4')"
-              :poster="withBase('/media/ralph-loop-tui.webp')"
-              title="The same Ralph loop from inside hmz: /flow, choose ralph_loop, set up the agent, save, then the task"
-              caption="The same loop from inside hmz: pick it with /flow, set up its agent, give it the task."
+            <figcaption>In <code>hmz</code>: pick a flow with <code>/flow</code>, set its budget, then give it the task.</figcaption>
+          </figure>
+          <figure v-reveal="120">
+            <img
+              :src="withBase('/shots/home-cli.svg')"
+              width="1092"
+              height="368"
+              loading="lazy"
+              decoding="async"
+              alt="A terminal running hmz exec with a flow and a task, printing each agent step and the final answer."
             />
-          </div>
+            <figcaption><code>hmz exec -f goal</code> runs a flow on one task and prints each step.</figcaption>
+          </figure>
         </div>
       </div>
     </section>
@@ -131,16 +121,15 @@ const NEXT = [
         <header class="hz-head" v-reveal>
           <p class="hz-num">Get started</p>
           <h2 class="hz-h2">Download the app, <span class="hz-accent">or install the CLI.</span></h2>
-          <p class="hz-lead">Free and open source, on macOS, Windows and Linux.</p>
+          <p class="hz-lead">Free and open source on macOS, Windows and Linux.</p>
         </header>
         <div v-reveal="80"><Install /></div>
         <aside class="hz-warn" v-reveal>
           <b>Heads up</b>
           <p>
-            Agents in a flow work without asking for approval: they edit files and run commands on
-            their own. Start in a scratch repository, and read
-            <a :href="withBase('/user/security')">Security →</a> before pointing one at work you care
-            about.
+            Agents in a flow edit files and run commands without asking for approval. Start in a
+            scratch repository, and read <a :href="withBase('/user/security')">Security →</a> before
+            you run a flow on important work.
           </p>
         </aside>
         <ul class="hz-next">
@@ -159,39 +148,7 @@ const NEXT = [
 </template>
 
 <style scoped>
-/* ---- why ------------------------------------------------------------------------------- */
-
-.hz-proof {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: clamp(32px, 6vw, 96px);
-  align-items: center;
-}
-.hz-proof .hz-num {
-  margin-bottom: 28px;
-}
-.hz-big {
-  display: flex;
-  align-items: baseline;
-  margin: 0 0 24px;
-  font-size: clamp(120px, 17vw, 260px);
-  line-height: 0.8;
-  letter-spacing: -0.07em;
-  font-weight: 800;
-  color: var(--hf-cyan-deep);
-  font-variant-numeric: tabular-nums;
-}
-.hz-big small {
-  margin-left: 0.06em;
-  font-size: 0.3em;
-  letter-spacing: -0.04em;
-  color: var(--hz-ink-3);
-}
-.hz-proof .hz-lead b {
-  color: var(--hz-ink);
-}
-
-/* ---- what you get ---------------------------------------------------------------------- */
+/* ---- what it does ---------------------------------------------------------------------- */
 
 .hz-feats {
   display: grid;
@@ -287,15 +244,35 @@ const NEXT = [
   color: var(--hz-ink-2);
 }
 
-/* ---- demos ----------------------------------------------------------------------------- */
+/* ---- see it run ------------------------------------------------------------------------ */
 
-.hz-videos {
+/* Two reels side by side, each at its own height: the terminal's screen and a command's output
+   are not one shape, and neither is stretched to the other. */
+.hz-reels {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.09fr) minmax(0, 1fr);
   gap: 24px;
+  align-items: start;
 }
-.hz-videos :deep(.demo) {
+.hz-reels figure {
   margin: 0;
+}
+.hz-reels img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.hz-reels figcaption {
+  margin-top: 12px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--hz-ink-2);
+}
+.hz-reels code {
+  padding: 1px 6px;
+  font-size: 0.88em;
+  color: var(--hz-ink);
+  background: var(--hz-line-2);
 }
 
 /* ---- get started ----------------------------------------------------------------------- */
@@ -393,8 +370,7 @@ const NEXT = [
   }
 }
 @media (max-width: 960px) {
-  .hz-proof,
-  .hz-videos,
+  .hz-reels,
   .hz-next {
     grid-template-columns: minmax(0, 1fr);
   }

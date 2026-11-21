@@ -3,7 +3,7 @@
 # which bumps `version` in pyproject.toml, uv.lock, the app's tauri.conf.json and coganchor's
 # Cargo.toml and Cargo.lock, and writes CHANGELOG.md. Merging that pull
 # request is the release: publish.yml takes it from there. Nothing is released from `main`.
-# docs/contributing/releasing.md is how a maintainer gets there.
+# RELEASING.md is how a maintainer gets there.
 
 name: release
 

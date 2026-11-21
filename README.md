@@ -13,7 +13,7 @@ Humanize Desktop is the page of `hmz web` in a window of its own. Download it fr
 `humanize-<version>-macos-universal.dmg` on macOS, where you install Humanize CLI as below
 too, or `humanize-<version>-windows-x64-setup.exe` on Windows, where the app installs `hmz`
 itself, in WSL 2 (`wsl --install`).
-[Installation](https://humanfia.ai/humanize/user/installation#desktop) says how to open it the
+[Install and update](https://humanfia.ai/humanize/user/install) says how to open it the
 first time.
 
 ### Humanize CLI
@@ -78,7 +78,8 @@ hmz exec -f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop \
 ```
 
 Agents run with approvals bypassed, so start in a scratch repository. The
-[documentation](https://humanfia.ai/humanize/) walks through a first run.
+[documentation](https://humanfia.ai/humanize/) starts with a
+[first task in the terminal](https://humanfia.ai/humanize/tutorials/first-task-terminal).
 
 ## Contributing
 

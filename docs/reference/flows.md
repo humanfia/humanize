@@ -1,76 +1,45 @@
-# Flows
+---
+title: Flow API
+description: Look up every public name of hmz.flows, with its signature and what it means.
+---
 
-The flow API: the module `hmz.flows`, the command-line specs that fill a flow's roles
-(`-a`, `-e`, `-p`), how a flow is found, loaded, called, resumed and tested, and
-every exception it raises. Guides: [Writing a flow](/weaver/writing-a-flow),
-[Loops](/weaver/loops).
+# Flow API
 
-## Synopsis
+Import everything a flow needs from `hmz.flows`. This page lists every public name in the package. To learn how to use them, start at [Anatomy of a flow](/builder/flow).
 
 ```python
-from hmz.flows import (
-    Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, LocalEnv, flow,
-)
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext
+from hmz.flows import FlowParams, LocalEnv, ShellEnvMixin, flow
+
+
+class Workspace(LocalEnv, ShellEnvMixin): ...
 
 
 class Agents(AgentCollection):
-    builder: Agent
+    coder: Agent
 
 
 class Envs(EnvCollection):
-    workspace: LocalEnv
+    workspace: Workspace
 
 
-@flow(agents=Agents, envs=Envs, params=FlowParams)
-async def twice(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
-                ctx: FlowContext) -> None:
-    """Two passes: do the work, then read it back and fix what is wrong."""
-    builder, workspace = agents["builder"], envs["workspace"]
-    session = await builder.spawn()
-    await builder.run(task, session=session, env=workspace)
-    await builder.run("Review what you did; fix anything wrong.", session=session, env=workspace)
+class Params(FlowParams):
+    rounds: int = 3
+
+
+@flow(agents=Agents, envs=Envs, params=Params)
+async def ralph(task, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext):
+    coder, workspace = agents["coder"], envs["workspace"]
+    session = await coder.spawn()
+    for _ in range(params.rounds):
+        await coder.run(task, session=session, env=workspace)
 ```
 
-```sh
-hmz exec -f twice -a builder=claude/claude-opus-5:high -p budget.cost=5 "add a --dry-run flag"
-```
+Most names here are type-checker protocols. At run time, the runtime passes objects that match these protocols. You get only what you declare: using an undeclared capability raises `CapabilityNotGranted`.
 
-## Stability
+## Define a flow
 
-| Module | Status |
-| --- | --- |
-| `hmz.flows` | Stable. Importing it loads pydantic and no other part of Humanize. |
-| `hmz.sdk`, `hmz.sdk.fakes` (as `from hmz.sdk import fakes`) | Stable. See [SDK](/reference/sdk) and [Testing a flow](#testing-a-flow). |
-| `hmz.runtime`, `hmz.runtime.flowing` | Internal. May change in any release. Named on this page only where a behaviour is defined there. |
-
-Agents, environments, sessions, the context and the state are **protocols**. At run time a flow
-is handed the runtime's own objects (views), which answer to these protocols structurally,
-hold `__slots__`, and derive from none of them. A view grants exactly what its role declared:
-anything else raises [`CapabilityNotGranted`](#capabilitynotgranted) whatever the harness or
-machine underneath could do.
-
-## Every name {#what-a-flow-drives}
-
-Everything below is importable from `hmz.flows` and listed in `hmz.flows.__all__`.
-
-| Group | Names |
-| --- | --- |
-| Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
-| Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) |
-| Asking a person | [`Markdown`, `Code`, `Diff`, `Table`, `Image`, `Json`, `Chart`, `Block`](#context-blocks), [`Face`, `FACE_GUIDE`](#face) |
-| Harness protocols | `ClaudeCodeAgent`, `CodexAgent`, `CursorAgent`, `OpenCodeAgent`, `MiMoCodeAgent`, `MiniMaxCodeAgent`, `QwenCodeAgent`, `KimiCodeAgent`, `GrokBuildAgent`, `PiAgent`, `AntigravityAgent`, `DeepSeekHarnessAgent`, `LiteLLMAgent` ([table](#what-each-harness-serves)) |
-| Fake tools and command lines | [`FakeTool`](#fake-tools), [`FakeCli`, `FakeCommand`](#fake-clis): `hmz.coganchor.faking`'s own, re-exported |
-| Agent mixins | `FakeToolAgentMixin`, `GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin` ([table](#asking-for-an-agent-that-can-do-something)) |
-| Permissions | [`Permission`](#permission), [`PRESETS`](#permission), [`Rule`, `Access`, `allow`, `read_only`, `deny`](#rule) |
-| Budgets | [`Budget`](#budget), [`Graceful`](#budget), [`Usage`](#usage) |
-| Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
-| Environment mixins | `ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin` ([table](#what-an-environment-can-do)); `GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin` ([table](#worktrees-copies-and-scratch-directories)); `RewindableEnvMixin`, `GitEnvMixin` ([table](#snapshots-and-rewinding)); `CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin` ([table](#what-a-machine-must-have)) |
-| Hooks | [`HookKind`](#hookkind), [`HookFn`](#hookfn), [`HookParams`, `HookResult`](#hookparams-and-hookresult), [`HOOK_TYPES`](#hook-types), and eleven `<Moment>HookParams`/`<Moment>HookResult` pairs ([table](#hook-fields)) |
-| Errors | [`FlowException`](#when-something-goes-wrong) and the 45 classes under it |
-
-## Defining a flow {#the-contract}
-
-### `flow` {#flow}
+Guides: [Anatomy of a flow](/builder/flow), [Params](/builder/params), [Call another flow](/builder/calling-flows), [Resumable flows](/builder/resumable).
 
 ```python
 def flow(
@@ -83,268 +52,106 @@ def flow(
     hidden: bool = False,
     resumable: bool = False,
 ) -> Callable[[FlowFn], Flow]
+
+def load(ref: str) -> Flow
 ```
 
-| Parameter | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `agents` | `type[AgentCollection]` | required | The agent roles, one key per role. See [`AgentCollection`](#agentcollection). |
-| `envs` | `type[EnvCollection]` | required | The environment roles, one key per role. See [`EnvCollection`](#envcollection). |
-| `params` | `type[FlowParams]` | required | The params model; `FlowParams` itself for none. |
-| `name` | `str \| None` | the function's `__name__` | The flow's name in its module: the part of a [ref](#refs) after `:`. Must match `[A-Za-z0-9_][A-Za-z0-9_.-]*`. |
-| `description` | `str \| None` | first line of the docstring, else `None` | One line, shown in lists of flows. |
-| `hidden` | `bool` | `False` | Omit from every list and from `/flow`. The flow still runs and [loads](#load) by its ref. |
-| `resumable` | `bool` | `False` | Keep a journal; gives the flow a [`ctx.state`](#flowstate). See [Resumable flows](#a-flow-that-can-be-picked-up). |
-
-Returns a decorator. Applied to an `async def`, the decorator returns a [`Flow`](#flow-protocol)
-(the runtime's `FlowImpl`). The decorator captures the global and local namespaces of the
-code that applied it.
-
-**Raised by the decorator** (`FlowDefinitionError`, message prefixed with the function's
-qualified name):
-
-| Condition | Message |
+| Name | Meaning |
 | --- | --- |
-| not a coroutine function | ``a flow is an `async def` function`` |
-| signature unreadable | `its signature cannot be read` |
-| no positional first parameter | `a flow takes the task as its first argument` |
-| `agents`, `envs`, `params` or `ctx` not accepted as keyword (and no `**kwargs`) | ``a flow takes `<name>` as a keyword argument`` |
-| another parameter without a default | ``` `<param>` has no default, and a flow is called with a task, agents, envs, params and ctx alone``` |
-| `agents` not an `AgentCollection` subclass | `agents=<value> is not an AgentCollection subclass` |
-| `envs` not an `EnvCollection` subclass | `envs=<value> is not an EnvCollection subclass` |
-| `params` not a `FlowParams` subclass | `params=<value> is not a FlowParams subclass` |
-| `params` with a field or alias `budget` | `'budget' is the run's budget, given as -p budget.<limit>=, and cannot be a param` |
-| name not matching the pattern | ``'<name>' is not a flow name: letters, digits, `_`, `.` and `-` `` |
+| `flow` | Decorator that turns an async function into a flow. Raises `FlowDefinitionError` if the function or its declarations are invalid. |
+| `load` | Returns the flow named by a ref, ready to call. Raises `FlowRefError`, `FlowNotFound`, `FlowLoadConflict` or `FlowDefinitionError`. |
+| `FlowFn` | The function `flow` decorates: `async def fn(task, *, agents, envs, params, ctx)`. |
+| `Flow` | A callable flow, returned by `flow` and `load`. |
+| `FlowParams` | Pydantic base model for flow parameters. Subclass it with one field per parameter. Undeclared keys are refused. |
+| `FlowContext` | Information about the current flow call, passed as `ctx`. |
+| `FlowState` | State a resumable flow keeps across runs: a mapping of JSON-serializable values saved on every write. |
 
-**Raised later**, the first time the flow is called or described (listed, loaded by
-`hmz exec`, opened in `/flow`), when the collections' annotations are resolved against the
-captured namespaces (`FlowDefinitionError`; the first four rows are prefixed
-`<Collection>.<role>`, the rest with the role type's `__qualname__`, e.g. `Builder: …`):
+Arguments of `flow`:
 
-| Condition | Message |
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `agents` | required | Required agents, as an `AgentCollection` subclass. |
+| `envs` | required | Required environments, as an `EnvCollection` subclass. |
+| `params` | required | Configuration parameters, as a `FlowParams` subclass. |
+| `name` | `None` | Name in its module, used after the colon in a ref. `None` uses the function name. |
+| `description` | `None` | One-line summary. `None` uses the first line of the docstring. |
+| `hidden` | `False` | Hide from interactive flow lists. You can still run and load it by ref. |
+| `resumable` | `False` | Allow resuming an interrupted run. Provides a `FlowState`. |
+
+Refs that `load` takes:
+
+| Ref | Names |
 | --- | --- |
-| annotation is a string that does not resolve | `'<text>' cannot be resolved: <error>` |
-| annotation is not a class | `<value> is not a class; a role is typed as one agent or environment type` |
-| agent role type not an `Agent` | `<type> is not an Agent` |
-| environment role type not an `Env` | `<type> is not an Env` |
-| agent type carries an environment mixin | `an agent cannot be declared with an environment's mixins` |
-| agent type derives from two harness protocols | `no agent is both <a> and <b>` |
-| `Outworlder` type with a harness protocol or mixin | `an Outworlder is whoever is outside the run, and has no harness or mixins` |
-| `_permission` not a `Permission` | `<Type>._permission is not a Permission` |
-| `_skills` not a tuple/list of non-empty strings | `<Type>._skills is not a tuple of skill names` |
-| `_tools` not a tuple/list of `FakeTool` | `<Type>._tools is not a tuple of FakeTool` |
-| two of `_tools` of one name | `<Type>._tools names one tool twice` |
-| `_tools` without `FakeToolAgentMixin` | `<Type>._tools needs FakeToolAgentMixin` |
-| `_clis` not a tuple/list of `FakeCli` | `<Type>._clis is not a tuple of FakeCli` |
-| two of `_clis` of one name | `<Type>._clis names one command line twice` |
-| `_clis` on a `LiteLLMAgent` or an `Outworlder` | `<Type>._clis needs an agent with a shell` |
-| environment type carries an agent mixin | `an environment cannot be declared with an agent's mixins` |
-| `_cpu_count`, `_memory`, `_gpu_count`, `_gpu_memory` not an `int` ≥ 0 (a `bool` is refused) | `<Type>.<attr> is not a whole number of at least 0` |
-| `_image` not a string without whitespace | `<Type>._image is not an image: <value>` |
+| `:<subflow>` | A flow in the caller's module. |
+| `<flow>`, `<flow>:<subflow>` | A sibling flow. The bare form loads the flow named after the directory, or the single visible flow in it. |
+| `<user>/<flow>`, `<user>/<flow>:<subflow>` | A flow under that GitHub user in the official flowverse (or in an installed flow's own flowverse). |
+| `<pip-style-vcs-url>[#<subdir>][:<subflow>]` | A flow in a repository, at its root or in the directory after `#`. Example: `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`. |
 
-`NotRequired`, `Required`, `ReadOnly` and `Annotated` wrappers are read through.
-`from __future__ import annotations`, string annotations, and collections declared inside a
-function all resolve. A role's type is read once per type and cached.
-
-Two flows with one `name` defined in one module raise `FlowDefinitionError`
-(`<module dir>: two flows are called '<name>'`) when the module's flows are enumerated. Two
-functions of one Python name are one flow: the later binding replaces the earlier.
-
-### `FlowFn` {#flowfn}
+### Flow
 
 ```python
-class FlowFn[TAgents: AgentCollection, TEnvs: EnvCollection, TParams: FlowParams](Protocol):
+class Flow(Protocol):
+    description: str | None
+    expected_agents: type[AgentCollection]
+    expected_envs: type[EnvCollection]
+    expected_params: type[FlowParams]
+    resumable: bool
+
     async def __call__(
-        self, task: str, *, agents: TAgents, envs: TEnvs, params: TParams, ctx: FlowContext
-    ) -> Any: ...
+        self,
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: EnvCollection,
+        params: FlowParams,
+        budget: Budget | None = None,
+    ) -> Any
 ```
 
-The decorated function. Its return value is the flow call's return value: what a calling flow
-receives, [`Run.result`](/reference/sdk#run) (as the JSON of the `ended` record), and what
-[`run_fake`](#run-fake) returns.
-
-| Argument | Value at run time |
+| Member | Meaning |
 | --- | --- |
-| `task` | `str`, as given to `hmz exec`, `/flow`, `Hmz().run` or the caller |
-| `agents` | a `dict[str, AgentView \| OutworlderView]`, one entry per role given or filled; a `NotRequired` role nobody gave is absent |
-| `envs` | a `dict[str, EnvView]`, likewise |
-| `params` | an instance of the `params` model |
-| `ctx` | the call's [`FlowContext`](#flowcontext) |
+| `description` | One-line summary, or `None`. |
+| `expected_agents` | Declared agents. |
+| `expected_envs` | Declared environments. |
+| `expected_params` | Declared parameters. |
+| `resumable` | Whether an interrupted run can resume. |
+| `__call__` | Calls the flow from another flow and returns its result. `params` is an instance of its `FlowParams` subclass. `budget` adds a call-specific limit on top of the caller's remaining budget. |
 
-### `Flow` {#flow-protocol}
+Passed roles must cover what the flow declares. You may omit an `Outworlder` or `LocalEnv` role to pass the caller's own. The call raises `RequirementError` (before anything runs), `ParamsError`, `FlowDepthExceeded` (beyond 64 nested calls), or any exception the flow raises, unwrapped. When a resumable flow resumes, a flow it calls resumes too if called with the same task, agents, environments and params.
 
-What `@flow` and [`load`](#load) return.
+### FlowContext
 
-| Member | Type | |
+| Property | Type | Meaning |
 | --- | --- | --- |
-| `description` | `str \| None` | Its one line. |
-| `expected_agents` | `type[AgentCollection]` | The agent roles it declares. |
-| `expected_envs` | `type[EnvCollection]` | The environment roles it declares. |
-| `expected_params` | `type[FlowParams]` | Its params model. |
-| `resumable` | `bool` | Whether a run of it can be picked up. |
-| `await flow(task, *, agents, envs, params, budget=None)` | `Any` | Call it from inside a run. See [Calling a `Flow`](#calling-a-flow). |
-
-A flow returned by `load` for a `git+` ref is fetched when any of these members is first read
-or it is first called.
-
-### `FlowParams` {#flowparams}
-
-<span id="settings-of-the-flow-s-own"></span>
-
-```python
-class FlowParams(pydantic.BaseModel):
-    model_config = ConfigDict(extra="forbid", ser_json_inf_nan="strings")
-```
-
-Subclassed with one pydantic field per param. The model is also the form `/flow` renders:
-each field is a question, its type decides the input, its `description` is the help line.
-
-| Rule | |
-| --- | --- |
-| Unknown keys | Refused (`extra="forbid"`). |
-| `budget` | Not a field or alias: it is the run's, given as [`-p budget.<limit>=`](#p-budget). |
-| Field without a default | Must be given (`-p`, `/flow`, or a caller). |
-| Cross-field constraints | Belong in a `model_validator`, so they are refused before the run. |
-| Infinity/NaN | Serialized as the strings `"Infinity"`/`"NaN"`. |
-
-**How params are read** (`FlowImpl.params_of`), in order:
-
-1. An instance of the flow's own model is used as is.
-2. Any other `pydantic.BaseModel` is dumped and validated into the model.
-3. A mapping is validated. If validation fails, each value whose field failed and which is a
-   `str` is parsed as JSON (a string that is not JSON stays a string), and the mapping is
-   validated again. This is how `-p` strings reach typed fields: `-p rounds=5` → `5`,
-   `-p tags='["a","b"]'` → a list.
-4. Anything else raises `ParamsError`: `<ref>: params=<value> is not a <Model> or a mapping`.
-
-A validation failure raises `ParamsError` (`<ref>: <pydantic error>`); from `hmz exec` it is
-refused before anything runs.
-
-### `FlowContext` {#flowcontext}
-
-<span id="the-context"></span>
-
-```python
-class FlowContext(Protocol):
-    flow: Flow             # read-only properties
-    budget: Budget
-    usage: Usage
-    state: FlowState | None
-    resumed: bool
-```
-
-| Property | Type | Value |
-| --- | --- | --- |
+| `budget` | `Budget` | Active budget for this call: the tighter of its own and its caller's. |
 | `flow` | `Flow` | The flow being called. |
-| `budget` | `Budget` | The effective budget of this call; see [Effective budget](#effective-budget). Built on each read. |
-| `usage` | `Usage` | What this call and every call under it has spent. Built on each read. |
-| `state` | `FlowState \| None` | The call's state for a resumable flow, `None` otherwise. |
-| `resumed` | `bool` | `True` where this call picked up a call of an earlier run. |
+| `resumed` | `bool` | Whether this call resumes an earlier run. |
+| `state` | `FlowState` or `None` | State kept across runs, or `None` if the flow is not resumable. |
+| `usage` | `Usage` | Total usage of this call and its child calls so far. |
 
-Each call has its own context. A flow that calls another ten times holds ten contexts; the
-spending of each is also counted in every context above it.
+### FlowState
 
-### `FlowState` {#flowstate}
-
-```python
-class FlowState(Protocol):
-    def __getitem__(self, key: str) -> Any: ...
-    def __setitem__(self, key: str, value: Any) -> None: ...
-    def __delitem__(self, key: str) -> None: ...
-    def __contains__(self, key: str) -> bool: ...
-```
-
-`ctx.state` of a resumable flow. The runtime's object also implements `__iter__`, `__len__`
-and `get(key, default=None)`.
-
-| Operation | Behaviour |
+| Operation | Meaning |
 | --- | --- |
-| `state[key] = value` | `key` must be a `str`, else `StateNotSerializable` (`a state key is a string, not <key>`). `value` is serialized with `json.dumps(..., allow_nan=True)`; a value it cannot serialize (or a recursion error) raises `StateNotSerializable` (also a `TypeError`): `<type> cannot be kept in a flow's state: <error>`. What is stored is the JSON round-trip of the value (a tuple becomes a list, dict keys become strings), so a fresh run and a resumed run read identical values. The write is appended to the journal and flushed before `__setitem__` returns. |
-| `del state[key]` | Removes the key; `KeyError` if absent. Journaled and flushed. |
-| `state[key]` | `KeyError` if absent. Each read returns a copy. A [session kept](#sessions-in-state) in the value is read back as a new session each time. |
-| Mutating a value in place | Changes only the copy read, not the state. Assign the value again to keep the change. |
+| `state[key]` | Returns the value under `key`, or raises `KeyError`. |
+| `state[key] = value` | Saves `value` under `key`. Raises `StateNotSerializable` if not JSON-serializable. |
+| `del state[key]` | Deletes `key`, or raises `KeyError`. |
+| `key in state` | Whether `key` exists in `state`. |
 
-A resumable flow run without a journal (a resumable flow called from a non-resumable run, or
-[`run_fake`](#run-fake) without `journal=`) gets a state held in memory only.
+## Agents
 
-#### Sessions in state {#sessions-in-state}
+Guides: [Agent roles](/builder/agents), [Sessions and turns](/builder/turns), [Branch a conversation](/builder/branching).
 
-A [`Session`](#session) may be written into the state, alone or anywhere inside a value. The
-write keeps its conversation **as it stands then**: the runtime copies that conversation's own
-files, and nothing else of the CLI's home, into `sessions/<cli>/.kept/<hex>/` in the epic, beside that CLI's sessions (a
-temporary directory removed with the run where there is no journal). Every read of the key
-answers a **new** session of the call's agent of the same role, whose first `run` carries the
-copy on as a [fork](#fork): from where it stood when written, whatever the original session
-did afterwards. This holds in the run that wrote it and in every run [picking it
-up](#a-flow-that-can-be-picked-up), so one kept session can be carried on by several later
-runs, each a run of its own. A session whose turns work on another machine is kept and carried
-on the same way while its CLI runs here (harness `local`), [supervised](/reference/remote-execution#supervised-the-default)
-in a mirror of that machine's work; one whose CLI runs on another machine (harness `env` or a
-harness runtime) keeps its conversation there, and is refused as below. So is a harness that forks only in place, where that mirror
-is apart from the work: a container's or a job's, named for it, unlike an ssh host's.
-
-```python
-session = await coder.spawn()
-await coder.run(task, session=session)
-ctx.state["boundary"] = session          # kept as it stands now
-await coder.run("go on", session=session)
-
-# here, or in a later run picking this one up:
-again = ctx.state["boundary"]            # a new session, carrying on the kept conversation
-await coder.run("carry on", session=again, env=envs["repo"])
-```
-
-Refused by the write, with `StateNotSerializable` and nothing written down:
-
-| Session | Message |
+| Name | Meaning |
 | --- | --- |
-| has taken no turn | `<role>: the session to keep has taken no turn to carry on from` |
-| a turn of it is under way, or it is over | `<role>: a turn of the session to keep is under way` / `<role>: the session to keep is over` |
-| of an agent another flow call was handed | `<role>: a session is kept only in the state of the flow call it is of` |
-| an [outworlder](#outworlder)'s | `an outworlder's session cannot be kept in a flow's state` |
-| its harness does not fork (`cursor-agent`, `mcode`, `agy`, `dsh`) | `<role>: <harness> cannot fork a session` (worded by the CLI's driver) |
-| its harness keeps conversations as database rows (`opencode`, `mimo`) | `<role>: …` (the conversation cannot be found as files) |
-| its last turn's CLI ran on another machine: the machine's own, or under a harness put elsewhere | `<role>: <harness> keeps a conversation on another machine, not here` |
+| `AgentCollection` | `TypedDict` base class for declaring agent roles. Mark optional roles `NotRequired`. |
+| `Agent` | A coding agent passed to the flow. |
+| `Session` | One conversation with one agent. Holds message history, not a working directory. |
+| `Outworlder` | The human user as an agent role. See [The person](#the-person). |
+| `HarnessKind` | String enum of coding agent CLIs. |
+| `HARNESS_AGENTS` | Mapping from each `HarnessKind` to its harness-typed role class. |
 
-Refused by the read-back session's first `run`, before the CLI starts or anything is copied:
-
-| Condition | Raises |
-| --- | --- |
-| the role's agent is now another harness | `UnsupportedOperation`: `<harness> cannot carry on a conversation <harness> kept` |
-| the turn's `env` is on another machine and its CLI would run there: the machine's own, or under a harness put elsewhere | `UnsupportedOperation`: `<harness> cannot carry a kept conversation onto another machine its CLI runs on` |
-| the turn's `env` is a container or a job (`docker`, `swarm`, `slurm`, `apple-container`), its CLI run here in a mirror apart from the work, on a harness that forks only in place | `UnsupportedOperation`: `<harness> cannot carry a kept conversation into a mirror of another machine's work` |
-| the copy is gone (its epic deleted) | `SessionError`: `the session cannot be forked: <harness>: no conversation <id> under <dir>` |
-| the run already holds a different copy of the conversation | `SessionError`: `the session cannot be forked: <harness>: another copy of conversation <id> is kept at <path> already, which carrying this one on would replace` |
-| a harness that forks only in place, given another workdir than the conversation was had in | refused by the CLI |
-
-The last-but-one is what a run that keeps no sessions of its own meets: with
-[`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions), or for a CLI on macOS that
-[cannot be linked](/reference/providers#where-sessions-are-kept), the conversation lives in
-the CLI's own home, and once the original session has gone on past the kept point, the home
-holds a later copy of it that is never put back. Everywhere else each run keeps its sessions
-in its own epic and this does not arise.
-
-A session read back and written again before its first turn is written down as what it
-carries on, copying nothing.
-
-## Agent roles {#how-many-agents-and-what-they-are-for}
-
-### `AgentCollection` {#agentcollection}
-
-```python
-class AgentCollection(TypedDict, extra_items=ReadOnly[Agent]): ...
-```
-
-Subclassed with one key per role. The key is the role's name in `-a <role>=…`, in `/flow`, in
-the epic (`agents`, `opened.agent`), in the trace, and in the remembered settings.
-
-| Role type | Filled by | Required |
-| --- | --- | --- |
-| `Agent`, a subclass with mixins, or a [harness protocol](#what-each-harness-serves) | `-a`, `/flow`, `Hmz().run(agents=…)`, or a caller | yes, unless `NotRequired[...]` |
-| `Outworlder` | the runtime ([the person at the prompt](#the-person-at-the-prompt)); naming it with `-a` is refused | never given |
-
-`"<role>" in agents` tests whether a `NotRequired` role was given.
-
-### `Agent` {#agent}
+### Agent
 
 ```python
 class Agent(Protocol):
@@ -353,2156 +160,540 @@ class Agent(Protocol):
     _tools: ClassVar[tuple[FakeTool, ...]] = ()
     _clis: ClassVar[tuple[FakeCli, ...]] = ()
 
-    role: str                     # read-only properties
+    effort: str
     harness: HarnessKind
     model: str
-    effort: str
+    role: str
     provider: str
 
-    async def spawn(self) -> Session: ...
-    async def run(self, prompt: str, *, session: Session, env: Env | None = None,
-                  output_schema: type[M] | None = None,
-                  budget: Budget | None = None) -> str | M: ...
-    async def fork(self, session: Session) -> Session: ...
-    def derive(self, *, permission: Permission | None = None,
-               skills: tuple[str, ...] | None = None) -> Self: ...
-    def on_session_start(self, fn: HookFn | None) -> None: ...
-    def on_user_prompt_submit(self, fn: HookFn | None) -> None: ...
-    def on_pre_tool_use(self, fn: HookFn | None) -> None: ...
-    def on_notification(self, fn: HookFn | None) -> None: ...
-    def on_stop(self, fn: HookFn | None) -> None: ...
-    def on_session_end(self, fn: HookFn | None) -> None: ...
+    async def spawn(self) -> Session
+    async def run(
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        env: Env | None = None,
+        output_schema: type[BaseModel] = ...,
+        budget: Budget | None = None,
+    ) -> str | BaseModel
+    async def fork(self, session: Session) -> Session
+    def derive(
+        self,
+        *,
+        permission: Permission | None = None,
+        skills: tuple[str, ...] | None = None,
+    ) -> Self
+
+    def on_session_start(self, fn: HookFn | None) -> None
+    def on_user_prompt_submit(self, fn: HookFn | None) -> None
+    def on_pre_tool_use(self, fn: HookFn | None) -> None
+    def on_notification(self, fn: HookFn | None) -> None
+    def on_stop(self, fn: HookFn | None) -> None
+    def on_session_end(self, fn: HookFn | None) -> None
 ```
 
-| Class attribute | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `_permission` | `Permission` | `Permission()` | What the role's sessions may touch; they run under exactly this. See [Permissions](#what-each-agent-may-do). |
-| `_skills` | `tuple[str, ...]` | `()` | Skills given to the role's sessions. See [Skills](#the-skills-a-flow-brings). |
-| `_tools` | `tuple[FakeTool, ...]` | `()` | The flow's functions the role's sessions offer the agent as tools; needs `FakeToolAgentMixin`. See [Fake tools](#fake-tools). |
-| `_clis` | `tuple[FakeCli, ...]` | `()` | The flow's command lines the role's sessions put on the agent's PATH; any harness but `litellm`. See [Fake command lines](#fake-clis). |
+Class attributes set on a role:
 
-| Property | Type | Value |
+| Attribute | Meaning |
+| --- | --- |
+| `_permission` | Access required by the role. The supplied agent must grant at least this, and sessions run with this exact permission. |
+| `_skills` | Skills given to the role's sessions: a skill name in the flow's `skills/` directory, or a git URL ending in `#<skill>`. |
+| `_tools` | Flow functions exposed as tools (`FakeTool`). Requires `FakeToolAgentMixin`. |
+| `_clis` | Flow CLIs (`FakeCli`) placed on the agent's PATH. Needs no mixin. Not supported on `litellm` agents. |
+
+Properties and methods:
+
+| Member | Meaning |
+| --- | --- |
+| `effort` | Thinking effort level, in the harness's terms. |
+| `harness` | The agent's CLI kind. |
+| `model` | The model name. |
+| `role` | Role key in the flow's `AgentCollection`. |
+| `provider` | Account the turns run under, or `""` for the local CLI login. |
+| `spawn` | Opens a new session. The CLI process starts on the first turn. |
+| `run` | Runs one turn in `session` and returns the agent's text response, or an `output_schema` instance if given. `env` sets the working environment (`None` uses the run workspace). `budget` caps this turn within the flow's budget. |
+| `fork` | Returns a new session branched from `session`, leaving the original untouched. Raises `SessionError` if `session` belongs to another agent, has ended, or has no turns. |
+| `derive` | Returns a copy of the agent narrowed to a stricter permission or a subset of skills. Raises `CapabilityNotGranted` if either widens the grant. |
+| `on_session_start`, `on_user_prompt_submit`, `on_pre_tool_use`, `on_notification`, `on_stop`, `on_session_end` | Registers a hook for all sessions of this agent, replacing any previous hook for that event. Pass `None` to remove it. See [Hooks](#hooks). |
+
+`run` raises `CapabilityNotGranted` if you use `/goal` or `/loop` without its mixin, `BudgetExceeded` when a budget runs out, `SessionError` if the session belongs to another agent or has ended, `UnsupportedOperation` if the harness cannot move the conversation to `env`, or `HarnessError` if the turn fails.
+
+### Session
+
+| Property | Type | Meaning |
 | --- | --- | --- |
-| `role` | `str` | The key it fills. |
-| `harness` | `HarnessKind` | The CLI. |
-| `model` | `str` | The model, as written in `-a`. |
-| `effort` | `str` | The effort in the CLI's own words; `""` where `-a` said `auto`. |
-| `provider` | `str` | The account its turns run as; `""` for the account this machine's CLI is signed into. |
+| `agent` | `Agent` | The agent that owns this session. |
+| `usage` | `Usage` | Cumulative usage across this session's turns. |
 
-| Method | Section |
+Sessions close automatically when the flow call that opened them ends, or when garbage-collected.
+
+### Agent mixins
+
+Subclass these mixins on a role to request extra capabilities.
+
+| Mixin | Grants |
 | --- | --- |
-| `spawn`, `run`, `fork` | [Sessions and turns](#sessions-and-turns) |
-| `derive` | [`Agent.derive`](#derive) |
-| `on_*` | [Hooks](#hooks-in-a-flow) |
-
-### `HarnessKind` {#harnesskind}
-
-`class HarnessKind(StrEnum)`: which CLI an agent is -- or `LITELLM`, a model called directly.
-The value is the name `-a` uses.
-
-| Member | Value | CLI | Protocol (`HARNESS_AGENTS[kind]`) |
-| --- | --- | --- | --- |
-| `CLAUDE` | `claude` | Claude Code | `ClaudeCodeAgent` |
-| `CODEX` | `codex` | Codex | `CodexAgent` |
-| `CURSOR_AGENT` | `cursor-agent` | Cursor Agent | `CursorAgent` |
-| `OPENCODE` | `opencode` | opencode | `OpenCodeAgent` |
-| `MIMO` | `mimo` | MiMo Code | `MiMoCodeAgent` |
-| `MCODE` | `mcode` | MiniMax Code | `MiniMaxCodeAgent` |
-| `QWEN` | `qwen` | Qwen Code | `QwenCodeAgent` |
-| `KIMI` | `kimi` | Kimi Code | `KimiCodeAgent` |
-| `GROK` | `grok` | Grok Build | `GrokBuildAgent` |
-| `PI` | `pi` | pi | `PiAgent` |
-| `OMP` | `omp` | Oh My Pi | `OhMyPiAgent` |
-| `AGY` | `agy` | Antigravity | `AntigravityAgent` |
-| `DSH` | `dsh` | DeepSeek Harness | `DeepSeekHarnessAgent` |
-| `LITELLM` | `litellm` | none: a model called through litellm, one chat completion a turn over the session's history, with no tools and no filesystem; its turns take `env=None` | `LiteLLMAgent` |
-| `ACP` | `acp` | any CLI added on the Accounts page of `/settings`, driven over the Agent Client Protocol; `-a` names it by the name it was added under | `Agent` |
-
-<span id="harness-agents"></span>`HARNESS_AGENTS: Mapping[HarnessKind, type]` (a read-only
-mapping) maps each kind to its protocol. The capabilities the runtime's driver of a harness
-serves are read off this protocol's bases, so the protocol and the driver cannot disagree.
-
-### Agent mixins {#asking-for-an-agent-that-can-do-something}
-
-A role declares what it needs beyond `Agent` by subclassing mixins. A mixin's own bases come
-with it.
-
-```python
-class Builder(Agent, GoalCommandAgentMixin, PermissionRequestHookAgentMixin):
-    _permission = Permission(granular=(deny("~/.ssh"),))
-```
-
-| Mixin | Grants | Without it |
-| --- | --- | --- |
-| `GoalCommandAgentMixin` | `run` of a prompt that is `/goal` or starts `/goal` + whitespace: the harness's own goal command pursues the objective until the harness decides it is met. The driver strips the `/goal ` prefix and starts a goal. See [Goals](/weaver/goals). | `CapabilityNotGranted`: `<role>: /goal needs GoalCommandAgentMixin on the role` |
-| `LoopCommandAgentMixin` | `run` of `/loop <interval> <task>`, passed to the CLI as typed: its own recurring task. | `<role>: /loop needs LoopCommandAgentMixin on the role` |
-| `SteeringAgentMixin` | [`steer`](#steer). | `<role>: steer needs SteeringAgentMixin on the role` |
-| `PermissionRequestHookAgentMixin` | `on_permission_request`. | `<role>: a permission_request hook needs PermissionRequestHookAgentMixin on the role` |
-| `SubagentStartHookAgentMixin` | `on_subagent_start`. | `<role>: a subagent_start hook needs SubagentStartHookAgentMixin on the role` |
-| `SubagentStopHookAgentMixin` | `on_subagent_stop`. | `<role>: a subagent_stop hook needs SubagentStopHookAgentMixin on the role` |
-| `AskUserHookAgentMixin` | `on_ask_user`. | `<role>: a ask_user hook needs AskUserHookAgentMixin on the role` |
-| `FakeToolAgentMixin` | [`_tools`](#fake-tools). | `FlowDefinitionError`: `<Type>._tools needs FakeToolAgentMixin` |
-
-The prefix test is on the prompt with leading whitespace removed. Every prompt not starting
-`/goal` or `/loop` goes to the CLI unchanged; other slash commands are not interpreted.
-
-#### Fake tools {#fake-tools}
-
-```python
-@dataclass(frozen=True, slots=True)
-class FakeTool:
-    name: str
-    about: str
-    call: Callable[..., object]
-    takes: type[pydantic.BaseModel] | None = None
-```
-
-Each of a role's `_tools` is offered to the agent, by `name` and `about`, as a tool taking
-`takes`'s JSON Schema, over MCP. The agent calling it runs `call` -- sync or async, given an
-instance of `takes`, or nothing where `takes` is `None` -- in the flow's process, on its loop,
-as the flow; the turn waits for it. A `str` it returns is what the agent reads, `None` reads
-`done`, anything else JSON. What it raises is answered to the agent as the tool failing; the
-turn and the flow go on. `derive` keeps a view's tools; a flow handed the agent offers its own
-role's. Served where the harness's row below has Fake tools (not `acp`: its protocol is a
-plain `Agent`, which serves no mixin), where the CLI runs on this machine (harness `local`); a
-turn of one whose harness is `env` or a harness runtime is refused. On `grok`, a turn only `grok -p` can take (an `output_schema`,
-a fork's first turn, web search off, a fence that writes nothing, whose tools are withheld) is refused with
-`HarnessUnrecoverable` while tools are offered. See
-[A tool of the flow's own](/weaver/tools#fake-tools).
-
-`FakeTool` is the type coganchor's drivers offer (`SessionBase.offers`), so a flow's tool is
-handed to the CLI as it was declared, with only its `call` wrapped to run as the flow.
-
-#### Fake command lines {#fake-clis}
-
-```python
-@dataclass(frozen=True, slots=True)
-class FakeCommand:
-    name: str
-    about: str
-    call: Callable[..., object]
-    takes: type[pydantic.BaseModel] | None = None
-
-@dataclass(frozen=True, slots=True)
-class FakeCli:
-    name: str                          # a file name: letters, digits, `.`, `_`, `-`
-    about: str
-    commands: tuple[FakeCommand, ...]  # at least one, each named once
-    def run(self, argv: Sequence[str]) -> tuple[int, str, str]: ...
-```
-
-Each of a role's `_clis` is a program named `name` on the PATH of every process of the agent,
-answered by an `argparse` parser built from each command's `takes`: a `--flag` per field, its
-description the help, required where it has no default. `--help` prints the help and exits 0; a
-line the parser or the model refuses prints the usage and exits 2. Running a command runs
-`call` -- sync or async, given an instance of `takes`, or nothing where it is `None` -- in the
-flow's process, as the flow: a `str` it returns is printed, `None` prints nothing, anything else
-JSON; `SystemExit(n)` exits `n`, anything else raised exits 1 with the error on stderr. No mixin
-is needed: every harness with a shell serves it, and a role declaring any is refused for
-`litellm`: `<ref>: '<role>' declares _clis, and litellm has no shell to run them` from `hmz exec`
-or as `CapabilityMissing` before the run starts, and `UnsupportedOperation` at `run` for one a
-caller hands on, as an `env` is. `FakeCli` is the type coganchor's drivers shelve
-(`SessionBase.shelves`). See [A command line of the flow's own](/weaver/tools#fake-clis).
-
-### What each harness serves {#what-each-harness-serves}
-
-Generated from `hmz.runtime.flowing.spi.HARNESS_CAPABILITIES` and the harness profiles.
-
-<div class="harness-matrix">
-
-| `-a` | Goal | Loop | Steering | Permission request | Subagent start, stop | Ask user | Fake tools | [Fork](#fork) | [Writes nothing](#enforcement) |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | --- | --- |
-| `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | `Edit`, `Write`, `NotebookEdit` |
-| `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir | sandbox `read-only` |
-| `kimi` | ✓ | | ✓ | ✓ | | ✓ | | any workdir | write and edit tools |
-| `pi` `omp` | | | ✓ | | | ✓ | ✓ | same workdir | pi: `edit`, `write`; omp: fence holds |
-| `dsh` | ✓ | | | | | | ✓ | no | fence holds |
-| `litellm` | | | | | | | | any workdir | nothing said |
-| `cursor-agent` | | | | | ✓ | | | no | fence holds |
-| `mcode` | | | | | ✓ | | | no | fence holds |
-| `grok` `opencode` `mimo` `qwen` | | | | | | | ✓ | same workdir | writing tools |
-| `agy` | | | | | | | ✓ | no | reader agent |
-| `acp` | | | | | | | | same workdir | fence holds |
-
-</div>
-
-A role typed as a harness protocol asks for **that harness** and every mixin in its row.
-Given another harness it is refused: from `hmz exec` as
-`<flow>: '<role>' requires <harness>, but got <other>` before anything runs, from a calling
-flow as [`HarnessMismatch`](#harnessmismatch). A role declared by mixins alone may be filled by
-any harness that serves them.
-
-### Where capabilities are checked
-
-| When | Check | Refusal |
-| --- | --- | --- |
-| Before a run (`hmz exec`, `Hmz().run`, `Runner`) | Each role's harness serves its mixins; a harness-protocol role gets that harness; required roles given; no role given that the flow does not declare or that the runtime fills. | `Refused` (a `ValueError`), exit status 2 from `hmz exec`; see [Command-line refusals](#command-line-refusals) |
-| When `run_flow` starts the top call | The same, against the drivers. | `HarnessMismatch`, `CapabilityMissing`, `MissingRole`, `RequirementError` |
-| When a flow calls another | What the caller hands over covers the callee's declaration. | [`RequirementError`](#requirementerror) leaves; see [What the called flow is handed](#what-the-called-flow-is-handed) |
-| At every use | The view's grant contains the mixin for the operation. | [`CapabilityNotGranted`](#capabilitynotgranted) |
-
-Every flow, those of the official flowverse included, is granted exactly what its roles declare. A
-[chat](/user/chat) is not a flow: its one agent has every capability its harness offers.
-
-## Permissions {#what-each-agent-may-do}
-
-::: danger Approvals are bypassed
-Every harness runs in its no-approval mode. No session waits for a person to approve a tool,
-and no model reviews another model's actions. An agent is limited by its `Permission` and by
-the [hooks](#hooks-in-a-flow) the flow hangs on it.
-:::
-
-### `Permission` {#permission}
-
-```python
-PRESETS = ("read-only", "workspace-write", "danger-full-access")
-
-@dataclass(frozen=True, slots=True)
-class Permission:
-    preset: str = "workspace-write"
-    network: bool = True
-    granular: tuple[Rule, ...] = ()
-
-    @property
-    def rules(self) -> tuple[Rule, ...]: ...
-    def access(self, path: str) -> Access: ...
-    def covers(self, other: Permission) -> bool: ...
-```
-
-| Field | Meaning | Default | Allowed |
-| --- | --- | --- | --- |
-| `preset` | the rules the grant starts from | `"workspace-write"` | one of `PRESETS`; anything else raises `ValueError` |
-| `network` | the network, including the CLI's own web search and fetch | `True` | `True`, `False` |
-| `granular` | rules laid over the preset's, in order | `()` | [`Rule`](#rule)s |
-
-`rules` is the preset's rules followed by `granular`:
-
-| `preset` | Its rules |
-| --- | --- |
-| `read-only` | `read_only("/")` |
-| `workspace-write` | `read_only("/")`, `allow(".")` |
-| `danger-full-access` | `allow("/")` |
-
-A rule matches its own path and every path beneath it, component by component (`/a` matches
-`/a/b`, not `/ab`). `access(path)` is the access of the **last** rule in `rules` that matches
-`path`, and `Access.NONE` where none does; it reads `path` as a rule's path is read, and matches
-without resolving `~` and `.`, `/` alone matching every path. A later rule
-so overrides an earlier one, narrower or wider:
-
-```python
-Permission(granular=(deny("~/.ssh"),))            # reads /, writes ., keeps out of ~/.ssh
-Permission(granular=(deny("./.env"), allow(".")))  # allow(".") is last: .env is writable
-Permission(preset="danger-full-access", network=False)  # writes /, reaches no host
-```
-
-`network` and the rules are independent: every preset may be paired with either value.
-
-`covers(other)` returns `True` iff `self.network >= other.network` and, wherever the home
-directory and the workdir lie, `self` gives every path at least the access `other` gives it,
-once `~` and `.` are resolved and the temporary directories added. It is decided from the rules
-alone: the two are compared at the path of every rule of either, at `/tmp` and `/var/tmp`, and
-at a fresh child of each, under every layout that puts each of `~` and `.` beneath none, or
-beneath any one, of those rule paths.
-
-`Permission()` is the default every role gets: it reads the machine, writes its workdir and
-reaches the network.
-
-### `Rule` {#rule}
-
-```python
-class Access(StrEnum):
-    NONE = "none"
-    READ = "read"
-    WRITE = "write"
-
-@dataclass(frozen=True, slots=True)
-class Rule:
-    path: str
-    access: Access
-
-def allow(path: str) -> Rule: ...      # Access.WRITE
-def read_only(path: str) -> Rule: ...  # Access.READ
-def deny(path: str) -> Rule: ...       # Access.NONE
-```
-
-`Access` is totally ordered, `NONE < READ < WRITE`: `READ` allows reading, listing and
-executing, `WRITE` reading and changing, `NONE` neither.
-
-`path` starts with an anchor, which is resolved when a session opens, on the machine it opens
-on:
-
-| Anchor | Resolves to |
-| --- | --- |
-| `/`, `/<path>` | that absolute path |
-| `~`, `~/<path>` | the home directory of the user the harness runs as |
-| `.`, `./<path>` | the workdir of the environment the turn works in, and the session's working directory where that is elsewhere |
-
-The path is stored normalised: empty and `.` components after the anchor, and a trailing `/`,
-are dropped, so `~/a//b/` is `~/a/b` and `./` is `.`. A path with any other start (`src`,
-`~other`, `$HOME`), a `..` component, or a `*`, `?`, `[` or NUL raises `ValueError` when the
-`Rule` is made, as does an `access` that is not an `Access`.
-
-`Permission` raises `ValueError` for a `preset` not in `PRESETS`, and `TypeError` for a
-`network` that is not a `bool` or a `granular` item that is not a `Rule`.
-
-### Enforcement
-
-A permission reaches a session twice: as a **fence** around the CLI's process tree, and as
-what the CLI is **told**, which its driver reads off that same fence.
-
-**The fence.** Each rule of `rules` is resolved to an absolute path and held at its access,
-the last rule that matches a path deciding it, so a `deny` or `read_only` beneath a wider grant
-carves that subtree out of it. Whenever the rules give the workdir `.` `WRITE`
-(`workspace-write`, `danger-full-access`, or `read-only` with `allow(".")`), `/tmp`, `/var/tmp`
-and an absolute `$TMPDIR` are writable too, as Codex's `workspace-write` does. They are held as
-the CLI's own always-granted paths below are: where one of them and a rule's path nest, the
-deeper of the two decides, and at the same path the more permissive wins. So `deny("/tmp")`
-does not take `/tmp` away, and `deny("/tmp/x")` does keep the agent out of `/tmp/x`. Each of
-the three is granted as it is spelled and with its symbolic links followed (a Mac's `/tmp` is
-`/private/tmp`), so a rule spelled either way is carved out of it. A rule
-that writes `~` also writes whatever the user may change: all of `/`, held by the files' own permissions,
-except for root, which gets those temporary directories and `/run/user/0` and keeps the rest
-as the other rules say. Independently of the rules, the CLI may:
-
-- read `/usr`, `/bin`, `/lib*`, the files under `/etc` a resolver and TLS stack read, `/sys`
-  (on macOS `/System`, `/private/var/select` and the developer tools `xcode-select` chose,
-  which the `xcrun` shims in `/usr/bin` load, instead of `/lib*` and `/sys`), its own
-  programs and install trees, the Python running Humanize, and the `coganchor` that supervises
-  its turn inside the fence;
-- write the device nodes (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, GPU and RDMA nodes;
-  on macOS `/dev/ttys*`), `/proc` on Linux (CUDA names a thread through
-  `/proc/self/task/<tid>/comm` as it starts), its own state and sign-in directories (on macOS also the login keychain,
-  `~/Library/Keychains`), the directory its sessions are kept in, and a private scratch
-  directory that is its `TMPDIR`. `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`,
-  `PIP_CACHE_DIR` and `GOCACHE` are pointed into that directory where the fence would not let
-  them be written.
-
-`network=False` cuts the network except to the hosts the CLI's model and sign-in are at
-(read under the session's account, so a gateway the account points at is included). The
-default permission is a real fence: the workdir, the temporary directories and the minimum
-above are writable, the rest readable.
-
-A CLI that can enforce part of the fence itself is configured to. The rest is enforced from
-outside by `hmz internal fence`: on Linux, Landlock for paths and TCP (Landlock only grants,
-so a granted directory holding a carve-out is granted as its other entries instead, down to
-the carve-out, as the fence is put up), a seccomp filter
-refusing every other socket family and a second filter that lets a socket listen on loopback
-only -- or, where Landlock cannot hold the fence or `sandbox.backend` in `settings.yaml` says
-`bwrap`, bubblewrap, which mounts what is granted into a root of its own, mounts an empty
-directory or file over a carve-out, and cuts the network with a namespace of its own; on
-macOS, a Seatbelt profile for paths and sockets, whose carve-outs follow its grants and so
-win; and on all, a loopback proxy passing only the listed hosts. A machine whose
-`sandbox.native` names `codex` hands Codex's grant to Codex's own sandbox instead, which holds
-the commands it runs and not Codex itself, where that sandbox can say the grant and no `on_permission_request` hook is hung. A session is never run wider than its
-permission. Where neither the CLI nor the machine can hold the fence, the session is refused
-with [`HarnessSandboxed`](#harnesssandboxed) when it opens:
-
-| Cause | Refused where |
-| --- | --- |
-| no Landlock (Linux < 5.13) and no `bwrap` that starts, or macOS where Humanize already runs inside a sandbox | any permission but one that writes every path with `network=True` |
-| Linux < 6.7, and no `bwrap` that starts with a network namespace | `network=False` |
-| the backend `sandbox.backend` pins cannot start | any permission but one that fences nothing |
-| wrapper cannot trace its children (a container's default seccomp profile; Yama `ptrace_scope` 2 or 3) | `network=False` |
-| a carve-out (a `deny` or `read_only` beneath a wider grant) the machine's sandbox cannot hold -- under bubblewrap, one that is not there | a permission with that rule |
-
-A permission that gives every path `WRITE`, with `network=True` (`danger-full-access` with
-no narrower rule after it), fences nothing. A rule that writes `~` writes whatever the user may
-change, so for anyone but root one with `network=True` and no carve-out fences nothing either.
-
-With the network cut on Linux, a program may listen on loopback only (`127.0.0.0/8`, `::1`,
-IPv4 loopback mapped into IPv6). A `bind` elsewhere, and a `listen` on a socket bound
-elsewhere, fail with `EACCES`; the wrapper performs the `listen` itself on the socket it
-checked. A process that makes itself undumpable (`ssh-agent`) cannot be checked and cannot
-listen. On macOS, Seatbelt cannot tell loopback from every address when a socket is bound, so
-a program may listen on any address; it still connects to nothing but the proxy.
-
-Gaps remain, all in the kernel: neither Landlock nor Seatbelt governs connecting to a Unix
-socket (a docker daemon's or a session bus's is reachable; on macOS so is a system service
-over Mach), on Linux with the network cut the proxy's port is reachable by number on any
-address, and on macOS a program may listen on any address, as above.
-
-When the work is on another machine (a `docker` or `ssh` environment) the fence is held on
-both: the CLI here inside this machine's Landlock with the environment's mirror as its
-workdir, and every command on the target under `hmz internal fence` again, around the
-target's own workdir, `$HOME` and minimum, the rules redrawn there from their anchors. With
-`network=False` a command on the target
-reaches no host. A CLI's own sandbox is not used there. A target that cannot hold the
-fence refuses the session with `HarnessSandboxed` on its first turn; a container under
-docker's default seccomp profile can hold `network=True` but not `False`. See
-[Remote execution](/reference/remote-execution#a-fence-on-both-machines).
-
-| CLI | Filesystem | Network |
-| --- | --- | --- |
-| `claude` | external; its own sandbox covers only its Bash tool and is not used | external; `WebSearch`, `WebFetch` refused by rule |
-| `codex` | external; on macOS its own sandbox, which cannot start inside the fence, is told the fence holds its commands | external; web search, ChatGPT apps and the system proxy off natively; under a fence that writes nothing with `network=True` its `read-only` sandbox is told to leave commands the network |
-| `cursor-agent` | external; its own sandbox covers only shell commands and needs a user namespace | `False` refused: its web tools run on Cursor's servers |
-| `mcode` | external; no sandbox of its own | `False` refused: its web search runs on MiniMax's service |
-| `opencode`, `mimo` | external; file tools also refuse outside the fence | external; web tools removed offline |
-| `qwen` | external | external; `web_search`, `web_fetch` withheld |
-| `kimi` | external | external; its daemon may bind its one port |
-| `grok` | external; its own sandbox writes `/tmp` | external; `--disable-web-search` offline |
-| `pi` | external | external; started `--offline`; gateways its `models.json` declares stay reachable |
-| `omp` | external | external; never started `--offline`; the `baseUrl` of the model's provider in its `models.yml` stays reachable |
-| `agy` | external; its `--sandbox` covers only commands | external; web tools removed offline (and always with `network=False`) |
-| `dsh` | external | external |
-| `acp` | external, plus the `state` declared for it | external, to the `hosts` declared for it; `False` with none declared refused |
-
-"External" is Landlock (Seatbelt on macOS) plus the loopback proxy.
-
-**What the CLI is told.** Never a plan mode or an asking mode: the driver withholds what it
-can and leaves the rest to the fence.
-
-| Fence | What the CLI is told |
-| --- | --- |
-| writes nothing (no rule leaves anything `WRITE`, e.g. `preset="read-only"` alone) | its file-writing tools withheld, its shell kept, nothing asked; the fence refuses any write the shell attempts |
-| writes somewhere | every tool, nothing asked; the fence decides where writes land |
-
-| `-a` | Writes nothing | Writes somewhere |
-| --- | --- | --- |
-| `claude` | `--tools default`, `--disallowedTools Edit,Write,NotebookEdit`; `bypassPermissions` | `bypassPermissions` |
-| `codex` | sandbox `read-only`, approval `never` | sandbox `danger-full-access`, approval `never` |
-| `cursor-agent` | `--force --sandbox disabled`; the fence holds | the same |
-| `agy` | Humanize's reader agent (the reading tools and `run_command`), `--dangerously-skip-permissions` | `--dangerously-skip-permissions` |
-| `grok` | `--always-approve --tools read_file,grep,list_dir,run_terminal_cmd`, and `web_search,web_fetch` unless `network` is `False` | `--always-approve` |
-| `kimi` | `auto`, plan mode off, write and edit tools disabled | `auto` |
-| `mcode` | `full`; the fence holds | the same |
-| `mimo`, `opencode` | `edit` denied, `bash` allowed | nothing denied |
-| `omp` | `yolo`; the fence holds | the same |
-| `pi` | `edit`, `write` withheld | nothing withheld |
-| `qwen` | `edit`, `write_file`, `notebook_edit`, `save_memory` withheld | nothing withheld |
-| `dsh`, `acp` | every request granted; the fence holds | the same |
-| `litellm` | nothing said | nothing said |
-
-- Where a managed policy forbids the no-approval mode, the CLI runs at the most permissive mode
-  left that no model reviews and Humanize answers every request yes: Claude Code `acceptEdits`
-  (the same tools withheld), Codex the `workspace-write` sandbox with approval `on-request`.
-- A hook only an asking CLI can deliver changes how it is started. Claude Code runs at
-  `manual` instead of `bypassPermissions` while `on_permission_request` is hung. Codex runs with approval
-  policy `untrusted` instead of `never` while `on_permission_request` is hung, and enables its
-  `default_mode_request_user_input` feature while `on_ask_user` is hung. Kimi Code runs at
-  `yolo` instead of `auto` while either is hung. Humanize answers yes unless the hook says no.
-- `network` also switches the CLI's own web tools (on for `True`, off for `False`) where the CLI
-  can be told; where it cannot (`cursor-agent`, `mcode`, `pi`, `omp`, `agy`, `acp`) the cut
-  network stops them.
-
-How each driver says it is in [Agents](/reference/agents#what-an-agent-may-do).
-
-### `Agent.derive` {#derive}
-
-```python
-def derive(self, *, permission: Permission | None = None,
-           skills: tuple[str, ...] | None = None) -> Self
-```
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `permission` | this agent's | The derived agent's permission. Must be covered by this agent's. |
-| `skills` | all of this agent's | Which of this agent's skills its sessions carry. Must be a subset. |
-
-Returns a new view of the same driver with the narrower grant; the original is unchanged. The
-derived agent shares the original's hooks and its sessions (a session of either may be used by
-the other). A session runs under the permission and skills of the agent that spawned or forked
-it, whichever of the two runs its first turn.
-
-| Condition | Raises |
-| --- | --- |
-| `permission` not a `Permission` | `TypeError`: `permission=<value> is not a Permission` |
-| `permission` wider | `CapabilityNotGranted`: `<role>: <permission> is wider than the <granted> this agent was granted` |
-| a skill not granted | `CapabilityNotGranted`: `<role>: <names> is not among the skills this agent was granted` |
-
-## Sessions and turns {#sessions-and-turns}
-
-A session is one conversation of one agent: its history, and nothing of where it works. A
-turn is one prompt and its answer, and says where it works: `run(…, env=…)`. One session may
-take its turns in different environments.
-
-### `Agent.spawn` {#spawn}
-
-```python
-async def spawn(self) -> Session
-```
-
-Opens a session with no turns. Starts no CLI and settles nothing about where it works: its
-first turn does both, in the environment that turn is given.
-
-| Condition | Raises |
-| --- | --- |
-| the call's caller or the run has ended | `FlowCancelled` |
-
-### `Agent.run` {#run}
-
-```python
-async def run(self, prompt: str, *, session: Session, env: Env | None = None,
-              output_schema: type[M] | None = None,
-              budget: Budget | None = None) -> str | M
-```
-
-| Parameter | Type | Meaning |
-| --- | --- | --- |
-| `prompt` | `str` | The prompt. `/goal …` and `/loop …` need their [mixins](#asking-for-an-agent-that-can-do-something). |
-| `session` | `Session` | A session of this agent (or of an agent [derived](#derive) from it). |
-| `env` | `Env \| None` | Where this turn works: its workdir, on its machine. `None` is the run's own workspace, the directory the run was started in, on this machine. Always `None` for `litellm`, which works nowhere. |
-| `output_schema` | `type[pydantic.BaseModel] \| None` | Return an instance of this model instead of text. |
-| `budget` | `Budget \| None` | A limit on this one turn, applied with every budget above it. See [Budgets](#what-a-run-may-spend). |
-
-Returns the text of the agent's last message, or an instance of `output_schema`.
-
-**Where the turn works.** The session's first turn starts its CLI in `env`, settling where
-its harness runs (see [Harness placement](#harness-placement)). A later turn given the same
-workdir on the same machine carries on as before. One given another workdir on the same
-machine carries the conversation there, as a [fork](#fork) of itself cut by that turn, on
-Claude Code, Codex and Kimi Code; every other harness refuses it, and every harness refuses
-another machine. A refused turn leaves the session where it was, ready for a turn there.
-
-**Order of events in one turn:**
-
-1. Capability check for `/goal`, `/loop`; budget check (a spent budget raises its
-   [`BudgetExceeded`](#budgetexceeded) leaf before anything is sent).
-2. The session's CLI is started in `env` (first turn) or the session is carried to `env`
-   (later turns), as above.
-3. On the session's first turn only: `SESSION_START`. A non-empty `context` is prepended to
-   the prompt, separated by a blank line.
-4. `USER_PROMPT_SUBMIT` with the prompt as given. `block=True` raises `SessionError(reason)`
-   (`a hook refused the prompt` for an empty reason). A non-empty `context` is appended after a
-   blank line.
-5. The CLI takes the turn. Steers queued before it starts are appended, each after a blank
-   line.
-6. If no steer is pending: `STOP` with `said` and `again`. `block=True` with a non-empty
-   `reason` sends `reason` as the next prompt of the same turn and increments `again`. An
-   empty `reason` does not block.
-7. Steers that arrived during the CLI's turn are joined with blank lines and sent as the next
-   prompt of the same turn.
-8. With `output_schema`, the final text is parsed (below).
-
-**Reading `output_schema`.** The model is validated with `model_validate_json` against, in
-order: the whole answer stripped; each Markdown fenced code block, regardless of its info
-string (including `JSON`, `jsonc` and tilde fences);
-the span from the first `{` to the last `}`. The first that validates is returned. If none
-does: `OutputSchemaError: the answer is not a <Model>: <first 200 chars, JSON-quoted>`.
-
-| Condition | Raises |
-| --- | --- |
-| `session` not this agent's | `SessionError`: `<role>: <session> is not one of this agent's` |
-| `env` not an environment the run handed out | `TypeError`: `<env> is not an environment this run handed out` |
-| `env` given to a `litellm` agent | `UnsupportedOperation`: `<role>: litellm is a model called directly, with no tools and no filesystem, so its turns work in no environment; run it with env=None` |
-| a turn of the session is under way | `SessionError`: `<role>: a turn of this session is under way` |
-| the session is closed | `SessionError`: `<role>: the session is over` |
-| the call's caller or the run has ended | `FlowCancelled` |
-| the agent's driver is closed | `SessionError`: `the agent's driver is closed` |
-| a local workdir that is not a directory | `SessionError`: `<dir> is not a directory to open a session in` |
-| CLI not installed where its harness runs | `HarnessNotInstalled` |
-| the fence cannot be held | `HarnessSandboxed` |
-| the CLI cannot be configured as the session asks | `HarnessUnrecoverable` |
-| `env` on another machine than the session's last turn | `UnsupportedOperation`: `<harness> cannot move a session onto another machine` |
-| `env` elsewhere, on a harness that does not fork (`cursor-agent`, `mcode`, `agy`, `dsh`) | `UnsupportedOperation`: `<harness> cannot move a session` |
-| `env` another workdir, on a harness that forks only in place | `UnsupportedOperation`: `<harness> cannot move a session into another workdir` |
-| a fork's first turn, its parent having taken a turn since the fork | `SessionError`: `<role>: the session it was forked from has taken a turn since; …` |
-| the turn was interrupted | `SessionError`: `the turn was interrupted` |
-| a budget over the turn is spent | the `BudgetExceeded` leaf |
-| a hard (not graceful) limit reached mid-turn | the `BudgetExceeded` leaf; the CLI stops |
-| the CLI failed the turn | the [`HarnessError`](#harnesserror) leaf |
-| the task running `run` is cancelled | `asyncio.CancelledError`; the CLI is interrupted and waited on for up to 30 s |
-
-One session takes one turn at a time; two sessions of one agent may take turns concurrently.
-
-### `SteeringAgentMixin.steer` {#steer}
+| `FakeToolAgentMixin` | Setting `_tools` on the role. |
+| `GoalCommandAgentMixin` | Passing `/goal <objective>` to `run`, letting the harness loop until it meets the goal. |
+| `LoopCommandAgentMixin` | Passing `/loop <interval> <task>` to `run` for recurring harness tasks. |
+| `SteeringAgentMixin` | Calling `steer` to inject a prompt into a running turn. |
+| `PermissionRequestHookAgentMixin` | `on_permission_request`: approve or deny tool execution requests. |
+| `SubagentStartHookAgentMixin` | `on_subagent_start`: observe subagent launches. |
+| `SubagentStopHookAgentMixin` | `on_subagent_stop`: observe subagent completion and optionally continue it. |
+| `AskUserHookAgentMixin` | `on_ask_user`: answer mid-turn questions from the agent. |
 
 ```python
 async def steer(self, prompt: str, *, session: Session, queued: bool = True) -> None
 ```
 
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `prompt` | | Text put into the turn. |
-| `session` | | The session taking the turn. |
-| `queued` | `True` | `True`: the agent receives it at its next opportunity and continues. `False`: the CLI's current step is interrupted and the turn continues from this prompt (as <kbd>esc</kbd> then typing would). |
+With `queued=True`, the agent reads the prompt at its next check and continues. With `queued=False`, the turn interrupts immediately and resumes from the new prompt. Raises `SessionError` if `session` is not mid-turn.
 
-Raises `CapabilityNotGranted` without the mixin, `SessionError` for another agent's or a
-closed session, and `SessionError` where the session has no turn under way.
+### Harness-typed roles
 
-### `Agent.fork` {#fork}
+Use a harness-typed role to require a specific CLI and all mixins in its row. Passing a different harness raises `HarnessMismatch`. Mixin names below omit the `AgentMixin` suffix.
 
-```python
-async def fork(self, session: Session) -> Session
-```
-
-Opens a new session that continues `session`'s conversation; `session` is unchanged. The fork
-works wherever its turns are given: its first `run` cuts it, in that turn's `env`.
-
-| Condition | Raises |
-| --- | --- |
-| `session` not this agent's, or closed | `SessionError` (`<role>: the session to fork is over`) |
-| `session` has taken no turn | `SessionError`: `<role>: the session to fork has taken no turn to carry on from` |
-
-What the harness cannot do is raised by the fork's first `run`:
-
-| Condition | Raises |
-| --- | --- |
-| harness does not fork (`cursor-agent`, `mcode`, `agy`, `dsh`) | `UnsupportedOperation`: `<harness> cannot fork a session` |
-| the turn's `env` on another machine than the parent's last turn | `UnsupportedOperation`: `<harness> cannot fork a session onto another machine` |
-| the turn's `env` another workdir, on a harness that forks only in place | `UnsupportedOperation`: `<harness> cannot fork a session into another workdir` |
-| the parent has taken a turn since the fork | `SessionError`: `<role>: the session it was forked from has taken a turn since; …` |
-| the CLI cannot cut the fork | `SessionError`: `the session cannot be forked: <reason>` |
-
-The parent is held open until the fork's first turn. See
-[Branching a conversation](/weaver/branching).
-
-### `Session` {#session}
-
-```python
-class Session(Protocol):
-    agent: Agent       # read-only properties
-    usage: Usage
-```
-
-| Property | Value |
-| --- | --- |
-| `agent` | The agent whose conversation this is. |
-| `usage` | What its turns have spent, current on every read. |
-
-A session holds no environment: each turn is given one.
-
-**Lifetime.** There is no `close`. A session is closed at the earlier of:
-
-- the end of the flow call that opened it and of every call that call started; or
-- the moment nothing references its view (the engine holds views weakly; a view held only by
-  a reference cycle is closed when the cycle collector finds it).
-
-Closing runs on the run's event loop exactly once and fires `SESSION_END`. A fork keeps its
-parent open until the fork's first turn. A turn that is cancelled (a `TaskGroup` sibling
-failing, a deadline, <kbd>ctrl+c</kbd>) interrupts the CLI.
-
-## Hooks {#hooks-in-a-flow}
-
-A hook is an `async` function from one moment's params to that moment's result, hung with the
-agent's `on_<moment>` method.
-
-```python
-async def not_yet(hook: StopHookParams) -> StopHookResult:
-    left = "- [ ]" in (await workspace.read("TASK.md")).decode()
-    return StopHookResult(block=left and hook.again < 5, reason="TASK.md has unticked boxes.")
-
-agent.on_stop(not_yet)
-```
-
-| Method | Moment | Needs | Delivered |
+| Type | `HarnessKind` | Value | Mixins |
 | --- | --- | --- | --- |
-| `on_session_start` | a session's first turn is about to start | | by the driver, before the turn |
-| `on_user_prompt_submit` | a prompt is about to be sent | | by the driver, before each turn |
-| `on_pre_tool_use` | the agent reached for a tool | | from inside the CLI; see below |
-| `on_notification` | the agent stopped to tell its user something | | from inside the CLI |
-| `on_stop` | a CLI turn ended and the turn is about to end | | by the driver |
-| `on_session_end` | the session is closing | | by the driver |
-| `on_permission_request` | the harness asks whether a tool may run | `PermissionRequestHookAgentMixin` | from inside the CLI |
-| `on_subagent_start` | the agent started a subagent | `SubagentStartHookAgentMixin` | from inside the CLI |
-| `on_subagent_stop` | a subagent is about to finish | `SubagentStopHookAgentMixin` | from inside the CLI |
-| `on_ask_user` | the agent asks its user a question mid-turn | `AskUserHookAgentMixin` | from inside the CLI |
-| `on_outworlder_run` | an outworlder made with `Outworlder.new()` is asked to take a turn | an outworlder from `Outworlder.new()` | by the runtime |
+| `ClaudeCodeAgent` | `CLAUDE` | `claude` | `FakeTool`, `GoalCommand`, `LoopCommand`, `Steering`, `PermissionRequestHook`, `SubagentStartHook`, `SubagentStopHook`, `AskUserHook` |
+| `CodexAgent` | `CODEX` | `codex` | `FakeTool`, `GoalCommand`, `Steering`, `PermissionRequestHook`, `SubagentStartHook`, `SubagentStopHook`, `AskUserHook` |
+| `CursorAgent` | `CURSOR_AGENT` | `cursor-agent` | `SubagentStartHook`, `SubagentStopHook` |
+| `OpenCodeAgent` | `OPENCODE` | `opencode` | `FakeTool` |
+| `MiMoCodeAgent` | `MIMO` | `mimo` | `FakeTool` |
+| `MiniMaxCodeAgent` | `MCODE` | `mcode` | `SubagentStartHook`, `SubagentStopHook` |
+| `QwenCodeAgent` | `QWEN` | `qwen` | `FakeTool` |
+| `KimiCodeAgent` | `KIMI` | `kimi` | `GoalCommand`, `Steering`, `PermissionRequestHook`, `AskUserHook` |
+| `GrokBuildAgent` | `GROK` | `grok` | `FakeTool` |
+| `PiAgent` | `PI` | `pi` | `FakeTool`, `Steering`, `AskUserHook` |
+| `OhMyPiAgent` | `OMP` | `omp` | `FakeTool`, `Steering`, `AskUserHook` |
+| `AntigravityAgent` | `AGY` | `agy` | `FakeTool` |
+| `DeepSeekHarnessAgent` | `DSH` | `dsh` | `FakeTool`, `GoalCommand` |
+| `LiteLLMAgent` | `LITELLM` | `litellm` | None. Direct model call with no CLI or tools; `env` on turns must be `None`. |
+| `Agent` | `ACP` | `acp` | None. Custom CLI driven over the Agent Client Protocol. |
 
-### Hook fields {#hook-fields}
+When a `GrokBuildAgent` role declares `_tools`, using `output_schema`, taking the first turn of a fork, disabling web search, or using a permission that writes nothing raises `HarnessUnrecoverable`.
 
-Every params class also carries `ctx: FlowContext` (the context of the flow the agent belongs
-to) and `session: Session` (the session the moment arrived in). All params and results are
-`@dataclass(frozen=True, slots=True, kw_only=True)`.
+## Permissions
 
-| `HookKind` | Params fields | Result fields (default) |
-| --- | --- | --- |
-| `SESSION_START` | | `context: str = ""` |
-| `USER_PROMPT_SUBMIT` | `prompt: str` | `block: bool = False`, `reason: str = ""`, `context: str = ""` |
-| `PRE_TOOL_USE` | `tool: str`, `input: Mapping[str, Any]` | `block: bool = False`, `reason: str = ""` |
-| `PERMISSION_REQUEST` | `tool: str`, `input: Mapping[str, Any]` | `allow: bool = True`, `reason: str = ""` |
-| `NOTIFICATION` | `message: str` | |
-| `STOP` | `said: str`, `again: int = 0` | `block: bool = False`, `reason: str = ""` |
-| `SESSION_END` | | |
-| `SUBAGENT_START` | `subagent: str`, `task: str = ""` | `context: str = ""` |
-| `SUBAGENT_STOP` | `subagent: str`, `said: str = ""` | `block: bool = False`, `reason: str = ""` |
-| `ASK_USER` | `question: str`, `options: tuple[str, ...] = ()` | `answer: str \| None = None` |
-| `OUTWORLDER_RUN` | `prompt: str`, `output_schema: type[BaseModel] \| None = None`, `context: tuple[Block, ...] = ()`, `face: Face \| None = None` | `output: str \| BaseModel` (required) |
-
-The result classes are `<Moment>HookResult`, the params `<Moment>HookParams` (e.g.
-`StopHookParams`, `StopHookResult`). A result constructed with no arguments changes nothing.
-
-| Field | Meaning |
-| --- | --- |
-| `tool`, `input` | The tool as the harness names it and its arguments; `{}` where the harness gives none. A tool known only from the CLI's output stream carries `{"about": "<the transcript line>"}`. |
-| `said`, `again` | The agent's last text, and how many times a `STOP` hook has already kept this turn going. |
-| `subagent`, `task` | The harness's name for the subagent, and its task. |
-| `question`, `options` | The question and the offered answers. `answer` need not be one of them; `None` leaves it unanswered and the agent continues without one. |
-| `context` | Text added to the prompt (see [`run`](#run)). For `SUBAGENT_START` it is delivered to no CLI. |
-| `block`, `reason` | See [`run`](#run) for `USER_PROMPT_SUBMIT` and `STOP`. A blocked `PRE_TOOL_USE` refuses the tool and tells the agent `reason` (`refused by a hook` if empty). `SUBAGENT_STOP` results are delivered to no CLI. |
-| `allow`, `reason` | `allow=False` refuses the tool, overriding the bypassed approvals; the agent is told `reason` (on Codex, whose refusals carry no reason, as a steer into the turn). |
-| `output` | What the outworlder's `run` returns: text, or an instance of `output_schema`. |
-| `prompt`, `output_schema`, `context`, `face` | Of `OUTWORLDER_RUN`: what `run` was called with, its [context blocks](#context-blocks) as given, and the [face](#face) the session was spawned with. |
-
-**Rules.**
-
-- Hanging a hook replaces the one hung on that moment; `None` removes it.
-- A hook covers every session of its agent, including sessions opened later and sessions of
-  agents [derived](#derive) from it. A called flow's hooks are its own: they are not heard by
-  its caller's sessions and vice versa.
-- A hook runs on the flow's event loop as the flow its agent belongs to. An exception it raises
-  fails the turn the moment arrived in; `run` raises it.
-- `on_pre_tool_use` can refuse a tool only on CLIs that gate tools through their own hook table
-  (Claude Code, Qwen Code). On the rest it observes a tool already reached for.
-- A moment delivered from inside the CLI that waits more than **900 s** (`HOOK_TIMEOUT`) for
-  its hook is answered as if no hook were hung. `on_ask_user` has no timeout.
-- A hook hung mid-turn applies to that turn's later moments, except those that change how the
-  CLI is started, which apply from the next turn: `on_pre_tool_use` on a gating CLI, and
-  `on_permission_request` or `on_ask_user` on Codex (whose app server is restarted between
-  turns for it) and Kimi Code.
-- A session whose CLI runs on another machine is refused where its runtime's harness is `env`
-  while `on_pre_tool_use` or `on_permission_request` is hung, as it opens or from its next
-  turn, the CLI there being one these hooks cannot gate; see
-  [Harness placement](#harness-placement).
-
-### `HookKind` {#hookkind}
-
-`class HookKind(StrEnum)`: `SESSION_START`, `USER_PROMPT_SUBMIT`, `PRE_TOOL_USE`,
-`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`, `SESSION_END`, `SUBAGENT_START`,
-`SUBAGENT_STOP`, `ASK_USER`, `OUTWORLDER_RUN`. Each value is the lowercase member name
-(`HookKind.STOP == "stop"`).
-
-### `HookFn` {#hookfn}
+Guide: [Skills and permissions](/builder/skills).
 
 ```python
-class HookFn[TParams: HookParams, TResult](Protocol):
-    async def __call__(self, params: TParams, /) -> TResult: ...
+class Permission:
+    preset: str = "workspace-write"
+    network: bool = True
+    granular: tuple[Rule, ...] = ()
+
+    rules: tuple[Rule, ...]
+    def access(self, path: str) -> Access
+    def covers(self, other: Permission) -> bool
+
+class Rule:
+    path: str
+    access: Access
+
+def allow(path: str) -> Rule
+def read_only(path: str) -> Rule
+def deny(path: str) -> Rule
 ```
 
-### `HookParams` and `HookResult` {#hookparams-and-hookresult}
+| Name | Meaning |
+| --- | --- |
+| `Permission` | Frozen filesystem and network policy: a preset, a network flag, and path rules. Defaults to writing the workdir, reading the machine, and allowing network access. |
+| `PRESETS` | Valid preset names: `("read-only", "workspace-write", "danger-full-access")`. |
+| `Rule` | Frozen access rule for a path and its subtree. |
+| `Access` | String enum ordered `NONE < READ < WRITE` (`none`, `read`, `write`). |
+| `allow` | Creates a read-write rule for `path`. |
+| `read_only` | Creates a read-only rule for `path`. |
+| `deny` | Creates a no-access rule for `path`. |
+
+| Preset | Base rules |
+| --- | --- |
+| `read-only` | Read the whole machine. |
+| `workspace-write` | Read the whole machine and write the workdir. |
+| `danger-full-access` | Write everything. |
+
+| Member of `Permission` | Meaning |
+| --- | --- |
+| `preset` | One of `PRESETS`, or raises `ValueError`. |
+| `network` | Whether the agent may use the network, including built-in web search and fetch. |
+| `granular` | Path rules applied after the preset, in order. |
+| `rules` | Preset rules followed by `granular`. The last matching rule wins; unmatched paths get no access. |
+| `access` | Returns the effective `Access` for `path`. |
+| `covers` | Whether this permission grants at least what `other` grants across all paths and network. |
+
+Rule paths must be `/abs`, `~`, `~/...`, `.` or `./...`, where `~` is the harness user's home directory and `.` is the session workdir. Globs, `..`, or unanchored paths raise `ValueError`, from `Rule` and from `Permission.access`. Write access to the workdir also grants write access to temporary directories.
+
+## Budgets and usage
+
+Guide: [Budgets in a flow](/builder/budgets).
 
 ```python
-@dataclass(frozen=True, slots=True, kw_only=True)
-class HookParams:
-    ctx: FlowContext
-    session: Session
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class HookResult: ...
-```
-
-The bases of every `<Moment>HookParams` and `<Moment>HookResult`.
-
-### `HOOK_TYPES` {#hook-types}
-
-`HOOK_TYPES: Mapping[HookKind, tuple[type[HookParams], type[HookResult]]]`:
-`HOOK_TYPES[HookKind.STOP] == (StopHookParams, StopHookResult)`.
-
-## The person at the prompt {#the-person-at-the-prompt}
-
-### `Outworlder` {#outworlder}
-
-```python
-class Outworlder(Agent, Protocol):
-    away: bool                                     # read-only property
-
-    async def spawn(self, *, face: Face | None = None) -> Session: ...
-    async def run(self, prompt: str, *, session: Session, env: Env | None = None,
-                  output_schema: type[M] | None = None, budget: Budget | None = None,
-                  context: Sequence[Block] = ()) -> str | M: ...
-    async def show(self, context: Sequence[Block], *, session: Session) -> None: ...
-
-    @classmethod
-    def new(cls) -> Self: ...
-    def on_outworlder_run(self, fn: HookFn | None) -> None: ...
-```
-
-A role typed `Outworlder` is filled by the runtime. At the top of a run it is whoever started
-the run; naming it with `-a` is refused
-(`<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a`).
-
-| Member | Behaviour |
-| --- | --- |
-| `spawn(face=None)` | Opens a session of the outworlder. A [`Face`](#face) is mounted for that session's whole life: every question of the session is drawn with it where a face can be drawn. |
-| `run(prompt, session=…, env=None, output_schema=None, budget=None, context=())` | Asks the person and returns the answer: the text, or, with `output_schema`, an instance of it. The whole schema is asked at once, as one question, never a field at a time. `context` goes with the question. A person works nowhere: `env` is checked and otherwise ignored. |
-| `show(context, session=…)` | Puts `context` in front of the person with nothing to answer. Never waits on them. Does nothing while away, and on an outworlder from `new()`. |
-| `away` | `True` under `hmz exec` (no one is at a prompt) and while [`/afk`](/user/afk) is on for the role. |
-| `Outworlder.new()` | A new outworlder answered by the flow through `on_outworlder_run`. Away until a hook is hung. |
-| `on_outworlder_run(fn)` | Only on an outworlder from `new()`; on any other raises `CapabilityNotGranted`: `<role>: only an outworlder made with Outworlder.new() is answered by a hook`. The hook is handed the prompt, the schema, the context and the session's face ([fields](#hook-fields)). |
-| `fork` | `UnsupportedOperation`: `an outworlder's session cannot be forked`. |
-| `derive(permission=…, skills=…)` | Returns the same outworlder. A permission that the default `Permission()` does not cover raises `CapabilityNotGranted`: `<role>: <permission> is wider than the <granted> an outworlder is granted`. Non-empty skills raise `CapabilityNotGranted`: `<role>: an outworlder has no skills`. |
-
-**Who answers.** The run's outworlder is answered by a person through a frontend, the web page
-or the terminal, by an [SDK driver](/reference/sdk#outworlderdriver), or by nobody (away).
-Each is handed the same question: the prompt, the context as JSON, the JSON Schema of
-`output_schema` (`model_json_schema()`, or nothing for text), the face's hash, and the session
-(`<role>/<n>`). Every answer to a schema question is a JSON value, validated against
-`output_schema` by the host before `run` returns. One that does not fit is refused to whoever
-sent it, with each error's `path` and `message`, and the question stays up: `run` never sees a
-misfit.
-
-**While away**, `run` returns at once: `""` for text; the schema built with no arguments
-where that builds one; otherwise `OutworlderAway`:
-`nobody is there to answer a <Model>, and it has no default`.
-
-A caller may pass its own outworlder, one from `Outworlder.new()`, or omit the role (the
-callee gets the run's). An outworlder may also be passed for a plain `Agent` role that
-declares no mixin and no harness; a role that does raises `CapabilityMissing`
-(`<ref>: '<role>' asks for what no outworlder can do`). The run's outworlder is asked, and
-asked whether it is away, as the `Outworlder` role the run filled with it, whatever role name
-a caller passes it under.
-
-### Context blocks {#context-blocks}
-
-```python
-@dataclass(frozen=True, slots=True, kw_only=True)
-class Markdown:
-    text: str
-    title: str = ""
-    def as_json(self) -> dict[str, Any]: ...
-
-Block = Markdown | Code | Diff | Table | Image | Json | Chart
-```
-
-What `run(context=…)` and `show` take. Each block is a frozen, slotted, keyword-only
-dataclass with `title: str = ""` and `as_json()`, which returns its JSON form: the form every
-frontend, SDK driver and [face](#face) receives. The JSON form carries `"title"` only where it
-is set.
-
-| Block | Fields | JSON form |
-| --- | --- | --- |
-| `Markdown` | `text: str` | `{"kind": "markdown", "text"}` |
-| `Code` | `text: str`, `language: str = ""` | `{"kind": "code", "text", "language"}` |
-| `Diff` | `patch: str`: a unified diff, which may span files | `{"kind": "diff", "patch"}` |
-| `Table` | `columns: tuple[str, ...]`, `rows: tuple[tuple[Any, ...], ...]` | `{"kind": "table", "columns", "rows"}` |
-| `Image` | `data: bytes`, `mime: str`, `alt: str = ""` | `{"kind": "image", "mime", "data", "alt"}`, `data` in base64; at most 4 MiB before encoding |
-| `Json` | `value: Any` | `{"kind": "json", "value"}` |
-| `Chart` | `spec: Mapping[str, Any]`: a Vega-Lite spec | `{"kind": "chart", "spec"}` |
-
-| Frontend | Draws |
-| --- | --- |
-| Web page | Every kind: Markdown rendered, code and diffs highlighted (a diff file by file), a table, an image, JSON as a tree, a chart. A long block is folded behind a one-line summary; the first is open. |
-| Terminal | Markdown, code, diffs and tables in the transcript; an image or a chart as a line pointing to the web page. |
-
-### `Face` {#face}
-
-```python
-class Face:                                       # frozen and slotted, not a dataclass
-    def __init__(self, html: str, title: str = "") -> None: ...
-    html: str                                     # on the class: Face.html(text, *, title="")
-    @property
-    def title(self) -> str: ...
-    @property
-    def hash(self) -> str: ...                    # sha256 hex of html
-    @classmethod
-    def file(cls, path: str | os.PathLike[str], *, title: str = "") -> Face: ...
-    @classmethod
-    async def design(cls, agent: Agent, *, session: Session, about: str,
-                     output_schema: type[BaseModel] | None = None,
-                     env: Env | None = None) -> Face: ...
-
-FACE_GUIDE: str
-```
-
-A page of the flow's own that draws a session's questions in the web page instead of the form
-Humanize draws. Given to [`Outworlder.spawn`](#outworlder). Guide:
-[A face for the person](/weaver/faces).
-
-| Member | Behaviour |
-| --- | --- |
-| `html`, `title` | The HTML, and what the face is called (`""` for none). Setting either raises `FrozenInstanceError`; two faces of the same HTML and title are equal. |
-| `hash` | The sha256 of `html`, in hex. A question names its face by it. |
-| `Face.file(path, title="")` | Reads `path`, relative to the directory of the module that calls it, as UTF-8. |
-| `Face.html(text, title="")` | A face from the HTML itself: on the class, `html` makes a face; on a face, it is the HTML. |
-| `Face.design(agent, session=…, about=…, output_schema=None, env=None)` | Runs one turn of `agent` in `session` with `FACE_GUIDE`, `about` and the schema's JSON Schema, and returns the first fenced `html` block of its answer, or the whole answer where there is none, titled by its `<title>`. `ValueError` where what came back does not start with HTML. |
-| `FACE_GUIDE` | The bridge and the rules below, written for an agent: one self-contained HTML file, no network, the page's theme. |
-
-**The bridge.** The face is served in a frame and handed `window.hmz` before its own scripts
-run:
-
-| Call | Behaviour |
-| --- | --- |
-| `hmz.on("ask", ({prompt, context, schema, errors}) => …)` | Each new question of the session. `context`: block JSON forms; `schema`: a JSON Schema or `null`; `errors`: `[]`, or `[{path, message}]` of a refused try. |
-| `hmz.on("show", (context) => …)` | What `show` pushed. |
-| `hmz.on("theme", (tokens) => …)` | The page's CSS variables, on a change of theme. They are set on `:root` before the face loads. |
-| `hmz.submit(value)` | Answers the current question. A promise of `{ok: true}` or `{ok: false, errors}`. |
-| `hmz.resize(height)` | Sets the frame's height, in CSS pixels. |
-
-**Rules.**
-
-| Rule | |
-| --- | --- |
-| Sandbox | `<iframe sandbox="allow-scripts allow-forms">`: an opaque origin, no cookies, no call to the daemon. |
-| Policy | `default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src data: blob:; font-src data:; connect-src 'none'`. `'self'` lets it import the page's `/vendor/*.js`, which are shared with its opaque origin alone. |
-| Channel | A `MessageChannel` port handed over once, at load. Messages from anywhere else are ignored. |
-| One per session | One frame per outworlder session, kept across its questions. |
-| Falling back | The form is drawn instead where the face fails to load, throws before it calls `hmz.on("ask", …)`, or has not called it within 5 s of its frame loading, under a note saying why and **Try again**; and whenever the person presses **Plain form**, until **Back to …**. |
-| Elsewhere | The terminal and SDK drivers draw no face: they get its hash only. An `OUTWORLDER_RUN` hook gets the `Face` itself, as `params.face`. |
-
-## Environment roles {#where-each-agent-works}
-
-An environment is a working directory on a machine: this one, one reached with `ssh`, a
-container of its own on a docker daemon, on whichever node of a docker swarm has room or in
-Apple's `container` on this Mac, or the node of a job of its own on a Slurm cluster.
-
-### `EnvCollection` {#envcollection}
-
-```python
-class EnvCollection(TypedDict, extra_items=ReadOnly[Env]): ...
-```
-
-One key per role, typed `Env`, `LocalEnv`, or a subclass carrying mixins. `NotRequired`
-roles may be omitted. Every role but a `LocalEnv` one is filled with
-[`-e`](#e-environments).
-
-### `Env` {#env}
-
-```python
-class Env(Protocol):
-    workdir: PurePosixPath      # read-only properties
-    backend: EnvBackendKind
-    provider: str
-    available: bool
-    role: str
-
-    async def derive_subdir(self, *, subdir: PurePosixPath | str) -> Env: ...
-```
-
-| Member | Value |
-| --- | --- |
-| `workdir` | Where commands run and relative paths resolve: absolute, or `~/…` under the ssh login's home. For `docker`, a directory of the daemon's host, mounted at the same path in the container; for `swarm`, one of the node the task landed on, likewise; for `apple-container`, one of this Mac, likewise; for `slurm`, one of a shared filesystem, at the same path on the job's node and here. |
-| `backend` | `local`, `ssh`, `docker`, `swarm`, `apple-container` or `slurm`. |
-| `provider` | `""` for `local`; the ssh destination or saved runtime name for `ssh`; the docker runtime name (`local` for docker's default here) for `docker`; the swarm runtime name (`local` for the swarm this machine manages) for `swarm`; the Apple container runtime name (`local` for this Mac's with nothing saved) for `apple-container`; the Slurm runtime name (`local` for the cluster's defaults) for `slurm`. |
-| `available` | Whether the machine was reachable and the workdir existed, as last probed. |
-| `role` | The key it fills. |
-| `derive_subdir(subdir=…)` | An environment at a directory under this workdir, created if missing, same role and grant. `ValueError` for an absolute `subdir` or one that climbs out; `EnvError` if it cannot be made. |
-
-### `LocalEnv` {#localenv}
-
-```python
-class LocalEnv(Env, Protocol): ...
-```
-
-The workspace the run was started in (the directory `hmz` was started in, or the `Hmz`
-workspace), filled by the runtime. A role typed `LocalEnv` or a subclass takes no `-e`
-(`<flow>: '<role>' is the workspace the run started in and cannot be set with -e`). A caller
-may omit it (the callee gets the run's workspace, granted what the callee declares) or pass an
-environment on this machine; an environment on another machine raises `CapabilityMissing`:
-`<ref>: '<role>' is a LocalEnv, and the environment given is <backend>[@<provider>]/<workdir>, which is not this machine`.
-
-### `EnvBackendKind` {#envbackendkind}
-
-`class EnvBackendKind(StrEnum)`: `LOCAL = "local"` (this machine), `SSH = "ssh"` (a host
-`ssh` reaches), `DOCKER = "docker"` (a container of its own on a docker runtime's daemon),
-`SWARM = "swarm"` (a container of its own as the one task of a service on a swarm runtime's
-swarm, on whichever node it was placed), `APPLE_CONTAINER = "apple-container"` (a container of
-its own, a small Linux virtual machine Apple's `container` runs on this Mac), `SLURM = "slurm"`
-(a job of its own on the Slurm cluster this machine submits to, on whichever node the cluster
-gave it).
-
-### What an environment can do {#what-an-environment-can-do}
-
-| Mixin | Adds | Without it |
-| --- | --- | --- |
-| `ShellEnvMixin` | `async exec(argv: SequenceNotStr[str], *, timeout: float = 0) -> tuple[int, str, str]`: runs one program, no shell, in the workdir. Returns `(exit status, stdout, stderr)` decoded as UTF-8. `timeout` in seconds, `0` for none; past it the program is killed and `EnvCommandTimeout` raised. `EnvError` if it cannot start. | `<role>: exec needs ShellEnvMixin on the role` |
-| `BashEnvMixin` | `exec(script: str, …)` too, run as `bash -c script` in the workdir, same timeout and results. Includes `ShellEnvMixin`. | `<role>: a script exec needs BashEnvMixin on the role` |
-| `FilesEnvMixin` | `async read(path: str) -> bytes`, `async write(path: str, data: bytes) -> None`; `path` relative to the workdir or absolute. `write` replaces the file whole and creates parent directories. `EnvFileNotFound` for a missing file, `EnvPermissionDenied` for a refused one. | `<role>: read needs FilesEnvMixin on the role` (or `write`) |
-
-`exec` takes exactly one command, positional or as `argv=`/`script=`; anything else raises
-`TypeError: exec takes one command: an argv, or a script`.
-
-<span id="sequencenotstr"></span>`SequenceNotStr[T]` is the type of an argv: a sequence that is
-not a `str` (a `str`'s `__contains__` takes only `str`, which keeps it from matching). Lists
-and tuples of strings match.
-
-### What a machine must have {#what-a-machine-must-have}
-
-| Mixin | Class attribute | Default | Meaning |
-| --- | --- | --- | --- |
-| `CPUEnvMixin` | `_cpu_count: int` | `1` | Minimum logical CPUs. |
-| `MemoryEnvMixin` | `_memory: int` | `0` | Minimum memory, bytes. |
-| `GPUEnvMixin` | `_gpu_count: int`, `_gpu_memory: int` | `1`, `0` | Minimum GPUs; minimum memory per GPU, bytes. |
-| `ImageEnvMixin` | `_image: str` | `""` | Image a `docker`, `swarm` or `apple-container` environment's container starts from: `""` for the provider's image, else `python:3.12-slim`. Needs `/bin/sh` and Python ≥ 3.12; no sshd. Ignored for `local`, `ssh` and `slurm`. |
-
-An attribute is read only where its mixin is among the type's bases. For `local` and `ssh`, a
-machine with less than declared is refused before anything runs with
-[`ResourceUnmet`](#resourceunmet): `<ref>: '<role>' needs <n> CPUs, and the environment given has <m>`
-(likewise `bytes of memory`, `GPUs`, `bytes of memory per GPU`).
-
-For `docker` the amounts size the container: it gets exactly what the role declares as hard
-limits, no limit on what it declares none of, and no GPU without `GPUEnvMixin`. Before any
-agent starts, the request is held against what the provider may still hand out; where it
-cannot, the run is refused with `ResourceUnmet`, naming what is free and which container holds
-the rest ([how](/reference/machines#docker-environments)). Everything derived from a `docker`
-environment is in the same container.
-
-For `swarm` the amounts are what the task reserves of its node, and its limits too; GPUs are
-reserved as the runtime's generic resource. A runtime without that much left, or a task no
-node of the swarm takes, is refused with `ResourceUnmet` the same way
-([how](/reference/machines#swarm-environments)). Everything derived from a `swarm`
-environment is in the task's container.
-
-For `apple-container` the CPUs and memory size the container's virtual machine, and a role
-declaring `GPUEnvMixin` is refused with `ResourceUnmet`, Apple's containers being given no GPU
-([how](/reference/machines#apple-container-environments)). Everything derived from an
-`apple-container` environment is in the same container.
-
-For `slurm` the amounts are what the job asks for (`--cpus-per-task`, `--mem`, `--gpus`), which
-the cluster confines it to; nothing declared is asked for, leaving the partition's defaults. A
-runtime without that much left of its `cpus`, `memory` or `max_jobs`, or a job no node takes
-within its `max_wait`, is refused with `ResourceUnmet`
-([how](/reference/machines#slurm-environments)). Everything derived from a `slurm`
-environment is on the job's node, under Humanize's home there.
-
-### Worktrees, copies and scratch directories {#worktrees-copies-and-scratch-directories}
-
-| Mixin | Methods |
-| --- | --- |
-| `GitWorktreeEnvMixin` | `async derive_worktree(*, ref: str \| None = None, dir: PurePosixPath \| str \| None = None) -> Self` |
-| `TemporaryClonedDirEnvMixin` | `async derive_temp_clone(id: str) -> Self`, `async destroy_temp_clone(id: str) -> None` |
-| `ScratchDirEnvMixin` | `async derive_scratch(id: str) -> Self`, `async destroy_scratch(id: str) -> None` |
-
-Each derived environment is on the same machine, fills the same role, and carries the same
-grant. `GitWorktreeEnvMixin` needs `git` on the machine's `PATH`: a flow declaring it on one
-without is refused before anything runs, as for [`GitEnvMixin`](#snapshots-and-rewinding).
-
-| Method | Behaviour | Raises |
-| --- | --- | --- |
-| `derive_worktree` | `git worktree add` of the repository the workdir is in, `ref` checked out detached (default: what the workdir has checked out), at `dir` (relative to the workdir or absolute; default a fresh directory under `envs/…/worktrees/`). Not removed by Humanize. | `WorktreeError`: not in a repository, unknown ref, directory taken |
-| `derive_temp_clone(id)` | A copy of the workdir (a reflink where the filesystem supports it). Same `id` from the same environment → same copy, made once. Needs no git, except to copy a workdir that is a linked worktree. | `TempCloneBusy` if another environment holds that id; `EnvError` if the copy fails |
-| `derive_scratch(id)` | An empty directory; same `id` → same directory. | `ScratchError` |
-| `destroy_temp_clone(id)`, `destroy_scratch(id)` | Remove now; no-op if absent. | `ScratchError` (scratch) |
-
-Copies and scratch directories are removed when the flow call that made them ends (after
-every call it started), with at most 30 s allowed for cleanup, unless the run keeps a journal
-(a [resumable](#a-flow-that-can-be-picked-up) run): then each is recorded in the journal and
-kept for `--resume`. Locations are under `envs/` in Humanize's home on the machine that holds
-them; see [Files](/reference/files).
-
-### Snapshots and rewinding {#snapshots-and-rewinding}
-
-| Mixin | Methods |
-| --- | --- |
-| `RewindableEnvMixin` | `async snapshot(name: str \| None = None) -> str`, `async rewind(ref: str) -> None`, `async snapshots() -> list[str]` |
-| `GitEnvMixin` | the same, implemented with git. Includes `RewindableEnvMixin`. |
-
-`RewindableEnvMixin` is an interface: declared alone it grants nothing, and each method
-raises `CapabilityNotGranted` (`<role>: snapshot needs GitEnvMixin on the role`). Type helpers
-against it and declare `GitEnvMixin` on the role.
-
-| Method | Behaviour |
-| --- | --- |
-| `snapshot(name)` | Records the git worktree containing the workdir — `HEAD`, the index, and every file not ignored (untracked included) — as a commit under `refs/hmz/snapshots/<name>`, touching none of them. Returns that ref. `name=None` uses `<UTC %Y%m%dT%H%M%S.%fZ>-<4 hex>`. An existing `name` is replaced. |
-| `rewind(ref)` | Restores the worktree. A snapshot ref restores its commit, index and files (untracked as untracked). Any other ref git resolves to a commit is checked out with its files and a matching index. The checked-out branch (if any) is moved to the commit; files neither in it nor ignored are removed (nested repositories too); a merge, cherry-pick or revert in progress is abandoned. `HEAD` moves last. A `ref` that is empty or starts with `-` is refused. |
-| `snapshots()` | The snapshot refs, oldest first by committer date (to the second; ties by name). Shared by every worktree of the repository. |
-
-The whole worktree is affected, whatever subdirectory the workdir is. Ignored files and a
-`.hmz/` (or a `.humanize/` not yet moved) at the worktree's top are neither recorded nor
-removed. Snapshots persist until `git update-ref -d refs/hmz/snapshots/<name>`.
-
-`RewindError` is raised for a workdir outside a git worktree, a ref git does not know, a name
-git refuses as a ref, a snapshot taken before the first commit rewound on a detached `HEAD`,
-or any other git failure (`could not <snapshot|rewind|list the snapshots of> <workdir>: <what git said>`).
-
-A flow declaring `GitEnvMixin` or `GitWorktreeEnvMixin` for an environment whose machine has
-no `git` on its `PATH`, or `BashEnvMixin` for one with no `bash`, is refused before anything
-runs:
-
-```
-hmz exec: error: tries: 'repo' needs GitEnvMixin, which docker@gpubox/srv/repo does not support: GitEnvMixin needs git on the machine's PATH, and it has none
-```
-
-## Budgets {#what-a-run-may-spend}
-
-### `Budget` {#budget}
-
-```python
-class Graceful(pydantic.BaseModel): # frozen=True, extra="forbid"
+class Budget(BaseModel):
+    duration: timedelta | None = None
+    cost: float | None = None
+    output_tokens: int | None = None
+    graceful: bool | Graceful = True
+
+    graces: Graceful
+
+class Graceful(BaseModel):
     duration: bool = True
     cost: bool = True
     output_tokens: bool = True
 
-class Budget(pydantic.BaseModel):   # frozen=True, extra="forbid", ser_json_inf_nan="strings"
-    duration: timedelta | None = None     # >= 0
-    cost: float | None = None             # >= 0, USD
-    output_tokens: int | None = None      # >= 0
-    graceful: bool | Graceful = True
-
-    @property
-    def graces(self) -> Graceful: ...     # `graceful`, one flag per limit
-```
-
-| Field | Limits |
-| --- | --- |
-| `duration` | Wall-clock time from the start of the call (or turn) the budget belongs to: a deadline. |
-| `cost` | USD spent by turns under it. |
-| `output_tokens` | Tokens written by agents under it. |
-| `graceful` | `True`: a turn under way when a limit is reached may finish. `False`: it is cut off at once. A `Graceful` says it for each limit on its own: `Budget(cost=5, output_tokens=200_000, graceful=Graceful(output_tokens=False))` cuts a turn off at its 200 000th token, but lets one that reaches $5 finish. A `Graceful` whose three flags agree is read as that one `bool`. |
-
-At least one of `duration`, `cost`, `output_tokens` must be set
-(`a budget sets at least one of duration, cost, output_tokens`), and none may be negative;
-otherwise `pydantic.ValidationError`. `Budget(cost=math.inf)` means unlimited and serializes
-as `{"cost": "Infinity"}`.
-
-**Which runs need one.** Every run of a flow: from `-p budget.<limit>=`
-(see [`budget.*`](#p-budget)), `/flow`, or `budget=` in [Python](/reference/sdk). Without it:
-`<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...`.
-A [chat](/user/chat), which is not a flow, runs under none.
-
-### Effective budget
-
-Every call and every turn may carry its own budget (`budget=` of [`Flow.__call__`](#calling-a-flow)
-and [`Agent.run`](#run)). They nest:
-
-- **Cost and output tokens** spent anywhere under a call count against it and every call above.
-- **`duration`** is a deadline per call: a call's deadline is the earliest of its own
-  (`start + duration`) and every one above. Ten concurrent calls with an hour each spend one
-  hour of their caller's.
-- **`ctx.budget`** reports, for each limit, the least over the chain of
-  `limit − spent under that call + spent under this call` (the total this call may reach),
-  `duration` as the time from this call's start to its deadline, and each limit as not
-  graceful if any budget in the chain that sets it is not graceful for it; `graceful` is a
-  `bool` where the three agree and a `Graceful` where they do not. `cost` is `None` where no budget limits it
-  but another limit exists.
-- **A turn** is held to the least remaining of each limit over every budget above it plus its
-  own, each limit graceful or hard as the budget leaving it says -- a hard token limit leaves
-  a graceful cost limit graceful. Where two budgets leave the same amount, the one hard for
-  that limit wins. A turn's own budget lasts one turn: a graceful one only counts; use
-  `graceful=False` to cut a turn short. The leaf `run` raises then has `own=True` where only
-  the turn's own budget is spent, so a flow may catch it and go on; where a budget above the
-  turn is spent too, `run` raises for that one, with `own=False`.
-
-**Enforcement.**
-
-| Situation | Result |
-| --- | --- |
-| Turn requested with a spent limit | The `BudgetExceeded` leaf, before anything is sent: `<ref>: its budget's duration is spent` / `cost is spent` / `output tokens are spent`. |
-| Limit reached mid-turn, graceful | The turn completes and returns; the next turn raises. |
-| Limit reached mid-turn, hard | The CLI is stopped; `run` raises the leaf. |
-| A call's deadline passes | The call's task is cancelled after in-flight turns under it finish (graceful duration) or at once (hard); the cancellation surfaces from the call as `DurationExceeded`. A cancellation from anywhere else remains a `CancelledError`. |
-| After any of the above | The budget stays spent: every later turn under it raises again. |
-
-Spending is read as the CLI reports it (polled every 1 s while the CLI is silent) and priced
-with Humanize's [price table](/reference/files#h-prices-json), which a run with a finite `cost`
-limit brings up to date before its first turn when it is missing or older than 24 h, however
-the run was started. A spend that is not a finite number, which a price list malformed
-mid-run leaves, raises `CostExceeded` on the next turn, whatever the budget.
-A model with no price costs `0`, so a cost limit alone does not stop it:
-[`Run.unreadable()`](/reference/sdk#run-methods) says so before the run, and `hmz exec` and the interface
-print it.
-
-### `Usage` {#usage}
-
-```python
-class Usage(pydantic.BaseModel):    # frozen=True, extra="forbid"
+class Usage(BaseModel):
     duration: timedelta = timedelta(0)
     cost: float = 0.0
     output_tokens: int = 0
 ```
 
-`duration` is the sum of the durations of every turn counted (concurrent turns each count).
-`ctx.usage`, `Session.usage` and [`Run.usage`](/reference/sdk#run) are `Usage` values. The
-run's total is written to the epic as the [`usage`](/reference/tracing#epic-jsonl) event.
-
-## Concurrency {#a-flow-that-waits-for-more-than-one-thing}
-
-A flow is a coroutine: `asyncio.gather`, `asyncio.TaskGroup`, `asyncio.timeout` and `except*`
-behave as anywhere.
-
-- Turns of one session are sequential; a second `run` while one is under way raises
-  `SessionError`.
-- Cancelling a task in a turn interrupts that CLI.
-- A task the flow starts that calls a flow, or uses an agent or an environment, is cancelled as
-  the run ends, awaited or not, and waited for up to 30 s; other work it starts is not: see
-  [Stopping](#stopping).
-- A called flow's exception reaches `except*` with its own class.
-- Concurrent calls form a tree of contexts, each with its own usage.
-
-## Resumable flows {#a-flow-that-can-be-picked-up}
-
-A flow with `resumable=True` keeps a journal while it runs. The newest run of it in a
-workspace is picked up by `hmz exec --resume`, `/resume`, `Hmz().run(resume=True)`, or *resume
-run* on `/epics` (a chosen epic). "Of it" is by its canonical ref, `<directory>:<flow>`, or by
-the name it was run under: flows kept in directories of one name -- `alice/kernel` and
-`bob/kernel` -- share a ref, so the newest run of either is the one picked up.
-
-| Refusal | Message |
+| Name | Meaning |
 | --- | --- |
-| flow not resumable | `<flow> does not support resuming, so there is no run to resume` |
-| no journal holding a flow call in this workspace | `<flow> has no run to resume here: none saved any progress` |
-| a given epic without one | `<epic> has no saved progress to resume from` |
+| `Budget` | Frozen spending limits for a run, flow call, or turn. Must set at least one non-negative limit, or Pydantic raises `ValidationError`. |
+| `Graceful` | Frozen flags controlling whether reaching a limit waits for the current turn to finish (`True`) or aborts it immediately (`False`). |
+| `Usage` | Frozen record of resources spent so far. |
 
-**A picked-up run is a new run** with its own epic, whose `began` event names the epic it was
-`picked_up` from; the journal is copied into the new epic, compacted, and appended to. A
-[session kept in state](#sessions-in-state) stays in the epic that kept it, and is read from
-there by every run picking it up.
-
-### Journal {#journal}
-
-`resume.jsonl` in the epic: JSON Lines, first line `{"t":"journal","v":1}`.
-
-| `t` | Fields | Written |
-| --- | --- | --- |
-| `call` | `id` (int), `parent` (int, `0` for the top call), `digest` (hex), `seq` (int), `ref` (canonical ref) | when a call starts; batched |
-| `set` | `id`, `key`, `value` | on each state write; flushed immediately. A session in `value` is `{"\u0000session": {"harness", "id", "at", "role"}}`, `at` being its copy |
-| `del` | `id`, `key` | on each state delete; flushed immediately |
-| `session` | `id`, `role`, `harness`, `model`, `session` (the CLI's id) | once the CLI names the session (at open or during the first turn); batched |
-| `tmp` | `id`, `env` (role), `kind` (`temp_clone` \| `scratch`), `name` (the id), `chain`, `workdir` | when a copy or scratch directory is made; batched |
-| `end` | `id`, `ok` (bool) | when the call ends; batched |
-
-Batched records are written within 0.1 s or with the next state write. The file is synced on
-close. A line that does not parse is skipped when read. On resume the journal is rewritten
-once, compacted: each call, its final state, its sessions and temporary directories, its end.
-
-### Matching calls {#digests}
-
-A call's **digest** is `blake2b(digest_size=16)` over, `\0`-separated: the callee's canonical
-ref, the task, one `role=spec` per agent role then per environment role (each group in
-declaration order), and the params serialized as JSON.
-
-| Role | Spec in the digest |
+| Field | Meaning |
 | --- | --- |
-| agent | `<harness>@<provider>/<model>:<effort>\|<permission>\|<skill,skill…>`, `<permission>` being canonical JSON (below) |
-| outworlder | `outworlder`, or `outworlder:new` for one from `Outworlder.new()` |
-| environment | its derivation chain: `<backend>@<provider><workdir>` followed by `#subdir(<path>)`, `#worktree(<ref>,<dir>)`, `#temp_clone(<id>)`, `#scratch(<id>)` per derivation; never the path a copy landed at |
+| `duration` | Wall-clock time limit in `Budget`; active agent turn time in `Usage`. |
+| `cost` | Cost in USD. Use `Budget(cost=math.inf)` for unlimited. |
+| `output_tokens` | Output tokens allowed or spent. |
+| `graceful` | A single boolean for all limits, or a `Graceful` instance. |
+| `graces` | `graceful` normalized to a `Graceful` instance. |
 
-An agent's `<permission>` is
-`json.dumps({"preset": preset, "network": network, "granular": [[path, access], ...]},
-separators=(",", ":"))`: `granular` in declared order, each rule's normalised path and access
-value, and the preset's expansion left out. `Permission(granular=(deny("~/.ssh"),))` is
-`{"preset":"workspace-write","network":true,"granular":[["~/.ssh","none"]]}`.
+## Environments
 
-`seq` counts earlier calls under the same parent with the same digest.
+Guides: [Environment roles](/builder/environments), [Worktrees, clones and scratch](/builder/worktrees), [Machines and moving sessions](/builder/machines).
 
-| Call | On resume |
+| Name | Meaning |
 | --- | --- |
-| the top call | Picks up the earlier top call unconditionally: `ctx.resumed` is `True`, state restored. |
-| a call under a call that picked up | Picks up the earlier call with the same parent, digest and the lowest unclaimed `seq`; otherwise starts afresh with an empty state. |
-| a call of a non-resumable flow | Has no state; still passes resumption to the calls it makes. |
+| `EnvCollection` | `TypedDict` base class for declaring environment roles. Mark optional roles `NotRequired`. |
+| `Env` | A working directory on a machine. |
+| `LocalEnv` | An `Env` bound automatically to the run's starting workspace. Cannot be passed with `-e`. |
+| `EnvBackendKind` | String enum of machine backends. |
+| `SequenceNotStr` | A sequence of strings (excluding `str` itself) used for argument lists. |
 
-Temporary copies and scratch directories recorded in the journal are kept, so the resumed run
-finds them at the same deterministic paths.
-
-## Calling another flow {#a-flow-that-calls-another-flow}
+### Env
 
 ```python
-plan = load("humanize1:gen-plan")
-await plan(f"plan this first: {task}",
-           agents={"planner": agents["builder"], "analyst": agents["reviewer"]},
-           envs={}, params=plan.expected_params())
+class Env(Protocol):
+    available: bool
+    backend: EnvBackendKind
+    provider: str
+    role: str
+    workdir: PurePosixPath
+
+    async def derive_subdir(self, *, subdir: PurePosixPath | str) -> Env
 ```
 
-### `load` {#load}
+| Member | Meaning |
+| --- | --- |
+| `available` | Whether the machine was reachable and the workdir existed when last checked. |
+| `backend` | Machine backend kind. |
+| `provider` | Backend target: SSH host, container runtime, or `""` for local. |
+| `role` | Role key in the flow's `EnvCollection`. |
+| `workdir` | Working directory path (absolute or `~/...`). |
+| `derive_subdir` | Returns an `Env` on the same machine at `subdir` inside `workdir`, creating the directory if needed. Raises `ValueError` if `subdir` is absolute or escapes `workdir`, or `EnvError` if creation fails. |
+
+| `EnvBackendKind` | Value | Machine |
+| --- | --- | --- |
+| `LOCAL` | `local` | This machine. |
+| `SSH` | `ssh` | Remote machine over SSH. |
+| `DOCKER` | `docker` | Dedicated container on a Docker daemon. |
+| `SWARM` | `swarm` | Dedicated container on a Docker Swarm. |
+| `APPLE_CONTAINER` | `apple-container` | Dedicated container run by Apple's `container` on macOS. |
+| `SLURM` | `slurm` | Dedicated job on a Slurm cluster. |
+
+### Environment mixins that grant methods
 
 ```python
-def load(ref: str) -> Flow
+class ShellEnvMixin(Protocol):
+    async def exec(self, argv: SequenceNotStr[str], *, timeout: float = 0) -> tuple[int, str, str]
+
+class BashEnvMixin(ShellEnvMixin, Protocol):
+    async def exec(self, script: str, *, timeout: float = 0) -> tuple[int, str, str]
+
+class FilesEnvMixin(Protocol):
+    async def read(self, path: str) -> bytes
+    async def write(self, path: str, data: bytes) -> None
+
+class GitWorktreeEnvMixin(Protocol):
+    async def derive_worktree(
+        self, *, ref: str | None = None, dir: PurePosixPath | str | None = None
+    ) -> Self
+
+class RewindableEnvMixin(Protocol):
+    async def snapshot(self, name: str | None = None) -> str
+    async def rewind(self, ref: str) -> None
+    async def snapshots(self) -> list[str]
+
+class GitEnvMixin(RewindableEnvMixin, Protocol): ...
+
+class TemporaryClonedDirEnvMixin(Protocol):
+    async def derive_temp_clone(self, id: str) -> Self
+    async def destroy_temp_clone(self, id: str) -> None
+
+class ScratchDirEnvMixin(Protocol):
+    async def derive_scratch(self, id: str) -> Self
+    async def destroy_scratch(self, id: str) -> None
 ```
 
-Returns the flow `ref` names. Inside a run, the same ref from the same module is resolved
-once per run. A `git+` ref returns a flow that is fetched when first used.
-
-| Raises | When |
-| --- | --- |
-| `FlowRefError` (a `ValueError`) | not a ref; `:<name>` with no flow asking (`':review' is relative to the flow asking, and no flow is asking`) |
-| `FlowNotFound` | the ref names no flow; a `git+` repository cannot be fetched or has no flow where the ref says |
-| `FlowLoadConflict` | importing the module would replace a module another flow of a running run uses |
-| `FlowDefinitionError` | the named module or flow is written wrong, or its import raised (`importing the flow at <dir> failed: <error>`) |
-
-### Refs {#refs}
-
-| Form | Names | Resolved |
+| Mixin | Method | Meaning |
 | --- | --- | --- |
-| `:<name>` | a flow in the same module as the code calling `load` | only with a flow asking |
-| `<flow>` | the flow a bare name means in module `<flow>` | in the asking flow's own directory of flows (for an installed flow, the flows installed from its flowverse), else [nearest first](#where-flows-live) |
-| `<flow>:<name>` | flow `<name>` of module `<flow>` | as above |
-| `<user>/<flow>[:<name>]` | a flow `official` lists under `flows/<user>/` | for an installed flow, the flows installed from its flowverse; else `official` only (no stand-in) |
-| `@<flowverse>/[<user>/]<flow>[:<name>]` | a flow of that flowverse: installed from it, or for `local` and `user` (no `<user>/`) in that directory | that flowverse only (no stand-in) |
-| a path: `./…`, `../…`, `/…`, `~…` | a flow directory, its `__init__.py`, or a `.py` file (`.py` may be omitted) | `~` expanded |
-| `git+<url>[@<rev>][#<subdir>][:<name>]` | the flow in `<subdir>` of a repository, or at its root without `#` | fetched; see below |
+| `ShellEnvMixin` | `exec` | Runs one program directly in `workdir` without a shell and returns exit status, stdout, and stderr. `timeout` is in seconds (`0` means no limit). Raises `EnvCommandTimeout` or `EnvError`. |
+| `BashEnvMixin` | `exec` | Also accepts a script string to run via `bash -c`. Requires `bash` on the machine. A string `exec` on a role without this mixin raises `CapabilityNotGranted`. |
+| `FilesEnvMixin` | `read` | Reads file bytes at a relative or absolute `path`. Raises `EnvFileNotFound` or `EnvPermissionDenied`. |
+| `FilesEnvMixin` | `write` | Writes bytes to `path`, creating parent directories. Raises `EnvPermissionDenied`. |
+| `GitWorktreeEnvMixin` | `derive_worktree` | Returns an environment in a new git worktree detached at `ref` (`None` uses current HEAD) in `dir` (`None` uses a fresh directory). Requires `git`. Raises `WorktreeError`. |
+| `RewindableEnvMixin` | `snapshot`, `rewind`, `snapshots` | Interface implemented by `GitEnvMixin`. Declare `GitEnvMixin` on roles. |
+| `GitEnvMixin` | `snapshot` | Saves the working tree (including untracked files) as a commit under `refs/hmz/snapshots/<name>` without changing HEAD, and returns the ref. Raises `RewindError`. |
+| `GitEnvMixin` | `rewind` | Restores the working tree to match a snapshot or commit ref, as `git reset --hard` and `git clean` would. Raises `RewindError`. |
+| `GitEnvMixin` | `snapshots` | Lists saved snapshot refs from oldest to newest, shared across all worktrees of the repo. |
+| `TemporaryClonedDirEnvMixin` | `derive_temp_clone` | Returns an environment in a temporary copy of `workdir` keyed by `id`. Raises `TempCloneBusy` if another environment holds `id`. |
+| `TemporaryClonedDirEnvMixin` | `destroy_temp_clone` | Deletes the temporary copy for `id` and frees the ID. |
+| `ScratchDirEnvMixin` | `derive_scratch` | Returns an environment in an empty directory beside `workdir` keyed by `id`. Raises `ScratchError`. |
+| `ScratchDirEnvMixin` | `destroy_scratch` | Deletes the scratch directory for `id`. Raises `ScratchError`. |
 
-Grammar rules:
+Temporary clones and scratch directories are deleted when the flow that created them ends, unless the flow is resumable. `GitEnvMixin` ignores git-ignored files and any top-level `.hmz/` directory. Declaring `BashEnvMixin`, `GitWorktreeEnvMixin`, or `GitEnvMixin` on a machine without the required binary raises `CapabilityMissing` before the flow starts.
 
-- A ref is a path only where it starts with `.`, `/` or `~`. Anything else but a `git+` ref is
-  a name, of at most `<user>/<flow>` after an optional `@<flowverse>/`; one with a part too
-  many, empty or hidden is a `FlowRefError`
-  (`'a/b/c' is not a flow's name, [@<flowverse>/][<user>/]<flow>; a path starts with ./, / or ~`).
-- `<name>`, and each `/`-separated part of `<subdir>`, match `[A-Za-z0-9_][A-Za-z0-9_.-]*`.
-- A `:` is a sub-flow separator only where what follows contains no `/`; otherwise the whole
-  string is the flow. In a `git+` ref without `#`, a final `:<name>` is a sub-flow where it
-  follows the repository's path (`git+https://host/o/r@v1:review`), and a port where a path
-  follows it.
-- `git+` URLs: scheme `https`, `http`, `ssh`, `file` or `git`; a host is required except for
-  `file`; `@<rev>` is the last `@` in the path; query and fragment of the URL are dropped.
-  Errors: `'<ref>': a ref naming a repository is git+<url>[@<rev>][#<subdir>][:<sub>]`,
-  `'<ref>': '<url>' is not a URL git can fetch`, `'<ref>': '<url>' names no repository`,
-  `'<ref>': #<fragment> is not <subdir>[:<subflow>]`.
-- A bare module name picks the flow named after the directory (or file stem); else the only
-  non-hidden flow; else `FlowNotFound`
-  (`<ref>: <dir> holds a, b and none is called '<stem>'; name one as <stem>:<flow>`, or
-  `<ref>: <dir> defines no flow`). A named flow that is absent:
-  `<ref>: <dir> holds no flow called '<name>'; it holds a, b`.
+### Environment mixins that declare requirements
 
-**`git+` fetching.** `<rev>` absent means the default branch. A 40-hex `<rev>` is used as a
-commit; anything else is resolved with `git ls-remote`. The checkout is kept at
-`$TMPDIR/humanize-<uid>/pinned/<blake2b-8(url)>/<sha>` and reused by every later fetch of that
-commit; each run fetches a given URL and revision at most once, on a worker thread, when the
-flow is first called (`hmz exec -f git+…` fetches before the run starts). Two processes
-fetching one commit at once may each clone it; whichever renames its clone into place second
-uses the checkout already there. Each git command has 120 s. The flow is `<subdir>/__init__.py`
-of the checkout (the root's without `#`). Where there is none:
-`<ref>: <url> has no flow in <subdir>, which holds no __init__.py`, ending
-`; there is one at #flows/<subdir>` where a ref written for a repository that kept its flows
-under `flows/` would find one there. The same checkouts are what [installing](#flowverses)
-copies from.
+Set these class attributes on a role. A machine with fewer CPUs, GPUs or less memory than declared raises `ResourceUnmet`.
 
-**Module import rules.**
-
-- A flow directory is imported as a module named after the directory where that top-level
-  name is free (or already this directory's); otherwise as
-  `_hmz_flow_<stem>_<blake2b-4(path)>`. The directory is put on `sys.path`, so modules and
-  packages beside `__init__.py` import by plain name; those names are claimed by the flow.
-- A run imports a module at most once. Nothing a running run uses is removed from
-  `sys.modules`. A module whose `.py` files changed (mtime or size) is re-imported by the next
-  run that is not sharing it with a running run.
-- Two directories claiming one top-level name while a run uses one raise `FlowLoadConflict`
-  (`<a> and <b> both import '<name>', and a run going now uses the second`); a name held in
-  `sys.modules` by something that is not a flow raises
-  `importing <dir> would replace the module '<name>' (<file>)`. Flows kept in directories of
-  one name -- `alice/kernel` and `bob/kernel`, or `@a/loop` and `@b/loop` -- claim the same
-  name, so one run cannot call both.
-- A module's flows are the `@flow` objects defined in files inside its directory; one imported
-  from elsewhere is not one of its flows.
-
-### Calling a `Flow` {#calling-a-flow}
-
-```python
-async def __call__(self, task: str, *, agents: Mapping[str, Agent],
-                   envs: Mapping[str, Env], params: FlowParams,
-                   budget: Budget | None = None) -> Any
-```
-
-| Parameter | Meaning |
-| --- | --- |
-| `task` | The callee's task. |
-| `agents` | One agent per callee role, keyed by the callee's role names. |
-| `envs` | One environment per callee role. |
-| `params` | An instance of the callee's model is used as is; another model or a mapping is validated ([rules](#flowparams)). |
-| `budget` | A budget of the call's own, combined with the caller's remaining budget. Must be exactly a `Budget` (`TypeError` otherwise). |
-
-Returns what the callee returns; what it raises reaches the caller unwrapped.
-
-| Condition | Raises |
-| --- | --- |
-| called outside any run | `FlowRuntimeError`: `<ref>: a flow is called from inside a run; start one with run_flow` |
-| the caller (or any call above, or the run) has ended | `FlowCancelled`: `<ref>: <caller ref \| the run> has ended` |
-| depth would exceed 64 | `FlowDepthExceeded` (a `RecursionError`): `<ref>: flows are called 65 deep, and 64 is the most` |
-
-#### What the called flow is handed {#what-the-called-flow-is-handed}
-
-All checks run before the callee starts; a refusal means nothing of the callee ran and
-nothing was spent. Refusals for one kind of agent grant are computed once per role.
-
-| Given for a role | Requirement | Refusal |
-| --- | --- | --- |
-| nothing, required agent role | — | `MissingRole`: `<ref>: no agent was given for '<role>'` |
-| nothing, required environment role | — | `MissingRole`: `<ref>: no environment was given for '<role>'` |
-| nothing, `Outworlder` role | filled with the run's outworlder | — |
-| nothing, `LocalEnv` role | filled with the run's workspace, granted the callee's declaration | `CapabilityMissing` if the workspace lacks a declared mixin |
-| an agent | carries every mixin the role declares | `CapabilityMissing`: `<ref>: '<role>' needs <mixins>, which the agent given was not granted` |
-| an agent | its permission covers the role's `_permission` | `PermissionTooNarrow`: `<ref>: '<role>' needs <p>, and the agent given holds <q>` |
-| an agent, harness-protocol role | the same harness | `HarnessMismatch`: `<ref>: '<role>' is <harness>, and the agent given is <other>` |
-| an agent, `Outworlder` role | — | `CapabilityMissing`: `<ref>: '<role>' is an Outworlder, and <agent> is an agent` |
-| an environment | carries every mixin the role declares | `CapabilityMissing`: `<ref>: '<role>' needs <mixins>, which the environment given was not granted` |
-| an environment | meets the role's resources | `ResourceUnmet` |
-| an environment, `LocalEnv` role | on this machine | `CapabilityMissing` (see [`LocalEnv`](#localenv)) |
-| anything not handed out by the run | — | `RequirementError`: `<ref>: '<role>' was given <value>, which is not an agent the run handed out` (or `environment`) |
-
-The callee receives **exactly** its declaration: each agent re-granted the callee role's
-mixins, `_permission`, `_skills`, `_tools` and `_clis`; each environment the callee role's mixins.
-Its hooks and sessions are its own; a session the caller opened cannot be used by the callee.
-
-`Hmz().flows.running()` lists every flow call currently running in this process (oldest
-first), each with its ref, name, depth, start time, journal id, parent, task and whether it is
-resumable ([SDK](/reference/sdk#flows)). A call adds no filesystem work, no task, and two stack
-frames.
-
-## Several flows in one module {#several-flows-in-one-file}
-
-A module may define several `@flow`s with distinct `name`s; each is `<module>:<name>`.
-
-```python
-@flow(agents=Drafting, envs=Where, params=Idea, name="gen-idea")
-async def gen_idea(task, *, agents, envs, params, ctx): ...
-
-@flow(agents=Planning, envs=Where, params=Plan, name="gen-plan")
-async def gen_plan(task, *, agents, envs, params, ctx): ...
-```
-
-- The bare module name means the flow named after the module; else the single non-hidden flow;
-  else it is refused:
-
-  ```console
-  $ hmz exec -f humanize1 -p budget.cost=5 "…"
-  hmz exec: error: humanize1: ~/.hmz/flowverses/official/installed/humanize1 holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>
-  ```
-
-- Lists show the flow a bare name means under the module name, and every other visible flow as
-  `<module>:<name>`. `hidden=True` flows are not listed and still load by `<module>:<name>`.
-- A module that fails to import is still listed, under its module name, with no description.
-- The module docstring's first line is used as the description of the flow the bare name means
-  when that flow has none.
-
-## Where flows live {#where-flows-live}
-
-A flow is either a **directory** with `__init__.py` or a **single `.py` file**. Where both
-exist under one name, the directory wins. A single-file flow brings no skills.
-
-```
-my_loop/
-├── __init__.py          the entry point
-├── _prompts.py          imported by the entry point as `import _prompts`
-└── skills/
-    └── review-notes/
-        └── SKILL.md
-```
-
-Names starting with `_`, and directories without `__init__.py`, are not flows. An `__init__.py`
-that is a symbolic link still makes its directory the flow, with its `skills/` and the files
-beside it, whatever the file it leads to is called.
-
-**Resolution of a bare `-f <name>` (and a bare `load` with no flow asking)**, first match
-wins:
-
-| Order | Place | Directory |
-| --- | --- | --- |
-| 1 | `local` | `.hmz/flows/` under the current directory |
-| 2 | `user` | `~/.hmz/flows/` (literally `~`, not `HUMANIZE_HOME`) |
-| 3 | `official` | `~/.hmz/flowverses/official/installed/` (under `HUMANIZE_HOME` where it is set) |
-| 4 | other flowverses | `~/.hmz/flowverses/<name>/installed/` (likewise), alphabetically |
-
-Only what is installed or in `local` and `user` is found: never a flow an index only
-lists. Humanize ships no flow, so until one is installed or written nothing is found. `<user>/<flow>` looks in `official` only, and `@<flowverse>/…` in that flowverse only. A
-path is taken outright, as `<path>/__init__.py`, `<path>`, `<path>.py` (`~` expanded). A name
-nothing answers to raises `FlowNotFound` (`<ref>: no flow is called '<name>'`; a path,
-`<ref>: there is no flow at <path>`), unless:
-
-| Where | Message |
-| --- | --- |
-| an index lists it (`<user>/` or `@<flowverse>/` named: that one; bare: any, in listed order) | `<name>: not installed -- install it from /flow (flowverse <flowverse>)` |
-| it is said as names were before the `@` | `local/x: a flow of local is called @local/x now` (`official/x`: `x`) |
-| it is a relative path without its `./` | `flows/x: a path starts with ./, / or ~, as ./flows/x does` |
-| otherwise, an index it could be in has not been fetched | `<name>: the official flowverse has not been fetched yet -- fetch it from /flow` (`the a and b flowverses have …` for several) |
-
-**Listed names.**
-
-| Listed as | Is |
-| --- | --- |
-| `rlar`, `flame_chasoid` | installed from `official`'s `flows/<flow>/` |
-| `alice/kernel` | installed from `official`'s `flows/alice/kernel/` |
-| `@theirs/review` | installed from flowverse `theirs` |
-| `@theirs/alice/kernel` | installed from flowverse `theirs`'s `flows/alice/kernel/` |
-| `@local/review` | this project's `.hmz/flows/review` |
-| `@user/review` | `~/.hmz/flows/review` |
-
-`-f` takes the listed name; the TUI starts a flow by it (`$@local/twice`). What `/flow`
-remembers is keyed by the listed name ([Settings](/reference/settings)), so what it remembered
-under a name from before the `@` (`local/x`, `<flowverse>/x`, `official/x`) is not renamed and
-no longer matches any flow.
-
-**Copying here.** **Copy here** on `/flow`'s Installed page, and
-[`Hmz().flows.fork(name)`](/reference/sdk#flows), copy the whole flow into
-`.hmz/flows/<name>` (or `into=`), without an installed flow's `.installed.json`. A name
-already present in either shape is refused (`ValueError`); a failed copy leaves nothing.
-
-## Skills {#the-skills-a-flow-brings}
-
-A flow directory's `skills/` holds one directory per skill, each with a `SKILL.md`. An entry
-that is a link out of the flow's directory -- or, for a fetched repository, out of the
-repository -- is skipped with a warning. A role names the skills its sessions carry in
-`_skills`.
-
-```python
-class Reviewer(Agent):
-    _skills = ("review-notes", "https://github.com/you/review-skills#writing-tests")
-```
-
-| Entry | Is |
-| --- | --- |
-| a name | `skills/<name>` in the flow's own directory |
-| a string containing `#` or `://` | a git URL; `#<skill>` selects one skill from the repository's `skills/*`, without it every skill there |
-
-- Skills are resolved once per run per role, when the flow is first called, before its first
-  turn. Missing: `FlowDefinitionError`
-  (`<ref>: '<role>' names the skill '<name>', and <dir>/skills has none of it`, or for a
-  single-file flow `... and a flow that is one file has none of it`). Unfetchable, or no such
-  skill in the repository:
-  `<ref>: '<role>' names a skill that cannot be fetched: <reason>`.
-- [Installing](#flowverses) a flow fetches every URL its roles' `_skills` write as string
-  literals into the installed flow's own `skills/<name>/`, recorded in its `.installed.json`;
-  a run of it reads them from there and fetches nothing. One that cannot be fetched fails the
-  install. A URL the source does not spell out is fetched at run time, as below.
-- A flow that was never installed -- yours, a `git+` ref -- clones the repository
-  into `$TMPDIR/humanize-<uid>/skills/<owner>-<repo>-<sha256(url)[:12]>` and fetches it again
-  (`fetch --depth 1` + `reset --hard`) the next time a run needs it; a failed re-fetch uses
-  the existing copy.
-- The flow's own skill wins a name also held by a repository; a `#<skill>` URL whose skill
-  the flow has of its own gives the role the flow's.
-- Skills are lodged at the harness's user level, in the [virtual home](/reference/agents#virtual-homes)
-  each of its processes is started in, or named in its configuration (`opencode`, `mimo`);
-  never in the workspace. Nothing is installed. A harness with neither carries none.
-- [`derive(skills=…)`](#derive) narrows them for part of a flow.
-
-## Flowverses {#flowverses}
-
-A flowverse is an index: a git repository of manifests, one per release of a flow. Nothing
-else in it is read, and nothing in it is imported. What runs is what was
-[installed](#installing) from it.
-
-| Manifest | Lists | Index name |
-| --- | --- | --- |
-| `flows/<flow>/<version>/flow.yaml` | a flow listed bare: in `official`, humanfia's own | `<flow>` |
-| `flows/<user>/<flow>/<version>/flow.yaml` | a flow listed under `<user>`, the GitHub owner of its repository in lower case (`[a-z0-9][a-z0-9-]*`) | `<user>/<flow>` |
-
-A directory of `flows/` holding a SemVer directory is a flow; one holding none is a `<user>`.
-One that is not a GitHub user name is skipped
-(`Alice is neither a flow's releases nor a GitHub user's flows`), and so is `humanfia`
-(`humanfia's flows are listed bare, as flows/<flow>/<version>/`).
-
-| Flowverse | Location | Fetched | Removable |
+| Mixin | Attribute | Default | Meaning |
 | --- | --- | --- | --- |
-| `official` | what is installed from the clone of `https://github.com/humanfia/flowverse` at `~/.hmz/flowverses/official/index/` | in the background each time `hmz` starts (cloned the first time); on demand | no |
-| `local` | `.hmz/flows` (relative to the current directory) | never | no |
-| `user` | `~/.hmz/flows` | never | no |
-| any other | what is installed from the clone at `~/.hmz/flowverses/<name>/index/` | clone on `add`; in the background each time `hmz` starts; on demand | yes |
+| `CPUEnvMixin` | `_cpu_count` | `1` | Minimum logical CPUs. |
+| `MemoryEnvMixin` | `_memory` | `0` | Minimum RAM in bytes. |
+| `GPUEnvMixin` | `_gpu_count` | `1` | Minimum GPUs. |
+| `GPUEnvMixin` | `_gpu_memory` | `0` | Minimum VRAM per GPU in bytes. |
+| `ImageEnvMixin` | `_image` | `""` | Container image as taken by `docker run` (`""` uses the provider default, or `python:3.12-slim`). Must provide `/bin/sh` and Python 3.12+. Docker, Swarm, and Apple container environments only. |
 
-**Order.** Listed: `official`, others alphabetically, `local`, `user`. Looked up:
-`local`, `user`, then the listed order.
+## Hooks
 
-| Operation | Behaviour | Errors |
-| --- | --- | --- |
-| add `<url>` [`<name>`] | `git clone --depth 1` into `.index.XXXXXXXX` beside the target, then renamed into place. `<url>` may be `owner/repo` (GitHub) unless a local path of that name exists. Name defaults to the repository name less `.git`. Installs nothing. | `ValueError`: name not `[A-Za-z0-9][A-Za-z0-9._-]*`; `official`/`local`/`user`; already exists. `OSError`: git missing, clone failed (60 s timeout) |
-| fetch `<name>` | Clone if never fetched; otherwise `git fetch --depth 1 origin HEAD` + `git reset --hard FETCH_HEAD` (local edits to tracked files are lost). Installed flows are not touched. | `ValueError`: unknown; `local`/`user`; a directory that is not a clone |
-| remove `<name>` | Deletes `~/.hmz/flowverses/<name>/` in one rename: the clone and every flow installed from it. | `ValueError` for the three fixed ones |
+Guide: [Hooks](/builder/hooks).
 
-A stale half-clone `.index.*` older than 60 s is removed before the next clone of that flowverse.
-The background fetch at start skips a clone whose tracked files have local edits. Where a
-flowverse came from is shown with any `user:password@` in its URL replaced by `***@`. Managed
-on [`/flow`'s Flowverses page](/reference/tui#where-flows-come-from) and with
-[`Hmz().verses`](/reference/sdk#flowverses).
+A hook is an async function that takes a moment's params and returns its result for every session of the agent. Returning a default-constructed result makes no changes. Raising an exception fails the flow.
 
-### Manifests {#manifests}
+| Name | Meaning |
+| --- | --- |
+| `HookFn` | Hook signature: `async def hook(params) -> result`. |
+| `HookKind` | String enum of hook events (lowercase values like `pre_tool_use`). |
+| `HookParams` | Base class for hook inputs. Always includes `ctx` (`FlowContext`) and `session` (`Session`). |
+| `HookResult` | Base class for hook outputs. |
+| `HOOK_TYPES` | Mapping from each `HookKind` to its params and result classes. |
 
-```yaml
-name: recursive_lean_prover
-version: 0.1.0
-description: Recursively plan, prove, compare, review and catalogue Lean theorems.
-repo: humanfia/recursive-lean-prover-flow
-ref: v0.1.0
-commit: <40 hex>
-subdir: recursive_lean_prover
-license: Apache-2.0
-dependencies:
-  humanize1: ">=0.1.0,<0.2.0"
-```
+All params and result classes are frozen, keyword-only dataclasses. Every params class includes `ctx` and `session`.
 
-| Key | Type | Required | Rule |
+| `HookKind` | Hung with | Params class and fields | Result class and fields |
 | --- | --- | --- | --- |
-| `name` | `str` | yes | `[a-z][a-z0-9_]*`; equal to the `<flow>` directory |
-| `version` | `str` | yes | SemVer 2.0.0; equal to the `<version>` directory |
-| `description` | `str` | no | one line |
-| `repo` | `str` | yes | `owner/repo` (GitHub, fetched from `https://github.com/<owner>/<repo>`) or a URL starting `https://`, `http://`, `ssh://`, `git://` or `file://`. On GitHub, under `flows/<user>/`: `<user>`'s; in `official`, listed bare: `humanfia`'s |
-| `ref` | `str` | no | the tag or branch the release was cut from; informational |
-| `commit` | `str` | yes | 40 hex digits (case-folded); what is installed |
-| `subdir` | `str` | no | the directory holding the flow (`__init__.py`, or `<name>.py`); `""` or `.` for the root; no part hidden or climbing |
-| `license` | `str` | no | SPDX identifier |
-| `dependencies` | `{flow: range}` | no | flows of the same flowverse, by index name (`humanize1`, `alice/kernel`); a range is clauses joined by `,`, all of which hold, each `<`, `<=`, `>`, `>=`, `==` or `!=` and a version, a bare version meaning `==` |
+| `SESSION_START` | `Agent.on_session_start` | `SessionStartHookParams` | `SessionStartHookResult`: `context: str = ""` (prepended before the first prompt). |
+| `USER_PROMPT_SUBMIT` | `Agent.on_user_prompt_submit` | `UserPromptSubmitHookParams`: `prompt: str` | `UserPromptSubmitHookResult`: `block: bool = False` (rejects the prompt and makes `run` raise `SessionError` with `reason: str = ""`), `context: str = ""` (appended to the prompt). |
+| `PRE_TOOL_USE` | `Agent.on_pre_tool_use` | `PreToolUseHookParams`: `tool: str`, `input: Mapping[str, Any] = {}` | `PreToolUseHookResult`: `block: bool = False` (skips the tool and sends `reason: str = ""` to the agent). |
+| `PERMISSION_REQUEST` | `on_permission_request` of `PermissionRequestHookAgentMixin` | `PermissionRequestHookParams`: `tool: str`, `input: Mapping[str, Any] = {}` | `PermissionRequestHookResult`: `allow: bool = True`, `reason: str = ""`. |
+| `NOTIFICATION` | `Agent.on_notification` | `NotificationHookParams`: `message: str` | `NotificationHookResult`: no fields. |
+| `STOP` | `Agent.on_stop` | `StopHookParams`: `said: str` (final message), `again: int = 0` (times a stop hook has already continued this turn). | `StopHookResult`: `block: bool = False` (continues the turn using `reason: str = ""` as the next prompt; an empty `reason` does not block). |
+| `SESSION_END` | `Agent.on_session_end` | `SessionEndHookParams` | `SessionEndHookResult`: no fields. |
+| `SUBAGENT_START` | `on_subagent_start` of `SubagentStartHookAgentMixin` | `SubagentStartHookParams`: `subagent: str`, `task: str = ""` | `SubagentStartHookResult`: `context: str = ""` (prepended to the subagent). |
+| `SUBAGENT_STOP` | `on_subagent_stop` of `SubagentStopHookAgentMixin` | `SubagentStopHookParams`: `subagent: str`, `said: str = ""` | `SubagentStopHookResult`: `block: bool = False` (continues the subagent with `reason: str = ""` as its next prompt). |
+| `ASK_USER` | `on_ask_user` of `AskUserHookAgentMixin` | `AskUserHookParams`: `question: str`, `options: tuple[str, ...] = ()` | `AskUserHookResult`: `answer: str \| None = None` (`None` leaves it unanswered). |
+| `OUTWORLDER_RUN` | `Outworlder.on_outworlder_run` | `OutworlderRunHookParams`: `prompt: str`, `output_schema` (Pydantic model class, or `None` for text; default `None`), `context: tuple[Block, ...] = ()`, `face` (`Face`, or `None` for the form; default `None`) | `OutworlderRunHookResult`: `output` (required string or schema instance). |
 
-Other keys are ignored. A manifest that is unreadable, not a mapping, fails a rule above, or is
-missing from a version directory is **skipped**: listed with why (`name: …`,
-`version 0.2.0 is not the directory it is in, 0.1.0`,
-`bob/kernel-flow is bob's, so it is listed under flows/bob/`,
-`bob/loop-flow is bob's; only humanfia's are listed bare here`) and never an error. Hidden
-directories are not read.
+## The person
 
-Within a flow, releases are ordered by SemVer, newest first. The release a flow is shown and
-installed by when none is named is the newest that is not a prerelease, else the newest
-prerelease.
+Guides: [The person as an agent](/builder/outworlder), [Faces](/builder/faces).
 
-### Installing {#installing}
+```python
+class Outworlder(Agent, Protocol):
+    away: bool
 
-Installing `<flow>` (by index name) at `<version>` (default as above) from flowverse `<verse>`:
-
-1. **Plan.** The release, then for each dependency in name order: skipped where the release
-   already chosen for it, or the one installed, satisfies the range; else the newest in range
-   (as above), visited in turn. Refused with `ValueError`:
-
-   | Refusal | Message |
-   | --- | --- |
-   | no such flowverse, not an index, not fetched | `no flowverse called '<verse>'`, `<verse> is a directory of your own flows, not an index`, `<verse> has not been fetched yet; fetch it first` |
-   | no such flow or release | `<verse> lists no flow called <flow>`, `<verse> lists no release <version> of <flow>` |
-   | a cycle | `<a> needs itself, through <a> -> <b> -> <a>` |
-   | nothing in range | `<flow> <version> needs <dep> <range>, and <verse> lists no release of it in that range` |
-   | two ranges for one flow that one release cannot meet | `<flow> <version> needs <dep> <range>, and <dep> <v> is what the rest of this install needs` |
-   | another installed flow's range broken | `<other> <v> needs <flow> <range>; installing <flow> <version> would break it` |
-   | a flow and a user of one name, one inside the other | `alice would be installed where alice/kernel is, out of <verse>; uninstall alice/kernel first` |
-
-2. **Copy**, dependencies first, the asked-for flow last; a flow already installed at the same
-   version and commit is left. Each is fetched as a [`git+` ref](#refs) at `commit` (the same
-   cached checkout), and `subdir` is copied, without `.git` and `__pycache__`, into
-   `.<flow>.XXXXXXXX` beside the target; a single `<flow>.py` becomes that directory's
-   `__init__.py`. `.installed.json` is written into it, and it is renamed into
-   `~/.hmz/flowverses/<verse>/installed/[<user>/]<flow>/`, the release it replaces moved aside
-   first. No subdir holding the flow: `ValueError`
-   (`<repo> at <commit[:12]> has no flow in <subdir|its root>: neither __init__.py nor <flow>.py`);
-   fetch or copy failed: `OSError`.
-
-`.installed.json`: `verse`, `name`, `version`, `commit`, `repo`, `ref`, `subdir`,
-`dependencies`, `owner` (`""` for a flow listed bare). A directory without one that reads is
-not an installed flow.
-
-**Uninstalling** renames the directory aside and deletes it, and the `<user>/` directory with
-it where it was that user's last flow. Refused with `ValueError` where another flow installed
-from the same flowverse lists it in `dependencies`: `<a>, <b> need <flow>; uninstall that first`.
-
-**Updates.** An installed flow has an update where its index, as last fetched, lists a newer
-release: a prerelease only for a flow installed at one. After the background fetch at start,
-the TUI says once, dim: `updates available: <flow> <v> ↑ <newer>[, …]; update from /flow`.
-
-From inside a flow installed from a flowverse, `<flow>` and `<user>/<flow>` (`humanize1:rlcr`,
-`alice/kernel`) find the flows installed from that flowverse first, whichever directory of
-them the flow asking is in.
-
-::: warning An installed flow is code
-Adding or fetching a flowverse imports nothing. Listing flows imports the entry point of every
-installed flow, and a run executes it. Installing one trusts its repository with this
-machine.
-:::
-
-### The six loops {#the-flow-in-the-package}
-
-Humanize ships no flow in the package: until one is [installed](#installing), or written in
-`local` or `user`, only a [chat](/user/chat) runs. The six loops are flows of the
-[official flowverse](#the-official-flowverse) like any other, each at `0.1.0` and released from
-a repository of its own, whose directory `<flow>/` holds it. Install one in `hmz` from `/flow` →
-**Flowverses** → **official** → the flow → **Install**; `hmz exec` installs nothing, and runs
-one that is not installed by its [`git+` ref](#refs), as
-`-f git+https://github.com/humanfia/ralph-loop-flow@v0.1.0#ralph_loop`. Every flow here has a
-`workspace: LocalEnv` role.
-
-| Flow | Repository | Agent roles | Roles need | Resumable | Budget | Grant |
-| --- | --- | --- | --- | :-: | --- | --- |
-| [`ralph_loop`](https://humanfia.ai/flows/ralph-loop) | [humanfia/ralph-loop-flow](https://github.com/humanfia/ralph-loop-flow) | `agent` | | | required | what each role declares |
-| [`stateful_ralph`](https://humanfia.ai/flows/stateful-ralph) | [humanfia/stateful-ralph-flow](https://github.com/humanfia/stateful-ralph-flow) | `agent` | | ✓ | required | what each role declares |
-| [`continue_loop`](https://humanfia.ai/flows/continue-loop) | [humanfia/continue-loop-flow](https://github.com/humanfia/continue-loop-flow) | `agent` | | | required | what each role declares |
-| [`goal`](https://humanfia.ai/flows/goal) | [humanfia/goal-flow](https://github.com/humanfia/goal-flow) | `worker` | `GoalCommandAgentMixin` | | required | what each role declares |
-| [`flame_chase`](https://humanfia.ai/flows/flame-chase) | [humanfia/flame-chase-flow](https://github.com/humanfia/flame-chase-flow) | `first_chaser`, `second_chaser` | | ✓ | required | what each role declares |
-| [`rlar`](https://humanfia.ai/flows/rlar) | [humanfia/rlar-flow](https://github.com/humanfia/rlar-flow) | `actor`, `reviewer` | | ✓ | required | what each role declares |
-
-A [chat](/user/chat), which `hmz` opens on, is not among them: it is a session of its own,
-with no flow and no epic.
-
-The loops are each the plainest form of their idea, written to be read and copied. Each runs
-until its budget is spent (`rlar` also until its reviewer says done), and a turn that fails
-ends the run with that failure; none prints, pauses or counts rounds. What a resumable one
-keeps in its state is what its next turn needs: `stateful_ralph` its [session](#sessions-in-state),
-`flame_chase` whose turn is next (`turn`), `rlar` the last review (`notes`, removed when done).
-
-`flame_chase` also takes a quota for each chaser's turns: `-p first_chaser_duration=600`
-(seconds), `first_chaser_cost=1.5` (USD), `first_chaser_output_tokens=20000`, and the same
-for `second_chaser_*`. A turn that reaches its quota is cut off at once and the other chaser
-takes over from what it left; the run's own `budget.*` still ends the run.
-
-### The official flowverse {#the-official-flowverse}
-
-The flows Humanize offers besides the six loops above, listed by
-[humanfia/flowverse](https://github.com/humanfia/flowverse), each released from a repository of
-its own (`humanfia/<name>-flow`), and run once [installed](#installing). Every flow here also
-has a `workspace: LocalEnv` role; `human` is an `Outworlder`. None declares a budget of its own.
-Read [Security](/user/security) before running any.
-
-| Flow | Agent roles | Roles need | Resumable |
-| --- | --- | --- | :-: |
-| [`humanize1:gen-idea`](https://humanfia.ai/flows/humanize1) | `drafter` | | |
-| [`humanize1:gen-plan`](https://humanfia.ai/flows/humanize1) | `planner`, `analyst` | | |
-| [`humanize1:rlcr`](https://humanfia.ai/flows/humanize1) | `builder`, `reviewer`, `human` | `builder`: `PermissionRequestHookAgentMixin` | ✓ |
-| [`flame_chasoid:parallel`](https://humanfia.ai/flows/parallel-flame-chase) | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`flame_chasoid:parallel_git_pr`](https://humanfia.ai/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`flame_chasoid:agent_cleanup_ralph_loop`](https://humanfia.ai/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
-| [`flame_chasoid:agent_cleanup_flame_chase`](https://humanfia.ai/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
-| [`recursive_lean_prover`](https://humanfia.ai/flows/recursive-lean-prover) | `worker`, `reviewer` | `worker`: `PermissionRequestHookAgentMixin` | ✓ |
-| [`aot`](https://humanfia.ai/flows/aot) | `writer`, `critic`, `human` | | |
-
-## Command-line specs {#running-one}
-
-```sh
-hmz exec -f <flow> [-a <role>=<spec>[,…]]… [-e <role>=<spec>[,…]]… [-p <key>=<value>[,…]]…
-         [--profile-flow] [--profile-environment] [--resume] [--json] <task>
+    @classmethod
+    def new(cls) -> Self
+    async def spawn(self, *, face: Face | None = None) -> Session
+    async def run(
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        env: Env | None = None,
+        output_schema: type[BaseModel] = ...,
+        budget: Budget | None = None,
+        context: Sequence[Block] = (),
+    ) -> str | BaseModel
+    async def show(self, context: Sequence[Block], *, session: Session) -> None
+    def on_outworlder_run(self, fn: HookFn | None) -> None
 ```
 
-`-a`, `-e` and `-p` may each be repeated; every occurrence is a comma list. A comma
-separates items only where it is followed (after optional spaces) by `<key>=` or
-`budget.<key>=`, with `<key>` matching `[A-Za-z_][\w-]*`; so `-p note=one,two` is one item.
-An empty item is refused (`<flag> '<value>': an item is empty`). The same syntax is used by
-`/flow`, the settings file, and `Hmz().run(agents={role: spec}, envs={role: spec})`. Every
-refusal below exits `hmz exec` with status 2 before anything runs. Other flags:
-[CLI](/reference/cli#hmz-exec).
+The runtime fills `Outworlder` roles automatically (never via `-a`). In a top-level flow, it represents the person who started the run.
 
-### `-a`: agents {#a-agents}
-
-```
-<role>=<cli>[@<provider>]/<model>[:<effort>]
-```
-
-| Part | Rule |
+| Member | Meaning |
 | --- | --- |
-| `<role>` | A Python identifier; a role the flow declares that is not an `Outworlder`. |
-| `<cli>` | A [`HarnessKind`](#harnesskind) value other than `acp`, or the name a CLI was added under on the Accounts page (then the harness is `acp`). |
-| `<provider>` | An account of that CLI (see [Providers](/reference/providers)). Absent: the account the CLI is already signed into. |
-| `<model>` | Everything after the first `/`, less a trailing `:<effort>`; may contain `/` and `:`. Non-empty. |
-| `<effort>` | After the last `:`, where what follows it is spelled as an effort: words of letters joined by `-`, `_` or a space (`high`, `extra-high`, `as configured`), or nothing. Otherwise -- `custom_provider:gateway/m`, `qwen3:8b` -- the `:` is the model's, and so is everything after it. Left off, or `auto`, or empty: no rung, stored as `""`. A model whose own name ends in `:<word>` is written with its effort after it: `qwen3:latest:auto`. Valid words per CLI: [Agents](/reference/agents). |
+| `away` | `True` when no one can answer (`/afk` is active or running under `hmz exec`). |
+| `new` | Creates a virtual outworlder answered by the flow via `on_outworlder_run`. Starts `away` until a hook is set. |
+| `spawn` | Opens a session. `face` sets a custom web UI page for questions (`None` renders a form from `output_schema`). |
+| `run` | Asks the person a question alongside `context` and returns the text or `output_schema` response. |
+| `show` | Displays `context` blocks without waiting for an answer. No-op when `away` or on a `new` outworlder. Raises `SessionError` if `session` is not one of this outworlder's. |
+| `on_outworlder_run` | Registers the hook that answers `run` calls on a `new` outworlder. |
 
-| Input | Message |
-| --- | --- |
-| no `=`, or empty role | `-a '<item>': expected <role>=<harness>[@<provider>]/<model>[:<effort>]` |
-| role not an identifier | ``-a '<item>': '<role>' is not a place a flow could declare: what is written before `=` is a field of the tuple of agents the flow declares, so it is a Python identifier`` |
-| empty CLI (`a=/m`) | `-a '<item>': expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
-| unknown CLI | `-a '<item>': unknown CLI '<cli>'; see the CLI reference for supported names` |
-| known CLI with an empty model or no `/` | `-a '<item>': missing model; expected [NAME=]CLI[@PROVIDER]/MODEL[:EFFORT]` |
-| `@` with nothing after | `-a '<item>': expected an account after @, as in claude@deepseek/MODEL:EFFORT` |
-| role twice | `-a: the role '<role>' is given twice` |
-| role not declared | `<flow> has no agent role '<role>'; available roles are '<a>', '<b>'` |
-| role is an `Outworlder` | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a` |
-| harness lacks a declared mixin | `<flow>: '<role>' needs <Mixin>, which <harness> does not support` |
-| role typed as another harness | `<flow>: '<role>' requires <harness>, but got <other>` |
-| required role missing | `<flow> needs an agent for '<role>'; specify each with -a ROLE=CLI/MODEL:EFFORT` |
-| effort, model or account the CLI cannot be configured at | `HarnessUnrecoverable`: `<spec>: <reason>` |
-| an added CLI not added on this machine | `HarnessNotInstalled`: `<cli>: no such CLI has been added on this machine` |
+When `away`, `run` returns immediately: `""` for text prompts, a default-constructed model if every `output_schema` field has a default, or raises `OutworlderAway`.
 
-### `-e`: environments {#e-environments}
+### Context blocks
 
-```
-<role>=<backend>[@<provider>][/<workdir>]
-```
+Every block is a frozen, keyword-only dataclass with `title: str = ""` and an `as_json()` serialization method. `Block` is the union of all seven types.
 
-An `@` is written only before a provider: the name of a runtime saved for that backend, or,
-for `ssh` alone, a host nobody saved, in brackets. None is this machine.
-
-| Form | Is |
-| --- | --- |
-| `local/abs/path` | a directory on this machine; `local` takes no provider |
-| `ssh@<name>/abs/path` | a directory on the host the ssh runtime saved as `<name>` reaches |
-| `ssh@[<host>]/abs/path` | a directory on a host nobody saved: `[user@]host[:port]` or an alias of the ssh config, handed to `ssh` as it is; no fallback |
-| `ssh@<name>/~/path`, `ssh@[<host>]/~/path` | under the login's home there (the leading `/` before `~` is dropped) |
-| `docker/abs/path`, `docker@<name>/abs/path` | a container of its own on docker's default daemon here, or on a saved docker runtime's daemon; the path is on the daemon's host and is mounted at the same path |
-| `swarm/abs/path`, `swarm@<name>/abs/path` | a container of its own as the one task of a service on the swarm this machine manages, or on a saved swarm runtime's swarm, on whichever node has room; the path is on that node and is mounted at the same path |
-| `apple-container/abs/path`, `apple-container@<name>/abs/path` | an Apple container of its own on this Mac, with nothing saved or as a saved runtime of that backend shares it out; the path is this Mac's and is mounted at the same path |
-| `slurm/abs/path`, `slurm@<name>/abs/path` | a job of its own on the Slurm cluster this machine submits to, with its defaults or as a saved Slurm runtime asks for one, on whichever node the cluster gives it; the path is on a shared filesystem, the same here and on that node; `~/…` is this user's home |
-| `ssh@<name>`, `docker@<name>`, `swarm@<name>`, `apple-container@<name>`, `slurm@<name>` | the workdir the saved runtime was saved with |
-
-| Input | Message |
-| --- | --- |
-| not `<role>=…`, or a stray bracket | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]` |
-| no `/workdir` and no saved runtime workdir | `-e '<item>': expected <role>=<backend>[@<provider>][/<workdir>]; /<workdir> may be left off only for a runtime saved with one` |
-| role not an identifier | `-e '<item>': the role '<role>' is not an identifier` |
-| unknown backend | `-e '<item>': '<backend>' is not a backend; one of local, ssh, docker, swarm, apple-container, slurm` |
-| `ssh` without host | `-e '<item>': ssh needs a host: ssh@<saved host>/<workdir>, or ssh@[user@host:port]/<workdir> for a host not saved` |
-| `ssh@<name>`, nothing saved as `<name>` | `-e '<item>': no ssh host is saved as '<name>'; write <role>=ssh@[<name>]/<workdir> for a host not saved` |
-| `ssh@[<host>]`, not a host | `-e '<item>': '<host>' is not an ssh host, as [user@]host[:port]` |
-| brackets on `docker`, `swarm`, `apple-container` or `slurm` | `-e '<item>': only ssh takes a host nobody saved; <backend>@<name> names a <backend> runtime saved on the runtimes page of /settings` |
-| `docker@local`, `swarm@local`, `apple-container@local`, `slurm@local`, nothing saved as `local` | `-e '<item>': <backend> on this machine names no provider; write <role>=<backend>/<workdir>` |
-| `docker@<name>`, `swarm@<name>`, `apple-container@<name>`, `slurm@<name>`, nothing saved as `<name>` | `-e '<item>': no <backend> runtime is saved as '<name>'; save one on the runtimes page of /settings, or write <role>=<backend>/<workdir> for <backend> on this machine` |
-| `docker@`, `swarm@`, `apple-container@` or `slurm@` with nothing after | `-e '<item>': an @ is written only before a provider; write <role>=<backend>/<workdir>` |
-| `local` with an `@` | `-e '<item>': local takes no provider; write <role>=local/<workdir>` |
-| role twice | `-e: the role '<role>' is given twice` |
-| role not declared | `<flow> has no environment role '<role>'; available roles are …` |
-| role is a `LocalEnv` | `<flow>: '<role>' is the workspace the run started in and cannot be set with -e` |
-| required role missing | `<flow> needs an environment for '<role>'; specify each with -e ROLE=BACKEND[@PROVIDER]/WORKDIR` |
-| machine unreachable, workdir missing, mixin unsupported, resources short | refused when the run probes every environment, before the flow is called |
-
-Machines and providers: [Machines](/reference/machines).
-
-### `-p`: params {#p-params}
-
-`<key>=<value>`; `<key>` matches `[A-Za-z_][\w-]*`; the value is the text after the first
-`=`, unparsed until [validated](#flowparams). `budget.<limit>=<value>` is the run's
-[budget](#p-budget) rather than a param of the flow's.
-
-| Input | Message |
-| --- | --- |
-| not `<key>=<value>` | `-p '<item>': expected <key>=<value>` |
-| key twice | `-p: '<key>' is given twice` |
-| `budget` with no limit | `-p '<item>': a budget is given a limit at a time, as budget.cost=5` |
-| does not validate | the `ParamsError` text |
-
-#### `budget.*`: the run's budget {#p-budget}
-
-Limits `budget.duration`, `budget.cost`, `budget.output_tokens`, `budget.graceful` and
-`budget.graceful.<limit>`, each at most once across all `-p`, among the flow's params or apart
-from them: `-p rounds=3,budget.cost=5 -p budget.duration=1h`. No flow may declare a param
-`budget`.
-
-| Limit | Accepted | Examples |
+| Block | Fields | Shown as |
 | --- | --- | --- |
-| `budget.duration` | seconds (`90`, `1.5`); units `w d h m s`, each at most once, decimals allowed (`1h30m`, `2d`, `1.5h`); ISO 8601 (`PT1H30M`); `HH:MM:SS`. Finite, ≥ 0. | `budget.duration=6h` |
-| `budget.cost` | USD, optional leading `$`; `inf` for none; ≥ 0, not NaN | `budget.cost=$20` |
-| `budget.output_tokens` | whole number, `_` ignored, suffix `k` (×1000) or `m` (×1 000 000), decimals allowed if the result is whole | `budget.output_tokens=1.5m` |
-| `budget.graceful` | `1 true yes on` / `0 false no off` (case-insensitive), for every limit | `budget.graceful=false` |
-| `budget.graceful.duration`, `budget.graceful.cost`, `budget.graceful.output_tokens` | as `budget.graceful`, for that limit alone, over `budget.graceful` | `budget.graceful.output_tokens=false` |
+| `Markdown` | `text: str` | Rendered Markdown. |
+| `Code` | `text: str`, `language: str = ""` | Syntax-highlighted source code. |
+| `Diff` | `patch: str` | Per-file unified diff. |
+| `Table` | `columns: tuple[str, ...]`, `rows: tuple[tuple[Any, ...], ...]` | Table. Raises `ValueError` if a row length mismatches the columns. |
+| `Image` | `data: bytes`, `mime: str`, `alt: str = ""` | Image up to 4 MiB where `mime` starts with `image/`, or raises `ValueError`. |
+| `Json` | `value: Any` | Collapsible JSON tree. |
+| `Chart` | `spec: Mapping[str, Any]` | Vega-Lite chart with inline `data.values`. |
 
-| Input | Message |
-| --- | --- |
-| unknown limit | `-p budget.<limit>: not a limit; one of budget.duration, budget.cost, budget.output_tokens, budget.graceful, budget.graceful.duration, budget.graceful.cost, budget.graceful.output_tokens` |
-| limit twice | `-p: 'budget.<limit>' is given twice` |
-| bad duration | `-p budget.duration: '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M`; `'<v>' names a unit twice`; `'<v>' is negative`; `'<v>' is not a valid duration: must be finite and not negative`; `duration '<v>' is too long` |
-| bad cost | `-p budget.cost: '<v>' is not a valid USD cost` |
-| bad tokens | `-p budget.output_tokens: '<v>' is not a valid token count: expected a number like 200000 or 200k`; `'<v>' must be a whole number of tokens` |
-| bad graceful | `-p budget.graceful: '<v>' must be true or false` (or `budget.graceful.<limit>`) |
-| no limit set | `-p budget.*: Value error, a budget sets at least one of duration, cost, output_tokens` |
-| no `budget.*` for a flow that needs one | `<flow> requires a budget: specify with -p budget.cost=...,budget.duration=...,budget.output_tokens=...` |
+### Face
 
-### Harness placement {#harness-placement}
+```python
+class Face:
+    def __init__(self, html: str, title: str = "") -> None
+    html: str
+    title: str
+    hash: str
 
-<span id="h-harness"></span>Where each agent's **harness** (its CLI and the process
-supervising it) runs, relative to the machine its environment's work is on. Not said on the
-command line: a session has an **env location**, `local` where its work is here and
-`standalone` elsewhere, and a **harness location**, which for standalone work is the
-`harness` setting of the saved [runtime](/reference/machines#runtimes) the work is on, one
-value and nowhere else.
-
-| Work | Harness |
-| --- | --- |
-| here (env location `local`) | here (harness location `local`) |
-| elsewhere, harness `env` (the default; also a machine nobody saved) | on the environment's machine, natively. Refused where the CLI is not on that machine's `PATH`, where a fenced session's fence cannot be held there, where the machine cannot be asked, or where an `on_pre_tool_use`/`on_permission_request` hook is hung (an `on_ask_user` hook is not) |
-| elsewhere, harness `local` | here, anchored to the machine, in a mirror of its work |
-| elsewhere, harness `ssh:<name>`, `docker:<name>`, `swarm:<name>`, `apple-container:<name>` or `slurm:<name>` (harness location `standalone`) | on that runtime, in a mirror there, acting on the work through the anchor. Refused where it cannot be opened or reached, has no share left, or the role's permission fences anything ([Enforcement](#enforcement)) |
-
-The setting is the one of the runtime actually opened for the work; a runtime a harness is
-put on is opened as an environment of its own (its workdir, else `~` over ssh, else
-`$TMPDIR/humanize-<uid>/harness` for a daemon here), probed before the flow is called and closed with
-the run, and its own setting is never read.
-
-A session's harness is placed as its first turn starts, for the machine that turn's `env` is
-on, and placed again where a later turn carries the session to another workdir.
-
-**Probing.** It is settled once per agent role and machine. "The CLI is there" is
-asked by running `/bin/sh -c 'command -v -- "$1" || command -v -- "$2" || exit 69'` with the
-CLI's program and its basename down the same connection a turn on the environment's machine
-uses (300 s limit; stopped with the run). Whether the machine can hold a fence is asked once
-per kind of fence (network cut or not) in the anchor handshake.
-
-| Condition | Refusal |
-| --- | --- |
-| a harness runtime, role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
-| a harness runtime that cannot be opened, reached or given a container | the runtime's `EnvUnavailable`, `EnvConnectionError` or `ResourceUnmet` |
-| `env`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>[@<provider>]: <install hint> there, or set the harness of the runtime it is on to local` |
-| `env`: fence not holdable | `HarnessSandboxed`: `<backend>[@<provider>] cannot fence the agent to its permission: it needs Landlock[ ABI 4 and seccomp]; grant the agent everything, or set the harness of the runtime it is on to local` |
-| `env`: machine did not answer | `HarnessUnrecoverable`: `<backend>[@<provider>] did not say within 300s whether <cli> is there`, or `could not be asked whether <cli> is there: <reason>` |
-| `env`: gating hook hung | `UnsupportedOperation`: `a pre_tool_use[ and a …] hook cannot gate the tools of a CLI on another machine; set the harness of the runtime it is on to local`; a hook hung after the session opened is refused from its next turn |
-| `env` or a harness runtime: the role offers fake tools, on any CLI but `omp` | `UnsupportedOperation`: `<cli> cannot offer the flow's tools to a CLI on another machine; set the harness of the runtime it is on to local`, as the session opens (not prefixed) |
-
-Each refusal is raised, of its type, as `<backend>[@<provider>]: <cli>'s harness cannot run
-where its harness setting (<setting>) says: <refusal>`; the harness is never put anywhere
-else. Every agent is settled against every environment (the workspace included) once the
-environments are probed, before the flow is called, so a run refuses as a line to correct
-rather than failing at a session; a session started later (a callee's, under a narrower
-permission) is still refused as its first turn starts.
-Where each session's harness went is recorded in the epic (`opened.harness`: `local`, `env`,
-`<backend>:<name>`; `self` from an earlier Humanize is read as `env`), for sessions whose work
-was on another machine.
-
-### Command-line refusals {#command-line-refusals}
-
-The runner refuses, before any agent starts, with the messages in the tables above, and also:
-
-| Condition | Message |
-| --- | --- |
-| duplicate role across forms | `<flow>: duplicate agent role '<role>'` / `duplicate environment role` |
-| a flow that will not load | the `FlowNotFound` / `FlowRefError` / `FlowDefinitionError` / `FlowLoadConflict` text |
-| `--resume` refusals | see [Resumable flows](#a-flow-that-can-be-picked-up) |
-
-In the TUI, `/flow` asks the same questions and remembers the answers per workspace and flow
-([Settings](/reference/settings)). From Python, [`Hmz().run`](/reference/sdk#hmz-run) takes the
-same specs as mappings.
-
-## Stopping {#stopping}
-
-A run ends when the top flow returns or raises. From outside:
-
-| Means | Effect |
-| --- | --- |
-| a budget | see [Enforcement](#effective-budget) |
-| <kbd>ctrl+c</kbd> | once under `hmz exec`; twice in the TUI |
-| [`Run.stop()`](/reference/sdk#run) | from any thread |
-
-A stop cancels the flow at its current `await`: the turn under way is interrupted, `finally`
-blocks run, `TaskGroup`s cancel their children. On the way out every session is closed and
-every copy and scratch directory removed (kept, with the journal, for a resumable run). The
-epic records `ended.how` = `stopped` for a stop from outside or a spent budget.
-
-However the run ends, every task still going that called a flow, or used an agent or an
-environment -- one a `gather` stopped waiting for as it unwound, or one the flow started and
-never awaited -- is cancelled and waited for, up to 30 s, before the journal closes, and every
-turn under way is interrupted. What such a task writes to `ctx.state` on its way out is kept,
-and a turn whose answer lands after the run ended raises `FlowCancelled` instead of answering.
-Other work the flow started -- a task that only waits and writes `ctx.state`, a thread -- is not
-the run's to end, nor is a task that will not end within those 30 s: they go on, and once the
-journal is closed, their writes to `ctx.state` raise `FlowCancelled`. A stop that arrives while
-the run is ending this way -- <kbd>ctrl+c</kbd>, a signal, `Run.stop()` -- waits for it to finish
-rather than cutting it short, and the run then ends as stopped.
-
-## Errors {#when-something-goes-wrong}
-
-Every exception the flow API raises derives from `FlowException`, in three branches:
-
-```
-FlowException
-├── FlowRuntimeError                  Humanize refused something, or a budget ran out
-│   ├── FlowNotFound · FlowRefError (ValueError) · FlowDefinitionError · FlowLoadConflict
-│   ├── RequirementError              what was given does not meet the declaration; nothing ran
-│   │   └── MissingRole · CapabilityMissing · PermissionTooNarrow · ResourceUnmet · HarnessMismatch
-│   ├── CapabilityNotGranted          used what the role did not declare
-│   ├── ParamsError (ValueError) · FlowDepthExceeded (RecursionError)
-│   ├── BudgetExceeded
-│   │   └── DurationExceeded (TimeoutError) · CostExceeded · OutputTokensExceeded
-│   └── FlowCancelled · StateNotSerializable (TypeError) · OutworlderAway
-├── HarnessError                      a coding agent CLI could not take the turn
-│   └── HarnessNotInstalled · HarnessContended · HarnessThrottled · HarnessRefused
-│       ModelUnavailable · HarnessMissing · HarnessSandboxed · HarnessKilled · HarnessDropped
-│       HarnessUnrecoverable · OutputSchemaError (ValueError) · SessionError · UnsupportedOperation
-└── EnvError                          an environment could not do what it was asked
-    └── EnvUnavailable · EnvConnectionError (ConnectionError) · EnvCommandTimeout (TimeoutError)
-        EnvFileNotFound (FileNotFoundError) · EnvPermissionDenied (PermissionError)
-        WorktreeError · TempCloneBusy · ScratchError · RewindError
+    @classmethod
+    def html(cls, text: str, /, *, title: str = "") -> Face
+    @classmethod
+    def file(cls, path: str | Path, *, title: str = "") -> Face
+    @classmethod
+    async def design(
+        cls,
+        agent: Agent,
+        *,
+        session: Session,
+        about: str,
+        output_schema: type[BaseModel] | None = None,
+        env: Env | None = None,
+    ) -> Face
 ```
 
-- Where a builtin names the failure the leaf also derives from it: `except TimeoutError`
-  catches `EnvCommandTimeout` and `DurationExceeded`.
-- Every class takes its message as its only argument, so each pickles and crosses a process
-  boundary as itself. A called flow's exception is never wrapped.
-- An exception from the flow's own code (a `KeyError`) is not converted.
-- `HarnessThrottled` and `HarnessDropped` are transient; `BudgetExceeded`, `HarnessRefused`
-  and `ModelUnavailable` recur on retry.
+| Name | Meaning |
+| --- | --- |
+| `Face` | Frozen, self-contained HTML page used to prompt an outworlder. |
+| `Face.html` | Class method: builds a `Face` from an HTML string. Instance attribute: the HTML string. |
+| `Face.file` | Reads an HTML file immediately (relative to the caller's module). Raises `OSError`. |
+| `Face.design` | Runs one turn in `session` asking `agent` to build a face for `about` following `FACE_GUIDE`. Raises `ValueError` if no HTML is produced. |
+| `title` | Page title, or `""`. |
+| `hash` | Hex SHA-256 of its HTML. |
+| `FACE_GUIDE` | Markdown specification for authoring faces, including the `window.hmz` bridge and an example. |
 
-| Class | Bases | Raised when |
+## Tools
+
+Guide: [Tools the agent can call](/builder/tools).
+
+```python
+class FakeTool:
+    name: str
+    about: str
+    call: Callable[..., Any]
+    takes: type[BaseModel] | None = None
+
+    def schema(self) -> dict[str, Any]
+    def called(self, given: Mapping[str, Any]) -> str
+
+class FakeCommand:
+    name: str
+    about: str
+    call: Callable[..., Any]
+    takes: type[BaseModel] | None = None
+
+class FakeCli:
+    name: str
+    about: str
+    commands: tuple[FakeCommand, ...]
+
+    def run(self, argv: Sequence[str]) -> tuple[int, str, str]
+```
+
+| Name | Meaning |
+| --- | --- |
+| `FakeTool` | Flow function exposed as an agent tool via `_tools`. |
+| `FakeCommand` | Subcommand of a `FakeCli`. |
+| `FakeCli` | Flow-defined CLI placed on the agent's PATH via `_clis`. |
+
+| Member | Meaning |
+| --- | --- |
+| `name` | Tool name, subcommand name, or executable filename (must be a plain filename for `FakeCli`, or raises `ValueError`). |
+| `about` | One-sentence description shown to the model (for tools) or in `--help` (for CLIs). |
+| `call` | Sync or async handler. Takes a `takes` instance, or no arguments if `takes` is `None`. |
+| `takes` | Pydantic model for arguments, or `None`. In `FakeCommand`, fields become `--flag` options (required if no default; `--flag/--no-flag` for booleans). |
+| `commands` | Non-empty tuple of uniquely named `FakeCommand` items, or raises `ValueError`. |
+| `FakeTool.schema` | JSON Schema sent to the agent. |
+| `FakeTool.called` | Validates the input, runs `call`, and formats the return value as a string. |
+| `FakeCli.run` | Parses arguments, runs the matching subcommand, and returns exit status, stdout, and stderr. |
+
+For a `FakeTool`, `call` returns strings as-is, `None` as `done`, and other values as JSON; exceptions report a tool error to the agent without stopping the turn. For a `FakeCommand`, strings print as-is, `None` prints nothing, and other values print as JSON; raising `SystemExit` uses its exit code, and other exceptions exit with `1`.
+
+## Errors
+
+Guide: [Context, errors and cleanup](/builder/context).
+
+All flow exceptions inherit from `FlowException` and take a single message argument. Exceptions from child flows propagate unwrapped. Classes also inherit from matching Python builtins where applicable.
+
+### Runtime errors
+
+| Class | Base | Raised when |
 | --- | --- | --- |
-| <code id="flowexception">FlowException</code> | `Exception` | root |
-| <code id="flowruntimeerror">FlowRuntimeError</code> | `FlowException` | Humanize refused something, or a limit ran out; also a flow called outside a run |
-| <code id="flownotfound">FlowNotFound</code> | `FlowRuntimeError` | a ref names no flow; a `git+` repository cannot be fetched |
-| <code id="flowreferror">FlowRefError</code> | `FlowRuntimeError`, `ValueError` | a ref is malformed, or relative with nothing to be relative to |
-| <code id="flowdefinitionerror">FlowDefinitionError</code> | `FlowRuntimeError` | a flow is written wrong ([tables](#flow)); its module fails to import; a skill a role names is missing |
-| <code id="flowloadconflict">FlowLoadConflict</code> | `FlowRuntimeError` | importing would replace a module a running run uses |
-| <code id="requirementerror">RequirementError</code> | `FlowRuntimeError` | what was given does not meet the declaration; nothing ran. Raised directly for a role the flow does not declare, a runtime-filled role given, or an object the run did not hand out |
-| <code id="missingrole">MissingRole</code> | `RequirementError` | a required role was not given |
-| <code id="capabilitymissing">CapabilityMissing</code> | `RequirementError` | an agent or environment lacks a declared mixin (including `GitEnvMixin` or `GitWorktreeEnvMixin` on a machine without git, `BashEnvMixin` on one without bash), a `LocalEnv` given another machine, an outworlder given for a role it cannot fill |
-| <code id="permissiontoonarrow">PermissionTooNarrow</code> | `RequirementError` | an agent's permission does not cover its role's ([`covers`](#permission)) |
-| <code id="resourceunmet">ResourceUnmet</code> | `RequirementError` | a machine has fewer CPUs/GPUs or less memory than declared, or a docker runtime has not that much left |
-| <code id="harnessmismatch">HarnessMismatch</code> | `RequirementError` | a harness-protocol role got another harness |
-| <code id="capabilitynotgranted">CapabilityNotGranted</code> | `FlowRuntimeError` | an operation the role did not declare; widening a grant with `derive`; `on_outworlder_run` on an outworlder not from `new()` |
-| <code id="paramserror">ParamsError</code> | `FlowRuntimeError`, `ValueError` | params do not validate |
-| <code id="flowdepthexceeded">FlowDepthExceeded</code> | `FlowRuntimeError`, `RecursionError` | a call would be 65 deep |
-| <code id="budgetexceeded">BudgetExceeded</code> | `FlowRuntimeError` | a budget of this call or one above is spent; sticky. `own` is `True` where only the turn's own `budget=` is spent |
-| <code id="durationexceeded">DurationExceeded</code> | `BudgetExceeded`, `TimeoutError` | `duration` elapsed |
-| <code id="costexceeded">CostExceeded</code> | `BudgetExceeded` | `cost` spent |
-| <code id="outputtokensexceeded">OutputTokensExceeded</code> | `BudgetExceeded` | `output_tokens` spent |
-| <code id="flowcancelled">FlowCancelled</code> | `FlowRuntimeError` | the run, or a caller above, has ended while this call still runs |
-| <code id="statenotserializable">StateNotSerializable</code> | `FlowRuntimeError`, `TypeError` | a `ctx.state` key is not a `str`, or a value is not JSON-serializable |
-| <code id="outworlderaway">OutworlderAway</code> | `FlowRuntimeError` | an away outworlder was asked for a schema with a field without default |
-| <code id="harnesserror">HarnessError</code> | `FlowException` | a CLI could not take a turn or do what was asked |
-| <code id="harnessnotinstalled">HarnessNotInstalled</code> | `HarnessError` | the CLI (or its SDK) is not installed where its harness runs; a command that exits 127 |
-| <code id="harnesscontended">HarnessContended</code> | `HarnessError` | two turns reached one local store of the CLI at once, and this one lost |
-| <code id="harnessthrottled">HarnessThrottled</code> | `HarnessError` | rate limit or spent quota |
-| <code id="harnessrefused">HarnessRefused</code> | `HarnessError` | the provider refused the credential |
-| <code id="modelunavailable">ModelUnavailable</code> | `HarnessError` | the model is not served to this account, retired, or unknown |
-| <code id="harnessmissing">HarnessMissing</code> | `HarnessError` | the CLI would not start |
-| <code id="harnesssandboxed">HarnessSandboxed</code> | `HarnessError` | the fence cannot be held (by the CLI or the machine) |
-| <code id="harnesskilled">HarnessKilled</code> | `HarnessError` | the CLI died mid-turn (signal, OOM) |
-| <code id="harnessdropped">HarnessDropped</code> | `HarnessError` | the connection to the CLI or provider broke mid-turn; any `OSError` from a turn |
-| <code id="harnessunrecoverable">HarnessUnrecoverable</code> | `HarnessError` | any other failure no retry would change; a CLI that cannot be configured as asked |
-| <code id="outputschemaerror">OutputSchemaError</code> | `HarnessError`, `ValueError` | the answer is not the `output_schema` |
-| <code id="sessionerror">SessionError</code> | `HarnessError` | a session is closed, another agent's, busy, not taking a turn to steer, interrupted, not forkable yet, or its prompt was blocked by a hook |
-| <code id="unsupportedoperation">UnsupportedOperation</code> | `HarnessError` | the harness cannot do this at all (fork; fork elsewhere; carry a kept session on where its CLI cannot read it; outworlder fork or steer); any `NotImplementedError` from a turn |
-| <code id="enverror">EnvError</code> | `FlowException` | an environment could not do what it was asked |
-| <code id="envunavailable">EnvUnavailable</code> | `EnvError` | the machine is gone or the workdir does not exist |
-| <code id="envconnectionerror">EnvConnectionError</code> | `EnvError`, `ConnectionError` | the connection to a remote environment failed |
-| <code id="envcommandtimeout">EnvCommandTimeout</code> | `EnvError`, `TimeoutError` | `exec` ran past its `timeout` and was killed; `stdout` and `stderr` are what it had written by then, `""` where the env's driver did not keep it |
-| <code id="envfilenotfound">EnvFileNotFound</code> | `EnvError`, `FileNotFoundError` | `read` of a missing file |
-| <code id="envpermissiondenied">EnvPermissionDenied</code> | `EnvError`, `PermissionError` | a read, write or command refused for want of permission |
-| <code id="worktreeerror">WorktreeError</code> | `EnvError` | `derive_worktree` failed |
-| <code id="tempclonebusy">TempCloneBusy</code> | `EnvError` | `derive_temp_clone` of an id another environment holds |
-| <code id="scratcherror">ScratchError</code> | `EnvError` | a scratch directory could not be made or removed |
-| <code id="rewinderror">RewindError</code> | `EnvError` | `snapshot`, `rewind` or `snapshots` failed |
+| `FlowException` | `Exception` | Base class for all flow API exceptions. |
+| `FlowRuntimeError` | `FlowException` | Base class for runtime refusals and limit violations. |
+| `FlowNotFound` | `FlowRuntimeError` | `load` could not find the target flow. |
+| `FlowRefError` | `FlowRuntimeError`, `ValueError` | `load` received an invalid ref, or a relative ref outside a flow. |
+| `FlowDefinitionError` | `FlowRuntimeError` | A flow definition is invalid. |
+| `FlowLoadConflict` | `FlowRuntimeError` | `load` would overwrite a module already imported by another flow in the run. |
+| `RequirementError` | `FlowRuntimeError` | Supplied agents or environments do not meet role declarations (raised before execution). |
+| `MissingRole` | `RequirementError` | A required role was not supplied. |
+| `CapabilityMissing` | `RequirementError` | A supplied agent or environment lacks a declared mixin. |
+| `PermissionTooNarrow` | `RequirementError` | A supplied agent has a narrower `Permission` than the role declares. |
+| `ResourceUnmet` | `RequirementError` | An environment has fewer CPUs, GPUs, or memory than declared. |
+| `HarnessMismatch` | `RequirementError` | An agent's harness does not match its harness-typed role. |
+| `CapabilityNotGranted` | `FlowRuntimeError` | The flow used a capability its role did not declare. |
+| `ParamsError` | `FlowRuntimeError`, `ValueError` | Parameters failed validation against the `FlowParams` subclass. |
+| `FlowDepthExceeded` | `FlowRuntimeError`, `RecursionError` | Nested flow calls exceeded the maximum depth. |
+| `BudgetExceeded` | `FlowRuntimeError` | A turn or flow budget was exhausted. Once a flow's budget is spent, every later turn raises again. `own` is `True` if only the turn's own `budget` expired, allowing the flow to continue. |
+| `DurationExceeded` | `BudgetExceeded`, `TimeoutError` | Budget `duration` elapsed. |
+| `CostExceeded` | `BudgetExceeded` | Budget `cost` was spent. |
+| `OutputTokensExceeded` | `BudgetExceeded` | Budget `output_tokens` were spent. |
+| `FlowCancelled` | `FlowRuntimeError` | The run was cancelled externally. |
+| `StateNotSerializable` | `FlowRuntimeError`, `TypeError` | A value assigned to `FlowState` is not JSON-serializable. |
+| `OutworlderAway` | `FlowRuntimeError` | The outworlder is away and the prompt has no default answer. |
 
-How a failed CLI turn maps to a leaf: the fault coganchor classifies is mapped
-`contended → HarnessContended`, `throttled`/`spent → HarnessThrottled`, `refused → HarnessRefused`,
-`unlisted`/`retired → ModelUnavailable`, `missing → HarnessMissing` (`HarnessNotInstalled` when
-the exit status is 127), `sandboxed → HarnessSandboxed`, `killed → HarnessKilled`,
-`dropped → HarnessDropped`, anything else (`unmirrored` and `fenced` among them) `HarnessUnrecoverable`. A turn stopped by the
-driver is `SessionError`.
+### Harness errors
 
-## Testing a flow {#testing-a-flow}
-
-`hmz.sdk.fakes` (import as `from hmz.sdk import fakes`; the dotted `hmz.sdk.fakes` is not
-importable) runs a flow through the real engine over in-memory drivers: no CLI, no machine, no
-tokens, no waiting. Guide: [Testing a flow](/weaver/testing-flows).
-
-```python
-from hmz.flows import Budget, CostExceeded
-from hmz.sdk import fakes
-
-async def test_held_to_budget():
-    agent = fakes.FakeAgentDriver(cost=1.0)
-    with pytest.raises(CostExceeded):
-        await fakes.run_fake("my_loop", "go", agents={"agent": agent}, budget=Budget(cost=2.5))
-    assert len(agent.prompts) == 3
-```
-
-### `run_fake` {#run-fake}
-
-```python
-async def run_fake(
-    flow: Flow | str, task: str = "", *,
-    agents: Mapping[str, AgentDriver | OutworlderDriver | Reply] | None = None,
-    envs: Mapping[str, EnvDriver | Mapping[str, bytes | str]] | None = None,
-    params: FlowParams | Mapping[str, Any] | None = None,
-    budget: Budget | None = None,
-    outworlder: OutworlderDriver | None = None,
-    local: EnvDriver | None = None,
-    journal: Path | None = None,
-    resume: bool = False,
-) -> Any
-```
-
-| Parameter | Default | Meaning |
+| Class | Base | Raised when |
 | --- | --- | --- |
-| `flow` | | A `Flow`, or a ref loaded relative to the caller as [`load`](#load) does. |
-| `task` | `""` | The task. |
-| `agents` | `None` | Per role: a driver, or a [`Reply`](#fakeagentdriver) for a `FakeAgentDriver`. An omitted required role gets a fake of the harness its type names (Claude Code otherwise) replying `"ok"`. A reply given for an `Outworlder` role makes the run's outworlder. |
-| `envs` | `None` | Per role: a driver, or the initial files of a `FakeEnvDriver`. An omitted role gets an empty one large enough for its declared resources. |
-| `params` | defaults | Params or a mapping. |
-| `budget` | unlimited | The run's budget. |
-| `outworlder` | an away one | Fills `Outworlder` roles. |
-| `local` | `FakeEnvDriver(workdir="/here")` | Fills `LocalEnv` roles. |
-| `journal` | `None` | Path of a resumable flow's journal. |
-| `resume` | `False` | Pick up `journal`. |
+| `HarnessError` | `FlowException` | Base class for coding agent CLI failures. |
+| `HarnessNotInstalled` | `HarnessError` | The CLI or its SDK is missing on the target machine. |
+| `HarnessContended` | `HarnessError` | Concurrent turns collided on the CLI's local state store. |
+| `HarnessThrottled` | `HarnessError` | The provider rate-limited the request or exhausted quota. |
+| `HarnessRefused` | `HarnessError` | Credentials are missing, expired, or revoked. |
+| `ModelUnavailable` | `HarnessError` | The requested model does not exist, is retired, or is not available to the account. |
+| `HarnessMissing` | `HarnessError` | The CLI process failed to start. |
+| `HarnessSandboxed` | `HarnessError` | The CLI could not initialize its local sandbox. |
+| `HarnessKilled` | `HarnessError` | The CLI process died mid-turn. |
+| `HarnessDropped` | `HarnessError` | Connection to the CLI or provider dropped mid-turn. |
+| `HarnessUnrecoverable` | `HarnessError` | The turn failed with a non-retryable error. |
+| `OutputSchemaError` | `HarnessError`, `ValueError` | The agent's output did not match `output_schema`. |
+| `SessionError` | `HarnessError` | The session is invalid, ended, or misused. |
+| `UnsupportedOperation` | `HarnessError` | The harness does not support the requested operation. |
 
-Returns the very object the flow returned, or raises the very exception it raised. A run
-refused before the flow is called raises what the flow API raises for it -- `RequirementError`
-(`CapabilityMissing`, `MissingRole`, `HarnessMismatch`) or `ParamsError` -- not `Refused`. The flow
-runs through a [private daemon](/reference/sdk#fakes) the test starts in its own process, with
-a temporary home of its own: this machine's daemon is never touched, and the epic it writes is
-removed when `run_fake` returns or raises, so `Hmz().epics` does not list it. A `NotRequired`
-role nobody gave is omitted. Fake turns report
-the spending they are told to, so budgets, usage and sticky exhaustion behave as in a real run.
+### Environment errors
 
-### `FakeAgentDriver` {#fakeagentdriver}
-
-```python
-FakeAgentDriver(harness: HarnessKind | str = "claude", *, reply: Reply = None,
-                model: str = "fake", effort: str = "", provider: str = "",
-                capabilities: Iterable[type] | None = None, cost: float = 0.0,
-                output_tokens: int = 1, seconds: float = 0.0,
-                forks: bool | None = None, names_late: bool = False)
-```
-
-| Parameter | Meaning |
-| --- | --- |
-| `harness` | Which harness; serves that harness's mixins unless `capabilities` is given. |
-| `reply` | One answer for every turn; a list consumed one per turn; or a function `(prompt, *, output_schema, session)`, sync or async. An answer is text, a pydantic model, or a mapping or JSON text validated into the schema asked for. `None` or an exhausted list answers `"ok"` or the schema's defaults. |
-| `model`, `effort`, `provider` | Reported identity. |
-| `capabilities` | Mixins served, overriding the harness's. |
-| `cost`, `output_tokens`, `seconds` | Reported per answer; nothing waits. |
-| `forks` | Whether it can fork; `None` for whether its harness can (all but `cursor-agent`, `mcode`, `agy`, `dsh`). A fork is refused as [`Agent.fork`](#fork) refuses it: of a session with no turn, onto another machine, or into another workdir on a harness other than Claude Code, Codex or Kimi Code; and at its first turn if the parent has taken a turn since. |
-| `names_late` | Sessions have no id until their first turn gets past its hooks. |
-
-| Attribute | |
-| --- | --- |
-| `prompts` | Every prompt any session was given, including hook context and `STOP` reasons. |
-| `sessions` | Every [`FakeSession`](#fakesession), in order. |
-| `live`, `peak` | Sessions open now; the most open at once. |
-| `closed` | How many times the driver was closed. |
-
-### `FakeSession` {#fakesession}
-
-Passed to a reply function as `session=`. Each turn fires `SESSION_START` (first turn),
-`USER_PROMPT_SUBMIT` and `STOP`; closing fires `SESSION_END`; a blocking `STOP` continues the
-turn.
-
-| Method | Fires |
-| --- | --- |
-| `await tool(name, input=None) -> bool` | `PRE_TOOL_USE`, then `PERMISSION_REQUEST` where served. Returns whether the tool would run. |
-| `await ask(question, options=()) -> str \| None` | `ASK_USER`; returns the answer. `UnsupportedOperation` where `AskUserHookAgentMixin` is not served. |
-| `await notify(message)` | `NOTIFICATION`. |
-| `await subagent(name, task="", said="") -> str` | `SUBAGENT_START`, `SUBAGENT_STOP` where served. |
-| `await until_steered() -> str` | Waits for a `steer` and returns it. |
-| `await use(name, input=None) -> str` | Calls one of the role's [fake tools](#fake-tools), as the agent would, and returns what the agent would read. `SessionError` for a name it does not offer. |
-| `await run_cli(argv) -> tuple[int, str, str]` | Runs one of the role's [fake command lines](#fake-clis), `argv` starting with its name, as the agent's shell would: the status, stdout and stderr. `SessionError` for a name it does not shelve. |
-
-Attributes: `prompts`, `requests`, `steered` (prompt, queued), `tools` (name, input, ran),
-`offered` (the fake tools), `shelved` (the fake command lines), `forked_from`, `permission`, `skills`, `turns`, `named`, `closed`, `id`, `usage`.
-
-::: warning `until_steered()` waits indefinitely
-Give such a test a hard deadline:
-`budget=Budget(duration=timedelta(seconds=5), graceful=False)`.
-:::
-
-### `FakeEnvDriver` {#fakeenvdriver}
-
-```python
-FakeEnvDriver(files: Mapping[str, bytes | str] | None = None, *,
-              workdir: str | PurePosixPath = "/work", backend: EnvBackendKind | str = "local",
-              provider: str = "", capabilities: Iterable[type] | None = None,
-              cpu_count: int = 8, memory: int = 64 << 30, gpu_count: int = 0,
-              gpu_memory: int = 0, run: Handler = None,
-              refs: Iterable[str] = ("HEAD", "main"), repo: bool = True)
-```
-
-| Parameter | Meaning |
-| --- | --- |
-| `files` | Initial workdir contents by relative path; text written as UTF-8. |
-| `workdir`, `backend`, `provider` | Reported location. |
-| `capabilities` | Mixins served; all by default. |
-| `cpu_count`, `memory`, `gpu_count`, `gpu_memory` | Reported machine. |
-| `run` | Answers `exec`: a table from command (argv tuple or script string) to `(status, stdout, stderr)`, or a function `(command, env)` (sync or async) returning a triple or `None` to fall through. |
-| `refs` | Refs `derive_worktree` knows. |
-| `repo` | Whether the workdir is a git repository. |
-
-Defaults for unhandled commands: `true`, `false`, `echo`, `cat`, `ls`, `sleep N` and
-`git rev-parse --is-inside-work-tree` behave as expected; any other program or script returns
-status 127.
-
-| Attribute | |
-| --- | --- |
-| `files` | Current workdir contents by relative path. |
-| `text(path)` | One file as text. |
-| `machine` | Every file on the fake machine by absolute path. |
-| `commands` | Every command run in this workdir, in order. |
-| `clones`, `scratches` | Ids of copies and scratch directories not yet removed. |
-| `ptys` | Every terminal `pty` opened here, in order: each a `FakePty`. |
-
-It also answers what a person browsing the environment beside a run asks of a driver, which
-flows never do: `list` and `stat` see a directory wherever a file is under it or `mkdir` made
-one; `rename` and `remove` move and delete whole trees, refusing a target that is there and
-the workdir itself; and `pty(argv, cols=, rows=)` opens a `FakePty`, which echoes what is
-typed at it, ends with status 0 at `^D` and with 137 when killed or when the driver closes.
-Its `argv`, `typed`, `sizes` (`(cols, rows)`, the first the one it was opened with) and
-`status` say what it was given.
-
-### `FakeOutworlder` {#fakeoutworlder}
-
-```python
-FakeOutworlder(reply: Reply = None, *, away: bool = False)
-```
-
-Answers like a `FakeAgentDriver`, or is away: a reply is text, a pydantic model, or a mapping
-or JSON text, sent as the answer to the schema asked for; a function receives `output_schema=`.
-Under `fakes.run_fake` it answers as a program does, which has the schema and not its model:
-`output_schema` is the JSON Schema asked for (`Ask.schema`), `None` for text, and with nothing
-scripted a schema is answered with nothing, as an away person answers it, rather than `"ok"`.
-
-| Attribute | What it holds |
-| --- | --- |
-| `asked` | Every prompt it was asked, in order. |
-| `asks` | Every question whole, in order: the [`Ask`](/reference/sdk#outworlderdriver) an SDK driver receives, its `schema`, `context`, `face` hash and `session`. |
-| `shown` | Every context the flow [showed](#outworlder) it, as `(session, context)`, in order. |
-| `faces` | Every [`Face`](#face) handed to its `mount`. A run of `fakes.run_fake` answers it as a program does, which is never handed a face, so this stays empty there. |
-| `away` | Whether nobody is there; it may be changed between questions. |
-
-<style>
-.harness-matrix table {
-  font-size: 13px;
-}
-.harness-matrix th,
-.harness-matrix td {
-  padding: 6px 8px;
-}
-</style>
+| Class | Base | Raised when |
+| --- | --- | --- |
+| `EnvError` | `FlowException` | Base class for environment failures. |
+| `EnvUnavailable` | `EnvError` | The machine is unreachable or `workdir` is missing. |
+| `EnvConnectionError` | `EnvError`, `ConnectionError` | Connection to a remote environment failed or dropped. |
+| `EnvCommandTimeout` | `EnvError`, `TimeoutError` | `exec` exceeded `timeout` and was killed. Partial output is on `stdout` and `stderr`. |
+| `EnvFileNotFound` | `EnvError`, `FileNotFoundError` | `read` target does not exist. |
+| `EnvPermissionDenied` | `EnvError`, `PermissionError` | The environment refused a read, a write or a command. |
+| `WorktreeError` | `EnvError` | `derive_worktree` failed (not a git repo, bad ref, or target directory exists). |
+| `TempCloneBusy` | `EnvError` | `derive_temp_clone` was called with an `id` already in use. |
+| `ScratchError` | `EnvError` | Creating or removing a scratch directory failed. |
+| `RewindError` | `EnvError` | `snapshot` or `rewind` failed. |

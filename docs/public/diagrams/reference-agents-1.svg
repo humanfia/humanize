@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 264" role="img">
+<title>An agent spec is a role, a harness, an optional account, a model and an optional effort; or a role and the name of a virtual nous.</title>
+<rect width="760" height="264" rx="12" fill="#f4f8f9"/>
+<rect x="44" y="40" width="112" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="100.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">reviewer</text>
+<text x="100.0" y="102" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">role</text>
+<text x="170" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#435058">=</text>
+<rect x="184" y="40" width="112" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="240.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">codex</text>
+<text x="240.0" y="102" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">harness</text>
+<text x="310" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#435058">@</text>
+<rect x="324" y="40" width="112" height="40" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="380.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">work</text>
+<text x="380.0" y="102" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">account</text>
+<text x="380.0" y="120" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">optional</text>
+<text x="450" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#435058">/</text>
+<rect x="464" y="40" width="112" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="520.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">gpt-5</text>
+<text x="520.0" y="102" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">model</text>
+<text x="590" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#435058">:</text>
+<rect x="604" y="40" width="112" height="40" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="660.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">high</text>
+<text x="660.0" y="102" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">effort</text>
+<text x="660.0" y="120" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">optional</text>
+<text x="44" y="148" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">or, in place of everything after =</text>
+<rect x="44" y="160" width="112" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="100.0" y="185" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">coder</text>
+<text x="100.0" y="222" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">role</text>
+<text x="170" y="185" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#435058">=</text>
+<rect x="184" y="160" width="112" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="240.0" y="185" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">smart</text>
+<text x="240.0" y="222" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">virtual nous</text>
+</svg>

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 224" role="img">
+  <title>The parts of an agent spec: role, coding agent, account, model and effort</title>
+  <rect width="760" height="224" rx="12" fill="#f4f8f9"/>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+    <text x="56" y="44" font-size="16" font-weight="600" fill="#141a1f">One agent, as you write it</text>
+    <g font-size="14" fill="#141a1f" text-anchor="middle">
+      <text x="100" y="140">Role</text>
+      <text x="224" y="140">Coding agent</text>
+      <text x="344" y="140">Account</text>
+      <text x="504" y="140">Model</text>
+      <text x="664" y="140">Effort</text>
+    </g>
+    <g font-size="12" fill="#5d6a72" text-anchor="middle">
+      <text x="100" y="160">hmz exec only</text>
+      <text x="224" y="160">required</text>
+      <text x="344" y="160">optional</text>
+      <text x="504" y="160">required</text>
+      <text x="664" y="160">optional</text>
+    </g>
+  </g>
+  <g stroke-width="1.5">
+    <rect x="56" y="64" width="88" height="44" rx="8" fill="#ffffff" stroke="#b3c3c8"/>
+    <rect x="176" y="64" width="96" height="44" rx="8" fill="#d9f1f4" stroke="#0b7080"/>
+    <rect x="304" y="64" width="80" height="44" rx="8" fill="#ffffff" stroke="#b3c3c8"/>
+    <rect x="416" y="64" width="176" height="44" rx="8" fill="#d9f1f4" stroke="#0b7080"/>
+    <rect x="624" y="64" width="80" height="44" rx="8" fill="#ffffff" stroke="#b3c3c8"/>
+  </g>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" text-anchor="middle">
+    <g fill="#141a1f">
+      <text x="100" y="91">actor</text>
+      <text x="224" y="91">claude</text>
+      <text x="344" y="91">work</text>
+      <text x="504" y="91">claude-opus-4-1</text>
+      <text x="664" y="91">high</text>
+    </g>
+    <g fill="#5d6a72">
+      <text x="160" y="91">=</text>
+      <text x="288" y="91">@</text>
+      <text x="400" y="91">/</text>
+      <text x="608" y="91">:</text>
+    </g>
+    <text x="380" y="198" fill="#435058">[ROLE=]CLI[@ACCOUNT]/MODEL[:EFFORT]</text>
+  </g>
+</svg>

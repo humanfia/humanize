@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 368" role="img">
+<title>The fence around an agent: its files on one side, one proxy to the network on the other</title>
+<rect width="760" height="368" rx="12" fill="#f4f8f9"/>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5d6a72"/></marker>
+<marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a8f00"/></marker>
+<marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#b83a72"/></marker>
+</defs>
+<g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">
+<!-- files -->
+<rect x="24" y="56" width="176" height="48" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+<text x="112" y="85" text-anchor="middle">Workdir: write</text>
+<rect x="24" y="136" width="176" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="112" y="165" text-anchor="middle">Other files: read</text>
+<rect x="24" y="216" width="176" height="48" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+<text x="112" y="245" text-anchor="middle">Denied paths: nothing</text>
+<!-- fence -->
+<rect x="272" y="40" width="216" height="240" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="380" y="68" text-anchor="middle" font-size="16" font-weight="600" fill="#0b7080">The fence</text>
+<rect x="296" y="88" width="168" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="380" y="117" text-anchor="middle">Agent CLI</text>
+<rect x="296" y="184" width="168" height="48" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="380" y="213" text-anchor="middle">Commands it runs</text>
+<path d="M380 136V182" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<text x="380" y="262" text-anchor="middle" font-size="12" fill="#435058">One fence for the whole tree</text>
+<!-- arrows to files -->
+<path d="M272 80H202" stroke="#5a8f00" stroke-width="1.5" fill="none" marker-end="url(#g)"/>
+<path d="M272 160H202" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<path d="M272 240H214" stroke="#b83a72" stroke-width="1.5" fill="none"/>
+<path d="M208 233L220 247M220 233L208 247" stroke="#b83a72" stroke-width="2" fill="none"/>
+<!-- network -->
+<rect x="536" y="136" width="72" height="48" rx="8" fill="#f6ecd2" stroke="#80590c" stroke-width="1.5"/>
+<text x="572" y="165" text-anchor="middle">Proxy</text>
+<path d="M488 160H534" stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+<rect x="632" y="56" width="104" height="48" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
+<text x="684" y="85" text-anchor="middle">Model host</text>
+<rect x="632" y="216" width="104" height="48" rx="8" fill="#fbe3ee" stroke="#b83a72" stroke-width="1.5"/>
+<text x="684" y="245" text-anchor="middle">Other hosts</text>
+<path d="M592 136C592 100 604 80 630 80" stroke="#5a8f00" stroke-width="1.5" fill="none" marker-end="url(#g)"/>
+<path d="M592 184C592 220 600 240 618 240" stroke="#b83a72" stroke-width="1.5" fill="none"/>
+<path d="M612 233L624 247M624 233L612 247" stroke="#b83a72" stroke-width="2" fill="none"/>
+<!-- backends -->
+<path d="M24 304H736" stroke="#b3c3c8" stroke-width="1.5"/>
+<text x="24" y="336" font-size="12" fill="#435058">macOS: Seatbelt</text>
+<text x="380" y="336" font-size="12" fill="#435058" text-anchor="middle">Linux: Landlock and seccomp</text>
+<text x="736" y="336" font-size="12" fill="#435058" text-anchor="end">Linux: bubblewrap</text>
+</g>
+</svg>

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 192" role="img">
+  <title>The parts of a page address: an optional daemon name, the view, what to open in the view, and the view's options</title>
+  <rect width="760" height="192" rx="12" fill="#f4f8f9"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#141a1f">
+    <text x="180" y="72" textLength="21.6" lengthAdjust="spacingAndGlyphs" fill="#5d6a72">#/</text>
+    <text x="201.6" y="72" textLength="43.2" lengthAdjust="spacingAndGlyphs" fill="#b83a72">@gpu</text>
+    <text x="244.8" y="72" textLength="10.8" lengthAdjust="spacingAndGlyphs" fill="#5d6a72">/</text>
+    <text x="255.6" y="72" textLength="54" lengthAdjust="spacingAndGlyphs" fill="#0b7080">epics</text>
+    <text x="309.6" y="72" textLength="10.8" lengthAdjust="spacingAndGlyphs" fill="#5d6a72">/</text>
+    <text x="320.4" y="72" textLength="151.2" lengthAdjust="spacingAndGlyphs">&lt;name&gt;/exomyth</text>
+    <text x="471.6" y="72" textLength="108" lengthAdjust="spacingAndGlyphs" fill="#80590c">?tab=flame</text>
+  </g>
+  <g fill="none" stroke-width="1.5">
+    <path d="M202 84H244" stroke="#b83a72"/>
+    <path d="M256 84H309" stroke="#0b7080"/>
+    <path d="M321 84H471" stroke="#435058"/>
+    <path d="M472 84H579" stroke="#80590c"/>
+    <path d="M223 84V104H120V120" stroke="#b83a72"/>
+    <path d="M282 84V120" stroke="#0b7080"/>
+    <path d="M396 84V104H436V120" stroke="#435058"/>
+    <path d="M526 84V104H632V120" stroke="#80590c"/>
+  </g>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f" text-anchor="middle">
+    <text x="120" y="140" font-weight="600">Daemon</text>
+    <text x="120" y="160" font-size="12" fill="#435058">Local when left out</text>
+    <text x="282" y="140" font-weight="600">View or dialog</text>
+    <text x="282" y="160" font-size="12" fill="#435058">one word</text>
+    <text x="436" y="140" font-weight="600">What to open in it</text>
+    <text x="436" y="160" font-size="12" fill="#435058">a name, then a part</text>
+    <text x="632" y="140" font-weight="600">Options</text>
+    <text x="632" y="160" font-size="12" fill="#435058">the view keeps them current</text>
+  </g>
+</svg>

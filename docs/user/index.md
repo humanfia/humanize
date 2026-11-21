@@ -1,180 +1,86 @@
+---
+title: User Guide
+description: Find the page for any feature of Humanize Desktop, the browser page, the terminal interface and the command line.
+---
+
 # User Guide
 
-For the person who runs flows: you give coding agents a task, a loop to work in and a budget,
-and Humanize drives them until the work is done or the budget is spent. Nothing here asks you
-to write Python; writing flows is the [Writing Flows guide](/weaver/).
+Use this guide to run Humanize in Humanize Desktop, the browser page, the terminal or the command line. Each page covers one feature across every interface that supports it. If you are new to Humanize, start with a [tutorial](/tutorials/). To write flows in Python, read the [Builder Guide](/builder/).
 
-::: info How this guide is built
-- **Get started** and the **Tutorials** are lessons: follow them in order, every command written
-  out, every step checked before the next.
-- **Everything else** is a guide to one task: what it is for and what you need, a *Try it*
-  short enough to paste, how the thing works, a worked example with every part of it
-  explained, how to check it worked, what to do when it does not, and where to go next.
-- **Help** pages, and the [Reference](/reference/), are for when you know what you want.
-:::
+![Humanize Desktop, the browser page, the terminal interface and the command line all talk to one daemon, which runs the coding agents](/diagrams/user-index-1.svg)
 
-## Get started
+*Four interfaces, one daemon. What you start in one appears in the others.*
 
-<div class="u7-path">
+## Get set up
 
-1. **[Installation](/user/installation)**
-   Humanize Desktop or the CLI, and one coding agent CLI signed in. About five minutes.
-2. **[Your first run](/user/first-run)**
-   Choose a flow, give it an agent and a budget, watch it fix a bug, and stop it.
-3. **[Security](/user/security)**
-   What to check before a flow touches work you care about.
+- [Install and update](/user/install): install, update and uninstall the app or CLI.
+- [Concepts](/user/concepts): learn core terms like flow, epic, chat and nous.
+- [Humanize Desktop](/user/desktop): use the desktop window, menus, tray and notifications.
+- [The browser page](/user/web): open the web interface with `hmz web` and navigate it.
+- [The terminal interface](/user/terminal): use the prompt, slash commands, views and keys of `hmz`.
+- [The command line](/user/command-line): run flows and chats from scripts with `hmz exec` and `hmz chat`.
+- [Security](/user/security): control agent actions, store credentials and pair devices.
 
-</div>
+## Chat
 
-New words on the way are in the [Glossary](/user/concepts).
+- [Chat with an agent](/user/chat): start a chat, send messages, stop a turn and continue a session.
+- [Commands, skills and files in a chat](/user/chat-input): use `/`, `$`, `!` and `@` in the message box.
+- [Organise chats](/user/manage-chats): rename, fork, pin, archive, delete, group and search chats.
+- [Continue sessions from other CLIs](/user/harness-sessions): read and continue standalone coding agent sessions.
+- [Ask a side question](/user/side-questions): ask about a running chat or epic without interrupting it.
+- [Ai-chan](/user/ai-chan): use the operator agent to control Humanize for you.
 
-## Tutorials
+## Run flows
 
-Then take a whole piece of work start to finish. Each is one path, with real output at every
-step:
+- [Find and install flows](/user/flows): add a flowverse to install, update and remove flows.
+- [Start an epic](/user/epics): assign a task, agents, environments and a budget to a flow.
+- [Budgets](/user/budgets): cap a run by time, cost or output tokens.
+- [Watch a run](/user/watch-a-run): track agents, turns and cost while a flow runs.
+- [Talk to a running flow](/user/steering): send a message to a running turn and use the board.
+- [Answer a flow's questions](/user/questions): reply to a flow, claim a role or mark yourself away.
+- [Stop a run](/user/stopping): stop or force stop a run and see the resulting state.
+- [Leave it running and come back](/user/leaving): close the terminal or window and reattach later.
+- [Resume a run](/user/resuming): pick up an epic that ended or was stopped.
+- [Notifications](/user/notifications): see what triggers a notice and where it appears.
 
-| Tutorial | You learn | Takes |
-| --- | --- | --- |
-| [Beat a benchmark](/user/tutorials/take-home) | two agents taking turns, a task file, checking a result against cheating | an hour of you, hours of the machine |
-| [Port a project](/user/tutorials/port-a-project) | an actor and a reviewer, a run that ends itself | about an hour |
-| [Build a coding agent](/user/tutorials/build-an-agent) | three flows in a row: idea, plan, build | an afternoon |
+## Agents and models
 
-## Ways to use it
+- [Coding agents](/user/agents): see supported coding agents, their capabilities and how to reference them.
+- [Accounts](/user/accounts): manage multiple named credentials for each coding agent.
+- [Nous: models, retries and fallback](/user/nous): select a model and configure retries and fallbacks.
+- [Effort and swarm mode](/user/efforts): set reasoning effort or run a turn as a fleet of subagents.
+- [Gateways, LiteLLM and custom CLIs](/user/gateways): connect third-party endpoints, a local LiteLLM gateway or your own CLI.
+- [Permissions](/user/permissions): control what an agent can read, modify and reach.
+- [Skills](/user/skills): find where skills live and how agents load them.
+- [Cost and usage](/user/usage): track run costs and view usage by day and by flow.
 
-| | Where | Best for |
-| --- | --- | --- |
-| [Chat](/user/chat) | `hmz`, `hmz web` or `hmz chat` | talking to one agent, its CLI's own `/` commands and skills included |
-| [Humanize Desktop](/user/desktop) | an app on macOS or Windows | every epic in one window, with notifications |
-| [`hmz web`](/user/web) | a browser, on any machine | the same page, and your servers' epics beside yours |
-| [`hmz`](/reference/tui) | the terminal, in a repository | a chat, and setting a flow up and talking to it at the prompt |
-| [`hmz exec`](/user/unattended) | a script, or [CI](/user/ci) | runs nobody watches |
+## Where the work runs
 
-## Everything else
+- [Environments](/user/environments): pick the folder and the place where a chat or epic works.
+- [Files, changes and terminal](/user/environment-panels): browse and edit files, review and commit changes and open a shell.
+- [Snapshots and rewind](/user/snapshots): restore a snapshot taken during a flow run.
+- [Runtimes: servers, containers and clusters](/user/runtimes): run agents over SSH, in Docker, in an Apple container or on Slurm.
+- [The sandbox](/user/sandbox): enforce agent permissions with the sandbox.
 
-<div class="u7-groups">
-<div>
+## Machines and devices
 
-**While it runs**
+- [The daemon](/user/daemon): manage the background process that runs your chats and epics.
+- [Connect to other machines](/user/daemons): connect remote daemons and pair or revoke devices.
+- [Relays and WebRTC](/user/relay): reach your daemon from any browser.
 
-- [Talking to a running turn](/user/steering)
-- [Side questions (/btw)](/user/btw)
-- [Ai-chan (/ai)](/user/ai-chan)
-- [Many conversations at once](/user/conversations)
-- [Showing the working](/user/settings#details)
-- [Watching a run (the monitor)](/user/monitor)
-- [The mission board](/user/board)
-- [Being away (/afk)](/user/afk)
-- [Stopping](/user/stopping)
-- [Leaving it running](/user/leaving)
-- [Completion](/user/completion)
-- [History](/user/history)
+## After a run
 
-</div>
-<div>
+- [History and search](/user/history): open past epics and search across chats and epics.
+- [Trace a run with Exomyth](/user/tracing): profile a run and inspect its timeline and flame graph.
+- [Export and import a run](/user/export): save and open `.hmzepic` archives.
+- [Back up to git](/user/backups): push epics to git repositories and pull them back.
 
-**Agents and accounts**
+## Make it yours
 
-- [Settings (/settings)](/user/settings)
-- [Accounts](/user/settings#accounts)
-- [Efforts](/user/efforts)
-- [Nous](/user/settings#nous)
-- [Cost and rate](/user/tally)
-- [Permissions](/user/permissions)
-- [Skills](/user/skills)
-- [Questions](/user/questions)
+- [Settings](/user/settings): configure Humanize and see where settings are stored.
+- [Themes and language](/user/themes): change the appearance, edit a theme and pick a language.
 
-</div>
-<div>
+## Help
 
-**Where the work lands**
-
-- [Remote execution](/user/remote-execution)
-- [Containers](/user/containers)
-
-**After a run**
-
-- [Picking a run up](/user/resuming)
-- [Exporting a run](/user/export)
-- [Backing epics up](/user/backups)
-- [Tracing](/user/tracing)
-
-</div>
-<div>
-
-**Help**
-
-- [Troubleshooting](/user/troubleshooting)
-- [Reporting](/user/reporting)
-- [CLI reference](/reference/cli)
-- [TUI reference](/reference/tui)
-- [Web reference](/reference/web)
-
-</div>
-</div>
-
-<style scoped>
-.u7-path ol {
-  list-style: none;
-  counter-reset: step;
-  padding-left: 0;
-  display: grid;
-  gap: 12px;
-}
-.u7-path li {
-  counter-increment: step;
-  position: relative;
-  margin: 0;
-  padding: 14px 16px 14px 60px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-  background: var(--vp-c-bg-soft);
-  color: var(--vp-c-text-2);
-}
-.u7-path li::before {
-  content: counter(step);
-  position: absolute;
-  left: 16px;
-  top: 14px;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-weight: 600;
-  color: var(--vp-c-white);
-  background: var(--vp-c-brand-1);
-}
-.u7-path li strong {
-  display: block;
-  font-size: 1.05em;
-}
-.u7-groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 4px 24px;
-  margin-top: 16px;
-}
-.u7-groups ul {
-  list-style: none;
-  padding-left: 0;
-  margin: 4px 0 16px;
-}
-.u7-groups li {
-  margin: 2px 0;
-}
-.u7-groups a,
-.u7-path a {
-  text-decoration: none;
-}
-.u7-groups a:hover,
-.u7-path a:hover {
-  text-decoration: underline;
-}
-.u7-groups p {
-  margin: 8px 0 0;
-  font-size: 0.85em;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--vp-c-text-2);
-}
-</style>
+- [Troubleshooting](/user/troubleshooting): fix common failures and find the logs.
+- [Report a problem](/user/reporting): see what error reports contain and file an issue.

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 168" role="img">
+<title>An environment spec is a role, a backend, an optional provider after an at sign, and an optional workdir starting at the first slash.</title>
+<rect width="760" height="168" rx="12" fill="#f4f8f9"/>
+<rect x="40" y="40" width="88" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="84.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">repo</text>
+<text x="84.0" y="104" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">role</text>
+<text x="140" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#435058">=</text>
+<rect x="152" y="40" width="88" height="40" rx="8" fill="#d9f1f4" stroke="#0b7080" stroke-width="1.5"/>
+<text x="196.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">ssh</text>
+<text x="196.0" y="104" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">backend</text>
+<text x="252" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#435058">@</text>
+<rect x="264" y="40" width="136" height="40" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="332.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">build-box</text>
+<text x="332.0" y="104" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">provider</text>
+<text x="332.0" y="124" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">optional</text>
+<rect x="408" y="40" width="312" height="40" rx="8" fill="#ffffff" stroke="#b3c3c8" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="564.0" y="65" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#141a1f">/home/alex/shop</text>
+<text x="564.0" y="104" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" fill="#141a1f">workdir</text>
+<text x="564.0" y="124" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5d6a72">optional for a runtime saved with one</text>
+</svg>
