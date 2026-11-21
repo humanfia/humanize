@@ -292,7 +292,7 @@ export default {
   'Container': '容器',
   'Memory, GiB': '内存（GiB）',
   'Partition': '分区',
-  'No other runtime of this backend': '此类型下没有其他运行时',
+  'No other runtime': '没有其他运行时',
   'A host in your SSH config': 'SSH 配置中的主机',
   'Move down': '下移',
   // views/settings/themes.js (the names of the themes Humanize comes with are in the `themes` fragment).

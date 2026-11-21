@@ -473,6 +473,45 @@ def test_the_daemons_own_machine_is_first_of_the_runtimes_and_cannot_be_changed(
         assert first == "runtime-local"
 
 
+def test_a_runtime_falls_back_to_one_picked_of_any_backend_and_is_saved(
+    project: Path, engine: str
+) -> None:
+    """Section 7.4.3.2 of protocol/core.md: what is picked is `<backend>:<name>`, and saved."""
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        for backend, name, fields in (
+            ("ssh", "gpu", "{host: 'gpu.lab'}"),
+            ("ssh", "spare", "{host: 'spare.lab'}"),
+            ("docker", "box", "{}"),
+        ):
+            page.evaluate(
+                "async () => (await import('/api.js')).call('runtimes.set',"
+                f" {{backend: '{backend}', name: '{name}', fields: {fields}}})"
+            )
+        go(page, "/settings/runtimes")
+        row = page.locator("[data-hmz=runtime]").filter(has_text="gpu.lab")
+        row.get_by_role("button", name="Edit").click()
+        editor = page.locator(".list-editor").filter(
+            has=page.locator("#runtime-fallback")
+        )
+        editor.get_by_role("button", name="Add").click()
+        picked = editor.locator("select")
+        # Every other runtime, another backend's among them, and never itself.
+        expect(picked.locator("option")).to_have_text(["ssh:spare", "docker:box"])
+        picked.select_option("docker:box")
+        page.locator("[data-hmz=write-runtime]").get_by_role(
+            "button", name="Save", exact=True
+        ).click()
+        expect(page.locator("#runtime-name")).to_have_value("")
+        saved = wire.params("runtimes.set")[-1]
+        assert saved["fields"]["fallback"] == ["docker:box"]
+        kept_as = page.evaluate(
+            "async () => (await (await import('/api.js')).call('runtimes.list'))"
+            ".runtimes.find((one) => one.name === 'gpu').fallback"
+        )
+        assert kept_as == ["docker:box"]
+
+
 def test_a_workspace_has_a_group_of_its_own_under_the_daemons(
     project: Path, engine: str, tmp_path: Path
 ) -> None:

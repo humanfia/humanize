@@ -10,6 +10,7 @@ import { confirming } from '../../confirm.js'
 import { acting, empty, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { t } from '../../i18n.js'
 import { pathPicker } from '../../paths.js'
+import { fallbacks } from './runtimes-model.js'
 
 const GIB = 2 ** 30
 
@@ -94,7 +95,7 @@ export function draw(holder, query, parts, scope) {
       fill(fields)
       for (const [key, empty] of Object.entries(blank)) {
         const value = editing ? editing[key] : empty
-        const [input, read] = field(key, empty, value, { backend: backend.value, name: name.value.trim(), runtimes: data.runtimes, from: scope.name })
+        const [input, read] = field(key, empty, value, { backend: backend.value, named: () => name.value.trim(), runtimes: data.runtimes, from: scope.name })
         readers[key] = read
         fields.append(h('div', { class: ['field', (Array.isArray(empty) || (empty && typeof empty === 'object')) && 'wide'] }, h('label', { for: `runtime-${key}` }, labelOf(key)), input))
       }
@@ -274,15 +275,16 @@ function sshHosts(from) {
  * order, where a harness runs picked from those, `env` and `local`, options as names and
  * values, and a list a row at a time.
  */
-function field(key, empty, value, { backend, name, runtimes, from }) {
+function field(key, empty, value, { backend, named, runtimes, from }) {
+  const name = named()
   const id = `runtime-${key}`
   if (key === 'identity_file' || key === 'config' || key === 'tls_dir') {
     const picked = pathPicker({ value: value || '', files: key !== 'tls_dir', label: labelOf(key), id, from, placeholder: key === 'config' ? '~/.ssh/config' : key === 'tls_dir' ? '~/.docker' : '~/.ssh/id_ed25519' })
     return [picked.node, () => picked.value()]
   }
   if (key === 'fallback') {
-    const others = runtimes.filter((one) => one.backend === backend && one.name !== name).map((one) => one.name)
-    const listed = listing(value || [], { id, options: () => others, none: t('No other runtime of this backend') })
+    // Asked again at every row: a new runtime has no name until one is written.
+    const listed = listing(value || [], { id, options: () => fallbacks(runtimes, backend, named()), none: t('No other runtime') })
     return [listed.node, listed.read]
   }
   if (key === 'harness') {
