@@ -50,7 +50,7 @@ On `claude`, `ultracode` runs at `xhigh` and tells Claude Code to orchestrate it
 
 The app displays effort names in plain words: `xhigh` and `extra-high` become **Extra high**, `max` becomes **Max**, `none` becomes **None**, and `as configured` becomes **As configured**.
 
-In an active Claude Code or Codex chat, selecting an effort on the chip sends `/effort` to the chat. On other harnesses, the chip is read-only once the chat starts; start a new chat to change the effort.
+Once a chat has started, selecting an effort on the chip changes it for the chat's next turn, whether the chat is running or was opened from the list. A harness that cannot go on from an earlier conversation refuses the change with a message; see [Change the model or effort](/user/chat-input#change-the-model-or-effort).
 
 ## In the terminal
 
