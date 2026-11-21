@@ -193,9 +193,12 @@ export default {
   '{spec} · not listed': '{spec} · 未列出',
   'No nous matches': '没有匹配的 Nous',
   'Find a nous': '查找 Nous',
+  'No model matches': '没有匹配的模型',
+  'Find a model': '查找模型',
+  'Harness': 'Harness',
+  'Back from {level}': '从“{level}”返回',
   'No harness installed here can fill it.': '这里安装的 Harness 都无法担任。',
   'Asking {name} for models…': '正在向 {name} 询问模型…',
-  'More': '更多',
   'Every part of its agent is picked as a chat starts': '开始聊天时可选择 Agent 的每一项',
   // chips/permission-modes.js, chips/permission.js
   'Read only': '只读',

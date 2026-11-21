@@ -288,7 +288,6 @@ def test_a_settings_list_with_nothing_in_it_offers_what_adds_to_it(
     with served() as site, opened(site, engine=engine) as page:
         for name, said, button, field in (
             ("backup", "No backup target yet.", "Add target", "#backup-name"),
-            ("nous", "No nous yet.", "New nous", "#nous-kind"),
             ("runtimes", "No other runtime yet.", "Add runtime", "#runtime-name"),
         ):
             go(page, f"/settings/{name}")

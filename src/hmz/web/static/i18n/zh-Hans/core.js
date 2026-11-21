@@ -140,7 +140,6 @@ export default {
   'Folders': '文件夹',
   'Opening…': '正在打开…',
   // pickers.js: the agent and the environment of a role, picked a step at a time.
-  'A nous': '一个 Nous',
   'CLI for {role}': '{role} 的 CLI',
   'Account for {role}': '{role} 的账户',
   'Model for {role}': '{role} 的模型',

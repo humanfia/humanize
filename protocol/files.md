@@ -812,6 +812,9 @@ hmz refreshes model prices; `off`, `0`, `no`, `none` or the empty string MUST tu
 **3.11.2.8** `HUMANIZE_RELEASES` MUST name the URL, where it contains `://`, or the file from which
 hmz learns the newest release; `off`, `0`, `no`, `none` or the empty string MUST turn asking off.
 
+**3.11.2.8.1** `HUMANIZE_SCAN` set to `off`, `0`, `no`, `none` or the empty string MUST turn off the
+scan a daemon makes of its installed harnesses as it starts (Section 3.9.8.1 of [DAEMON]).
+
 **3.11.2.9** `HUMANIZE_SHADOWS` MUST name the directory in which hmz keeps the records of mirrors,
 defaulting to `~/.cache/humanize/shadows` (Section 7).
 

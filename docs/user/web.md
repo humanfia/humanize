@@ -91,7 +91,7 @@ the others, and going to another view closes the sidebar's.
 A list with nothing in it yet says so where the list would be, with a button that gets something
 there: **Browse Flowverses** where no flow is installed, **Fetch** or **Add flowverse** on a
 flowverse that lists none, **New chat** or **New epic** in **Search**, and in **Settings**
-**Add target**, **New nous**, **Add runtime** and **Add account**, each of which goes to the form
+**Add target**, **Add runtime** and **Add account**, each of which goes to the form
 under the list. In **Search**, where nothing matches what you typed or filtered for, the button is
 **Clear filters**. None of them writes anything by itself.
 
@@ -267,12 +267,12 @@ The conversation names nobody: a turn of the agent's draws nothing as it begins,
 
 The box under a chat holds only **+**, what you type and the button that sends; what else
 there is to pick is a row of quiet chips under it, at its right. The first says the nous that
-answers the chat: its harness, its model and its effort, as on [a new chat](#starting-an-epic). Its menu says the rest of the chat's agent -- its account -- and
+answers the chat: its harness, its model and its effort, as on [a new chat](#starting-an-epic). Its menu says the parts of the chat's agent, a line each -- **Harness**, **Account**, **Model**, **Effort** -- and
 **New chat** opens a new one in the same directory, where every part is picked. Where the
-chat's CLI has a `/model` or an `/effort` of its own (Claude Code, Codex), the menu also lists
-the other models its account runs, a box for one it does not list, and the efforts its model
-takes: picking one says that line in the chat, which [goes on with the new model or
-effort](/user/chat#the-chats-agent).
+chat's CLI has a `/model` or an `/effort` of its own (Claude Code, Codex), the **Model** line
+opens the other models its account runs, with a box for one it does not list, and the
+**Effort** line the efforts its model takes: picking one says that line in the chat, which
+[goes on with the new model or effort](/user/chat#the-chats-agent).
 
 The box under a chat takes what the agent's CLI takes at its own prompt, as `hmz` does in a
 chat: typing `/`, `$` or `@` offers the CLI's own commands, skills and files, the names
@@ -467,21 +467,32 @@ browser, until that chat asks something else.
 
 The chip says the nous that will answer -- its harness, its model and its effort, each in its
 own shade, as **Claude Code Haiku 4.5 Default**; **Default** is no effort set -- starting from
-the agent that directory last chatted with. It opens a menu:
+the agent that directory last chatted with. It opens a menu that never lists every nous at
+once. A nous is picked a level at a time, and the menu opens on one row a level, each saying
+what is picked there:
 
-- Every nous the harnesses installed here run, one a row naming the harness and then the model,
-  as **Codex - GPT-6.2 Sol**, a harness after another, the one chosen marked; point at one for
-  what `-a` spells it. A harness never asked what it runs is one row, **Not asked yet**: picking
-  it asks it, which takes a few seconds, and lists what it answers. Where a harness lists one
-  model by several routes, each row says who routes it after the model, as **LiteLLM - Opus 4.5
-  (azure_ai)**. With more than ten rows, **Find a nous** stays over the list and narrows it as
-  you type -- on a row as well as in the field -- and says **No nous matches** where nothing
-  does; only the rows scroll, so **Effort** and **More** stay in reach under them.
-- **Effort**, one row saying the effort chosen, opens the efforts the model chosen takes, where
-  it takes any; **Default** leaves it to the model.
-- **More**, one row, opens the rest: **Other model**, where a model the harness chosen does not
-  list is typed; the **Account** it runs as (**Local** is this machine's own sign-in; **Add
-  account…** opens Settings); and **Refresh models**, which asks that harness what it runs again.
+- **Virtual**, first, where the daemon has any [virtual nous](/user/settings#nous): each one row
+  by its name. Picking one closes the menu, and the chip says its name.
+- **Harness** opens the harnesses installed here. One never asked what it runs says **Not asked
+  yet**: picking it asks it, which takes a few seconds. Picking a harness goes straight on to
+  its models, starting from the account, the model and the effort you last picked of it.
+- **Account** opens the accounts of the harness picked (**Local** is this machine's own sign-in;
+  **Add account…** opens Settings).
+- **Model** opens the models the account picked runs, the one chosen marked; point at one for
+  what `-a` spells it. Where a harness lists one model by several routes, each row says who
+  routes it, as **Opus 4.5 (azure_ai)**. With more than ten, **Find a model** stays over the
+  list and narrows it as you type -- on a row as well as in the field -- and says **No model
+  matches** where nothing does. Under the list are **Other model**, where one the harness does
+  not list is typed, and **Refresh models**, which asks the harness what it runs again.
+- **Effort** opens the efforts the model picked takes; **Default** leaves it to the model.
+
+A level with only one choice has no row: with one harness installed there is no **Harness**,
+with one account no **Account**, and a model that takes no effort has no **Effort**. Inside a
+level, the row at its top names it and goes back, as <kbd>←</kbd> does; <kbd>→</kbd> or
+<kbd>Enter</kbd> opens a level, and the arrow keys move through its choices. Picking a model or
+an effort closes the menu. The same menu picks a nous everywhere else on the page: for each role
+of [a new epic](#starting-an-epic), for [Ai-chan](#ai-chan), and for each node of a virtual
+nous in [Settings](#settings).
 
 Harnesses and models are named everywhere on the page as their vendors name them -- `claude` is
 **Claude Code**, `claude-haiku-4-5` is **Haiku 4.5** -- and an effort by the page's own word for
@@ -516,10 +527,9 @@ flow is for, always in sight -- nothing opens or hides it -- as that directory l
   **Directory**, completed as you type on this machine. A directory left blank is the folder
   picked, which the field says while it is empty.
 - **Agents.** A row per role: its name, and beside it a chip that says the nous filling it --
-  harness, model and effort. The chip opens the menu a new chat's does, holding only the
-  harnesses installed that can fill that role: pick a row, an **Effort**, or under **More** a
-  typed model, the **Account** it runs as (**Local** is this machine's own sign-in; **Add
-  account…** opens Settings) and **Refresh models**. A harness never asked what it runs is
+  harness, model and effort. The chip opens the menu a new chat's does, a level at a time,
+  its **Harness** level holding only the harnesses installed that can fill that role. A harness
+  never asked what it runs is
   asked the first time it is picked, which can take a while. Point at a role's name for what
   it is held to.
 - **Parameters**, the **Budget**, **Backup** -- the [targets](/user/backups) the epic is backed
@@ -563,8 +573,8 @@ sidebar, nor counted among a workspace's epics, while it lasts or once deleted.
 **New** opens a conversation as a chat with nothing said in it yet -- no form to fill in. Under
 its box are the two chips a new chat has, which say what the conversation is fixed to:
 
-- **Nous**, as on a new chat: it starts on the one you used last, and its menu offers every
-  model the harnesses here run. There is no setting for it: the one you start a conversation
+- **Nous**, as on a new chat: it starts on the one you used last, and its menu picks one a
+  level at a time, the virtual nous first. There is no setting for it: the one you start a conversation
   with is the one the next opens on.
 - **Permission**, which says the preset and the scope, as `Read only · Workspace`. Its menu
   holds the two presets -- **Read only**, the default, and **Full access** -- and under them
@@ -599,7 +609,7 @@ daemon. **Workspace**, under it, is of one folder of that daemon:
 | **Themes** | The [themes](#themes) of this browser, which one is in use, and whether its light or its dark is shown |
 | **General** | Whether a turn's working is shown, **Harness sessions** -- whether the sidebar lists the [sessions each CLI had of its own](/user/chat#harness-sessions), off until set -- and [error reports](/user/reporting) |
 | **Accounts** | Every [account](/user/settings#accounts) by its CLI, way in and the names of what it sets: **Edit** it (what you leave blank stays as it was), or make one; under **More options** at the end of its row, or on a right click of it, ask what it runs again (**Refresh models**), copy it to another CLI, or remove it, which asks first in the row |
-| **Nous** | Every [nous](/user/settings#nous): how a failed turn is tried again and where it goes next, and each virtual nous's graph, edited node by node. A concrete nous is listed by its names -- **Claude Code - Opus 4.1 · High** -- with what `-a` spells where you point at it; typed into a graph, it is typed as `-a` spells it |
+| **Nous** | Every [nous](/user/settings#nous), in two parts. **Virtual**: the ones you made, each with its graph, edited node by node; **New virtual nous** makes one. **Concrete**: every one the daemon found by asking the harnesses installed what they run, a group a harness, each by its model -- **Opus 4.1 · High** where it names an effort -- with what `-a` spells where you point at it; none is made by hand, and **Edit** writes how a turn that fails there is tried again and where it goes next, which **Reset** forgets. A harness with more than twelve opens folded, and over more than twelve in all **Find a nous** narrows them. **Scan** asks every harness again and says which would not answer; the daemon also scans by itself as it starts, in the background, and the page says so while it does. A wait policy or a strategy is a short name in its select, with what it does said under it; the nous a node names is picked from [the menu a new chat picks its own from](#starting-an-epic) |
 | **Runtimes** | First, always, the daemon's own machine -- **This machine**, for Local -- with its host name, system, processors and memory: where chats and epics run unless a runtime is picked, with nothing to edit or remove. Then every runtime: add one from its backend's fields, change, check or remove it, or bring hosts in from your ssh config |
 | **Backup** | Every [backup target](/user/backups): its repository and branch, when an epic goes to it (**On session close**, **Every N minutes**, **On epic end**, or none: by hand only), and whether it is a **Default**; add, edit or remove one; **Download** an epic a target holds, as in [Downloading an epic](/user/backups#downloading-an-epic). A URL is shown with nothing signed into it |
 | **Usage** | What the epics spent, of every directory or of one -- one since deleted too, as **Search** filters by one -- by day and by flow, looking back 7, 30, 90 or 365 days |

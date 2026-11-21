@@ -7570,6 +7570,49 @@
       "x-hmz-writes": false
     },
     {
+      "name": "nous.scan",
+      "summary": "Ask every installed harness what it runs, as each of its accounts.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "scan",
+        "schema": {
+          "$ref": "#/components/schemas/NousScan"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
+    },
+    {
       "name": "nous.set",
       "summary": "Write a nous, whole.",
       "paramStructure": "by-name",
@@ -10918,7 +10961,8 @@
           "default",
           "strategies",
           "faults",
-          "concrete"
+          "concrete",
+          "scanning"
         ],
         "properties": {
           "nous": {},
@@ -10926,7 +10970,56 @@
           "default": {},
           "strategies": {},
           "faults": {},
-          "concrete": {}
+          "concrete": {},
+          "scanning": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NousScan": {
+        "type": "object",
+        "required": [
+          "nous",
+          "policies",
+          "default",
+          "strategies",
+          "faults",
+          "concrete",
+          "scanning",
+          "failed"
+        ],
+        "properties": {
+          "nous": {},
+          "policies": {},
+          "default": {},
+          "strategies": {},
+          "faults": {},
+          "concrete": {},
+          "scanning": {
+            "type": "boolean"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cli",
+                "account",
+                "why"
+              ],
+              "properties": {
+                "cli": {
+                  "type": "string"
+                },
+                "account": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       },
       "Conversation": {

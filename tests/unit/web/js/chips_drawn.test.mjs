@@ -32,6 +32,7 @@ const { readBackends } = await import('../../../../src/hmz/web/static/pickers.js
 const { modelChip } = await import('../../../../src/hmz/web/static/chips/model.js')
 const { usageChip } = await import('../../../../src/hmz/web/static/chips/usage.js')
 const { chain, dismiss } = await import('../../../../src/hmz/web/static/layers.js')
+const { menu: menuOf, submenu } = await import('../../../../src/hmz/web/static/shell.js')
 
 after(async () => (await api.client('local')).close())
 
@@ -42,8 +43,18 @@ function under(node) {
   return row
 }
 
-/** The rows of a menu that name a nous: those of the part of it that scrolls. */
+/** The rows of a level that scroll: those that name a model. */
 const nousOf = (menu) => menu.querySelector('.nous-list').querySelectorAll('[role=menuitem]')
+
+/** The rows a menu opens on, a level each: what each picks and what is picked at it. */
+const levelsOf = (menu) => menu.querySelectorAll('.choice.step').map((one) => [one.querySelector('.choice-label').textContent, one.querySelector('.choice-about').textContent])
+
+/** The rows of the level that picks a harness, and those that name a virtual nous. */
+const harnessesOf = (menu) => menu.querySelectorAll('[role=menuitem]').filter((one) => one.dataset.cli)
+const virtualOf = (menu) => menu.querySelectorAll('[role=menuitem]').filter((one) => one.dataset.hmz === 'pick-virtual')
+
+/** Goes into a level of a menu from its row. */
+const into = (menu, level) => menu.querySelector(`[data-hmz=step-${level}]`).click()
 
 /** A key pressed on a thing, as the thing's own listeners hear it. */
 function pressed(on, name, target = on, more = {}) {
@@ -53,7 +64,7 @@ function pressed(on, name, target = on, more = {}) {
   return event
 }
 
-test('a long menu of nous is found by typing: its rows alone scroll, none read alike, and nothing found says so', async () => {
+test('a nous is picked a level at a time: the menu opens on a row a level, never on a list of every nous', async () => {
   await readBackends('/w')
   const made = modelChip('assistant', 'litellm/vertex_ai/claude-opus-3')
   const row = under(made.node)
@@ -64,17 +75,71 @@ test('a long menu of nous is found by typing: its rows alone scroll, none read a
     assert.equal(button.getAttribute('aria-label'), 'Nous: LiteLLM Opus 3 (vertex_ai) Default')
     button.click()
     const menu = made.node.querySelector('[role=menu]')
-    const find = menu.querySelector('[data-hmz=pick-nous-find]')
+    // One account and no effort this model takes: neither has a row.
+    assert.deepEqual(levelsOf(menu), [['Harness', 'LiteLLM'], ['Model', 'Opus 3 (vertex_ai)']])
+    assert.equal(menu.querySelector('.nous-list'), null)
+    // A harness is picked from the harnesses alone, and its model next.
+    into(menu, 'harness')
+    assert.equal(menu.querySelector('.steps').dataset.step, 'harness')
+    assert.deepEqual(harnessesOf(menu).map((one) => [one.textContent, one.classList.contains('chosen')]), [['LiteLLM', true], ['Claude Code', false]])
+    assert.equal(document.activeElement.textContent, 'LiteLLM')
+    harnessesOf(menu)[1].click()
+    assert.equal(menu.querySelector('.steps').dataset.step, 'model')
+    assert.deepEqual(nousOf(menu).map((one) => one.textContent), ['Haiku 4.5'])
+    assert.equal(made.value(), 'claude/claude-haiku-4-5')
+    // The way back is over the level, said as the level, and the left arrow takes it.
+    const back = menu.querySelector('[data-hmz=step-back]')
+    assert.equal(back.textContent, 'Model')
+    assert.equal(back.getAttribute('aria-label'), 'Back from Model')
+    pressed(menu.querySelector('.steps'), 'ArrowLeft', nousOf(menu)[0])
+    assert.equal(menu.querySelector('.steps').dataset.step, '')
+    assert.equal(document.activeElement, menu.querySelector('[data-hmz=step-model]'))
+    assert.deepEqual(levelsOf(menu), [['Harness', 'Claude Code'], ['Model', 'Haiku 4.5']])
+    // The harness left is picked again from what was last picked of it.
+    into(menu, 'harness')
+    harnessesOf(menu)[0].click()
+    assert.equal(made.value(), 'litellm/vertex_ai/claude-opus-3')
+    // A model that takes efforts has a level of them, and picking one closes the menu.
+    nousOf(menu).find((one) => one.textContent === 'Opus 1 (azure_ai)').click()
+    assert.equal(made.node.querySelector('[role=menu]'), null)
+    assert.equal(made.value(), 'litellm/azure_ai/claude-opus-1')
+    button.click()
+    const again = made.node.querySelector('[role=menu]')
+    assert.deepEqual(levelsOf(again), [['Harness', 'LiteLLM'], ['Model', 'Opus 1 (azure_ai)'], ['Effort', 'Default']])
+    into(again, 'effort')
+    assert.deepEqual(again.querySelectorAll('[role=menuitem]').filter((one) => 'value' in one.dataset).map((one) => one.textContent), ['Default', 'Low', 'High'])
+    again.querySelectorAll('[role=menuitem]').filter((one) => 'value' in one.dataset)[2].click()
+    assert.equal(made.value(), 'litellm/azure_ai/claude-opus-1:high')
+    assert.equal(button.textContent, 'LiteLLM Opus 1 (azure_ai) High')
+  } finally {
+    dismiss('route')
+    made.leave()
+    row.remove()
+  }
+})
+
+test('a long level of models is found by typing: its rows alone scroll, none read alike, and nothing found says so', async () => {
+  await readBackends('/w')
+  const made = modelChip('assistant', 'litellm/vertex_ai/claude-opus-3')
+  const row = under(made.node)
+  const button = made.node.querySelector('[data-hmz=pick-model]')
+  try {
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    into(menu, 'model')
+    const find = menu.querySelector('[data-hmz=pick-model-find]')
     const list = menu.querySelector('.nous-list')
     const rows = () => list.querySelectorAll('[role=menuitem]')
     const shown = () => rows().filter((one) => !one.hidden).map((one) => one.textContent)
     // The field and what is under the rows are no part of what scrolls.
     assert.ok(find && !list.contains(find))
-    assert.deepEqual(menu.querySelectorAll('.choice-sub').map((one) => [one.textContent, list.contains(one)]), [['More', false]])
-    assert.equal(rows().length, 13)
-    assert.equal(new Set(shown()).size, 13)
-    // It opens on the nous chosen, and what is typed there goes to the field.
-    assert.equal(document.activeElement.textContent, 'LiteLLM - Opus 3 (vertex_ai)')
+    assert.ok(!list.contains(menu.querySelector('[data-hmz=pick-model-typed]')))
+    assert.ok(!list.contains(menu.querySelector('[data-hmz=pick-refresh]')))
+    // The models of the harness chosen alone, no two read alike.
+    assert.equal(rows().length, 12)
+    assert.equal(new Set(shown()).size, 12)
+    // It opens on the model chosen, and what is typed there goes to the field.
+    assert.equal(document.activeElement.textContent, 'Opus 3 (vertex_ai)')
     pressed(list, 'o', document.activeElement)
     assert.equal(document.activeElement, find)
     // A key that does something else on a row is the row's still.
@@ -92,26 +157,25 @@ test('a long menu of nous is found by typing: its rows alone scroll, none read a
       find.dispatchEvent(new Event('input'))
     }
     typed('opus 2')
-    assert.deepEqual(shown(), ['LiteLLM - Opus 2 (azure_ai)', 'LiteLLM - Opus 2 (vertex_ai)'])
+    assert.deepEqual(shown(), ['Opus 2 (azure_ai)', 'Opus 2 (vertex_ai)'])
     assert.equal(list.querySelector('.ask-none').hidden, true)
-    assert.ok(list.querySelectorAll('hr').every((one) => one.hidden))
     typed('litellm/azure_ai/claude-opus-6')
-    assert.deepEqual(shown(), ['LiteLLM - Opus 6 (azure_ai)'])
+    assert.deepEqual(shown(), ['Opus 6 (azure_ai)'])
     typed('zzzzqq')
     assert.deepEqual(shown(), [])
     assert.equal(list.querySelector('.ask-none').hidden, false)
-    assert.equal(list.querySelector('.ask-none').textContent, 'No nous matches')
+    assert.equal(list.querySelector('.ask-none').textContent, 'No model matches')
     // Closed and opened again, nothing is looked for still.
     dismiss('route')
     button.click()
     const again = made.node.querySelector('[role=menu]')
-    assert.equal(again.querySelector('[data-hmz=pick-nous-find]').value, '')
-    assert.equal(nousOf(again).filter((one) => !one.hidden).length, 13)
-    assert.equal(again.querySelector('.ask-none').hidden, true)
+    into(again, 'model')
+    assert.equal(again.querySelector('[data-hmz=pick-model-find]').value, '')
+    assert.equal(nousOf(again).filter((one) => !one.hidden).length, 12)
     // Found and picked, it is the nous of the chip.
-    nousOf(again).find((one) => one.textContent === 'LiteLLM - Opus 1 (azure_ai)').click()
-    assert.equal(made.value(), 'litellm/azure_ai/claude-opus-1')
-    assert.equal(button.textContent, 'LiteLLM Opus 1 (azure_ai) Default')
+    nousOf(again).find((one) => one.textContent === 'Opus 2 (azure_ai)').click()
+    assert.equal(made.value(), 'litellm/azure_ai/claude-opus-2')
+    assert.equal(button.textContent, 'LiteLLM Opus 2 (azure_ai) Default')
   } finally {
     dismiss('route')
     made.leave()
@@ -119,7 +183,7 @@ test('a long menu of nous is found by typing: its rows alone scroll, none read a
   }
 })
 
-test('a short menu of nous has no field to find one by', async () => {
+test('a level with one choice has no row, and a short level of models no field to find one by', async () => {
   clis = { claude: MANY.claude }
   await readBackends('/w')
   const made = modelChip('assistant', 'claude/claude-haiku-4-5')
@@ -127,8 +191,10 @@ test('a short menu of nous has no field to find one by', async () => {
   try {
     made.node.querySelector('[data-hmz=pick-model]').click()
     const menu = made.node.querySelector('[role=menu]')
-    assert.equal(menu.querySelector('[data-hmz=pick-nous-find]'), null)
-    assert.deepEqual(nousOf(menu).map((one) => one.textContent), ['Claude Code - Haiku 4.5'])
+    assert.deepEqual(levelsOf(menu), [['Model', 'Haiku 4.5']])
+    into(menu, 'model')
+    assert.equal(menu.querySelector('[data-hmz=pick-model-find]'), null)
+    assert.deepEqual(nousOf(menu).map((one) => one.textContent), ['Haiku 4.5'])
   } finally {
     dismiss('route')
     made.leave()
@@ -138,14 +204,70 @@ test('a short menu of nous has no field to find one by', async () => {
   }
 })
 
-test('a menu opened from a choice of a chip`s menu ends no lower than that menu, off the chips and the box', async () => {
-  const made = modelChip('assistant', 'litellm/azure_ai/claude-opus-1:low')
+test('the virtual nous are offered first, each by its name, and one picked is what the chip says and gives', async () => {
+  await readBackends('/w')
+  let told = 0
+  const made = modelChip('assistant', 'careful', () => told++, { virtual: () => ['careful', 'fast'] })
   const row = under(made.node)
   const button = made.node.querySelector('[data-hmz=pick-model]')
   try {
-    button.box = { left: 800, top: 768, width: 200, height: 24 }
+    assert.equal(made.value(), 'careful')
+    assert.equal(button.textContent, 'careful')
+    assert.equal(button.getAttribute('aria-label'), 'Nous: careful')
     button.click()
     const menu = made.node.querySelector('[role=menu]')
+    assert.deepEqual(menu.querySelectorAll('.popover-head').map((one) => one.textContent), ['Virtual', 'Concrete'])
+    assert.deepEqual(virtualOf(menu).map((one) => [one.textContent, one.classList.contains('chosen')]), [['careful', true], ['fast', false]])
+    // It opens on the one chosen, over the levels of a concrete one.
+    assert.equal(document.activeElement.textContent, 'careful')
+    virtualOf(menu)[1].click()
+    assert.equal(made.value(), 'fast')
+    assert.equal(told, 1)
+    // A concrete one picked instead is no longer the virtual one.
+    button.click()
+    const again = made.node.querySelector('[role=menu]')
+    into(again, 'model')
+    nousOf(again).find((one) => one.textContent === 'Opus 5 (azure_ai)').click()
+    assert.equal(made.value(), 'litellm/azure_ai/claude-opus-5')
+    assert.equal(told, 2)
+  } finally {
+    dismiss('route')
+    made.leave()
+    row.remove()
+  }
+})
+
+test('a chip drawn as a field holds what it was given as it is written until another is picked', async () => {
+  await readBackends('/w')
+  // A harness that is not installed here, and an effort nobody lists: kept, not settled away.
+  const made = modelChip('node', 'codex/gpt-9:high', () => {}, { up: false, align: 'start', field: true, virtual: () => [] })
+  const row = el('div', { class: 'row' }, made.node)
+  body.append(row)
+  const button = made.node.querySelector('[data-hmz=pick-model]')
+  try {
+    assert.ok(button.classList.contains('as-field'))
+    assert.equal(made.value(), 'codex/gpt-9:high')
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    into(menu, 'harness')
+    harnessesOf(menu).find((one) => one.textContent === 'Claude Code').click()
+    assert.equal(made.value(), 'claude/claude-haiku-4-5')
+  } finally {
+    dismiss('route')
+    made.leave()
+    row.remove()
+  }
+})
+
+test('a menu opened from a choice of a chip`s menu ends no lower than that menu, off the chips and the box', async () => {
+  const button = el('button', { class: 'chip-btn', type: 'button' })
+  const holder = el('span', {}, button)
+  const row = under(holder)
+  menuOf(button, () => [submenu({ label: 'Effort', items: () => [el('button', { role: 'menuitem' })] })], { align: 'end', up: true, label: 'Chip' })
+  try {
+    button.box = { left: 800, top: 768, width: 200, height: 24 }
+    button.click()
+    const menu = holder.querySelector('[role=menu]')
     menu.box = { left: 680, top: 420, width: 320, height: 342 }
     const effort = menu.querySelectorAll('.choice-sub').find((one) => one.textContent.startsWith('Effort'))
     const opener = effort.querySelector('[aria-haspopup=menu]')
@@ -168,7 +290,6 @@ test('a menu opened from a choice of a chip`s menu ends no lower than that menu,
     assert.equal(sub.style.top, `${762 - 154}px`)
   } finally {
     dismiss('route')
-    made.leave()
     row.remove()
   }
 })
@@ -281,8 +402,8 @@ test('a chip of a flow`s role offers only the harnesses that can fill it, and it
     button.box = { left: 300, top: 200, width: 220, height: 24 }
     button.click()
     const menu = made.node.querySelector('[role=menu]')
-    // No row of a harness the role cannot be filled by, though the daemon lists twelve of its models.
-    assert.deepEqual(nousOf(menu).map((one) => one.textContent), ['Claude Code - Haiku 4.5'])
+    // No level of harnesses where one alone can fill it, though the daemon lists another's twelve models.
+    assert.deepEqual(levelsOf(menu), [['Model', 'Haiku 4.5']])
     // Under the chip, its left edge on the chip's.
     assert.equal(menu.style.left, '300px')
     assert.ok(parseFloat(menu.style.top) >= 224)
@@ -302,7 +423,8 @@ test('a chip named by a role alone still offers every harness, over the chip', a
     button.box = { left: 800, top: 768, width: 200, height: 24 }
     button.click()
     const menu = made.node.querySelector('[role=menu]')
-    assert.equal(nousOf(menu).length, 13)
+    into(menu, 'harness')
+    assert.deepEqual(harnessesOf(menu).map((one) => one.textContent), ['LiteLLM', 'Claude Code'])
     assert.ok(parseFloat(menu.style.top) < 768)
   } finally {
     dismiss('route')

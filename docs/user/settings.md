@@ -741,7 +741,9 @@ turn, which is exactly the old fallback chain.
 
 1. Type `/settings nous` (or open **Nous** in the web page's settings).
 2. Add a nous. For a concrete one, pick the model and effort, set **tries** and **policy**, and
-   add the nous of its **then**, in order.
+   add the nous of its **then**, in order. In the web page a concrete nous is not added: every
+   one the daemon's harnesses run is already listed under **Concrete** -- **Scan** asks them
+   again -- and **Edit** on its row sets the same things.
 3. For a virtual one, give it a name, then add its nodes: a balance node over two accounts of
    the same model, and a use node for another CLI, with an edge from the balance node for
    `spent` to it.

@@ -563,10 +563,12 @@ def _fetches(*, verses: bool = True) -> None:
     """Fetches what the daemon tells its clients of, in the background, telling none of them.
 
     The newest release of hmz, where what is kept has got old, which `session.hello` reads,
-    and every flowverse's index, which `flowverses.list` reads (Section 3.9.8 of daemon.md).
+    every flowverse's index, which `flowverses.list` reads (Section 3.9.8 of daemon.md), and
+    what each harness installed runs, which `nous.list` reads (Section 4.18.3.6 of daemon.md).
 
     Args:
-      verses: Whether the flowverses' indexes are fetched as well, which is as it starts alone.
+      verses: Whether the flowverses' indexes are fetched and the harnesses scanned as well,
+        which is as it starts alone.
     """
     import importlib
 
@@ -576,6 +578,8 @@ def _fetches(*, verses: bool = True) -> None:
     if verses:
         # Found as the families are, above this layer.
         importlib.import_module("hmz.daemon.api.flowverses").fetches()
+        # What each harness installed runs, where nobody asked it yet (Section 4.18.3.6).
+        importlib.import_module("hmz.daemon.api.nous").scans()
 
 
 def _listened() -> list[str]:

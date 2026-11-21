@@ -140,7 +140,6 @@ export default {
   'Folders': '資料夾',
   'Opening…': '正在開啟…',
   // pickers.js: the agent and the environment of a role, picked a step at a time.
-  'A nous': '一個 Nous',
   'CLI for {role}': '{role} 的 CLI',
   'Account for {role}': '{role} 的帳號',
   'Model for {role}': '{role} 的模型',

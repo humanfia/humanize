@@ -303,6 +303,11 @@ export function place(pop, anchor, { align = 'start', up = false, span = false, 
   pop.style.left = `${Math.max(EDGE, Math.min(left, innerWidth - wide - EDGE))}px`
 }
 
+/** Says that what a popup holds was drawn again, of another size: it is placed again at once. */
+export function redrawn(inside) {
+  inside.dispatchEvent(new Event('redrawn', { bubbles: true }))
+}
+
 /**
  * Places a popup and keeps it by what opened it as the window is sized or the popup grows; says
  * how to stop. What opened it scrolled away, it is closed, not sent after it.
@@ -319,10 +324,14 @@ export function follow(pop, anchor, how) {
   })
   grown.observe(pop)
   addEventListener('resize', again)
+  // What draws another thing in it says so (`redrawn`), and it is placed before it is seen:
+  // a menu over its button would else stand a frame on the button.
+  pop.addEventListener('redrawn', again)
   return () => {
     grown.disconnect()
     cancelAnimationFrame(frame)
     removeEventListener('resize', again)
+    pop.removeEventListener('redrawn', again)
   }
 }
 

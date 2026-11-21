@@ -193,9 +193,12 @@ export default {
   '{spec} · not listed': '{spec} · 未列出',
   'No nous matches': '沒有符合的 Nous',
   'Find a nous': '尋找 Nous',
+  'No model matches': '沒有符合的模型',
+  'Find a model': '尋找模型',
+  'Harness': 'Harness',
+  'Back from {level}': '從「{level}」返回',
   'No harness installed here can fill it.': '這裡安裝的 Harness 都無法擔任。',
   'Asking {name} for models…': '正在向 {name} 詢問模型…',
-  'More': '更多',
   'Every part of its agent is picked as a chat starts': '開始聊天時可以選擇 Agent 的每個項目',
   // chips/permission-modes.js, chips/permission.js
   'Read only': '唯讀',
