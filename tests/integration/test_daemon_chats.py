@@ -1584,6 +1584,60 @@ def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_noth
         again.close()
 
 
+def test_a_chat_moved_with_nothing_said_reads_as_where_it_now_works(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    there, on = tmp_path / "there", tmp_path / "on"
+    there.mkdir()
+    on.mkdir()
+    link, _, _, name = _chat(project, "hello there")
+    _ended(link, user, name)
+    at = _directory(name)
+    wrote = (at / CHATTED).read_bytes()
+    carried = {"workspace": str(project), "task": "", "resume": name}
+
+    # Moved on the host that stands by with it, its row says so, its record nothing yet.
+    woke = user.call("chat.start", carried, timeout=60)
+    named = {"workspace": str(project), "slot": woke["slot"]}
+    assert _row(user, name)["env"] == _spelled(project)
+    moved = user.call("chat.move", {**named, "env": _spelled(there)}, timeout=60)
+    assert moved["env"] == _spelled(there)
+    row = _row(user, name)
+    assert (row["env"], row["workdir"]) == (_spelled(there), str(there))
+    (listed,) = [
+        one
+        for one in user.call("chat.list", {}, timeout=30)["chats"]
+        if one["id"] == name
+    ]
+    assert listed["env"] == _spelled(there)
+    assert (at / CHATTED).read_bytes() == wrote
+
+    # Carried on there with an env and nothing to say, it is moved, not only answered; an
+    # env it is in already moves nothing, and one that cannot take it refuses the call.
+    assert user.call("chat.start", {**carried, "env": _spelled(on)}, timeout=60) == woke
+    assert _row(user, name)["env"] == _spelled(on)
+    assert user.call("chat.start", {**carried, "env": _spelled(on)}, timeout=60) == woke
+    code, why = _refused(
+        user, "chat.start", **carried, env=_spelled(tmp_path / "missing")
+    )
+    assert code == 409
+    assert why.startswith("The chat stays where it was: ")
+    assert _row(user, name)["env"] == _spelled(on)
+
+    # What is said then is said there, and its record says where from then on.
+    again = daemon.attach("sdk", workspace=project, slot=woke["slot"])
+    heard = Heard()
+    again.heard(heard)
+    try:
+        again.chat_say("and here?")
+        assert until(_asked(heard, "did: and here?"))
+        assert (on / "landed.txt").read_text() == "and here?\n"
+        assert [one["env"] for one in _events(at) if "env" in one] == [_spelled(on)]
+        assert _row(user, name)["env"] == _spelled(on)
+    finally:
+        _ended(again, user, name)
+
+
 def test_a_chat_standing_by_gives_way_to_another_agent_and_is_one_host_to_two_at_once(
     project: Path, user: Peer, tmp_path: Path
 ) -> None:

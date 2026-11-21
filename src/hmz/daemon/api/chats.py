@@ -93,10 +93,13 @@ def row(
     assistant = ran.agents[-1] if ran.agents else None
     workspace = runs.resolved(ran.workspace)
     workdir = ran.workdir or workspace
-    env = ran.env or f"local/{workdir.lstrip('/')}"
-    if ran.env:
+    # Where the host holding it says it works, which is ahead of its record while it is
+    # carried on with nothing said (Section 4.6.4.1): moved there, it is there.
+    placed = str((status or {}).get("env") or "") or ran.env
+    env = placed or f"local/{workdir.lstrip('/')}"
+    if placed:
         # The directory there, as `-e` writes one: absolute, or from `~`.
-        at = ran.env.partition("/")[2]
+        at = placed.partition("/")[2]
         workdir = at if at.startswith("~") else f"/{at}"
     return {
         "id": ran.name,

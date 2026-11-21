@@ -660,6 +660,8 @@ an absent `turn` as the host holding neither a chat nor an Ai-chan conversation.
   flow, task}`, `at` in Unix seconds; `null` before one has ended.
 - `turn`: Of a chat or an Ai-chan conversation only: `running` while its agent answers, `done`
   between turns and once it is over.
+- `env`: Of a chat or an Ai-chan conversation only: the env its assistant works in, as `-e`
+  writes one after `<role>=`, where it was started in one or moved to one; `""` otherwise.
 - `budget`, `usage`: The epic going's budget and spending as JSON, an infinite limit as the text
   `"Infinity"`; `null` while stopping or idle.
 - `flows`: The canonical refs of the flow calls in progress.
@@ -1666,7 +1668,9 @@ with nothing written MUST be refused 404, and one another nous names 400.
 own sign-in and as each account made for it, keep each answer as `accounts.models` keeps it, and
 answer as `nous.list` does with `failed`: each `cli` and `account` that would not answer, and
 `why`. A harness that does not answer MUST NOT fail the call. One scan MUST go on at a time: a
-`nous.scan` called while one is going MUST wait for that one and answer what it found.
+`nous.scan` called while one is going MUST wait for that one and answer what it found; while the
+one going is the scan a daemon starts with (Section 3.9.8.1), which asks only some, it MUST wait
+for that one and then ask every harness itself.
 
 #### 4.18.4. `runtimes.*`
 
@@ -2339,8 +2343,10 @@ had held it. Where a host holds that chat and something has been said to it, `ch
 
 **4.25.1.10** With `env`, `chat.start` MUST start the chat in that env (Section 8.3.15 of [CORE]),
 in a new worktree made there where `worktree` is `true` too; with `resume`, it MUST carry the chat
-on in that env, which is a move (Section 8.3.16 of [CORE]) -- made on the host that holds the chat
-with nothing said, where one does, before `task` is said there. It MUST be refused 400, in the
+on in that env, which is a move (Section 8.3.16 of [CORE]) -- made on the host that holds the chat,
+where one does and the chat is not in that env already, before `task` is said there, and made
+there too where `task` is empty; a move refused there MUST refuse the call as `chat.move` is
+refused. It MUST be refused 400, in the
 words `-e` is refused with, for an `env` that is not one, and as Section 8.3.7 of [CORE] states
 for one that cannot be reached or that the agent cannot be put in, no chat being recorded.
 
@@ -2409,7 +2415,9 @@ MUST answer `chats` (chat rows, newest begun first), `total`, `offset` and `limi
 `workdir` (where its assistant works: the workspace, or the worktree
 of Section 8.3.13 of [CORE], or the directory of the env it was started in or moved to), `env`
 (the env its assistant works in, as `-e` writes one after `<role>=`: `local/<workdir>` for a
-directory of this machine, Section 8.3.15 of [CORE]), `agent` (its assistant as an agent spec), `model`, `began`, `updated`
+directory of this machine, Section 8.3.15 of [CORE]; of a chat a host holds, the env that host's
+status says where it says one, Section 4.6.4.1, so that a chat moved with nothing said yet reads
+as where it now works), `agent` (its assistant as an agent spec), `model`, `began`, `updated`
 (when its record was last written), `state`, `slot` (the slot of the host holding it, `""` for
 none), `asking` (the questions its assistant asked mid-turn and waits on, each `<run>:<question>`),
 `permission` (Section 8.3.9 of [CORE]), `archived` (boolean) and `spent` (as an epic row's, Section

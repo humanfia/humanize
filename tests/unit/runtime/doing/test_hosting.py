@@ -1982,6 +1982,8 @@ def test_what_is_said_to_a_chat_is_its_next_message_and_its_turn_runs_until_answ
     host, alice = chatting
     chat = _chatted(host, alice, where)
     assert host.status()["turn"] == "done"
+    # Where it works, as the chat itself says: none said, for one in its workspace.
+    assert host.status()["env"] == str(getattr(chat, "env", "") or "")
 
     assert host.chatted({"do": "say", "text": "and more", "by": "bob"}) == {"ok": True}
 

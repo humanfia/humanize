@@ -213,6 +213,36 @@ def test_a_scan_asked_for_while_one_is_going_waits_for_it_and_asks_nobody() -> N
     assert nous.listed(hmz)["scanning"] is False
 
 
+def test_a_scan_asked_for_while_the_daemons_own_is_going_asks_everyone_after_it() -> (
+    None
+):
+    accounts = _Accounts(fresh=("claude",))
+    accounts.held.clear()
+    hmz = _scanned(accounts)
+    answers: list[dict[str, Any]] = []
+    first = threading.Thread(target=lambda: nous.scan(hmz, stale=True))
+    first.start()
+    while not nous.listed(hmz)["scanning"]:
+        time.sleep(0.01)
+    second = threading.Thread(target=lambda: answers.append(nous.scan(hmz)))
+    second.start()
+    time.sleep(0.05)
+
+    accounts.held.set()
+    first.join(5)
+    second.join(5)
+
+    # The stale alone first, then every one: what was asked lately is asked again.
+    assert accounts.asks[0] == ("codex", "")
+    assert sorted(accounts.asks[1:]) == [
+        ("claude", ""),
+        ("claude", "work"),
+        ("codex", ""),
+    ]
+    assert answers[0]["scanning"] is False
+    assert nous.listed(hmz)["scanning"] is False
+
+
 def test_the_scan_a_daemon_starts_with_is_turned_off_by_its_variable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

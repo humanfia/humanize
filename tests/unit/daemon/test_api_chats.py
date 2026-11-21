@@ -195,6 +195,16 @@ def test_a_resting_chats_row_is_what_its_record_says() -> None:
     }
 
 
+def test_a_chat_its_host_says_was_moved_reads_as_where_it_now_works() -> None:
+    # Moved while carried on with nothing said: its record says nothing of it yet.
+    moved = chats.row(_ran(how=""), _status(env="ssh@gpu/srv/repo"))
+    assert (moved["env"], moved["workdir"]) == ("ssh@gpu/srv/repo", "/srv/repo")
+    # A host that says no env leaves what the record says, as does no host at all.
+    kept = chats.row(_ran(how="", env="local/srv/there"), _status(env=""))
+    assert (kept["env"], kept["workdir"]) == ("local/srv/there", "/srv/there")
+    assert chats.row(_ran(env="local/srv/there"))["env"] == "local/srv/there"
+
+
 def test_a_row_says_a_chat_started_in_no_folder_is_folderless(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

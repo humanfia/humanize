@@ -461,6 +461,15 @@ class Chat:
                 self._epic.write("set", env=said)
         return said
 
+    @property
+    def env(self) -> str:
+        """The env its assistant works in now, as `-e` spells one after `<role>=`.
+
+        "" where it was given none and moved to none, and so works where its record says. One
+        moved while it is carried on with nothing said is said here before its record says it.
+        """
+        return self._env
+
     def granted(self) -> Permission:
         """What the assistant may touch now: its role's, else its preset and the web."""
         from hmz.flows import Permission

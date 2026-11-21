@@ -30,7 +30,7 @@ SCAN = "HUMANIZE_SCAN"
 _AT_ONCE = 4
 
 #: The scan going on in this process, which a second one asked for meanwhile waits for.
-_going: Future[list[dict[str, str]]] | None = None
+_going: tuple[Future[list[dict[str, str]]], bool] | None = None
 _GOING = threading.Lock()
 
 
@@ -83,7 +83,9 @@ def scan(hmz: Any, *, stale: bool = False) -> dict[str, Any]:
 
     What each says is kept, as `accounts.models` keeps it, and is what `nous.list` answers as
     `concrete` from then on. One scan goes on at a time: one asked for while another is going
-    waits for that one and answers what it found.
+    waits for that one and answers what it found -- unless that one asks only the stale and
+    this one asks all, which then scans in its turn, so that a scan somebody asked for is never
+    answered by the lesser one a daemon starts with.
 
     Args:
       hmz: Humanize.
@@ -95,18 +97,24 @@ def scan(hmz: Any, *, stale: bool = False) -> dict[str, Any]:
       not say, and `why`.
     """
     global _going  # noqa: PLW0603 -- one scan per process
-    with _GOING:
-        mine = _going is None
-        going = _going = _going or Future()
-    if mine:
-        failed: list[dict[str, str]] = []
-        try:
-            failed = _asks(hmz, stale=stale)
-        finally:
-            with _GOING:
-                _going = None
-            going.set_result(failed)
-    return {**listed(hmz), "failed": going.result()}
+    while True:
+        with _GOING:
+            held = _going
+            mine = held is None
+            if held is None:
+                held = _going = (Future(), stale)
+        going, lesser = held
+        if mine:
+            failed: list[dict[str, str]] = []
+            try:
+                failed = _asks(hmz, stale=stale)
+            finally:
+                with _GOING:
+                    _going = None
+                going.set_result(failed)
+        found = going.result()
+        if mine or stale or not lesser:
+            return {**listed(hmz), "failed": found}
 
 
 def _asks(hmz: Any, *, stale: bool) -> list[dict[str, str]]:

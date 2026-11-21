@@ -496,18 +496,29 @@ class _Methods:
                 # Said to the host standing by with it, nothing said yet, as its first turn;
                 # one of another agent ends as it was first.
                 first = {key: checked[key] for key in ("agent", "prefer", "permission")}
-                if checked["env"]:
-                    # Where it is carried on, before anything is said there.
-                    self._chatted(
-                        call, holding[0], {"do": "move", "env": checked["env"]}
-                    )
+                # Where it is carried on, before anything is said there.
+                self._moved_first(call, holding, checked["env"])
                 said = {"do": "say", "text": checked["task"], "first": first}
                 if not self._chatted(call, holding[0], said).get("ended"):
                     return {"slot": holding[0].slot, "chat": resumed}
                 self._let_go(resumed)
             elif holding is not None:
+                # Nothing to say, and somewhere to be: the host that holds it is moved there
+                # (Section 4.25.1.10), never answered as though it were.
+                self._moved_first(call, holding, checked["env"])
                 return {"slot": holding[0].slot, "chat": resumed}
             return self._chat_started(call, named, slotted, checked, resumed)
+
+    def _moved_first(
+        self, call: Call, holding: tuple[Hosted, dict[str, Any]], env: str
+    ) -> None:
+        """Moves the chat a host holds to the env a `chat.start` names, where it is not there.
+
+        Raises:
+          RpcError: As `chat.move` is refused, the chat left where it was.
+        """
+        if env and env != holding[1].get("env"):
+            self._chatted(call, holding[0], {"do": "move", "env": env})
 
     def _let_go(self, chat: str) -> None:
         """Waits a while for the host that held a chat to have ended."""

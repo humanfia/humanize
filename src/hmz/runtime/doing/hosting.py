@@ -924,9 +924,9 @@ class Host:
         Returns:
           How many frontends are attached and who, the state and number of the run, the
           flow, its epic and task, what it may spend and has spent -- both None with nothing
-          running -- the questions it waits on, whether it is a flow's or a chat, the chat
-          and where it is in its turn, how the last run to end ended, and the flows running,
-          as refs and as calls.
+          running -- the questions it waits on, whether it is a flow's or a chat, the chat,
+          where it is in its turn and the env it works in, how the last run to end ended,
+          and the flows running, as refs and as calls.
         """
         with self._lock:
             running = self._current
@@ -1194,7 +1194,11 @@ class Host:
         listening = any(
             one.run == shown.number and one.mode == "listen" for one in self._questions
         )
-        return {"turn": "done" if between or listening else "running"}
+        return {
+            "turn": "done" if between or listening else "running",
+            # Where it works now, which its record says only once something is said there.
+            "env": str(getattr(shown.run.chat, "env", "") or ""),
+        }
 
     def _name_of(self, client: str) -> str:
         frontend = self._frontends.get(client)
