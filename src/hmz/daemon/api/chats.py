@@ -251,11 +251,17 @@ def _rename(call: Call) -> dict[str, Any]:
 
 
 def _agent(call: Call) -> dict[str, Any]:
-    """Writes a chat no host holds as carried on with another model or effort (4.25.7.7)."""
+    """Writes a chat no host holds as carried on with another model or effort (4.25.7.7).
+
+    One a host holds was given it by that host, which the daemon asked first and whose
+    record it is to write: its row is all that is answered.
+    """
     from hmz.runtime.chatting import KeptAs, carried_as
     from hmz.runtime.epic import note
 
     ran = _named(call)
+    if ran.name in hosted():
+        return _row(ran)
     # Not under a process that is no host, which reads its record as it opened it.
     if CHATS.going(ran):
         raise RpcError(

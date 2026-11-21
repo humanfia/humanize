@@ -55,7 +55,7 @@ export function mount(root, { parts }) {
       return
     }
     // Nothing of it is kept to draw it by again.
-    logs.drop(logKey('chat', id, on.on))
+    logs.drop(logKey('chat', id))
     chatsChanged()
     // Closed meanwhile, there is no dialog left to close.
     if (gone) return

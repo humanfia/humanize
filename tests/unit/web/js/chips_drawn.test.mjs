@@ -528,6 +528,35 @@ test('a chat begun keeps its harness and its account, and is carried on with the
   }
 })
 
+test('a chat drawn from what the page kept of it says its parts, and picks none until the daemon has said what it runs', async () => {
+  await readBackends('/w')
+  let kept = true
+  let agent = 'litellm/azure_ai/claude-opus-2:auto'
+  const asked = []
+  const made = modelFact({ of: () => agent, fresh: () => '#/new/chat', set: (to) => asked.push(to), sure: () => !kept })
+  const row = under(made.node)
+  const button = made.node.querySelector('[data-hmz=chat-model]')
+  try {
+    button.click()
+    const menu = made.node.querySelector('[role=menu]')
+    await until(() => menu.querySelectorAll('.model-fact').length)
+    // Section 3.6.12.4 of web.md: what was kept is drawn, and nothing is carried on from it.
+    assert.deepEqual(menu.querySelectorAll('.model-fact').map((one) => one.textContent), ['HarnessLiteLLM', 'AccountLocal', 'ModelOpus 2', 'EffortDefault'])
+    assert.deepEqual(levelsOf(menu), [])
+    // The daemon answers, another model than the one kept: the menu open picks of that one.
+    kept = false
+    agent = 'litellm/vertex_ai/claude-opus-1:auto'
+    made.again()
+    assert.deepEqual(levelsOf(menu), [['Model', 'Opus 1 (vertex_ai)'], ['Effort', 'Default']])
+    into(menu, 'effort')
+    menu.querySelectorAll('[role=menuitem]').filter((one) => one.dataset.value === 'high')[0].click()
+    assert.deepEqual(asked, ['litellm/vertex_ai/claude-opus-1:high'])
+  } finally {
+    dismiss('route')
+    row.remove()
+  }
+})
+
 test('a chat begun with nothing to carry it on by says its parts and picks none', async () => {
   await readBackends('/w')
   const made = modelFact({ of: () => 'claude/claude-haiku-4-5:auto', fresh: () => '#/new/chat' })

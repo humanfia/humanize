@@ -310,10 +310,13 @@ export function modelChip(role, kept, changed = () => {}, { up = true, align = '
  * @param {(agent: string) => unknown} [made.set] Carries the chat on with that agent, of its own
  *   harness and account; without it, nothing of the chat is picked.
  * @param {(error: Error) => void} [made.failed] Told why an agent picked was refused.
+ * @param {() => boolean} [made.sure] Whether what `of` says is the daemon's word: while it is
+ *   only what the page kept of the chat (Section 3.6.12.4 of protocol/web.md), its parts are
+ *   said and none is picked, so that nothing is carried on from an agent it no longer runs.
  * @returns {{node: HTMLElement, again: () => void}} The chip, hidden while no agent is known, and
  *   a way to have it read the agent again.
  */
-export function modelFact({ of, fresh, set = null, failed = () => {} }) {
+export function modelFact({ of, fresh, set = null, failed = () => {}, sure = () => true }) {
   const made = chip('chat-model')
   const { button } = made
   const node = h('span', { class: 'model-pick' }, button)
@@ -322,12 +325,16 @@ export function modelFact({ of, fresh, set = null, failed = () => {} }) {
   let from = ''
   /** The menu's body while it is open. */
   let body = null
+  /** Whether its parts were picked of as it was last drawn. */
+  let pickable = null
   const now = () => picked || of()
   const again = () => {
     // Read again since it was picked: what the chat says now is what it runs.
     if (picked && of() !== from) picked = ''
     const spec = now()
-    if (button.dataset.agent === spec) return
+    const may = Boolean(set) && sure()
+    if (button.dataset.agent === spec && pickable === may) return
+    pickable = may
     node.hidden = !agentLabel(spec)
     say(made, spec)
     body?.again()
@@ -358,7 +365,8 @@ export function modelFact({ of, fresh, set = null, failed = () => {} }) {
     const { cli, account, model } = parted(spec)
     // No rung at all is written `auto`, and picked as the first of its efforts.
     const effort = parted(spec).effort === 'auto' ? '' : parted(spec).effort
-    const offered = set ? offeredTo(spec) : null
+    const may = Boolean(set) && sure()
+    const offered = may ? offeredTo(spec) : null
     const ids = [model, ...(offered ? offered.models.map((one) => one.value).filter((one) => one !== model) : [])]
     const names = modelsNamed(ids)
     const efforts = offered ? offered.efforts : []
@@ -369,7 +377,7 @@ export function modelFact({ of, fresh, set = null, failed = () => {} }) {
         key: 'model',
         title: t('Model'),
         said: names[0],
-        fixed: !set,
+        fixed: !may,
         rows: () => [
           found(
             ids.map((id, at) => {

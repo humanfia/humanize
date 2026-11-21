@@ -701,6 +701,15 @@ def test_a_chat_no_host_holds_is_written_as_carried_on_with_another_model(
         "There is no chat none.",
     )
     assert len(written) == 1
+    # One a host holds was given it by that host: its row is answered, and nothing written.
+    held.hosts["/w\0chat:c1"] = {  # pyright: ignore[reportAttributeAccessIssue]
+        "chat": "c1",
+        "state": "running",
+        "slot": "chat:c1",
+    }
+    said = _call("chat.agent", chat="c1", agent="claude@work/haiku:low")
+    assert (set(said), said["slot"]) == (ROW, "chat:c1")
+    assert len(written) == 1
 
 
 def test_a_chat_is_archived_and_unarchived_once_each(

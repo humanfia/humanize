@@ -1305,8 +1305,17 @@ export function mount(root, { parts, query }) {
       fresh: () => hash(`/new/chat?${new URLSearchParams(now().folderless ? { scratch: '1' } : given({ workspace: now().workspace }))}`),
       // Carried on with another model or effort, a host holding it or none (`chat.agent`): its
       // record says so at once, and its next turn runs at them.
-      set: (agent) => call('chat.agent', { chat: name, agent }).then(() => refresh('chat.get')),
+      set: (agent) =>
+        call('chat.agent', { chat: name, agent }).then((row) => {
+          // The row the daemon answers says what the chat runs from now: were the view left
+          // before its record is read again, what is kept of it (Section 3.6.12) says that agent.
+          if (row && row.agent && seen && seen.detail && !seen.kept && seen.detail.name === name && seen.detail.agents?.length === 1)
+            seen.detail = { ...seen.detail, agent: row.agent, model: row.model, agents: seen.detail.agents.map((one, at) => (at ? one : { ...one, runs: row.agent })) }
+          refresh('chat.get')
+        }),
       failed: (error) => toast(error.message, 6000),
+      // What was kept of a chat is not what it runs: picked of once the daemon has said.
+      sure: () => !(seen && seen.kept),
     })
     const permission = chatPermission(first, sets)
     if (catalogue && catalogue.slot === here.slot) permission.host(catalogue)
