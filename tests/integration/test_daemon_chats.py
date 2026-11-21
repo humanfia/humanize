@@ -426,6 +426,7 @@ def test_a_chat_is_written_down_as_a_chat_and_is_no_epic(
         "id": name,
         "title": "hello there",
         "workspace": str(project.resolve()),
+        "folderless": False,
         "workdir": str(project.resolve()),
         "env": _spelled(project),
         "agent": f"{AGENT}:high",

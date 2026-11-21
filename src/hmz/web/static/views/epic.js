@@ -1197,6 +1197,7 @@ export function mount(root, { parts, query }) {
     const environment = environmentChip({
       now: () => movingTo || envOf(now().env || ''),
       home: () => now().workspace || '',
+      nowhere: () => Boolean(now().folderless),
       busy: () => (seen && seen.going && held() && stoppable(held().standing.run && held().standing.run.turn) ? t('A turn is open. Move the chat once it is done.') : ''),
       failed: (error) => toast(error.message, 6000),
       pick: async (to) => {

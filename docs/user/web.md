@@ -457,7 +457,9 @@ The same chip stays under the box once the chat has begun, and **moves** the cha
 place between turns and the chat [goes on there](/user/chat#moving), in the same conversation
 where its CLI can carry one over. While a turn is open the places are greyed and the menu says
 why; a place that cannot take the chat leaves it where it was, with the daemon's reason. A chat
-that is resting moves as its next message carries it on.
+that is resting moves as its next message carries it on. A chat of **No folder** moves the same
+way, and picks its directory there as any chat does; **This computer** is then *a directory of its
+own*.
 
 A new epic has nothing under its box. **Environment** is the first part of what it is set up
 with, in the middle of the page: a row **Daemon** with the daemon, a row **Folder** with the

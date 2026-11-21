@@ -2117,9 +2117,9 @@ def test_a_setup_is_kept_by_starting_an_epic_and_by_nothing_else(
         chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
         expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
         chip.click()
-        page.get_by_role("menu", name="Nous").locator(
-            "[data-value=claude-opus-4-1]"
-        ).click()
+        nous = page.get_by_role("menu", name="Nous")
+        nous.locator("[data-hmz=step-model]").click()
+        nous.locator("[data-value=claude-opus-4-1]").click()
         expect(chip).to_have_text("Claude Code Opus 4.1 Default")
         # Nothing saves it but a start: the form holds no Save.
         expect(page.get_by_role("button", name="Save")).to_have_count(0)
@@ -2131,9 +2131,9 @@ def test_a_setup_is_kept_by_starting_an_epic_and_by_nothing_else(
         # Started with, it is what a new epic of that flow opens on there.
         _options(page)
         chip.click()
-        page.get_by_role("menu", name="Nous").locator(
-            "[data-value=claude-opus-4-1]"
-        ).click()
+        nous = page.get_by_role("menu", name="Nous")
+        nous.locator("[data-hmz=step-model]").click()
+        nous.locator("[data-value=claude-opus-4-1]").click()
         page.locator("[data-hmz=composer-text]").fill("keep this")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(_EPIC)

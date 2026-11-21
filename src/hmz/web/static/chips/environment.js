@@ -176,12 +176,14 @@ export function envSaid(now, home) {
  * @param {(() => string) | null} [made.worktree] Where a new worktree may be picked: why it is
  *   not on offer now, or '' where it is.
  * @param {() => string} [made.busy] Why nothing can be picked now, or '' where it can.
+ * @param {() => boolean} [made.nowhere] Whether `home` is the directory of a folderless chat, which
+ *   is said as a directory of its own and never by its name.
  * @param {boolean} [made.folders] Whether a directory of this computer is chosen here too, as
  *   under a chat begun; a new chat's is its folder, chosen beside this chip.
  * @param {boolean} [made.up] Whether the menu opens over the chip, as under a box.
  * @returns {{node: HTMLElement, again: () => void}} `again` says where it works afresh.
  */
-export function environmentChip({ now, home, pick, failed = () => {}, worktree = null, busy = () => '', folders = true, up = true }) {
+export function environmentChip({ now, home, pick, failed = () => {}, worktree = null, busy = () => '', nowhere = () => false, folders = true, up = true }) {
   const mark = h('span', { class: 'chip-glyph', 'aria-hidden': 'true' })
   const name = h('span', { 'data-part': 'name' }, '')
   const dir = h('b', { 'data-part': 'dir' }, '')
@@ -317,7 +319,7 @@ export function environmentChip({ now, home, pick, failed = () => {}, worktree =
       }
       return [
         h('p', { class: 'popover-lede', 'data-hmz': 'environment-about' }, why || t('Where this chat’s commands run and its files live.')),
-        place({ key: 'local', label: t('This computer'), about: folder ? t('In the folder {name}', { name: lastOf(folder) }) : t('In a directory of its own'), glyph: 'computer', chosen: here && (!folders || !at.workdir || !folder || same(at.workdir, folder)), act: () => take({ backend: 'local', provider: '', workdir: folder }) }),
+        place({ key: 'local', label: t('This computer'), about: folder && !nowhere() ? t('In the folder {name}', { name: lastOf(folder) }) : t('In a directory of its own'), glyph: 'computer', chosen: here && (!folders || !at.workdir || !folder || same(at.workdir, folder)), act: () => take({ backend: 'local', provider: '', workdir: folder }) }),
         worktree ? tree() : null,
         runtimes.length ? [h('hr'), section(t('Runtimes'))] : null,
         runtimes.map((one) => {

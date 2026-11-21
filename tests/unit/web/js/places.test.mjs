@@ -460,6 +460,30 @@ test('Environment picks nothing while a turn is open, and says why', async () =>
   }
 })
 
+test('Environment says this computer of a folderless chat as a directory of its own, never by its name', async () => {
+  const { environmentChip } = await import('../../../../src/hmz/web/static/chips/environment.js')
+  const made = environmentChip({
+    now: () => ({ backend: 'local', provider: '', workdir: '/tmp/humanize-501/nofolder/k3x9' }),
+    home: () => '/tmp/humanize-501/nofolder/k3x9',
+    nowhere: () => true,
+    pick: () => {},
+  })
+  body.append(made.node)
+  const button = made.node.querySelector('[data-hmz=environment]')
+  try {
+    assert.equal(button.textContent, 'This computer')
+    button.click()
+    const local = made.node.querySelector('[role=menu]').querySelectorAll('[role=menuitemradio]').find((one) => one.dataset.env === 'local')
+    assert.equal(local.querySelector('.choice-about').textContent, 'In a directory of its own')
+    assert.equal(local.getAttribute('aria-checked'), 'true')
+    // Flown elsewhere, a directory there is chosen as any chat's is.
+    assert.ok(made.node.querySelector('[role=menu]').querySelectorAll('[role=menuitem]').some((one) => one.textContent.includes('Choose directory…')))
+  } finally {
+    dismiss('route')
+    made.node.remove()
+  }
+})
+
 /** A hosted picker bound to a button of another's, which holds its form beside it. */
 function hosting(chosen) {
   const made = workspacePicker(chosen, () => {}, { hosted: true })

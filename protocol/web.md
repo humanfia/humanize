@@ -830,7 +830,9 @@ MUST be said in the daemon's own sentence -- in the form of Section 3.8.22.4 whe
 was picked there, and in a toast otherwise -- and MUST leave the chip as it was. While a turn of
 the chat is open, every place of the menu MUST be drawn as switched off, MUST pick nothing, and the
 line over them MUST say `A turn is open. Move the chat once it is done.` The page MUST NOT offer
-the daemon on this row or in this menu.
+the daemon on this row or in this menu. Of a folderless chat (`folderless` of its row), `This
+computer` MUST say `In a directory of its own`, never the directory by its name; such a chat is
+moved, and a directory chosen where it is moved to, as any other is.
 
 #### 3.6.7. An epic written down
 
