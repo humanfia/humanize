@@ -30,19 +30,23 @@ Click the chips under the message box to configure the chat.
 
 | Chip | What it sets | More |
 | --- | --- | --- |
-| Folder (`shop`) | The folder for the chat. **No folder** gives the chat its own temporary directory. | [Environments](/user/environments) |
+| Folder (`shop`) | The folder for the chat. **No folder** gives the chat a directory of its own, kept until the chat is deleted. | [Environments](/user/environments) |
 | Environment (`This computer`) | Where commands run and files live: the folder itself, a **New worktree**, or a saved runtime. | [Environments](/user/environments) |
 | Nous (`Claude Code Haiku 4.5 Default`) | The agent's harness, account, model and effort. Defaults to the last agent used in the folder. | [Nous](/user/nous) |
 | Permission (`Edit this folder`) | What the agent may touch: **Read only**, **Edit this folder** or **Full access**. | [Permissions](/user/permissions) |
 | Usage (the ring) | What this chat and folder have spent. | [Cost and usage](/user/usage) |
 
-Once a chat starts, it keeps the environment, nous, permission and usage chips under its box. The folder chip appears only on the new chat page.
+Once a chat starts, it keeps the environment, nous, permission and usage chips under its box. The folder chip appears only on the new chat page. Between turns, pick another place from the environment chip to [move the chat](/user/environments).
 
 ### Read the chat
 
 ![An open chat in Humanize Desktop with its transcript, the bar across the top and the Details pane open at the right](/shots/user-chat-open.svg)
 
-Your messages appear on the right. The agent's answers appear beside a green dot. Tool calls and reasoning show as small grey lines; click a folded line to expand it. `Worked for` marks the end of each turn. Right-click any line for **Copy** and **Copy thread**.
+Your messages appear on the right. The agent's answers appear beside a green dot. Tool calls and reasoning show as small grey lines; click a folded line to expand it. `Worked for` marks the end of each turn.
+
+Right-click any line to open **Copy** and **Copy thread**. Right-click a `!` shell line to choose **Copy** (the command and its output) or **Copy output** (the output alone). To use the keyboard, press <kbd>tab</kbd> to focus the conversation, press <kbd>↑</kbd> and <kbd>↓</kbd> to move between lines, and press <kbd>alt+enter</kbd> (<kbd>option+enter</kbd> on a Mac) or the menu key to open the line menu.
+
+In the sidebar, a chat row shows `Running` during an open turn, `Failed` when the chat has failed, and a dot when the agent waits for your answer.
 
 Use the top bar to manage the chat and open side panels:
 
@@ -50,8 +54,10 @@ Use the top bar to manage the chat and open side panels:
 | --- | --- |
 | Title | Click to rename the chat. |
 | **More options** (`…`) | Pin, fork, archive or delete the chat. See [Organise chats](/user/manage-chats). |
-| **Details**, **Terminal**, **Changes**, **Files** | Click to open a panel beside the chat; click again to close it. **Details** shows usage, the first message, id and folder. For the other three, see [Files, changes and terminal](/user/environment-panels). |
+| **Details**, **Terminal**, **Changes**, **Files** | Click to open a panel beside the chat; click again to close it. For the last three, see [Files, changes and terminal](/user/environment-panels). |
 | **View options** | Open **Side questions** ([Ask a side question](/user/side-questions)) and, while the chat keeps one, **Board**. |
+
+Open the **Details** pane to view usage, the first message, the **Open its environment** button, and **About this chat**: **Chat ID**, **Saved at** (where its record is kept), **Folder**, **Started**, **Nous**, **Environment**, **Options**, and **Limits**. If the chat runs outside its folder, **Works in** names the worktree, directory, or runtime.
 
 ### Stop a turn
 
@@ -63,7 +69,7 @@ Press <kbd>enter</kbd> during a turn to send another message. The agent receives
 
 ### Answer a waiting chat
 
-Type a message to answer an agent that asks a question mid-turn. Waiting chats also appear in the middle of the **New chat** page with their title and `Asked a question`. Click a row to open the chat, or click **Dismiss** to hide it until it asks again.
+Type a message to answer an agent that asks a question mid-turn. If the question offers options, they appear as buttons under it; click one to answer with it. Waiting chats also appear in the middle of the **New chat** page with their title and `Asked a question`. Click a row to open the chat, or click **Dismiss** to hide it until it asks again.
 
 ### Resume a chat
 
@@ -104,7 +110,7 @@ hmz chat --resume 20261121T034814.744Z-299560 "And how is it tested?"
 
 | Option | What it does |
 | --- | --- |
-| `-a SPEC` | Set the agent as `CLI[@PROVIDER]/MODEL[:EFFORT]`. Defaults to the folder's last agent. |
+| `-a SPEC` | Set the agent as `CLI[@PROVIDER]/MODEL[:EFFORT]`. A new chat defaults to the folder's last agent. A resumed chat keeps its own agent; pass `-a` with `--resume` to carry it on with another. |
 | `--resume CHAT` | Continue the chat with this id. |
 | `--worktree` | Start the chat in a new git worktree of the folder. Cannot be used with `--resume`. |
 | `-e ENV` | Set the working environment as `BACKEND[@RUNTIME][/DIRECTORY]`. With `--resume`, moves the chat there. |

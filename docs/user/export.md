@@ -41,11 +41,9 @@ Scrubbing removes credentials only. Your task, prompts, and agent output remain 
 
 ## Export an epic
 
-In the app, you can export any epic that is not running. You cannot export a chat.
-
 ### In the app
 
-Open the epic and click **Export** in its bar.
+Open the epic and click **Export** in its bar. The app offers **Export** for any epic that is not running, and never for a chat.
 
 ![An ended epic in Humanize Desktop with the pointer on the Export button in the epic's bar](/shots/user-export-app.svg)
 
@@ -110,7 +108,7 @@ You can resume an imported epic only if the workspace exists at the same path on
 
 ## Copy a link to an epic
 
-Click **Copy link** in an epic's bar or menu to copy its page address. The link contains no run data and works only for users who can reach the same daemon. Export the epic to share it with someone who cannot reach your daemon.
+Click **Copy link** in an epic's bar or menu to copy its page address. The link contains no run data and works only for users who can reach the same daemon. A link copied in Humanize Desktop is the app's own address and does not open in a browser; copy it from the browser page to send it. Export the epic to share it with someone who cannot reach your daemon.
 
 ## From Python
 

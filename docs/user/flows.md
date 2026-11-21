@@ -88,7 +88,7 @@ Select a flow on the **Installed** screen and use the action buttons.
 | **Install more…** | Opens the flowverse list. |
 | **Update** | Installs the newest available release, if one exists. |
 | **Uninstall** | Removes the installed flow. |
-| **Copy here** | Copies the flow into the project's `.hmz/flows/` folder for editing. Disabled for project flows. |
+| **Copy here** | Copies the flow into the project's `.hmz/flows/` folder for editing. Disabled for project flows, and refused if the project already has a flow of that name. |
 | **Search…** | Filters the list. |
 
 ![The Installed page in the terminal with a newer release marked](/shots/user-flows-terminal-installed.svg)
@@ -107,7 +107,7 @@ All flow and flowverse actions take effect immediately. **Save** only saves the 
 
 Place a Python file or folder in `.hmz/flows/` to use it in the current project, or in `~/.hmz/flows/` to use it everywhere. Humanize loads these flows directly and reloads them whenever you save changes. To build one, see [Write your first flow](/tutorials/first-flow) and [Anatomy of a flow](/builder/flow).
 
-In the app, the **Flows** page shows machine-wide flows only. Select project flows from the **New epic** page.
+In the app, the **Flows** page lists installed flows and those in `~/.hmz/flows/`, but not a project's. Select project flows from the **New epic** page.
 
 ## Start a flow from a chat line
 
@@ -141,7 +141,7 @@ Install flows using the app, the terminal, or [The Python SDK](/builder/sdk). Fo
 - Fetching updates the list of available releases without changing your installed flows, and overwrites any local changes in the index cache.
 - You cannot uninstall a flow while another installed flow depends on it. Uninstall the dependent flow first.
 - In the app, installing, switching, uninstalling and removing a flowverse are refused while an epic is running on the machine: `An epic is running: flows change once none is.`
-- A flowverse name uses letters, digits, `.`, `-` and `_`, and cannot be `official`, `local` or `user`.
+- A flowverse name starts with a letter or digit, uses letters, digits, `.`, `-` and `_`, and cannot be `official`, `local` or `user`.
 - While a flow is running in the terminal, `/flow` only opens that flow's roles, and `$` returns `hmz: cannot choose a flow while one is running`.
 - Opening the terminal fetches all flowverses in the background without installing updates, skipping any index you have edited by hand. When updates are available, the status line shows `1 flow update`.
 - Flows that fail to load appear in red in the terminal along with the error message.

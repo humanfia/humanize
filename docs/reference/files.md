@@ -176,7 +176,7 @@ Humanize never deletes an epic's directory or its files. You can delete the dire
 
 An exported epic is one file, `<epic name>.hmzepic` by default: a gzip-compressed tar archive of mode `0600`, written where you choose.
 
-Importing an epic writes to `<home>/epics/<ws>/<epic name>/`, using `<ws>` from the recorded workspace. The import fails if that directory already exists. See [Export and import a run](/user/export).
+Importing an epic writes to `<home>/epics/<ws>/<epic name>/`, using `<ws>` from the recorded workspace. The import fails if that directory already exists. An archive of a chat goes to `<home>/chats/<ws>/` instead, with `chat.jsonl`. See [Export and import a run](/user/export).
 
 ## A chat's directory {#chat-directory}
 
@@ -232,7 +232,7 @@ A chat started without a folder uses `<mdir>/nofolder/<random>/`, which is remov
 | `backup/<target>/`, `backup/<target>.lock` | The `git` clone of one backup target, and its lock. | Never |
 | `compiled/pi/`, `compiled/qwen/` | Node compile caches of those CLIs. | Never |
 | `docker-ssh/<digest>/ssh` | A script that runs `ssh` with the options of a Docker runtime reached over ssh. Mode `0700`. | Never |
-| `tokens/<digest>` | One secret, for a command line that names a secret by file. Mode `0600`. | With the Slurm job it belongs to |
+| `tokens/<digest>` | One secret, for a command line that names a secret by file. Mode `0600`. | With the Slurm job it belongs to; any other, never |
 | `harness/` | An empty directory mounted as the working directory of a CLI placed in a container. | Never |
 | `.<kind>.<runtime>.lock` | A lock for one runtime. `<kind>` is `docker`, `swarm`, `slurm` or `apple-container`. | Never |
 | `nofolder/<random>/` | The working directory of an epic or a chat started in no folder. Mode `0700`. | With the last epic or chat that used it |
@@ -253,6 +253,8 @@ Never delete `daemon.sock`, `daemon.json`, or `daemon.lock` while the daemon run
 | `<tmp>/humanize-hook-<random>/`, `humanize-tools-<random>/`, `humanize-preload-<random>/`, `humanize-clis-<random>/` | The sockets one CLI process reaches Humanize through. Mode `0700`. Under `/tmp` when the path would be too long for a socket. | When the agent or session ends |
 | `<tmp>/hmz-dsh-<random>/`, `hmz-gateway-<random>/`, `hmz-homes-<random>/` | The configuration of one `dsh` process, of one LiteLLM gateway process (with its account's credentials, mode `0600`), and the homes of turns run on another machine. Mode `0700`. | When the agent or session ends |
 | `<tmp>/hmz-sessions-<random>/` | Sessions a flow stored in its state, for an epic with no resume journal. | When the epic ends |
+| `<tmp>/hmz-env-<random>/` | A copy of a file of an environment while your editor has it open from the terminal interface. | When the editor closes |
+| `<tmp>/hmz-private-<random>/` | The home and the temporary directory of the private daemons of one Python process, with a copy of `settings.yaml`. | When the last of them closes |
 | `<tmp>/humanize-<random>/` | The container id and a mirror for one container, service or job of an environment. | With the container, service or job |
 | `${XDG_RUNTIME_DIR:-<tmp>}/humanize-ssh-<uid>/` | Shared ssh connections. Mode `0700`. Under `/tmp` when the path would be too long for a socket. | Each socket, 120 seconds after its last use |
 | `/dev/shm/hmz-<pid>-<16 hex digits>-<random>/` | Linux only. Copies of an account's credential files staged for one CLI process. Mode `0700`. | When that process ends |
@@ -324,6 +326,8 @@ Humanize creates only the following files on remote machines running an environm
 | `/tmp/humanize-slurm-<job id>.out` | Output of a Slurm job reached over TCP, on its node. | Never |
 | A `mktemp -d` directory | An account's credential files for one turn of a CLI running there. Mode `0700`, files `0600`. | When the turn ends |
 | `<file>.humanize-<pid>-<n>.tmp` beside a file | A file being written, before it is renamed into place. | On rename |
+| The directories of a CLI process, in that machine's temporary directory | As [Other temporary files](#other-temporary-files). | As there, except `hmz-fence-<random>/`, which is never removed |
+| `~/.cache/humanize/shadows/` | The records of the mirrors on that machine, as [The cache directory](#the-cache-directory). | Never |
 
 Containers, swarm services, and Slurm jobs are named `humanize-<runtime>-<role>-<hex8>`, or `<name_prefix>-<role>-<hex8>` if the runtime sets `name_prefix`. Each has the labels `humanize=<uid>`, `humanize.provider`, `humanize.role`, `humanize.host`, and `humanize.pid`, and is removed when the environment closes. See [Environments and runtimes](/reference/environments).
 

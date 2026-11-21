@@ -35,7 +35,7 @@ While the epic runs, open the **Epic** tab of the panel. Under **Figures**, the 
 
 ![The Figures tiles of a running epic: Time, Spent, Tokens, and Budget with three meters](/shots/user-budgets-meters-tiles.svg)
 
-Under **Setup**, the **Budget** line states the limits and what happens at each: `letting the last turn finish` or `cut off at once`. When the budget ends an epic, the sidebar reads **Stopped**.
+Under **Setup**, the **Budget** line states the limits and what happens at each: `letting the last turn finish` or `cut off at once`. When the budget ends an epic, the sidebar reads **Stopped**. The badge under the epic's title reads `budget` if you were watching, and `stopped` once you reopen the epic.
 
 ![An epic that its cost limit ended, in Humanize Desktop: Stopped in the sidebar, and the budget in words under Setup](/shots/user-budgets-spent.svg)
 
@@ -102,6 +102,7 @@ A turn cut off by its own limit keeps its changes and does not run again. The ep
 ## Good to know
 
 - Set at least one of time, cost, or output tokens; the graceful switches alone do not make a budget.
+- On the command line, `0` is a limit of zero, not "no limit" as in the terminal sheet. To leave a limit off, omit its param.
 - Once a limit is reached, no new turn starts, whether graceful or not.
 - A graceful limit can be overshot by whatever the last turn spends.
 - Resuming an epic starts its budget from zero, and earlier spending does not count. See [Resume a run](/user/resuming).

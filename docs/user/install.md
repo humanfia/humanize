@@ -41,6 +41,10 @@ Requires Windows 10 or later with WSL 2. Humanize, your repositories, and your c
 2. Run `humanize-<version>-windows-x64-setup.exe`. It installs for your user account without requiring administrator rights.
 3. Open **Humanize Desktop** from the Start menu.
 
+The installer adds Humanize Desktop to the Start menu and registers `.hmzepic` files to open with the app. If Windows lacks the WebView2 runtime, the installer downloads it automatically.
+
+Check the box on the final page to add a desktop shortcut; it starts unchecked. Silent and passive installs skip the desktop shortcut, and updates preserve your current shortcut choice.
+
 On first launch, the app installs its matching version of `hmz` into your default WSL distribution, fetching uv and Python if needed. You do not install the CLI by hand.
 
 ![The launch window on Windows goes from Starting to Installing Humanize CLI, step by step](/shots/user-install-first-launch.svg)
@@ -122,11 +126,11 @@ Removing the app leaves `hmz` and your epics intact, and removing `hmz` leaves t
 | --- | --- | --- |
 | The app, macOS | Quit it, then move it from Applications to the Trash. | `~/Library/Application Support/ai.humanfia.humanize`, and the folders of the same name under `~/Library/WebKit`, `~/Library/Caches` and `~/Library/Logs` |
 | The app, Windows | **Quit** from the tray icon, then **Settings → Apps → Installed apps**. | `%APPDATA%\ai.humanfia.humanize` and `%LOCALAPPDATA%\ai.humanfia.humanize` |
-| The CLI | `uv tool uninstall hmz`, `pipx uninstall hmz` or `pip uninstall hmz` (in WSL on Windows) | `~/.hmz` (or the folder `HUMANIZE_HOME` names), and `.hmz/` in each project |
+| The CLI | `uv tool uninstall hmz`, `pipx uninstall hmz` or `pip uninstall hmz` (in WSL on Windows) | `~/.hmz` (or the folder `HUMANIZE_HOME` names), `~/.cache/humanize`, and `.hmz/` in each project where you keep flows |
 
 If you ever ran `hmz daemon install`, run `hmz daemon uninstall` before you remove the CLI.
 
-To erase all Humanize data, including your epics, accounts, and installed flows, delete `~/.hmz`. See [Files on disk](/reference/files) for the full list of files.
+To erase your epics, chats, accounts, and installed flows, delete `~/.hmz`. See [Files on disk](/reference/files) for the full list of files.
 
 ## Good to know
 

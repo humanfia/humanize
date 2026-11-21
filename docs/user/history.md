@@ -55,9 +55,13 @@ Click **Search** in the sidebar, or press <kbd>cmd+k</kbd> (<kbd>ctrl+k</kbd> on
 
 - Type to match an epic by task, flow or name, or a chat by title, first message or name.
 - Switch between **All**, **Chats** and **Epics** to choose what is listed.
-- Click **Filters** to narrow epics by outcome (`All`, `Running`, `Done`, `Failed`, `Stopped`, `Unfinished`, each with a count), folder or flow.
+- Click **Filters** to show three filters: how it went (`All`, `Running`, `Done`, `Failed`, `Stopped`, `Unfinished`, each with a count), the folder (**All folders** until you pick one) and the flow (**All flows**). The **Chats** tab shows only the folder filter.
 - Point at a result or select it with the arrow keys to see its folder, flow, agents, spend, duration, sessions and `Resumable` above the footer.
 - Below the results, click **New chat** to start a chat or **Import** to load a `.hmzepic` file.
+
+When nothing matches, Search says `Nothing is like that.` and offers **Clear filters**. It empties the search box and resets all three filters; the tab stays as it is. With nothing typed or filtered, an empty list offers **New chat** or **New epic** instead.
+
+![Search finds no failed epic like refund, and offers Clear filters](/shots/user-history-search-none.svg)
 
 | Key | What it does |
 | --- | --- |
@@ -65,7 +69,7 @@ Click **Search** in the sidebar, or press <kbd>cmd+k</kbd> (<kbd>ctrl+k</kbd> on
 | <kbd>enter</kbd> | Open the result |
 | <kbd>←</kbd> <kbd>→</kbd> | Change tab (when the search box is empty) |
 | <kbd>/</kbd> | Show or hide the filters (when the search box is empty) |
-| <kbd>alt+enter</kbd> (<kbd>option+enter</kbd> on macOS) | Open the result's menu |
+| <kbd>alt+enter</kbd> (<kbd>option+enter</kbd> on macOS), <kbd>shift+F10</kbd> or right-click | Open the result's menu |
 | <kbd>esc</kbd> | Close |
 
 To search a single folder, right-click the folder heading in the sidebar and choose **Search here**.
@@ -80,7 +84,7 @@ Click the daemon bar at the bottom of the sidebar and pick another machine. The 
 
 Run `/epics` in `hmz` to list the current directory's epics, newest first. You can open `/epics` even while an epic is running.
 
-Each row shows the start time, flow, task, agents, spend, duration and session count. If an epic did not finish normally, the row shows `failed`, `stopped`, `was left unfinished` or `is still going`. It shows `resumable` when you can pick it up, and `●` when you were notified about it and have not opened it yet.
+Each row shows the start time, flow, task, agents, spend, output tokens, duration and session count, and `backed up to` with the backup targets that hold it. If an epic did not finish normally, the row shows `failed`, `stopped`, `was left unfinished` or `is still going`. It shows `resumable` when you can pick it up, and `●` when you were notified about it and have not opened it yet.
 
 ![/epics lists four epics of this directory](/shots/user-history-epics.svg)
 
@@ -100,7 +104,7 @@ Press <kbd>enter</kbd> on an epic. The top of the menu shows its path on disk, h
 
 | Row | What it does |
 | --- | --- |
-| `resume epic` | Picks the epic up. Shown when its flow is resumable. Refused if the epic ran in another directory or another flow is running here. See [Resume a run](/user/resuming). |
+| `resume epic` | Picks the epic up. Shown when its flow is resumable. An imported epic whose workspace or commit is not on this machine has no such row, and the menu says why. Refused if the epic ran in another directory or another flow is running here. See [Resume a run](/user/resuming). |
 | `graph` | Shows its agents, called flows and sessions |
 | `export epic` | Saves it as a `.hmzepic` file, including its trace |
 | `Exomyth` | Opens its trace. See [Trace a run with Exomyth](/user/tracing). |
@@ -109,13 +113,13 @@ Press <kbd>enter</kbd> on an epic. The top of the menu shows its path on disk, h
 
 ### Read the graph and sessions
 
-Choose `graph` from the epic's menu. Each agent appears as a box showing what it ran, its turns and its sessions, with arrows counting handovers between agents. Under each agent, each session row shows its harness and action count. If the epic called other flows, they appear as a tree under `called flows`. Choose **Exomyth** from the graph to open the trace.
+Choose `graph` from the epic's menu. Each agent appears as a box showing what it ran, its turns and its sessions, with arrows counting handovers between agents. Under each agent, each session row shows its harness, account and action count. If the epic called other flows, they appear as a tree under `called flows`. Choose **Exomyth** from the graph to open the trace.
 
-Press <kbd>enter</kbd> on a session to read it from oldest action to newest: each `turn` with its prompt, each `model` call, each tool call with input and output, and what the agent `said`.
+Press <kbd>enter</kbd> on a session to read it from oldest action to newest: each `turn` with its prompt, each `model` call with its thinking, each tool call with input and output, and what the agent `said`. A tool call that failed is marked `✕ failed`.
 
 ![/epics, then one epic's menu, its graph, and one session read whole](/shots/user-history-read.svg)
 
-Items longer than 6 lines or 400 characters are truncated; press <kbd>enter</kbd> on an item to expand it. Press <kbd>/</kbd> to search the session and <kbd>esc</kbd> to go back.
+Items longer than 6 lines or 400 characters are truncated; press <kbd>enter</kbd> on an item to expand it, and again to fold it. Press <kbd>/</kbd> to search the session and <kbd>esc</kbd> to go back.
 
 ![One session read back: a turn, model calls, three tool calls and what the agent said](/shots/user-history-session.svg)
 
@@ -125,12 +129,12 @@ Run `/epics @<name>` with a daemon name from your Daemons page, or open `/epics`
 
 ![/epics @server lists two epics held by the daemon named server](/shots/user-history-remote.svg)
 
-The list shows each epic's workspace on that machine, plus any active chat there as a row named `chat`. If the daemon cannot be reached, the list shows the reason. Press <kbd>enter</kbd> or <kbd>m</kbd> on a row:
+The list shows each epic's workspace on that machine, plus any active chat there as a row named `chat`. A chat or epic started without a folder shows `no folder` in place of the path. If the daemon cannot be reached, the list shows the reason. Press <kbd>enter</kbd> or <kbd>m</kbd> on a row:
 
 | Row | What it does |
 | --- | --- |
 | `follow` | Attaches to a running epic or chat so you can steer it like a local one. Shown only while it runs there. Press <kbd>esc</kbd> to return to the list and leave it running. |
-| `export` | Downloads the epic here as a `.hmzepic` file. Hidden while it runs. |
+| `export` | Downloads the epic here as a `.hmzepic` file. Unavailable while it runs. |
 | `upload` | Backs the epic up on that machine |
 | `copy name`, `copy task`, `copy workspace` | Copies that value to the clipboard |
 

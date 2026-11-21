@@ -119,11 +119,14 @@ def test_a_chat_is_started_in_the_browser(world: World) -> None:
         page.wait_for_url(re.compile(r".*#/chats/[^/?]+$"))
         expect(page.get_by_role("log")).to_contain_text(_TASK)
         expect(page.get_by_role("button", name="Stop")).to_be_visible()
+        # The sidebar lists the chat a moment after it is started.
+        sidebar = page.locator("[data-hmz=sidebar]")
+        expect(sidebar).to_contain_text(_TASK)
         reel.web(page, hold=1.4)
         expect(page.get_by_role("log")).to_contain_text("WELCOME10")
         expect(page.get_by_role("button", name="Send")).to_be_visible()
-        # The sidebar hears that the turn is over a moment after the chat does.
-        expect(page.locator("[data-hmz=sidebar]")).not_to_contain_text("Running")
+        # And hears that the turn is over a moment after the chat does.
+        expect(sidebar).not_to_contain_text("Running")
         reel.web(page, hold=4, poster=True)
         reel.save()
 
@@ -153,6 +156,26 @@ def test_on_a_phone_the_sidebar_is_a_drawer(world: World) -> None:
         reel.web(page, hold=4, poster=True)
         reel.save()
         shots.web(page, f"{_PAGE}-phone")
+
+
+def test_a_chat_in_the_drawer_has_a_menu(world: World) -> None:
+    world.says({"discount": _ANSWER})
+    chat = world.chat(_TASK)
+    with world.page(width=_PHONE[0], height=_PHONE[1]) as page:
+        go(page, "/new/chat")
+        _ready(page)
+        page.get_by_role("button", name="Show sidebar").click()
+        sidebar = page.locator("[data-hmz=sidebar]")
+        expect(sidebar).to_be_in_viewport()
+        row = sidebar.locator(f"a[href$='/chats/{chat}']").first
+        expect(row).to_be_visible()
+        # Under a finger the button is always drawn; under a pointer, once its row is pointed at.
+        row.hover()
+        more = sidebar.get_by_role("button", name="More options").first
+        more.click()
+        expect(page.get_by_role("menu")).to_be_visible()
+        page.wait_for_timeout(400)
+        shots.web(page, f"{_PAGE}-menu")
 
 
 def test_notifications_are_allowed_in_settings(world: World) -> None:

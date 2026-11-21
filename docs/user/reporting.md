@@ -36,7 +36,7 @@ One machine-wide setting controls reporting: `enable_sentry` in `settings.yaml`.
 
 ### In the app
 
-Open **Settings**, then **General** under **Daemon**. Set **Error reports** to **On** or **Off** and click **Save**. The app never prompts you, and the setting reads **Not set** until you choose.
+Open **Settings**, then **General** under **Daemon**. Set **Error reports** to **On** or **Off** and click **Save**. The app never prompts you, and the setting reads **Not set** until you choose. Once saved, it can only be switched between **On** and **Off**. The setting is saved on the machine of the daemon picked at the top of the page; **Batch apply** copies it to [your other daemons](/user/daemons).
 
 ![The General page of Settings in Humanize Desktop, with Error reports reading Not set](/shots/user-reporting-app.svg)
 
@@ -48,7 +48,7 @@ Open **Settings**, then **General** under **Daemon**. Set **Error reports** to *
 
 ![The question hmz asks at first start: Report errors to Humanize?, with what is sent and never sent, and Yes and No](/shots/user-reporting-question.svg)
 
-To change your choice later, run `/settings general`. Select **Error reports**, press <kbd>enter</kbd>, pick `on` or `off`, and select **Save**. The change applies immediately.
+To change your choice later, run `/settings general`. Select **Error reports**, press <kbd>enter</kbd>, pick `on` or `off`, and select **Save**. The change applies immediately. An unanswered setting reads `not set`.
 
 ![The General page of /settings in the terminal, with the cursor on Error reports, set to off](/shots/user-reporting-terminal.svg)
 
@@ -63,7 +63,7 @@ Select **What is sent** below it to view what a report includes without changing
 Set `HUMANIZE_SENTRY` to `on` or `off` to override the setting for a single process without saving:
 
 ```sh
-HUMANIZE_SENTRY=off hmz exec --help
+HUMANIZE_SENTRY=off hmz
 ```
 
 Set `HUMANIZE_SENTRY=off` in CI and scripted installs. With the variable set, `hmz` does not ask at first start. While this variable overrides the saved answer, `/settings general` displays `HUMANIZE_SENTRY is set, overriding this setting for this run`.
@@ -86,8 +86,8 @@ Error reports never include your run. To have someone inspect a failure, check [
 
    ![hmz --version prints the version](/shots/user-reporting-version.svg)
 
-2. The steps you took, whether a command or actions in the app or `hmz`.
-3. The run. Open the epic and click **Export** in its header, or type `/epics` in `hmz`, open the epic, and choose `export epic`. This creates a `.hmzepic` file containing the task, records, and session logs, with credentials replaced by `[redacted]`. See [Export and import a run](/user/export).
+2. The steps you took, whether a command or actions in the app or `hmz`. The form also asks for your operating system, the coding agents involved, and the flow.
+3. The run. Open the ended epic and click **Export** in its header, or type `/epics` in `hmz`, open the epic, and choose `export epic`. This creates a `.hmzepic` file containing the task, records, and session logs, with credentials replaced by `[redacted]`. See [Export and import a run](/user/export).
 
    ![The header of a finished epic, with the pointer on its Export button](/shots/user-reporting-export.svg)
 
@@ -103,6 +103,6 @@ Do not report a vulnerability in a public issue. Report it privately at [github.
 - Logs are not scrubbed. Remove keys, tokens, and private data before sharing them.
 - Each unique crash location is reported once per process. A halted epic is reported at most once.
 - Processes read the reporting setting at startup. If you change it in the app, running processes keep the old setting until they restart.
-- Only the `hmz` terminal interface includes installed coding agents, accounts, skills, and flowverses in a report.
+- Only the `hmz` terminal interface adds the machine's installed coding agents, accounts, skills, and flowverses to a report. Other processes describe only the running flow and its agents.
 - Only processes that initialize reporting send reports: `hmz`, `hmz exec`, `hmz chat`, runs managed by the daemon, and scripts that call `Hmz().reports()`.
 - See [settings.yaml](/reference/settings) and [Environment variables](/reference/environment) for configuration details, and [Security](/user/security) for what agents can access.

@@ -83,7 +83,7 @@ Pick **LiteLLM** as the harness in the agent chip, or pass `litellm` on the comm
 hmz chat -a litellm/anthropic/claude-haiku-4-5:low "Summarise this plan in one line."
 ```
 
-The `litellm` harness runs a bare model without a coding CLI. Each turn sends the conversation history in a single request. The model has no tools, reads no files, and runs no commands, which fits roles like a reviewer.
+The `litellm` harness runs a bare model without a coding CLI. Each turn sends the conversation history in a single request. The model has no tools, reads no files, and runs no commands, which fits roles like a reviewer. It needs the `litellm` extra too.
 
 Supported efforts are `high`, `medium`, `low`, `minimal` and `none`. Without an account, it reads the vendor's standard environment variable, such as `ANTHROPIC_API_KEY`. With an account, write `litellm@NAME/MODEL`. In chat, every line is sent as plain text, so `/`, `!` and `@` have no special meaning. Humanize never picks `litellm` as the default agent.
 
@@ -118,10 +118,10 @@ clis:
 | Key | Meaning |
 | --- | --- |
 | `command` | The command that starts it, word by word. |
-| `hosts` | Hosts it may reach when a flow cuts the network. With none declared, such a flow refuses to run it. |
+| `hosts` | Hosts it may reach when a flow cuts the network, each a host name, an IP address or a URL. With none declared, such a flow refuses to run it. |
 | `state` | Paths it writes its own state to, which stay writable under any permission. |
 
-To remove a custom CLI, delete its entry under `clis`.
+An entry with only a command can be written as a list, `my-agent: [my-agent, --acp]`, which is what the terminal form saves. To remove a custom CLI, delete its entry under `clis`.
 
 ### Use it
 
@@ -144,5 +144,5 @@ ACP does not set a model or effort, so the CLI uses its own configuration. The a
 - LiteLLM accounts are not available for `omp`, `cursor-agent` or the `litellm` harness.
 - A custom CLI cannot use the name of a built-in CLI, so `claude --acp` is refused.
 - A custom CLI started through a launcher is named after the launcher: `npx my-agent` is added as `npx`.
-- Humanize approves all permission requests from a custom CLI while keeping the outer sandbox active. Custom CLIs cannot be steered mid-turn and report no usage.
+- Humanize approves all permission requests from a custom CLI while keeping the outer sandbox active. Custom CLIs cannot be steered mid-turn, report no usage, and in chat receive every line as plain text.
 - See [Coding agents](/user/agents) for supported CLIs and [Nous](/user/nous) for models, retries and fallback.

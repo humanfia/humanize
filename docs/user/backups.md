@@ -94,8 +94,6 @@ Pass `--backup` when starting an epic to pick its targets. Repeat `--backup` for
 $ hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=1 --backup lab --backup offsite "add a discount code to checkout"
 ```
 
-When the epic ends, `hmz exec` waits up to 60 seconds for its backups to finish.
-
 Use `hmz backup` to back up, list, and download runs:
 
 | Command | What it does |
@@ -130,7 +128,7 @@ backup:
 
 ## Repository layout
 
-Each epic is stored as plain files at `<machine>/<workspace>/<epic>/` on the target's branch. `<machine>` is the short hostname, and `<workspace>` is the flattened path of the folder where the epic ran. The directory contains the same files as an [exported run](/user/export): `epic.jsonl`, `manifest.json`, and `sessions/`. Chats follow the same layout under their chat id.
+Each epic is stored as plain files at `<machine>/<workspace>/<epic>/` on the target's branch. `<machine>` is the short hostname, and `<workspace>` is the flattened path of the folder where the epic ran. The directory contains the same files as an [exported run](/user/export): `epic.jsonl`, `manifest.json`, and `sessions/`. A chat is stored the same way under its chat id, with `chat.jsonl` as its record.
 
 Each backup creates one commit naming the epic and the trigger: `session`, `interval`, `end`, or `manual`. If the epic has not changed since the last backup, Humanize skips the commit. If git has no author identity configured, Humanize commits as `hmz <hmz@localhost>`.
 

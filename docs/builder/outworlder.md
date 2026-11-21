@@ -11,7 +11,7 @@ An `Outworlder` role represents the person running the flow. Your flow gives thi
 
 ## Declare the role
 
-Type a role as `Outworlder` in the flow's `AgentCollection`. Humanize fills it automatically, and `-a` cannot override it.
+Type a role as `Outworlder` in the flow's `AgentCollection`. Humanize fills it automatically; naming it with `-a` is an error.
 
 ```python
 # .hmz/flows/approve/__init__.py
@@ -158,7 +158,7 @@ When the role is away, `run` returns immediately:
 | --- | --- |
 | Text | Returns `""` |
 | A model whose every field has a default | Returns the model built from its defaults |
-| A model with a field that has no default | Raises `OutworlderAway` |
+| A model with a field that has no default, or whose defaults fail its own validators | Raises `OutworlderAway` |
 
 While the role is away, `show` does nothing. If the person goes away while a question is open, Humanize withdraws the question and resolves `run` using the table above.
 
@@ -277,14 +277,14 @@ Even under `hmz exec`, where the epic's person is away, the judge answers the fo
 
 ## Test and drive from code
 
-Use `FakeOutworlder` from `hmz.sdk.fakes` in tests to script responses: `fakes.run_fake("approve", ..., outworlder=fakes.FakeOutworlder(reply=[{"keep": True}, "Add discount codes"]))`. See [Test a flow](/builder/testing).
+In tests, script the person's responses with `FakeOutworlder` (`from hmz.sdk import fakes`): `fakes.run_fake("approve", ..., outworlder=fakes.FakeOutworlder(reply=[{"keep": True}, "Add discount codes"]))`. See [Test a flow](/builder/testing).
 
 Pass an outworlder driver to `Hmz().run(..., outworlder=...)` to receive each question as an `Ask` and return the answer from Python. See [The Python SDK](/builder/sdk). Both receive the same prompt, context, and schema as a person.
 
 ## Good to know
 
 - An outworlder is distinct from steering: steering injects text into an agent's turn, while an outworlder takes its own turns.
-- `run` accepts `env` and ignores it. Calling `fork` on an outworlder raises `UnsupportedOperation`, and calling `derive` with skills raises `CapabilityNotGranted`. Calling `show` with another agent's session raises `SessionError`.
+- `run` accepts `env` and ignores it. Calling `fork` on an outworlder raises `UnsupportedOperation`, and calling `derive` with skills raises `CapabilityNotGranted`. Calling `show` with another agent's session raises `SessionError`. Agent hooks such as `on_stop` can be attached to an outworlder but are never called.
 - `on_outworlder_run` works only on an `Outworlder.new()` instance; calling it on the epic's own outworlder raises `CapabilityNotGranted`. `show` does nothing on an `Outworlder.new()` instance.
 - A caller can pass an outworlder to a callee role typed as a plain `Agent`, but roles with a mixin or harness reject it with `CapabilityMissing`. An agent passed for an `Outworlder` role is rejected the same way.
 - The context of one `run` or `show` may come to at most 16 MiB as JSON, else `ValueError`. Text passed as `context` in place of a sequence of blocks raises `TypeError`.

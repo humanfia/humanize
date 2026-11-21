@@ -23,7 +23,7 @@ The daemon creates notices for every epic and chat it holds, regardless of which
 
 A finished chat turn counts as **Waiting** in the app and as **Done** in the terminal.
 
-You get no notice for the epic or chat you are looking at. One that is open but out of sight still notifies: in the app when the window is not focused, in `hmz` when a menu covers it. Events from before the daemon started (in the terminal, before `hmz` opened) raise nothing.
+You get no notice for the epic or chat you are looking at. One that is open but out of sight still notifies: in the app when the window is not focused (a system notification, with no dot on the open row), in `hmz` when a menu covers it. Events from before the daemon started (in the terminal, before `hmz` opened) raise nothing.
 
 ## In the app
 

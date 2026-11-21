@@ -62,9 +62,9 @@ def load(ref: str) -> Flow
 | `load` | Returns the flow named by a ref, ready to call. Raises `FlowRefError`, `FlowNotFound`, `FlowLoadConflict` or `FlowDefinitionError`. |
 | `FlowFn` | The function `flow` decorates: `async def fn(task, *, agents, envs, params, ctx)`. |
 | `Flow` | A callable flow, returned by `flow` and `load`. |
-| `FlowParams` | Pydantic base model for flow parameters. Subclass it with one field per parameter. Undeclared keys are refused. |
+| `FlowParams` | Pydantic base model for flow parameters. Subclass it with one field per parameter. Undeclared keys are refused, and a field named `budget` raises `FlowDefinitionError`. |
 | `FlowContext` | Information about the current flow call, passed as `ctx`. |
-| `FlowState` | State a resumable flow keeps across runs: a mapping of JSON-serializable values saved on every write. |
+| `FlowState` | State a resumable flow keeps across runs: a mapping from string keys to JSON-serializable values, saved on every write. A value may hold a `Session` that has taken a turn; reading it back returns a new session that continues that conversation. |
 
 Arguments of `flow`:
 
@@ -83,8 +83,10 @@ Refs that `load` takes:
 | Ref | Names |
 | --- | --- |
 | `:<subflow>` | A flow in the caller's module. |
-| `<flow>`, `<flow>:<subflow>` | A sibling flow. The bare form loads the flow named after the directory, or the single visible flow in it. |
+| `<flow>`, `<flow>:<subflow>` | A flow by name, looked up beside the calling flow first, then in `.hmz/flows/`, `~/.hmz/flows/`, the official flowverse and every other flowverse, in that order. The bare form loads the flow named after the directory or file, or the single visible flow in it. |
 | `<user>/<flow>`, `<user>/<flow>:<subflow>` | A flow under that GitHub user in the official flowverse (or in an installed flow's own flowverse). |
+| `@<flowverse>/<flow>`, `@<flowverse>/<user>/<flow>`, each with an optional `:<subflow>` | A flow of that flowverse only. `@local` and `@user` take a single name, as in `@local/shipped`. |
+| `./<path>`, `/<path>`, `~/<path>`, each with an optional `:<subflow>` | A path. The first that exists of `<path>/__init__.py`, `<path>` and `<path>.py` is used. |
 | `<pip-style-vcs-url>[#<subdir>][:<subflow>]` | A flow in a repository, at its root or in the directory after `#`. Example: `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr`. |
 
 ### Flow
@@ -117,7 +119,7 @@ class Flow(Protocol):
 | `resumable` | Whether an interrupted run can resume. |
 | `__call__` | Calls the flow from another flow and returns its result. `params` is an instance of its `FlowParams` subclass. `budget` adds a call-specific limit on top of the caller's remaining budget. |
 
-Passed roles must cover what the flow declares. You may omit an `Outworlder` or `LocalEnv` role to pass the caller's own. The call raises `RequirementError` (before anything runs), `ParamsError`, `FlowDepthExceeded` (beyond 64 nested calls), or any exception the flow raises, unwrapped. When a resumable flow resumes, a flow it calls resumes too if called with the same task, agents, environments and params.
+Passed roles must cover what the flow declares. An omitted `Outworlder` or `LocalEnv` role gets the run's own person or workspace. The call raises `RequirementError` (before anything runs), `ParamsError`, `FlowDepthExceeded` (beyond 64 nested calls), or any exception the flow raises, unwrapped. When a run resumes, a nested call resumes too if it is made by the same caller with the same ref, task, agents, environments and params.
 
 ### FlowContext
 
@@ -134,7 +136,7 @@ Passed roles must cover what the flow declares. You may omit an `Outworlder` or 
 | Operation | Meaning |
 | --- | --- |
 | `state[key]` | Returns the value under `key`, or raises `KeyError`. |
-| `state[key] = value` | Saves `value` under `key`. Raises `StateNotSerializable` if not JSON-serializable. |
+| `state[key] = value` | Saves `value` under `key`. Raises `StateNotSerializable` if `key` is not a string or `value` is not JSON-serializable. |
 | `del state[key]` | Deletes `key`, or raises `KeyError`. |
 | `key in state` | Whether `key` exists in `state`. |
 
@@ -197,7 +199,7 @@ Class attributes set on a role:
 | Attribute | Meaning |
 | --- | --- |
 | `_permission` | Access required by the role. The supplied agent must grant at least this, and sessions run with this exact permission. |
-| `_skills` | Skills given to the role's sessions: a skill name in the flow's `skills/` directory, or a git URL ending in `#<skill>`. |
+| `_skills` | Skills given to the role's sessions: a skill name in the flow's `skills/` directory, or a git URL, which gives every skill of the repository, or the one named after `#<skill>`. |
 | `_tools` | Flow functions exposed as tools (`FakeTool`). Requires `FakeToolAgentMixin`. |
 | `_clis` | Flow CLIs (`FakeCli`) placed on the agent's PATH. Needs no mixin. Not supported on `litellm` agents. |
 
@@ -205,7 +207,7 @@ Properties and methods:
 
 | Member | Meaning |
 | --- | --- |
-| `effort` | Thinking effort level, in the harness's terms. |
+| `effort` | Thinking effort level, in the harness's terms, or `""` for the harness default. |
 | `harness` | The agent's CLI kind. |
 | `model` | The model name. |
 | `role` | Role key in the flow's `AgentCollection`. |
@@ -239,7 +241,7 @@ Subclass these mixins on a role to request extra capabilities.
 | `SteeringAgentMixin` | Calling `steer` to inject a prompt into a running turn. |
 | `PermissionRequestHookAgentMixin` | `on_permission_request`: approve or deny tool execution requests. |
 | `SubagentStartHookAgentMixin` | `on_subagent_start`: observe subagent launches. |
-| `SubagentStopHookAgentMixin` | `on_subagent_stop`: observe subagent completion and optionally continue it. |
+| `SubagentStopHookAgentMixin` | `on_subagent_stop`: observe subagent completion. |
 | `AskUserHookAgentMixin` | `on_ask_user`: answer mid-turn questions from the agent. |
 
 ```python
@@ -270,7 +272,7 @@ Use a harness-typed role to require a specific CLI and all mixins in its row. Pa
 | `LiteLLMAgent` | `LITELLM` | `litellm` | None. Direct model call with no CLI or tools; `env` on turns must be `None`. |
 | `Agent` | `ACP` | `acp` | None. Custom CLI driven over the Agent Client Protocol. |
 
-When a `GrokBuildAgent` role declares `_tools`, using `output_schema`, taking the first turn of a fork, disabling web search, or using a permission that writes nothing raises `HarnessUnrecoverable`.
+When a `GrokBuildAgent` role declares `_tools`, using `output_schema`, taking the first turn of a fork, running a turn with `network=False`, or using a permission that cannot write the workdir raises `HarnessUnrecoverable`.
 
 ## Permissions
 
@@ -314,8 +316,8 @@ def deny(path: str) -> Rule
 | Member of `Permission` | Meaning |
 | --- | --- |
 | `preset` | One of `PRESETS`, or raises `ValueError`. |
-| `network` | Whether the agent may use the network, including built-in web search and fetch. |
-| `granular` | Path rules applied after the preset, in order. |
+| `network` | Whether the agent may use the network, including built-in web search and fetch. Anything but a `bool` raises `TypeError`. |
+| `granular` | Path rules applied after the preset, in order. An entry that is not a `Rule` raises `TypeError`. |
 | `rules` | Preset rules followed by `granular`. The last matching rule wins; unmatched paths get no access. |
 | `access` | Returns the effective `Access` for `path`. |
 | `covers` | Whether this permission grants at least what `other` grants across all paths and network. |
@@ -453,7 +455,7 @@ class ScratchDirEnvMixin(Protocol):
 | `ScratchDirEnvMixin` | `derive_scratch` | Returns an environment in an empty directory beside `workdir` keyed by `id`. Raises `ScratchError`. |
 | `ScratchDirEnvMixin` | `destroy_scratch` | Deletes the scratch directory for `id`. Raises `ScratchError`. |
 
-Temporary clones and scratch directories are deleted when the flow that created them ends, unless the flow is resumable. `GitEnvMixin` ignores git-ignored files and any top-level `.hmz/` directory. Declaring `BashEnvMixin`, `GitWorktreeEnvMixin`, or `GitEnvMixin` on a machine without the required binary raises `CapabilityMissing` before the flow starts.
+Temporary clones and scratch directories are deleted when the flow call that created them ends, unless the run's top flow is resumable. `GitEnvMixin` ignores git-ignored files and a top-level `.hmz/` or `.humanize/` directory. Declaring `BashEnvMixin`, `GitWorktreeEnvMixin`, or `GitEnvMixin` on a machine without the required binary raises `CapabilityMissing` before the flow starts.
 
 ### Environment mixins that declare requirements
 
@@ -465,13 +467,13 @@ Set these class attributes on a role. A machine with fewer CPUs, GPUs or less me
 | `MemoryEnvMixin` | `_memory` | `0` | Minimum RAM in bytes. |
 | `GPUEnvMixin` | `_gpu_count` | `1` | Minimum GPUs. |
 | `GPUEnvMixin` | `_gpu_memory` | `0` | Minimum VRAM per GPU in bytes. |
-| `ImageEnvMixin` | `_image` | `""` | Container image as taken by `docker run` (`""` uses the provider default, or `python:3.12-slim`). Must provide `/bin/sh` and Python 3.12+. Docker, Swarm, and Apple container environments only. |
+| `ImageEnvMixin` | `_image` | `""` | Container image as taken by `docker run` (`""` uses the provider default, or `python:3.12-slim`). Must provide `/bin/sh`. Docker, Swarm, and Apple container environments only. |
 
 ## Hooks
 
 Guide: [Hooks](/builder/hooks).
 
-A hook is an async function that takes a moment's params and returns its result for every session of the agent. Returning a default-constructed result makes no changes. Raising an exception fails the flow.
+A hook is an async function that takes a moment's params and returns its result for every session of the agent. Returning a default-constructed result makes no changes. An exception a hook raises fails the turn: `run` raises it. A hook called from inside the harness that has not answered within 900 seconds is skipped; `ASK_USER` has no such limit.
 
 | Name | Meaning |
 | --- | --- |
@@ -487,13 +489,13 @@ All params and result classes are frozen, keyword-only dataclasses. Every params
 | --- | --- | --- | --- |
 | `SESSION_START` | `Agent.on_session_start` | `SessionStartHookParams` | `SessionStartHookResult`: `context: str = ""` (prepended before the first prompt). |
 | `USER_PROMPT_SUBMIT` | `Agent.on_user_prompt_submit` | `UserPromptSubmitHookParams`: `prompt: str` | `UserPromptSubmitHookResult`: `block: bool = False` (rejects the prompt and makes `run` raise `SessionError` with `reason: str = ""`), `context: str = ""` (appended to the prompt). |
-| `PRE_TOOL_USE` | `Agent.on_pre_tool_use` | `PreToolUseHookParams`: `tool: str`, `input: Mapping[str, Any] = {}` | `PreToolUseHookResult`: `block: bool = False` (skips the tool and sends `reason: str = ""` to the agent). |
+| `PRE_TOOL_USE` | `Agent.on_pre_tool_use` | `PreToolUseHookParams`: `tool: str`, `input: Mapping[str, Any] = {}` | `PreToolUseHookResult`: `block: bool = False` (skips the tool and sends `reason: str = ""` to the agent, on `claude` and `qwen` only; other harnesses run the tool anyway). |
 | `PERMISSION_REQUEST` | `on_permission_request` of `PermissionRequestHookAgentMixin` | `PermissionRequestHookParams`: `tool: str`, `input: Mapping[str, Any] = {}` | `PermissionRequestHookResult`: `allow: bool = True`, `reason: str = ""`. |
 | `NOTIFICATION` | `Agent.on_notification` | `NotificationHookParams`: `message: str` | `NotificationHookResult`: no fields. |
 | `STOP` | `Agent.on_stop` | `StopHookParams`: `said: str` (final message), `again: int = 0` (times a stop hook has already continued this turn). | `StopHookResult`: `block: bool = False` (continues the turn using `reason: str = ""` as the next prompt; an empty `reason` does not block). |
 | `SESSION_END` | `Agent.on_session_end` | `SessionEndHookParams` | `SessionEndHookResult`: no fields. |
-| `SUBAGENT_START` | `on_subagent_start` of `SubagentStartHookAgentMixin` | `SubagentStartHookParams`: `subagent: str`, `task: str = ""` | `SubagentStartHookResult`: `context: str = ""` (prepended to the subagent). |
-| `SUBAGENT_STOP` | `on_subagent_stop` of `SubagentStopHookAgentMixin` | `SubagentStopHookParams`: `subagent: str`, `said: str = ""` | `SubagentStopHookResult`: `block: bool = False` (continues the subagent with `reason: str = ""` as its next prompt). |
+| `SUBAGENT_START` | `on_subagent_start` of `SubagentStartHookAgentMixin` | `SubagentStartHookParams`: `subagent: str`, `task: str = ""` | `SubagentStartHookResult`: `context: str = ""` (reaches no harness: the hook only observes). |
+| `SUBAGENT_STOP` | `on_subagent_stop` of `SubagentStopHookAgentMixin` | `SubagentStopHookParams`: `subagent: str`, `said: str = ""` | `SubagentStopHookResult`: `block: bool = False`, `reason: str = ""` (reach no harness: the hook only observes). |
 | `ASK_USER` | `on_ask_user` of `AskUserHookAgentMixin` | `AskUserHookParams`: `question: str`, `options: tuple[str, ...] = ()` | `AskUserHookResult`: `answer: str \| None = None` (`None` leaves it unanswered). |
 | `OUTWORLDER_RUN` | `Outworlder.on_outworlder_run` | `OutworlderRunHookParams`: `prompt: str`, `output_schema` (Pydantic model class, or `None` for text; default `None`), `context: tuple[Block, ...] = ()`, `face` (`Face`, or `None` for the form; default `None`) | `OutworlderRunHookResult`: `output` (required string or schema instance). |
 
@@ -531,13 +533,13 @@ The runtime fills `Outworlder` roles automatically (never via `-a`). In a top-le
 | `spawn` | Opens a session. `face` sets a custom web UI page for questions (`None` renders a form from `output_schema`). |
 | `run` | Asks the person a question alongside `context` and returns the text or `output_schema` response. |
 | `show` | Displays `context` blocks without waiting for an answer. No-op when `away` or on a `new` outworlder. Raises `SessionError` if `session` is not one of this outworlder's. |
-| `on_outworlder_run` | Registers the hook that answers `run` calls on a `new` outworlder. |
+| `on_outworlder_run` | Registers the hook that answers `run` calls on a `new` outworlder. Raises `CapabilityNotGranted` on any other outworlder. |
 
-When `away`, `run` returns immediately: `""` for text prompts, a default-constructed model if every `output_schema` field has a default, or raises `OutworlderAway`.
+When `away`, `run` returns immediately: `""` for text prompts, a default-constructed model if every `output_schema` field has a default, or raises `OutworlderAway`. `fork` on an outworlder raises `UnsupportedOperation`.
 
 ### Context blocks
 
-Every block is a frozen, keyword-only dataclass with `title: str = ""` and an `as_json()` serialization method. `Block` is the union of all seven types.
+Every block is a frozen, keyword-only dataclass with `title: str = ""` and an `as_json()` serialization method. `Block` is the union of all seven types. The `context` of one `run` or `show` holds at most 16 MiB, or raises `ValueError`.
 
 | Block | Fields | Shown as |
 | --- | --- | --- |
@@ -629,7 +631,7 @@ class FakeCli:
 | `FakeTool.called` | Validates the input, runs `call`, and formats the return value as a string. |
 | `FakeCli.run` | Parses arguments, runs the matching subcommand, and returns exit status, stdout, and stderr. |
 
-For a `FakeTool`, `call` returns strings as-is, `None` as `done`, and other values as JSON; exceptions report a tool error to the agent without stopping the turn. For a `FakeCommand`, strings print as-is, `None` prints nothing, and other values print as JSON; raising `SystemExit` uses its exit code, and other exceptions exit with `1`.
+For a `FakeTool`, `call` returns strings as-is, `None` as `done`, and other values as JSON; exceptions report a tool error to the agent without stopping the turn. For a `FakeCommand`, strings print as-is, `None` prints nothing, and other values print as JSON; raising `SystemExit` uses its exit code, other exceptions exit with `1`, and arguments the options refuse exit with `2`.
 
 ## Errors
 

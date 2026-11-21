@@ -1,11 +1,11 @@
 ---
 title: Events and records
-description: Look up every event of the hmz exec --json stream, every event of an epic's and a chat's record on disk, and every notice the daemon raises.
+description: Look up every event of the hmz exec --json stream, every message of an attached epic, every event of an epic's and a chat's record on disk, and every notice the daemon raises.
 ---
 
 # Events and records
 
-Read a run in three places: the `hmz exec --json` stream while an epic runs, the record on disk, and the notices the daemon raises when a run ends or asks for input.
+Read a run in four places: the `hmz exec --json` stream while an epic runs, the messages of an attached epic, the record on disk, and the notices the daemon raises when a run ends or asks for input.
 
 ## The event stream
 
@@ -58,6 +58,73 @@ The keys of `spent` are `input`, `output`, `cache_read`, `cache_write` and `reas
 - Nobody is at the prompt: a question is answered at once, and its `asks` event is still written.
 - Only `hmz exec` has `--json`. `hmz chat` does not.
 
+## Messages of an attached epic
+
+`epic.attach` opens an epic subscription. Each message arrives as an `epic.event` notification, or as one item of `for message in link` in Python. See [Daemon and wire](/reference/daemon) for the methods and [SDK](/reference/sdk) for the link. Every message is a JSON object with a `type` key. Readers must ignore unknown types and keys.
+
+### Order
+
+Besides `workspace`, `slot` and `scratch`, `epic.attach` takes `replay` (default `true`), `since` (`{epoch, seq}` or `null`) and `figures` (default `false`). The host sends these messages in order with nothing between them:
+
+1. `welcome`.
+2. Every kept history record, oldest first. With `replay` set to `false`, none. With `since`, only records after that `seq` if `epoch` still matches the host and all records are still kept; otherwise, all of them.
+3. One snapshot of each kind, in order: `clients`, `claims`, `away`, `run`, `sessions`, `calls`, `waiting`, `pending`, `usage`, `board`, `envs`.
+4. `live`.
+
+After `live`, each history record and changed snapshot arrives as it happens. `gone` is the last message of a subscription.
+
+| `type` | Keys |
+| --- | --- |
+| `welcome` | `client`, `name`, `kind`, `workspace`, `slot`, `pid` (the host's process), `protocol`, `epoch` (a text naming this life of the host). |
+| `live` | `seq`, that of the last history record, and `elided`, the number of records dropped from the front. |
+| `figures` | Only with `figures` set to `true`: after `live`, then at most once a second while it changes. `run`, `elapsed`, `lasting`, `ended`, `agents`, `sessions`, `handovers`, `latest`, `spending`, `reckoning`, `tally`. |
+| `gone` | `why`: `let go`, `the host was closed`, `too far behind; attach again` or `the host went away`. |
+| `term`, `term_exit` | The output of a terminal (`term`, `data`) and its end (`term`, `status`), sent only to the frontends that view it. They carry no `seq` and are not replayed. |
+
+### History records
+
+Every history record has `seq`, an integer that increases by one with each record. Every record except `printed` has `run`, the number of its epic. A host keeps up to 32 MiB of records for the current or last epic. It drops the oldest records first and counts them in `elided` on `live`.
+
+| `type` | Keys |
+| --- | --- |
+| `started` | `kind` (`flow` or `chat`), `flow`, `ref`, `task`, `by`, `client`, `roles`, `names`, `outworlders`, `agents`, `envs`, `params`, `budget`, `profile_flow`, `profile_environment`, `backup`, `resume`, `began`, `at`. |
+| `opened` | `role`, `key` (`<agent>/<n>`), `agent`, `cli`, `model`, `counts`, `forks`, `person`, `kept`, `env`, `harness`, `mono`, `wall`. |
+| `event` | `key`, `mono`, and the keys of [the event stream](#the-event-stream), except that the harness's id for the session is `ident`, and `session` is `key`, or `""` for an event not about one session. |
+| `asked` | `question` (`q<n>`), `role`, `text`, `options`, `mode` (`ask` or `listen`), `key`, `schema` (a JSON Schema, or `null` for text), `context`, `face`, `session`. |
+| `answered` | `question`, `role`, `by`, `client`, `text`. |
+| `withdrawn` | `question`, `why`: `away` or `over`. |
+| `shown` | `role`, `session`, `context`: blocks shown to a person with no question. |
+| `said` | `text`, `key`, `by`, `client`. |
+| `refused` | `agent`, `text`, `because`. |
+| `unheld` | `agent`, `texts`. |
+| `dropped` | `given`, `queued`, `because`: `stopped` or `ended`. |
+| `shell` | `key`, `command`, `out`, `err`, `status`: a `!` command a chat ran. |
+| `printed` | `text`: one line printed in the host process. |
+| `notice` | `text`. |
+| `stopping` | `by`, `client`. |
+| `ended` | `how` (`done`, `stopped`, `budget`, `refused`, `failed` or `crashed`), `why`, `mono`, `result` (what the flow returned for `done`, otherwise `null`). |
+| `env_used` | `env`, `by` (the frontend's name), `what`, and `path` where one was named. |
+
+In `env_used`, `what` is `wrote`, `made`, `renamed`, `removed`, `opened a terminal`, `staged`, `unstaged`, `discarded`, `committed` or `rewound`. The host writes one record for each change a frontend makes from the Files, Terminal and Changes panels.
+
+### Snapshots
+
+The host keeps the latest snapshot of each kind and sends a new one whenever it changes.
+
+| `type` | Keys |
+| --- | --- |
+| `clients` | `clients`: one `{client, name, kind}` per attached frontend. |
+| `claims` | `claims`: `{role: client}`. |
+| `away` | `all` (a boolean) and `of` (`{role: boolean}`). |
+| `run` | `state` (`idle` at first), the keys of `started` for the epic going or the last, `stopping`, `epic`, `chat`, `slot`, and for a chat `turn`. |
+| `sessions` | `run`, `open` (the keys still open), `working` (the keys with a turn open). |
+| `calls` | `calls`: one `{ref, name, depth, since, id, parent}` per flow call going. |
+| `waiting` | `queued` and `given`: lines said and not yet taken. |
+| `pending` | `pending`: the questions not yet answered, each with the keys of its `asked`, `run` and `owner`. |
+| `usage` | `run`, `usage`, `budget`. Sent at most once a second. |
+| `board` | `items`: one `{key, value, about, whose, by, at}` each, or `null` for an epic with no board. |
+| `envs` | `envs`: the environments of the epic. |
+
 ## Records on disk
 
 Each epic and chat keeps an append-only JSON Lines record on disk. See [Files on disk](/reference/files) for the rest of the directory.
@@ -80,7 +147,7 @@ Every line is a JSON object with `event` (the event name), `at` (the UTC time it
 | `opened` | A session's harness first states the session's id. | See below. |
 | `called` | The flow calls a flow. | `flow` (the called flow's reference), `task`, `epic` (the file name of the call record). |
 | `returned` | That call ends, however it ends. | `flow` and `epic`, equal to those of its `called`. |
-| `usage` | Just before each `ended`. | `cost` (US dollars), `output_tokens`, `seconds`: what the budget counted. |
+| `usage` | Just before each `ended`. | `cost` (US dollars, left out where it is not a finite number), `output_tokens`, `seconds`: what the budget counted since the record began or was last reopened. |
 | `ended` | The flow stops. | `how`: `done`, `failed` or `stopped`. |
 | `backed` | Each time the epic is backed up. | `to` (the target), `ok`, `error` (`""` when `ok`), `why`: `session`, `interval`, `end` or `manual`. |
 | `imported` | The epic is imported or downloaded from a backup. | `from` (the archive's file name, or the backup it came from), `head` (the workspace commit the archive states, or `""`). |

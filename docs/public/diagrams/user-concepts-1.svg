@@ -24,7 +24,7 @@
 <text x="116" y="88" font-size="12" fill="#5d6a72">frontends</text>
 
 <rect x="24" y="104" width="712" height="40" rx="8" fill="#e6f2cf" stroke="#5a8f00" stroke-width="1.5"/>
-<text x="380" y="129" text-anchor="middle">Daemon: one per machine</text>
+<text x="380" y="129" text-anchor="middle">Daemon: one per machine and user</text>
 <path d="M256 144V174" fill="none" stroke="#5d6a72" stroke-width="1.5" marker-end="url(#a)"/>
 <text x="268" y="164" font-size="12" fill="#5d6a72">holds</text>
 

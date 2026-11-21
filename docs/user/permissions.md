@@ -21,7 +21,7 @@ Agents do not wait for your approval before editing a file or running a command.
 | **Edit this folder** | `workspace-write` | everything | the folder it works in, and the temporary directories |
 | **Full access** | `danger-full-access` | everything | anything your user account may change |
 
-**Edit this folder** is the default for every chat and role. At **Read only**, the agent can still run commands such as builds or tests, but any write to a file is refused.
+**Edit this folder** is the default for every chat and role. At **Read only**, the agent can still run commands, but every write to a file is refused, so a command that has to write files, such as a build, fails.
 
 ## Set a chat's permission
 
@@ -29,7 +29,7 @@ Agents do not wait for your approval before editing a file or running a command.
 
 Find the permission chip under the message box, at the right, both on the **New chat** page and inside an active chat.
 
-1. Click the chip. It displays the current permission, which defaults to **Edit this folder**.
+1. Click the chip. It displays the current permission.
 2. Select **Read only**, **Edit this folder** or **Full access**.
 
 ![The Permissions menu open over the chip: Read only, Edit this folder (checked) and Full access, each with one line saying what it allows](/shots/user-permissions-menu.svg)
@@ -41,6 +41,8 @@ In a new chat, your selection applies from the first message. In an active chat,
 *Under Read only, the agent cannot save a file.*
 
 If the daemon refuses the change, the chip reverts and a message says why. Chats always have network access. [Ai-chan](/user/ai-chan) uses her own presets.
+
+A chat started with no folder works in a directory of its own. For that chat, **Edit this folder** means that directory.
 
 ### In the terminal
 
@@ -72,7 +74,7 @@ class Reviewer(Agent):
 - **Path rules.** `allow(path)` grants read and write access to a path and everything under it. `read_only(path)` grants read access. `deny(path)` blocks all access. Paths must start with `.` (the working folder), `~` (your home directory) or `/`. The last matching rule wins.
 - **`network=False`.** The agent can reach only its model and sign-in hosts. Its built-in web search is also disabled when the CLI supports it.
 
-In the app, point at a role's name on the **New epic** page to see what the flow grants it, for example `read-only · goes online`.
+In the app, point at a role's name on the **New epic** page to see what the flow grants it, for example `read-only · goes online`. The flow's page under **Flows** shows the same line under each role.
 
 To change a role's permission, edit a local copy of the flow. See [Find and install flows](/user/flows) and [Skills and permissions](/builder/skills).
 

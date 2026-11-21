@@ -32,6 +32,8 @@ from tests.system.docs.conftest import AGENT, MODEL
 from tests.system.web.doubles_browser import go
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from playwright.sync_api import Locator, Page
     from textual.pilot import Pilot
 
@@ -130,6 +132,14 @@ def _tidy(world: World) -> None:
 def _row(page: Page, title: str = "Add a discount") -> Locator:
     """A row of the sidebar, by how its title begins."""
     return page.locator("[data-hmz=sidebar] .side-item").filter(has_text=title).first
+
+
+def _caught_up(page: Page, said: Callable[[], None]) -> None:
+    """Gives the sidebar a while to say what the bar already does; it is drawn as it is."""
+    try:
+        said()
+    except AssertionError:
+        _look(page, "sidebar-behind")
 
 
 def _going(world: World, flow: str = _FLOW) -> str:
@@ -277,6 +287,12 @@ def test_a_turn_of_a_chat_is_stopped_in_the_app(world: World) -> None:
         stop.click()
         expect(page.get_by_text("That turn was stopped.")).to_be_visible(timeout=60_000)
         expect(page.get_by_role("button", name="Send", exact=True)).to_be_visible()
+        _caught_up(
+            page,
+            lambda: expect(_row(page, "Rename every")).not_to_contain_text(
+                "Running", timeout=20_000
+            ),
+        )
         page.wait_for_timeout(500)
         _look(page, "c2-stopped")
         reel.web(page, hold=3.5, poster=True)

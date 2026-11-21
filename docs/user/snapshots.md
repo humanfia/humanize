@@ -36,7 +36,7 @@ The change list updates to show the worktree as the snapshot had it.
 
 Above **Snapshots**, **Commits** shows the branch's last 50 commits (short hash, subject, author, and age) for reference; you can only rewind to snapshots.
 
-If a rewind is refused, the **Snapshots** section shows the reason. The section is hidden if the environment's machine has no git. For the rest of the tab, see [Files, changes and terminal](/user/environment-panels).
+With no snapshots, the section says `No snapshots yet.`; if a rewind is refused, it shows the reason. Once the environment has closed, the **Rewind** buttons are disabled. The section is hidden if the environment's machine has no git. For the rest of the tab, see [Files, changes and terminal](/user/environment-panels).
 
 ## In the terminal
 
@@ -47,7 +47,7 @@ If a rewind is refused, the **Snapshots** section shows the reason. The section 
 
 ![The Snapshots page of an environment in the terminal interface: three snapshots listed, the first selected](/shots/user-snapshots-terminal.svg)
 
-The page closes and the transcript prints `rewound workspace to refs/hmz/snapshots/round-1`; press <kbd>esc</kbd> to get back to it. If there are no snapshots, the page shows `no snapshots yet`.
+The page closes and the transcript prints `rewound workspace to refs/hmz/snapshots/round-1`; press <kbd>esc</kbd> to get back to it. If there are no snapshots, the page shows `no snapshots yet`; a refused rewind prints its reason under the list. An environment without git has no Snapshots page.
 
 ![Rewinding in the terminal: a snapshot is chosen, a box asks first, and the transcript says the environment was rewound](/shots/user-snapshots-terminal-rewind.svg)
 

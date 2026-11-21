@@ -39,7 +39,7 @@ Humanize Desktop and the web page work the same way.
 | **Next turn** | into the first session that has a turn open or, with none open, into the next turn any agent starts. If a question you may answer is waiting for a typed line, the line answers it instead. |
 | an agent's name | into that agent's newest session with a turn open |
 | a session: an agent's name and a number | into that session. A session in the middle of a turn is marked `(working)`. |
-| a role followed by `(person)` | to nothing but that role's waiting question, as its answer |
+| a role followed by `(person)` | to no agent: it answers that role's question once one waits for a typed line. If another interface holds the role, the line is refused. |
 
 To skip the chip, select an agent or session in the sidebar. The box changes to `Message` followed by that name, and sends every line there. If that session is asking you a question, your line answers it.
 
@@ -49,7 +49,7 @@ Once a turn takes the line, it appears in the session thread labeled with the se
 
 Type a line at the `hmz` prompt and press <kbd>enter</kbd>.
 
-The line goes to the agent whose transcript is on screen. Press <kbd>shift+tab</kbd> to switch to another agent first. When you view an agent, the line goes to whichever of its sessions has an open turn.
+The line goes to the agent whose transcript is on screen. Press <kbd>shift+tab</kbd> to switch to another agent first. When you view an agent, the line goes to its newest session with an open turn.
 
 ![The terminal interface: a line is typed, it is pinned above the prompt, and the agent's next turn takes it into the transcript](/shots/user-steering-terminal.svg)
 
@@ -73,7 +73,7 @@ When a turn takes the line, it leaves the pin and joins the transcript. A line c
 | `never sent` | The epic ended while the line still waited. |
 | `sent to the agent, not acknowledged` | The epic ended while an agent held the line unconfirmed. |
 
-If a question is waiting for you, your line answers it. On a person's role view with no waiting question, the terminal refuses the line with `is not asking anything now`.
+If a question is waiting for you, your line answers it. On a person's role view with no waiting question, the terminal refuses the line with `is not asking anything now`, or with `to answer, not yours` when another interface holds that role.
 
 ## Follow one epic from several interfaces
 
@@ -89,7 +89,7 @@ Every interface sees every line. A line, an answer or an epic started from anoth
 
 Some runs keep a board of key-value pairs that both you and the run can edit. Nothing waits on the board. It appears only when the run uses one.
 
-- In the app, open the epic panel and select **Board**. Click **Edit** then **Save** to change a value, or **Remove** to delete a line. Fill in **Key** and **Value** and click **Add** to create a line.
+- In the app, open the epic panel and select **Board**. Click **Edit** then **Save** to change a value, or **Remove** twice to delete a line. Fill in **Key** and **Value** and click **Add** to create a line.
 - In the terminal, press <kbd>←</kbd> at an empty prompt to open the monitor and find the board under the graph. Press <kbd>enter</kbd> on `+ add entry` to add a line, or on an existing line to edit it. Save an empty line to remove it.
 
 Lines tagged **Flow** in the app or `flow's` in the terminal belong to the run and are read-only.

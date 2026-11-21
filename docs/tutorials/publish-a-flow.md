@@ -116,10 +116,10 @@ license: MIT
 | --- | --- |
 | `name` | Flow name. Must match its directory in the index. Lower-case letters, digits, and `_`, starting with a letter. |
 | `version` | SemVer release. Must match its directory in the index. |
-| `repo` | Code location: `owner/repo` on GitHub, or any git URL. |
+| `repo` | Code location: `owner/repo` on GitHub, or a git URL starting with `https://`, `http://`, `ssh://`, `git://` or `file://`. |
 | `commit` | Full commit hash to install. |
 | `description` | Optional. One-line summary. |
-| `ref` | Optional. Git tag, for human readers. |
+| `ref` | Optional. Tag or branch the release was cut from, for human readers. |
 | `subdir` | Optional. Directory holding the flow. Omit for the repository root. |
 | `license` | Optional. SPDX license name. |
 

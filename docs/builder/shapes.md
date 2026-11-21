@@ -150,11 +150,15 @@ Each field in the model renders as a form control based on its type. The termina
 | `bool` | Two buttons. A short `description` words the yes: `Yes, post it to the changelog` |
 | `int`, `float` | A number box. `ge`, `le`, `gt`, `lt` and `multiple_of` are checked |
 | `str` | One line, or several for a long text or a field named like `notes`, `reason` or `summary`. `min_length`, `max_length` and `pattern` are checked |
-| `datetime.date`, `datetime.time`, `datetime.datetime`, `pydantic.AnyUrl` | The browser's own input for a date, a time or an address |
+| `datetime.date`, `datetime.time`, `datetime.datetime`, `pydantic.AnyUrl`, `pydantic.EmailStr` | The browser's own input for a date, a time, an address or an email. The format is checked |
+| `uuid.UUID` | One line, checked as a UUID |
 | `pydantic.SecretStr` | A hidden box with **Show** |
-| `list[...]` | Items you add and remove. `min_length` and `max_length` are checked |
+| `list[...]`, `set[...]` | Items you add and remove. `min_length` and `max_length` are checked. A `set` takes each item only once |
+| A `list` or `set` of a `Literal` or an enum, up to 8 values | One button per value, each switched on or off |
 | A nested model | Its fields, inline |
 | Anything else, such as a `dict` | A box for JSON |
+
+The app checks each value before it sends the answer and puts a plain message beside the field, such as `This needs a date, like 2026-01-31.` or `Each item only once.` The daemon validates the answer again and has the last word.
 
 Three other settings control the layout:
 
@@ -200,5 +204,6 @@ To script a person, pass `outworlder=fakes.FakeOutworlder(reply={"action": "ship
 - Bound retry loops so a failing check does not run until the budget expires.
 - Catch `OutputSchemaError` or `HarnessError` rather than `Exception`, which would also catch a spent budget.
 - A `grok` agent whose role provides a fake tool cannot use `output_schema` and raises `HarnessUnrecoverable`.
+- `pydantic.EmailStr` needs pydantic's `email` extra (`pydantic[email]`) installed beside the flow.
 - A scripted agent with no `reply` builds the model from its field defaults, or raises `OutputSchemaError` if any field is required.
 - Programs answering for a person through the SDK get three attempts to submit a valid answer. See [The Python SDK](/builder/sdk).

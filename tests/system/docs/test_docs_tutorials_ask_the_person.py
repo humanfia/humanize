@@ -226,7 +226,8 @@ def _faced(source: str) -> str:
 def _own(world: World, source: str, *, face: bool = False) -> None:
     """Commits the page's flow over the project's `sign_off`, as `@local/sign_off`.
 
-    Committed, so that the diff the person is shown is of what the agent changed alone.
+    Committed only to keep the staged tree clean: `git diff` leaves untracked files out, so
+    the diff the person is shown is of what the agent changed alone either way.
     """
     files = {".hmz/flows/sign_off/__init__.py": source}
     if face:

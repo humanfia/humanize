@@ -32,7 +32,12 @@ Only releases signed with the updater's key include the last three files. The ap
 | Local daemon route | `stdio:local` | `stdio:wsl` |
 | Installs `hmz` | Never | In the default WSL distribution, at the app's own version |
 
-The app opens `.hmzepic` files (media type `application/vnd.hmz.epic+gzip`, macOS type identifier `ai.humanfia.humanize.epic`).
+The app opens `.hmzepic` files (media type `application/vnd.hmz.epic+gzip`, macOS type identifier `ai.humanfia.humanize.epic`). The executable also takes a `.hmzepic` path as its argument, relative to the current directory. If the app is already running, the second launch hands the file to it: the running app imports the epic and comes forward.
+
+```sh
+"/Applications/Humanize Desktop.app/Contents/MacOS/humanize" run.hmzepic   # macOS
+humanize.exe run.hmzepic                                                    # Windows
+```
 
 ### What the app downloads
 
@@ -63,7 +68,7 @@ The data directory is `~/Library/Application Support/ai.humanfia.humanize/` on m
 | --- | --- |
 | `.window-state.json` | The window's size, position and whether it is maximized |
 | `identity/key.pem` | The private key of the app's device identity. Written once, readable by you alone |
-| `identity/cert.pem` | The certificate of the app's device identity. Written once |
+| `identity/cert.pem` | The certificate of the app's device identity. Made again only if it does not match the key |
 | `easytier.json` | The EasyTier entries: each name with its secret and nodes. Readable by you alone |
 | `easytier/<version>/` | The EasyTier programs the app downloaded |
 
@@ -127,8 +132,10 @@ The top-right window buttons are **Minimize**, **Maximize** (**Restore Down** wh
 | `Humanize Desktop <version>` | **Restart**, **Later** | An update is downloaded. **Restart** installs it now. **Later** installs it when the app quits |
 | `Humanize Desktop is up to date` | **OK** | A check by hand found nothing newer |
 | `Update failed` | **OK** | A check by hand failed, with the reason |
+| `Update failed`: `Humanize Desktop cannot replace itself where it is. Move it to Applications, and open it from there.` | **OK** | macOS: a check by hand where the app cannot replace itself |
+| `Update failed`: `Humanize Desktop cannot replace itself where it is. Install it for yourself with its setup, and open it from there.` | **OK** | Windows: the same |
 
-During a check by hand, a small `Software Update` window shows the check, then the download's progress. The app downloads no update where it cannot replace itself: run from the disk image on macOS, or from outside its per-user install folder on Windows.
+During a check by hand, a small `Software Update` window shows the check, then the download's progress. The app downloads no update where it cannot replace itself. On macOS that is an app run from the disk image, moved aside by Gatekeeper, or in a folder you cannot write; on Windows, one run from outside the folder its setup installed it in.
 
 ## Environment variables
 
@@ -138,13 +145,24 @@ At launch, the app queries your login shell (or the WSL login shell on Windows) 
 | --- | --- |
 | `HUMANIZE_HMZ` | The `hmz` to run for Local. The app looks for no other and installs nothing. On Windows the value is a path inside WSL |
 | `SHELL` | The login shell that is asked. `/bin/zsh` where it is not set on macOS |
-| `PATH` | Where `hmz` and the coding agents are found. The app adds `~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` and `/bin` where they are missing |
+| `PATH` | Where `hmz` and the coding agents are found. The app adds `~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin` (macOS only), `/usr/local/bin`, `/usr/bin` and `/bin` where they are missing |
 | `UV_TOOL_BIN_DIR` | Added to `PATH` |
 | `HTTPS_PROXY`, `https_proxy`, `ALL_PROXY`, `all_proxy` | On Windows, the proxy for downloading `uv`. The first one set in the WSL login shell is used |
 
 For variables read by `hmz` itself, see [Environment variables](/reference/environment).
 
-Development builds report version `0.0.0`, install nothing, skip update checks, and run the first `hmz` found on `PATH` or in the fallback directories above.
+## Building from source
+
+The app is a Tauri 2 project in `desktop/`, built with pnpm. Run these in that directory:
+
+| Command | Does |
+| --- | --- |
+| `pnpm dev` | Runs the app on the page in `src/hmz/web/static` |
+| `pnpm build` | Builds the app and its disk image on macOS, the installer on Windows |
+| `pnpm dmg-background` | Draws the disk image's backgrounds again. macOS only |
+| `pnpm nsis-images` | Draws the Windows installer's pictures again |
+
+A build from source has version `0.0.0`, which makes it a development build. Development builds install nothing, skip update checks, and run `HUMANIZE_HMZ` or the first `hmz` found on `PATH` or in the fallback directories above.
 
 ## Commands the page may call
 
@@ -182,7 +200,19 @@ The launch screen has its own commands: `status`, and on Windows `retry`, `keep`
 | `stdio:ssh://`, `tcp://`, `ws://`, `wss://`, `easytier:`, `relay:` | The app, on both |
 | `webrtc:` | The web view's own WebRTC |
 
-The app rejects any other route with `<route> cannot be reached from here.` On `tcp`, `ws`, `wss`, `easytier` and `relay` routes, the app establishes mutual TLS 1.3 using its device identity and verifies the daemon's ID. For the route grammar, see [Daemon and wire](/reference/daemon).
+On `tcp`, `ws`, `wss`, `easytier` and `relay` routes, the app establishes mutual TLS 1.3 using its device identity and verifies the daemon's ID. For the route grammar, see [Daemon and wire](/reference/daemon).
+
+A connection that fails or ends gives its reason as a sentence. The most common are:
+
+| Reason | Meaning |
+| --- | --- |
+| `<route> cannot be reached from here.` | The app opens no such route on this platform |
+| `<route> needs the id of the daemon it reaches.` | A route other than `stdio:` was opened without a daemon ID |
+| `hmz is not installed on this machine.` | macOS: no `hmz` was found for `stdio:local` |
+| `<route> did not open within 30 seconds.` | The connection or its TLS took too long |
+| `<name> is not the daemon it was paired with.` | The daemon's certificate does not match the pinned ID. Check the address, or pair again |
+| `TLS with <name> failed: <why>` | The TLS handshake failed for another reason |
+| `The daemon closed it.` | The daemon ended the connection without saying why. Otherwise the reason is the last line its process wrote to standard error |
 
 ### Limits
 

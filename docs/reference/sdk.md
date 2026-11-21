@@ -75,7 +75,7 @@ class Hmz:
 | `read(argv)` | `Line` | Parses an `hmz exec` argument list (without `exec`). Loads no flow. Raises `SystemExit(2)` if argparse rejects the line or an `-a`, `-e` or `-p` value cannot be read. |
 | `exec(argv)` | what the flow returned | Calls `read(argv)`, `run(...)`, then `Run.run()`. Draws nothing and installs no signal handlers. |
 | `backends()` | tuple of `Profile` | Every coding agent CLI Humanize drives, installed or not. |
-| `installed()` | dict of name to tuple of `Model` | Installed backends mapped to their last reported models. Empty if never queried. |
+| `installed()` | dict of name to tuple of `Model` | Installed backends mapped to their last reported models: an empty tuple for a backend never queried. |
 | `installable()` | dict of name to tuple of `Model` | Optional backends with an installed binary but missing Python extra. |
 | `adding(backend)` | `str` | What is missing for an optional backend and the command to add it. |
 | `serves(backend, role)` | `bool` | Whether a backend can fill an agent role in a flow declaration. `role=None` checks a flowless agent. |
@@ -169,7 +169,7 @@ Returned by `Hmz.run`. The constructor starts nothing. Once started, a new exec 
 | Method | Returns | What it does |
 | --- | --- | --- |
 | `run()` | the result | Calls `start()`, then `wait()`. Returns `result` or raises `raised`. |
-| `start()` | `None` | Attaches to a new exec slot, marks `Outworlder` roles away or claims them for the driver, and starts the epic. Returns immediately. Raises `Refused` if refused, `OSError` if the daemon is unreachable, `RuntimeError` if already started. |
+| `start()` | `None` | Attaches to a new exec slot, marks `Outworlder` roles away or claims them for the driver, and starts the epic. Returns once the daemon has loaded the flow and accepted the start, without waiting for the epic. Raises `Refused` if refused, `OSError` if the daemon is unreachable, `RuntimeError` if already started. |
 | `wait(timeout=None)` | `bool` | Blocks until the epic ends or `timeout` seconds pass. Returns whether it ended. |
 | `stop()` | `None` | Requests a stop without waiting for the epic to unwind. Thread-safe. |
 | `close()` | `None` | Calls `stop()`, forces the epic if still running, and disconnects from the daemon. |
@@ -458,7 +458,7 @@ Manages a direct RPC session with a daemon. A context manager. See [Daemon and w
 
 | Member | What it does |
 | --- | --- |
-| `local(name="", kind="sdk")` | Connects to this machine's daemon over its Unix socket, starting it if needed. `kind` is `sdk`, `cli`, or `tui`. Raises `OSError` if unreachable, unable to start, or on a protocol mismatch. |
+| `local(name="", kind="sdk")` | Connects to this machine's daemon over its Unix socket, starting it if needed. `kind` is `sdk`, `cli`, `tui`, or `ai-chan`. `ai-chan` connects over the scoped link named by [`HUMANIZE_AICHAN_LINK`](/reference/environment) instead and starts no daemon. Raises `OSError` if unreachable, unable to start, on a protocol mismatch, or, for `ai-chan`, if the variable names no link. |
 | `over(pipe, name="", kind="sdk")` | Opens a session over an existing trusted pipe. |
 | `call(method, params=None, *, idem=None, seconds=None)` | Calls an RPC method and returns the result. `idem` sets the idempotency key for writes. Raises `Refused` (with `code` and `data`) on error, or `TimeoutError` after `seconds`. |
 | `heard(listener)` | Calls `listener(method, params)` in order on a background thread for each notification. Raises `RuntimeError` if already set. |
@@ -521,7 +521,7 @@ A frontend connection to a host, returned by `Daemon.link`. A context manager. R
 | --- | --- |
 | `client` | Client ID for this frontend. |
 | `heard(listener)` | Calls `listener(message)` on a background thread for each queued and incoming message. Raises `RuntimeError` if already set. |
-| iteration | `for message in link` yields messages in order until disconnected or `close()` is called. |
+| iteration | `for message in link` yields messages in order until disconnected or `close()` is called. Raises `RuntimeError` if a `heard` listener is set. |
 | `asked(said, *, seconds=None)` | Sends a request `dict` containing `do` and waits for the reply. Raises `Refused` or `TimeoutError`. |
 | `start(flow, task, *, agents=None, envs=None, params=None, budget=None, profile_flow=False, profile_environment=False, resume=False, backup=None)` | Starts a flow using string specs (same parameters as [Hmz.run](#hmz-run)). Response includes `run`. |
 | `say(text, *, to="")` | Sends a message into the active turn on view `to`, or queues it for the next turn. |

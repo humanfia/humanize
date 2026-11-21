@@ -105,6 +105,7 @@ See [Connect to other machines](/user/daemons) for other ways to add a daemon, r
 1. Run `/settings daemons`.
 2. Select **Add daemon** and set `mode` to `Pairing code`.
 3. Fill in `name` and `code`.
+4. Press <kbd>enter</kbd> on the new daemon and select `connect`.
 
 ![The Daemons page of /settings in the terminal: Local, and devbox reached at relay:wss://relay.example.com, up](/shots/user-relay-terminal.svg)
 
@@ -133,11 +134,11 @@ ice_servers:
 
 ## Use shared EasyTier nodes
 
-EasyTier is another way to reach a machine with no open port. Both machines join a private network and meet on shared nodes without a relay of your own. See [Connect to other machines](/user/daemons) for setup. The form's **Nodes** field lists ready-made nodes.
+EasyTier is another way to reach a machine with no open port. Both machines join a private network and meet on shared nodes without a relay of your own. See [Connect to other machines](/user/daemons) for setup and editing. The form's **Nodes** field lists ready-made nodes.
 
 ![The Nodes field of the EasyTier form: listed shared nodes, each up or down with its uptime over 24 hours, two public nodes, and one node added by hand and ticked](/shots/user-relay-nodes.svg)
 
-The list loads from the EasyTier community status page and shows whether each node is **up** along with its 24-hour uptime. Set `HUMANIZE_EASYTIER_NODES` to read a different status page. Two public nodes, `tcp://public.easytier.top:11010` and `tcp://easytier.public.kkrainbow.top:11010`, are always available even if the status page is unreachable.
+The list loads from the EasyTier community status page and shows whether each node is **up** along with its 24-hour uptime. To read the `easytier` status page of another Uptime Kuma server, set `HUMANIZE_EASYTIER_NODES` to that server's URL. Two public nodes, `tcp://public.easytier.top:11010` and `tcp://easytier.public.kkrainbow.top:11010`, are always available even if the status page is unreachable.
 
 To add your own node, type `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, or `wg`) and press **Add node** or <kbd>enter</kbd>. Tick at least one node that the other machine also uses.
 
@@ -157,6 +158,6 @@ To add your own node, type `tcp://host:port` (or `udp`, `ws`, `wss`, `quic`, or 
 - The relay sees which daemon IDs register, which addresses join them, timestamps, and byte counts, but never session contents. Anyone who can reach a relay can connect to it, though only paired devices can pass the daemon's check.
 - A browser's WebRTC identity is stored in its site data. Clearing site data makes the browser a new device that you must pair again.
 - If a daemon loses its connection to the relay, it retries after 1 second, doubling up to 60 seconds, while its other listeners keep working.
-- The relay enforces a 65 536-byte limit on text messages, a 1 048 576-byte limit on binary messages, a 30-second ping interval (a connection silent for 60 seconds is closed), and a 10-second timeout for a daemon to answer a join.
+- The relay enforces a 65 536-byte limit on text messages, a 1 048 576-byte limit on binary messages, a 30-second ping interval (a ping unanswered for 60 seconds closes the connection), and a 10-second timeout for a daemon to answer a join.
 
 See the [daemon reference](/reference/daemon) for all routes and listeners, [settings.yaml](/reference/settings) for configuration keys, and the [CLI reference](/reference/cli) for commands.

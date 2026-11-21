@@ -66,7 +66,7 @@ async def tested(
 | `Env` | The user running the flow. It can be on this machine, an ssh host, a container or a Slurm job. |
 | `NotRequired[...]` | The user running the flow, or nobody. Read it with `envs.get("role")`, which returns `None` when omitted. |
 
-Pass `env=` to set where an agent's turn happens: `await coder.run(task, session=session, env=package)`. Mixins apply only to methods the flow calls directly. An agent does not need mixins to work in an environment.
+Pass `env=` to a turn to set where the agent works. Mixins apply only to methods the flow calls directly. An agent does not need mixins to work in an environment.
 
 ## Properties on every environment
 
@@ -90,7 +90,7 @@ package = await workspace.derive_subdir(subdir="shop")
 await coder.run(task, session=session, env=package)
 ```
 
-`subdir` must be a relative path inside the workdir. An absolute path, or one that climbs out of the workdir with `..`, raises `ValueError`.
+`subdir` must be a relative path inside the workdir. An absolute path, or one that climbs out of the workdir with `..`, raises `ValueError`. A directory that cannot be created raises `EnvError`.
 
 ## Run a command
 
@@ -145,7 +145,7 @@ While the epic runs, open the **Epic** panel and click **Open its 3 environments
 
 ![Humanize Desktop on the Environments view of a running epic: reports, workspace, and under workspace the derived workspace#subdir(shop), selected, with the package's files in the explorer](/shots/builder-environments-view.svg)
 
-*The derived directory keeps its parent's role and mixins.*
+*`workspace#subdir(shop)` is the directory the flow derived from `workspace`.*
 
 ### In the terminal
 
@@ -191,13 +191,14 @@ Humanize connects to every environment and verifies it before calling the flow f
 
 If a machine lacks support for a mixin, the run fails with `CapabilityMissing`. Here is the same command on a machine without `bash`:
 
-![hmz exec refuses the run: 'workspace' needs BashEnvMixin, which the workspace's machine does not support: BashEnvMixin needs bash on the machine's PATH, and it has none](/shots/builder-environments-missing.svg)
+![hmz exec refuses the run: 'workspace' needs BashEnvMixin, which the workspace's directory on this machine does not support: BashEnvMixin needs bash on the machine's PATH, and it has none](/shots/builder-environments-missing.svg)
 
 ## Good to know
 
 - A flow can only call methods from mixins the role declares. Calling a method from an undeclared mixin raises `CapabilityNotGranted`, even if the machine supports it.
 - Humanize never deletes directories created by `derive_subdir`.
 - `exec` runs commands with an empty stdin and decodes output as UTF-8.
+- Each command runs in its own process group. A timeout, a cancelled flow or the environment closing kills the whole group.
 - `EnvCommandTimeout` includes `stdout` and `stderr` with the output written before the command was killed.
 - Every environment error subclasses `EnvError`. See [Context, errors and cleanup](/builder/context).
 - A turn without `env=` runs in the epic's workspace.

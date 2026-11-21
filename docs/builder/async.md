@@ -142,7 +142,7 @@ Start the flow from **New epic**. The agent's node in the graph draws one bar pe
 
 ### In the terminal
 
-Run the flow in `hmz`. The transcript announces each turn as it starts: `conversation 2 of 3`. Press <kbd>left</kbd> to open the monitor, then <kbd>space</kbd> on the agent's node to list its sessions.
+In `hmz`, type `/flow review_parts` once to set the flow up, then `/flow review_parts <task>` to start it. The transcript announces each turn as it starts, up to `conversation 3 of 3`. Press <kbd>left</kbd> to open the monitor, then <kbd>space</kbd> on the agent's node to list its sessions.
 
 ![The terminal interface: three turns start, the monitor shows one agent working, and space lists its three sessions](/shots/builder-async-monitor.svg)
 

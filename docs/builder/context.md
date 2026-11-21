@@ -18,12 +18,12 @@ Read `ctx` to inspect the current `FlowContext`. Each flow call gets its own con
 | Name | Type | What it is |
 | --- | --- | --- |
 | `ctx.budget` | `Budget` | The limits for this call, taking the tighter of its own limits and its caller's: `duration`, `cost`, `output_tokens`, and `graceful`. Unset limits are `None`; with no budget at all, `cost` is `inf`. |
-| `ctx.usage` | `Usage` | Total usage for this call and its child calls so far: `duration` (`timedelta`), `cost` (USD), and `output_tokens`. |
+| `ctx.usage` | `Usage` | Total usage for this call and its child calls so far: `duration` (a `timedelta`, the time agents spent in turns), `cost` (USD), and `output_tokens`. |
 | `ctx.flow` | `Flow` | Metadata for the running flow: `description`, `resumable`, `expected_agents`, `expected_envs`, and `expected_params`. |
 | `ctx.resumed` | `bool` | `True` if this call resumes an earlier run. |
 | `ctx.state` | `FlowState` or `None` | State kept across runs for a resumable flow, or `None` if the flow is not resumable. |
 
-`ctx.budget` holds the total limits, not the remaining budget. Subtract `ctx.usage` to find what remains:
+`ctx.budget` holds the total limits, not the remaining budget. Subtract `ctx.usage` to find the cost or tokens that remain:
 
 ```python
 left = ctx.budget.cost - ctx.usage.cost if ctx.budget.cost is not None else None
@@ -128,7 +128,7 @@ FlowException
 
 Python builtins catch matching leaf classes: `except TimeoutError` catches both `EnvCommandTimeout` and `DurationExceeded`. Child flows raise their exceptions directly into the calling flow without wrapping. Bugs in your own code keep their normal Python types, so a `KeyError` stays a `KeyError` rather than becoming a `FlowException`.
 
-`BudgetExceeded` is sticky. Once a flow spends its budget, every later turn raises `BudgetExceeded` again. The flow can continue only when a single turn exceeds its own budget (`error.own` is `True`). Each exception class takes its message as its single argument, so `str(error)` returns the full message and the error pickles cleanly.
+`BudgetExceeded` is sticky. Once a flow spends its budget, every later turn raises `BudgetExceeded` again. The flow can continue only when a single turn exceeds its own budget (`error.own` is `True`).
 
 See the [Flow API](/reference/flows) reference for a description of each class.
 
@@ -143,6 +143,7 @@ How the flow function exits determines the epic's final state and the exit code 
 | is stopped from outside | **Stopped** | after <kbd>ctrl+c</kbd>, exits `128` plus the signal number |
 | raises another `FlowException` | **Failed** | writes the exception, exits `1` |
 | raises anything else | **Crashed** | writes the traceback, exits `1` |
+| is refused before it starts | **Refused** | writes `hmz exec: error: <reason>`, exits `2` |
 
 ![hmz exec runs the same flow when both tries fail: it ends with the line HarnessUnrecoverable and what the harness said](/shots/builder-context-failed.svg)
 
@@ -238,13 +239,13 @@ import hmz
 flows = hmz.here() / "flows"  # this project's own flows, the @local source
 ```
 
-`hmz.home()` and `hmz.here()` do not create the directory on disk. `hmz.machine()` creates its directory with user-only permissions, and raises `PermissionError` if what already exists at that path is not a directory of yours that nobody else can write. Inside a `with hmz.working_in(workspace):` block, `hmz.here()` returns `<workspace>/.hmz` for the current thread.
+`hmz.home()` and `hmz.here()` do not create the directory on disk. If only a directory under the earlier name (`~/.humanize`, `.humanize`) exists, the first call renames it; a directory that `HUMANIZE_HOME` names is used as it is. `hmz.machine()` creates its directory with user-only permissions, and raises `PermissionError` if what already exists at that path is not a directory of yours that nobody else can write. Inside a `with hmz.working_in(workspace):` block, `hmz.here()` returns `<workspace>/.hmz` for the current thread.
 
 These paths always point to the machine running the flow. An agent's working directory lives in its environment, which may be on another machine; access agent files through the environment instead. See [Files on disk](/reference/files) for the directory layout.
 
 ## Good to know
 
 - `hmz exec` prints agent output, not the flow's return value.
-- Humanize raises `RequirementError` and `ParamsError` for the top-level flow before the flow starts, so the flow cannot catch them itself: `hmz exec` writes `hmz exec: error: <reason>` and exits `2`. A parent flow can catch them when calling a child flow.
+- Humanize raises `RequirementError` and `ParamsError` for the top-level flow before the flow starts, so the flow cannot catch them itself and the epic ends **Refused**. A parent flow can catch them when calling a child flow.
 - Humanize closes a session as soon as no variable references it, so keep the session in a variable while turns remain.
-- You can test error handling without a real agent by configuring a fake agent to raise any of these exceptions. See [Test a flow](/builder/testing).
+- To test error handling without a real agent, give a fake agent a `reply` function that raises one of these exceptions. See [Test a flow](/builder/testing).

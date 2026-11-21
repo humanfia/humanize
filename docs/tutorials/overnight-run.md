@@ -59,7 +59,7 @@ Type `/afk` and press <kbd>enter</kbd>.
 
 The status line now starts with `afk`. Normally, a flow that asks a person a question waits for an answer. While you are away, `hmz` answers each question immediately with an empty response so the epic keeps running.
 
-In the app, open the **People** tab in the side panel and click **Away for all**. This tab appears only when the flow includes a person.
+In the app, open the **People** tab in the side panel and click **Away for all**. This tab appears only when the flow includes a person. `stateful_ralph` has none, so the picture shows a flow with a reviewer.
 
 ![The People tab is opened and Away for all is clicked](/shots/tutorials-overnight-run-app-away.svg)
 
@@ -108,7 +108,7 @@ Type `/resume` and press <kbd>enter</kbd>.
 
 `/resume` starts a new epic from the saved state of the newest epic in this directory. It keeps the flow, agent, task, and budget, and resets the budget spend to zero. The agent continues its previous conversation. Use `/resume` to continue after a reboot as well. If nothing can be resumed, `/resume` tells you why.
 
-Type `/stop` to end this second epic. In the app, click **Resume** on the ended epic.
+Type `/stop` to end this second epic. In the app, click **Resume** on the ended epic. The **Resume epic** form opens with the task, agent, and budget filled in. Press <kbd>enter</kbd> to start it.
 
 ## 8. Read what it did
 

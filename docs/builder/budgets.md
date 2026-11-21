@@ -179,7 +179,7 @@ budget = Budget(
 )
 ```
 
-When budgets around a turn disagree, each limit follows the budget with the least remaining allowance. `budget.graces` is always a `Graceful` instance, regardless of how you pass `graceful`.
+When budgets around a turn disagree, each limit follows the budget with the least remaining allowance. On a tie, the budget that is not graceful wins. `ctx.budget.graceful` reports a limit as not graceful when any budget around the call sets it that way. `budget.graces` is always a `Graceful` instance, regardless of how you pass `graceful`.
 
 ## End when a budget is spent
 

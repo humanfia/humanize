@@ -61,11 +61,15 @@ Anyone who can reach the forwarded port and has the key can run agents on your c
 
 ## 4. Navigate on a small screen
 
-Tap **Show sidebar** at the top left to open the navigation drawer, which appears on screens 860 pixels wide or narrower. Tap a chat to open it, or tap the dimmed area to close the drawer. Swipe a chat to the left for its actions, or hold it to open its menu.
+Tap **Show sidebar** at the top left to open the navigation drawer, which appears on screens 860 pixels wide or narrower. Tap a chat to open it, or tap the dimmed area to close the drawer.
 
 ![On a phone: Show sidebar opens the drawer, and a chat is picked from it](/shots/tutorials-browser-and-phone-drawer.svg)
 
-Both browsers talk to the same daemon, so messages sync live. Panels, search, and settings fill the screen on your phone.
+Tap **More options** at the end of a chat's row for its actions. Over a plain `http://` address the copy actions answer `Copy failed`, because the phone's browser withholds its clipboard.
+
+![The menu of a chat in the drawer: Open, Pin, Rename, Fork, Archive, Delete and more](/shots/tutorials-browser-and-phone-menu.svg)
+
+Both browsers talk to the same daemon, so messages sync live. On your phone, search and settings fill the screen, and a panel opens as a sheet from the bottom.
 
 ## 5. Turn on notifications
 

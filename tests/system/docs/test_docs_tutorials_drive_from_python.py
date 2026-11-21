@@ -143,15 +143,13 @@ def _swapped(script: str, was: str, now: str) -> str:
 
 
 _FOLLOWED = _swapped(_FIRST, 'print("result:", run.run())\n', _FOLLOW.lstrip("\n"))
-_ANSWERED = (
-    _swapped(
-        _swapped(_FOLLOWED, "\nfrom hmz.sdk import Hmz\n", _REVIEWER + "\n"),
-        '    budget={"output_tokens": 20000},\n',
-        '    budget={"output_tokens": 20000},\n' + _GIVEN,
-    )
-    + _SPENT
+_ANSWERED = _swapped(
+    _swapped(_FOLLOWED, "\nfrom hmz.sdk import Hmz\n", _REVIEWER + "\n"),
+    '    budget={"output_tokens": 20000},\n',
+    '    budget={"output_tokens": 20000},\n' + _GIVEN,
 )
-_STOPPED = _swapped(_ANSWERED, "\nrun.wait()\n", _STOP)
+_READ = _ANSWERED + _SPENT
+_STOPPED = _swapped(_READ, "\nrun.wait()\n", _STOP)
 
 #: What the coder does when told the task.
 _WORK = {
@@ -196,12 +194,18 @@ def test_the_script_follows_the_run_as_it_goes(world: World) -> None:
     reel.save()
 
 
-def test_the_script_answers_the_question_and_the_app_shows_the_epic(
-    world: World,
-) -> None:
+def test_the_script_answers_the_question(world: World) -> None:
     _staged(world, _ANSWERED)
     world.says({"coupon": _WORK})
     shots.cli(["python", "drive.py"], "tutorials-drive-from-python-answered")
+
+
+def test_the_script_reads_what_the_run_spent_and_the_app_shows_the_epic(
+    world: World,
+) -> None:
+    _staged(world, _READ)
+    world.says({"coupon": _WORK})
+    shots.cli(["python", "drive.py"], "tutorials-drive-from-python-spent")
     with world.page(desktop=True) as page:
         name = world.call("runs.list", workspace=str(world.workspace))["runs"][0][
             "name"

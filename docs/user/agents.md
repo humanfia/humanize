@@ -124,19 +124,28 @@ hmz chat -a claude/claude-haiku-4-5 "Where is checkout handled?"
 
 If you omit `-a`, `hmz chat` uses the agent saved for the current directory.
 
-An invalid spec stops the command before anything runs and prints the part to fix: an unknown CLI, a missing model, an `@` with no account name, a duplicate role, or an agent that lacks a capability the role requires.
+An invalid spec stops the command before anything runs and prints the part to fix: an unknown CLI, a missing model, an `@` with no account name, a duplicate role, a role the flow does not declare or fills by itself, a required role left out, or an agent that lacks a capability the role requires.
 
 ![hmz exec refuses a spec whose CLI is misspelled, and names the unknown CLI](/shots/user-agents-refused.svg)
 
 ## How Humanize caches model lists
 
-Humanize ships no list of models. It queries each harness once per account and caches the model list on your machine so opening a picker never starts a CLI. For gateway accounts, Humanize queries the gateway instead of the CLI.
+Humanize queries each harness once per account and caches its model list locally so opening a picker never starts a CLI. For gateway accounts, Humanize queries the gateway instead; if the gateway does not respond, the cached list stays unchanged.
 
-When the daemon starts, it refreshes cached lists older than 7 days in the background. Set `HUMANIZE_SCAN=off` to disable background scans. A CLI query times out after 180 seconds; a gateway query times out after 20 seconds.
+Three harnesses do not report all their models, so Humanize supplies built-in lists:
+
+| Harness | Built-in models | When shown |
+| --- | --- | --- |
+| `dsh` | `deepseek-v4-flash`, `deepseek-v4-pro` | Before any query, and for accounts without a custom endpoint |
+| `qwen` | `qwen3-coder-plus`, `qwen3-coder-flash` | Before any query, and for accounts without a custom endpoint |
+| `mcode` | MiniMax's own models | Appended after the providers you added |
+
+On startup, the daemon queries in the background every account it has never queried or last queried more than 7 days ago. Set `HUMANIZE_SCAN=off` to disable background scans. CLI queries time out after 180 seconds, and gateway queries time out after 20 seconds.
 
 ## Good to know
 
 - If no coding agent is installed, the terminal says `hmz: no coding agent is installed`.
 - If no installed agent supports a flow role, the app shows **No harness installed here can fill it.**
-- A new chat never selects `litellm` automatically, and selects `dsh` only when its key is set.
+- If a CLI has reported no models yet, the terminal says so under its empty model list; select **Check again** to query it.
+- When nothing is saved for a chat or a role, the terminal never selects `litellm` by itself, and selects `dsh` only when its key is set.
 - In the terminal, changing `cli` clears both `account` and `model`, and picking a model sets its highest effort unless the effort already set still applies.

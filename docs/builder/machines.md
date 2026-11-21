@@ -249,8 +249,7 @@ Call `allocations(endpoint="local")` to list running Humanize Docker containers 
 
 ## Good to know
 
-- Humanize checks resources and starts containers or jobs before running the flow's first line, so a refusal uses zero tokens.
-- `_memory` and `_gpu_memory` are in bytes (`8 << 30` is 8 GiB).
+- Containers and jobs also start before the flow's first line, so a refusal uses zero tokens.
 - Setting `CUDA_VISIBLE_DEVICES` to an empty string on `local` or `ssh` reports 0 GPUs.
 - A `docker` runtime attached to an already-running container ignores `_image`.
 - A `LocalEnv` role always uses the local workspace; passing a remote environment to a callee's `LocalEnv` role raises `CapabilityMissing`.

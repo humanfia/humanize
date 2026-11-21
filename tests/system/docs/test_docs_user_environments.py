@@ -2,9 +2,10 @@
 
 The folder chip and the form that opens a folder by its path; the environment chip of a new
 chat, and a chat started in a new git worktree; a chat moved to another directory between its
-turns; the rows of a new epic that say where each environment role works; `/env` and a role's
-form in the terminal interface; and `hmz chat --worktree` from the command line. Run it by
-naming it: `uv run pytest tests/system/docs/test_docs_user_environments.py`.
+turns; the rows of a new epic that say where each environment role works; `/env`, a role's
+form and the hosts its machine is picked from in the terminal interface; and
+`hmz chat --worktree` from the command line. Run it by naming it:
+`uv run pytest tests/system/docs/test_docs_user_environments.py`.
 
 No machine but this one is reached: the runtimes are saved, which reaches nothing, and are
 only listed. A chat is moved to another directory of this machine, not to one of them.
@@ -20,6 +21,7 @@ from typing import TYPE_CHECKING, Any, cast
 from playwright.sync_api import expect
 
 from hmz.tui.flows import Flows
+from hmz.tui.pick import Hosts
 from tests.integration.doubles_tui import on, onto, shows
 from tests.system.docs import shots
 from tests.system.docs.conftest import AGENT, MODEL
@@ -348,6 +350,13 @@ async def test_a_role_is_placed_in_the_terminal(world: World) -> None:
         await shows(pilot, "ssh@gpu-box", "~/shop")
         await pilot.pause(0.6)
         shots.tui(app, f"{_PAGE}-terminal-role")
+        # The machine's row opens the saved hosts of the backend, and the buttons under them.
+        await onto(pilot, "provider")
+        await pilot.press("enter")
+        await on(pilot, Hosts)
+        await shows(pilot, "Select the ssh host to use", "gpu-box", "Name a host")
+        await pilot.pause(0.6)
+        shots.tui(app, f"{_PAGE}-terminal-host")
 
 
 def test_a_chat_in_a_worktree_from_the_command_line(world: World) -> None:

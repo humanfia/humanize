@@ -79,8 +79,6 @@ hmz exec -f @local/aim -a worker=claude/claude-haiku-4-5 \
 
 ![hmz exec running the aim flow: the worker edits, runs the tests, edits again, and ends on its last message](/shots/builder-goals-exec.svg)
 
-`run` returns the agent's final message, which `aim` returns as its output.
-
 ## Check harness support
 
 | Harness (`-a`) | `/goal` | `/loop` |

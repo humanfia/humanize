@@ -229,6 +229,9 @@ def test_what_it_spent_is_read_in_usage(world: World) -> None:
     name = _ran(world)
     with world.page(desktop=True) as page:
         _open(page, name)
+        # Settings open over the page they were opened from: a plain one, so the still is light.
+        go(page, "/new/chat")
+        expect(page.get_by_role("textbox", name="First message")).to_be_visible()
         go(page, "/settings/usage")
         expect(page.get_by_role("heading", name="By flow")).to_be_visible()
         expect(page.get_by_role("link", name="rlar", exact=True)).to_be_visible()
@@ -283,7 +286,9 @@ def test_a_git_repository_is_added_and_the_epic_backed_up_to_it(world: World) ->
     bare = _remote(world)
     name = _ran(world)
     with world.page(desktop=True) as page:
-        _open(page, name)
+        # Settings open over the page they were opened from: a plain one, so the reel is light.
+        go(page, "/new/chat")
+        expect(page.get_by_role("textbox", name="First message")).to_be_visible()
         go(page, "/settings/backup")
         add = page.get_by_role("button", name="Add target")
         expect(add).to_be_visible()
@@ -293,8 +298,7 @@ def test_a_git_repository_is_added_and_the_epic_backed_up_to_it(world: World) ->
         box = page.locator("#backup-name")
         reel.type(page, box, _TARGET, per=5, rest=0.3)
         url = page.locator("#backup-url")
-        reel.web(page, hold=0.4, pointer=url, click=True)
-        reel.type(page, url, _REPO, per=12, rest=0.4)
+        reel.type(page, url, _REPO, per=18, rest=0.5)
         end = page.get_by_role("checkbox", name="On epic end")
         reel.web(page, hold=0.6, pointer=end, click=True)
         end.check()

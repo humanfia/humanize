@@ -17,7 +17,7 @@ Humanize uses a small vocabulary. This page defines each word and shows where yo
 | --- | --- |
 | Flow | A Python program that decides what to ask each agent, in what order, and when to stop. Humanize ships no flows; you install them or write your own. See [Find and install flows](/user/flows). |
 | Flowverse | A git repository that indexes flows. The `official` one lists `ralph_loop`, `stateful_ralph`, `continue_loop`, `goal`, `flame_chase` and `rlar` at [humanfia.ai/flows](https://humanfia.ai/flows/). Flows in your own project use the name `@local/<flow>`. |
-| Epic | One recorded run of a flow on one task. Every epic has a budget. You cannot reopen an ended epic; running the flow again creates a new one. See [Start an epic](/user/epics) and [Budgets](/user/budgets). |
+| Epic | One recorded run of a flow on one task. Every epic has a budget. You cannot reopen an ended epic; running the flow again creates a new one, which a resumable flow can start from where the last one stopped. See [Start an epic](/user/epics), [Budgets](/user/budgets) and [Resume a run](/user/resuming). |
 | Chat | A direct conversation with one agent, with no flow and no budget. A chat is not an epic and works with no flow installed. See [Chat with an agent](/user/chat). |
 
 ## Who does it
@@ -28,14 +28,14 @@ Humanize uses a small vocabulary. This page defines each word and shows where yo
 | Harness | A coding agent CLI that Humanize drives, such as `claude` or `codex`. See [Coding agents](/user/agents). |
 | Account | Named credentials for one harness. With no account, the harness uses your local sign-in on this machine, which the app calls `Local`. See [Accounts](/user/accounts). |
 | Effort | How hard the model thinks, in the harness's own terms, such as `high` or `max`. Leave it blank to use the harness default. See [Effort and swarm mode](/user/efforts). |
-| Nous | What an agent thinks with: a harness, an account, a model and an effort, written `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`. A virtual nous is a name, such as `smart`, that groups other nous with retries and fallback. See [Nous: models, retries and fallback](/user/nous). |
+| Nous | What an agent thinks with: a harness, an account, a model and an effort, written `HARNESS[@ACCOUNT]/MODEL[:EFFORT]`. A virtual nous is a name, such as `careful`, that groups other nous with retries and fallback. See [Nous: models, retries and fallback](/user/nous). |
 | Outworlder | You, acting as a role in a flow. The flow asks a question, and you answer in any frontend. You never assign this role yourself. See [Answer a flow's questions](/user/questions). |
 
 ## Where it runs
 
 | Word | Meaning |
 | --- | --- |
-| Environment | The directory where a turn's work happens. By default, this is the folder you started in. A flow can also declare environment roles, which you fill with `-e`. See [Environments](/user/environments). |
+| Environment | The directory where a turn's work happens. By default, this is the folder you started in; pick **No folder** in the app and the epic or chat gets a temporary directory of its own. A flow can also declare environment roles, which you fill with `-e`. See [Environments](/user/environments). |
 | Runtime | A saved machine: an ssh host, a Docker daemon, a Docker swarm, Apple containers on this Mac, or a Slurm cluster. An environment is a directory on a runtime. `This machine` is always available. See [Runtimes: servers, containers and clusters](/user/runtimes). |
 | Daemon | One background process per machine and user. It starts automatically and holds every epic and chat so they keep running when you close the window. See [The daemon](/user/daemon). |
 | Frontend | The interface you use to reach the daemon: Humanize Desktop, the browser page, the terminal interface or the command line. Several frontends can follow the same epic at once. |

@@ -89,6 +89,10 @@ Run `/settings runtimes` (or `/settings environments`) to list saved runtimes gr
 
 ![The terminal's Runtimes page lists two ssh hosts and a docker daemon; enter on gpu-box offers edit, check and Remove](/shots/user-runtimes-tui.svg)
 
+On the form of a Docker host, a Docker swarm, or an Apple container runtime, press <kbd>tab</kbd> and choose **Detect** to ask the daemon, or this Mac, what it has. Humanize fills in `cpus` and `memory`, plus `gpus` on a Docker host, and you can type over them before **Done**.
+
+![On the form of the docker runtime sandbox, tab reaches Detect; enter fills cpus with 8 and the form says detected 8 CPUs, 16G: auto-filled](/shots/user-runtimes-detect.svg)
+
 In the form, enter a comma-separated list in `falls back to`, such as `ssh:build-1, docker:sandbox`. In `harness runs on`, enter `env`, `local`, or a runtime such as `ssh:build-1`.
 
 ## From the command line
@@ -96,7 +100,7 @@ In the form, enter a comma-separated list in `falls back to`, such as `ssh:build
 Pass the runtime name after `@` in `-e`. Use `ROLE=BACKEND[@RUNTIME][/WORKDIR]` with `hmz exec` and `BACKEND[@RUNTIME][/DIRECTORY]` with `hmz chat`. The first command below assigns the `box` role of a flow to `gpu-box`; the second starts a chat on it.
 
 ```sh
-hmz exec -f @local/on_box -a builder=claude/claude-haiku-4-5 -e box=ssh@gpu-box "Add a discount code to checkout"
+hmz exec -f @local/on_box -a builder=claude/claude-haiku-4-5 -e box=ssh@gpu-box -p budget.output_tokens=20000 "Add a discount code to checkout"
 hmz chat -e ssh@gpu-box/~/shop "Add a discount code to checkout"
 ```
 
@@ -147,13 +151,30 @@ When you pair **This machine** with an SSH runtime, Humanize keeps a local copy 
 - **Permissions.** The runtime enforces the same agent permissions as your local machine. See [The sandbox](/user/sandbox).
 - **The project's own programs.** If the CLI runs on a different machine than the work, Humanize refuses the session if project config files would start local programs such as hooks or MCP servers on the CLI's machine. The error names each offending file. Switch to **Inside the environment** or remove those entries.
 
+## Clean up after a killed run
+
+When a run closes its environment, Humanize removes the container, swarm service, Apple container, or Slurm job it started. If a run is killed outright, those resources and the local mirror of the work directory stay behind. Start another run on this machine on the same `docker`, `swarm`, `apple-container`, or `slurm` runtime to remove them automatically.
+
+Humanize checks its labels (`humanize=<uid>`, `humanize.host`, `humanize.pid`) and removes only resources that you started on this host from a process that is no longer running. It never removes resources for another user or host, or a running container named in **Container** on a Docker runtime.
+
+To clear leftovers by hand when you plan no further runs, stop your active epics and chats first so you do not remove live resources, then run:
+
+```sh
+docker rm -f $(docker ps -aq --filter label=humanize=$(id -u))
+docker service rm $(docker service ls -q --filter label=humanize=$(id -u))
+container delete --force ID
+scancel JOB
+```
+
+Find Apple container IDs with `container list --all` and your `humanize-…` Slurm jobs with `squeue --me`.
+
 ## Good to know
 
 - SSH runtimes require passwordless login (`ssh -o BatchMode=yes HOST true` must succeed) and a Linux or macOS host.
-- A Docker runtime with **Container** set leaves that container running. Containers that Humanize starts are named `humanize-` followed by the runtime, the role, and eight characters.
+- Containers that Humanize starts are named `humanize-` followed by the runtime, the role, and eight characters.
 - Swarm work directories must exist at the same path on every node. Slurm work directories must sit on a shared filesystem at the same path locally and on every node.
 - Apple containers do not support GPUs and refuse roles that request one.
-- **This machine** as the harness setting requires Linux on this machine. On a Mac, keep **Inside the environment** or name another runtime, and for an Apple container, use an image with the CLI installed.
-- In the app, **Falls back to** shows the saved list, where you can reorder or remove entries. Add entries in the terminal's `falls back to` row or in `settings.yaml`.
+- On a Mac, **This machine** is not available as the harness setting: keep **Inside the environment** or name another runtime. For an Apple container, use an image with the CLI installed.
+- In the app, **Falls back to** edits the list a row at a time: **Add** offers the other saved runtimes of the same backend, and each row has **Move down** and **Remove**. **Add** writes a bare name, which Humanize refuses on save because an entry must be `BACKEND:NAME`; add entries in the terminal's `falls back to` row or in `settings.yaml` instead.
 - Runtimes with invalid `settings.yaml` entries are hidden from lists and rejected by `-e`.
 - For a full walkthrough, see [Run the work on a server or in a container](/tutorials/work-on-a-server).

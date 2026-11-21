@@ -53,6 +53,6 @@ Write flows in Python with this guide. A flow is an `async def` function decorat
 
 ## Next
 
-- [Tutorials](/tutorials/): build complete projects from scratch.
-- [Flow API](/reference/flows): look up every symbol a flow can import.
+- [Tutorials](/tutorials/): follow a complete job from nothing to a finished result.
+- [Flow API](/reference/flows): look up every public name of `hmz.flows`.
 - [User Guide](/user/): learn how to run and manage flows in Humanize.

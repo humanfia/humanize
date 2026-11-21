@@ -39,7 +39,7 @@ Exomyth is the epic trace viewer. It draws the flow, every session, and every to
 
 ## 3. See where the time and tokens went
 
-1. Click the **Flame** tab. The flame graph stacks the epic, each agent, its turns, model calls, and tools. Width represents time.
+1. Click the **Flame** tab. The flame graph stacks the epic, the flow, each session, its turns, model calls, and tools. Width represents time.
 2. Change the weight to **Tokens in**, **Tokens out**, or **Count** to resize spans by that metric.
 3. Read the **Slices** table below the graph. Each row lists a span name with its count, total, average, and maximum. Click a column header to sort.
 
@@ -50,14 +50,16 @@ Exomyth is the epic trace viewer. It draws the flow, every session, and every to
 The epic's right panel shows its own cost. To view total spending across runs:
 
 1. Click the **Settings** gear icon at the bottom of the sidebar.
-2. Open **Usage**.
-3. Pick a range: `7d`, `30d`, `90d`, or `365d`. Pick one workdir, or keep **All workdirs**.
+2. Under **Daemon**, open **Usage**. It covers every folder on this daemon.
+3. Pick a **Range**: `7d`, `30d`, `90d`, or `365d`.
 
 **Cost by day** charts daily spending. **By flow** lists the epics, cost, output tokens, and time for each flow.
 
 ![The Usage page of the settings: totals for the range, cost by day, and a table by flow](/shots/tutorials-read-back-a-run-usage.svg)
 
 *The model in this picture has no list price, so nothing is charted.*
+
+To see one folder's spending, open **Usage** under **Workspace** instead and pick the folder in the **Workspace** select.
 
 ## 5. Export the epic
 
@@ -95,7 +97,7 @@ A backup target is a git repository where Humanize pushes epics and chats using 
 1. Open **Settings**, select **Backup**, and click **Add target**.
 2. Enter a **Name** (for example `epics`) and the **Repository** URL. Keep **Branch** as `main`.
 3. Under **When**, tick **On epic end** to back up every epic automatically when it finishes. Leave it unticked to back up only by hand.
-4. Click **Save**, then tick **Default** on the new row so new epics use this target.
+4. Click **Save**, then tick **Default** on the new row. An epic that names no target of its own is backed up to the default ones.
 
 ![Reel: a target named epics is added with a repository URL, set to back up on epic end, and made the default](/shots/tutorials-read-back-a-run-target.svg)
 

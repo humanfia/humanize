@@ -33,7 +33,9 @@ Click the nous chip under a chat box, on a role in **New epic**, for Ai-chan, or
 
 ### View concrete nous
 
-Open **Settings** and click **Nous**. You do not create concrete nous by hand. The daemon queries each installed harness at startup and when you click **Scan**. They appear under **Concrete**, grouped by harness. When there are more than 12, use **Find a nous** to filter the list.
+Open **Settings** and click **Nous**. You do not create concrete nous by hand. The daemon queries each installed harness at startup and when you click **Scan**. They appear under **Concrete**, grouped by harness. When there are more than 12, use **Find a nous** to filter the list; a harness with more than 12 models starts folded unless one of them has saved settings.
+
+The line under the heading counts them, such as `3 concrete nous of 2 harnesses.`, or reads `No harness is installed on this daemon.`, and each harness fold shows `2 models`, `No models listed` or `Not asked yet`. After a **Scan**, a harness or account that did not answer is named on that line, as `Codex would not answer: <why>` or `Codex @work would not answer: <why>`. The other harnesses are still queried and listed.
 
 Click **Edit** on a row to set its retries and `then` graph. A row with saved settings has **Reset**, which clears them and keeps the nous in the list.
 
@@ -48,13 +50,13 @@ The new nous appears under **Virtual** with **Edit**, **Rename** and **Remove**.
 
 ### Set retries
 
-![The Tries, Wait and Limit fields of a nous](/shots/user-nous-retries.svg)
+![The Tries, Limit and Wait fields of a nous](/shots/user-nous-retries.svg)
 
 | Field | What it sets | Default |
 | --- | --- | --- |
 | **Tries** | Extra attempts at this nous after a failed turn. | `0`: tried once |
+| **Limit, s** | Seconds after which no further try starts. | `0`: no limit |
 | **Wait** | Delay between tries. | **Exponential with jitter** |
-| **Limit, s** | Maximum time for all tries, in seconds. | `0`: no limit |
 
 | Wait | Waits |
 | --- | --- |
@@ -75,7 +77,7 @@ Click **Add use node** or **Add balance node** to add nodes, and set **Start** t
 
 A use node runs the turn on the concrete or virtual nous picked on its chip.
 
-When a node fails, it follows an edge. Click **Add edge**, pick a fault after **On**, and pick a target node after **go to**. Name an edge for a specific fault (see the table below) or `* (any other)`. If a node has no matching edge, the graph fails.
+When a node fails, it follows an edge. Once the graph has a second node, click **Add edge**, pick a fault after **On**, and pick a target node after **go to**. Name an edge for a specific fault (see the table below) or `* (any other)`. If a node has no matching edge, the graph fails.
 
 A balance node picks among several nous. Click **Add member** for each nous and set its weight after `×`. When a member fails, the node tries another. Set **Spread** to cap how many members may fail before the node gives up; `0` tries all of them.
 
@@ -98,7 +100,7 @@ Run `/settings nous` to list each nous you have written down, its retries and it
 
 ![The Nous page of the terminal interface, a row per nous](/shots/user-nous-terminal.svg)
 
-Press <kbd>enter</kbd> on a row to edit it, or select **Add nous**. To configure a concrete nous, type its ID in `name` or pick it with `choose`. The form of a saved nous has **Remove**, and editing `name` renames a virtual nous.
+Press <kbd>enter</kbd> on a row to edit it, or select **Add nous**. **Search…** or <kbd>/</kbd> narrows the list. To configure a concrete nous, type its ID in `name` or pick it with `choose`. The form of a saved nous has **Remove**, and editing `name` renames a virtual nous.
 
 | Row | What it sets |
 | --- | --- |
@@ -134,7 +136,7 @@ You cannot create a nous from the CLI. Create it in the app, in the terminal, or
 
 ## How faults work
 
-When a turn fails, Humanize reads the harness output and classifies the failure into one of twelve faults. The fault selects which edge a node follows and overrides the retry settings of a concrete nous:
+When a turn fails, Humanize reads the harness output and classifies the failure into one of twelve faults. The fault selects which edge a node follows, and sets a floor or a stop on the retries at that nous:
 
 | Fault | What happened | At the same nous |
 | --- | --- | --- |
@@ -151,7 +153,7 @@ When a turn fails, Humanize reads the harness output and classifies the failure 
 | `unmirrored` | Local copy of a remote workspace could not be created. | Never retried. |
 | `fenced` | Network fence blocked the harness from a host. | Never retried. |
 
-Faults that never retry skip the tries: the turn goes to **Then** if the nous has one, then to the node's edge. For a complete example, see [Run two coding agents with a fallback](/tutorials/two-agents-with-fallback).
+A failure that matches no fault is retried as the nous says and follows the `* (any other)` edge. Faults that never retry skip the tries: the turn goes to **Then** if the nous has one, then to the node's edge. For a complete example, see [Run two coding agents with a fallback](/tutorials/two-agents-with-fallback).
 
 ## Good to know
 
@@ -161,6 +163,5 @@ Faults that never retry skip the tries: the turn goes to **Then** if the nous ha
 - Settings saved for a concrete nous without an effort, such as `claude/claude-opus-4-1`, apply to every effort of it that has none of its own.
 - A concrete nous with `0` tries and no **Then** is not saved: it says nothing.
 - A balance node tries members that were `throttled` or `spent` in the last minute only after the others.
-- The first nous to answer completes the turn and stops the graph walk.
 - **Batch apply** on the Nous page copies your configured nous to other daemons without deleting any already there. See [Settings](/user/settings).
 - While scanning harnesses for models, the page shows `Scanning the harnesses in the background…`.

@@ -2,8 +2,9 @@
 
 The Accounts settings of the app with two accounts of one CLI, one being made there, an
 account's menu and the form that corrects it; the same page of the terminal interface, its
-form as far as its last answer, and an account's menu there; and a chat from the command
-line naming an account nobody made, which is refused.
+form as far as its last answer, an account's menu there, and the list an agent's sheet picks
+its account from; and a chat from the command line naming an account nobody made, which is
+refused.
 
 No picture is of a turn taken as an account, nor of the terminal's page just after one is
 made: this is taken on a Mac, where a CLI that keeps credential files cannot be run as a
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING
 from playwright.sync_api import expect
 
 from hmz.tui.dropdown import Dropdown
+from hmz.tui.pick import Accounts, Agent, Clis
 from tests.integration.doubles_tui import on, onto, opens, picks, shows, typed
 from tests.system.docs import shots
 from tests.system.docs.conftest import MODEL
@@ -207,3 +209,26 @@ async def test_an_account_is_held_to_be_removed(world: World) -> None:
         await pilot.pause(0.3)
         reel.tui(app, hold=3.0, caption="Remove is held until you save")
         reel.save()
+
+
+async def test_an_agents_account_is_picked_in_the_terminal(world: World) -> None:
+    _work(world)
+    _personal(world)
+    async with world.tui((100, 24)) as (app, pilot):
+        await shows(pilot, MODEL)
+        await typed(pilot, "/settings workspace")
+        await shows(pilot, "Chat agent")
+        await onto(pilot, "chat-agent")
+        await pilot.press("enter")
+        await on(pilot, Agent)
+        await opens(pilot, "cli")
+        await on(pilot, Clis)
+        await opens(pilot, "claude")
+        await on(pilot, Agent)
+        await opens(pilot, "provider")
+        await on(pilot, Accounts)
+        await shows(
+            pilot, "Select the account to run as", "as local", "personal", "work"
+        )
+        await pilot.pause(0.5)
+        shots.tui(app, f"{_PAGE}-terminal-pick")

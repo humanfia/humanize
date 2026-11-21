@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 from playwright.sync_api import expect
@@ -32,6 +32,7 @@ from tests.system.web.doubles_browser import go
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from playwright.sync_api import Locator
     from textual.pilot import Pilot
 
     from tests.system.docs.conftest import World
@@ -194,6 +195,32 @@ def _team(world: World, tmp_path: Path) -> None:
     world.call("flowverses.fetch", name=_VERSE)
 
 
+class _Part:
+    """A part of the page that no one element is: a box of it, found as a locator's is."""
+
+    def __init__(self, left: float, top: float, right: float, bottom: float) -> None:
+        self._box = {"x": left, "y": top, "width": right - left, "height": bottom - top}
+
+    def bounding_box(self) -> dict[str, float]:
+        return self._box
+
+
+def _around(*parts: Locator, pad: float = 14) -> Any:
+    """The box that holds every one of these parts of the page, with room around it."""
+    found = [one.bounding_box() for one in parts]
+    boxes = [one for one in found if one is not None]
+    assert len(boxes) == len(parts)
+    return cast(
+        "Any",
+        _Part(
+            min(one["x"] for one in boxes) - pad,
+            min(one["y"] for one in boxes) - pad,
+            max(one["x"] + one["width"] for one in boxes) + pad,
+            max(one["y"] + one["height"] for one in boxes) + pad,
+        ),
+    )
+
+
 async def _settled(pilot: Pilot[None], seconds: float = 0.4) -> None:
     await pilot.pause(seconds)
     await pilot.pause()
@@ -204,6 +231,8 @@ def test_a_flow_is_installed_in_the_app(world: World, tmp_path: Path) -> None:
     with world.page(desktop=True) as page:
         go(page, "/flows")
         expect(page.get_by_role("button", name=re.compile("goal"))).to_be_visible()
+        # The sidebar has read its chats: the first frame is of a page that stands.
+        expect(page.get_by_text("Nothing here yet")).to_be_visible()
         reel = shots.Reel(f"{_PAGE}-install", window="desktop")
         tab = page.get_by_role("tab", name="Flowverses")
         reel.web(page, hold=1.4, pointer=tab, click=True)
@@ -292,7 +321,8 @@ def test_a_flow_is_named_on_a_chat_line_in_the_app(
         box.press_sequentially("$r", delay=120)
         offers = page.get_by_role("listbox", name="Completions")
         expect(offers).to_contain_text("ralph_loop")
-        shots.web(page, f"{_PAGE}-dollar", clip=offers, pad=110)
+        say = page.locator("[data-hmz=say]")
+        shots.web(page, f"{_PAGE}-dollar", clip=_around(say, offers), pad=0)
 
 
 async def test_flows_are_installed_in_the_terminal(

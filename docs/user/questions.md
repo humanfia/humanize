@@ -5,7 +5,7 @@ description: Answer what a running flow asks you, as a form or in words, hold a 
 
 # Answer a flow's questions
 
-A flow can assign a role to a person. When the flow reaches that role, it pauses, asks a question, and marks the epic `waiting` until somebody answers or marks the role away.
+A flow can assign a role to a person. When the flow reaches that role, it pauses, asks a question, and waits until somebody answers or marks the role away.
 
 ![Humanize Desktop with an epic waiting: a card under the graph asks Ship this change?, with a note, a diff and a table above a short form](/shots/user-questions-asked.svg)
 
@@ -15,7 +15,18 @@ A question has up to three parts: the prompt, context to read, and a place to an
 
 Humanize Desktop and the web page work the same way.
 
-Open the epic, which the sidebar marks **Waiting**. Each question appears as a card above the message box, headed with who is asking, such as `Reviewer asks`.
+Open the epic, which the sidebar marks **Asking**. Each question appears as a card above the message box, headed with who is asking, such as `Reviewer asks`.
+
+### Tell asking from waiting
+
+Check the sidebar word or the top bar badge to see if an epic has an open question.
+
+| State | What it means | How it looks |
+| --- | --- | --- |
+| `asking` | The epic has a question you have not opened in this browser. | Blinking gold word in the sidebar and dot in the badge. |
+| `waiting` | You have seen every open question on the epic's page. | Steady gold. |
+
+Open the epic to change `asking` to `waiting`. Each browser tracks seen questions separately, so other browsers or devices show `asking` until you open the epic there.
 
 ### Read the context
 
@@ -117,6 +128,18 @@ You can also type at the prompt while a form waits. Enter a JSON object to submi
 
 The main view answers the oldest waiting question. To answer for a specific role, press <kbd>shift+tab</kbd> until that role's view appears.
 
+### Read the role status lines
+
+Look above the prompt on the right while an epic runs to see one status line per person's role. Each line starts with `<role> · outworlder` and lists its active marks. Chats do not show these lines.
+
+| Mark | Meaning |
+| --- | --- |
+| `yours` | This terminal claimed the role with `/claim`. |
+| `<name>'s` | Another window or terminal holds the role. |
+| `away` | The role is marked away with `/afk`. |
+| `asking` | The role has a question waiting. |
+| `reading` / `unread` | The role's view is on screen, or it has unread lines. |
+
 ### Claim a role or go away
 
 | Command | What it does |
@@ -124,7 +147,7 @@ The main view answers the oldest waiting question. To answer for a specific role
 | `/claim` | On a role's view, restricts that role to this terminal. `/claim off` releases it. |
 | `/afk` | On a role's view, marks that role away. On any other view, marks every role you can answer for away. `/afk off` marks you back. |
 
-Both commands accept `on` or `off`, and toggle when run without arguments. While you are away, the status line begins with `afk`.
+Both commands accept `on` or `off`, and toggle when run without arguments. While you are away, the status line shows `afk`, followed by the role's name when only some roles are away.
 
 ![The terminal after /claim and /afk on the reviewer's view: only you can answer for reviewer, away as reviewer, withdrawn: away, the flow is done](/shots/user-questions-terminal-away.svg)
 

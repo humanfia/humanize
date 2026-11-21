@@ -17,7 +17,7 @@ When a turn fails, Humanize prints the coding agent CLI output followed by the f
 
 ### In the app
 
-The app marks the chat or epic **Failed** in the sidebar, and a chat shows `The chat failed` above its input box. The app does not show the reason. To see it, send the same message from the terminal or command line.
+The app marks the chat or epic **Failed** in the sidebar, and a chat shows `The chat failed` above its input box. The transcript shows a line starting with `hmz:` only when the coding agent CLI reported the failure itself. If there is none, send the same message from the terminal or command line to see the reason.
 
 ![A chat in Humanize Desktop marked Failed in the sidebar, with The chat failed over the input box](/shots/user-troubleshooting-chat-failed.svg)
 
@@ -28,6 +28,8 @@ Run `hmz` and send the message. Read the red line that starts with `hmz:`.
 ### From the command line
 
 Run `hmz chat` or `hmz exec`. Read the error line on standard error.
+
+A failure Humanize could not classify ends with no brackets: read what the CLI printed.
 
 ### Failure kinds
 
@@ -83,13 +85,16 @@ Every error in the launch window has a **Documentation** button. See [Humanize D
 | `hmz: the daemon cannot be reached: <why>` | The daemon did not start, or stopped answering. | Read `daemon.log` for the reason. |
 | `hmz: the runs on this machine are held by an older Humanize (pid <pid>); stop it with that version` | You updated `hmz` while a daemon of the old version was still running. | Let its runs finish or stop them, run `kill <pid>`, then run `hmz` again. |
 | `… held for frontends by a newer Humanize …` | The daemon is newer than the `hmz` you ran. | Run the newer `hmz`, or update this one: see [Install and update](/user/install). |
+| `That pairing code is not valid: ask for a new one.` | The code was already used or has expired, or the daemon restarted or made 16 newer codes. | Run `hmz daemon pair` again on that machine and add it with the new code. |
+| `<name> is not the daemon it was paired with.` | The machine at that address answers with another identity: its `identity/` directory was deleted, or the address now reaches another machine. | If you expect this, remove the daemon and add it again with a new pairing code. |
+| `<route> needs the id of the daemon it reaches.` | The route is not a trusted one, and the daemon was saved with no daemon id. | Remove the daemon and add it again with a pairing code. |
 | A remote daemon shows as failed | The route to that machine is down. | Open **Settings → Daemons**, read the reason in the **State** column, and click **Connect** to try again: see [Connect to other machines](/user/daemons). |
 
 After `hmz update`, a running daemon keeps its runs on the old version until it stops.
 
 ## Recover from a stalled run
 
-Humanize watches every turn without configuration. If a CLI says nothing for 900 seconds, Humanize checks its process. Active processes get more time, up to four more such waits. Idle processes are asked to stop, disconnected, and killed, logging each step. The turn fails with a line like this:
+Humanize watches every turn without configuration. If a CLI says nothing for 900 seconds (360 for `dsh`), Humanize checks its process. Active processes get more time, up to four more such waits. Idle processes are asked to stop, disconnected, and killed, logging each step. The turn fails with a line like this:
 
 ```text
 the watchdog stopped this turn: claude is idle and has said nothing for 903s
@@ -131,7 +136,7 @@ See [Runtimes: servers, containers and clusters](/user/runtimes).
 | --- | --- | --- |
 | `Humanize Desktop.log` | `~/Library/Logs/ai.humanfia.humanize/` on macOS, `%LOCALAPPDATA%\ai.humanfia.humanize\logs\` on Windows | The app's startup, installs of `hmz`, connections and update checks. |
 | `daemon.log` | `humanize-<uid>/` in the system's temporary directory | Failures of the daemon before any run. |
-| `host.log` | The epic's folder, shown as **Written to** in the epic's side panel | Failures that belong to one run. |
+| `host.log` | The epic's directory, `~/.hmz/epics/<workspace>/<epic>/`: see [Files on disk](/reference/files#epic-directory) | Failures that belong to one run. |
 
 ## Good to know
 

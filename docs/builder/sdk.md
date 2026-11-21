@@ -327,5 +327,4 @@ Here `tidy` is a project flow with one `worker` role. `run.run()` returns the ex
 - Flows referenced with `git+` are fetched and checked only when the epic starts, so a refusal surfaces once the run is started (from `start()` or `run.run()`) rather than from `hmz.run(...)`.
 - If the daemon connection drops, `Run` reconnects automatically.
 - After an epic finishes, `Run` stays attached for up to 60 seconds while backups complete.
-- The host's internal epic runner is not part of the public SDK.
 - See [SDK](/reference/sdk) for all public names and signatures.

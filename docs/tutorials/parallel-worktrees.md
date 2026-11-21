@@ -190,7 +190,7 @@ def test_the_smallest_passing_attempt_is_kept() -> None:
     assert removed == 3  # every worktree is gone
 ```
 
-The `run` function intercepts the flow's `exec` calls so attempt 2 fails the check and each attempt reports its own line count. Run the test in a Python environment with `hmz` and `pytest` installed:
+The `run` function intercepts the flow's `exec` calls so attempt 2 fails the check and each attempt reports its own line count. Run the test from your project folder, where `run_fake` finds the flow by name, in a Python environment with `hmz` and `pytest` installed:
 
 ```sh
 python3 -m pytest -q tests/test_best_of.py

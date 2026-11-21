@@ -371,10 +371,22 @@ def test_an_epic_falls_back(world: World) -> None:
         page.keyboard.press("Enter")
         session = page.locator("[data-hmz=graph-session]").first
         expect(session).to_be_visible(timeout=_WAITED)
+        # The graph of the epic, where the session of the actor is what is clicked next.
+        shots.web(
+            page,
+            f"{_PAGE}-graph",
+            clip=page.locator("[data-hmz=graph] .frame.root"),
+            pad=24,
+            pointer=session,
+        )
         session.click()
         log = page.get_by_role("log")
         expect(log).to_contain_text("trying again in 30s", timeout=_WAITED)
+        # The transcript alone: the panel beside it names the folder the world was staged in.
+        panel = page.locator(".panel-toggle:visible").first
+        panel.click()
         shots.web(page, f"{_PAGE}-waiting", window="desktop")
+        panel.click()
         expect(log).to_contain_text("carrying on as", timeout=_WAITED)
         expect(page.get_by_role("link", name="Resume").first).to_be_visible(
             timeout=_WAITED

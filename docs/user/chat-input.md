@@ -44,7 +44,7 @@ Type `/`, `$` or `@` to open the completion list. Each row shows a tag (`command
 
 Selecting a row completes the text without sending it. Press <kbd>enter</kbd> again to send the message.
 
-On the new chat and new epic pages, only **Add files** is available because no CLI is running yet.
+On the new chat and new epic pages, only **Add files** is available because no CLI is running yet. While the folder chip says **No folder**, **Add files** is greyed and says `Pick a folder first`: the chat's directory is made only as it starts.
 
 ### Mention a file
 
@@ -68,7 +68,7 @@ Type `$` to list the CLI's skills and your installed flows. Enter `$` followed b
 $ralph_loop add a discount code to checkout
 ```
 
-Omit the task to open the new epic form for that flow. You can also type `/flow <name> [task]`, which always runs the flow.
+Omit the task to open the new epic form for that flow. You can also type `/flow <name> [task]`, which always means the flow, never a skill of that name.
 
 ![The list after a dollar sign: the installed flows, each tagged flow, with what it does](/shots/user-chat-input-flows.svg)
 
@@ -78,7 +78,7 @@ When a skill and a flow share a name, the chat's preference decides which one ru
 
 ### Change the model or effort
 
-Click the nous chip under the box, choose **Model** or **Effort**, and pick a value, or pick **Other model** to type a model name. You can also type `/model <id>` or `/effort <level>` in the box. The chat sends the command and uses the new setting from then on.
+Click the nous chip under the box, choose **Model** or **Effort**, and pick a value. To use a model that is not listed, type its name in the **Other model** field under the models and press <kbd>enter</kbd>. You can also type `/model <id>` or `/effort <level>` in the box. The chat sends the command and uses the new setting from then on.
 
 ![The nous chip is clicked, Model is opened, Opus 4.1 is picked, and the chat shows /model with the chip now saying Opus 4.1](/shots/user-chat-input-model.svg)
 
@@ -110,6 +110,7 @@ In `hmz`, chats use the same four prefixes. Type `/` to open a list of up to ten
 - `!` lines and their output appear dimmed.
 - `/model <id>` and `/effort <level>` change the chat's model and effort.
 - Refused lines print an error in red starting with `hmz:`.
+- Commands that only the CLI's own interface serves are left out of the list here; the app lists them greyed.
 
 Type `/prefer` to see whether shared `$` names run the skill or the flow and where that setting comes from. Type `/prefer native` or `/prefer flow` to change it for the current chat.
 
@@ -152,5 +153,5 @@ Every other CLI, including LiteLLM, has no list of its own: Humanize passes each
 - Humanize stops any `!` command it runs after 10 minutes.
 - A chat's `/prefer` setting is saved with the chat and persists when you resume it.
 - Flow prompts never parse these prefixes. A flow prompt containing `/compact` sends that literal text to the agent.
-- [Ai-chan](/user/ai-chan) conversations do not use these prefixes.
+- An [Ai-chan](/user/ai-chan) conversation in the app has no Add menu and no completion list, and it refuses `/model` and `/effort`: her nous stays as picked when the conversation was made.
 - See [Skills](/user/skills) for how skills reach an agent, and [Nous](/user/nous) and [Effort and swarm mode](/user/efforts) for model, effort and account settings.

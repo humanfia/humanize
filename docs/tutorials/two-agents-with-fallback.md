@@ -66,7 +66,9 @@ The `rlar` flow has two roles: `actor` does the work and `reviewer` checks it.
 
 ## 4. Watch a turn fall back
 
-Click the session under the actor on the epic graph to read its turn.
+The epic opens on its graph, one card per agent. Click session `1` in the actor's card to read its turn.
+
+![The graph of the epic: the actor's card with its session 1 under the pointer, beside the reviewer's card](/shots/tutorials-two-agents-with-fallback-graph.svg)
 
 If Codex answers, the turn finishes there. Here, Codex hits its usage limit. Humanize reports the rate limit, waits 30 seconds, and tries Codex once more. Every rate-limited model gets this one retry by itself; it is not the **Tries** of `careful`, which count only after the whole graph has failed.
 

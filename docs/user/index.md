@@ -5,7 +5,7 @@ description: Find the page for any feature of Humanize Desktop, the browser page
 
 # User Guide
 
-Use this guide to run Humanize in Humanize Desktop, the browser page, the terminal or the command line. Each page covers one feature across every interface that supports it. If you are new to Humanize, start with a [tutorial](/tutorials/). To write flows in Python, read the [Builder Guide](/builder/).
+Use this guide to run Humanize in Humanize Desktop, the browser page, the terminal or the command line. Each page covers one feature across every interface that supports it. If you are new to Humanize, start with a [tutorial](/tutorials/); to write flows in Python, read the [Builder Guide](/builder/).
 
 ![Humanize Desktop, the browser page, the terminal interface and the command line all talk to one daemon, which runs the coding agents](/diagrams/user-index-1.svg)
 
@@ -56,11 +56,11 @@ Use this guide to run Humanize in Humanize Desktop, the browser page, the termin
 
 ## Where the work runs
 
-- [Environments](/user/environments): pick the folder and the place where a chat or epic works.
+- [Environments](/user/environments): pick the folder and the machine a chat or epic works in, and move a chat between turns.
 - [Files, changes and terminal](/user/environment-panels): browse and edit files, review and commit changes and open a shell.
 - [Snapshots and rewind](/user/snapshots): restore a snapshot taken during a flow run.
 - [Runtimes: servers, containers and clusters](/user/runtimes): run agents over SSH, in Docker, in an Apple container or on Slurm.
-- [The sandbox](/user/sandbox): enforce agent permissions with the sandbox.
+- [The sandbox](/user/sandbox): see how an agent is held to its permission and choose what enforces it.
 
 ## Machines and devices
 
@@ -73,7 +73,7 @@ Use this guide to run Humanize in Humanize Desktop, the browser page, the termin
 - [History and search](/user/history): open past epics and search across chats and epics.
 - [Trace a run with Exomyth](/user/tracing): profile a run and inspect its timeline and flame graph.
 - [Export and import a run](/user/export): save and open `.hmzepic` archives.
-- [Back up to git](/user/backups): push epics to git repositories and pull them back.
+- [Back up to git](/user/backups): push epics and chats to git repositories and pull them back.
 
 ## Make it yours
 

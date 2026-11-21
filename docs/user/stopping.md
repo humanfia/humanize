@@ -9,7 +9,7 @@ Stopping an epic interrupts every open turn and cancels the flow. The flow close
 
 ![An epic goes from running to stopping to stopped; a force stop skips the wait](/diagrams/user-stopping-1.svg)
 
-Stopping an epic stops it in every open interface.
+Stopping an epic stops it in every open interface. A terminal following it prints `stopping the flow`, and names the interface that stopped it when that was another one.
 
 ## In the app {#in-the-app}
 
@@ -44,7 +44,7 @@ While a chat agent is answering, the **Send** button becomes **Stop**. Click it 
 | --- | --- |
 | Text in the prompt | Clears the text. |
 | A flow is running | The first press says `press ctrl+c again to stop the flow`. A second press within 3 seconds stops it. |
-| The flow is stopping | Forces it. |
+| The flow is stopping | Forces it. If turns were still open, it says how many: `closed 2 conversation(s) mid-turn`. |
 | Nothing is running, or a chat | The first press says `press ctrl+c again to exit`. A second press within 3 seconds leaves `hmz`. |
 
 ![A flow stopped with two presses of ctrl+c, then forced with a third](/shots/user-stopping-terminal.svg)
@@ -90,8 +90,9 @@ A stopped epic is recorded as `stopped`, and its sessions and figures remain rea
 
 ## Good to know {#good-to-know}
 
-An epic that exhausts its [budget](/user/budgets) is also recorded as `stopped`.
-
-Stopping a chat ends only its open turn; the chat stays ready for your next message. You cannot force-stop a chat turn. In the terminal, running `/stop` while following [Ai-chan](/user/ai-chan) stops only her open turn.
-
-Closing the browser tab or the app does not stop an epic, and leaving the terminal interface while a flow runs asks whether to stop it or leave it running; see [Leave it running and come back](/user/leaving). Likewise, if `hmz exec` ends for any reason other than one of these signals, its epic keeps running in the daemon. Any signal already ignored when `hmz exec` starts stays ignored, such as `SIGHUP` under `nohup` or `SIGINT` for a background job in a script.
+- An epic that exhausts its [budget](/user/budgets) is also recorded as `stopped`.
+- Stopping a chat ends only its open turn; the chat stays ready for your next message. You cannot force-stop a chat turn.
+- In the terminal, running `/stop` while following [Ai-chan](/user/ai-chan) stops only her open turn.
+- Closing the browser tab or the app does not stop an epic. Leaving the terminal interface while a flow runs asks whether to stop it or leave it running; see [Leave it running and come back](/user/leaving).
+- If `hmz exec` is killed any other way, such as with `kill -9`, its epic keeps running in the daemon.
+- Any signal already ignored when `hmz exec` starts stays ignored, such as `SIGHUP` under `nohup` or `SIGINT` for a background job in a script.

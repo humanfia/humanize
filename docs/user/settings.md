@@ -11,7 +11,7 @@ Change what Humanize remembers from the settings dialog in the app or `/settings
 
 ## In the app
 
-Click the gear button **Settings** in the sidebar. You can also open **Settings**, **Usage**, and **Manage** (the Daemons page) from the daemon menu at the foot of the sidebar, or open a folder's **Settings** (its Setup page) and **Usage** from the folder menu. Press **Close** or <kbd>esc</kbd> to close the dialog.
+Click the gear button **Settings** in the sidebar. You can also open **Settings**, **Usage**, and **Manage** (the Daemons page) from the daemon menu at the foot of the sidebar, or open a folder's **Settings** (its Setup page) and **Usage** (the Workspace Usage page of that folder) from the folder menu. Press **Close** or <kbd>esc</kbd> to close the dialog.
 
 Settings pages fall into three groups, each stored in a different place.
 
@@ -28,9 +28,10 @@ Settings pages fall into three groups, each stored in a different place.
 | Daemon | **Nous** | Who takes a turn, and where it goes once it fails | [Nous](/user/nous) |
 | Daemon | **Runtimes** | Machines environments run on | [Runtimes](/user/runtimes) |
 | Daemon | **Backup** | Git repositories epics go to | [Back up to git](/user/backups) |
-| Daemon | **Usage** | Spending by day and flow | [Cost and usage](/user/usage) |
+| Daemon | **Usage** | What everything on the daemon spent, by day and flow | [Cost and usage](/user/usage) |
 | Workspace | **Setup** | What a folder was last set up with | below |
 | Workspace | **Archived chats** | Chats of a folder that were put away | [Organise chats](/user/manage-chats) |
+| Workspace | **Usage** | What a folder spent, by day and flow | [Cost and usage](/user/usage) |
 
 Each page has a direct address, `#/settings/<page>`, listed in [Page addresses and shortcuts](/reference/web).
 
@@ -111,7 +112,7 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 ## Where settings are kept
 
 - **App pages** are stored in the browser or the desktop app window. Each browser and device keeps its own values, and clearing site data resets them.
-- **Daemon and Workspace pages**, along with what you save in `/settings`, are stored by the daemon in `~/.hmz/settings.yaml` and shared across all interfaces connected to that daemon. See [settings.yaml](/reference/settings) for the keys. Account secrets are kept apart from that file, and Usage and Archived chats only read what epics and chats recorded.
+- **Daemon and Workspace pages**, along with what you save in `/settings`, are stored by the daemon in `~/.hmz/settings.yaml` and shared across all interfaces connected to that daemon. See [settings.yaml](/reference/settings) for the keys. Account secrets are kept apart from that file, and both Usage pages and Archived chats only read what epics and chats recorded.
 - Notifications are stored per browser in the app, and in `settings.yaml` for the terminal.
 
 ## Good to know
@@ -120,5 +121,5 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 - Setting the `HUMANIZE_SENTRY` environment variable overrides the saved error-report choice for that run, and the terminal's General page notes the override.
 - In the terminal, saving `Forget` at the same time as a changed `Chat agent` forgets both and does not write the agent.
 - Forgetting a folder keeps its chats, epics, and files intact.
-- When no folder exists yet, Workspace pages show **No folder yet.** and offer **New chat**.
+- When no folder exists yet, Setup and the Workspace Usage page show **No folder yet.** and offer **New chat**. Archived chats still opens, to list the archived chats that belong to no folder.
 - On a narrow window, the page list moves to a strip across the top of the dialog.

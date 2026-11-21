@@ -44,7 +44,7 @@ Type `/` to see the commands that work in the current view and state. If you run
 | `/quit` | none | Same as `/exit`. |
 | `/btw` | a question | Enters btw mode on the session on screen, or asks one side question. Alone in btw mode, leaves it. Works only on one agent's or session's view. |
 | `/ai` | none | Opens the Ai-chan conversations menu. |
-| `/afk` | `on` or `off` | Marks you away, so questions to you are answered with nothing. Alone, toggles. On an outworlder's view it affects that role only. |
+| `/afk` | `on` or `off` | Marks you away, so agents that ask are told nobody is here. Alone, toggles. On an outworlder's view it affects that role only. |
 | `/claim` | `on` or `off` | On an outworlder's view, makes this terminal the only one that answers for the role. Alone, toggles. |
 | `/env` | a role, a chain of roles or an environment's id | Opens the environments of the run or chat on screen, or the one named. |
 | `/settings` | a page | Opens settings, or one page of it. |
@@ -121,7 +121,7 @@ To edit a board entry, type the name, press <kbd>enter</kbd>, type the value, an
 
 `/flow`, `/epics`, `/settings`, `/ai`, `/env` and every sheet they open share these keys. The bottom line of each menu lists the keys active right now.
 
-![The General page of settings in the terminal, with its key line at the bottom](/shots/reference-tui-menu.svg)
+![The Daemons page of settings in the terminal: a list, a row of buttons and the key line at the bottom](/shots/reference-tui-menu.svg)
 
 | Where | Key | Action |
 | --- | --- | --- |
@@ -232,9 +232,9 @@ Exomyth has three views: Timeline, Flame and Slices. See [Trace a run with Exomy
 | --- | --- | --- |
 | All | <kbd>tab</kbd> <kbd>shift+tab</kbd> | Next or previous view. |
 | All | <kbd>↑</kbd> <kbd>↓</kbd> | Row above or below. |
-| Timeline | <kbd>pgup</kbd> <kbd>pgdn</kbd> | Ten rows up or down. |
 | All | <kbd>r</kbd> | Read the epic again. |
 | All | <kbd>esc</kbd> | Leaves the search, then the range, then the pane, then Exomyth. |
+| Timeline | <kbd>pgup</kbd> <kbd>pgdn</kbd> | Ten rows up or down. |
 | Timeline | <kbd>←</kbd> <kbd>→</kbd> | Previous or next span. |
 | Timeline | <kbd>w</kbd>, <kbd>+</kbd> or <kbd>=</kbd> | Zoom in. |
 | Timeline | <kbd>s</kbd> or <kbd>-</kbd> | Zoom out. |

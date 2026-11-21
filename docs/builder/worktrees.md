@@ -46,9 +46,9 @@ This adds a git worktree to the repository and returns an environment at the new
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `ref` | `None` | What to check out, detached: a branch, a tag, a commit. `None` is what the workdir has checked out. |
-| `dir` | `None` | Where to put it, relative to the workdir or absolute. `None` is a fresh directory Humanize picks. |
+| `dir` | `None` | Where to put it: relative to the workdir, absolute, or `~/…` on the machine. `None` is a fresh directory Humanize picks. |
 
-A worktree holds only committed files at `ref`, excluding uncommitted changes from the workdir. The call raises `WorktreeError` if the workdir is not in a repository, git does not know the ref, or `dir` is already taken.
+A worktree holds only committed files at `ref`, excluding uncommitted changes from the workdir. The call raises `WorktreeError` if the workdir is not in a repository, git does not know the ref, or `dir` is already taken. It also refuses a `ref` that is empty or starts with `-`.
 
 ## Make a temporary clone
 
@@ -152,7 +152,7 @@ The rewind removes both the edit and the new file:
 
 Rewinding restores the checked-out commit, the index, and every file, returning untracked files as untracked. It moves the checked-out branch to that commit, losing any commits made after the snapshot. It also removes files not in the snapshot (including nested repositories) and abandons any in-progress merge, cherry-pick, or revert. It never records or removes git-ignored files or a top-level `.hmz/` directory.
 
-`snapshot`, `rewind`, and `snapshots` raise `RewindError` when the workdir is not in a git worktree, the snapshot name is not a valid git ref name, or git does not recognize the ref.
+`snapshot`, `rewind`, and `snapshots` raise `RewindError` when the workdir is not in a git worktree, the snapshot name is not a valid git ref name, or git does not recognize the ref. `rewind` also refuses a ref that is empty or starts with `-`.
 
 You can also rewind to these snapshots manually while the flow runs. See [Snapshots and rewind](/user/snapshots).
 
@@ -175,7 +175,7 @@ When the flow ends, only the worktree remains:
 
 ![find lists one directory under .hmz/envs after the flow ended: the worktree](/shots/builder-worktrees-kept-after.svg)
 
-Clones and scratch directories stay until the flow call that created them and all child flows finish, or until you stop the epic.
+Clones and scratch directories stay until the flow call that created them and all child flows finish, or until you stop the epic. The flow waits up to 30 seconds for this cleanup; a slower one finishes in the background.
 
 A [resumable flow](/builder/resumable) keeps its clones and scratch directories when the epic ends. A resumed run that asks for the same id gets the same directory, so destroy unneeded directories yourself.
 

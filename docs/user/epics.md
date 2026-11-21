@@ -41,10 +41,11 @@ The epic starts and its page opens.
 
 | Section | What to do |
 | --- | --- |
-| **Environment** | Pick the **Daemon** machine that runs the epic. Pick the starting **Folder**, or **No folder** for a fresh directory. For each environment role, set a **Backend**, a **Runtime** (when the backend is not this machine: a saved one, or **Other host…** for SSH), and a **Directory** (leave empty to use the starting folder). |
+| **Daemon** | The **Connected to** chip names the hmz that will run the epic: **Local** or a remote [daemon](/user/daemons). Picking another one switches the whole page to it. **Add daemon…** opens **Settings > Daemons**. |
+| **Environment** | Pick the starting **Folder**: a folder, **Open folder…**, or **No folder** for a fresh directory. For each environment role, set a **Backend**, a **Runtime** (when the backend is not this machine: a saved one, **Add runtime…**, or **Other host…** for SSH), and a **Directory** (on this machine, leave empty to use the starting folder). |
 | **Agents** | Click a role's chip to pick a virtual nous by name, or select **Harness**, **Account**, **Model** and **Effort**. Roles that can stay empty are marked **Optional**. Hover over a role's name to see its required harness, permissions and skills. |
 | **Parameters** | Fill one field per param. Shown only when the flow has params. |
-| **Budget** | Set at least one of **Cost, $**, **Time, min** or **Output tokens**. Each limit has a **graceful** box, ticked at first: ticked, the active turn may finish when the limit is reached. |
+| **Budget** | Set at least one of **Cost, $**, **Time, min** or **Output tokens**. Each limit has its own box (**Cost graceful**, **Time graceful**, **Tokens graceful**), ticked at first: ticked, the active turn may finish when the limit is reached. |
 | **Backup** | Tick the backup targets to use; the default targets start ticked. Shown only when targets exist in settings. |
 | **Profile flow**, **Profile environment** | Tick to sample the flow or the agents' programs. |
 
@@ -63,7 +64,7 @@ Select a row with the arrow keys and press <kbd>enter</kbd> to open it.
 | Row | What opens |
 | --- | --- |
 | An agent role | A sheet with `cli`, `account`, `model`, `effort`, and `swarm` (if the model supports it). |
-| An environment role | A form with `backend`, machine (if applicable), `workdir`, and `as -e` (where you can type the spec in `hmz exec` format). |
+| An environment role | A form with `backend`, the machine when the backend is not `local` (`host`, `daemon`, `swarm` or `cluster`), `workdir`, and `as -e` (where you can type the spec in `hmz exec` format). |
 | `params` | A form with one row per param. The main row shows only modified values. |
 | `budget` | `duration`, `cost`, `output_tokens`, and a `graceful_` switch for each. Type durations as `30m`, `1h30m` or `PT2H`. |
 | `profile flow`, `profile environment` | `on` or `off`. |

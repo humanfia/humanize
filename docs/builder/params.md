@@ -111,7 +111,7 @@ Pick a flow on the **New epic** page. Its params appear under **Parameters**, pr
 
 ![The Parameters section alone: a number box for rounds, three buttons for focus, Yes and No buttons for commit, a text box for Commit message](/shots/builder-params-form.svg)
 
-Params use the same controls as [Typed answers](/builder/shapes): `int` renders a number box, `Literal` a button row (a list when it has more than five choices), `bool` two buttons with the affirmative label drawn from a short `description`, and `str` a text box. Required params appear first.
+Params use the same controls as [Typed answers](/builder/shapes): `int` renders a number box, `Literal` a button row (a list when it has more than five choices), `bool` two buttons with the affirmative label drawn from a short `description`, and `str` a text box. Required params appear first. A param still at a non-empty default is tagged **Suggested**, and a dot marks the default choice.
 
 The flow's page under **Flows** lists each param by its `title`, or its key when it has none, with its `description`.
 
@@ -123,7 +123,7 @@ Select the flow in the `/flow` menu. If the flow has params, the **Set up polish
 
 | Field type | On the sheet |
 | --- | --- |
-| `bool` | A switch (`on` or `off`). |
+| `bool` | A switch: press <kbd>enter</kbd> to pick `on` or `off`. |
 | `Literal[...]` | Press <kbd>enter</kbd> to open a list of choices. |
 | Anything else | Press <kbd>enter</kbd> and type the value. Parsed as the field type, then as JSON. |
 

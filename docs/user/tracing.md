@@ -105,7 +105,7 @@ Click **Zoom** to fit the chart to your selection. Click **Clear** to drop a str
 
 ### Find a span
 
-Press <kbd>/</kbd> or click **Find** and type part of a span name. The counter shows the match position, such as `1/2`. On the **Flame** tab it shows a percentage instead: the share of the graph the matching frames hold. Press <kbd>enter</kbd> in the box, <kbd>n</kbd> outside it, or click **Next** for the next match. Press <kbd>shift+enter</kbd> in the box, <kbd>shift+n</kbd> outside it, or click **Previous** for the previous one. Each match is selected and scrolled into view. Press <kbd>esc</kbd> to clear the search, and press <kbd>esc</kbd> again to leave the box.
+Press <kbd>/</kbd> or click **Find** and type part of a span name. The counter shows the match position, such as `1/2`. On the **Flame** tab it shows a percentage instead: the share of the graph the matching frames hold. Press <kbd>enter</kbd> in the box, <kbd>n</kbd> outside it, or click **Next** for the next match. Press <kbd>shift+enter</kbd> in the box, <kbd>shift+n</kbd> outside it, or click **Previous** for the previous one. On the timeline, each match is selected and scrolled into view; on the **Flame** tab the matching frames are only lit. Press <kbd>esc</kbd> to clear the search, and press <kbd>esc</kbd> again to leave the box.
 
 ### The flame graph and the slices
 

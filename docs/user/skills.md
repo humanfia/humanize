@@ -35,9 +35,11 @@ Call a skill in a chat the same way you call it in the CLI's own prompt:
 
 | CLI | What to type |
 | --- | --- |
-| Claude Code, Kimi Code, OpenCode, MiMo Code | `/name` |
+| Claude Code, Kimi Code, Qwen Code, OpenCode, MiMo Code | `/name` |
 | Codex | `$name` |
 | Pi, Oh My Pi | `/skill:name` |
+
+Every other CLI gets the line as typed. Antigravity expands a `/name` line itself; Grok Build, Cursor CLI and MiniMax Code read it as plain text, and their agents load a skill on their own when the task calls for it.
 
 ### In the app
 
@@ -52,7 +54,7 @@ Call a skill in a chat the same way you call it in the CLI's own prompt:
 
 ### In the terminal
 
-In `hmz`, type the same prefix in a chat. Skills appear after Humanize's own commands.
+In `hmz`, type the same prefix in a chat. After `/`, the CLI's commands and skills follow Humanize's own; after `$`, skills come before flows.
 
 ![The terminal interface after /p is typed in a chat: /prefer, then /price-check marked a skill](/shots/user-skills-terminal.svg)
 
@@ -96,4 +98,4 @@ Switch the preference with `/prefer native` or `/prefer flow`, or in the app und
 - If a git-referenced skill cannot be fetched, the run fails before its first turn, and the error names the role that asked for it. A repository fetched before keeps working offline.
 - Moving a CLI's home with an environment variable such as `CODEX_HOME` moves its skills folder with it.
 - An agent running on [another machine](/user/runtimes) gets copies of the flow's skills in the temporary home built for it there. `opencode` and `mimo` run there without the flow's skills.
-- An [error report](/user/reporting) lists the skills each installed CLI would load, by name only.
+- An [error report](/user/reporting) sent from the terminal interface lists the skills each installed CLI would load, by name only.

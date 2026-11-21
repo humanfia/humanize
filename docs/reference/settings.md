@@ -18,7 +18,7 @@ Humanize stores its settings in `settings.yaml` inside `$HUMANIZE_HOME` (or `~/.
 | Writing | One change per write. The writer locks `.settings.yaml.lock`, re-reads the file, applies its change, writes a new file, and renames it into place. Concurrent changes are preserved. |
 | Exists but unreadable, invalid YAML, or not a mapping | Never overwritten. Fix or remove the file. |
 | Failed write | A change to `nous`, `clis`, `daemons`, `notifications`, `listen`, `ice_servers`, `easytier`, or a runtime is refused with an error naming the file. Any other change stays in effect for the running process only, with no error. |
-| Credentials | Never stored here. Accounts appear only as names after `@` and live elsewhere in the home; see [Files on disk](/reference/files). |
+| Secrets | Account credentials are never stored here: accounts appear only as names after `@` and live elsewhere in the home; see [Files on disk](/reference/files). The file does hold each `easytier` `secret` and each TURN `credential` in `ice_servers`. |
 
 A writer waits up to 30 seconds for the lock, then writes without it.
 
@@ -206,7 +206,7 @@ Maps a folder's resolved absolute path (symlinks resolved) to its saved setup.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `flow` | string | absent | Last flow set up in this folder. |
-| `chat.agent` | string | absent | Default agent for new chats here, as `<harness>[@<account>]/<model>[:<effort>]`. Updated when you start a chat or change its agent. Used by `hmz chat` when `-a` is omitted. |
+| `chat.agent` | string | absent | Default agent for new chats here, as `<harness>[@<account>]/<model>[:<effort>]`. Updated when you start a chat in the app or terminal, or change a chat's agent. `hmz chat` uses it when `-a` is omitted and never updates it. |
 | `flows` | mapping | absent | Per-flow setups, keyed by flow name (such as `rlar` or `@local/twice`). |
 
 An entry may be empty: the browser page writes an empty entry when you open a folder by path, and lists every folder present here. Use **Forget** in **Settings > Setup** or `/settings workspace` to remove the entry.
@@ -263,6 +263,8 @@ Each node is either a use node or a balance node, plus routing edges:
 | `next` | string | Shorthand for `on` with only `*`. |
 
 See [Agents and harnesses](/reference/agents) for fault classes.
+
+A virtual nous may name other virtual nous at most 32 levels deep. A walk that goes deeper, re-enters a name, or reaches a virtual nous with no entry fails at that point with the fault `missing`, which follows the node's `missing` or `*` edge.
 
 An entry is ignored if its name is invalid, its graph is invalid, a concrete nous defines `graph`, a virtual nous omits `graph`, or a concrete nous has `tries` set to `0` and no `then`. Negative or non-numeric `tries` and `timeout` values read as `0`. Unknown `policy` values read as `exponential-jitter`.
 

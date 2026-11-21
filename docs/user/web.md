@@ -52,7 +52,7 @@ Anyone with the keyed address can use the page while `hmz web` runs. Do not shar
 The page has four parts:
 
 - The **sidebar** on the left holds navigation and the list of chats and epics.
-- The **view** beside it shows a new chat, an open chat, an epic, or the flows.
+- The **view** beside it shows a new chat, a new epic, an open chat or epic, or the flows.
 - **Dialogs** open over the view: Search, Settings, Download, and Delete chat.
 - A **side panel** opens on the right of some views, alongside [Ai-chan](/user/ai-chan)'s drawer.
 
@@ -77,8 +77,8 @@ From top to bottom, the sidebar contains:
 
 - The top row: the Humanize mark (opens a new chat), **Hide sidebar**, **Back**, and **Forward**.
 - Action links: **New chat**, **New epic**, **Search**, and **Flows**. **Flows** shows a badge count when installed flows have a newer release.
-- Your chats and epics. Click a row to open it. Chat rows show the title; epic rows also show state, flow, and age. See [Organise chats](/user/manage-chats) and [History and search](/user/history) for row actions.
-- The active daemon at the foot: its name, machine, and state (`idle`, or the number of live epics). Click it to switch daemons or open **Settings** or **Usage**. Click the gear beside it to open [Settings](/user/settings). To add daemons, see [Connect to other machines](/user/daemons).
+- Your chats and epics. Click a row to open it, or point at it to see its full task, state, and start time. An epic row displays its state, flow, and age; click its arrow to list its agents and their sessions. An idle chat row shows only its title. It adds `Running` during an open turn, `Failed` when a turn failed, was refused, or crashed, and a dot when waiting for you. Point at a dot to see `Awaiting input` for a waiting chat or `Unread` for a row updated since you last opened it. See [Organise chats](/user/manage-chats) and [History and search](/user/history) for row actions.
+- The active daemon at the foot: its name, machine, and state. An online daemon shows `idle` or the count of running epics, such as `2 live`. Otherwise it shows `connecting`, `installing`, `failed`, or `not connected`. Click it to switch daemons or open **Settings** or **Usage**. When a newer `hmz` is out, it shows an arrow badge and its menu adds **Update**, which copies `hmz update`. Click the gear beside it to open [Settings](/user/settings). To add daemons, see [Connect to other machines](/user/daemons).
 
 ### Fold and resize the sidebar
 
@@ -98,7 +98,9 @@ Point at any group heading to reveal its **Group and sort** button (always visib
 | **Sort by** | **Last updated**, **Created** | **Last updated** |
 | **Show** | **Chats**, **Epics** | Both |
 
-**Date** groups items into `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, and `Older`. **None** puts everything into one `All` group. Pinned rows always appear first under `Pinned`. When you do not group by folder, folders appear at the bottom under `Folders`; click one to start a new chat in it. Each group shows up to 20 rows before a **Show {n} more** button. Click **Reset to defaults** to restore all three settings.
+**Date** groups items into `Today`, `Yesterday`, `Last 7 days`, `Last 30 days`, and `Older`. **None** puts everything into one `All` group. Pinned rows always appear first under `Pinned`. When you do not group by folder, folders appear at the bottom under `Folders`; click one to start a new chat in it, or click its **More options** button for the folder menu. Each group shows up to 20 rows before a **Show {n} more** button. Click **Reset to defaults** to restore all three settings.
+
+The sidebar loads 60 chats and 60 epics at a time. When the daemon holds more, click **Show more** at the bottom of the list to load the next 60. Running epics sort as the most recently updated, and folders with a running epic appear first.
 
 ### Manage folder groups
 
@@ -132,8 +134,6 @@ On a Mac, press <kbd>cmd</kbd> instead of <kbd>ctrl</kbd>. The sidebar shows the
 
 ## Use dialogs
 
-Search, Settings, Download, and Delete chat open as dialogs over your current view.
-
 ![Search opens over a chat when cmd+k is pressed, and esc closes it and shows the chat again](/shots/user-web-search.svg)
 
 Close a dialog by pressing <kbd>esc</kbd>, clicking its **Close** button, or clicking the dimmed backdrop. Closing returns you to the underlying view and leaves your browser history as if the dialog never opened. While a dialog is open, <kbd>tab</kbd> stays inside it. Opening a dialog address directly, such as `#/search`, opens it over a new chat.
@@ -142,9 +142,17 @@ Close a dialog by pressing <kbd>esc</kbd>, clicking its **Close** button, or cli
 
 Click chips and buttons to open menus, or right-click a row, heading, transcript line, or chat title for its context menu. Text fields and selected text keep the native browser menu. Only one menu stays open at a time.
 
-Inside a menu, press <kbd>up</kbd>, <kbd>down</kbd>, <kbd>home</kbd>, and <kbd>end</kbd> to move through items. Press <kbd>right</kbd> to open a submenu and <kbd>left</kbd> to close it. Click elsewhere, press <kbd>esc</kbd>, or switch views to close the menu.
+Inside a menu, press <kbd>up</kbd>, <kbd>down</kbd>, <kbd>home</kbd>, and <kbd>end</kbd> to move through items. Press <kbd>right</kbd> to open a submenu and <kbd>left</kbd> to close it. Click elsewhere, press <kbd>esc</kbd>, scroll, or switch views to close the menu.
 
 Point at truncated text to see the full text in a tooltip. Brief corner messages, such as `Link copied`, confirm your actions.
+
+### Confirm an action
+
+Click a permanent action button, such as **Remove**, **Delete**, **Uninstall**, **Revoke**, or **Forget**, to reveal a question beside it with **Cancel** and the confirming answer. No dialog opens.
+
+![The Forget button in a folder's settings asks its question beside itself, with Cancel and Forget as answers](/shots/user-web-confirm.svg)
+
+Only one question stays open at a time. Press <kbd>esc</kbd>, click elsewhere, move focus away, open a menu or dialog, or leave the view to cancel.
 
 ## Use the side panel
 
@@ -168,6 +176,7 @@ Each browser (and Humanize Desktop) stores its own interface state locally, sepa
 
 - Sidebar fold state and width.
 - **Group and sort** choices, collapsed groups, and which epics are opened out in the list.
+- Whether an epic shows its sessions as a graph or a list.
 - Pinned rows and unread marks.
 - Open panels.
 - Theme and language (see [Themes and language](/user/themes)).
@@ -179,6 +188,6 @@ Each browser (and Humanize Desktop) stores its own interface state locally, sepa
 ## Good to know
 
 - `hmz web` accepts connections from the local machine only. To reach it from another computer, forward the port over SSH (for example, `ssh -L 8420:127.0.0.1:8420 you@server`) and open the printed address locally. For phones or machines without SSH, see [Use Humanize from a browser and your phone](/tutorials/browser-and-phone).
-- If the port passed to `--port` is taken, `hmz web` exits with `hmz: the web interface cannot be served:` and the reason.
+- If the port passed to `--port` is taken, `hmz web` exits with `hmz: the web interface cannot be served:` and the reason. It also exits with a message if a daemon from an older, incompatible Humanize is running on this machine.
 - Scripts can read the address from standard output: `hmz web --no-open` prints a single line, `hmz web: <address>`. See [CLI](/reference/cli).
 - The browser tab title is `Humanize · ` followed by the machine's name.

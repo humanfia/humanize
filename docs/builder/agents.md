@@ -156,7 +156,7 @@ Read these properties on an agent to see what fills its role:
 | Property | Value |
 | --- | --- |
 | `role` | The role's key in the `AgentCollection` |
-| `harness` | A `HarnessKind`, such as `HarnessKind.CLAUDE`. Its value is the `-a` name |
+| `harness` | A `HarnessKind`, such as `HarnessKind.CLAUDE`. Its value is the `-a` name, or `acp` for a custom CLI |
 | `model` | The model, as it was given |
 | `effort` | The effort in the harness's own words. `""` when none was given or it was `auto` |
 | `provider` | The account its turns run as. `""` for the sign-in the CLI already has |
@@ -197,7 +197,7 @@ The derived agent shares sessions and hooks with the original, and retains the r
 
 ### In the app
 
-Open **New epic** to see one row per role under **Agents**. Optional roles are marked **Optional**. Each row lists only the harnesses that can fill the role. See [Start an epic](/user/epics).
+Open **New epic** and pick the flow in the **Flow** menu at the top to see one row per role under **Agents**. Optional roles are marked **Optional**. Each row lists only the harnesses that can fill the role. See [Start an epic](/user/epics).
 
 ![Humanize Desktop's New epic page for @local/careful: under Agents, a row for coder and a row for reviewer marked Optional](/shots/builder-agents-app.svg)
 
@@ -213,7 +213,7 @@ Pass one `-a ROLE=CLI/MODEL:EFFORT` flag per role. Omitting a required role refu
 
 ## Good to know
 
-- A role type cannot inherit from two harnesses, `Outworlder` accepts no harness or mixin, and setting `_tools` requires `FakeToolAgentMixin`. Violating any of these raises `FlowDefinitionError` when Humanize loads the flow.
+- A role type cannot inherit from two harnesses, `Outworlder` accepts no harness or mixin, and setting `_tools` requires `FakeToolAgentMixin`. Violating any of these raises `FlowDefinitionError` when Humanize loads the flow. So does a class variable of the wrong type, a tool or command line named twice, an environment's mixin on an agent role, or `_clis` on an `Outworlder` or `LiteLLMAgent` role.
 - A `grok` agent on a role with `_tools` raises `HarnessUnrecoverable` on turns with `output_schema`, on the first turn of a fork, when `network=False`, or when its permission lets it write nowhere.
 - A `litellm` agent is refused for any role that sets `_clis` because it has no shell.
 - In tests, `run_fake` fills any unassigned required role with a scripted agent matching the requested harness, defaulting to Claude Code. Unassigned optional roles remain omitted. See [Test a flow](/builder/testing).

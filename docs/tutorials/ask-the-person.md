@@ -92,18 +92,12 @@ Three parts define the question:
 - `output_schema=Review` turns `Review` into a form. `verdict` has no default, so it is required. `notes` has a default, so it is optional.
 - `context` attaches data for you to read: here a `Markdown` note and a `Diff`. Other available blocks are `Code`, `Table`, `Image`, `Json`, and `Chart`.
 
-Commit the file so the diff shows only the agent's changes:
-
-```sh
-git add .hmz && git commit -m "Add the sign_off flow"
-```
-
 ## 2. Answer in the app
 
 Open your project in Humanize Desktop.
 
 1. Click **New epic**.
-2. Confirm **Folder** shows your project. Click the flow button and pick `@local/sign_off`.
+2. Confirm **Folder** shows your project. Click the **flow** button at the top and pick `@local/sign_off`.
 3. Under **Budget**, type `10` in **Time, min**.
 4. In **Task**, type `Add a discount code to checkout`.
 5. Click **Send**.
@@ -122,7 +116,7 @@ The agent receives your note, updates the code, and the flow asks again. Click *
 
 ## 3. Answer in the terminal
 
-Run `hmz` in your project. On the first run, set a budget: type `/flow sign_off`, open `budget`, set a time like `10m`, and save (see [Finish your first task in the terminal](/tutorials/first-task-terminal)). Start the flow:
+Run `hmz` in your project. On the first run, set a budget: type `/flow sign_off`, open `budget`, set `duration` to `10m`, and save (see [Finish your first task in the terminal](/tutorials/first-task-terminal)). Start the flow:
 
 ```text
 /flow sign_off Add a discount code to checkout
@@ -190,7 +184,7 @@ In `__init__.py`, import `Face` from `hmz.flows` and pass it when spawning the r
     asking = await reviewer.spawn(face=Face.file("review.html", title="Review"))
 ```
 
-Commit both files and start a new epic as in step 2.
+Start a new epic as in step 2.
 
 ![The question card now shows the face: the diff in colour, a notes box, and Approve and Request changes buttons](/shots/tutorials-ask-the-person-face.svg)
 

@@ -83,7 +83,7 @@ The list also completes arguments: flows after `/flow` and `$`, the nine pages a
 | `/claim [on\|off]` | Answer for one outworlder alone. | [Answer a flow's questions](/user/questions) |
 | `/settings [page]` | Open the settings. | [Settings](/user/settings) |
 
-The list shows only commands that apply right now: `/claim` appears only on an outworlder's view, and `/resume` appears only when a run or chat can be resumed. For every key in every view, see [Terminal commands and keys](/reference/tui).
+The list shows only commands that apply right now: `/claim` appears only on an outworlder's view, and outside a chat `/resume` appears only when there is an epic to resume. For every key in every view, see [Terminal commands and keys](/reference/tui).
 
 ## Switch views
 
@@ -97,7 +97,9 @@ The interface keeps the last 2000 lines of up to 32 transcripts.
 
 ## Read the status line
 
-The left side shows the current state: `starting…`, the active agents and their elapsed time, `waiting for you`, or, when idle, the agent (outside a chat, the flow that is set up) and the folder. Prefixes mark active modes: `afk` when agents may not ask you, `details` when tool calls are visible, `btw` in btw mode, and `2 flow updates` when installed flows have newer releases. After you copy text, it shows `copied` for two seconds.
+The left side shows the current state: `starting…`, the active agents and their elapsed time (in a chat, `running…` then `done`), `waiting for you`, or, when idle, the agent (outside a chat, the flow that is set up) and the folder. Prefixes mark active modes: `afk` when agents may not ask you, `details` when tool calls are visible, `btw` in btw mode, and `2 flow updates` when installed flows have newer releases. After you copy text, it shows `copied` for two seconds.
+
+Two prefixes mark what the terminal follows. When you open an epic or chat on another daemon with `follow` from `/epics @<name>`, you see `@<daemon> · <folder>` and the transcript shows `following <path> on <daemon>; esc comes back`. Press <kbd>esc</kbd> at the prompt to return to that daemon's list. A new Ai-chan conversation shows `Ai-chan · new · <scope>` until your first line; a conversation you follow shows `Ai-chan#<n> · <scope>`. See [History and search](/user/history) and [Ai-chan](/user/ai-chan).
 
 The right side lists only the keys that work right now, such as `enter send`, `shift+tab switch view`, `/ commands`, `← monitor` and what the next <kbd>ctrl+c</kbd> does. In a narrow terminal, hints drop from the left of the key list; the state on the left side is never cut.
 

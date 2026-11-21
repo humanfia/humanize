@@ -12,7 +12,7 @@ Run flows and chats from scripts, cron, and CI with two non-interactive commands
 ## Run a flow
 
 ```sh
-hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=5 "Add a discount code to checkout"
+hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.output_tokens=20000 "Add a discount code to checkout"
 ```
 
 Pass the flow, a budget, and the task. The task is a single argument; place it after `--` if it starts with a dash. Put options in any order, before or after the task. Repeat `-a`, `-e`, and `-p`, or pass comma-separated values.
@@ -21,7 +21,7 @@ Pass the flow, a budget, and the task. The task is a single argument; place it a
 | --- | --- | --- |
 | `-f FLOW` | The flow: an installed name (`goal`, `@local/FLOW`), a path starting with `.`, `/` or `~`, or `git+URL#subdir`. `hmz exec` never installs a flow. | [Find and install flows](/user/flows) |
 | `-a ROLE=CLI[@ACCOUNT]/MODEL[:EFFORT]` | What each agent role runs. `ROLE=NAME` assigns a virtual nous. | [Start an epic](/user/epics) |
-| `-e ROLE=BACKEND[@RUNTIME][/WORKDIR]` | Where each environment role works. Defaults to the current directory. | [Environments](/user/environments) |
+| `-e ROLE=BACKEND[@RUNTIME][/WORKDIR]` | Where each environment role the flow declares works. A required role left out refuses the run. The flow's own workspace is always the current directory and takes no `-e`. | [Environments](/user/environments) |
 | `-p KEY=VALUE` | A flow param. | [Start an epic](/user/epics) |
 | `-p budget.duration=`, `-p budget.cost=`, `-p budget.output_tokens=`, `-p budget.graceful=` | What the run may spend. At least one limit is required. | [Budgets](/user/budgets) |
 | `--resume` | Pick up the newest run of this flow here instead of starting over. | [Resume a run](/user/resuming) |
@@ -46,7 +46,7 @@ hmz chat -a claude/claude-haiku-4-5 "What does charge() do with an empty cart?"
 | Option | What it does |
 | --- | --- |
 | `-a CLI[@ACCOUNT]/MODEL[:EFFORT]` | The agent. If omitted, a new chat uses the directory's saved agent, or fails if none is saved. |
-| `--resume CHAT` | Send the message as the next turn of an existing chat. |
+| `--resume CHAT` | Send the message as the next turn of an existing chat. It keeps its agent unless you pass `-a`. |
 | `--worktree` | Start the chat in a new git worktree of this directory. Cannot combine with `--resume`. |
 | `-e BACKEND[@RUNTIME][/DIRECTORY]` | Where the agent works. With `--resume`, moves the chat there. |
 | `--list`, `--list --archived` | List this directory's chats, newest first: id, state, title. |
@@ -64,7 +64,7 @@ Redirect stdout and stderr to separate the answer from the logs in both commands
 **stdout** receives each turn's answer and any flow output. **stderr** receives progress: active agents, tool calls, notices, errors, and each turn's tokens and time.
 
 ```sh
-hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=5 "Add a discount code to checkout" > answer.txt 2> run.log
+hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.output_tokens=20000 "Add a discount code to checkout" > answer.txt 2> run.log
 ```
 
 ![A terminal: the run's stdout goes to answer.txt and its stderr to run.log; the exit status is 0 and answer.txt holds only the agent's answer](/shots/user-command-line-streams.svg)
@@ -76,7 +76,7 @@ When both streams go to the same terminal, Humanize prints the answer once, inli
 Pass `--json` to `hmz exec` to stream one JSON object per event to stdout. Any flow output goes to stderr instead.
 
 ```sh
-hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.cost=5 --json "Add a discount code to checkout" > events.ndjson
+hmz exec -f goal -a worker=claude/claude-haiku-4-5 -p budget.output_tokens=20000 --json "Add a discount code to checkout" > events.ndjson
 jq -c '{kind, cli, text}' events.ndjson
 ```
 
@@ -86,14 +86,14 @@ Every object has the keys `at`, `agent`, `cli`, `model`, `session`, `kind`, `tex
 
 ## Control colour output
 
-Each stream checks these rules in order and uses the first match:
+Only the progress on stderr is ever coloured; stdout is always plain. These rules are checked in order and the first match wins:
 
 1. `NO_COLOR` is set and not empty: no colour.
 2. `TERM=dumb`: no colour.
 3. `FORCE_COLOR` is set, not empty, and not `0`: colour.
-4. The stream is a terminal: colour. Otherwise, no colour.
+4. stderr is a terminal: colour. Otherwise, no colour.
 
-Piped output is plain. Set `FORCE_COLOR=1` for CI logs that render colour. The live clock under a run appears only on a terminal with colour enabled.
+A redirected stderr is plain. Set `FORCE_COLOR=1` for CI logs that render colour. The live clock under a run appears only on a terminal with colour enabled.
 
 ## Handle prompts without a user
 
@@ -129,6 +129,6 @@ Exhausting the budget is a normal exit. `hmz exec` prints `hmz exec: stopped -- 
 
 No option of `hmz exec` or `hmz chat` reads from an environment variable; pass everything on the command line. The coding agent's CLI must be installed and signed in on the machine; see [Coding agents](/user/agents).
 
-After the epic ends, `hmz exec` waits up to 60 seconds for backups to finish. Pass `--backup none` to skip them. A cost limit cannot stop a model with no listed price; `hmz exec` warns on stderr and continues.
+After the epic ends, `hmz exec` waits up to 60 seconds for backups to finish, then leaves a slow one and says so on stderr. Pass `--backup none` to skip them. A cost limit cannot stop a model with no listed price; `hmz exec` warns on stderr and continues.
 
-`hmz chat` rejects messages that match Humanize's `/` commands or a `$` flow name; run flows with `hmz exec`. For all flags, see the [CLI reference](/reference/cli). For a complete example, see [Run a flow every night in CI](/tutorials/nightly-in-ci).
+`hmz chat` rejects messages that match Humanize's `/` commands or a `$` flow name; run flows with `hmz exec`. The agent's own `/`, `$`, `!` and `@` lines work as in any chat; see [Commands, skills and files in a chat](/user/chat-input). For all flags, see the [CLI reference](/reference/cli). For a complete example, see [Run a flow every night in CI](/tutorials/nightly-in-ci).

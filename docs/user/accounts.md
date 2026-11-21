@@ -23,7 +23,7 @@ Account changes take effect on the agent's next session. Running sessions keep t
 
 ## In the app
 
-Open **Settings**, then **Accounts**. The table lists each account by CLI, showing its name, sign-in method, the variable names it sets under **Sets**, and the model count and last check time under **Models**. Secret values are never shown.
+Open **Settings**, then **Accounts**. The table lists each account by CLI, showing its name, sign-in method, the variable names it sets under **Sets**, and the model count and last check time under **Models**. Secret values are never shown. **Local** is listed under each CLI that has at least one named account. With no account at all, the page says **No account yet.** and **Add account** jumps to the form.
 
 ![Settings, Accounts in Humanize Desktop: Claude Code has the accounts personal and work, and Local, the sign-in made outside Humanize](/shots/user-accounts-list.svg)
 
@@ -56,11 +56,11 @@ Click **More options** on a row, or right-click it, for more actions:
 
 ![The More options menu of the account work: Refresh models, Copy to for each other CLI the key can run, and Remove](/shots/user-accounts-menu.svg)
 
-**Copy to** appears only for CLIs that accept the same credentials; for example, an Anthropic API key also works with Pi or OpenCode. Subscription sign-ins live in a single CLI's store and cannot be copied.
+**Copy to** appears only for CLIs that accept the same credentials; for example, an Anthropic API key also works with Pi or OpenCode. Subscription sign-ins live in a single CLI's store and cannot be copied. The **Local** row offers only **Refresh models**.
 
 ## In the terminal
 
-Type `/settings accounts`. Accounts appear under a heading for each CLI, with `as local` listed last in each group.
+Type `/settings accounts`. Accounts appear under a heading for each CLI, with `as local` listed last in each group. Press <kbd>/</kbd> to search the list.
 
 ![The Accounts page of the terminal interface: under claude, the accounts personal and work with their method and variable, then as local](/shots/user-accounts-terminal.svg)
 
@@ -69,7 +69,7 @@ Type `/settings accounts`. Accounts appear under a heading for each CLI, with `a
 1. Press <kbd>tab</kbd> and choose **Add an account**.
 2. Set `cli` and `way` (the sign-in method), and type a `name`.
 3. Fill in the rows the method adds. Secrets appear as dots.
-4. Toggle each `also for` row to copy the account to other compatible CLIs. Installed CLIs start on.
+4. Toggle each `also for` row to copy the account to other compatible CLIs. Installed CLIs start on, and a row warns `overwrites <cli>/<name>` when the copy would replace an account.
 5. Choose **Done**. The line above **Done** previews the changes.
 
 ![The Add an account form in the terminal: the list of ways is opened, key is picked, the name and the key are answered, and the line over Done says it adds claude/work](/shots/user-accounts-terminal-add.svg)
@@ -92,6 +92,17 @@ Edits and removals take effect when you choose **Save**. Until then, the row dis
 
 Choose **Add a custom CLI** on the same page to register your own ACP-compatible CLI; see [Gateways, LiteLLM and custom CLIs](/user/gateways).
 
+### Pick an account for an agent
+
+1. Open the agent sheet from `/settings workspace` and **Chat agent**, or from a role in `/flow`.
+2. Set `cli` first, then press <kbd>enter</kbd> on the `account` row.
+
+The **Select the account to run as** list opens. It starts with `as local`, followed by each account for that CLI, its sign-in method, and the variables it sets. If the CLI has no accounts, the list shows `<cli> has no saved accounts yet`.
+
+![The list Select the account to run as in the terminal: as local is ticked, then personal and work, with the buttons Add an account and Search](/shots/user-accounts-terminal-pick.svg)
+
+To create an account from here, press <kbd>tab</kbd> and choose **Add an account**. The form is for that CLI, so it has no `cli` row, and it selects the new account for the agent as soon as you choose **Done**.
+
 ## Sign-in methods
 
 Each CLI offers its own list of sign-in methods. The main kinds:
@@ -99,10 +110,10 @@ Each CLI offers its own list of sign-in methods. The main kinds:
 | Kind | Examples | What the account holds |
 | --- | --- | --- |
 | The CLI's own sign-in | `login`, `console`, `device` | The files the CLI writes when you sign in. Terminal only. |
-| API key or token | `key`, `token`, `openai-key` | One secret, usually kept as an environment variable. |
+| API key or token | `key`, `token`, `openai-key` | One secret, usually kept as an environment variable. Codex and MiniMax Code hand it to their own sign-in, so theirs are terminal only. |
 | Gateway | `anthropic-gateway`, `openai-gateway`, `gemini-gateway` | The address and key of an endpoint that speaks a vendor's API. |
 | Cloud | `bedrock`, `vertex`, `azure`, `foundry` | The profile, project, region or key of your cloud account. |
-| Variables of your own | `env` | Any variables, typed as `NAME=VALUE` lines in the terminal form. The app's form cannot ask for them. |
+| Variables of your own | `env` | Any variables, typed as `NAME=VALUE` lines in the terminal form. The app's form asks nothing for this kind, so an account made there sets no variables. |
 | Through LiteLLM | `litellm-openai-key` and others | Credentials for a local LiteLLM gateway that the CLI is pointed at. |
 
 See [Agents and harnesses](/reference/agents) for the methods each CLI supports, and [Gateways, LiteLLM and custom CLIs](/user/gateways) for gateway and LiteLLM setup.

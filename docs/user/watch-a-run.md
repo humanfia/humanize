@@ -21,10 +21,12 @@ The top bar shows the task, a state badge (running, asking, waiting, stopping, o
 
 Below the bar, the epic is drawn as a graph:
 
-- A frame labelled `Flow` around the agents. Once the epic has ended, each flow it called gets a frame of its own, labelled `Called`.
+- A frame labelled `Flow` around the agents. Once the epic has ended, each called flow that opened agents of its own gets a frame, labelled `Called`.
 - A node per agent and per person. A node shows the agent's name, role, what it runs, `working` or `idle` with a time, and its tokens. An agent that has not taken a turn says `not started`.
 - A row per session inside the node. The row is a timeline over the run with a capsule per turn. Hover over a capsule to see the turn number, start time, and duration. A dot marks a session with unread lines.
 - An arrow per handover direction, labelled with a count such as `×2`. The latest handover is highlighted.
+
+Unless the flow names an agent, the run assigns a unique codename: a generated word, usually ending in digits, such as `KykLos204` or `Golem99`. Every interface shows the codename followed by the agent's role, such as `actor`. Sessions are numbered under the agent's name as `<agent>/<n>`, such as `KykLos204/1`.
 
 The graph opens fitted to the view. Zoom ranges from 20% to 300%.
 
@@ -41,7 +43,7 @@ Click the head of a node to centre the graph on that agent. A section for it ope
 
 ![The epic view with one agent picked out: its node is centred and the panel opens on a section about that agent](/shots/user-watch-a-run-pick.svg)
 
-Right-click a node for the same actions in a menu: **Pick out**, **Open log**, one entry per session, and **Copy agent**. Right-click a session row for **Open** and **Copy link**. In the sidebar, an agent's menu has **Show on graph**.
+Right-click a node for the same actions in a menu: **Pick out**, **Open log**, one entry per session, and **Copy agent**. Right-click a session row for **Open** and **Copy link**. The sidebar lists the epic's agents and their sessions: click an agent to pick it out, or click a session to read its thread. An agent's menu there has **Show on graph**.
 
 You cannot pick out a person's node. Click it to see what that person was asked and answered.
 
@@ -51,7 +53,7 @@ Click a session row to read that session as a thread, or click `≡ log` to read
 
 ![A session's thread in Humanize Desktop: the agent's tool calls, its answer and how long the turn took](/shots/user-watch-a-run-thread.svg)
 
-A thread shows when a turn starts, each tool call, the agent's answer, and the turn duration. A thread scrolled to the bottom stays pinned there as new lines arrive. Opening a session marks it read.
+A thread shows when a turn starts, each tool call, the agent's answer, and the turn duration. A thread scrolled to the bottom stays pinned there as new lines arrive. Opening a session marks it read. A thread also dimly shows any action a person took in the epic's environments, inline where it happened.
 
 ### Switch to a list
 
@@ -73,9 +75,13 @@ Click the panel button on the right of the top bar to open or close the summary 
 | **Done in its environments** | The last 8 things a person did in those environments |
 | **Frontends** | Every interface attached to the run |
 | **Running flows** | The flows running now, as a tree, with their time |
-| **Setup** | The epic's name, where it is written, agents, environments, params and budget |
+| **Setup** | The epic's name, where it is written, workdir, agents, environments, params, budget and sessions |
 
 ![The Epic panel: time, tokens and budget meters, the handovers, and spending by model](/shots/user-watch-a-run-panel.svg)
+
+When an epic ends, the Epic panel updates. **Figures** shows money spent, output tokens, duration, and session count. **Called flows** replaces **Running flows** and shows the tree of every flow the epic called. When they apply, **Setup** also shows `resumed from` (a link to the epic this one picked up from) and `profiled` (flow, environment, or both).
+
+Click a task longer than 400 characters to unfold it. Right-click a path in the panel and select **Copy path**.
 
 See [Ask a side question](/user/side-questions) for **Aside**, [Talk to a running flow](/user/steering) for **Board**, and [Answer a flow's questions](/user/questions) for **People**.
 
@@ -151,7 +157,7 @@ A person's role appears as a node above the agents, and a board has a node per l
 
 ![The epic page in the terminal: figures, budget meters, the set-up and a Stop button](/shots/user-watch-a-run-epic-page.svg)
 
-Press <kbd>enter</kbd> on an environment row to see its kind, location, workdir, harness location, and sessions. Press <kbd>enter</kbd> on a session there to read its log.
+Press <kbd>enter</kbd> on an environment row to see its kind, target, workdir, grants, harness location, status, and sessions, plus what it was set up as, its image, and its needs when set. Press <kbd>enter</kbd> on a session there to read its log.
 
 ## From the command line
 

@@ -72,7 +72,7 @@ In the terminal interface, type `/env` in the chat to open the same **Files**, *
 
 The harness is the coding agent's CLI. By default, it runs on the server next to the project, which requires the CLI to be installed there.
 
-To keep the CLI on your machine, open **Settings**, **Runtimes**, click **Edit** on the runtime's row, and set **Harness runs on** to **This machine**. The files and commands stay on the server. Your machine must run Linux to use this setting.
+To keep the CLI on your machine, open **Settings**, **Runtimes**, click **Edit** on the runtime's row, set **Harness runs on** to **This machine**, and click **Save**. The files and commands stay on the server. Your machine must run Linux to use this setting.
 
 ![Two arrangements. Inside the environment, the default: the harness runs on gpu-box beside your project. This machine: the harness runs beside Humanize, and your project stays on gpu-box](/diagrams/tutorials-work-on-a-server-1.svg)
 
@@ -88,7 +88,7 @@ To keep the CLI on your machine, open **Settings**, **Runtimes**, click **Edit**
 
 ![The Runtimes list with both rows checked: gpu-box answers 18 cpu, sandbox answers 8 cpu, 16 GiB and the Docker version](/shots/tutorials-work-on-a-server-runtimes.svg)
 
-To use the container, start a new chat, click the environment chip, pick `sandbox`, and choose your project folder. Humanize starts a container, mounts your folder at the same path, and removes the container when the environment closes. Your changes stay in the local folder.
+To use the container, start a new chat, click the environment chip, pick `sandbox`, and enter your project folder when asked for the directory. Humanize starts a container, mounts your folder at the same path, and removes the container when the environment closes. Your changes stay in the local folder.
 
 ## 6. Start an epic there
 

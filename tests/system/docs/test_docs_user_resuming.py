@@ -31,7 +31,7 @@ _PAGE = "user-resuming"
 
 #: The flow the page runs, which can be picked up, one that cannot, and the task.
 _FLOW = "stateful_ralph"
-_PLAIN = "ralph_loop"
+_PLAIN = "goal"
 _TASK = "Add a discount code to checkout"
 
 #: What ends the first epic: a loop that only its budget ends.
@@ -215,7 +215,7 @@ def test_a_flow_that_cannot_be_resumed_is_refused(world: World) -> None:
             "-f",
             _PLAIN,
             "-a",
-            f"agent={AGENT}",
+            f"worker={AGENT}",
             "-p",
             "budget.output_tokens=300",
             "--resume",

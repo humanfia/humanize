@@ -186,7 +186,7 @@ Call `run_fake(flow, task="", *, agents, envs, params, budget, outworlder, local
 
 Omitted optional roles (`NotRequired`) stay empty.
 
-`run_fake` validates the flow before anything runs. It raises `RequirementError` if a fake does not meet what its role declares or if you name an undeclared role, and `ParamsError` if parameters fail validation.
+`run_fake` validates the flow before anything runs. It raises `RequirementError` if a fake in `agents` or `envs` does not meet what its role declares or if you name an undeclared role, and `ParamsError` if parameters fail validation. A `local` fake that lacks a mixin its role needs raises `hmz.sdk.Refused` instead.
 
 ## Script an agent
 
@@ -223,7 +223,7 @@ Use the `FakeSession` passed to a reply function to act mid-turn like a real age
 | `await session.ask(question, options)` | Fires the ask-user hook. Raises `UnsupportedOperation` if unsupported by the harness | The answer, or `None` |
 | `await session.notify(message)` | Fires the notification hook | nothing |
 | `await session.subagent(name, task="", said="")` | Fires subagent start and stop hooks if supported | `said`, or the blocking stop hook's reason |
-| `await session.until_steered()` | Holds the turn open until the flow steers it | The steering text |
+| `await session.until_steered()` | Holds the turn open until the flow steers it. An interrupt raises `SessionError`, and the turn's hard deadline raises `DurationExceeded` | The steering text |
 
 ```python
 # tests/test_reach.py
@@ -272,13 +272,13 @@ By default, the environment handles `true`, `:`, `false`, `echo`, `cat`, `ls`, `
 | `refs` | `("HEAD", "main")` | Git refs known to worktrees and rewinds |
 | `repo` | `True` | Whether the workdir is a git repository |
 
-Any terminal opened by the flow is a `FakePty` that echoes input.
+Any terminal opened by the flow is a `FakePty` that echoes input. Typing <kbd>ctrl+d</kbd> ends it with status 0, and killing it ends it with status 137.
 
 ## Script the person
 
 Use `FakeOutworlder(reply=None, *, away=False)` to answer questions sent to `Outworlder` roles. `reply` takes the same forms as `FakeAgentDriver`'s, where a mapping populates the requested schema. A function is called as `reply(prompt, *, output_schema)`: it gets no `session`, and `output_schema` is the question's JSON Schema as a dict, or `None` for a plain-text question.
 
-Pass it to `outworlder=`, or pass the reply directly in `agents`:
+Pass it to `outworlder=`, or pass the reply directly in `agents` (ignored when `outworlder=` is also given):
 
 ```python
 result = await fakes.run_fake("fix", "x", local=workspace, agents={"human": {"ship": True}})
@@ -303,6 +303,8 @@ Inspect your fakes after the run finishes.
 | | `permission`, `skills`, `offered`, `shelved` | Permission, skills, tools, and command lines provided by the flow |
 | | `forked_from`, `carried_on` | Parent session if forked, and prior conversation continued |
 | | `turns`, `usage`, `closed` | Turn count, resource usage, and whether it is closed |
+| | `id`, `named` | Session id (`None` until the first turn with `names_late`), and whether a turn has reached the agent |
+| | `driver` | The `FakeAgentDriver` that opened it |
 | `FakeEnvDriver` | `files`, `text(path)` | Workdir files as bytes, and a helper to read a file as text |
 | | `commands` | Every command executed in the workdir |
 | | `machine` | All files on the fake machine by absolute path, including copies and worktrees |

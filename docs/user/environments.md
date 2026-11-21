@@ -24,7 +24,7 @@ Click the folder chip under the message box on the **New chat** page, or use the
 | Choice | What it does |
 | --- | --- |
 | A folder in the list | Uses a folder this daemon knows. |
-| **No folder** | Creates a temporary directory for the chat when it starts. |
+| **No folder** | Gives the chat or epic a directory of its own when it starts. Humanize keeps it until you delete the last chat or epic that used it. |
 | **Open folder…** | Opens a form to type or browse to a directory. Click **Open** to add it as a folder. |
 
 If a folder's directory is missing, it shows as `shop (missing)` and nothing can start in it.
@@ -47,7 +47,7 @@ Click the environment chip under the message box. It defaults to **This computer
 
 | Choice | Where the chat works |
 | --- | --- |
-| **This computer** | In the folder itself, or a new temporary directory if you chose **No folder**. |
+| **This computer** | In the folder itself, or in a directory of its own if you chose **No folder**. |
 | **New worktree** | In a new git worktree of the folder. |
 | A runtime under **Runtimes** | In the runtime's saved directory. If none is saved, enter a path and click **Use this directory**. |
 | **Choose directory…** | Changes the directory on the selected runtime. In a chat already begun, it also picks another directory on this computer. |
@@ -77,15 +77,15 @@ Humanize connects to the new environment and verifies the agent's CLI before mov
 
 ### Choose environments for an epic
 
-On the **New epic** page, find the **Environment** group to configure each environment role declared by the flow. The role for the epic's starting folder has no row.
+On the **New epic** page, the **Environment** group holds the **Folder** row and one row for each environment role declared by the flow. The role for the epic's starting folder has no row. The daemon has its own **Daemon** group above it.
 
-![The Environment group of a new epic: Daemon, Folder, and a row for the role box with Backend SSH host, Runtime gpu-box and Directory ~/shop](/shots/user-environments-epic.svg)
+![The Environment group of a new epic: the Folder row, and a row for the role box with Backend SSH host, Runtime gpu-box and Directory ~/shop](/shots/user-environments-epic.svg)
 
 | Field | What to pick |
 | --- | --- |
 | **Backend** | The machine type: **This machine**, **SSH host**, **Docker container**, **Docker swarm**, **Apple container**, or **Slurm cluster**. |
-| **Runtime** | A saved runtime of that type. For SSH, pick **Other host…** to type a `user@host`. For other types, pick **This machine**. Click **Add runtime…** to open settings. |
-| **Directory** | Where the role works. On this machine, you can browse, and leaving it blank uses the folder. On another machine, type the path, or leave it blank to use the runtime's saved directory. |
+| **Runtime** | A saved runtime of that type. For SSH, pick **Other host…** to type a `user@host`. For the other types, **This machine** uses the one on this machine with no saved runtime. **Add runtime…** opens settings. The **This machine** backend has no runtime. |
+| **Directory** | Where the role works. With the **This machine** backend, you can browse, and leaving it blank uses the folder. With any other backend, type the path, or leave it blank to use the runtime's saved directory. |
 
 Each row displays the role's requirements, such as CPUs, memory, GPUs, or a container image. Humanize remembers your choices for that folder and flow. Before the flow starts, Humanize connects to every environment and verifies the requirements; if any check fails, the epic does not run. See [Start an epic](/user/epics) for the rest of the form.
 
@@ -106,6 +106,10 @@ To set environments for an epic:
 The bottom row shows the equivalent `-e` flag syntax. You can also type a full spec in the bottom row to fill the fields above it.
 
 ![The terminal form Environment for box: backend ssh, host gpu-box, workdir ~/shop, and the last row reading ssh@gpu-box](/shots/user-environments-terminal-role.svg)
+
+Press <kbd>enter</kbd> on the machine row to list that backend's saved runtimes. Choose **Add an ssh host** (or the button for your backend) to save a new runtime to `/settings` and select it. For `ssh`, choose **Name a host…** to enter an unsaved `[user@]host[:port]` or ssh config alias for this role only.
+
+![The terminal list Select the ssh host to use: the saved host gpu-box, and the buttons Add an ssh host, Name a host… and Search…](/shots/user-environments-terminal-host.svg)
 
 ## From the command line
 

@@ -69,7 +69,7 @@ hmz exec -f @local/finish -a coder=claude/claude-haiku-4-5 \
 
 *Two turns, one agent name: both went to the same session.*
 
-Open the epic in Humanize Desktop to see the session as one thread: each prompt from the flow, followed by what the agent did and said.
+Open the epic in Humanize Desktop and select its session in the sidebar to see it as one thread: each prompt from the flow, followed by what the agent did and said.
 
 ![Humanize Desktop with the epic open on the coder's session: the task and its answer, then the second prompt and its one-line answer; the side panel counts 2 turns and 1 session](/shots/builder-turns-thread.svg)
 
@@ -179,8 +179,8 @@ Import turn exceptions from `hmz.flows`.
 | --- | --- |
 | `SessionError` | The session is another agent's, is closed, or is already taking a turn. Also when the turn was interrupted, a hook blocked the prompt, or the `env`'s directory does not exist. |
 | `CapabilityNotGranted` | The prompt starts with `/goal` or `/loop` and the role lacks the mixin. See [Goals](/builder/goals). |
-| `BudgetExceeded` | A budget over the turn is spent, before or during the turn. Once spent, it stays spent. |
-| `FlowCancelled` | The epic, or the flow that called this one, has already ended. `spawn` raises it too. |
+| `BudgetExceeded` | A budget over the turn is spent, before or during the turn. A flow's budget, once spent, stays spent. |
+| `FlowCancelled` | The epic, or the flow that called this one, has already ended. `spawn` and `steer` raise it too. |
 | `UnsupportedOperation` | The harness cannot do this, such as carry the session to another machine. |
 | `OutputSchemaError` | The answer does not fit `output_schema`. |
 | `HarnessNotInstalled`, `HarnessMissing`, `HarnessSandboxed` | The CLI is not installed, would not start, or could not set up its sandbox. |
@@ -229,7 +229,6 @@ Read `coder.sessions[0].steered` to inspect every steer sent to the session and 
 ## Good to know
 
 - Agents never pause for approval. Limit what a turn can do with role permissions and hooks; see [Skills and permissions](/builder/skills) and [Hooks](/builder/hooks).
-- A harness that cannot start fails on the first `run`, not on `spawn`.
 - Calling `steer` before the turn starts raises `SessionError`. Wait before steering, as shown in the example.
 - Omit `env` for a `litellm` agent; it has no workspace and raises `UnsupportedOperation` if given one.
 - Passing an `env` that the epic did not provide to the flow raises `TypeError`.

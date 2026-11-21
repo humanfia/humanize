@@ -84,7 +84,7 @@ A flow is a loop that runs agents on a task. Humanize starts with no flows insta
 `ralph_loop` gives one agent the same task in a fresh session every round until its budget runs out or you stop it. The [catalogue](https://humanfia.ai/flows/) describes the other flows.
 
 ::: tip
-If `official` says `not fetched`, press <kbd>tab</kbd>, select **Fetch**, and press <kbd>enter</kbd>. `hmz` normally fetches this index in the background on first launch.
+If `official` says `not fetched`, press <kbd>tab</kbd>, select **Fetch**, and press <kbd>enter</kbd>. `hmz` fetches this index in the background each time it opens, so this only happens when that fetch has not finished or failed.
 :::
 
 ## 6. Give the flow a budget

@@ -288,7 +288,7 @@ def test_the_person_switches_to_the_plain_form_and_back(world: World) -> None:
     name = world.epic("@local/gate", _TASK, until="asked")
     # As tall as the card is at its tallest, the plain form under the whole diff: the card
     # grows upward from the message box, so the column it stands in is what holds still.
-    with world.page(desktop=True, height=1120) as page:
+    with world.page(desktop=True, height=1340) as page:
         go(page, f"/epics/{name}")
         card = page.locator('[data-hmz="question"]').first
         frame = card.frame_locator("iframe")

@@ -290,6 +290,18 @@ def test_the_environment_in_its_own_view(world: World) -> None:
         page.wait_for_timeout(500)
         shots.web(page, f"{_PAGE}-search", clip="[data-hmz=files]", pad=0)
 
+        # -- the menu of an editor tab: a kept tab, a preview tab, and what a tab offers -
+        page.locator("[data-hmz=files-side-explorer]").click()
+        tree.locator("[data-hmz=files-row]", has_text="cart.py").click()
+        expect(page.locator("[data-hmz=files-editor]")).to_contain_text("PRICES")
+        preview = page.locator("[data-hmz=files-tab]", has_text="cart.py")
+        expect(preview).to_be_visible()
+        preview.click(button="right")
+        expect(page.get_by_role("menuitem", name="Keep open")).to_be_visible()
+        page.wait_for_timeout(500)
+        shots.web(page, f"{_PAGE}-tab-menu", clip="[data-hmz=files]", pad=0)
+        page.keyboard.press("Escape")
+
         # -- Terminal: two shells, and what one printed --------------------------------
         page.locator("[data-hmz=envs-tab-terminal]").click()
         expect(page.locator("[data-hmz=term-tab]")).to_have_count(1)

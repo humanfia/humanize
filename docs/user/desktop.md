@@ -19,6 +19,8 @@ The app bundles the page from its release. It runs no `hmz web` server and holds
 
 The app connects directly to daemons on other machines without `hmz web` in between. See [Connect to other machines](/user/daemons).
 
+On Windows, the app reaches an SSH daemon with the `ssh` inside the default WSL distribution. The **Host** list under **Settings → Daemons → New daemon** comes from WSL's `~/.ssh/config`, and keys, `known_hosts`, and any **Identity file** are WSL paths; the app does not read `%UserProfile%\.ssh`.
+
 The app stores your preferences and daemon list in its own storage, separate from any browser. Its menus, launch window, and update windows are always in English, regardless of the page language.
 
 ## Manage the window
@@ -120,7 +122,7 @@ Every error screen includes a **Documentation** button that opens this page.
 
 | Heading | Cause | Fix |
 | --- | --- | --- |
-| `WSL missing` | WSL or a Linux distribution is not installed. | Run `wsl --install` in PowerShell, then click **Retry**. |
+| `WSL missing` | WSL or a Linux distribution is not installed, or WSL did not start within 60 seconds. | Run `wsl --install` in PowerShell, then click **Retry**. |
 | `Install failed` or `Update failed` | The installation failed. The window shows the last 12 lines of output. | Check your connection and click **Retry**. If a compatible `hmz` is already installed, click **Continue** to use it. |
 | `Update waiting` | Epics are running in an older, incompatible `hmz`. | Wait for the epics to finish so the app can update, or click **Update now** to update immediately (this may stop them). |
 | `Not found` | The app installs no `hmz` (a development build, or `HUMANIZE_HMZ` is set) and found none to run in WSL. | Install `hmz` in WSL, or point `HUMANIZE_HMZ` at one that exists, then click **Retry**. |
@@ -174,7 +176,6 @@ For more fixes, see [Troubleshooting](/user/troubleshooting).
 
 ## Good to know
 
-- On macOS, copy and paste work through the **Edit** menu and standard shortcuts.
 - On Windows, clicking a notification opens its chat or epic only if it arrived since the app started. On macOS, older notifications work too.
 - The app suppresses notifications for the chat or epic currently shown in a focused window.
 - If you open a `.hmzepic` file before the page finishes loading, the app imports it once the page is ready.

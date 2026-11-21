@@ -11,7 +11,7 @@ Each theme pairs a light side and a dark side under one name. You pick a theme a
 
 ## In the app
 
-In Humanize Desktop or the web page, click **Settings** in the sidebar, then click **Themes** or **Language** under **App**.
+In Humanize Desktop or the web page, click the gear button **Settings** at the foot of the sidebar, then click **Themes** or **Language** under **App**.
 
 ### Pick a theme and a side
 
@@ -21,7 +21,7 @@ Use **Appearance** to choose which side of the active theme to show.
 
 | Appearance | What is shown |
 | --- | --- |
-| **Auto** | Light when the system is light, dark when it is dark. Default. |
+| **Auto** | Light when the system is light, dark when it is dark, following a change at once. Default. |
 | **Light** | Always the light side. |
 | **Dark** | Always the dark side. |
 
@@ -37,7 +37,7 @@ Under **Custom**, click **New**. Humanize copies both sides of the active theme 
 
 | Control | What it does |
 | --- | --- |
-| **Name** | Sets the name for both sides. Up to 60 characters. |
+| **Name** | Sets the name for both sides. Up to 60 characters. A blank name is not saved. |
 | **Side** | Selects **Light** or **Dark** for editing. |
 | **Done** | Returns to the theme list. |
 | **Use** | Activates this theme. |
@@ -46,7 +46,7 @@ Under **Custom**, click **New**. Humanize copies both sides of the active theme 
 
 Each side has 35 colours across six groups: **Backgrounds**, **Text**, **Controls**, **Lines**, **Accents** and **Graph**. Use the colour picker or type any CSS colour, such as `#1f6feb` or `rgba(20, 26, 31, 0.12)`. Click **×** next to a modified colour to reset it to the default. Invalid colours are marked and not saved.
 
-In the theme list, each custom row has **Use**, **Edit** and **Delete**.
+In the theme list, each custom row has **Use**, **Edit** and **Delete**. Right-clicking the row offers **Use** and **Edit**.
 
 ### Put a picture behind the page
 

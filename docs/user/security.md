@@ -11,7 +11,7 @@ Agents in Humanize act without asking for approval. Permissions limit what an ag
 
 ## What an agent may do
 
-Agents in chats and flows never stop to ask for approval. Instead, one of three permission presets limits each agent.
+One of three permission presets limits each agent, in chats and in flows.
 
 | In the app | Name in a flow | The agent may |
 | --- | --- | --- |
@@ -40,15 +40,15 @@ Work on a server or in a container is fenced the same way on the machine where t
 ## Credentials
 
 - **Accounts.** An account is a named set of credentials for one coding agent, stored under `~/.hmz/providers/`. Humanize never displays saved values; the app and terminal list only the variable names an account sets. A turn running under an account ignores any other credentials for that agent in your environment. See [Accounts](/user/accounts).
-- **Your agent's own settings.** Each agent process starts in a home directory of its own. Any files the agent rewrites during a run are copies that Humanize drops when the process stops. The agent still uses your own sign-in and sessions.
+- **Your agent's own settings.** An agent that rewrites its settings while it runs, or that Humanize adds settings to, starts in a settings directory of its own. The settings files there are copies, and Humanize drops the agent's changes to them when the process stops. The agent still uses your own sign-in and sessions.
 - **Remote machines.** When an agent runs on another machine under an account, Humanize places the account's credentials there for the turn and removes them afterward.
 - **Archives and backups.** Humanize scrubs every exported `.hmzepic` archive and every backup. It replaces every secret it finds with `[redacted]`, including account values, vendor keys, web and bearer tokens, URL credentials, and any field named as a token, key, secret, or password. It keeps your prompts and the agents' output. See [Export and import a run](/user/export) and [Back up to git](/user/backups).
 
 ## Other devices
 
-![Another device pairs with the daemon: you carry a pairing code over, the device checks the daemon's key over TLS, and once paired it may call every method](/diagrams/user-security-2.svg)
+![Another device pairs with the daemon: you carry a pairing code over, the device checks the daemon's key over TLS, and once paired it may call the daemon's methods](/diagrams/user-security-2.svg)
 
-The app, terminal, and command line on your local machine reach the daemon directly and are trusted, as are connections over SSH. `hmz web` listens only on the local machine and admits only a browser that opens the printed address.
+The app, terminal, and command line on your local machine reach the daemon directly and are trusted, as are connections over SSH and WSL. `hmz web` listens only on the local machine and admits only a browser that opens the printed address.
 
 Every other device must pair first. A pairing code admits one device a single time and expires after 10 minutes, unless you pass `--seconds` with a value from 60 to 86400. TLS encrypts the connection, and each side proves itself with its own key: the device accepts only the daemon matching the key in the code, and the daemon knows each paired device by its key. There are no certificates to manage.
 
@@ -86,7 +86,7 @@ hmz daemon devices revoke laptop
 
 Humanize sends failure reports to its developers only if you opt in.
 
-A report includes the error and its location in Humanize, the flow and what each agent was set to run, installed coding agents, account names, active skill and flowverse names, and versions. It never includes your input, agent output, files, paths outside Humanize, keys, tokens, or credentials. See [Report a problem](/user/reporting).
+A report includes the error and its location in Humanize, the flow and what each agent was set to run, installed coding agents, account names, active skill and flowverse names, that a run went five minutes without progress, and versions. It never includes your input, agent output, files, paths outside Humanize, keys, tokens, or credentials. See [Report a problem](/user/reporting).
 
 ### In the app
 

@@ -284,6 +284,29 @@ def test_search_finds_the_epics_that_failed(world: World) -> None:
         reel.save()
 
 
+def test_search_that_finds_nothing_offers_to_clear_the_filters(world: World) -> None:
+    _history(world, chat=True)
+    with world.page(desktop=True) as page:
+        _listed(page)
+        page.keyboard.press("Meta+k")
+        dialog = page.get_by_role("dialog")
+        box = dialog.get_by_role("combobox", name="Search")
+        expect(box).to_be_focused()
+        expect(dialog.get_by_text(_DISCOUNT).first).to_be_visible()
+        dialog.get_by_role("tab", name="Epics").click()
+        dialog.get_by_role("button", name="Filters").click()
+        dialog.get_by_role("group", name="How it went").get_by_role(
+            "button", name="Failed"
+        ).click()
+        expect(dialog.get_by_text(_RECEIPT).first).to_be_visible()
+        box.fill("refund")
+        clear = dialog.get_by_role("button", name="Clear filters")
+        expect(clear).to_be_visible()
+        expect(dialog.get_by_text(_RECEIPT)).to_have_count(0)
+        page.wait_for_timeout(400)
+        shots.web(page, f"{_PAGE}-search-none", clip=dialog, pad=20, pointer=clear)
+
+
 # -- in the terminal ------------------------------------------------------------------
 
 

@@ -7,7 +7,7 @@ description: Know what the daemon is, when it starts and stops, how to keep it r
 
 The daemon is one background process per machine and user. It holds every epic and chat so they keep running when you close a window. The first interface that needs the daemon starts it automatically.
 
-![Humanize Desktop, hmz web, hmz, hmz exec and a Python program all reach one daemon, which keeps one host process per workspace, chat or command-line run](/diagrams/user-daemon-1.svg)
+![Humanize Desktop, hmz web, hmz, hmz exec, hmz chat and a Python program all reach one daemon, which keeps one host process per workspace, chat or command-line run](/diagrams/user-daemon-1.svg)
 
 Every interface connects to that one daemon. The daemon starts a host process for each workspace, chat, and `hmz exec` run, and that host holds the run.
 
@@ -17,10 +17,11 @@ You do not need to start or stop the daemon by hand.
 
 | What happens | When |
 | --- | --- |
-| The daemon starts | The first time you run `hmz`, `hmz exec`, `hmz chat` or `hmz web`, or open Humanize Desktop, and none is running. |
-| A host closes | When no interface is attached to it and it holds no run. |
+| The daemon starts | The first time you run `hmz`, `hmz exec`, `hmz chat` or `hmz web`, or open Humanize Desktop, and none is running. A Python program that uses Humanize starts it the same way. |
+| A host closes | When no interface is attached to it and it holds no run. A host that no interface ever attached to waits 60 seconds after it started first. |
+| A host stays | While it holds a run, and after a flow ended with nobody watching, until an interface opens that workspace to read the result. |
 | A chat folds away | 60 seconds after its turn ended with nobody reading it. It carries on when you return to it. |
-| The daemon exits | 2 seconds after its last host and its last client are gone. |
+| The daemon exits | 2 seconds after its last host and its last client are gone. A daemon that nothing ever connected to exits 60 seconds after it started. |
 | The daemon stays up | While it has a listener for other machines, or when you ran it with `hmz daemon serve` or installed the service. |
 
 A reboot ends the daemon and every run it holds. See [Leave it running and come back](/user/leaving) for what happens when you close a window, and [Resume a run](/user/resuming) to pick a run up later.
@@ -49,7 +50,7 @@ Use `hmz daemon` to manage the daemon process directly.
 
 ![The output of hmz daemon --help: serve, connect, pair, devices, install, uninstall](/shots/user-daemon-help.svg)
 
-This page covers `serve`, `install`, and `uninstall`. For `pair` and `devices`, see [Connect to other machines](/user/daemons).
+This page covers `serve`, `install`, and `uninstall`. For `pair` and `devices`, see [Connect to other machines](/user/daemons). You do not run `connect` yourself: Humanize Desktop and SSH routes run `hmz daemon connect --stdio` to reach the daemon.
 
 ### Run it in the foreground
 
@@ -94,11 +95,11 @@ The service does not take `--listen`. It opens the listeners configured in the `
 
 ### Set the environment for agents
 
-Restart the daemon after changing your shell profile so agents see the update.
-
 Every host and agent inherits the daemon's environment. A daemon started on demand uses the environment of the command that started it.
 
-Because the login service has no terminal, `hmz daemon serve` reads the environment of your login shell to find coding agent CLIs on your `PATH`. If the shell does not answer within 5 seconds, the daemon keeps its own environment. It then appends any of these directories missing from `PATH`: `~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, and `/bin`.
+Because the login service has no terminal, `hmz daemon serve` reads the environment of your login shell to find coding agent CLIs on your `PATH`. If the shell does not answer within 5 seconds, the daemon keeps its own environment. Either way, it appends any of these directories missing from `PATH`: `~/.local/bin`, `$UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, and `/bin`.
+
+Restart the daemon after changing your shell profile so agents see the update. Restarting stops every run the daemon holds. The installed service restarts by itself when you stop it with `kill <pid>`; the `pid` is in `daemon.json`, listed below.
 
 ## Find its files and log
 
@@ -109,9 +110,9 @@ Look in `humanize-<uid>/` inside the system's temporary directory, where `<uid>`
 | `daemon.sock` | The socket every interface on this machine connects to. |
 | `daemon.json` | The record of the running daemon: its `pid`, when it started, and its protocol version. |
 | `daemon.lock` | The lock that keeps a second daemon from starting. |
-| `daemon.log` | Output of the daemon and of hosts that hold no run. Read it when the daemon fails to start. |
+| `daemon.log` | Output of a daemon started on demand and of hosts that hold no run. Read it when the daemon fails to start. |
 
-A host that holds a run writes its output to `host.log` in that epic's directory instead. See [Files on disk](/reference/files).
+A host that holds a run writes its output to `host.log` in that epic's directory instead. A daemon run with `hmz daemon serve` writes its own output to its terminal, not to `daemon.log`. See [Files on disk](/reference/files).
 
 ## Update while a daemon is running
 

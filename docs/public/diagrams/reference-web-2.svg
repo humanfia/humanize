@@ -36,7 +36,7 @@
     <text x="224" y="82" font-size="12" fill="#435058">WebSocket</text>
     <text x="224" y="152" font-size="12" fill="#435058">WebSocket</text>
     <text x="520" y="82" font-size="12" fill="#435058">its socket</text>
-    <text x="520" y="134" font-size="12" fill="#435058">ssh, tcp, ws,</text>
+    <text x="520" y="134" font-size="12" fill="#435058">ssh, wsl, tcp, ws,</text>
     <text x="520" y="150" font-size="12" fill="#435058">easytier, relay</text>
     <text x="372" y="218" font-size="12" fill="#435058">WebRTC, opened by the browser itself</text>
     <text x="380" y="274" font-size="12" fill="#5d6a72">Each path carries bytes unchanged. JSON-RPC runs inside.</text>

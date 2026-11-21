@@ -35,7 +35,7 @@ python -m hmz ...
 | `backup` | Back epics up to git repositories, or download them. |
 | `internal` | Commands Humanize spawns for itself. Do not run them directly. |
 
-There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent.
+There is no shell-completion command. Outside `hmz internal`, no option has an environment-variable equivalent; `HUMANIZE_RELEASES` alone changes where `hmz update` looks.
 
 `hmz`, `exec`, `chat`, `web`, `daemon connect`, `daemon pair` and `daemon devices` start the daemon if none runs. `relay`, `update` and `backup` do not.
 
@@ -49,7 +49,7 @@ When the terminal interface closes, it waits up to 15 seconds for queued backups
 | `1` | Execution failed: the daemon is unreachable or incompatible, the flow or chat turn failed, a backup target failed, the update did not complete, a delete was not confirmed, or a listener could not open. |
 | `2` | Usage error, or a refusal before start. `exec` and `chat` write `hmz exec: error: <reason>` or `hmz chat: error: <reason>`. |
 | `126` | `hmz internal fence` could not put the fence up. |
-| `127` | `hmz internal anchor`, `cred` or `fence` found no `coganchor` binary for this machine, or `anchor --native` found no such harness on the target. |
+| `127` | `hmz internal anchor`, `cred` or `fence` found no `coganchor` binary for this machine, `anchor --native` found no such harness on the target, or `fence` could not start its program. |
 | `129` | `exec` or `chat` ended on SIGHUP. |
 | `130` | `exec` or `chat` ended on SIGINT, or `daemon connect --stdio` or `hmz internal anchor` was interrupted. |
 | `143` | `exec` or `chat` ended on SIGTERM. |
@@ -61,7 +61,7 @@ When the terminal interface closes, it waits up to 15 seconds for queued backups
 | stdout | Machine-readable output: help, version, turn answers, the NDJSON stream, listing lines, addresses, pairing codes, paths. |
 | stderr | Progress, spinners and diagnostics. Diagnostics start with `hmz: ` or the command's name, such as `hmz exec: `. |
 
-Two stdout lines contain secrets: the `hmz web` address (which carries the page key) and the `hmz daemon pair` code. Printed URLs never carry credentials.
+Two stdout lines contain secrets: the `hmz web` address (which carries the page key) and the `hmz daemon pair` code. Every other printed URL has its credentials removed.
 
 The first matching rule sets colour per stream:
 
@@ -214,7 +214,7 @@ hmz chat --delete CHAT [--yes]
 
 | Option | Value | What it does |
 | --- | --- | --- |
-| `-a`, `--agent` | `CLI[@ACCOUNT]/MODEL[:EFFORT]` | The agent. New chats default to the directory's remembered agent, or fail if none exists. Resumed chats keep their own. |
+| `-a`, `--agent` | `CLI[@ACCOUNT]/MODEL[:EFFORT]` or `NOUS` | The agent, written as in [`hmz exec -a`](#agent-specs) without `ROLE=`. New chats default to the directory's remembered agent, or fail if none exists. Resumed chats keep their own. |
 | `-e`, `--env` | `BACKEND[@RUNTIME][/DIRECTORY]` | Where the agent works. With `--resume`, moves the chat there. |
 | `--resume` | `CHAT` | Appends the message as the next turn of this chat. Incompatible with `--worktree`. |
 | `--worktree` | | Starts the chat in a new git worktree of this directory. |
@@ -245,7 +245,7 @@ Signals detach the command without stopping the turn; the chat continues in the 
 
 ## hmz web
 
-Serve the browser interface for all workspaces on loopback until stopped. Prints `hmz web: http://127.0.0.1:<port>/?key=<key>` on stdout.
+Serve the browser interface for all workspaces until stopped, on `127.0.0.1` and, where the machine has it, on `::1` at the same port, and on nothing else. Prints `hmz web: http://127.0.0.1:<port>/?key=<key>` on stdout.
 
 ```text
 hmz web [--port PORT] [--no-open] [--attached]
@@ -273,7 +273,7 @@ hmz daemon uninstall
 
 | Subcommand | What it does |
 | --- | --- |
-| `serve` | Runs the daemon in the foreground until SIGINT or SIGTERM. Listens on its socket, configured listeners, and each `--listen`, printing `hmz daemon: listening on <route>` for each. Exits 1 if a daemon already runs. |
+| `serve` | Runs the daemon in the foreground until SIGINT or SIGTERM. SIGHUP is ignored, so closing the terminal does not stop it. Listens on its socket, configured listeners, and each `--listen`, printing `hmz daemon: listening on <route>` for each. Exits 1 if a daemon already runs. |
 | `connect --stdio` | Bridges standard input and output to the daemon's socket, starting with `hmz-stdio/1`. `--stdio` is required. |
 | `pair` | Prints a one-time pairing code on stdout and its expiration time on stderr. |
 | `devices` | Lists paired devices, oldest first, one tab-separated line per device: name, fingerprint, date added, last seen. |
@@ -326,6 +326,8 @@ hmz update
 | Updated | `Updated hmz to <new>` | `0` |
 | Run from source, installed from a URL, installer missing or failed, PyPI not reached | A line starting `hmz update: ` on stderr. | `1` |
 
+The newest release is asked of PyPI, or of the URL or file `HUMANIZE_RELEASES` names. If that variable is `off`, `0`, `no`, `none` or empty, the command exits 1 with `hmz update: PyPI could not be asked for the newest release`.
+
 Running daemons continue on the old release until restarted. See [Install and update](/user/install).
 
 ## hmz backup
@@ -374,15 +376,27 @@ hmz internal cli --at SOCKET --name NAME [-- WORDS...]
 | Command | What it does | Exit |
 | --- | --- | --- |
 | `anchor` | Runs an agent turn whose work lands on another machine. | The program's own. `1` on a connection or protocol error. `130` if interrupted. `127` with no `coganchor`. |
-| `anchor serve` | Executes requests from `anchor` on the target machine. | |
-| `anchor rendezvous` | Connects `anchor` and `anchor serve` when they cannot dial each other directly. | |
-| `cred` | Runs a program with credentials from an account. | The program's own. `127` with no `coganchor`. |
-| `fence` | Runs a program restricted by its flow's policy. | The program's own. `126` if the fence fails. `127` with no `coganchor`. |
+| `anchor serve` | Executes requests from `anchor` on the target machine. With `--listen`, prints `hmz internal anchor serve listening <host> <port>` on stderr. | `0` when the session ends or on SIGINT. `1` if it cannot listen or connect. `2` for a refused line. |
+| `anchor rendezvous` | Connects `anchor` and `anchor serve` when they cannot dial each other directly. Prints `hmz internal anchor rendezvous listening <bound> <landed>` on stderr. | `0` on SIGINT. `1` if it cannot listen. `2` for a malformed address. |
+| `cred` | Runs a program with credentials from an account. | The program's own. `1` off Linux, where nothing can supervise it. `127` with no `coganchor`. |
+| `fence` | Runs a program restricted by its flow's policy. | The program's own. `126` if the fence fails. `127` with no `coganchor`, or if the program cannot be started. |
 | `hook` | Relays one agent hook call (from JSON on stdin) to a flow. | `0` after reading input. `1` for bad arguments. |
 | `tools` | Relays agent tool calls to a flow. | `0` when either end closes. `1` if the socket is unreachable. |
 | `cli` | Relays one flow CLI invocation to the flow. | The flow's return status. `1` if the flow is gone. |
 
-`anchor`, `cred` and `fence` delegate to the bundled `coganchor` binary. Run `hmz internal COMMAND --help` for full options.
+Run `hmz internal COMMAND --help` for full options.
+
+`anchor`, `cred` and `fence` become the bundled `coganchor` binary, which takes the same options, reads the same variables and exits with the same statuses:
+
+| `hmz internal ...` | Runs |
+| --- | --- |
+| `anchor ...` | `coganchor cog ...` |
+| `anchor serve ...` | `coganchor anchor ...` |
+| `anchor rendezvous ...` | `coganchor broker ...` |
+| `fence ...` | `coganchor internal fence ...` |
+| `cred ...` | `coganchor internal cred ...` |
+
+`coganchor --version` prints `coganchor <version>`. `coganchor internal able [--policy JSON|@PATH] [--sandbox BACKEND]` prints what this machine can fence, as `{"fs": bool, "net": bool}`; with `--policy`, an `"unheld"` key says why it cannot hold what that policy carves out.
 
 ### anchor options
 
@@ -423,7 +437,7 @@ hmz internal cli --at SOCKET --name NAME [-- WORDS...]
 | --- | --- | --- | --- |
 | `--export` | `serve` | `VIRTUAL[:REAL]` | A directory to serve. Repeatable. At least one required. |
 | `--stdio` | `serve` | | Serves one session over standard input and output. |
-| `--listen` | `serve` | `[HOST:]PORT` | Serves sessions on this address. |
+| `--listen` | `serve` | `[HOST:]PORT` | Serves sessions on this address. Host defaults to `127.0.0.1`. A host that is not loopback needs `--token`, `--token-file` or `HUMANIZE_TOKEN`; without one it is refused with `cannot listen on a non-loopback address without --token`. |
 | `--peer` | `serve` | `TICKET@HOST:PORT` | Serves one session met through a broker. |
 | `--token` | `serve` | `TOKEN` | The secret a client must prove. Not with `--peer`, whose ticket is the secret. |
 | `--token-file` | `serve` | `FILE` | A file holding that secret. |
@@ -443,4 +457,4 @@ hmz internal cli --at SOCKET --name NAME [-- WORDS...]
 | `--at` | `hook`, `tools`, `cli` | `SOCKET` | The socket the flow serves. Required. |
 | `--name` | `cli` | `NAME` | The invoked command name. Required. |
 
-The `anchor` options `--target`, `--harness`, `--broker`, `--shadow`, `--token` and `--log-level` default to environment variables. See [Environment variables](/reference/environment).
+The `anchor` options `--target`, `--harness`, `--broker`, `--shadow`, `--token` and `--log-level`, `--token` and `--log-level` of `anchor serve`, and `--log-level` of `anchor rendezvous` default to environment variables. See [Environment variables](/reference/environment).

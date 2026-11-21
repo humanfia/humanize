@@ -1,11 +1,11 @@
 ---
 title: Agents and harnesses
-description: Look up how an agent is written, which harnesses Humanize drives, what each one can do, its effort ladder, its sign-in ways and the fault classes of a failed turn.
+description: Look up how an agent is written, which harnesses Humanize drives, what each one can do, its effort ladder, its sign-in ways, the fault classes of a failed turn and the agent layer's config in Python.
 ---
 
 # Agents and harnesses
 
-Look up agent spec syntax, harness capabilities, effort ladders, sign-in ways, and fault classes. For usage guides, see [Coding agents](/user/agents), [Accounts](/user/accounts), and [Agent roles](/builder/agents).
+Look up agent spec syntax, harness capabilities, effort ladders, sign-in ways, fault classes, and the `AgentConfig` options of the agent layer. For usage guides, see [Coding agents](/user/agents), [Accounts](/user/accounts), and [Agent roles](/builder/agents).
 
 ## Agent spec
 
@@ -50,6 +50,7 @@ Append `:auto` if a model name ends with `:` followed by a word, as in the fifth
 | A role that is no identifier | `'NAME' is not a place a flow could declare` |
 | No role on `hmz exec` | `expected <role>=<harness>[@<provider>]/<model>[:<effort>] or <role>=<nous>` |
 | A role given twice | `the role 'NAME' is given twice` |
+| Several specs where `settings.yaml` or the SDK takes one | ``expected one agent: a `,` separates several, each read on its own`` |
 | A nous name that is not saved | `'NAME' is no nous written down` |
 
 ## Harnesses
@@ -146,7 +147,7 @@ Rungs are listed hardest first, using each harness's own names. Each model suppo
 | ACP CLI | `as configured`; any word is accepted and none is sent |
 
 - Every harness accepts `auto` or an omitted effort.
-- Prefix a rung with `swarm` (for example, `swarmmax` for `max`) to run the turn as a fleet of subagents. Supported only on `kimi`.
+- Prefix a rung with `swarm` (for example, `swarmmax` for `max`) to run the turn as a fleet of subagents; `swarm` alone is a swarm at the default effort. Supported only on `kimi`.
 - `ultracode` on `claude` runs at `xhigh` and lets the turn orchestrate its own fleet.
 
 The UI displays each rung with a label:
@@ -401,3 +402,72 @@ When a turn fails, Humanize reads the exit status, then matches the CLI output a
 - Faults never retried at the same nous still follow their matching edge in a fallback graph. Edges are named after a fault, or `*` for all others.
 - No single wait exceeds 60 s.
 - Every error above subclasses `HarnessError`.
+
+## Agent layer
+
+Use `hmz.coganchor.agents` to drive a harness directly from Python with no flow and no daemon. Build every agent from an `AgentConfig` subclass for that harness.
+
+```python
+from hmz.coganchor.agents import Allowance, Budget, ClaudeCodeSession, Ledger, driver
+
+Agent, Config = driver("claude")
+agent = Agent(Config(model="claude-haiku-4-5", effort="low", service_tier="fast"))
+agent.allowance = Ledger(Allowance(hours=6, dollars=50), [agent])
+
+session = ClaudeCodeSession(agent, ".")
+session.budget = Budget(seconds=90, when="immediately", then="fail")
+print(session("Summarise the README."))
+```
+
+| Name | What it is |
+| --- | --- |
+| `driver(name)` | Returns the agent class and config class for a harness name. Returns `AcpAgent` and `AcpAgentConfig` for an added ACP CLI. Raises `KeyError` for an unknown name or an alias such as `claude-code`. |
+| `DRIVEN` | Dict mapping built-in harness names to their agent and config class pair. |
+| `Unserved` | `ValueError` raised when you build an agent with a setting its harness does not support. |
+
+### AgentConfig
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `model` | required | Model ID. |
+| `effort` | required | Rung on the harness's ladder. `""` or `"auto"` sends none. |
+| `service_tier` | `"default"` | `"default"` or `"fast"`. `"fast"` requests lower latency at the same reasoning from `claude`, `codex` or `cursor-agent`; any other harness raises `Unserved`. |
+| `machine` | `None` | Where turns run. `None` is this machine. See [Machines and moving sessions](/builder/machines). |
+| `provider` | `""` | Account name. `""` uses this machine's sign-in. |
+| `goals` | `True` | `False` disables the harness's goal feature for the agent: a goal turn raises `RuntimeError`. |
+| `web_search` | `None` | `True` turns the CLI's web search on, `False` turns it off, and `None` leaves the CLI's installed default. On a harness that cannot switch web search, `False` raises `Unserved` and `True` changes nothing. |
+| `fence` | `None` | Sandbox for the agent: the paths it may read and write, and whether it may go online. `None` applies no sandbox and tells the CLI nothing about what it may do. |
+| `budget` | `None` | `Budget` for each turn. `None` sets no cap. |
+| `nous` | `""` | Name of a virtual nous whose fallback the turns walk. `""` uses the concrete nous defined by the other fields. |
+
+An `-a` spec sets only the harness, `provider`, `model` and `effort`, or `nous` when it names a virtual nous. A flow run fills `machine`, `web_search` and `fence` from the role's environment and permission. You cannot set `service_tier` from a spec or a flow.
+
+Assign `agent.effort = "low"` or `session.effort = "max"` between turns to change effort for subsequent turns. Set `""` on an agent to revert to its configured effort, or on a session to revert to the agent's effort. An unknown rung raises `Unserved`.
+
+### Budget and Allowance
+
+| Class | Caps | Fields |
+| --- | --- | --- |
+| `Budget` | One turn | `output` (output tokens), `seconds` (wall clock), `when` (`"next-response"` or `"immediately"`), `then` (`"end"` or `"fail"`) |
+| `Allowance` | A whole run | `hours`, `dollars`, `tokens` (millions of output tokens) |
+
+All numeric fields default to `0`, which means no cap. `when="next-response"`, the default, lets the current answer finish before stopping; `"immediately"` stops the turn at once. `then="end"`, the default, returns the output so far; `"fail"` raises `Unrecoverable`.
+
+Set `budget` on the config to cap every session of the agent, or set `session.budget` for a single conversation. Assign `session.budget = Budget()` to opt that session out of the agent's budget.
+
+Attach an `Allowance` through a `Ledger` by assigning `agent.allowance = Ledger(Allowance(...), [agent, ...])` to every agent in the run. When the allowance is spent, every session in the run stops.
+
+### AcpAgentConfig
+
+Configure a CLI added over ACP with `AcpAgentConfig`. `cli` and `command` identify the CLI; the other extra fields control what Humanize offers it as the ACP client, and all default to off.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `cli` | `""` | The name the CLI was added under. |
+| `command` | `()` | The command that starts the CLI, as a tuple of words. `()` uses the command saved when the CLI named by `cli` was added. |
+| `reads_files` | `False` | The agent can ask Humanize to read a file. |
+| `writes_files` | `False` | The agent can ask Humanize to write a file. |
+| `terminals` | `False` | The agent can ask Humanize to run and hold a command on the machine where Humanize runs. |
+| `mcp_servers` | `()` | `McpServer(name=, command=, args=, env=)` entries, with `env` as `(name, value)` pairs, started over stdio and added to every conversation alongside the CLI's own servers. |
+
+Humanize refuses `reads_files`, `writes_files` and `terminals` when a turn runs on another machine through that machine's CLI, because the files and commands would be this machine's.

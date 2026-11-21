@@ -59,9 +59,9 @@ These variables give defaults to flags of `hmz internal anchor`, which Humanize 
 
 | Variable | Effect |
 | --- | --- |
-| `HUMANIZE_HMZ` | The `hmz` the app runs for this machine. When set, the app looks for no other `hmz` and installs none. On Windows, provide a path inside WSL. |
-| `SHELL` | The login shell the app queries for its environment. Default `/bin/zsh`. If the shell does not answer within 5 seconds, the app uses its own environment. |
-| `PATH` | Where the app finds `hmz` when `HUMANIZE_HMZ` is unset. The app adds `~/.local/bin`, `UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, and `/bin` to it. |
+| `HUMANIZE_HMZ` | The `hmz` the app runs for this machine. When set, the app looks for no other `hmz` and installs none. On Windows, give a path inside WSL. |
+| `SHELL` | The login shell the app queries for its environment. Default `/bin/zsh`; on Windows, the shell of your WSL account. If the shell does not answer within 5 seconds, the app uses its own environment. |
+| `PATH` | On macOS, where the app finds `hmz` when `HUMANIZE_HMZ` is unset. The app adds `~/.local/bin`, `UV_TOOL_BIN_DIR`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, and `/bin` to it. On Windows, the app runs the `hmz` it installs in WSL instead. |
 
 See [Desktop app](/reference/desktop).
 
@@ -90,8 +90,8 @@ See [Desktop app](/reference/desktop).
 | `XDG_RUNTIME_DIR` | Parent directory for shared `ssh` connection sockets. Falls back to the temporary directory if unset. |
 | `DOCKER_HOST` | The Docker daemon for a container target with no endpoint of its own. For a target with an endpoint, `docker` runs without `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, and `DOCKER_CERT_PATH`. |
 | `GIT_SSH_COMMAND`, `GIT_SSH` | When neither is set, the `git` that backs up epics runs `ssh` with `BatchMode=yes` and `ConnectTimeout=20`. |
-| `CUDA_VISIBLE_DEVICES` | Narrows the GPUs a local environment reports: a comma-separated list of indices or `GPU-` UUID prefixes. Set but empty means no GPU. Unset means every GPU `nvidia-smi` lists. |
-| `WSL_DISTRO_NAME` | Set by WSL. When present, Humanize translates a Windows workspace path with `wslpath`. |
+| `CUDA_VISIBLE_DEVICES` | Narrows the GPUs a local or `ssh` environment reports, read on the machine the environment is on: a comma-separated list of indices or `GPU-` UUID prefixes. Set but empty means no GPU. Unset means every GPU `nvidia-smi` lists. |
+| `WSL_DISTRO_NAME` | Set by WSL. When present, the daemon reports itself as running in that distribution, and translates a Windows path given for a `.hmzepic` file to [import](/user/export) with `wslpath -u`. No other path is translated. |
 | `NO_PROXY`, `no_proxy` | Preserved, with `127.0.0.1` and `localhost` added, for turns that go through a local gateway. |
 
 ## Harness homes
@@ -113,6 +113,8 @@ Humanize reads each harness's home variable to find its sessions, state, and cre
 | `mimo` | `XDG_DATA_HOME` | `mimocode` | `~/.local/share/mimocode` |
 | `cursor-agent` | `CURSOR_CONFIG_DIR` | | `~/.cursor` |
 | `mcode` | `MINIMAX_DATA_DIR` | | `~/.minimax` |
+
+For `qwen`, Humanize also watches the settings files `QWEN_CODE_SYSTEM_SETTINGS_PATH` and `QWEN_CODE_SYSTEM_DEFAULTS_PATH` name, so a change to them reaches the next turn.
 
 See [Agents and harnesses](/reference/agents) for harness names.
 
@@ -154,7 +156,7 @@ When the network is closed, a turn can still reach its harness's model and sign-
 
 `CLAUDE_CODE_USE_FOUNDRY` also applies to `omp`. A region or resource must be a single DNS label.
 
-For `opencode` and `mimo`, Humanize also allows the `baseURL` of the model's provider in the CLI's own configuration: the files under `XDG_CONFIG_HOME`, the file `OPENCODE_CONFIG` or `MIMOCODE_CONFIG` names, and the text in `OPENCODE_CONFIG_CONTENT` or `MIMOCODE_CONFIG_CONTENT`. For `qwen`, Humanize reads the settings files `QWEN_CODE_SYSTEM_SETTINGS_PATH` and `QWEN_CODE_SYSTEM_DEFAULTS_PATH` name.
+For `opencode` and `mimo`, Humanize also allows the `baseURL` of the model's provider in the CLI's own configuration: the files under `XDG_CONFIG_HOME`, the file `OPENCODE_CONFIG` or `MIMOCODE_CONFIG` names, and the text in `OPENCODE_CONFIG_CONTENT` or `MIMOCODE_CONFIG_CONTENT`.
 
 See [The sandbox](/user/sandbox).
 
@@ -308,7 +310,7 @@ Humanize sets these variables for the programs it starts.
 | `HUMANIZE_TARGET` | the same | the target |
 | `HUMANIZE_WORKSPACE` | the same | the workspace as the target names it |
 | `HUMANIZE_SHADOW` | a harness placed on another machine | its mirror directory there |
-| `HUMANIZE_TOKEN` | a local `coganchor` serving one session | the session's token; removed when there is none |
+| `HUMANIZE_TOKEN` | a local `coganchor` serving one session, and the one a Slurm job serves over TCP | the session's token; removed locally when there is none |
 | `HUMANIZE_AICHAN_LINK` | [Ai-chan](/user/ai-chan)'s conversation, which refuses to start without it | the path of her scoped link to the daemon |
 | `COGANCHOR_BINARIES` | every `coganchor` | the directory of packaged builds copied to other machines |
 | the account's variables | every turn, sign-in, and model listing under an account | as the account holds them |
@@ -319,7 +321,8 @@ Humanize sets these variables for the programs it starts.
 | `OPENCODE_PERMISSION`, `MIMOCODE_PERMISSION` | `opencode` and `mimo` turns with a sandbox or a web search setting | the tool permissions that follow from them, as JSON |
 | `MIMOCODE_DISABLE_CLAUDE_CODE` | `mimo` turns whose sandbox cannot read `~/.claude.json` | `1` |
 | `NODE_COMPILE_CACHE` | `pi` and `qwen` turns on this machine, unless already set | a cache directory of Humanize's |
-| `NODE_OPTIONS`, `HMZ_PRELOAD_AT` | `kimi`, `pi`, `qwen`, and `mimo` turns on this machine that a flow hooks into | a `--require` added to `NODE_OPTIONS`; the address the preload reports to |
+| `NODE_OPTIONS`, `HMZ_PRELOAD_AT` | `kimi`, `pi`, `qwen`, and `mimo` turns on this machine that a flow hooks into | a `--require` added to `NODE_OPTIONS`; the address the preload reports to. The preload sets `HMZ_PRELOAD_IN` for the processes that turn starts. |
+| `PATH` | turns of an agent a flow gives command lines | a directory holding those commands, put first |
 | `HMZ_PI_TOOLS` | `pi` turns given tools by a flow | the command of the tool bridge, as JSON |
 | `TMPDIR`, `TMP`, `TEMP` | everything inside the sandbox | the sandbox's scratch directory |
 | `XDG_CACHE_HOME`, `UV_CACHE_DIR`, `npm_config_cache`, `PIP_CACHE_DIR`, `GOCACHE` | inside the sandbox, where the usual location is not writable | a directory under the scratch directory |

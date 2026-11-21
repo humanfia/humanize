@@ -2,7 +2,8 @@
 
 `hmz web` as it says where it serves; the page in a browser's window; a browser that was not
 let in; the sidebar's list arranged by `Group and sort`; a folder's menu; Search opened over
-the view by its shortcut; and the page at a phone's width, its sidebar a drawer.
+the view by its shortcut; a button that asks, where it stands, before it does what cannot be
+undone; and the page at a phone's width, its sidebar a drawer.
 
 Run it by naming it: `uv run pytest tests/system/docs/test_docs_user_web.py`.
 """
@@ -196,6 +197,28 @@ def test_search_opens_over_the_view(world: World) -> None:
         page.wait_for_timeout(300)
         reel.web(page, hold=1.4, keys="esc")
         reel.save()
+
+
+def test_a_button_asks_before_it_does_what_cannot_be_undone(world: World) -> None:
+    _staged(world)
+    with world.page(height=620) as page:
+        go(page, "/new/chat")
+        _ready(page)
+        # The folder's own settings, as its menu opens them: their one button asks first.
+        page.locator("[data-hmz=sidebar]").get_by_text("shop", exact=True).first.click(
+            button="right"
+        )
+        page.get_by_role("menuitem", name="Settings").click()
+        forget = page.get_by_role("dialog").get_by_role(
+            "button", name="Forget", exact=True
+        )
+        expect(forget).to_be_visible()
+        forget.click()
+        asked = page.get_by_role("dialog", name=re.compile("^Forget how"))
+        expect(asked.get_by_role("button", name="Cancel")).to_be_visible()
+        page.wait_for_timeout(300)
+        # The question, and the button it was asked by, beside it.
+        shots.web(page, f"{_PAGE}-confirm", clip=asked, pad=48)
 
 
 def test_on_a_narrow_window_the_sidebar_is_a_drawer(world: World) -> None:

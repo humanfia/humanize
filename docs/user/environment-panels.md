@@ -27,15 +27,23 @@ Humanize Desktop and the web page have the same panels.
 
 Select an environment to see its host, folder, CPUs, memory, and which capabilities (files, shell, git) the flow uses. A dot on a tab marks a panel the flow uses. Drag the divider beside a list to resize it; double-click the divider to reset it.
 
+The view also works from the keyboard. In the environment list, <kbd>Up</kbd>, <kbd>Down</kbd>, <kbd>Home</kbd>, and <kbd>End</kbd> move, and <kbd>Enter</kbd> or <kbd>Space</kbd> picks. On the panel tabs, <kbd>Left</kbd>, <kbd>Right</kbd>, <kbd>Home</kbd>, and <kbd>End</kbd> switch panels. On a focused divider, <kbd>Left</kbd> and <kbd>Right</kbd> resize by 16 pixels, and <kbd>Home</kbd> and <kbd>End</kbd> go to the narrowest and widest.
+
 ### Edit and search files
 
 The **Files** panel is a code editor for the environment's folder.
 
 ![The Files panel: the explorer on the left and a Python file open in the editor](/shots/user-environment-panels-files.svg)
 
-**Explorer.** Click a file to preview it; double-click to keep it open. Use the toolbar for **New file**, **New folder**, **Refresh**, **Collapse all**, and the **Filter** box. Right-click a row for **Rename…**, **Delete**, **Copy path**, and **Copy relative path**.
+**Explorer.** Click a file to preview it; double-click to keep it open. Use the toolbar for **New file**, **New folder**, **Refresh**, **Collapse all**, and the **Filter** box. Right-click a row for **Open**, **New file…**, **New folder…**, **Rename…**, **Delete**, **Copy path**, and **Copy relative path**.
 
-**Editor.** Edits save automatically shortly after you stop typing. The status bar shows **Saving…**, **Saved**, or **Unsaved**, and lets you change line endings, wrapping, and the current line.
+**Editor.** Every open file is a tab. A file you click once opens in a preview tab with an italic name; clicking another file replaces the preview. Double-click the file or its tab to keep it open. Drag tabs to reorder them.
+
+Right-click a tab to choose **Close**, **Close others**, **Close all**, **Keep open** (on a preview tab), **Reveal in explorer** (to select the file in the explorer), or **Copy path**.
+
+![The menu of an editor tab in the Files panel: Close, Close others, Close all, Keep open, Reveal in explorer and Copy path](/shots/user-environment-panels-tab-menu.svg)
+
+Edits save automatically shortly after you stop typing. Closing a tab writes its edits first; if they cannot be written, the editor asks before it drops them. Use the status bar to change line endings, wrapping, and the current line, or to check the save state: **Saving…**, **Saved**, **Unsaved**, **Not saved**, **Conflict**, or **Read-only**. If a save fails, a banner shows the reason and a **Try again** button. If the file is deleted in the environment, a banner notifies you, and saving recreates the file.
 
 **Search.** Open the **Search** tab to search across all files with **Match case**, **Use regular expression**, and **Files to include**.
 
@@ -49,7 +57,17 @@ The **Files** panel is a code editor for the environment's folder.
 | <kbd>Cmd/Ctrl+G</kbd> | Go to line |
 | <kbd>Cmd/Ctrl+W</kbd> | Close the tab |
 | <kbd>Alt+Z</kbd> | Wrap lines |
-| <kbd>F2</kbd> | Rename the selected file |
+
+In the explorer, with a row selected:
+
+| Key | What it does |
+| --- | --- |
+| Arrow keys, <kbd>Home</kbd>, <kbd>End</kbd> | Move; <kbd>Right</kbd> and <kbd>Left</kbd> open and close a folder |
+| <kbd>Enter</kbd> | Open the file and keep it open |
+| <kbd>Space</kbd> | Preview the file |
+| <kbd>F2</kbd> | Rename |
+| <kbd>Delete</kbd> or <kbd>Cmd/Ctrl+Backspace</kbd> | Delete, after asking |
+| Menu key or <kbd>Shift+F10</kbd> | Open the row's menu |
 
 ![The Search tab of the Files panel listing six matches in three files](/shots/user-environment-panels-search.svg)
 
@@ -59,21 +77,29 @@ The **Files** panel is a code editor for the environment's folder.
 
 ### Review and commit changes
 
-The **Changes** panel manages the environment's git repository. The header shows the branch and its ahead/behind count against upstream, with buttons for **View as Tree** and **Refresh**. Files are grouped under **Merge Changes**, **Staged Changes**, **Changes**, and **Untracked**.
+The **Changes** panel manages the environment's git repository. The header shows the branch and its ahead/behind count against upstream, with buttons for **View as Tree** (which becomes **View as List**) and **Refresh**. Files are grouped under **Merge Changes**, **Staged Changes**, **Changes**, and **Untracked**. The letter on a row is its status: `M` modified, `A` added, `D` deleted, `R` renamed, `C` copied, `U` conflict, `?` untracked.
 
 ![The Changes panel: the list of changed files on the left and a side-by-side diff of one file on the right](/shots/user-environment-panels-changes.svg)
 
-**See a diff.** Click a file to view its diff. Use the diff toolbar to switch between side-by-side and inline views, step through changes (<kbd>F7</kbd>, <kbd>Shift+F7</kbd>), or click **Open File** to edit it in the Files panel.
+**See a diff.** Click a file to view its diff. Double-click it to open it in the Files panel instead. Staged diffs are labelled **Index**, and unstaged diffs are labelled **Working Tree**. Use the diff toolbar to switch between side-by-side and inline views, step through changes (<kbd>F7</kbd>, <kbd>Shift+F7</kbd>), **Stage Changes** or **Unstage Changes**, click **Open File** to edit in the Files panel, or **Close the diff**.
+
+| Condition | Behavior |
+| --- | --- |
+| Pane narrower than 560 pixels | Draws the diff inline until you choose a view. |
+| File over 2 MiB | Prompts before drawing; declining leaves a **Show the diff** button. |
+| Binary file or file over 8 MiB | Shows only the size before and after. |
 
 **Stage, unstage, discard.** Hover over or right-click a file for **Stage Changes**, **Unstage Changes**, and **Discard Changes** (**Delete File** for an untracked file). Use a group header to act on all its files: **Stage All Changes**, **Unstage All Changes**, **Discard All Changes**, or **Delete All Untracked Files**. Discarding prompts for confirmation.
 
-**Commit.** Type a message and press **Commit** or <kbd>Cmd/Ctrl+Enter</kbd>. Check **Amend** to replace the last commit. If nothing is staged, the panel offers to stage all changes and commit.
+**Commit.** Type a message and press **Commit** or <kbd>Cmd/Ctrl+Enter</kbd>. Check **Amend** to replace the last commit. A counter beside **Amend** tracks the first line's length and changes colour past 50 and 72 characters.
+
+If nothing is staged, the panel offers to stage all changes and commit. The panel blocks commits with `Write a commit message first.` or `There is nothing to commit.`. If files are under **Merge Changes**, the **Commit** button is disabled and the panel displays `Resolve the merge conflicts before committing.`.
 
 **Commits** lists the last 50 commits. For **Snapshots**, see [Snapshots and rewind](/user/snapshots).
 
 ![Committing from the Changes panel: a file is staged, a message is typed, Commit is pressed, and the commit appears under Commits](/shots/user-environment-panels-commit.svg)
 
-In the file list, press <kbd>Space</kbd> to stage or unstage, <kbd>Enter</kbd> to open the diff, and <kbd>Delete</kbd> to discard. Use Ctrl/Cmd-click and Shift-click to select multiple files.
+In the file list, press <kbd>Space</kbd> to stage or unstage, <kbd>Enter</kbd> to open the diff, and <kbd>Delete</kbd> or <kbd>Cmd/Ctrl+Backspace</kbd> to discard. Arrow keys, <kbd>Home</kbd>, <kbd>End</kbd>, <kbd>PageUp</kbd>, and <kbd>PageDown</kbd> move. Use Ctrl/Cmd-click and Shift-click to select multiple files, or <kbd>Cmd/Ctrl+A</kbd> to select all.
 
 ### Run a shell
 
@@ -81,14 +107,16 @@ The **Terminal** panel opens login shells in the environment's folder on its hos
 
 ![The Terminal panel with two shell tabs; the first shows the output of git status](/shots/user-environment-panels-terminal.svg)
 
-- Double-click a tab to rename it. Click **Close terminal** to end what runs in it; it asks first.
-- Press <kbd>Cmd/Ctrl+F</kbd> to find text in the output, <kbd>Ctrl+Shift+C</kbd> to copy, and <kbd>Ctrl+Shift+V</kbd> to paste.
+- Double-click a tab, or press <kbd>F2</kbd> on it, to rename it. <kbd>Left</kbd> and <kbd>Right</kbd> move between tabs. Click **Close terminal** to end what runs in it; it asks first.
+- Press <kbd>Cmd/Ctrl+F</kbd> to find text in the output, with **Match case**, **Previous match**, and **Next match**. Press <kbd>Ctrl+Shift+C</kbd> to copy and <kbd>Ctrl+Shift+V</kbd> to paste; <kbd>Cmd/Ctrl+C</kbd> also copies while text is selected.
 - Terminals run on the host. They stay running when you close the page, replay their output when you reopen it, and show the same output to every viewer.
 - When a shell exits, its tab shows the exit status and a **Restart** button.
 
 ## In the terminal
 
 In `hmz`, run `/env` to list the environments for the current chat or epic. Press <kbd>enter</kbd> to open one, or <kbd>/</kbd> to filter the list. Run `/env coder` to open the `coder` role's environment directly.
+
+After you pick an earlier chat with `/resume`, `/env` works before you send a message: it brings the chat back up with nothing said, then opens the environments list, or the role you named. If no epic or chat environment is open, `/env` is refused with `no environment is open here`.
 
 ![The terminal interface: /env lists the environments, one is opened on its Files page, a file is opened in the editor, and the Changes page shows a diff](/shots/user-environment-panels-tui.svg)
 
@@ -98,14 +126,14 @@ An environment has up to four pages: Files, Changes, Shell, and Snapshots. Press
 
 | Key | What it does |
 | --- | --- |
-| <kbd>enter</kbd> | Open the folder, or the file in the built-in editor |
+| <kbd>enter</kbd> | Open the folder, or the file in the built-in editor; a symbolic link opens what it leads to |
 | <kbd>backspace</kbd> | Up one folder |
 | <kbd>n</kbd> / <kbd>N</kbd> | New file / new folder |
 | <kbd>r</kbd> | Rename |
 | <kbd>d</kbd> | Delete, after asking |
 | <kbd>e</kbd> | Open in your own editor: `$VISUAL`, else `$EDITOR`, else `vi` |
 | <kbd>ctrl+p</kbd> | Open a file by name |
-| <kbd>?</kbd> | Search in files |
+| <kbd>?</kbd> or <kbd>ctrl+shift+f</kbd> | Search in files |
 
 The built-in editor saves one second after you stop typing. Press <kbd>ctrl+s</kbd> to save immediately, or <kbd>esc</kbd> to save and close. If the file changes on disk while you edit, choose `reload`, `keep mine`, or `show diff`.
 

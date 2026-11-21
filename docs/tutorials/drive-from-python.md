@@ -15,7 +15,7 @@ Write a Python script with `hmz.sdk` to run a flow, print agent events, answer q
 
 - Python 3.12 or newer with `hmz` installed: run `uv add hmz` in a uv project, or `pip install hmz` in a virtual environment.
 - One coding agent CLI installed and signed in. This tutorial uses Claude Code. See [Coding agents](/user/agents).
-- A Git repository for your project. This tutorial uses `~/shop`.
+- A project folder. This tutorial uses `~/shop`.
 
 ## 1. Add a flow to the project
 
@@ -122,9 +122,9 @@ run.wait()
 print(f"result: {run.result!r}, raised: {run.raised!r}")
 ```
 
-Register both callbacks before calling `start()`. Humanize calls `opened` once per agent session, and `watch` for every event (turn start, tool call, text, result, or notice). Each event is a dictionary with keys including `kind` and `text`, matching the output of `hmz exec --json`. Keep callbacks short because they run on another thread.
+Register both callbacks before calling `start()`. Humanize calls `opened` once per agent session, and `watch` for every event, such as a turn beginning, a tool call, text, a result, or a notice. Each event is a dictionary with keys including `kind` and `text`, matching the output of `hmz exec --json`. Keep callbacks short because they run on another thread.
 
-`start()` returns immediately, and `wait()` blocks until the epic ends. Afterward, `run.result` holds the return value and `run.raised` holds any exception.
+`start()` returns once the epic has started, and `wait()` blocks until the epic ends. Afterward, `run.result` holds the return value and `run.raised` holds any exception.
 
 ![The script prints each event as the agent works, then the result](/shots/tutorials-drive-from-python-followed.svg)
 
@@ -146,7 +146,7 @@ class Reviewer:
         return {"action": "ship", "notes": "approved by drive.py"}
 ```
 
-Pass the object to `run(...)` after the budget:
+Pass the object to `Hmz().run(...)` after the budget:
 
 ```python
     outworlder=Reviewer(),
@@ -170,7 +170,9 @@ print("epic:", run.epic.name)
 
 Read `run.usage` during or after the run to get `output_tokens`, `cost` in US dollars, and agent turn `duration`. `run.epic` is the directory where the daemon stores the epic's record.
 
-Open Humanize Desktop or run `hmz web` to see this epic in the sidebar with the same figures.
+![The script now ends with two more lines: spent 202 output tokens in 2s, and the epic's name](/shots/tutorials-drive-from-python-spent.svg)
+
+Open Humanize Desktop or run `hmz web` to see this epic in the sidebar, under its folder `shop`, with the same output tokens.
 
 ![Humanize Desktop shows the epic the script ran: the task, the flow ship, its agent and its output tokens](/shots/tutorials-drive-from-python-app.svg)
 

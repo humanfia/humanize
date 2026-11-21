@@ -28,7 +28,7 @@ A route names one carrier to one daemon. Clients keep an ordered list of routes 
 | `ws://<host>[:<port>][/<path>]`, `wss://…` | no | A WebSocket carrying bytes in binary messages. |
 | `easytier:<name>` | no | A TCP connection across the EasyTier network described by entry `<name>` in the `easytier` setting. |
 | `relay:<ws-url>` | no | A byte splice through the relay at that WebSocket URL. |
-| `webrtc:<ws-url>` | no | A WebRTC data channel signaled through the relay at that URL. Browsers only. |
+| `webrtc:<ws-url>` | no | A WebRTC data channel signaled through the relay at that URL. Opened only by the page itself, in a browser or in Desktop. |
 
 A trusted carrier sends frames directly and pairs the session from the start as the device `local`. An untrusted carrier wraps frames in mutual TLS 1.3 (ALPN `hmz`) pinned to the daemon ID, or in the DTLS data channel for `webrtc:`. Using `wss://` does not make a carrier trusted.
 
@@ -38,7 +38,7 @@ Grammar rules:
 - Percent-encode parts as in a URL.
 - `<name>` starts with a letter or digit, followed by letters, digits, `.`, `_`, or `-`.
 - Invalid route text is refused whole: `<route> is not a route.`
-- A valid route of a kind the client does not open is refused: `<route> cannot be reached from here.` A `stdio:ssh` route whose user or host starts with `-` or holds whitespace is refused the same way.
+- A valid route of a kind the client does not open is refused: `<route> cannot be reached from here.` A `stdio:ssh` route whose destination (`<user>@<host>`, or `<host>` with no user) starts with `-` or holds whitespace is refused the same way.
 - An untrusted route without a pinned daemon ID is refused: `<route> needs the id of the daemon it reaches.`
 
 ### SSH route parameters
@@ -67,7 +67,7 @@ webrtc:wss://relay.example.com
 | Client | Routes it opens |
 | --- | --- |
 | `hmz` in a terminal, the SDK | Every kind except `webrtc:`. `stdio:wsl` only on Windows. |
-| Humanize Desktop | `stdio:local` (not on Windows), `stdio:wsl` (Windows only), `stdio:ssh`, `tcp`, `ws`, `wss`, `easytier`, `relay` |
+| Humanize Desktop | The app opens `stdio:local` (not on Windows), `stdio:wsl` (Windows only), `stdio:ssh`, `tcp`, `ws`, `wss`, `easytier`, and `relay`. Its page opens `webrtc:`. |
 | A browser page, directly | `webrtc:` |
 | A browser page, through `hmz web` | This machine's daemon, and every kind except `unix:`, `stdio:local`, and `webrtc:` |
 
@@ -90,7 +90,7 @@ Alongside its local socket, a daemon listens on the addresses configured in the 
 | `tcp://<address>:<port>` | On that TCP address. Port `0` picks any free port. |
 | `ws://<address>:<port>` | As a plain `ws` WebSocket server at the root path. Port `0` picks any free port. Other requests get 404. |
 | `relay:<ws-url>` | By registering at a relay for native clients. |
-| `webrtc:<ws-url>` | By registering at a relay for browsers. Requires the `webrtc` extra of hmz. |
+| `webrtc:<ws-url>` | By registering at a relay for pages, in a browser or in Desktop. Requires the `webrtc` extra of hmz. |
 | `easytier:<name>` | By joining the EasyTier network of entry `<name>`. |
 
 ```yaml
@@ -100,16 +100,16 @@ listen:
   - webrtc:wss://relay.example.com
 ```
 
-- Any other spec is refused: `<spec> is not a listener.`
+- Any other spec, including `wss://` or a `ws://` spec with a path, is refused by `--listen`: `<spec> is not a listener.` In the `listen` setting it is skipped and logged to `daemon.log`.
 - Listeners in the `listen` setting open and close live as the setting changes.
 - A `relay:` and a `webrtc:` listener at the same relay share one registration.
 - If a listener fails to open, the daemon logs the failure to `daemon.log` and retries after 1 second, doubling up to 60 seconds.
-- A daemon with an open or configured listener never exits when idle.
+- A daemon with a listener, or started by `hmz daemon serve`, never exits when idle.
 - A pairing code created with `hmz daemon pair` includes the routes of all open listeners, unless `--route` names others.
 
 ## Devices and pairing
 
-An untrusted session belongs to a device identified by its key fingerprint: 52 lowercase base32 characters. The daemon ID uses the same fingerprint format for the daemon's machine. A browser over `webrtc:` is identified by `dtls:` followed by the fingerprint of its DTLS certificate.
+An untrusted session belongs to a device identified by its key fingerprint: 52 lowercase base32 characters. The daemon ID uses the same fingerprint format for the daemon's machine. A page over `webrtc:` is identified by `dtls:` followed by the fingerprint of its DTLS certificate.
 
 | Session | Allowed methods |
 | --- | --- |
@@ -222,9 +222,10 @@ Call `epic.attach` or `notices.subscribe` to open a subscription and receive its
 
 - A subscription ends when you call `epic.detach` or `notices.unsubscribe`, when an epic subscription sends `gone`, or when the session closes.
 - Calling a method with a closed or unknown `sub` fails with 410.
-- When reconnecting, pass `since` to `epic.attach` or `after` to `notices.subscribe` to receive only records or notices newer than the last seen ID.
+- When reconnecting, pass `since` (`{epoch, seq}`) to `epic.attach` or `after` to `notices.subscribe` to receive only records or notices newer than the last one seen.
+- An `epic.event` `message` is identified by its `type`. An epic subscription ends with the message `gone`, whose `why` is `let go`, `the host was closed`, `too far behind; attach again`, `the host went away`, or, for an Ai-chan session, `out of Ai-chan's scope`.
 
-See [Events and records](/reference/events) for message and notice schemas.
+See [Events and records](/reference/events#messages-of-an-attached-epic) for every message of an epic subscription, and [its Notices section](/reference/events#notices) for notice kinds and keys.
 
 ## Limits
 
@@ -376,6 +377,8 @@ Manage files, terminals, and Git in an environment of the epic attached under `s
 | `aichan.list` | `never` |  | List Ai-chan conversations, newest first. |
 | `aichan.rename` | `never` | yes | Rename an Ai-chan conversation. |
 | `aichan.forget` | `never` | yes | Delete an Ai-chan conversation and close its host. |
+
+Call `aichan.create` to get `id`, `workspace`, and `slot`. Each row in `aichan.list` has the same `workspace`, a `slot` of the form `ai:<hex>`, and a `state`: `running` during an open turn, `waiting` between turns, or `folded` when no host holds the conversation. Call `epic.attach` with that workspace and slot to follow the conversation; attaching to a folded conversation restarts its host. Send a line with `chat.say`, naming that workspace and slot, and stop an open turn with `epic.stop` or `chat.stop`.
 
 ### Runs, backups and file transfer
 

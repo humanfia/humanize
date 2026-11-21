@@ -71,7 +71,7 @@ The three classes declare an agent role named `coder`, an environment role named
 | `envs` | Required. An `EnvCollection` subclass defining the environment roles. See [Environment roles](/builder/environments). |
 | `params` | Required. A `FlowParams` subclass defining the settings. Pass `FlowParams` itself for a flow with none. See [Params](/builder/params). |
 | `name` | The flow name inside its module. Defaults to the function name. Allows letters, digits, `_`, `.`, and `-`, and cannot start with `.` or `-`. |
-| `description` | The summary shown in flow pickers. Defaults to the first line of the function docstring. |
+| `description` | The summary shown in flow pickers. Defaults to the first line of the function docstring. If the flow named after its module has neither, pickers show the first line of the module docstring. |
 | `hidden` | `True` hides the flow from pickers while keeping it runnable by name. Defaults to `False`. |
 | `resumable` | `True` allows resuming a stopped run and gives the flow persistent state. Defaults to `False`. See [Resumable flows](/builder/resumable). |
 
@@ -132,12 +132,12 @@ Qualify the name to target a specific source:
 | `tidy:once` | The `once` flow inside the `tidy` module. |
 | `@local/tidy` | The project flow in `.hmz/flows/`. |
 | `@user/tidy` | Your user flow in `~/.hmz/flows/`. |
-| `@theirs/review` | A flow installed from the `theirs` flowverse. |
+| `@theirs/review` | A flow installed from the `theirs` flowverse. One that flowverse lists under a user is `@theirs/alice/kernel`. |
 | `alice/kernel` | A flow under user `alice` in the official flowverse. |
 | `./drafts/tidy` | A file path starting with `.`, `/`, or `~` pointing to a flow directory or `.py` file (with or without the extension). |
 | `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr` | A flow in a git repository, run directly without installing. |
 
-A name finds only your own flows and installed flows. If you name an uninstalled flow from a known flowverse, the run is refused with a message that says where to install it. See [Find and install flows](/user/flows) and the [catalogue of official flows](https://humanfia.ai/flows/).
+Pickers list flows in a different order: official, other flowverses alphabetically, project, then user. A name finds only your own flows and installed flows. If you name an uninstalled flow from a known flowverse, the run is refused with a message that says where to install it. See [Find and install flows](/user/flows) and the [catalogue of official flows](https://humanfia.ai/flows/).
 
 ## Run the flow
 
@@ -207,9 +207,10 @@ A valid flow meets these requirements:
 
 - Humanize ships with no built-in flows; every flow is either written by you or installed from a flowverse.
 - To customize an installed flow, copy it into your project and edit the copy (see [Publish and version a flow](/builder/publishing)).
-- Importing `hmz.flows` is cheap: it loads pydantic and nothing else of Humanize until a flow is used.
+- Importing `hmz.flows` is cheap: it loads pydantic and none of Humanize's runtime, which is imported when `@flow` first decorates a function.
 - A flow and its role classes can be declared inside a function: the role annotations are resolved when the flow is first used.
 - Keep top-level module code fast because listing flows imports every flow entry point in your flow folders.
 - If a module fails to import, it still appears in flow lists by name without a description.
 - Files beside `__init__.py` are imported by their plain names, so those names are shared. Loading two flow directories with the same directory name, or the same sibling module name (two flows that each keep a `prompts.py`), in a single run raises `FlowLoadConflict`.
+- A project's `.humanize/` folder, the old name of `.hmz/`, is renamed to `.hmz/` the first time Humanize runs there, unless `.hmz/` already exists.
 - Legacy name formats like `local/tidy` or paths missing a leading `./` are rejected with a message showing the updated syntax.

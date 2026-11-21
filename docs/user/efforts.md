@@ -37,7 +37,7 @@ Efforts are listed from hardest to easiest.
 | `litellm` | `high`, `medium`, `low`, `minimal`, `none` |
 | a CLI you added over ACP | `as configured`: any word is accepted, none is sent |
 
-`off` and `none` tell the model not to think at all. `auto` tells the harness nothing.
+`off` and `none` tell the model not to think at all.
 
 On `claude`, `ultracode` runs at `xhigh` and tells Claude Code to orchestrate its own fleet of subagents.
 
@@ -82,8 +82,6 @@ hmz chat -a claude/claude-haiku-4-5:low "Add a discount code to checkout"
 
 ![hmz exec run with an agent at :low, and the answer it printed](/shots/user-efforts-exec.svg)
 
-Omit the effort or write `:auto` to use the harness default.
-
 If you pass an effort the harness does not support, the command exits immediately with status `2`, spends nothing, and lists the valid efforts:
 
 ![hmz exec refusing :turbo and listing the efforts claude takes](/shots/user-efforts-refused.svg)
@@ -96,7 +94,7 @@ hmz exec -f rlar -p budget.cost=10 -a actor=claude/claude-haiku-4-5:low -a revie
 
 ## Run a turn in swarm mode
 
-Swarm mode runs a turn as a fleet of subagents instead of a single agent. It changes the width of the turn, not the thinking depth: `max` and `swarmmax` think at the same effort. Only Kimi Code (`kimi`) supports swarm mode.
+Swarm mode changes the width of the turn, not the thinking depth: `max` and `swarmmax` think at the same effort. Only Kimi Code (`kimi`) supports swarm mode.
 
 ![The same effort at two widths: max runs a turn as one agent, swarmmax as a lead agent with subagents](/diagrams/user-efforts-1.svg)
 
@@ -125,6 +123,6 @@ The app chip has no swarm toggle. Configure swarm mode in the terminal or on the
 - The same effort word does not mean the same strength across harnesses. `high` on one harness is not equal to `high` on another.
 - Picking a model in the terminal keeps the effort already set if the model takes it. Otherwise it jumps to the model's hardest effort (such as `ultracode` on Claude Code); lower it before saving if you want less. In the app, the effort falls back to **Default** instead, and the chip remembers the effort you last picked for each harness in this browser.
 - A flow can read an agent's effort, but cannot change it.
-- A CLI added over ACP never receives a model or effort from Humanize. It runs as you configured it.
 - On `cursor-agent`, the effort is part of the model ID, so an effort is available only if your account lists that model at that effort.
+- On `agy`, a model whose name ends in an effort, such as `gemini-3.7-flash-low`, runs at that effort only. Under a [gateway or LiteLLM account](/user/gateways), `agy` takes no effort for any model, so the **Effort** level is hidden and the model runs at its default.
 - See [Coding agents](/user/agents) for the full agent grammar, [Nous: models, retries and fallback](/user/nous) for model retries and fallback, and [Cost and usage](/user/usage) for what harder efforts cost.

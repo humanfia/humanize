@@ -10,6 +10,8 @@ chats there; and `hmz chat --list` and `--rename` from a command line. Run it by
 from __future__ import annotations
 
 import re
+import time
+import uuid
 from typing import TYPE_CHECKING
 
 from playwright.sync_api import expect
@@ -17,7 +19,7 @@ from playwright.sync_api import expect
 from hmz.tui.chats import Archived, Resumes
 from tests.integration.doubles_tui import on, opens, shows, typed
 from tests.system.docs import shots
-from tests.system.docs.conftest import MODEL
+from tests.system.docs.conftest import AGENT, MODEL
 from tests.system.web.doubles_browser import go
 
 if TYPE_CHECKING:
@@ -35,6 +37,9 @@ _CENT = "Why is the cart total off by a cent?"
 _TESTS = "Write tests for the catalogue"
 _POSTER = "Add a poster in A2 to the catalogue"
 
+#: One had in no folder at all.
+_REGEX = "What does this regular expression match?"
+
 #: What the first of them is renamed to.
 _TITLE = "Discount codes"
 
@@ -43,6 +48,7 @@ _SAYS = {
     "cent": "total() rounded each line before adding them up. It adds first now.",
     "tests": "Three tests cover the catalogue's prices, and all of them pass.",
     "poster": "The catalogue lists poster-a2 at 1400.",
+    "regular expression": "A date written as year-month-day, such as 2026-11-21.",
 }
 
 
@@ -50,6 +56,43 @@ def _staged(world: World, *said: str) -> list[str]:
     """Holds the chats, oldest first, and answers their ids in that order."""
     world.says(_SAYS)
     return [world.chat(one) for one in said or (_DISCOUNT, _CENT, _TESTS, _POSTER)]
+
+
+def _of_no_folder(world: World, said: str) -> str:
+    """Holds a chat of no folder, as `No folder` of the new chat's form does, and answers its id.
+
+    `World.chat` holds one in the project alone: this one's host is attached to in a directory
+    the daemon makes for it (`scratch`), which is what the page does.
+    """
+    with world.session() as session:
+        made = session.call("epic.attach", scratch=True, slot="chat:", replay=False)
+        started = session.call(
+            "chat.start",
+            workspace=made["workspace"],
+            slot=made["slot"],
+            agent=AGENT,
+            task=said,
+            idem=uuid.uuid4().hex,
+        )
+        chat = str(started["chat"])
+        deadline = time.monotonic() + 120
+        # Its one turn answered: between turns on its host, with a title to list it by.
+        while session.call("chat.get", chat=chat)["state"] != "going":
+            assert time.monotonic() < deadline, (
+                "the chat of no folder was never answered"
+            )
+            time.sleep(0.2)
+        session.call("epic.detach", sub=made["sub"])
+        session.call(
+            "hosts.stop",
+            workspace=made["workspace"],
+            slot=started["slot"],
+            idem=uuid.uuid4().hex,
+        )
+        while session.call("chat.get", chat=chat)["slot"]:
+            assert time.monotonic() < deadline, "the chat of no folder never rested"
+            time.sleep(0.2)
+    return chat
 
 
 def _row(page: Page, title: str) -> Locator:
@@ -190,11 +233,18 @@ def test_archived_chats_are_kept_in_the_folders_settings(world: World) -> None:
     chats = _staged(world)
     world.call("chat.archive", chat=chats[1])
     world.call("chat.archive", chat=chats[2])
+    # And one of no folder, which no folder picked lists as its own.
+    world.call("chat.archive", chat=_of_no_folder(world, _REGEX))
     with world.page(desktop=True) as page:
         go(page, "/settings/archived")
         listed = page.locator("[data-hmz=archived-chat]")
-        expect(listed).to_have_count(2)
+        expect(listed).to_have_count(3)
         expect(listed.first.get_by_role("button", name="Unarchive")).to_be_visible()
+        nowhere = page.locator("[data-hmz=archived-nowhere]")
+        expect(nowhere.locator("h4")).to_have_text("No folder")
+        expect(nowhere.locator("[data-hmz=archived-chat]")).to_have_text(
+            re.compile(re.escape(_REGEX))
+        )
         page.wait_for_timeout(400)
         shots.web(page, f"{_PAGE}-archived", clip=page.get_by_role("dialog"), pad=16)
 

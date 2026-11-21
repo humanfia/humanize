@@ -182,6 +182,12 @@ def _form(page: Page, kind: str, title: str) -> Locator:
     return form
 
 
+def _centred(page: Page, part: Locator) -> None:
+    """Scrolls a part of Settings to the middle of what shows, so that all of it does."""
+    part.evaluate("el => el.scrollIntoView({ block: 'center' })")
+    page.wait_for_timeout(400)
+
+
 def _added(page: Page, devbox: _Devbox) -> Locator:
     """Adds `devbox` to the page by its pairing code, and answers its line once it is up."""
     form = _form(page, "TCP", "Reach over TCP")
@@ -234,7 +240,9 @@ def test_a_machine_is_added_by_its_code_and_turned_to(world: World) -> None:
         reel.web(page, hold=4, pointer=row, poster=True)
         reel.save()
 
-        # The list alone: each machine's line, and under it the devices paired with it.
+        # The list alone: each machine's line, and under it the devices paired with it,
+        # clear of the heading that stays at the top of the page.
+        _centred(page, page.locator("[data-hmz=daemons]"))
         shots.web(page, f"{_PAGE}-list", clip="[data-hmz=daemons]", pad=8)
 
         # Back on the page, the foot of the sidebar turns it to the other machine.
@@ -296,7 +304,7 @@ def test_a_machine_is_added_over_ssh(world: World) -> None:
         expect(host.locator("option", has_text="gpu-box")).to_be_attached()
         host.select_option("gpu-box")
         expect(form.get_by_label("Name")).to_have_value("gpu-box")
-        page.wait_for_timeout(300)
+        _centred(page, form)
         shots.web(page, f"{_PAGE}-ssh", clip=form, pad=8)
 
 

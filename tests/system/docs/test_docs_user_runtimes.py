@@ -3,7 +3,8 @@
 Two servers and a docker daemon are saved and checked; one server is edited on its form, with
 the server it falls back to and where the agent's CLI runs; hosts are read from the person's
 ssh config and brought in; a directory of the server is browsed for; the runtimes are opened in
-the terminal interface; and a flow whose role names a server that does not answer lands on the
+the terminal interface, where the docker daemon is asked what it has; and a flow whose role
+names a server that does not answer lands on the
 one it falls back to. Run it by naming it:
 `uv run pytest tests/system/docs/test_docs_user_runtimes.py`.
 
@@ -356,3 +357,29 @@ def test_a_role_lands_on_the_runtime_fallen_back_to(
         rows=14,
     )
     reel.save()
+
+
+async def test_a_docker_runtime_is_detected_in_the_terminal_interface(
+    world: World, far: Fakes
+) -> None:
+    _saved(world)
+    async with world.tui((100, 30)) as (app, pilot):
+        await shows(pilot, MODEL)
+        await pilot.press(*"/settings runtimes", "enter")
+        await shows(pilot, _HOST, _DOCKER)
+        await pilot.press("down", "down", "enter")
+        await shows(pilot, "check")
+        await pilot.press("enter")
+        await shows(pilot, f"Edit docker/{_DOCKER}", "Detect")
+        await pilot.pause(0.5)
+        reel = shots.Reel(f"{_PAGE}-detect")
+        reel.tui(app, hold=1.8)
+        await pilot.press("tab")
+        await shows(pilot, "detect host resources and fill them in")
+        await pilot.pause(0.3)
+        reel.tui(app, hold=1.6, keys="tab", cut=True)
+        await pilot.press("enter")
+        await shows(pilot, "auto-filled")
+        await pilot.pause(0.5)
+        reel.tui(app, hold=4, keys="enter", poster=True)
+        reel.save()

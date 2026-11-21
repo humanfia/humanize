@@ -120,21 +120,21 @@ Pass a flow ref to `load`. `hmz exec -f` accepts the same forms, except `:review
 | `humanize1:gen-plan` | The flow called `gen-plan` in the `humanize1` module. |
 | `alice/kernel` | A flow the official flowverse lists under a user. |
 | `@local/shipped` | A flow of one flowverse only: `@local`, `@user` or `@<flowverse>`. |
-| `./flows/mine`, `/abs/path`, `~/flows/mine` | A path. The first that exists of `<path>/__init__.py`, `<path>` and `<path>.py` is used. |
-| `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr` | A repository, at the revision after `@`, in the directory after `#`. |
+| `./flows/mine`, `/abs/path`, `~/flows/mine` | A path. The first that exists of `<path>/__init__.py`, `<path>` and `<path>.py` is used. A relative path starts from the workspace directory. |
+| `git+https://github.com/humanfia/humanize1-flow@v0.1.0#humanize1:rlcr` | A repository, at the revision after `@`, in the directory after `#`. `:<name>` picks a flow there, with or without `#<subdir>`. |
 
 Humanize resolves a flow name beside the calling flow first: among the flows in the same directory as the calling flow, or among flows from the same flowverse if it was installed from one. Next, it checks `@local`, `@user`, official, and other flowverses alphabetically.
 
 A ref without `:<name>` selects the flow named after the directory or file, or else the only non-hidden flow.
 
-Use a `git+` ref to run a flow without installing it. Supported URL schemes are `https`, `http`, `ssh`, `file`, and `git`. Omitting `@<rev>` uses the default branch. `load` does not fetch the repository; Humanize clones it when you first call the flow or read a property like `expected_params`.
+Use a `git+` ref to run a flow without installing it. Supported URL schemes are `https`, `http`, `ssh`, `file`, and `git`. Omitting `@<rev>` uses the default branch, and omitting `#<subdir>` uses the repository's root. A flow that is one file is named by the file, as in `#tools/review.py`. `load` does not fetch the repository; Humanize clones it when you first call the flow or read a property like `expected_params`.
 
 `load` raises these exceptions:
 
 | Exception | When |
 | --- | --- |
 | `FlowRefError` | The text is not a ref, or `:<name>` is used where no flow is asking. |
-| `FlowNotFound` | The ref names no flow. For a `git+` ref, this is raised at the first call if the repository cannot be fetched. |
+| `FlowNotFound` | The ref names no flow. For a `git+` ref, this is raised when the repository is first fetched, if it cannot be. |
 | `FlowLoadConflict` | Two flow directories that import under the same module name are loaded in one epic. |
 | `FlowDefinitionError` | The named flow is written wrong, or importing it fails. |
 
@@ -151,8 +151,9 @@ Every agent or environment you pass must meet the called role's declarations. Hu
 | A permission | `PermissionTooNarrow` |
 | One harness, such as `ClaudeCodeAgent` | `HarnessMismatch` |
 | CPUs, memory or GPUs | `ResourceUnmet` |
+| A `LocalEnv` | `CapabilityMissing`, if the environment is not on this machine |
 
-All five exceptions inherit from `RequirementError`. Passing an object that is not an agent or environment of the current epic raises `RequirementError` directly.
+All of these exceptions inherit from `RequirementError`. Passing an object that is not an agent or environment of the current epic raises `RequirementError` directly.
 
 Your agent can only pass on capabilities that your own role declares. Because `goal` requires `GoalCommandAgentMixin`, `Coder` must declare it too. If `coder` is a plain `Agent`, Humanize refuses the call:
 
@@ -180,7 +181,7 @@ If the call exhausts its own budget, it raises `BudgetExceeded`, which you can c
 
 ## In the app
 
-Open the epic and look under **Called flows** in the **Epic** panel to see each call's task and state. On the graph, a box labelled `Called` groups agents that ran inside a called flow.
+Open the epic and look under **Called flows** in the **Epic** panel to see each call's task and state. On the graph, each agent is drawn in the flow that opened its first session: a called flow's box is labelled **Called** with the flow's ref.
 
 ![The epic page in Humanize Desktop: the graph shows a box for the flow and one for the called goal flow, and the panel lists goal:goal and shipped:review under Called flows](/shots/builder-calling-flows-called.svg)
 

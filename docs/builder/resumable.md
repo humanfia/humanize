@@ -71,9 +71,9 @@ Keys must be strings. Values must be JSON-serializable or sessions; anything els
 
 ## Resume a run
 
-### In the app
+### In the app and the terminal
 
-Click **Resume** in the app or run `/resume` in the terminal. These controls appear only when an epic can be resumed. See [Resume a run](/user/resuming).
+Click **Resume** on the epic's page, or type `/resume` in `hmz` while the flow is on the screen. Both are offered only when an epic can be resumed. See [Resume a run](/user/resuming).
 
 ### From the command line
 
@@ -95,7 +95,7 @@ hmz exec -f @local/in_rounds --resume -a coder=claude/claude-haiku-4-5 \
 
 ![hmz exec --resume runs rounds 3 and 4 only](/shots/builder-resumable-resumed.svg)
 
-`--resume` picks up the newest epic of this flow in the current directory that saved progress and is not running. If the flow is not resumable, the command fails with `<flow> does not support resuming, so there is no run to resume`.
+`--resume` picks up the newest epic of this flow in the current directory that saved progress and is not running. If the flow is not resumable, the command fails with `<flow> does not support resuming, so there is no run to resume`. If no such epic exists, it fails with `<flow> has no run to resume here: none saved any progress`.
 
 ## Save a conversation
 
@@ -203,7 +203,7 @@ async def test_in_rounds_picks_up_at_round_three(tmp_path: Path) -> None:
     assert asked[3:] == ["This is round 3 of 4.", "This is round 4 of 4."]
 ```
 
-An `async def` test needs pytest-asyncio. See [Test a flow](/builder/testing).
+An `async def` test needs pytest-asyncio with `asyncio_mode = "auto"`. See [Test a flow](/builder/testing).
 
 ## Good to know
 

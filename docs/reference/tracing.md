@@ -52,7 +52,7 @@ A session takes its agent name from its root session. `<name>` is the agent name
 | `event` | Anything else the log records. |
 | `session` | Added when drawing: one span over everything a session did. |
 
-Names are one line of at most 96 characters (120 for a `session` span). In `args`, strings are truncated at 4096 characters and lists at 32 items.
+A name is one line. The summary in it is at most 96 characters; the name of a `session` span is at most 120. In `args`, strings are truncated at 4096 characters or fewer and lists at 32 items.
 
 ## Chrome trace {#chrome}
 
@@ -221,7 +221,7 @@ A span ID is its track's `first` plus its index in the track. IDs number all spa
 The timeline omits span payloads. Fetch a span's payload by ID using `timeline.span(id)` in Python or `runs.span` with `{name, id, layout}` from the daemon.
 
 ```json
-{"id": 4, "process": 1, "track": 1, "start": 5000000, "dur": 11000000, "depth": 2, "cat": "tool", "name": "Task: look at the cart", "at": "2026-11-18T11:06:44+00:00", "args": {"tool": "Task", "input": {"description": "look at the cart"}, "session": "claude:56107ec6"}}
+{"id": 4, "process": 1, "track": 1, "start": 5804000000, "dur": 11000000, "depth": 2, "cat": "tool", "name": "Task: look at the cart", "at": "2026-11-18T11:06:44+00:00", "args": {"tool": "Task", "input": {"description": "look at the cart"}, "session": "claude:56107ec6"}}
 ```
 
 | Span | `args` |
@@ -240,7 +240,7 @@ An unknown ID raises `KeyError` in Python and returns `404` from the daemon: `Ep
 
 ## Profile files
 
-Profile files are JSON Lines in the epic directory, written only when you start the epic with the corresponding flag. See [Files on disk](/reference/files) for the rest of the directory.
+Profile files are JSON Lines in the epic directory, written only when the epic is started with the matching profiling switch; the table names the `hmz exec` flag. See [Files on disk](/reference/files) for the rest of the directory.
 
 | File | Switch | One line is | Fields |
 | --- | --- | --- | --- |
@@ -266,9 +266,9 @@ Humanize reads logs from each harness's home directory and from the epic's `sess
 | `qwen` | `~/.qwen` | `projects/<workspace>/chats/*.jsonl` | `qwen:<id>` | No |
 | `opencode` | `~/.local/share/opencode` | SQLite `opencode.db`, read-only | `opencode:<id>` | Yes |
 | `mimo` | `~/.local/share/mimocode` | SQLite `mimocode.db`, read-only | `mimo:<id>` | Yes |
-| `mcode` | `~/.minimax` | `v2/sessions/*/*/*/*-session_*/messages.jsonl` | `mcode:<id>` | No, their work is in the parent's log |
+| `mcode` | `~/.minimax` | `v2/sessions/*/*/*/*-session_*/messages.jsonl`, and SQLite `v2/sqlite/runtime-state.sqlite` for the workspace, read-only | `mcode:<id>` | No, their work is in the parent's log |
 | `litellm` | `~/.cache/humanize/litellm` | `sessions/*.jsonl` | `litellm:<id>` | A forked conversation hangs from its origin |
 
-`cursor-agent` has no reader; its sessions do not appear in traces, timelines, or transcripts.
+`cursor-agent` and CLIs added over ACP have no reader; their sessions do not appear in traces, timelines, or transcripts.
 
 For harness capabilities, see [Agents and harnesses](/reference/agents).

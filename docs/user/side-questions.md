@@ -88,7 +88,7 @@ You can ask side questions while a run is active or after it ends. Questions lon
 | --- | --- |
 | You ask before the previous answer finishes | Each side conversation takes one question at a time. The terminal shows `hmz: btw is still answering the last question`; the app disables the send button until the answer arrives. |
 | You run `/btw` outside a single-agent view, or while following Ai-chan | The terminal refuses with `/btw is only available on one agent's transcript` and points to `/ai`. |
-| You ask with no conversation or history | In the app, asking with no conversation picked shows `Pick the conversation to ask first.` Asking in an empty chat shows `This chat has said nothing to ask about yet.` |
+| You ask with no conversation or history | In the app, asking with no conversation picked shows `Pick the conversation to ask first.` Asking in an empty chat shows `This chat has said nothing to ask about yet.` Before any agent of an epic has started, the **Ask** menu says `No conversation yet. One opens as an agent of this epic starts.`, and the terminal refuses with `hmz: /btw: a side question is asked of a session; /ai asks Ai-chan about the epic`. |
 | A side question fails | The terminal shows `hmz: /btw: <why>`; the app shows the reason in the aside. The run is not affected. |
 | A new epic starts on the same host | Asides from the previous epic close, and the terminal leaves btw mode. |
 | You clear the transcript or close `hmz` | The terminal keeps answers only on screen, so they are gone. The app keeps its asides. |

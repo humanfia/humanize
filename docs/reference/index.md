@@ -23,7 +23,7 @@ Look up any Humanize command, key, Python name, setting or file. To learn how to
 | [Flow API](/reference/flows) | Every public name of `hmz.flows`, with its signature and meaning. |
 | [SDK](/reference/sdk) | Every public name of `hmz.sdk`. |
 | [Agents and harnesses](/reference/agents) | Harness capabilities, agent spec grammar, effort levels, sign-in methods and fault classes. |
-| [Environments and runtimes](/reference/environments) | Environment spec grammar for `-e`, runtime kinds and their fields, and mixins. |
+| [Environments and runtimes](/reference/environments) | Environment spec grammar for `-e`, backends, saved runtime fields, target spellings and mixins. |
 
 ## System
 

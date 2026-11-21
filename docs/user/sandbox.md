@@ -41,7 +41,7 @@ Run `hmz exec` to see the same turn printed in the terminal. This project flow h
 
 | System | Backend | Needs |
 | --- | --- | --- |
-| macOS | Seatbelt | any version of macOS; Humanize must not itself run inside another sandbox |
+| macOS | Seatbelt | Humanize must not itself run inside another sandbox |
 | Linux | Landlock, with seccomp | kernel 5.13 or later with Landlock enabled; kernel 6.7 or later to cut the network |
 | Linux | bubblewrap | a `bwrap` program that starts on this machine |
 
@@ -49,7 +49,7 @@ On Linux, Humanize uses Landlock when it can enforce the permission, and bubblew
 
 ## Cut the network
 
-Give a role no network in a flow to restrict its connections (`network=False`, see [Skills and permissions](/builder/skills)). You cannot set this for a chat. The agent can then reach only its model and sign-in hosts, plus its account endpoint if configured. The fence refuses all other connections, including package indexes, web pages, and hosts named in commands.
+Give a role no network in a flow to restrict its connections (`network=False`, see [Skills and permissions](/builder/skills)). You cannot set this for a chat. The agent can then reach only its model and sign-in hosts, plus what its account points it at: a gateway endpoint, or the cloud hosts of an account on Bedrock, Vertex or Foundry. The fence refuses all other connections, including package indexes, web pages, and hosts named in commands.
 
 - A local proxy passes only the allowed hosts, and `HTTPS_PROXY` inside the fence points to it. If your machine uses an upstream proxy, Humanize reaches the model through it.
 - Humanize switches off the agent's built-in web search when its CLI supports it.
@@ -59,7 +59,7 @@ Give a role no network in a flow to restrict its connections (`network=False`, s
 
 ## Choose the backend on Linux
 
-Set `sandbox.backend` in `~/.hmz/settings.yaml` to pin a backend on Linux. You must edit this file by hand.
+Set `sandbox.backend` in `~/.hmz/settings.yaml` to pin a backend on Linux. You must edit this file by hand; the change applies from the next turn, with no restart.
 
 ```yaml
 sandbox:
@@ -87,7 +87,7 @@ sandbox:
 This is a trade, not a default. Codex's sandbox limits what the commands it runs may write and whether they reach the network. It does not limit Codex itself, the MCP servers and hooks it starts, or what anything reads.
 :::
 
-Humanize honors only `codex` and fences any other name in the list as usual. Codex still runs in the Humanize fence when the permission denies a path under a wider rule, when Codex's sandbox cannot start on this machine, when the work is on another machine, or when a flow checks each permission request. When Codex uses its own sandbox, its session shows a notice, once per agent, starting with `codex: held to its permission by Codex's own sandbox`.
+Humanize honors only `codex` and fences any other name in the list as usual. Codex still runs in the Humanize fence when the permission takes a path back under a wider rule, when Codex's sandbox cannot start on this machine, when the work is on another machine, or when a flow checks each permission request. When Codex uses its own sandbox, its session shows a notice, once per agent, starting with `codex: held to its permission by Codex's own sandbox`.
 
 ## Work on another machine
 
@@ -104,8 +104,8 @@ The runtime's **Harness runs on** setting controls where the fences run. See [Ru
 | another runtime | nothing can be fenced: only a role with **Full access** and the network may run so |
 
 - The remote machine chooses its own backend and ignores your local `sandbox.backend` setting.
-- With the network cut, commands on the remote machine cannot reach any host.
-- Docker's default seccomp profile allows Landlock. A container with a profile that blocks Landlock cannot fence.
+- With the network cut and the harness on `local`, the commands on the other machine reach no host at all. On `env`, they share the CLI's fence and its allowed hosts.
+- A container whose seccomp profile blocks Landlock can fence only with a bubblewrap that starts there.
 
 ### A project's own programs
 

@@ -96,7 +96,7 @@ runtimes:
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `workdir` | string | `""` | Default working directory when the spec omits one. Absolute, or under `~/`. |
-| `fallback` | list | `[]` | Runtimes to try in order when this one cannot hold a role, each `<backend>:<name>`. Cannot contain itself or duplicates. A fallback runtime does not follow its own fallback list. `docker:local`, `swarm:local` and `apple-container:local` name the default on this machine. |
+| `fallback` | list | `[]` | Runtimes to try in order when this one cannot hold a role, each `<backend>:<name>`. Cannot contain itself or duplicates. A fallback runtime does not follow its own fallback list. `docker:local`, `swarm:local`, `apple-container:local` and `slurm:local` name the default on this machine, unless a runtime is saved as `local`. |
 | `harness` | string | `env` | Where the agent's CLI runs: `env` (on the runtime's machine), `local` (on this machine), or `<backend>:<name>` (on another saved runtime). Cannot name itself. |
 | `made` | string | `typed` | Origin: `typed`, or `imported` for an ssh host read from an ssh config. |
 
@@ -137,6 +137,14 @@ Set `host` or `alias`. Configured fields override your ssh config.
 
 If you set `container`, do not set `image`, `runtime`, `run_args`, `name_prefix`, `cpus`, `memory`, `gpus`, `gpu_memory`, or `max_containers`.
 
+Run `docker inspect` to view the resource labels on a container Humanize starts. Each is set only when the environment was given that resource. Humanize reads these labels to total the resources a runtime has allocated:
+
+| Label | Value |
+| --- | --- |
+| `humanize.cpus` | CPUs given to the environment. |
+| `humanize.memory` | Memory in bytes. |
+| `humanize.gpus` | Device IDs joined by commas, or `all`. |
+
 ### `swarm`
 
 | Field | Type | Default | Meaning |
@@ -170,7 +178,7 @@ If you set `container`, do not set `image`, `runtime`, `run_args`, `name_prefix`
 | `partition` | string | `""` | Target partition. Empty uses the cluster default. |
 | `account` | string | `""` | Billing account. Empty uses your default. |
 | `qos` | string | `""` | Quality of service. Empty uses the default. |
-| `time` | string | `""` | Time limit passed to `--time`: minutes, `MM:SS`, `HH:MM:SS`, or `D-HH[:MM[:SS]]`. Empty uses the partition default. |
+| `time` | string | `""` | Time limit passed to `--time`: minutes, `MM:SS`, `HH:MM:SS`, `D-HH[:MM[:SS]]`, `UNLIMITED`, or `INFINITE`. Empty uses the partition default. |
 | `constraint` | string | `""` | Required node features passed to `--constraint`. |
 | `via` | string | `srun` | Node connection method: `srun` (one job step per connection) or `tcp` (direct connection to a node port reachable from this machine). |
 | `run_args` | list | `[]` | Extra arguments for `sbatch`. |
@@ -209,6 +217,8 @@ A target identifies a destination machine for `hmz internal anchor --target` and
 | `peer://TICKET@HOST:PORT` | Running server reached through a rendezvous broker. |
 
 Humanize automatically starts its server on `local`, `ssh`, `docker`, `apple-container`, and `slurm` targets. `tcp` and `peer` targets must already be running.
+
+A `tcp://` or `peer://` session runs over TLS 1.3 with ALPN `hmz-anchor`. On startup, the server generates a self-signed P-256 certificate in memory, requiring no configuration or certificate files. Neither side sends the shared secret (`--token`, `--token-file`, `HUMANIZE_TOKEN`, or the `peer://` ticket). Instead, each side proves possession with an HMAC bound to the server's public key. Sessions to other targets run unwrapped over a pipe. A server or client built before this TLS layer cannot connect to one built with it.
 
 ::: warning
 An `env` option on a `docker://` target appears in command lines and logs. Do not pass secrets in it.

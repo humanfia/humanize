@@ -21,7 +21,7 @@ An empty address opens `#/new/chat`. An unrecognized first word opens `#/new`. E
 
 | Address | Opens |
 | --- | --- |
-| `#/new/chat` | A new chat. Query: `workspace` (the folder), `scratch=1` (no folder), `agent` (the agent spec the nous chip starts on). |
+| `#/new/chat` | A new chat. Query: `workspace` (the folder), `scratch=1` (no folder), `agent` (the agent spec the nous picker starts on). |
 | `#/new` | The new epic form. Query: `workspace`, `scratch=1`, `flow` (the flow picked), `resume` (the name of the epic to resume). |
 | `#/chats/<id>` | One chat. |
 | `#/epics/<name>` | One epic, running or ended, as a graph or a list of its agents. |
@@ -43,7 +43,7 @@ Open a dialog address to draw the dialog over the current view. Closing it retur
 | --- | --- |
 | `#/search` | Search. Query: `kind` (`chat` or `flow`; empty for all), `status` (`running`, `done`, `failed`, `stopped` or `unfinished`), `flow`, `workspace`, `q` (the text), `offset`. |
 | `#/download` | Download from a backup target. Query: `target` (the first target when left out). |
-| `#/settings/<page>` | Settings. `<page>` is `themes`, `daemons`, `notifications`, `language`, `general`, `accounts`, `nous`, `runtimes`, `backup`, `usage`, `workspace` or `archived`. Any other word opens `general`. `#/settings/themes/<id>` opens the editor of one custom theme. Query: `daemon`, `workspace`, and for `usage` `days` (`7`, `30`, `90` or `365`; default `30`). |
+| `#/settings/<page>` | Settings. `<page>` is `themes`, `daemons`, `notifications`, `language`, `general`, `accounts`, `nous`, `runtimes`, `backup`, `usage`, `workspace`, `archived` or `workspace-usage`. Any other word opens `general`. `#/settings/themes/<id>` opens the editor of one custom theme. Query: `daemon` (every page from `general` on), `workspace` (the folder, for `workspace`, `archived` and `workspace-usage`), `days` (`7`, `30`, `90` or `365`; default `30`, for `usage` and `workspace-usage`). `usage` is everything the daemon ran and ignores `workspace`; `workspace-usage` is the same page for one folder. |
 | `#/delete/<id>` | The confirmation before a chat is deleted. Query: `daemon`. |
 
 ## Shortcuts
@@ -134,9 +134,9 @@ hmz.resize(320) // a fixed height in pixels; 0 goes back to automatic
 
 The page enforces these rules on a face:
 
-- Registering the first `ask` listener marks the face ready. If a face throws an error before that, or is not ready 5 seconds after its frame loads, the page replaces it with the plain form.
+- Registering the first `ask` listener marks the face ready. If a face throws an error before that, or is not ready within 5 seconds of its frame opening, the page replaces it with the plain form.
 - A listener added late still receives the latest `ask`, the latest `theme`, and every `show` that arrived before anyone listened.
-- `hmz.submit` returns an error if the face is not ready or if an earlier answer is still in flight.
+- `hmz.submit` returns an error if the face is not ready, if an earlier answer is still in flight, or if the value cannot be written as JSON.
 - Each entry in `errors` is `{path, message}`, where `path` is a list of property names and indexes into the answer.
 - The frame height is clamped between 48 and 4000 pixels.
 - The page keeps one frame per session across questions so the face retains its state. It caches frames for up to 8 sessions and replays up to 32 `show` contexts when reloading a face.

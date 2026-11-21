@@ -49,6 +49,8 @@ Select **Pin** to keep a chat at the top of the list under **Pinned**. Select **
 
 ![The sidebar with one chat under Pinned and a dot on a chat marked unread](/shots/user-manage-chats-pinned.svg)
 
+Each row also shows the state of its chat. It displays `Running` while the agent answers and `Failed` if the chat fails. When the agent waits for your answer, a dot appears that reads `Awaiting input` on hover. A resting chat shows only its title. On touch screens, every row also shows the chat's age.
+
 ### Archive and restore
 
 Select **Archive** to remove a chat from the sidebar and from Search. Nothing else about the chat changes.
@@ -56,12 +58,14 @@ Select **Archive** to remove a chat from the sidebar and from Search. Nothing el
 To view and restore archived chats:
 
 1. Open **Settings**, then click **Archived chats** under **Workspace**.
-2. Pick the folder in **Workspace**.
+2. Pick the **Daemon** if you have several, then pick the folder in **Workspace**.
 3. Click a title to read the chat, **Unarchive** to restore it to the list, or **Delete** to remove it.
+
+Chats started with **No folder** appear under the **No folder** heading below the folder's archived chats. This heading appears for any selected folder, and when the daemon has no folders.
 
 An open archived chat also has an **Unarchive** button on its top bar.
 
-![Settings, Archived chats: two archived chats of the folder shop, each with Unarchive and Delete](/shots/user-manage-chats-archived.svg)
+![Settings, Archived chats: two archived chats of the folder shop and, under No folder, one started without a folder, each with Unarchive and Delete](/shots/user-manage-chats-archived.svg)
 
 ### Delete a chat
 
@@ -172,6 +176,6 @@ Pass one action option at a time. Without `--yes`, `--delete` prompts only in an
 - Pins, unread marks, **Group and sort** settings, and collapsed groups stay in the current browser, which keeps at most 200 pins and 200 unread marks. Other browsers, the terminal, and the command line do not see them. The daemon stores titles, forks, archives, and deletions, so every connected interface shows them.
 - The terminal and command line list chats for the current directory only. The app lists all folders.
 - List lines in the terminal and on the command line show at most 60 characters of a title.
-- An archived chat appears only in its folder's archived chats list, never under **Pinned**.
+- An archived chat appears only on the **Archived chats** page, under its folder or under **No folder**, never under **Pinned**.
 - You cannot fork a chat if its coding agent stores the conversation outside the chat's own record.
 - You can list standalone sessions from other coding CLIs alongside your chats. See [Continue sessions from other CLIs](/user/harness-sessions).

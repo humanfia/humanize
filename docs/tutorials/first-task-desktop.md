@@ -87,7 +87,7 @@ An account you add for Claude Code works only where the agent runs on Linux. Tha
 
 ![The folder chip's box with ~/shop typed and the Open button](/shots/tutorials-first-task-desktop-folder.svg)
 
-The chip on the right shows the agent's harness, model, and effort. Click it to pick another.
+The agent chip shows the harness, model, and effort. Click it to pick another.
 
 Type a question and press <kbd>enter</kbd>:
 
@@ -116,7 +116,7 @@ In `rlar`, an actor works on the task until a fresh reviewer marks it done. See 
 An epic is one recorded run of a flow.
 
 1. Click **New epic** in the sidebar. The flow defaults to `rlar`, and **Folder** is `shop`.
-2. Under **Agents**, the `actor` and `reviewer` roles already have agents assigned. Click either role to change its agent.
+2. Under **Agents**, the `actor` and `reviewer` roles already have agents assigned. Click an agent to change it.
 3. Under **Budget**, type `10` in **Time, min**. Every epic requires at least one limit; you can also set **Cost, $** and **Output tokens**.
 4. Type the task at the bottom and press <kbd>enter</kbd>:
 

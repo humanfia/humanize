@@ -193,7 +193,7 @@ def test_an_agent_is_named_on_a_command_line(world: World) -> None:
             _TASK,
         ],
         f"{_PAGE}-exec",
-        columns=104,
+        columns=124,
     )
 
 

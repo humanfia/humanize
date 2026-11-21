@@ -114,7 +114,7 @@ hmz exec -f @local/triage -a triager=claude/claude-haiku-4-5 \
 
 Open the agent's session in the app to see each call and the flow's reply.
 
-![The agent's transcript in the app: the owner tool answered payments, tix --help printed its usage, and tix file filed the ticket](/shots/builder-tools-app.svg)
+![The agent's transcript in the app: the owner tool answered payments, tix --help printed its usage, and after tix file the agent says it filed #1](/shots/builder-tools-app.svg)
 
 *`payments` and the usage text came from the flow's functions.*
 

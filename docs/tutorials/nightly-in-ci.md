@@ -17,7 +17,7 @@ Set up a scheduled GitHub Actions job that runs a flow on your repository with `
 
 ## 1. Write the task
 
-Write the nightly task in `TASK.md` at the root of the repository:
+Write the nightly task in `TASK.md` at the root of the repository. This one expects a checklist in `TODO.md`; write whatever fits your repository:
 
 ```text
 Do the first open item in TODO.md.

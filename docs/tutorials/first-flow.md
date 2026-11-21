@@ -147,7 +147,7 @@ Open Humanize Desktop, or run `hmz web` in your project folder to open the same 
 1. Click **New epic** in the sidebar.
 2. Check that **Folder** is your project.
 3. Open the **Flow** menu at the top and pick `@local/polish` under `local`.
-4. Check `coder` under **Agents** and set `rounds` to 3 under **Parameters**.
+4. Under **Agents**, check the coding agent chosen for `coder`, or open its menu to pick another. Under **Parameters**, set `rounds` to 3.
 5. Under **Budget**, type 10 in **Time, min**.
 6. Type the task in the box at the bottom and press <kbd>enter</kbd>.
 

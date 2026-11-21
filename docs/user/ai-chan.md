@@ -27,7 +27,7 @@ The daemon checks every tool call against her scope and preset before running it
 
 1. Click the **Ai-chan** avatar at the right end of the top bar. The drawer opens beside the view and stays open as you move between views.
 2. Click **New** (or **New conversation** when the list is empty).
-3. Under the input box, pick her nous on the first chip. On the second chip, pick **Read only** or **Full access**, and under **Scope** pick **Daemon**, **Workspace**, or **Epic**.
+3. Under the input box, pick her nous on the first chip: a virtual nous by name, or a concrete one a level at a time (harness, account, model, effort). On the second chip, pick **Read only** or **Full access**, and under **Scope** pick **Daemon**, **Workspace**, or **Epic**.
 4. Type in **Say something to Ai-chan** and press <kbd>enter</kbd>. This first line creates the conversation, and its first 80 characters become the title.
 
 ![The drawer is opened, a new conversation is started, the permission chip shows the presets and scopes, a question is typed and Ai-chan answers](/shots/user-ai-chan-new.svg)
@@ -40,11 +40,11 @@ The daemon checks every tool call against her scope and preset before running it
 
 In an open conversation, her answers appear on the left and your lines appear on the right. Each tool call is a line you can expand. A line you send answers whatever she is waiting on, or joins her current turn if it is still open. When she asks a question with options, the options appear as buttons.
 
-While she answers, the send button becomes **Stop**, which stops her turn at once. Click the pencil beside the title to **Rename**, or click **Back** to return to the list. Press <kbd>esc</kbd> inside the drawer, click **Close panel**, or click the avatar to close the drawer.
+While she answers, the send button becomes **Stop**, which stops her turn at once. Click the pencil beside the title to **Rename** (the terminal cannot rename), or click **Back** to return to the list. Press <kbd>esc</kbd> inside the drawer, click **Close panel**, or click the avatar to close the drawer.
 
 ### Manage conversations
 
-The list shows each conversation with an avatar, its title, and the start of the last line or `typing…`. Pinned conversations come first, followed by the most recent.
+The list shows each conversation with an avatar, its title, and the start of the last line or `typing…`. Pinned conversations come first, followed by the most recent. Marks at the right of a row show that it is pinned, failed, or unread.
 
 Open a row's menu by right-clicking it. On a touch screen, press and hold, or swipe left. On a keyboard, press the menu key, <kbd>shift+f10</kbd>, or <kbd>alt+enter</kbd>.
 
@@ -85,16 +85,16 @@ Ai-chan has one tool per job. The same calls are on her `PATH` under the `hmz-ai
 
 | Job | Tools | Needs Full access |
 | --- | --- | --- |
-| See what runs, list epics, read one epic, its transcripts, its timeline, and usage (Workspace or Daemon scope) | `overview`, `epics_list`, `epic_view`, `transcript_read`, `trace_read`, `usage` | No |
+| See what runs, list epics, read one epic, its transcripts and its timeline, and read usage (usage needs Workspace or Daemon scope) | `overview`, `epics_list`, `epic_view`, `transcript_read`, `trace_read`, `usage` | No |
 | Ask one session a [side question](/user/side-questions); the epic never sees it | `ask_session` | No |
-| Say a line to a running epic, answer its question, stop or force stop it, or start an epic (Workspace or Daemon scope) | `say`, `answer`, `start`, `stop` | Yes |
+| Say a line to a running epic, answer its question, stop or force stop it, or start an epic (starting needs Workspace or Daemon scope) | `say`, `answer`, `start`, `stop` | Yes |
 | List, read and search the files of an epic's environments | `env_list`, `env_read`, `env_grep` | No |
 | Write a file or run a command in an epic's environment | `env_write`, `env_exec` | Yes |
-| Read settings (Workspace or Daemon scope) and list nous | `settings_get`, `nous_list` | No |
+| Read settings (needs Workspace or Daemon scope) and list nous | `settings_get`, `nous_list` | No |
 | Write settings or a nous (Daemon scope only) | `settings_set`, `nous_set` | Yes |
 | List and call any other daemon method her reach allows | `hmz_methods`, `hmz_call` | Depends on the method |
 
-She cannot create, list, rename, or delete Ai-chan conversations, pair or revoke devices, or create accounts.
+She cannot create, list, rename, delete, or reach into Ai-chan conversations, list, pair, or revoke devices, create, rewrite, or copy accounts, or write or remove EasyTier entries.
 
 ## Good to know
 

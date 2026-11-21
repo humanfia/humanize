@@ -11,7 +11,7 @@ Set `_skills` and `_permission` on a role class to give its sessions skills and 
 
 ## Declare skills and permissions on a role
 
-Declare `_permission` and `_skills` on your role classes. In this flow, the coder can edit the project except `vendor/` and stays offline, while the reviewer is read-only and carries a flow skill.
+In this flow, the coder can edit the project except `vendor/` and stays offline, while the reviewer is read-only and carries a flow skill.
 
 ```python
 # .hmz/flows/guarded/__init__.py
@@ -123,7 +123,7 @@ hmz resolves a role's skills once per epic, before the role's first turn. If a s
 
 For installed flows, installing fetches every skill a role names by a URL written as a string literal into the flow's `skills/`, so runs need no network for skills. For uninstalled flows (in `.hmz/flows/` or from a git ref), hmz fetches URLs into a local cache when a run needs them. If the flow's `skills/` and a repository have a skill with the same name, the role gets the flow's copy.
 
-Each session receives its skills in a temporary home directory alongside the user's own skills. Nothing is written to the workspace or the user's skills folders. Where names clash, a flow skill replaces the user's skill of that name, and a skill in the workspace replaces both. See [Skills](/user/skills).
+Each session receives its skills in a temporary home directory alongside the user's own skills; `opencode` and `mimo` are pointed at the flow's skills through their configuration instead. Nothing is written to the workspace or the user's skills folders. Where names clash, a flow skill replaces the user's skill of that name, and a skill in the workspace replaces both. See [Skills](/user/skills).
 
 ## Set file and network permissions
 
@@ -244,8 +244,8 @@ Fakes record the permission without enforcing it. See [Test a flow](/builder/tes
 - hmz never runs a session wider than its permission. If neither the coding agent nor the machine can enforce the permission, opening the session raises `HarnessSandboxed`.
 - A role with workdir write access can also write `/tmp`, `/var/tmp` and `$TMPDIR`. `deny("/tmp")` does not remove this access, though `deny("/tmp/x")` blocks `/tmp/x`.
 - Coding agents always keep access to their own state, sign-in and temporary files, regardless of rules.
-- `cursor-agent` and `mcode` cannot fill a role with `network=False` because their web search runs on vendor servers: opening the session raises `HarnessSandboxed`.
-- `dsh` and `litellm` ignore skills. Roles filled by them run without the flow's skills.
+- `cursor-agent` and `mcode` cannot fill a role with `network=False` because their web search runs on vendor servers: opening the session raises `HarnessSandboxed`. So does a custom CLI that declares no `hosts` (see [Gateways, LiteLLM and custom CLIs](/user/gateways)).
+- `dsh`, `litellm` and custom CLIs ignore skills. Roles filled by them run without the flow's skills.
 - A single-file flow (`.hmz/flows/name.py`) has no `skills/` folder. Convert it to a directory to bundle skills.
 - A human (`Outworlder`) has no skills. Calling `derive` with a non-empty `skills` on an `Outworlder` raises `CapabilityNotGranted`.
 - When calling a subflow, the agent you pass must hold at least the permission the callee's role declares, or the call raises `PermissionTooNarrow`. See [Call another flow](/builder/calling-flows).

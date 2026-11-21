@@ -142,19 +142,12 @@ To extend a single turn instead of starting a new one, use a stop hook. See [Hoo
 
 ## Keep going after a failed turn
 
-Catch `HarnessError` around `run` to lose only the current round when a turn fails, as `until_green` does:
-
-```python
-try:
-    await coder.run(prompt, session=session, env=workspace)
-except HarnessError:
-    continue
-```
+Catch `HarnessError` around `run` to lose only the current round when a turn fails, as `until_green` does.
 
 `run` raises `HarnessError` if the harness dies, hits rate limits, or loses its connection, after Humanize has already exhausted automatic retries and the fallbacks in the agent's [nous](/user/nous).
 
 ::: warning Catch `HarnessError`, not `Exception`
-`BudgetExceeded` is not a `HarnessError`, so it passes through and ends the loop. `except Exception` catches it too. A spent budget raises again on every later turn, so such a loop spins without end.
+`BudgetExceeded` is not a `HarnessError`, so it passes through and ends the loop. `except Exception` catches it too. A spent budget raises again on every later turn, so a `while True` loop written that way spins without end.
 :::
 
 See [Sessions and turns](/builder/turns) for every error a turn can raise.
@@ -210,7 +203,6 @@ See [Test a flow](/builder/testing).
 ## Good to know
 
 - Trust your own check, such as a command's exit status, rather than the agent's claim that it is done.
-- Bound every loop with a round limit or check, and always run with a budget.
 - A single long session grows each round; exceeding the model's context window raises `HarnessUnrecoverable`, which retries cannot fix.
 - A session runs one turn at a time. To run rounds in parallel, see [Concurrent turns](/builder/async).
 - A fresh-session loop needs no saved state to resume; running it again continues from the repository.
