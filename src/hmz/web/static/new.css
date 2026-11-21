@@ -87,8 +87,9 @@
   display: none;
 }
 
-/* Environment under a new chat's box names two things, the daemon and the folder: wider than a
-   chip of one name, the folder the part that is cut short, and said as a name is. */
+/* Environment under a chat's box names where the chat works and, where that says more, the
+   directory there: wider than a chip of one name, the directory the part that is cut short, and
+   said as a name is. */
 .chip-btn.environment-chip .chip-value {
   display: flex;
   max-width: min(40ch, 60vw);
@@ -109,6 +110,36 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font: inherit;
+}
+
+/* What tells where a chat works apart at a glance: this computer, a worktree, a host, a
+   container. Drawn as the icon of any chip is. */
+.environment-chip .chip-glyph {
+  display: inline-flex;
+  flex: none;
+}
+
+/* On its way to another place, while that machine is reached: plainly not there yet. */
+.environment-chip[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+/* The folder a new chat is of, beside it: one name, said as a name is. */
+.folder-chip .chip-value > b {
+  font: inherit;
+}
+
+/* The one line a menu says of what it picks, over its choices: read, never chosen. As wide as
+   the choices make the menu, and never what widens it. */
+.popover-lede {
+  box-sizing: border-box;
+  width: 0;
+  min-width: 100%;
+  margin: 0;
+  padding: var(--space-6) var(--space-8) var(--space-8);
+  font: var(--text-sm) / 16px var(--sans);
+  color: var(--ink-3);
+  white-space: normal;
 }
 
 /* A row of a menu that is ticked and cannot be now says why where it is pointed at, and is
@@ -185,8 +216,9 @@
 
 /* ------------------------------------------------------------------ how a new epic is set up */
 
-/* Where it runs stands first and whatever flow is picked; the rest of what the flow is set up
-   with under it, a line between them as between every two of its parts. */
+/* Which hmz serves it stands first, where it works next, whatever flow is picked; the rest of
+   what the flow is set up with under them, a line between every two of its parts. */
+.options > .option-group + .option-group,
 .options > .form:not(:empty) {
   margin-top: var(--space-16);
   padding-top: var(--space-16);
@@ -384,7 +416,7 @@
    and so does the bar of the flows listed for it. */
 .flow-picker.gone,
 .flow-picker.gone:hover,
-.environment-chip.gone b,
+.folder-chip.gone b,
 .bar-sub .folder-missing,
 .choice[data-missing] .choice-about {
   color: var(--budget-ink);
@@ -404,6 +436,6 @@
   }
 
   .composer-under .chip-btn.environment-chip .chip-value {
-    max-width: 24ch;
+    max-width: 20ch;
   }
 }

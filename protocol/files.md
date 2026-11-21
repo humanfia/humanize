@@ -812,6 +812,9 @@ hmz refreshes model prices; `off`, `0`, `no`, `none` or the empty string MUST tu
 **3.11.2.8** `HUMANIZE_RELEASES` MUST name the URL, where it contains `://`, or the file from which
 hmz learns the newest release; `off`, `0`, `no`, `none` or the empty string MUST turn asking off.
 
+**3.11.2.8.1** `HUMANIZE_SCAN` set to `off`, `0`, `no`, `none` or the empty string MUST turn off the
+scan a daemon makes of its installed harnesses as it starts (Section 3.9.8.1 of [DAEMON]).
+
 **3.11.2.9** `HUMANIZE_SHADOWS` MUST name the directory in which hmz keeps the records of mirrors,
 defaulting to `~/.cache/humanize/shadows` (Section 7).
 
@@ -1755,6 +1758,9 @@ Section 6.5.20), which a reader MUST read as Section 6.5 specifies them, and of 
   (Section 8.3.9 of [CORE]); present only where it is not `workspace-write`;
 - `workdir`: string, the absolute path of the worktree its assistant works in (Section 8.3.13 of
   [CORE]); present only where it works in one;
+- `env`: string, the env its assistant works in, as `-e` writes one after `<role>=` (Section
+  8.3.15 of [CORE]); present only where the **chat** began in an env named for it, and then in
+  place of `workdir`;
 - `title`: string, the title of the **chat** as it began; present only for a fork and for a
   **chat** made from a harness session;
 - `adopted`: string, `<harness>:<id>`, the harness session this **chat** was made from (Section
@@ -1764,10 +1770,13 @@ Section 6.5.20), which a reader MUST read as Section 6.5 specifies them, and of 
 
 **6.12.6** `hmz` MUST write the event `set` into the chat record each time the preference of the
 **chat** is overridden, its agent is changed (Section 8.9.5 of [CORE]), its permission is set
-(Section 8.3.10 of [CORE]), its title is changed or it is archived or put back (Section 8.10 of
-[CORE]), with the key `prefer` (string), `agents` (as `began` gives it), `permission` (string,
-`read-only`, `workspace-write` or `danger-full-access`), `title` (string), `archived` (boolean), or
-any of them together. A reader MUST take each of these from the last event that gives it, `began`
+(Section 8.3.10 of [CORE]), it is moved to another env (Section 8.3.16 of [CORE]), its title is
+changed or it is archived or put back (Section 8.10 of [CORE]), with the key `prefer` (string),
+`agents` (as `began` gives it), `permission` (string, `read-only`, `workspace-write` or
+`danger-full-access`), `env` (string, as `began` gives it), `title` (string), `archived` (boolean),
+or any of them together. A reader MUST read a **chat** as working in the env the last `env`
+gives, and, where no event gives one, in the worktree `workdir` names or else in its
+**workspace**. A reader MUST take each of these from the last event that gives it, `began`
 included, MUST read a **chat** whose record gives no permission as of permission `workspace-write`,
 one that gives no title as titled by the first line of its `task`, and one that gives no `archived`
 as not archived.
@@ -2031,6 +2040,14 @@ that guards that **runtime**; `hmz` MUST NOT remove it.
 
 **7.7.7** `hmz` MUST NOT let more than one of its processes size, create or submit containers,
 services or jobs on one **runtime** at a time.
+
+**7.7.8** `<mdir>/nofolder/<random>/` MUST be the directory of one folderless workspace (Section
+2.3.6.1 of [CORE]), made with mode `0700`, with `<mdir>/nofolder/`, when an epic or a chat is
+started in no directory (Section 4.7.1.3 of [DAEMON]). `hmz` MUST keep it while an epic or a chat
+of that workspace is recorded or a host stands in it, and MUST remove it when its last host goes
+with no epic and no chat of it recorded, and when its last chat is deleted with no epic of it
+recorded and no host standing in it; `hmz` MUST do the same for a folderless workspace an earlier
+hmz made in the system's temporary directory (Section 4.2.5.1 of [DAEMON]).
 
 ### 7.8. Other process-private temporary directories
 

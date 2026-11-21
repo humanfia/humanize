@@ -10,6 +10,7 @@ import { pieces, t } from '../../i18n.js'
 import { closed, opened, place } from '../../layers.js'
 import { harnessName } from '../../names.js'
 import { menuButton, menuOn, toast } from '../../ui.js'
+import { signSaid } from './signin.js'
 
 export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'accounts' }, h('p', { class: 'loading', role: 'status' }, t('Reading the accounts…')))
@@ -106,7 +107,7 @@ export function draw(holder, query, parts, scope) {
         ? h(
             'div',
             { class: 'table-wrap' },
-            h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'CLI'), h('th', {}, t('Account')), h('th', {}, t('Sets')), h('th', {}, t('Models')), h('th', {}, ''))), h('tbody', {}, rows)),
+            h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t('CLI')), h('th', {}, t('Account')), h('th', {}, t('Sets')), h('th', {}, t('Models')), h('th', {}, ''))), h('tbody', {}, rows)),
           )
         : empty(
             t('No account yet.'),
@@ -143,7 +144,7 @@ export function draw(holder, query, parts, scope) {
           { class: 'field' },
           h('label', { for: `correct-${each.env}` }, each.env),
           h('input', { id: `correct-${each.env}`, 'data-env': each.env, type: each.secret ? 'password' : 'text', placeholder: t('Unchanged'), autocomplete: 'off' }),
-          each.about ? h('span', { class: 'hint' }, each.about) : null,
+          each.about ? h('span', { class: 'hint' }, signSaid(each.about)) : null,
         ),
       ),
       h('div', { class: 'row' }, save, close, said),
@@ -170,7 +171,7 @@ export function draw(holder, query, parts, scope) {
   }
 
   function drawMaking() {
-    const cli = h('select', { 'aria-label': 'CLI', id: 'account-cli' }, data.backends.map((one) => h('option', { value: one.cli }, harnessName(one.cli))))
+    const cli = h('select', { 'aria-label': t('CLI'), id: 'account-cli' }, data.backends.map((one) => h('option', { value: one.cli }, harnessName(one.cli))))
     const way = h('select', { 'aria-label': t('Sign-in method'), id: 'account-way' })
     const name = h('input', { type: 'text', id: 'account-name', placeholder: 'work', required: true, autocomplete: 'off' })
     const about = h('p', { class: 'hint' })
@@ -181,7 +182,7 @@ export function draw(holder, query, parts, scope) {
     const form = h(
       'form',
       { class: 'form' },
-      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'account-cli' }, 'CLI'), cli), h('div', { class: 'field' }, h('label', { for: 'account-way' }, t('Sign-in method')), way), h('div', { class: 'field' }, h('label', { for: 'account-name' }, t('Name')), name)),
+      h('div', { class: 'row' }, h('div', { class: 'field' }, h('label', { for: 'account-cli' }, t('CLI')), cli), h('div', { class: 'field' }, h('label', { for: 'account-way' }, t('Sign-in method')), way), h('div', { class: 'field' }, h('label', { for: 'account-name' }, t('Name')), name)),
       about,
       wants,
       answers,
@@ -217,7 +218,7 @@ export function draw(holder, query, parts, scope) {
         fill(answers)
         return
       }
-      fill(about, chosen.about)
+      fill(about, signSaid(chosen.about))
       make.disabled = chosen.terminal
       if (chosen.terminal) {
         fill(answers, h('p', { class: 'note' }, pieces('{way} runs {cli}’s own sign-in, which needs a terminal: make it from {settings} in {hmz}.', { way: chosen.name, cli: cli.value, settings: h('code', {}, '/settings'), hmz: h('code', {}, 'hmz') })))
@@ -231,7 +232,7 @@ export function draw(holder, query, parts, scope) {
             { class: 'field' },
             h('label', { for: `answer-${one.env}` }, one.env),
             h('input', { id: `answer-${one.env}`, 'data-env': one.env, type: one.secret ? 'password' : 'text', placeholder: one.fixed || '', autocomplete: 'off', required: !one.fixed }),
-            h('span', { class: 'hint' }, one.about, one.fixed ? t(' Left empty, it is {value}.', { value: one.fixed }) : ''),
+            h('span', { class: 'hint' }, signSaid(one.about), one.fixed ? t(' Left empty, it is {value}.', { value: one.fixed }) : ''),
           ),
         ),
         chosen.asks.length ? null : h('p', { class: 'dim' }, t('It asks nothing: what it sets is all it is.')),

@@ -67,7 +67,9 @@ def test_the_app_and_the_daemon_are_set_apart(project: Path, engine: str) -> Non
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/general")
         nav = page.locator(".settings-nav")
-        expect(nav.locator(".settings-group")).to_have_text(["App", "Daemon"])
+        expect(nav.locator(".settings-group")).to_have_text(
+            ["App", "Daemon", "Workspace"]
+        )
         expect(nav.locator("a:visible").first).to_have_text("Themes")
         expect(nav.locator("a:visible")).to_contain_text(
             ["Themes", "General", "Accounts", "Nous", "Runtimes", "Backup"]

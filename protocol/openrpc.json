@@ -6815,6 +6815,13 @@
           "schema": {
             "type": "boolean"
           }
+        },
+        {
+          "name": "env",
+          "schema": {
+            "type": "string"
+          },
+          "description": "The runtime whose machine the directory is on, as -e spells one with no directory; this machine where absent."
         }
       ],
       "result": {
@@ -7568,6 +7575,49 @@
         "scope": "any"
       },
       "x-hmz-writes": false
+    },
+    {
+      "name": "nous.scan",
+      "summary": "Ask every installed harness what it runs, as each of its accounts.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "scan",
+        "schema": {
+          "$ref": "#/components/schemas/NousScan"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "daemon"
+      },
+      "x-hmz-writes": true
     },
     {
       "name": "nous.set",
@@ -9159,6 +9209,16 @@
           }
         },
         {
+          "name": "env",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": "An env, as -e spells one after <role>=: <backend>[@<runtime>][/<directory>]. Where the chat's assistant works; with resume, where the chat is carried on."
+        },
+        {
           "name": "remember",
           "schema": {
             "type": "boolean"
@@ -9488,6 +9548,90 @@
         "name": "set",
         "schema": {
           "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "$ref": "#/components/errors/InvalidRequest"
+        },
+        {
+          "$ref": "#/components/errors/InvalidParams"
+        },
+        {
+          "$ref": "#/components/errors/InternalError"
+        },
+        {
+          "$ref": "#/components/errors/Cancelled"
+        },
+        {
+          "$ref": "#/components/errors/TooLarge"
+        },
+        {
+          "$ref": "#/components/errors/NotPaired"
+        },
+        {
+          "$ref": "#/components/errors/Refused"
+        },
+        {
+          "$ref": "#/components/errors/NotFound"
+        },
+        {
+          "$ref": "#/components/errors/Conflict"
+        }
+      ],
+      "x-hmz-reach": {
+        "scope": "epic",
+        "workspace": "workspace",
+        "slot": "slot"
+      },
+      "x-hmz-writes": true
+    },
+    {
+      "name": "chat.move",
+      "summary": "Move a chat to another env, between turns.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        {
+          "name": "slot",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Slot"
+          }
+        },
+        {
+          "name": "env",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "An env, as -e spells one after <role>=: <backend>[@<runtime>][/<directory>]."
+        },
+        {
+          "name": "idem",
+          "schema": {
+            "$ref": "#/components/schemas/Idem"
+          }
+        }
+      ],
+      "result": {
+        "name": "move",
+        "schema": {
+          "type": "object",
+          "required": [
+            "env"
+          ],
+          "properties": {
+            "env": {
+              "type": "string"
+            }
+          }
         }
       },
       "errors": [
@@ -10564,6 +10708,7 @@
         "required": [
           "name",
           "workspace",
+          "folderless",
           "kind",
           "flow",
           "task",
@@ -10583,6 +10728,9 @@
         "properties": {
           "name": {},
           "workspace": {},
+          "folderless": {
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "flow"
@@ -10683,10 +10831,12 @@
       "Runtimes": {
         "type": "object",
         "required": [
+          "local",
           "runtimes",
           "blanks"
         ],
         "properties": {
+          "local": {},
           "runtimes": {},
           "blanks": {}
         }
@@ -10916,7 +11066,8 @@
           "default",
           "strategies",
           "faults",
-          "concrete"
+          "concrete",
+          "scanning"
         ],
         "properties": {
           "nous": {},
@@ -10924,7 +11075,56 @@
           "default": {},
           "strategies": {},
           "faults": {},
-          "concrete": {}
+          "concrete": {},
+          "scanning": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NousScan": {
+        "type": "object",
+        "required": [
+          "nous",
+          "policies",
+          "default",
+          "strategies",
+          "faults",
+          "concrete",
+          "scanning",
+          "failed"
+        ],
+        "properties": {
+          "nous": {},
+          "policies": {},
+          "default": {},
+          "strategies": {},
+          "faults": {},
+          "concrete": {},
+          "scanning": {
+            "type": "boolean"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cli",
+                "account",
+                "why"
+              ],
+              "properties": {
+                "cli": {
+                  "type": "string"
+                },
+                "account": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       },
       "Conversation": {
@@ -11001,7 +11201,9 @@
           "id",
           "title",
           "workspace",
+          "folderless",
           "workdir",
+          "env",
           "agent",
           "model",
           "began",
@@ -11023,7 +11225,13 @@
           "workspace": {
             "type": "string"
           },
+          "folderless": {
+            "type": "boolean"
+          },
           "workdir": {
+            "type": "string"
+          },
+          "env": {
             "type": "string"
           },
           "agent": {

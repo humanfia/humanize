@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { PAGE, TABS, asked, chosenOf, cleared, filtered, found, heading, hints, keyed, moved, narrowed, nothing, onFlow, onTab, paged, turned } from '../../../../src/hmz/web/static/search-model.js'
+import { PAGE, TABS, asked, chosenOf, cleared, filtered, found, heading, hints, keyed, moved, narrowed, nothing, onFlow, onTab, paged, spentAt, turned } from '../../../../src/hmz/web/static/search-model.js'
 
 const chosen = (text = '') => chosenOf(new URLSearchParams(text))
 
@@ -208,4 +208,13 @@ test('what is listed is headed as the newest, or as what was found', () => {
 test('the foot says which rows of how many, and nothing of none', () => {
   assert.equal(paged({ offset: 50, total: 120, runs: new Array(50) }), '51–100 of 120')
   assert.equal(paged({ offset: 0, total: 0, runs: [] }), '')
+})
+
+test('what a flow spent is found where Search lists it: the chats on their tab, in the workspace named', () => {
+  assert.equal(spentAt('goal'), '/search?flow=goal')
+  assert.equal(spentAt('chat'), '/search?kind=chat')
+  assert.equal(spentAt('chat', '/w/app'), '/search?kind=chat&workspace=%2Fw%2Fapp')
+  // Each is an address Search reads back as what was meant.
+  assert.equal(chosen(spentAt('chat', '/w/app').split('?')[1]).kind, 'chat')
+  assert.deepEqual([chosen(spentAt('a/b', '/w').split('?')[1]).flow, chosen(spentAt('a/b', '/w').split('?')[1]).workspace], ['a/b', '/w'])
 })

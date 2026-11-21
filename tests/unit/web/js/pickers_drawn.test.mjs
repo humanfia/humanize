@@ -12,6 +12,7 @@ let refused = true
 const served = daemon({
   methods: {
     'flows.backends': () => ({ clis: { claude: { accounts: [{ name: '', asked: !refused, models: refused ? [] : [{ name: 'claude-haiku-4-5', efforts: [] }] }] } } }),
+    'nous.list': () => ({ nous: [{ name: 'fast', virtual: true }, { name: 'claude/claude-haiku-4-5', virtual: false }] }),
     'accounts.models': () => {
       if (refused) throw new Error(WHY)
       return {}
@@ -20,7 +21,7 @@ const served = daemon({
 })
 const api = await import('../../../../src/hmz/web/static/api.js')
 api.providers.splice(0, api.providers.length, provider(served))
-const { agentPicker, anyCli, readBackends } = await import('../../../../src/hmz/web/static/pickers.js')
+const { agentChoice, agentPicker, anyCli, harnessed, readBackends, virtualNous } = await import('../../../../src/hmz/web/static/pickers.js')
 
 after(async () => (await api.client('local')).close())
 
@@ -41,4 +42,21 @@ test('what a picker says of its models is its tip too, whole, and gone when it s
   assert.equal(said.dataset.tip, '')
   made.leave()
   made.node.remove()
+})
+
+test('the virtual nous of the daemon are read beside its harnesses, and a harness starts from what was last picked of it', async () => {
+  refused = false
+  await readBackends('/w')
+  await until(() => virtualNous().length)
+  assert.deepEqual(virtualNous(), ['fast'])
+  const picked = agentChoice(anyCli('assistant'), 'claude/claude-haiku-4-5', () => {})
+  picked.again()
+  assert.deepEqual(harnessed('claude'), { cli: 'claude', account: '', model: 'claude-haiku-4-5', effort: '' })
+  // A model it no longer lists is not gone back to.
+  Object.assign(picked.chosen, { model: 'claude-gone-1' })
+  picked.again()
+  assert.deepEqual(harnessed('claude'), { cli: 'claude', account: '', model: '', effort: '' })
+  // A harness nobody installed has nothing to start from.
+  assert.deepEqual(harnessed('codex'), { cli: 'codex', account: '', model: '', effort: '' })
+  picked.leave()
 })

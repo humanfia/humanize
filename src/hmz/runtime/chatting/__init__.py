@@ -196,6 +196,9 @@ class ChatSpec:
         None for the one a chat carried on had, and `workspace-write` for a new one.
       worktree: Whether a new chat's assistant works in a new git worktree of the workspace
         (Section 8.3.13 of [CORE]); a chat carried on works where it worked.
+      env: The env its assistant works in, as `-e` spells one after `<role>=` (Section
+        8.3.15 of [CORE]), or "" for its workspace on this machine, and for a chat carried
+        on where it worked.
     """
 
     workspace: Path
@@ -206,6 +209,7 @@ class ChatSpec:
     role: Role | None = None
     permission: str | None = None
     worktree: bool = False
+    env: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +254,11 @@ _KEPT_NOUS = (
     "to change it, make another conversation."
 )
 
+#: Why a chat with a turn open is not moved (Section 8.3.16 of [CORE]).
+TURN_OPEN = "a turn is open; move the chat once it is done"
+#: Why a chat whose assistant plays a role is not moved.
+_KEPT_PLACE = "an Ai-chan conversation works where it was made"
+
 #: How long a `!` command may run before it is killed: long enough for a build or a test run, not
 #: so long that a command waiting on input it will never get holds the chat for good.
 SHELL_TIMEOUT = 600.0
@@ -279,6 +288,10 @@ class Chat:
     - The assistant is held to the chat's permission, a preset with the web besides. One set
       while the chat goes on (:meth:`permits`) is taken up ahead of the next turn: the
       conversation is closed and carried on in one opened under it, as a chat carried on is.
+    - The assistant works in the chat's env: its workspace on this machine, a worktree of it,
+      or the env the chat was started in or last moved to (:meth:`move`), which its record
+      says as `env`. Moved between turns, the conversation is closed and carried on in one
+      opened there, or in a new one that says why (Section 8.3.15 of [CORE]).
 
     Raises:
       ValueError: For a permission that is no preset.
@@ -306,6 +319,14 @@ class Chat:
         #: The chat carried on with nothing said yet, and its workspace: held, with nothing
         #: written of it, until something is said.
         self._stood: tuple[Path, HeldWorkspace] | None = None
+        #: The env the assistant works in now, every env opened for the chat, which are
+        #: closed as it ends, and what its record says of where it works, "" for nothing.
+        self._local: EnvDriver | None = None
+        self._owned: list[EnvDriver] = []
+        self._env = ""
+        #: The assistant, once :meth:`run` has made it, and the loop the chat runs on.
+        self._driver: AgentDriver | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._listeners: list[Listener] = []
         self._opened: list[Opened] = []
         self._spending: _Spending | None = None
@@ -372,6 +393,82 @@ class Chat:
             self._permission = permission
             if self._epic is not None and not self._ended:
                 self._epic.write("set", permission=permission)
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop | None:
+        """The loop the chat runs on, which :meth:`move` is awaited on; None before it runs."""
+        return None if self._ended else self._loop
+
+    async def move(self, env: str) -> str:
+        """Moves the chat to another env, between turns; awaited on the chat's own loop.
+
+        The env is opened and reached, and the assistant's harness settled for it, before
+        anything of the chat changes: one that cannot take the chat leaves it where it was.
+        Then the conversation is closed and carried on in one opened there, as a chat carried
+        on is; where it cannot be carried on there, a new one says why ahead of its first
+        answer (Section 8.7.6 of [CORE]). The move is recorded in the chat as `env`, once
+        something has been said in a chat carried on with nothing said.
+
+        Args:
+          env: Where to, as `-e` spells an env after `<role>=`: `local/<dir>`,
+            `ssh@<runtime>/<dir>`, `docker[@<runtime>]/<dir>` and so on.
+
+        Returns:
+          Where the chat now works, spelled likewise.
+
+        Raises:
+          Busy: While a turn is open.
+          ValueError: For an env that cannot be read, reached or made, one the assistant's
+            harness cannot be put in, an Ai-chan conversation, and a chat not going.
+        """
+        from hmz.flows import FlowException
+
+        if self.spec.role is not None:
+            raise ValueError(_KEPT_PLACE)
+        driver, talk = self._driver, self._talk
+        if self._ended or driver is None or self._local is None:
+            raise ValueError("no chat is going here")
+        if talk is not None and talk.busy:
+            raise Busy(TURN_OPEN)
+        try:
+            local = await _env_at(env)
+        except FlowException as why:
+            raise ValueError(str(why)) from why
+        try:
+            await _placeable(driver, local, self.granted())
+            if talk is not None:
+                await talk.moved(local)
+        except FlowException as why:
+            with contextlib.suppress(Exception):
+                await local.close()
+            raise ValueError(str(why)) from why
+        except BaseException:
+            with contextlib.suppress(Exception):
+                await local.close()
+            raise
+        said = _spelt(local)
+        with self._lock:
+            self._owned.append(local)
+            self._local, self._env = local, said
+            if self._stood is not None and talk is None:
+                # Nothing is written of a chat carried on with nothing said (Section 8.7.4
+                # of [CORE]): its record says so once something is.
+                self._stood = (
+                    self._stood[0],
+                    HeldWorkspace(local, asyncio.get_running_loop()),
+                )
+            elif self._epic is not None and not self._ended:
+                self._epic.write("set", env=said)
+        return said
+
+    @property
+    def env(self) -> str:
+        """The env its assistant works in now, as `-e` spells one after `<role>=`.
+
+        "" where it was given none and moved to none, and so works where its record says. One
+        moved while it is carried on with nothing said is said here before its record says it.
+        """
+        return self._env
 
     def granted(self) -> Permission:
         """What the assistant may touch now: its role's, else its preset and the web."""
@@ -511,9 +608,11 @@ class Chat:
             raise Refused(str(why)) from why
         held = harbors()
         driver: AgentDriver | None = None
-        root: EnvDriver | None = None
         #: Where the assistant works, where that is a worktree rather than the workspace.
         workdir = "" if before is None else before.workdir
+        #: The env it works in, where that was said: now, or as its record last gave it.
+        env = spec.env or ("" if before is None else before.env)
+        self._loop = asyncio.get_running_loop()
         try:
             # A chat carried on is the one assistant still, so its sessions go on being
             # written down under the name its record gave it.
@@ -523,9 +622,14 @@ class Chat:
                 watch = getattr(driver, "watch", None)
                 if callable(watch):
                     watch(listener)
-            local = root = local_env(
-                spec.role.workdir if spec.role else Path(workdir or workspace)
-            )
+            if spec.role is not None or not env:
+                local = local_env(
+                    spec.role.workdir if spec.role else Path(workdir or workspace)
+                )
+                env = ""
+            else:
+                local = await _env_at(env)
+            self._owned.append(local)
             _priced()
             with self._lock:
                 if self._permission is None:
@@ -536,11 +640,16 @@ class Chat:
             await _placeable(driver, local, self.granted())
             if spec.worktree and before is None:
                 # Last, once nothing else refuses the chat: a worktree made is never removed.
-                local = await root.derive_worktree(ref=None, dir=None)
+                local = await local.derive_worktree(ref=None, dir=None)
                 workdir = str(local.placement().workdir)
+            if env:
+                # As its record says it: the worktree made there, where one was.
+                env = _spelt(local)
+            with self._lock:
+                self._driver, self._local, self._env = driver, local, env
         except BaseException as why:
             # Refused before the chat began: what it was given goes either way.
-            await asyncio.shield(closed((driver, root), held))
+            await asyncio.shield(closed((driver, *self._owned), held))
             if isinstance(why, FlowException):
                 raise Refused(str(why)) from why
             raise
@@ -553,12 +662,14 @@ class Chat:
                 if not said_next:
                     with self._lock:
                         self._ended = True
-                    await asyncio.shield(closed((driver, root), held))
+                    await asyncio.shield(closed((driver, *self._owned), held))
                     return ChatEnd(carried, "stopped")
                 self.spec = spec = replace(spec, task=said_next)
                 # Read again: it may have been written in, or carried on elsewhere, since.
                 carried, before = _carried(spec.resume, workspace)
             with self._lock:
+                # Where it stands now: it may have been moved while nothing was said.
+                local, env = self._local or local, self._env
                 if self._prefer is None and before is not None and before.prefer:
                     self._prefer = "flow" if before.prefer == "flow" else "native"
                 self._epic = epic = Epic(
@@ -574,10 +685,11 @@ class Chat:
                     permission=None
                     if self.permission in (None, PERMISSION)
                     else self.permission,
-                    workdir=workdir,
+                    workdir="" if env else workdir,
+                    env=env,
                 )
         except BaseException:
-            await asyncio.shield(closed((driver, root), held))
+            await asyncio.shield(closed((driver, *self._owned), held))
             raise
         keeping: Keeping | None = None
         try:
@@ -591,6 +703,7 @@ class Chat:
                             _drove(said, driver.name),
                             self._prefer,
                             self.permission,
+                            env,
                         )
                 if started is not None:
                     started(epic.path)
@@ -627,7 +740,7 @@ class Chat:
             with self._lock:
                 self._ended = True
             try:
-                await asyncio.shield(closed((driver, root), held))
+                await asyncio.shield(closed((driver, *self._owned), held))
             finally:
                 if keeping is not None:
                     keeping.ended()
@@ -700,6 +813,12 @@ class _Talk:
         #: and after each, through every `!` command and line refused, until the next.
         self.between = not chat.spec.task
         self._interrupted = False
+        #: Held from each message said to the answer shown for it, and while the chat is
+        #: moved: a chat is moved between turns alone, and no turn opens under a move.
+        self._busy = asyncio.Lock()
+        #: The conversation a move opened, what it says ahead of its first answer, and whether
+        #: it carries the one before on: taken up ahead of the next turn.
+        self._moved: tuple[SessionHandle, str, bool] | None = None
         #: Whether the turn going was shown as failed by its own harness.
         self._failed = False
         watch = getattr(driver, "watch", None)
@@ -708,6 +827,55 @@ class _Talk:
         #: The assistant as last written down: its CLI, model and effort.
         begun = _drove(_assistant(chat.spec.agent), driver.name)
         self._as = (begun.backend, begun.model, begun.effort)
+
+    @property
+    def busy(self) -> bool:
+        """Whether a message is being served, or the chat moved: not between turns."""
+        return self._busy.locked()
+
+    async def _next(self, answered: str) -> str:
+        """Shows an answer and waits for the next message, between turns meanwhile."""
+        self._busy.release()
+        try:
+            return await self._chat.person.next(answered)
+        finally:
+            await self._busy.acquire()
+
+    async def moved(self, local: EnvDriver) -> None:
+        """Carries the conversation on in another env, or in a new one there that says why.
+
+        Args:
+          local: The env, reached, which the assistant's harness is settled for.
+
+        Raises:
+          Busy: While a message is being served.
+          FlowException: Where no conversation can be opened there at all: the chat then
+            goes on where it was, in a conversation opened there again.
+        """
+        from hmz.runtime.epic import read
+
+        if self._busy.locked():
+            raise Busy(TURN_OPEN)
+        async with self._busy:
+            was, held = self._local, self.held
+            handle = self.handle
+            if handle is not None:
+                await self._close(handle)
+            # Off the loop, which is the turns': the whole record is read off disk.
+            ran = await asyncio.to_thread(read, self._epic.path)
+            kept, why = (
+                _conversation(ran) if ran is not None and ran.sessions else (None, "")
+            )
+            self._local = local
+            self.held = HeldWorkspace(local, asyncio.get_running_loop())
+            try:
+                self._moved = await self._carried(kept, why)
+            except BaseException:
+                self._local, self.held = was, held
+                # Where it was, as it was: what refuses that too is said by its next turn.
+                with contextlib.suppress(Exception):
+                    self._moved = await self._carried(kept, why)
+                raise
 
     async def had(self, before: Ran | None) -> None:
         """Has every turn of the conversation, from the first message to the empty one.
@@ -725,7 +893,12 @@ class _Talk:
         chat = self._chat
         person = chat.person
         kept, unkept = (None, "") if before is None else _conversation(before)
-        handle, unkept, carrying = await self._carried(kept, unkept)
+        await self._busy.acquire()
+        try:
+            handle, unkept, carrying = await self._carried(kept, unkept)
+        except BaseException:
+            self._busy.release()
+            raise
         opening = before is None
         #: The `!` commands run since the last turn, carried into the next as blocks.
         ran: list[str] = []
@@ -735,10 +908,15 @@ class _Talk:
         briefed = role is None or carrying
         if not message and role is not None:
             # Her conversation, with nothing said yet: between turns, waiting on the person.
-            message = await person.next(unkept)
+            message = await self._next(unkept)
             unkept = ""
         try:
             while message:
+                if self._moved is not None:
+                    # Moved since the last turn: the conversation opened where it went.
+                    (handle, moved, carrying), self._moved = self._moved, None
+                    unkept = _said(unkept, moved)
+                    briefed = role is None or carrying
                 if chat.permission != self._preset:
                     # Set since this conversation was opened: carried on in one held to it.
                     handle, unkept, carrying = await self._permitted(handle, unkept)
@@ -758,7 +936,7 @@ class _Talk:
                 )
                 entry = read.entry
                 if (why := _refused(read, line, role)) is not None:
-                    message = await person.next(_said(unkept, why))
+                    message = await self._next(_said(unkept, why))
                     unkept = ""
                     continue
                 if (
@@ -770,7 +948,7 @@ class _Talk:
                     status, out, err = await self._shell(handle, read.rest)
                     person.shell(read.rest, out, err, status)
                     ran.append(_blocks(read.rest, out, err))
-                    message = await person.next("")
+                    message = await self._next("")
                     continue
                 native = read.kind == "native"
                 # A `/` or `$` line is the harness's own command only where it starts the
@@ -792,7 +970,7 @@ class _Talk:
                         # Stopped by the person: the conversation goes on between turns.
                         self._interrupted = False
                         opening = carrying = False
-                        message = await person.next(_said(unkept, STOPPED))
+                        message = await self._next(_said(unkept, STOPPED))
                         unkept = ""
                         continue
                     if opening:
@@ -815,10 +993,13 @@ class _Talk:
                     if ahead:
                         ran.clear()
                 opening = carrying = False
-                message = await person.next(_said(unkept, answered))
+                message = await self._next(_said(unkept, answered))
                 unkept = ""
         finally:
-            await asyncio.shield(self._close(handle))
+            if self._busy.locked():
+                self._busy.release()
+            # The one open now: a move since the last turn opened another.
+            await asyncio.shield(self._close(self.handle or handle))
 
     def _heard(
         self, agent: AgentBase, session: SessionBase | None, event: Event
@@ -1162,11 +1343,13 @@ def _set_again(
     now: Drove,
     prefer: Prefer | None,
     permission: str | None,
+    env: str = "",
 ) -> None:
     """Writes what a chat carried on is now, where it is not what its record said it was.
 
-    Its agent, where it was given another, and its own preference and its permission, where
-    this opening overrides the one it had (Section 6.12.6 of [FILES]).
+    Its agent, where it was given another, its own preference and its permission, where
+    this opening overrides the one it had, and its env, where it is carried on in another
+    (Section 6.12.6 of [FILES]).
     """
     agents = (
         {"agents": [now._asdict()]}
@@ -1181,8 +1364,9 @@ def _set_again(
         if permission is not None and permission != _recorded(before)
         else {}
     )
-    if agents or preferring or permitting:
-        epic.write("set", **agents, **preferring, **permitting)
+    placing = {"env": env} if env and env != before.env else {}
+    if agents or preferring or permitting or placing:
+        epic.write("set", **agents, **preferring, **permitting, **placing)
 
 
 def _conversation(before: Ran) -> tuple[Kept | None, str]:
@@ -1306,6 +1490,63 @@ def _confined(handle: SessionHandle, command: str) -> list[str] | str:
     from hmz.coganchor.fence import wrapper
 
     return [*wrapper(fence), "bash", "-c", command]
+
+
+class Busy(Exception):  # noqa: N818 -- named for what happened, as Refused is
+    """A chat asked to move while a turn of it is open (Section 8.3.16 of [CORE])."""
+
+
+def env_spec(said: object) -> str:
+    """An env a chat is put in, checked as `-e` reads one, and spelled as it writes it.
+
+    Args:
+      said: `<backend>[@<provider>][/<workdir>]`.
+
+    Returns:
+      It, as `-e` spells it after `<role>=`.
+
+    Raises:
+      ValueError: For what is no env, in the words `-e` refuses it with.
+    """
+    from hmz.runtime.flowing.specs import parse_envs
+
+    if not isinstance(said, str) or not said.strip():
+        raise ValueError("env is <backend>[@<runtime>][/<directory>]")
+    (spec,) = parse_envs([f"workspace={said.strip()}"])
+    return str(spec).partition("=")[2]
+
+
+async def _env_at(env: str) -> EnvDriver:
+    """The env a chat works in, opened and reached.
+
+    Raises:
+      FlowException: For an env that cannot be read, one whose runtime nobody saved, a
+        machine that cannot be reached, and a directory that is not there.
+    """
+    from hmz.flows import EnvUnavailable
+    from hmz.runtime.flowing import open_env, probe
+    from hmz.runtime.flowing.specs import parse_envs
+
+    try:
+        (spec,) = parse_envs([f"workspace={env}"])
+    except ValueError as why:
+        raise EnvUnavailable(str(why)) from why
+    local = open_env(spec)
+    try:
+        await probe(local)
+    except BaseException:
+        with contextlib.suppress(Exception):
+            await local.close()
+        raise
+    return local
+
+
+def _spelt(local: EnvDriver) -> str:
+    """Where an env is, as `-e` spells it after `<role>=`, for the chat's record to say."""
+    from hmz.runtime.flowing.specs import spelled
+
+    where = local.placement()
+    return spelled(str(where.backend), where.provider, where.workdir)
 
 
 def _priced() -> None:

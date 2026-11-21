@@ -245,6 +245,11 @@ variable is set and non-empty, and the directory `.hmz` in the user's home direc
 **2.3.6** A **workspace** is a directory of a machine in which epics are run, identified by its
 absolute path with every symbolic link resolved.
 
+**2.3.6.1** A **folderless workspace** is a workspace hmz made for one epic or one chat that was
+started in no directory of the user's (Section 4.7.1.3 of [DAEMON]). It is a workspace as any
+other, save that a frontend MUST NOT show it as a folder: it MUST show every epic and chat of every
+folderless workspace together, as those of no folder.
+
 **2.3.7** A distribution of the Windows Subsystem for Linux (WSL) is a machine apart from the
 Windows that runs it.
 
@@ -3413,7 +3418,9 @@ and a flow: `native` or `flow`.
 **8.3.1** A chat MUST have exactly one role, the assistant, filled by an agent with every capability
 that its **harness** offers, the web included.
 
-**8.3.2** A chat MUST work in one workspace on this machine.
+**8.3.2** A chat MUST be of one workspace on this machine, and its assistant MUST work in one env
+at a time: that workspace, unless the chat is started in a worktree (Section 8.3.13) or in another
+env, or is moved to one (Section 8.3.15).
 
 **8.3.3** A chat MUST take no params and MUST NOT be given a budget, and MUST run with no limit on
 its spending.
@@ -3471,6 +3478,27 @@ epic directory. What Section 11 states of listing and downloading the epics a ta
 for the chats it holds too: a chat listed MUST state that it is a chat, its flow being empty, and a
 chat downloaded MUST be placed among this machine's chats (Section 6.12.13 of [FILES]) and never
 among its epics.
+
+**8.3.15** A chat MAY be started in an env other than its workspace (`env` of `chat.start` in
+Section 4 of [DAEMON]), and MAY be moved to another env at any time between its turns (`chat.move`,
+and `env` of a `chat.start` that carries it on): an env as Section 7 states one, written as `-e`
+writes one after `<role>=` -- a directory of this machine, or a directory of a runtime. The chat's
+assistant MUST then work there in place of where it worked. The chat MUST still be a chat of its
+workspace; its record MUST say where it works, and carrying it on MUST return there. hmz MUST NOT
+fall a chat's env back to another runtime (Section 7.11), and MUST NOT remove anything of the env
+it leaves.
+
+**8.3.16** A move MUST be refused, saying why, while a turn of the chat is open, for an env that
+cannot be read, reached or made, and for one the assistant's harness cannot be put in (Section 6.4);
+a move refused MUST leave the chat working where it worked. A move made MUST be recorded in the
+chat's record, and ahead of the chat's next turn the chat MUST close its conversation and carry it
+on in one opened in the new env, as Section 8.7.5 and Section 8.7.6 state for a chat carried on:
+where the conversation cannot be carried on there (Section 6.8), the chat MUST say so in the
+conversation with the reason and MUST answer in a new conversation. A chat carried on with nothing
+said (Section 8.7.4) MAY be moved, and MUST then record the move once something is said.
+
+**8.3.17** Section 8.3.15 and Section 8.3.16 MUST NOT apply to an Ai-chan conversation, which
+works where it was made.
 
 ### 8.4. Turns
 
@@ -3707,7 +3735,8 @@ workspace MUST be listable apart (`chat.list` with `archived`), and an archived 
 back among the others by `chat.unarchive`.
 
 **8.10.4** Deleting a chat (`chat.delete`) MUST remove its chat directory, the sessions kept in it
-included, and nothing else: no epic directory, and no worktree the chat worked in. It MUST be
+included, and nothing else but the directory of its folderless workspace (Section 2.3.6.1) where no
+other chat and no epic is of it: no epic directory, and no worktree the chat worked in. It MUST be
 refused while a turn of the chat is open or a process that is no host holds it; a host that holds
 it between turns MUST be ended first, as an empty next message ends it. What is deleted MUST NOT
 be recoverable through hmz.

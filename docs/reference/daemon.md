@@ -95,6 +95,17 @@ the one stopping, else the last.
 A workspace is known by `str(Path(workspace or cwd).resolve())`: two checkouts of one
 repository are two workspaces, and two spellings of one directory are one.
 
+A <span id="folderless"></span>**folderless** workspace is a directory the daemon made for one epic or one
+chat started in no folder (`epic.attach` with `scratch`): `<tmp>/humanize-<uid>/nofolder/<random>/`,
+mode `0700`. It is a workspace as any other -- its terminal, files and changes work in it -- but
+nobody's folder: `workspaces.list` never lists it, and the rows of `runs.list` and `chat.list`
+mark it `folderless`, so that a frontend lists everything started in no folder together. It is
+kept while an epic or a chat of it is recorded or a host stands in it, and removed when its last
+host goes with nothing started, or its last chat is deleted with no epic of it left. Where the
+machine has cleaned it away, the next call that starts something in it makes it again, empty.
+A directory `hmz-<8 characters>` straight in `<tmp>`, as an earlier Humanize made for the same
+purpose, is folderless too.
+
 The temporary directory is the machine's to clean: a reboot empties it, and so may the system
 (`systemd-tmpfiles`, macOS's periodic cleanup) for files left untouched. A running daemon marks
 its directory and its four files as used every hour; `daemon.log` left behind by one that has
@@ -343,6 +354,7 @@ cut to that length plus `… (<n> more characters)`.
 | `task` | string | That epic's task or that chat's first message, or `""`. |
 | `pending` | list | `[{question, role, text, mode}]`: the questions waited on, as the [`pending` snapshot](#snapshots) says them. |
 | `turn` | string | Of a chat only: `running` while its agent answers, `done` between turns and once it is over. Absent where the host holds no chat. |
+| `env` | string | Of a chat only: the env its assistant works in, as `-e` writes one after `<role>=`, where it was started in one or moved to one, and `""` otherwise. A chat moved while it is carried on with nothing said is said here before its record says it, which is what its row answers as `env`. |
 | `ended` | object \| null | How the last run to end here ended: `how` (`done`, `stopped`, `refused`, `budget`, `failed` or `crashed`), `why`, `epic`, `chat` (one of the two, the other `""`), `at` (Unix seconds), `run`, `flow`, `task`; `null` before one has. |
 | `budget`, `usage` | object \| null | As JSON, for the run going; `null` while stopping or idle. An infinite cost is the JSON string `"Infinity"`. |
 | `flows` † | list[string] | Canonical refs of the flow calls in progress. |
@@ -358,7 +370,8 @@ a host as one frontend, starting the workspace's host where none is, and answers
 `client`, `workspace` and `slot`; the host's [messages](#messages) then arrive as
 `epic.event` `{sub, message}`, none before the answer. `since` `{epoch, seq}` sends only the
 records after `seq` where `epoch` is the host's and every one after it is kept; `figures`
-also sends `figures`, at most once a second; `scratch` attaches to a new directory of its own.
+also sends `figures`, at most once a second; `scratch` attaches, in place of `workspace`, to a
+new [folderless workspace](#folderless).
 Every other call to an epic is `epic.<do>` `{sub, …}`, answered with the host's fields, or
 refused 409 with its `why`; a `sub` not open on the session is refused 410. `epic.start`,
 `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board` and `quit` are writes,
@@ -428,10 +441,11 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
 
 | Method | Fields | Answer | Refusals |
 | --- | --- | --- | --- |
-| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required; empty only with `resume`, which carries the chat on with nothing said: its host holds its workspace open and waits, nothing is opened or written until something is said, and a chat a host holds already is answered with that host's `slot`; with `resume` and a `task`, a host standing by so, nothing said to it yet, is said the `task` and answered, or ended first where `agent` names another agent), `resume` (the name of a chat of the workspace, or `null`), `prefer` (`native`, `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`), `worktree` (bool, `false`), `remember` (bool, `false`) | `slot`, `chat` (the chat's name) | 400 `a chat starts with something said`, `<slot> is not a chat slot.`, `an agent for the chat is named`, `permission is read-only, workspace-write or danger-full-access`, `a chat carried on works where it worked` (`worktree` with `resume`), what `git` said where no worktree can be added, why the agent is refused, or `<resume> is going on already` where a host holds the chat and something has been said to it; 404 `<resume> is not a chat of <workspace>.`, an epic an earlier hmz recorded for a chat among them; 409 `a chat is already going on <slot>` |
+| `chat.start` | `workspace`, `slot` (a chat slot, or `chat:` alone for a new one), `agent` (an `-a` spec, required unless `resume`), `task` (the first message, required; empty only with `resume`, which carries the chat on with nothing said: its host holds its workspace open and waits, nothing is opened or written until something is said, and a chat a host holds already is answered with that host's `slot`; with `resume` and a `task`, a host standing by so, nothing said to it yet, is said the `task` and answered, or ended first where `agent` names another agent), `resume` (the name of a chat of the workspace, or `null`), `prefer` (`native`, `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`), `worktree` (bool, `false`), `env` (where its assistant works, as `-e` writes an env after `<role>=`, or `null` for the workspace; with `resume`, where the chat is carried on, which [moves it](/user/chat#moving) -- on the host that holds it, where one does, whether or not there is a `task` to say, and refused as `chat.move` is where it cannot be), `remember` (bool, `false`) | `slot`, `chat` (the chat's name) | 400 `a chat starts with something said`, an `env` that is not one, in the words `-e` refuses it with, why an env cannot be reached, `<slot> is not a chat slot.`, `an agent for the chat is named`, `permission is read-only, workspace-write or danger-full-access`, `a chat carried on works where it worked` (`worktree` with `resume`), what `git` said where no worktree can be added, why the agent is refused, or `<resume> is going on already` where a host holds the chat and something has been said to it; 404 `<resume> is not a chat of <workspace>.`, an epic an earlier hmz recorded for a chat among them; 409 `a chat is already going on <slot>` |
 | `chat.say` | `workspace`, `slot`, `text` | `{}` | 400 naming the line, for a `$` line naming a flow or a name hmz keeps, which the frontend serves; 404 where no host holds the slot; 409 `this chat has folded away; carry it on with chat.start` |
 | `chat.stop` | `workspace`, `slot` | `{}` | 409 `no turn is open, so there is nothing to stop`; else as `chat.say` |
 | `chat.commands` | `workspace`, `slot` | `entries` (`[{sigil, name, about, how, source}]`), `prefer` (`native` or `flow`), `prefer_from` (`chat` or `settings`), `permission` (the chat's [permission](/user/chat#permission), or `null` for an Ai-chan conversation), `listed` (whether the catalogue is all the CLI lists: once a turn was taken) | as `chat.say` |
+| `chat.move` | `workspace`, `slot`, `env` (where to, as `-e` writes an env after `<role>=`: `local/<dir>`, `ssh@<runtime>/<dir>`, `docker[@<runtime>]/<dir>`, …) | `env`, where the chat works from then on | 400 for an `env` that is not one; 409 `a turn is open; move the chat once it is done`, `The chat stays where it was: <reason>` for an env that cannot be reached or made or that the agent cannot be put in, `<env> did not answer, so the chat stays where it was` after 120 seconds, `an Ai-chan conversation works where it was made`; else as `chat.say` |
 | `chat.set` | `workspace`, `slot`, and either or both of `prefer` (`native` or `flow`) and `permission` (`read-only`, `workspace-write` or `danger-full-access`) | `{}` | 400 for any other `prefer`, `permission is read-only, workspace-write or danger-full-access`, `chat.set takes prefer or permission` given neither; 409 `an Ai-chan conversation keeps its permission`; else as `chat.say` |
 
 - **`chat.start`** starts the slot's host as `epic.attach` does, without attaching, and starts
@@ -460,6 +474,11 @@ it is of and whether or not a host holds it. Every one but `chat.commands`, `cha
   its conversation -- or, before it has opened, what its harness's catalogue holds without one
   -- each with `source` `native`; then each name hmz keeps, `source` `hmz` and `how` `""`; then
   each flow on offer in the workspace, sigil `$`, `source` `flow` and `how` `""`.
+- **`chat.move`** moves the chat to another [env](/user/chat#moving) between turns, and is
+  answered once the env has been reached and the agent settled for it: a move refused leaves
+  the chat where it was. The move is recorded in the chat as `env`; ahead of the next turn the
+  conversation is closed and carried on in one opened there, or in a new one that says why
+  where it cannot be carried on there. The chat's panes are then those of the env it works in.
 - **`chat.set`** records `prefer` as the chat's own preference, in its record, and sets
   `permission` as what its assistant may touch, also recorded there. A permission holds from
   the chat's next turn: the open turn is left as it is, and ahead of the next the conversation
@@ -573,7 +592,9 @@ model.
 | `id` | string | The chat's name: the name of its directory. |
 | `title` | string | The title last set, else the first line of its first message; cut at 240 characters. |
 | `workspace` | string | The workspace it is a chat of. |
-| `workdir` | string | Where its assistant works: the workspace, or the worktree it was started in. |
+| `folderless` | bool | Whether that workspace is [folderless](#folderless); an epic row says the same. |
+| `workdir` | string | Where its assistant works: the workspace, the worktree it was started in, or the directory of the env it was started in or [moved to](/user/chat#moving). |
+| `env` | string | The env its assistant works in, as `-e` writes one after `<role>=`: `local/<workdir>` for a directory of this machine, `ssh@gpu-box/srv/repo` for one of a runtime. Of a chat a host holds it is where that host says it works, so one moved before anything is said there reads as moved. |
 | `agent` | string | Its assistant, as `-a` spells one: `<cli>[@account]/<model>:<effort>`. |
 | `model` | string | Its assistant's model. |
 | `began`, `updated` | string | When it began, and when its record was last written. |

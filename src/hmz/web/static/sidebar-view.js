@@ -114,7 +114,7 @@ const NOWHERE = ':nowhere'
 /**
  * The list's groups, in their order: the rows pinned first, under `Pinned`, then the rest by
  * folder -- every workspace offered, those with a row a host goes with first, then by their
- * latest, and last the rows of no folder -- by date, or as one group. Grouped by date, a list with
+ * latest, and last the rows of no folder, those of every folderless workspace together -- by date, or as one group. Grouped by date, a list with
  * nothing to show keeps `Today`, and grouped by folder, with no folder either, `No folder`, so
  * that a heading is always there; grouped by anything but
  * folder, the folders stand last as a group of their own, `Folders`, each with how many rows it has.
@@ -130,7 +130,8 @@ export function arranged({ workspaces = [], runs = [], view, pinned = new Set(),
   const folders = new Map()
   for (const one of workspaces || []) if (one.path) folders.set(one.path, { key: one.path, kind: 'folder', label: '', path: one.path, runs: [] })
   for (const run of rest) {
-    const path = run.workspace || ''
+    // What was started in no folder stands together, whatever directory was made for each.
+    const path = run.folderless ? '' : run.workspace || ''
     if (!folders.has(path)) folders.set(path, { key: path || NOWHERE, kind: 'folder', label: path ? '' : NO_FOLDER, path, runs: [] })
     folders.get(path).runs.push(run)
   }

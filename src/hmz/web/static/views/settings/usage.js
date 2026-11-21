@@ -1,36 +1,32 @@
-// What the runs here have spent, as their epics say: by day, by flow, and how they ended. The
-// chart is drawn in plain HTML with a table beside it, so no figure rests on a colour or on a
-// pointer hovering over it.
+// What the runs here have spent, as their epics say: by day, by flow, and how they ended. One
+// drawing for two pages of Settings (views/settings.js): `Usage` under `Daemon`, of everything
+// the daemon picked ran, whichever folder it was in and where it was in none; and `Usage` under
+// `Workspace`, of the folder picked there. The chart is drawn in plain HTML with a table beside
+// it, so no figure rests on a colour or on a pointer hovering over it.
 
 import { given, hash, poll } from '../../api.js'
 import { stays } from '../../app.js'
 import { badge, empty, fill, flowName, h, problem } from '../../dom.js'
 import { t } from '../../i18n.js'
+import { spentAt } from '../../search-model.js'
 
 /** How far back the page can look, in days. */
 const RANGES = [7, 30, 90, 365]
 
 export function draw(holder, query, parts, scope) {
   let days = Number(query.get('days')) || 30
-  let workspace = query.get('workspace') || ''
-  const places = h('select', { 'aria-label': t('Workdir') }, h('option', { value: '' }, t('All workdirs')))
-  scope.call('workspaces.list').then((answer) => {
-    fill(places, h('option', { value: '' }, t('All workdirs')), answer.workspaces.map((one) => h('option', { value: one.path, selected: one.path === workspace, title: one.path }, one.name)))
-  }, () => {})
-  places.addEventListener('change', () => {
-    workspace = places.value
-    watch()
-  })
+  // The folder picked over the page, under `Workspace`; none under `Daemon`, which is every one's.
+  const workspace = scope.workspace
   const range = h('div', { class: 'segmented', role: 'group', 'aria-label': t('How far back') })
   const body = h('div', { class: 'reading', 'data-hmz': 'usage' }, h('p', { class: 'loading', role: 'status' }, t('Reading what the epics spent…')))
-  fill(holder, h('div', { class: 'row' }, h('span', { class: 'kicker' }, t('Range')), range, places), body)
+  fill(holder, h('div', { class: 'row' }, h('span', { class: 'kicker' }, t('Range')), range), body)
 
   let stop = () => {}
   const watch = () => {
     stop()
-    // What the last range or workdir spent stays, plainly on its way out, until this is read.
+    // What the last range spent stays, plainly on its way out, until this is read.
     if (!body.querySelector('.loading')) body.setAttribute('aria-busy', 'true')
-    stays({ ...scope.query, days, workspace })
+    stays({ ...scope.query, days })
     fill(
       range,
       RANGES.map((one) => {
@@ -124,7 +120,8 @@ export function draw(holder, query, parts, scope) {
                     h(
                       'tr',
                       {},
-                      h('td', {}, h('a', { href: hash(`/search?flow=${encodeURIComponent(one.flow)}`), title: one.flow === 'chat' ? t('chat') : one.flow }, one.flow === 'chat' ? t('chat') : flowName(one.flow))),
+                      h('td', {}, // Where Search lists what the row counts: of this folder, where the page is of one.
+                      h('a', { href: hash(spentAt(one.flow, workspace)), title: one.flow === 'chat' ? t('chat') : one.flow }, one.flow === 'chat' ? t('chat') : flowName(one.flow))),
                       h('td', { class: 'num' }, one.runs),
                       h('td', { class: 'num' }, one.money),
                       h('td', {}, h('div', { class: 'share', title: share(one.cost, whole.cost) }, h('span', { style: { width: share(one.cost, whole.cost) } }))),

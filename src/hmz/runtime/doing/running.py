@@ -444,9 +444,9 @@ class Chatting:
     def noticed(self, callback: Callable[[str], None]) -> None:
         """Takes what a run tells of an environment moved, which a chat never has.
 
-        A chat works in its workspace on this machine, or a worktree of it, and nowhere
-        else (Section 8.3.2 of core.md), so there is nothing of Humanize's own to say about
-        where it went.
+        A chat works where it was started or last moved to (Section 8.3.15 of core.md) and
+        never falls back to another runtime, so there is nothing of Humanize's own to say
+        about where it went.
         """
         del callback
 

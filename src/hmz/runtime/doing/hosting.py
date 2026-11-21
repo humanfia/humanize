@@ -43,6 +43,7 @@ to a ceiling, past which it is let go -- and never holds up the run or another f
 
 from __future__ import annotations
 
+import asyncio
 import collections
 import contextlib
 import dataclasses
@@ -137,6 +138,9 @@ _ENDED = "this chat has ended; carry it on with chat.start"
 
 #: Why a chat with no turn open is not stopped (Section 4.25.6.2 of daemon.md).
 _NO_TURN = "no turn is open, so there is nothing to stop"
+
+#: How long, in seconds, an env a chat is moved to is waited for before the move is refused.
+_MOVING = 120.0
 
 #: Why a chat's host takes no line nor answer of `epic.say` (Section 4.10.1.3 of daemon.md).
 _TO_CHAT = "say it to the chat with chat.say"
@@ -682,6 +686,7 @@ class Host:
             "chat.say": functools.partial(self._chats_for, "say"),
             "chat.commands": functools.partial(self._chats_for, "commands"),
             "chat.set": functools.partial(self._chats_for, "set"),
+            "chat.move": functools.partial(self._chats_for, "move"),
             "chat.stop": functools.partial(self._chats_for, "stop"),
         }
         for method in _ENV_METHODS:
@@ -919,9 +924,9 @@ class Host:
         Returns:
           How many frontends are attached and who, the state and number of the run, the
           flow, its epic and task, what it may spend and has spent -- both None with nothing
-          running -- the questions it waits on, whether it is a flow's or a chat, the chat
-          and where it is in its turn, how the last run to end ended, and the flows running,
-          as refs and as calls.
+          running -- the questions it waits on, whether it is a flow's or a chat, the chat,
+          where it is in its turn and the env it works in, how the last run to end ended,
+          and the flows running, as refs and as calls.
         """
         with self._lock:
             running = self._current
@@ -1189,7 +1194,11 @@ class Host:
         listening = any(
             one.run == shown.number and one.mode == "listen" for one in self._questions
         )
-        return {"turn": "done" if between or listening else "running"}
+        return {
+            "turn": "done" if between or listening else "running",
+            # Where it works now, which its record says only once something is said there.
+            "env": str(getattr(shown.run.chat, "env", "") or ""),
+        }
 
     def _name_of(self, client: str) -> str:
         frontend = self._frontends.get(client)
@@ -1445,7 +1454,7 @@ class Host:
         said by whoever the daemon names.
 
         Args:
-          said: `do` -- `start`, `say`, `commands`, `set` or `stop` -- what that takes, and
+          said: `do` -- `start`, `say`, `commands`, `set`, `move` or `stop` -- what that takes, and
             `by`, who asked.
 
         Returns:
@@ -1468,6 +1477,7 @@ class Host:
             "say": self._chat_say,
             "commands": self._chat_commands,
             "set": self._chat_set,
+            "move": self._chat_move,
             "stop": self._chat_stop,
         }.get(do)
         if doing is None:
@@ -1519,6 +1529,7 @@ class Host:
                 role=role,
                 permission=None if ai else checked["permission"],
                 worktree=checked["worktree"],
+                env="" if ai else checked["env"],
             )
         except Exception as why:  # noqa: BLE001 -- a chat that will not start is said so
             with self._lock:
@@ -1744,6 +1755,43 @@ class Host:
         if said.get("prefer") is not None:
             chat.prefers(said["prefer"])
         return _ok()
+
+    def _chat_move(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
+        """Moves the chat to another env, between turns (Section 4.25.9 of daemon.md)."""
+        del by, client
+        from hmz.runtime.chatting import TURN_OPEN, Busy, env_spec
+
+        try:
+            env = env_spec(said.get("env"))
+        except ValueError as why:
+            return _no(str(why), 400)
+        with self._lock:
+            going = self._chatting()
+        if isinstance(going, dict):
+            return going
+        chat = going[1].chat
+        if chat.permission is None:
+            return _no("an Ai-chan conversation works where it was made", 409)
+        loop = chat.loop
+        if loop is None:
+            return _no("no chat is going here", 409)
+        if not chat.between:
+            return _no(TURN_OPEN, 409)
+        moving = asyncio.run_coroutine_threadsafe(chat.move(env), loop)
+        try:
+            where = moving.result(timeout=_MOVING)
+        except Busy as why:
+            return _no(str(why), 409)
+        except TimeoutError:
+            moving.cancel()
+            return _no(f"{env} did not answer, so the chat stays where it was", 409)
+        except Exception as why:  # noqa: BLE001 -- an env that cannot take it says why
+            return _no(
+                f"The chat stays where it was: {str(why) or type(why).__name__}", 409
+            )
+        # Its panes are of where it works now.
+        self._lists_envs()
+        return _ok(env=where)
 
     def _chat_stop(self, by: str, client: str, said: dict[str, Any]) -> dict[str, Any]:
         """Stops the chat's open turn, leaving it between turns (Section 8.5.4 of core.md)."""
@@ -2967,18 +3015,28 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
     whoever asks: no task for a chat that is not carried on, no agent and no chat carried on
     to take one from, an agent that is
     not one, a preference that is neither, a permission that is no preset, a chat to carry
-    on that is no chat of this workspace, and a worktree asked for a chat carried on.
+    on that is no chat of this workspace, a worktree asked for a chat carried on, and an env
+    that is not one.
 
     Args:
       hmz: The workspace.
-      said: `agent`, `task`, `resume`, `prefer`, `permission` and `worktree`, as `chat.start`
-        takes them.
+      said: `agent`, `task`, `resume`, `prefer`, `permission`, `worktree` and `env`, as
+        `chat.start` takes them.
 
     Returns:
       `ok` with `agent` (the carried-on chat's own where none was named), `runs` (it, as
       settings keep it), `task`, `resume` (the chat's directory, or None), `prefer`,
-      `permission` and `worktree`; or `ok` false with `why` and the `code` to refuse it with.
+      `permission`, `worktree` and `env` (as `-e` spells it, "" for none); or `ok` false
+      with `why` and the `code` to refuse it with.
     """
+    from hmz.runtime.chatting import env_spec
+
+    env = ""
+    if said.get("env"):
+        try:
+            env = env_spec(said.get("env"))
+        except ValueError as why:
+            return _no(str(why), 400)
     task, prefer = said.get("task"), said.get("prefer")
     # An Ai-chan conversation started with nothing said waits, between turns, for what is;
     # and so does a chat carried on with nothing said, whose workspace is reached meanwhile.
@@ -3031,6 +3089,7 @@ def chat_checked(hmz: Hmz, said: Mapping[str, Any]) -> dict[str, Any]:
         prefer=prefer,
         permission=permission,
         worktree=said.get("worktree") is True,
+        env=env,
     )
 
 

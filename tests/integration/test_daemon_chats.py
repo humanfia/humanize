@@ -16,6 +16,7 @@ RPC.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -28,7 +29,7 @@ from hmz.daemon import where
 from hmz.daemon.link import dialed, reached
 from hmz.rpc import RpcError
 from hmz.runtime import Hmz, backing
-from hmz.runtime.chatting import STOPPED
+from hmz.runtime.chatting import STOPPED, TURN_OPEN
 from hmz.runtime.epic import (
     CHATTED,
     JOURNAL,
@@ -65,7 +66,9 @@ ROW = {
     "id",
     "title",
     "workspace",
+    "folderless",
     "workdir",
+    "env",
     "agent",
     "model",
     "began",
@@ -423,7 +426,9 @@ def test_a_chat_is_written_down_as_a_chat_and_is_no_epic(
         "id": name,
         "title": "hello there",
         "workspace": str(project.resolve()),
+        "folderless": False,
         "workdir": str(project.resolve()),
+        "env": _spelled(project),
         "agent": f"{AGENT}:high",
         "model": MODEL,
         "began": began["at"],
@@ -992,6 +997,106 @@ def test_a_chat_is_deleted_with_what_it_kept_and_never_while_its_turn_is_open(
     ]
 
 
+def test_a_chat_started_in_no_folder_works_in_a_directory_kept_as_long_as_it_is(
+    project: Path, user: Peer
+) -> None:
+    # Section 2.3.6.1 of core.md, Section 4.7.1.3 of daemon.md, Section 7.7.8 of files.md.
+    def listed() -> list[str]:
+        return [
+            one["path"]
+            for one in user.call("workspaces.list", {}, timeout=30)["workspaces"]
+        ]
+
+    # The stand-in's own home, which nothing makes for an assistant held to no permission.
+    (project.parent / "claude").mkdir(exist_ok=True)
+    # Started as a frontend starts one: a host of its own in a directory made for it.
+    made = user.call(
+        "epic.attach", {"scratch": True, "slot": "chat:", "replay": False}, timeout=60
+    )
+    at, host = Path(made["workspace"]), {"workspace": made["workspace"]}
+    assert at.parent == where.at().resolve() / "nofolder"
+    assert at.is_dir()
+    started = user.call(
+        "chat.start",
+        {
+            **host,
+            "slot": made["slot"],
+            "agent": AGENT,
+            "task": "hello",
+            # Where it works is what is tested, not what holds it there.
+            "permission": "danger-full-access",
+        },
+        timeout=60,
+    )
+    name, host["slot"] = started["chat"], started["slot"]
+    user.call("epic.detach", {"sub": made["sub"]}, timeout=30)
+    assert until(lambda: _row(user, name)["state"] == "going")
+
+    # Told apart from a chat of somebody's folder by its row, and no folder to offer.
+    with Epic("ralph", "a run", project):
+        pass
+    row = _row(user, name)
+    assert (row["workspace"], row["folderless"], row["workdir"]) == (
+        str(at),
+        True,
+        str(at),
+    )
+    (epic,) = user.call("runs.list", {}, timeout=30)["runs"]
+    assert (epic["workspace"], epic["folderless"]) == (str(project.resolve()), False)
+    assert listed() == [str(project.resolve())]
+
+    # Kept while the chat is, whether or not a host stands in it.
+    (at / "notes.md").write_text("kept")
+    user.call("chat.say", {**host, "text": ""}, timeout=30)
+    assert until(lambda: _row(user, name)["state"] == "resting")
+    assert until(lambda: daemon.running(at, slot=host["slot"]) is None)
+    assert (at / "notes.md").read_text() == "kept"
+
+    # Cleaned away by the machine, it is made again for the chat carried on.
+    shutil.rmtree(at)
+    carried = user.call(
+        "chat.start",
+        {"workspace": str(at), "task": "more", "resume": name},
+        timeout=60,
+    )
+    assert carried["chat"] == name
+    assert at.is_dir()
+    assert until(lambda: _row(user, name)["state"] == "going")
+    (at / "notes.md").write_text("again")
+    user.call(
+        "chat.say",
+        {"workspace": str(at), "slot": carried["slot"], "text": ""},
+        timeout=30,
+    )
+    assert until(lambda: _row(user, name)["state"] == "resting")
+    assert (at / "notes.md").read_text() == "again"
+
+    # And it goes with the chat deleted: at once, or as the host still standing in it goes.
+    assert user.call("chat.delete", {"chat": name}, timeout=30) == {}
+    for held in user.call("hosts.list", {}, timeout=30)["held"]:
+        user.call(
+            "hosts.stop",
+            {"workspace": held["workspace"], "slot": held["slot"]},
+            timeout=30,
+        )
+    assert until(lambda: not at.exists())
+    assert listed() == [str(project.resolve())]
+
+
+def test_a_directory_made_for_no_folder_goes_where_nothing_was_started_in_it(
+    project: Path, user: Peer
+) -> None:
+    del project
+    made = user.call("epic.attach", {"scratch": True, "replay": False}, timeout=60)
+    at = Path(made["workspace"])
+    assert (at.is_dir(), made["slot"]) == (True, "")
+    assert where.folderless(at)
+
+    user.call("hosts.stop", {"workspace": str(at)}, timeout=30)
+
+    assert until(lambda: not at.exists())
+
+
 # ------------------------------------------------------------- where a chat works
 
 
@@ -1051,6 +1156,115 @@ def test_a_chat_started_in_a_worktree_works_there_and_returns_there(
     assert not _directory_or_none(name)
     assert (worktree / "landed.txt").is_file()
     assert str(worktree.resolve()) in _git(project, "worktree", "list", "--porcelain")
+
+
+def _spelled(at: Path) -> str:
+    """A directory of this machine as `-e` spells the env that is it."""
+    return f"local/{str(at.resolve()).lstrip('/')}"
+
+
+def test_a_chat_is_moved_to_another_env_between_turns_and_goes_on_there(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    link, heard, slot, name = _chat(project, "hello there")
+    host = {"workspace": str(project), "slot": slot}
+    try:
+        # Until it is moved it works in its workspace, which its record says nothing of.
+        row = _row(user, name)
+        assert (row["env"], row["workdir"]) == (
+            _spelled(project),
+            str(project.resolve()),
+        )
+        assert "env" not in _events(_directory(name))[0]
+
+        # What is no env is refused as -e refuses it; one that cannot take the chat leaves
+        # it where it was, saying why.
+        code, why = _refused(user, "chat.move", **host, env="nowhere/else")
+        assert code == 400
+        assert "nowhere" in why
+        code, why = _refused(
+            user, "chat.move", **host, env=_spelled(tmp_path / "missing")
+        )
+        assert code == 409
+        assert why.startswith("The chat stays where it was: ")
+        assert _row(user, name)["env"] == _spelled(project)
+
+        # Not while its turn is open.
+        link.chat_say(SLOW)
+        assert until(lambda: _row(user, name)["state"] == "turn")
+        assert _refused(user, "chat.move", **host, env=_spelled(other)) == (
+            409,
+            TURN_OPEN,
+        )
+        link.chat_stop()
+        assert until(lambda: _row(user, name)["state"] == "going")
+
+        moved = user.call("chat.move", {**host, "env": _spelled(other)}, timeout=60)
+        assert moved == {"env": _spelled(other)}
+        row = _row(user, name)
+        # The chat is its workspace's still; its assistant works where it was moved to.
+        assert (row["workspace"], row["env"], row["workdir"]) == (
+            str(project.resolve()),
+            _spelled(other),
+            str(other.resolve()),
+        )
+        assert _events(_directory(name))[-1]["env"] == _spelled(other)
+
+        link.chat_say("and here?")
+        assert until(
+            lambda: any(
+                one.get("mode") == "listen"
+                and str(one.get("text") or "").endswith("did: and here?")
+                for one in heard.of("asked")
+            )
+        )
+        assert Path(started(tmp_path)[-1]["cwd"]).resolve() == other.resolve()
+        assert (other / "landed.txt").read_text() == "and here?\n"
+        assert (project / "landed.txt").read_text() == "hello there\n"
+        assert heard.of("ended") == []
+    finally:
+        link.close()
+
+
+def test_a_chat_carried_on_goes_on_where_it_was_moved_and_moves_as_it_is_carried_on(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    there, back = tmp_path / "there", tmp_path / "back"
+    there.mkdir()
+    back.mkdir()
+    # Started in an env, as one moved there would be.
+    link, _, _, name = _chat(project, "hello there", env=_spelled(there))
+    assert _events(_directory(name))[0]["env"] == _spelled(there)
+    assert (there / "landed.txt").read_text() == "hello there\n"
+    assert not (project / "landed.txt").exists()
+    _ended(link, user, name)
+
+    again, _, _, carried = _chat(project, "and then?", agent="", resume=name)
+    assert carried == name
+    assert (there / "landed.txt").read_text() == "hello there\nand then?\n"
+    _ended(again, user, name)
+
+    # Carried on with another env, it works there from then on.
+    code, _ = _refused(
+        user, "chat.start", workspace=str(project), task="x", resume=name, env="?"
+    )
+    assert code == 400
+    moved, _, _, _ = _chat(
+        project, "and back?", agent="", resume=name, env=_spelled(back)
+    )
+    assert (back / "landed.txt").read_text() == "and back?\n"
+    assert _row(user, name)["env"] == _spelled(back)
+    assert [one["env"] for one in _events(_directory(name)) if "env" in one] == [
+        _spelled(there),
+        _spelled(back),
+    ]
+    _ended(moved, user, name)
+
+    # A fork stands where the chat stands.
+    fork = user.call("chat.fork", {"chat": name}, timeout=30)["chat"]
+    assert _row(user, fork)["env"] == _spelled(back)
 
 
 def _directory_or_none(name: str) -> Path | None:
@@ -1368,6 +1582,60 @@ def test_a_chat_carried_on_with_nothing_said_holds_its_workspace_and_writes_noth
         assert written_chats() == [at]
     finally:
         again.close()
+
+
+def test_a_chat_moved_with_nothing_said_reads_as_where_it_now_works(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    there, on = tmp_path / "there", tmp_path / "on"
+    there.mkdir()
+    on.mkdir()
+    link, _, _, name = _chat(project, "hello there")
+    _ended(link, user, name)
+    at = _directory(name)
+    wrote = (at / CHATTED).read_bytes()
+    carried = {"workspace": str(project), "task": "", "resume": name}
+
+    # Moved on the host that stands by with it, its row says so, its record nothing yet.
+    woke = user.call("chat.start", carried, timeout=60)
+    named = {"workspace": str(project), "slot": woke["slot"]}
+    assert _row(user, name)["env"] == _spelled(project)
+    moved = user.call("chat.move", {**named, "env": _spelled(there)}, timeout=60)
+    assert moved["env"] == _spelled(there)
+    row = _row(user, name)
+    assert (row["env"], row["workdir"]) == (_spelled(there), str(there))
+    (listed,) = [
+        one
+        for one in user.call("chat.list", {}, timeout=30)["chats"]
+        if one["id"] == name
+    ]
+    assert listed["env"] == _spelled(there)
+    assert (at / CHATTED).read_bytes() == wrote
+
+    # Carried on there with an env and nothing to say, it is moved, not only answered; an
+    # env it is in already moves nothing, and one that cannot take it refuses the call.
+    assert user.call("chat.start", {**carried, "env": _spelled(on)}, timeout=60) == woke
+    assert _row(user, name)["env"] == _spelled(on)
+    assert user.call("chat.start", {**carried, "env": _spelled(on)}, timeout=60) == woke
+    code, why = _refused(
+        user, "chat.start", **carried, env=_spelled(tmp_path / "missing")
+    )
+    assert code == 409
+    assert why.startswith("The chat stays where it was: ")
+    assert _row(user, name)["env"] == _spelled(on)
+
+    # What is said then is said there, and its record says where from then on.
+    again = daemon.attach("sdk", workspace=project, slot=woke["slot"])
+    heard = Heard()
+    again.heard(heard)
+    try:
+        again.chat_say("and here?")
+        assert until(_asked(heard, "did: and here?"))
+        assert (on / "landed.txt").read_text() == "and here?\n"
+        assert [one["env"] for one in _events(at) if "env" in one] == [_spelled(on)]
+        assert _row(user, name)["env"] == _spelled(on)
+    finally:
+        _ended(again, user, name)
 
 
 def test_a_chat_standing_by_gives_way_to_another_agent_and_is_one_host_to_two_at_once(

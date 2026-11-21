@@ -142,7 +142,9 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
         options.get_by_label("Name").fill("ServerAliveInterval")
         options.get_by_label("Value").fill("30")
         harness = page.locator("#runtime-harness")
-        expect(harness.locator("option")).to_have_text(["env", "local"])
+        expect(harness.locator("option")).to_have_text(
+            ["Inside the environment", "This machine"]
+        )
         expect(harness).to_have_value("env")
         harness.select_option("local")
         page.locator("[data-hmz=write-runtime] .row > .confirm > .btn.primary").click()
@@ -162,19 +164,90 @@ def test_a_runtime_is_set_up_field_by_field(project: Path, engine: str) -> None:
 
 
 def test_a_nous_is_picked_not_spelled(project: Path, engine: str) -> None:
+    """Sections 3.11.2.6 and 3.8.19.1 of protocol/web.md: found, and picked by levels."""
     with served() as site, opened(site, engine=engine) as page:
         # What a backend runs is asked as a new chat offers it, and offered here once it said.
         expect(
             page.locator("[data-role=assistant] [data-hmz=pick-model]")
         ).to_have_attribute("data-value", "claude-haiku-4-5")
         go(page, "/settings/nous")
-        page.locator("[data-hmz=nous-spec]").select_option("claude/claude-opus-4-1")
-        page.locator("[data-hmz=nous-then] [data-hmz=graph-add-use]").click()
-        page.locator("[data-hmz=nous-then] [data-hmz=graph-nous]").fill(
-            "claude/claude-haiku-4-5"
+        listing = page.locator("[data-hmz=nous]")
+        # Every concrete nous found is listed under its harness, though nothing is written of
+        # any: the page never says that there is no nous, and none is made by hand.
+        found = listing.locator("[data-hmz=nous-harness][data-cli=claude]")
+        expect(found.locator("summary")).to_contain_text("Claude Code")
+        rows = found.locator("[data-hmz=concrete-row]")
+        expect(rows.first).to_be_visible()
+        assert rows.count() > 1
+        expect(listing.locator("[data-hmz=nous-scanned]")).to_have_text(
+            re.compile(r"^\d+ concrete nous of \d+ harnesses\.$")
         )
+        expect(listing.locator("[data-hmz=nous-no-virtual]")).to_contain_text(
+            "None yet."
+        )
+        expect(listing.locator(".empty")).to_have_count(0)
+        expect(page.locator("#nous-kind, [data-hmz=nous-spec]")).to_have_count(0)
+        expect(page.locator("[data-hmz=write-nous] h2")).to_have_text(
+            "New virtual nous"
+        )
+
+        # A wait is named shortly in its select, and explained beside it.
+        policy = page.locator("[data-hmz=nous-policy]")
+        said = policy.locator("option").all_inner_texts()
+        assert said[:2] == ["No wait", "Constant"]
+        assert not any("—" in one or ":" in one for one in said)
+        about = page.locator("[data-hmz=policy-about]")
+        expect(about).to_contain_text("for agents that fail at the same moment")
+        policy.select_option("fibonacci")
+        expect(about).to_have_text("The Fibonacci sequence: 1s, 1s, 2s, 3s, 5s.")
+
+        # A scan asks the harnesses again, and says what there is once it has.
+        scan = listing.locator("[data-hmz=nous-scan]")
+        scan.click()
+        expect(scan).to_have_text("Scan")
+        expect(scan).to_be_enabled()
+        expect(listing.locator("[data-hmz=nous-scan-failed]")).to_have_count(0)
+
+        # What is written of a concrete nous is edited from its row; its `then` names a nous
+        # picked a level at a time, on the first there is until another is.
+        opus = rows.and_(page.locator("[data-name='claude/claude-opus-4-1']"))
+        opus.get_by_role("button", name="Edit").click()
+        then = page.locator("[data-hmz=nous-then]")
+        then.locator("[data-hmz=graph-add-use]").click()
+        chip = then.locator("[data-hmz=graph-nous] [data-hmz=pick-model]")
+        chip.click()
+        menu = then.locator("[role=menu]")
+        # A row a level, each saying what is picked at it: one account alone is no level.
+        expect(menu.locator(".choice.step .choice-label")).to_have_text(
+            ["Harness", "Model", "Effort"]
+        )
+        menu.locator("[data-hmz=step-model]").click()
+        expect(menu.locator("[data-hmz=step-back]")).to_have_text("Model")
+        menu.locator(".nous-list [data-value=claude-haiku-4-5]").click()
+        expect(menu).to_have_count(0)
+        expect(chip).to_have_attribute("data-agent", "claude/claude-haiku-4-5")
         page.get_by_role("button", name="Save").click()
-        expect(page.locator("[data-hmz=nous-row]")).to_have_count(1)
+        expect(opus.get_by_role("button", name="Reset")).to_be_visible()
+
+        # A virtual nous is made by its name, and is then offered first wherever one is picked.
+        listing.locator("[data-hmz=nous-add]").click()
+        expect(page.locator("#nous-name")).to_be_focused()
+        page.locator("#nous-name").fill("careful")
+        graph = page.locator("[data-hmz=nous-graph]")
+        graph.locator("[data-hmz=graph-add-use]").click()
+        page.get_by_role("button", name="Save").click()
+        expect(listing.locator("[data-hmz=nous-row]")).to_have_count(1)
+        expect(listing.locator("[data-hmz=nous-row]")).to_have_attribute(
+            "data-name", "careful"
+        )
+        go(page, "/new/chat")
+        picker = page.locator("[data-role=assistant] [data-hmz=pick-model]")
+        picker.click()
+        virtual = page.locator("[role=menu] [data-hmz=pick-virtual]")
+        expect(virtual).to_have_text(["careful"])
+        virtual.click()
+        expect(picker).to_have_text("careful")
+        page.keyboard.press("Escape")
 
         # Ai-chan's is no setting: it is picked on the chip of her box (test_web_aichan.py).
         go(page, "/settings/general")
@@ -184,16 +257,20 @@ def test_a_nous_is_picked_not_spelled(project: Path, engine: str) -> None:
         browser = Browser(site)
         browser.signs_in()
         with browser.session() as asked:
-            (nous,) = asked.call("nous.list")["nous"]
+            nous, careful = asked.call("nous.list")["nous"]
         assert nous["name"] == "claude/claude-opus-4-1"
         assert [one["use"] for one in nous["then"]["nodes"]] == [
+            "claude/claude-haiku-4-5"
+        ]
+        assert (careful["name"], careful["virtual"]) == ("careful", True)
+        assert [one["use"] for one in careful["graph"]["nodes"]] == [
             "claude/claude-haiku-4-5"
         ]
 
 
 def test_settings_fit_a_phone(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine, width=390, height=844) as page:
-        for one in ("general", "runtimes", "workspace", "usage"):
+        for one in ("general", "runtimes", "workspace", "usage", "workspace-usage"):
             go(page, f"/settings/{one}")
             expect(page.locator(f"[data-hmz=settings-{one}]")).to_be_visible()
             wide = page.evaluate("document.querySelector('.dialog').scrollWidth")
@@ -267,7 +344,7 @@ def test_one_popup_is_open_at_a_time_and_goes_with_what_it_was_opened_on(
         # A new epic keeps the daemon and the folder a control each, one by the other.
         go(page, "/new")
         folders = page.locator("[data-hmz=workspace-picker]")
-        where = page.locator("[data-hmz=environment]")
+        where = page.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")
         folders.click()
         expect(page.get_by_role("menu", name="Folders")).to_be_visible()
         assert _popups(page) == ["Folders"]

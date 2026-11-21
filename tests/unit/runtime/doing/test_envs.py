@@ -15,6 +15,7 @@ from hmz.flows import (
     FilesEnvMixin,
     ShellEnvMixin,
 )
+from hmz.runtime.doing import envs
 from hmz.runtime.doing.envs import NO_FLOW, EnvRefusal, answered, carried, listed
 
 if TYPE_CHECKING:
@@ -356,3 +357,107 @@ def test_a_run_whose_loop_has_closed_has_no_env_open() -> None:
         )
 
     assert (refused.value.code, refused.value.why) == (409, NO_FLOW)
+
+
+# ------------------------------------------------------ a directory of a runtime's machine
+
+
+class _Host:
+    """An ssh host stood in for: what it lists, and each thing asked of it."""
+
+    def __init__(self) -> None:
+        self.asked: list[str] = []
+        self.closed = 0
+        self.missing = False
+
+    async def absolute(self, path: str) -> str:
+        self.asked.append(f"absolute {path}")
+        return "/home/me/work"
+
+    async def list(self, path: str) -> list[Any]:
+        from hmz.flows import EnvFileNotFound
+        from hmz.runtime.flowing.spi import EnvEntry
+
+        self.asked.append(f"list {path}")
+        if self.missing:
+            raise EnvFileNotFound("no such directory")
+        return [
+            EnvEntry("repo", "dir", 0, 0.0),
+            EnvEntry("link", "link", 0, 0.0, "/srv"),
+            EnvEntry("notes.md", "file", 5, 0.0),
+        ]
+
+    async def close(self) -> None:
+        self.closed += 1
+
+
+def test_a_directory_of_an_ssh_host_is_listed_over_ssh_and_this_machines_are_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.runtime import flowing
+
+    host = _Host()
+    opened: list[Any] = []
+
+    def open_env(spec: Any) -> _Host:
+        opened.append(spec)
+        return host
+
+    monkeypatch.setattr(flowing, "open_env", open_env, raising=False)
+
+    # This machine, and a runtime with no name, whose directories are this machine's.
+    assert envs.browsed("", "~") is None
+    assert envs.browsed("local", "/srv") is None
+    assert envs.browsed("docker", "/srv") is None
+    assert opened == []
+
+    assert envs.browsed("ssh@[me@gpu-box]", "~/work") == (
+        "/home/me/work",
+        [("repo", True), ("link", True), ("notes.md", False)],
+    )
+    (spec,) = opened
+    assert (str(spec.backend), spec.provider, str(spec.workdir)) == (
+        "ssh",
+        "[me@gpu-box]",
+        "~/work",
+    )
+    # Opened for this alone, and let go of.
+    assert (host.asked, host.closed) == (["absolute .", "list ."], 1)
+
+    host.missing = True
+    with pytest.raises(envs.EnvRefusal) as gone:
+        envs.browsed("ssh@[me@gpu-box]", "/nowhere")
+    assert (gone.value.code, host.closed) == (404, 2)
+    assert gone.value.why.startswith("/nowhere cannot be read: ")
+
+
+def test_a_runtime_that_is_none_or_cannot_be_listed_is_refused_saying_so(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.runtime.flowing import specs
+
+    with pytest.raises(envs.EnvRefusal) as none:
+        envs.browsed("nowhere", "~")
+    assert none.value.code == 400
+    assert "nowhere" in none.value.why
+
+    # A container on another machine's daemon: its directories are written, not browsed.
+    def parse_envs(values: Any) -> list[Any]:
+        from pathlib import PurePosixPath
+
+        from hmz.flows import EnvBackendKind
+
+        del values
+        return [
+            specs.EnvSpec(
+                "workspace", EnvBackendKind.DOCKER, "far", PurePosixPath("/srv")
+            )
+        ]
+
+    monkeypatch.setattr(specs, "parse_envs", parse_envs)
+    with pytest.raises(envs.EnvRefusal) as far:
+        envs.browsed("docker@far", "/srv")
+    assert (far.value.code, far.value.why) == (
+        409,
+        "The directories of docker@far cannot be listed from here; write the path.",
+    )

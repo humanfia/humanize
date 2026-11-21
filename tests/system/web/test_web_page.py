@@ -48,6 +48,7 @@ _PAGES = (
     "backup",
     "workspace",
     "usage",
+    "workspace-usage",
 )
 
 #: What the macOS app's window says it is: WKWebView, and the app.
@@ -222,9 +223,9 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
         )
         chip.click()
         menu = page.get_by_role("menu", name="Nous")
-        # The harnesses that can fill the role, a row a model each runs.
-        expect(menu.locator(".nous-list [data-cli=claude]")).to_have_text(
-            ["Claude Code - Haiku 4.5", "Claude Code - Opus 4.1"]
+        # A row a level, never a list of every nous: what is picked at each.
+        expect(menu.locator(".choice.step")).to_contain_text(
+            ["Claude Code", "Haiku 4.5", "Default"]
         )
         # Under the chip, its left edge on the chip's: never over the page's bar.
         chip_box, menu_box = chip.bounding_box(), menu.bounding_box()
@@ -232,11 +233,16 @@ def test_a_new_epic_offers_each_role_the_models_its_cli_runs(
         assert menu_box
         assert menu_box["y"] >= chip_box["y"] + chip_box["height"]
         assert abs(menu_box["x"] - chip_box["x"]) <= 1
+        # The models the harness picked runs, and no other's.
+        menu.locator("[data-hmz=step-model]").click()
+        expect(menu.locator(".nous-list [role=menuitem]")).to_have_text(
+            ["Haiku 4.5", "Opus 4.1"]
+        )
         menu.locator("[data-value=claude-opus-4-1]").click()
         expect(chip).to_have_text("Claude Code Opus 4.1 Default")
         chip.click()
-        menu.get_by_role("menuitem", name="Effort").click()
-        efforts = page.locator("[data-hmz=pick-effort] [role=menuitem]")
+        menu.locator("[data-hmz=step-effort]").click()
+        efforts = menu.locator("[role=menuitem][data-value]")
         expect(efforts).to_have_text(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
@@ -409,7 +415,7 @@ def test_a_model_no_cli_would_list_is_typed(
         chip.click()
         menu = page.get_by_role("menu", name="Nous")
         expect(menu).to_contain_text("claude is not answering")
-        menu.get_by_role("menuitem", name="More").click()
+        menu.locator("[data-hmz=step-model]").click()
         typed = menu.locator("[data-hmz=pick-model-typed]")
         typed.fill("claude-sonnet-4-5")
         typed.press("Enter")
@@ -494,27 +500,32 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
             assert (inside[0]["y"], inside[0]["height"]) == (715, 28)
             assert (under["y"], under["height"]) == (760, 24)
 
-        # Under the box: where it runs at the left, how at the right, each 24px high.
+        # Under the box: what it is of and where it works at the left, how at the right,
+        # each 24px high.
         chips = view.locator("[data-hmz=composer-under] button:visible")
         assert chips.evaluate_all("all => all.map((one) => one.dataset.hmz)") == [
+            "folder",
             "environment",
             "pick-model",
             "permission",
             "new-usage",
         ]
-        # At the left the one chip, and nothing else: no folder control, no box to tick.
+        # At the left the two chips, and nothing else: no daemon, no box to tick.
         expect(view.locator("[data-hmz=composer-under] .under-left > *")).to_have_count(
-            1
+            2
         )
         expect(view.locator("[data-hmz=workspace-picker]")).to_have_count(0)
-        for at in range(4):
+        expect(
+            view.locator("[data-hmz=composer-under] [data-hmz=daemon]")
+        ).to_have_count(0)
+        for at in range(5):
             box = chips.nth(at).bounding_box()
             assert box
             assert box["height"] == 24
         # Set in from the box's edges, as a chat app's are, on a phone too: the first
         # starts a hair right of the Add button.
         inset = 12
-        first = _at(page, "[data-hmz=environment]")
+        first = _at(page, "[data-hmz=start] [data-hmz=folder]")
         assert first["x"] == boxed["x"] + inset
         assert first["x"] == inside[0]["x"] + 3
         # The row ends, as a chat app's does, with the ring that says what was used: as
@@ -535,37 +546,46 @@ def test_a_new_chat_is_laid_out_as_a_chat_apps_new_session(
                 ".scrollWidth <= document.querySelector('[data-hmz=start]"
                 " [data-hmz=composer-under]').clientWidth"
             )
-        # Environment is where it runs: the daemon the page shows, then the folder.
-        expect(view.locator("[data-hmz=environment]")).to_have_text(
-            f"Local · {project.name}"
-        )
+        # Folder is what the chat is of: the folder picked, and nothing of a daemon.
+        folder_chip = view.locator("[data-hmz=start] [data-hmz=folder]")
+        expect(folder_chip).to_have_text(project.name)
         # Said, to whoever cannot see it, with what it picks.
-        expect(view.locator("[data-hmz=environment]")).to_have_attribute(
-            "aria-label", f"Environment: Local, {project.name}"
-        )
-
-        # One menu holds both, each under its heading, and then the worktree.
-        view.locator("[data-hmz=environment]").click()
-        offered = page.get_by_role("menu", name="Environment")
-        expect(offered.locator(".popover-head")).to_have_text(["Runs on", "Folder"])
-        expect(offered.locator("[data-daemon]")).to_have_text([re.compile("Local")])
-        expect(offered.locator("[data-daemon=local]")).to_have_class(
-            re.compile("chosen")
-        )
-        rows = offered.locator("[role=menuitem], [role=menuitemcheckbox]")
-        expect(rows.nth(1)).to_have_text("New environment")
-        # The folder: the ones there are, then opening one, then none; then Worktree.
-        expect(offered.locator("[data-folder].chosen")).to_have_text(project.name)
-        expect(rows.nth(-3)).to_contain_text("Open folder…")
-        expect(rows.nth(-2)).to_contain_text("No folder")
-        expect(rows.nth(-1)).to_have_text("Worktree")
-        # Of the two in force, it opens on the folder.
-        expect(offered.locator("[data-folder].chosen")).to_be_focused()
+        expect(folder_chip).to_have_attribute("aria-label", f"Folder: {project.name}")
+        folder_chip.click()
+        folders = page.get_by_role("menu", name="Folder")
+        expect(folders.locator("[data-daemon]")).to_have_count(0)
+        rows = folders.get_by_role("menuitem")
+        # None, then the ones there are, then opening one.
+        expect(folders.locator("[data-folder].chosen")).to_have_text(project.name)
+        expect(rows.nth(0)).to_contain_text("No folder")
+        expect(rows.nth(-1)).to_contain_text("Open folder…")
+        expect(folders.locator("[data-folder].chosen")).to_be_focused()
         # A menu of the desk is a chat app's: a choice of one line is a row of 28px.
-        assert _at(page, "[role=menu] [data-daemon=local]")["height"] == 28
-        assert _at(page, "[role=menu] [data-hmz=new-worktree]")["height"] == 28
+        assert _at(page, "[role=menu] [data-folder].chosen")["height"] == 28
+        page.keyboard.press("Escape")
+
+        # Environment is where the chat works: this computer until another is picked,
+        # said in one line over the places, and never a daemon.
+        where = view.locator("[data-hmz=start] [data-hmz=environment]")
+        expect(where).to_have_text("This computer")
+        expect(where).to_have_attribute("aria-label", "Environment: This computer")
+        where.click()
+        offered = page.get_by_role("menu", name="Environment")
+        expect(offered.locator("[data-hmz=environment-about]")).to_have_text(
+            "Where this chat\u2019s commands run and its files live."
+        )
+        expect(offered.locator("[data-daemon]")).to_have_count(0)
+        places = offered.get_by_role("menuitemradio")
+        expect(places.locator(".choice-label")).to_have_text(
+            ["This computer", "New worktree"]
+        )
+        expect(offered.locator("[data-env=local]")).to_have_attribute(
+            "aria-checked", "true"
+        )
+        expect(offered.get_by_role("menuitem")).to_have_text(["Add runtime…"])
         # Over the chip, its lower edge by the chip's upper edge.
-        chip_box, menu_box = _at(page, "[data-hmz=environment]"), offered.bounding_box()
+        chip_box = _at(page, "[data-hmz=start] [data-hmz=environment]")
+        menu_box = offered.bounding_box()
         assert menu_box
         assert menu_box["y"] + menu_box["height"] <= chip_box["y"]
         page.keyboard.press("Escape")
@@ -670,28 +690,34 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         opened_ = _at(page, "[data-hmz=options]")
         assert opened_["y"] >= 44
         assert opened_["y"] < boxed["y"]
-        # Environment first: the daemon it runs on, then the folder, a row each, the
-        # names in one column and what each picks in the next.
-        first = view.locator("[data-hmz=options] > *").first
-        expect(first).to_have_attribute("data-hmz", "setup-environment")
-        expect(first.locator("h3")).to_have_text("Environment")
-        expect(first.locator(".setup-row > .setup-name")).to_have_text(
-            ["Runs on", "Folder"]
+        # The daemon that serves it first, a part of its own; then Environment, the folder
+        # first: a row each, the names in one column and what each picks in the next.
+        parts = view.locator("[data-hmz=options] > *")
+        expect(parts.nth(0)).to_have_attribute("data-hmz", "setup-serving")
+        expect(parts.nth(0).locator("h3")).to_have_text("Daemon")
+        expect(parts.nth(0).locator(".setup-row > .setup-name")).to_have_text(
+            ["Connected to"]
         )
-        runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=environment]")
+        expect(parts.nth(1)).to_have_attribute("data-hmz", "setup-environment")
+        expect(parts.nth(1).locator("h3")).to_have_text("Environment")
+        expect(parts.nth(1).locator(".setup-row > .setup-name")).to_have_text(
+            ["Folder"]
+        )
+        expect(parts.nth(1).locator("[data-hmz=daemon]")).to_have_count(0)
+        runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=daemon]")
         folder = _at(page, "[data-hmz=setup-folder] [data-hmz=workspace-picker]")
         assert runs["x"] == folder["x"]
         assert folder["y"] >= runs["y"] + runs["height"]
         assert (runs["height"], folder["height"]) == (24, 24)
-        expect(
-            view.locator("[data-hmz=setup-daemon] [data-hmz=environment]")
-        ).to_have_text("Local")
+        expect(view.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")).to_have_text(
+            "Local"
+        )
         expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
         # Their menus open under them.
-        view.locator("[data-hmz=setup-daemon] [data-hmz=environment]").click()
-        daemons = page.get_by_role("menu", name="Environment")
+        view.locator("[data-hmz=setup-daemon] [data-hmz=daemon]").click()
+        daemons = page.get_by_role("menu", name="Daemon")
         expect(daemons.get_by_role("menuitem")).to_have_text(
-            [re.compile("Local"), "New environment"]
+            [re.compile("Local"), "Add daemon…"]
         )
         box = daemons.bounding_box()
         assert box
@@ -699,8 +725,8 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         page.keyboard.press("Escape")
         view.locator("[data-hmz=workspace-picker]").click()
         folders = page.get_by_role("menu", name="Folders")
-        expect(folders.get_by_role("menuitem").nth(-2)).to_contain_text("Open folder…")
-        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("No folder")
+        expect(folders.get_by_role("menuitem").nth(0)).to_contain_text("No folder")
+        expect(folders.get_by_role("menuitem").nth(-1)).to_contain_text("Open folder…")
         box = folders.bounding_box()
         assert box
         assert box["y"] >= folder["y"] + folder["height"]
@@ -754,29 +780,52 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         assert opened_at
         assert boxed["y"] < opened_at["y"] + opened_at["height"] <= chip_box["y"]
         assert chip_box["y"] - opened_at["y"] - opened_at["height"] <= 6
-        models = menu.locator(".nous-list > [role=menuitem][data-cli=claude]")
-        expect(models).to_have_count(2)
-        expect(models.nth(0)).to_have_class(re.compile("chosen"))
-        # One row a nous, its harness and then its model; as `-a` spells it where pointed at.
-        expect(models.nth(0)).to_have_text("Claude Code - Haiku 4.5")
-        expect(models.nth(0)).to_have_attribute("data-tip", "claude/claude-haiku-4-5")
-        # Every other harness here is in the same list, not under More.
-        expect(
-            menu.locator(".nous-list > [role=menuitem][data-cli=dsh]")
-        ).not_to_have_count(0)
-        expect(menu.locator(".popover-head")).to_have_count(0)
+        # A row a level, each saying what is picked at it: never a list of every nous. One
+        # account alone is no level, and no virtual nous is no heading.
+        levels = menu.locator(".choice.step")
+        expect(levels.locator(".choice-label")).to_have_text(
+            ["Harness", "Model", "Effort"]
+        )
+        expect(levels.locator(".choice-about")).to_have_text(
+            ["Claude Code", "Haiku 4.5", "Default"]
+        )
+        expect(menu.locator(".nous-list, .popover-head")).to_have_count(0)
         assert set(
-            models.evaluate_all(
+            levels.evaluate_all(
                 "all => all.map((one) => Math.round(one.getBoundingClientRect().height))"
             )
         ) == {28}
-        menu.locator("[data-value=claude-opus-4-1]").click()
+        # Every harness here is a choice of its own level, and no model of any stands there.
+        menu.locator("[data-hmz=step-harness]").click()
+        harnesses = menu.locator("[role=menuitem][data-cli]")
+        expect(harnesses.first).to_have_text("Claude Code")
+        expect(harnesses.first).to_have_class(re.compile("chosen"))
+        expect(menu.locator("[role=menuitem][data-cli=dsh]")).to_have_count(1)
+        # The way back is the level's own name, over its choices.
+        menu.locator("[data-hmz=step-back]").click()
+        expect(menu.locator("[data-hmz=step-harness]")).to_be_focused()
+        # The models of the harness picked alone; as `-a` spells one where it is pointed at.
+        menu.locator("[data-hmz=step-model]").click()
+        models = menu.locator(".nous-list > [role=menuitem]")
+        expect(models).to_have_text(["Haiku 4.5", "Opus 4.1"])
+        expect(models.nth(0)).to_have_class(re.compile("chosen"))
+        expect(models.nth(0)).to_be_focused()
+        expect(models.nth(0)).to_have_attribute("data-tip", "claude/claude-haiku-4-5")
+        expect(menu.get_by_role("menuitem", name="Refresh models")).to_be_enabled()
+        # The left arrow goes back as well, and the keys alone pick: down to Model, in, down
+        # to the next model, Enter.
+        page.keyboard.press("ArrowLeft")
+        expect(menu.locator("[data-hmz=step-model]")).to_be_focused()
+        page.keyboard.press("ArrowRight")
+        expect(models.nth(0)).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Enter")
         expect(menu).to_have_count(0)
         expect(chip).to_have_text("Claude Code Opus 4.1 Default")
 
         chip.click()
-        menu.get_by_role("menuitem", name="Effort").click()
-        efforts = page.locator("[data-hmz=pick-effort] [role=menuitem]")
+        menu.locator("[data-hmz=step-effort]").click()
+        efforts = menu.locator("[role=menuitem][data-value]")
         expect(efforts).to_have_text(
             ["Default", "Ultracode", "Max", "High", "Medium", "Low"]
         )
@@ -784,15 +833,16 @@ def test_a_new_chat_picks_its_model_from_the_chip_on_its_box(
         expect(chip).to_have_text("Claude Code Opus 4.1 Max")
         expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
 
-        # The account it runs as is under More, one row of the same menu; the harness is not.
+        # A harness picked again starts from what was last picked of it, and its model is next.
         chip.click()
-        menu.get_by_role("menuitem", name="More").click()
-        expect(page.locator("[data-hmz=pick-more]")).to_be_visible()
-        expect(page.locator("[data-hmz=pick-cli]")).to_have_count(0)
-        menu.get_by_role("menuitem", name="Account").click()
-        accounts = page.locator("[data-hmz=pick-account] [role=menuitem]")
-        expect(accounts).to_have_text(["Local", "Add account…"])
-        expect(menu.get_by_role("menuitem", name="Refresh models")).to_be_enabled()
+        menu.locator("[data-hmz=step-harness]").click()
+        menu.locator("[role=menuitem][data-cli=dsh]").click()
+        expect(menu.locator("[data-hmz=step-back]")).to_have_text("Model")
+        expect(chip).to_have_attribute("data-agent", re.compile(r"^dsh/"))
+        menu.locator("[data-hmz=step-back]").click()
+        menu.locator("[data-hmz=step-harness]").click()
+        menu.locator("[role=menuitem][data-cli=claude]").click()
+        expect(chip).to_have_attribute("data-agent", "claude/claude-opus-4-1:max")
         # A model no CLI lists is typed, and Enter there sends nothing.
         typed = menu.locator("[data-hmz=pick-model-typed]")
         typed.fill("claude-sonnet-4-5")
@@ -819,7 +869,7 @@ def test_a_chat_model_no_cli_would_list_is_typed_in_the_chip(
         chip.click()
         menu = page.get_by_role("menu", name="Nous")
         expect(menu.locator(".hint")).to_contain_text("claude is not answering")
-        menu.get_by_role("menuitem", name="More").click()
+        menu.locator("[data-hmz=step-model]").click()
         menu.locator("[data-hmz=pick-model-typed]").fill("claude-sonnet-4-5")
         expect(chip).to_have_text("Claude Code Sonnet 4.5 Default")
         expect(chip).to_have_attribute("data-agent", "claude/claude-sonnet-4-5")
@@ -832,6 +882,7 @@ def test_a_chat_says_its_model_on_the_chip_of_its_box(
         go(page, "/new/chat")
         chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
         chip.click()
+        page.locator(".model-menu [data-hmz=step-model]").click()
         page.locator(".model-menu [data-value=claude-opus-4-1]").click()
         page.locator("[data-hmz=composer-text]").fill("which model are you")
         page.locator("[data-hmz=composer-text]").press("Enter")
@@ -840,10 +891,15 @@ def test_a_chat_says_its_model_on_the_chip_of_its_box(
         expect(said).to_have_text("Claude Code Opus 4.1 Default")
         said.click()
         about = page.get_by_role("menu", name="Nous")
-        expect(about.locator("[data-value=claude-opus-4-1]")).to_have_class(
-            re.compile("chosen")
+        # The parts of its agent, a level a line in the order a new chat picks them.
+        expect(about.locator(".model-fact, .choice.step")).to_have_text(
+            [
+                "HarnessClaude Code",
+                "AccountLocal",
+                re.compile(r"^ModelOpus 4\.1$"),
+                re.compile(r"^EffortDefault$"),
+            ]
         )
-        expect(about.locator(".model-fact")).to_contain_text(["AccountLocal"])
         about.get_by_role("menuitem", name="New chat").click()
         expect(page).to_have_url(re.compile(r"#/new/chat\?workspace="))
 
@@ -1892,6 +1948,82 @@ def test_in_the_macos_app_the_top_row_is_drawn_around_the_traffic_lights(
         assert page.evaluate(under) == []
 
 
+def test_in_the_app_the_window_is_moved_by_its_top_while_something_is_over_the_page(
+    project: Path, engine: str
+) -> None:
+    """A dialog's scrim, or a drawer's, covers the top row: a strip over it moves the window."""
+    # What a press at a point of the window lands on: the strip, as what moves the window says
+    # it; what is shown over the page; or the class of whatever else is there.
+    at = (
+        "([x, y]) => { const el = document.elementFromPoint(x, y); return"
+        " el?.dataset.hmz === 'window-strip' ? `strip:${el.getAttribute("
+        "'data-tauri-drag-region')}` : el?.closest('.dialog, dialog, .sidebar') ? 'shown'"
+        " : el?.className }"
+    )
+    strip = "[data-hmz=window-strip]"
+
+    # A browser's window has a title bar: nothing is put over the scrim.
+    with served() as site, opened(site, engine=engine) as page:
+        go(page, "/settings/general")
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        expect(page.locator(strip)).to_have_count(0)
+        assert page.evaluate(at, [640, 10]) == "dialog-scrim"
+
+    with served() as site, opened(site, engine=engine, user_agent=_APP) as page:
+        # Nothing over the page, nothing but its rows moves the window.
+        expect(page.locator(f"{strip}:visible")).to_have_count(0)
+        go(page, "/settings/general")
+        expect(page.locator("[data-hmz=settings-general]")).to_be_visible()
+        # Across the whole top of the window, the lights' room and the far corner included,
+        # 44 high and no higher: under it the scrim is pressed, which closes the dialog.
+        for x in (4, 200, 640, 1276):
+            assert page.evaluate(at, [x, 4]) == "strip:"
+            assert page.evaluate(at, [x, 43]) == "strip:"
+        assert page.evaluate(at, [4, 45]) == "dialog-scrim"
+        # The dialog is over the strip, and what is in it is pressed as ever.
+        page.locator(".settings-nav a[href$='/settings/themes']").click()
+        expect(page.locator("[data-hmz=settings-themes]")).to_be_visible()
+        assert page.evaluate(at, [640, 4]) == "strip:"
+
+        # A dialog of the browser's own, whose backdrop is over all of that, brings its own.
+        page.evaluate(
+            "import('/layers.js').then(({ modal }) => { const asked = document"
+            ".createElement('dialog'); asked.id = 'asked'; asked.append('Sure?');"
+            " document.body.append(asked); modal(asked) })"
+        )
+        expect(page.locator("#asked")).to_be_visible()
+        expect(page.locator(f"#asked > {strip}")).to_have_count(1)
+        for x in (4, 640, 1276):
+            assert page.evaluate(at, [x, 4]) == "strip:"
+        assert page.evaluate(at, [4, 45]) == "shown"
+        page.keyboard.press("Escape")
+        expect(page.locator("#asked")).to_be_hidden()
+
+        # However low the window, at the app's own size and under it, the dialog keeps clear
+        # of the top row: all of the row moves the window, over the dialog's width too.
+        for height in (820, 800, 700, 300):
+            page.set_viewport_size({"width": 1280, "height": height})
+            for x in (4, 400, 640, 900, 1276):
+                assert page.evaluate(at, [x, 4]) == "strip:", (height, x)
+                assert page.evaluate(at, [x, 43]) == "strip:", (height, x)
+            assert page.evaluate(at, [640, 45]) == "shown", height
+        page.locator("[data-hmz=dialog-settings]").get_by_role(
+            "button", name="Close"
+        ).click()
+        expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
+        expect(page.locator(f"{strip}:visible")).to_have_count(0)
+
+        # A narrow window, the sidebar a drawer over the page: beside it, over its scrim.
+        page.set_viewport_size({"width": 700, "height": 800})
+        page.locator("[data-hmz=bar] .bar-side").click()
+        expect(page.locator("[data-hmz=sidebar]")).to_be_in_viewport(ratio=1)
+        assert page.evaluate(at, [690, 4]) == "strip:"
+        assert page.evaluate(at, [690, 45]) == "scrim"
+        assert page.evaluate(at, [100, 4]) == "shown"
+        page.locator("[data-hmz=scrim]").click(position={"x": 690, "y": 400})
+        expect(page.locator(f"{strip}:visible")).to_have_count(0)
+
+
 def test_in_the_windows_app_the_top_row_keeps_clear_of_the_caption_buttons(
     project: Path, engine: str
 ) -> None:
@@ -1995,9 +2127,9 @@ def test_a_setup_is_kept_by_starting_an_epic_and_by_nothing_else(
         chip = page.locator("[data-role=assistant] [data-hmz=pick-model]")
         expect(chip).to_have_text("Claude Code Haiku 4.5 Default")
         chip.click()
-        page.get_by_role("menu", name="Nous").locator(
-            "[data-value=claude-opus-4-1]"
-        ).click()
+        nous = page.get_by_role("menu", name="Nous")
+        nous.locator("[data-hmz=step-model]").click()
+        nous.locator("[data-value=claude-opus-4-1]").click()
         expect(chip).to_have_text("Claude Code Opus 4.1 Default")
         # Nothing saves it but a start: the form holds no Save.
         expect(page.get_by_role("button", name="Save")).to_have_count(0)
@@ -2009,9 +2141,9 @@ def test_a_setup_is_kept_by_starting_an_epic_and_by_nothing_else(
         # Started with, it is what a new epic of that flow opens on there.
         _options(page)
         chip.click()
-        page.get_by_role("menu", name="Nous").locator(
-            "[data-value=claude-opus-4-1]"
-        ).click()
+        nous = page.get_by_role("menu", name="Nous")
+        nous.locator("[data-hmz=step-model]").click()
+        nous.locator("[data-value=claude-opus-4-1]").click()
         page.locator("[data-hmz=composer-text]").fill("keep this")
         page.locator("[data-hmz=composer-text]").press("Enter")
         page.wait_for_url(_EPIC)

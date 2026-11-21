@@ -7,3 +7,12 @@ test('General is said to hold what it holds: the display and reporting, and neit
   const about = /^\s*general: \{.*?about: (?:t\()?'([^']*)'/m.exec(view)?.[1]
   assert.equal(about, 'Display and reporting')
 })
+
+test('Usage is two pages, one drawing: the daemon’s under Daemon and a folder’s under Workspace', () => {
+  const view = readFileSync(new URL('../../../../src/hmz/web/static/views/settings.js', import.meta.url), 'utf8')
+  const pages = [...view.matchAll(/^\s*'?([\w-]+)'?: \{ group: '(\w+)', label: t\('Usage'\).*?import\('([^']+)'\)/gm)].map((found) => found.slice(1))
+  assert.deepEqual(pages, [
+    ['usage', 'daemon', './settings/usage.js'],
+    ['workspace-usage', 'workspace', './settings/usage.js'],
+  ])
+})

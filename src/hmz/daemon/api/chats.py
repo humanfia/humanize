@@ -18,7 +18,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from hmz.daemon import reach
+from hmz.daemon import hosts, reach, where
 from hmz.daemon.api import runs, workspaces
 from hmz.rpc import Code, RpcError
 
@@ -92,11 +92,22 @@ def row(
     """
     assistant = ran.agents[-1] if ran.agents else None
     workspace = runs.resolved(ran.workspace)
+    workdir = ran.workdir or workspace
+    # Where the host holding it says it works, which is ahead of its record while it is
+    # carried on with nothing said (Section 4.6.4.1): moved there, it is there.
+    placed = str((status or {}).get("env") or "") or ran.env
+    env = placed or f"local/{workdir.lstrip('/')}"
+    if placed:
+        # The directory there, as `-e` writes one: absolute, or from `~`.
+        at = placed.partition("/")[2]
+        workdir = at if at.startswith("~") else f"/{at}"
     return {
         "id": ran.name,
         "title": ran.title[:_TITLE],
         "workspace": workspace,
-        "workdir": ran.workdir or workspace,
+        "folderless": where.folderless(workspace),
+        "workdir": workdir,
+        "env": env,
         "agent": assistant.spec if assistant else "",
         "model": assistant.model if assistant else "",
         "began": ran.began,
@@ -286,6 +297,11 @@ def _delete(call: Call) -> dict[str, Any]:
         )
     # Its record and the sessions kept beside it; a worktree it worked in is never removed.
     shutil.rmtree(ran.at)
+    # And, of a folderless chat, the directory made for it, once nothing else is of it.
+    hosts.swept(
+        runs.resolved(ran.workspace),
+        {status["workspace"] for status in workspaces.statuses().values()},
+    )
     return {}
 
 

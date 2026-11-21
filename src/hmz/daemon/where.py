@@ -37,8 +37,10 @@ __all__ = [
     "at",
     "chat",
     "connects",
+    "folderless",
     "held",
     "holds",
+    "nofolder",
     "now",
     "reached",
     "slot",
@@ -82,6 +84,39 @@ def at() -> Path:
         socket in.
     """
     return machine()
+
+
+#: The directory, in the machine's own, that holds every folderless workspace (Section 7.7.8
+#: of files.md).
+_NOFOLDER = "nofolder"
+
+#: The directory an earlier hmz made for an epic or a chat of no folder, straight in the
+#: system's temporary directory.
+_WAS_NOFOLDER = re.compile(r"hmz-[a-z0-9_]{8}")
+
+
+def nofolder() -> str:
+    """Makes a folderless workspace: a new directory of its own, for one epic or chat alone."""
+    import tempfile
+
+    holding = at().resolve() / _NOFOLDER
+    holding.mkdir(mode=0o700, exist_ok=True)
+    return str(Path(tempfile.mkdtemp(dir=holding)))
+
+
+def folderless(where: str | os.PathLike[str]) -> bool:
+    """Whether a workspace, by its whole path, is folderless (Section 4.2.5.1 of daemon.md)."""
+    import tempfile
+
+    one = Path(where)
+    with contextlib.suppress(OSError):
+        if one.parent == at().resolve() / _NOFOLDER:
+            return True
+        return bool(
+            _WAS_NOFOLDER.fullmatch(one.name)
+            and one.parent == Path(tempfile.gettempdir()).resolve()
+        )
+    return False
 
 
 def workspace(where: str | os.PathLike[str] | None = None) -> str:

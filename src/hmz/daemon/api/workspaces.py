@@ -12,6 +12,7 @@ import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from hmz.daemon import where
 from hmz.rpc import Code, RpcError
 
 if TYPE_CHECKING:
@@ -42,7 +43,10 @@ def place(workspace: str, *, made: bool = False) -> Path:
             Code.REFUSED, f"Say the workspace as a whole path, not {workspace}."
         )
     if not made and not at.is_dir():
-        raise RpcError(Code.NOT_FOUND, f"There is no directory {at}.")
+        if not where.folderless(at.resolve()):
+            raise RpcError(Code.NOT_FOUND, f"There is no directory {at}.")
+        # The machine cleans its temporary directory: a folderless workspace is made again.
+        at.mkdir(mode=0o700, parents=True, exist_ok=True)
     return at.resolve()
 
 
@@ -122,7 +126,8 @@ def listed(
 
     Returns:
       Each once: `here`, then those going, then those where epics ran or chats were had,
-      newest first, then those only written down.
+      newest first, then those only written down. Never a folderless one, which is nobody's
+      folder to pick (Section 4.17.5.6).
     """
     mine: dict[str, list[Any]] = {}
     for one in sorted((*ran, *chats), key=lambda one: one.began, reverse=True):
@@ -133,16 +138,17 @@ def listed(
         seen.setdefault(str(one), None)
     return [
         {
-            "path": where,
-            "name": Path(where).name or where,
-            "epics": sum(1 for one in mine.get(where, []) if id(one) not in had),
-            "chats": sum(1 for one in mine.get(where, []) if id(one) in had),
-            "last": mine[where][0].began if mine.get(where) else "",
-            "running": where in running,
-            "here": where == here,
-            "there": Path(where).is_dir(),
+            "path": at,
+            "name": Path(at).name or at,
+            "epics": sum(1 for one in mine.get(at, []) if id(one) not in had),
+            "chats": sum(1 for one in mine.get(at, []) if id(one) in had),
+            "last": mine[at][0].began if mine.get(at) else "",
+            "running": at in running,
+            "here": at == here,
+            "there": Path(at).is_dir(),
         }
-        for where in seen
+        for at in seen
+        if not where.folderless(at)
     ]
 
 

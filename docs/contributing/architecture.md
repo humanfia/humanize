@@ -307,9 +307,41 @@ h('p', {}, pieces('From {name}', { name: h('b', {}, called) })) // a sentence ho
   `web/static/i18n/zh-Hant/<area>.js` (`core`, `sidebar`, `chat`, `ask`, `settings`, `envs`,
   `themes`); a text two areas say belongs to `core`. Traditional Chinese is written in Taiwan's
   words, not converted from Simplified.
-- Names stay in Latin script (Humanize, Ai-chan, Nous, Epic, Flow, Flowverse, Harness, Daemon,
-  Exomyth, Agent, Worktree, and every harness and model), and what a daemon, a flow or an agent
-  wrote is never translated.
+- Names stay in Latin script (Humanize, Ai-chan, Exomyth, EasyTier, and every harness and
+  model), and what a daemon, a flow or an agent wrote is never translated. A name out of a closed
+  set the daemon gives -- a runtime's backend, a permission's preset -- is said through a table of
+  `t('…')` calls keyed by it, and one the table lacks as the daemon names it.
+- Every other word of the product is said by the glossary below, the same in every text, and
+  never in Latin script: the test fails a Chinese text that says `Daemon` or `Epic`.
+
+| English | zh-Hans | zh-Hant | Note |
+| --- | --- | --- | --- |
+| Daemon | 守护进程 | 常駐程式 | |
+| Nous | 心智 | 心智 | νοῦς, the mind: who takes a turn |
+| Virtual / concrete nous | 虚拟心智 / 具体心智 | 虛擬心智 / 具體心智 | |
+| Harness, and "CLI" where it means one | 运行框架 | 執行框架 | |
+| Agent | 智能体 | 代理程式 | |
+| Epic | 史诗 | 史詩 | counted with 部 |
+| Flow | 流程 | 流程 | |
+| Flowverse | 流程库 | 流程庫 | |
+| Environment (env) | 环境 | 環境 | |
+| Runtime | 运行时 | 執行環境 | |
+| Backend (of a runtime) | 类型 | 類型 | |
+| Workspace | 工作区 | 工作區 | |
+| Worktree | 工作树 | 工作樹 | |
+| Session | 会话 | 工作階段 | |
+| Turn | 轮 / 轮次 | 回合 | |
+| Chat | 聊天 | 聊天 | |
+| Folder / directory | 文件夹 / 目录 | 資料夾 / 目錄 | |
+| Local (the daemon of this page's own machine) | 本地 | 本地 | never 本机, which is the runtime |
+| This computer (the env on the daemon's machine) | 这台电脑 | 這台電腦 | |
+| This machine (the built-in runtime) | 本机 | 本機 | |
+| No folder | 无目录 | 無目錄 | a chat or an epic in a temporary directory of its own |
+| Wait (policy) | 等待策略 | 等待策略 | |
+| Token (of a model) | Token | Token | a unit, as GPU is |
+
+Kept as written: commands and what is typed (`/flow`, `hmz update`, `-a`), ids (a backend's
+`ssh`, an account's sign-in method), Shell, SSH, Git, Docker, Slurm, STUN, TURN, WebRTC.
 
 `tests/unit/web/js/i18n.test.mjs` holds the catalogs to the source: every text in both Chinese
 catalogs, no entry left over, the same `{names}` in a translation as in its text, no text in two

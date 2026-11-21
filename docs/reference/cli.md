@@ -19,7 +19,7 @@ hmz                                    open the terminal interface
 hmz -h | --help                        list the commands
 hmz --version                          print the version
 hmz exec <exec-options> [--] <task>    run one flow to its end
-hmz chat [-a <agent>] [--resume <chat> | --worktree] [--] <message>  say one message to an agent here
+hmz chat [-a <agent>] [-e <env>] [--resume <chat> | --worktree] [--] <message>  say one message to an agent here
 hmz chat --list [--archived] | --rename <chat> <title> | --fork <chat> | --archive <chat> | --unarchive <chat> | --delete <chat> [--yes]
 hmz web [<options>]                    serve every workspace's runs to a browser
 hmz daemon serve|connect --stdio|pair|devices|install|uninstall  this machine's daemon
@@ -577,8 +577,8 @@ at a prompt, and ends it. A chat is not a flow and not an epic: it has one agent
 and no budget, and is kept under its own id.
 
 ```text
-usage: hmz chat [-h] [-a SPEC] [--resume CHAT] [--worktree]
-                [--list | --rename CHAT | --fork CHAT | --archive CHAT |
+usage: hmz chat [-h] [-a SPEC] [--resume CHAT] [--worktree] [-e ENV] [--list |
+                --rename CHAT | --fork CHAT | --archive CHAT |
                 --unarchive CHAT | --delete CHAT] [--archived] [--yes]
                 [message]
 ```
@@ -593,6 +593,7 @@ is done, and then ends the chat with an empty next message.
 | <span id="chat-agent"></span>`-a`, `--agent` | an [`<agent>`](#writing-an-agent) after `<role>=`: `cli[@account]/model[:effort]`, or the name of a virtual nous | 0‥n (the last wins) | the chat agent this workspace remembers ([`workspaces.<path>.chat.agent`](/reference/settings#workspace-settings)); refused where none is, saying to give one with `-a` | The assistant. |
 | <span id="chat-resume"></span>`--resume` | a chat's id, as `chat.list` and the chat's page name it | 0‥1 | — | Carry that chat of this workspace on (`chat.start` with `resume`), with `message` as its next turn and its own agent unless `-a` is given. An epic is not carried on, one an earlier hmz recorded for a chat included. |
 | <span id="chat-worktree"></span>`--worktree` | flag | 0‥1 | off | Start the chat with its assistant working in a new git worktree of the workspace (`chat.start` with `worktree`). Refused with `--resume` before the daemon is asked: a chat carried on works where it worked. In a directory that is no git repository the daemon refuses the start, exit `2`. |
+| <span id="chat-env"></span>`-e`, `--env` | an [`<env>`](#writing-an-environment) after `<role>=`: `backend[@runtime][/directory]` | 0‥1 | the workspace on this machine, or where a chat carried on worked | Where the assistant works (`chat.start` with `env`): a directory of this machine (`local/<dir>`) or of a saved [runtime](/user/settings#runtimes) (`ssh@gpu-box/srv/repo`, `docker/srv/repo`). With `--resume` the chat [moves there](/user/chat#moving). An env that cannot be read or reached, or that the agent cannot be put in, is refused, exit `2`. |
 | `-h`, `--help` | flag | | | Print the help and exit `0`. |
 | `message` | positional string | exactly 1 (**required**, not empty) without an option of [the chats written down](#chat-written-down) | — | The first message, or the next. Put `--` before one that starts with `-`. |
 
@@ -1081,6 +1082,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `HUMANIZE_NAME` | `hmz`, SDK links | a name | The name a frontend attaches under, before `@<kind>`. Default: the login name. |
 | `HUMANIZE_SENTRY` | `hmz`, `hmz exec` | `on`, `off` | Answers [reporting](/user/reporting) for this process without writing the answer down. |
 | `HUMANIZE_RELEASES` | `hmz`, the daemon, `hmz update` | a URL, a path, or `off`, `0`, `no`, `none`, empty | Where the newest release is read from (PyPI's JSON for `hmz` by default); off, nothing asks. |
+| `HUMANIZE_SCAN` | the daemon | `off`, `0`, `no`, `none`, empty | Off, the daemon does not ask its installed harnesses what they run as it starts. |
 | `HUMANIZE_EASYTIER` | the daemon, and every command that reaches an EasyTier daemon | a path | An `easytier-core` to use in place of the one Humanize downloads; ignored where it does not exist. |
 | `HUMANIZE_EASYTIER_NODES` | `hmz web` | a URL | The Uptime Kuma server whose status page `easytier` lists the community's shared EasyTier nodes. |
 | `NO_COLOR`, `TERM`, `FORCE_COLOR` | all | see [Colour](#colour) | Escapes. |

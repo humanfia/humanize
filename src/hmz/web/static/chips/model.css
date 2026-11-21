@@ -165,3 +165,70 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A menu picked a level at a time (chips/steps.js) keeps its width from one level to the next,
+   so that nothing under the pointer moves as a level opens. */
+.model-menu.steps {
+  min-width: min(264px, calc(100vw - 30px));
+}
+
+/* The row of a level, as the row that opens a menu beside it: what it picks, and what is
+   picked at its end. */
+.model-menu .choice.step > .choice-text {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.model-menu .choice.step .choice-label {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.model-menu .choice.step .choice-about {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  color: var(--ink);
+}
+
+/* The way back over a level's choices says which level it is. */
+.model-menu .choice.step-back .choice-label {
+  font-weight: 500;
+}
+
+.model-menu .choice.step-back .choice-mark {
+  color: var(--ink-3);
+}
+
+/* In a form the chip is a field: as high as one, as wide as its row lets it be, its mark at
+   its end. */
+.model-pick.as-field {
+  margin-left: 0;
+  flex: 1 1 14rem;
+  max-width: 28rem;
+}
+
+.chip-btn.model-chip.as-field {
+  width: 100%;
+  height: var(--control-h);
+  justify-content: space-between;
+  padding: 0 var(--space-8);
+  border: var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--field);
+  font: var(--text) / 20px var(--sans);
+  color: var(--ink);
+}
+
+.chip-btn.model-chip.as-field .chip-value {
+  max-width: none;
+  flex: 1;
+  min-width: 0;
+}

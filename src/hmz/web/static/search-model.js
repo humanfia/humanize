@@ -54,6 +54,15 @@ export const PAGE = 50
 const MOST = 200
 
 /**
+ * The address at which Search lists what a flow counted: the chats on their own tab, which the
+ * flow `chat` stands for where spending is summed (`runs.usage`), an epic's flow by its name, and
+ * either in one workspace where one is named.
+ */
+export function spentAt(flow, workspace = '') {
+  return `/search?${new URLSearchParams({ ...(flow === 'chat' ? { kind: 'chat' } : { flow }), ...(workspace ? { workspace } : {}) })}`
+}
+
+/**
  * What an address asks Search for: its tab, and the filters under it. A flow named with no tab is
  * on `All`, where only that flow's epics are of it; one named with `Chats` is dropped, as the
  * tab pressed drops it, and so is how it went, which no chat is filtered by.

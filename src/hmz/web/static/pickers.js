@@ -5,6 +5,7 @@
 
 import { call, daemon, hash, onDaemon } from './api.js'
 import { nousOffered, offering, parted, spelled } from './chips/agent.js'
+import { kindSaid } from './chips/environment.js'
 import { fill, h, iconButton } from './dom.js'
 import { t } from './i18n.js'
 import { effortName, harnessName } from './names.js'
@@ -22,6 +23,8 @@ const failed = new Map()
 let reading = ''
 /** Whose CLIs they are: '' for the daemon the page is on, else its name, as Settings picks. */
 let base = ''
+/** The virtual nous that daemon has, by their names, as `nous.list` answers them. */
+let virtual = []
 
 export async function readBackends(workspace = reading, from = '') {
   reading = workspace
@@ -32,16 +35,67 @@ export async function readBackends(workspace = reading, from = '') {
   if (of !== daemon()) return read
   backends = read
   for (const one of told) one()
+  // Its virtual nous beside them, which no picker waits for: one that cannot be read offers none.
+  call('nous.list', {}, { on: from || undefined }).then(
+    (answer) => {
+      if (of !== daemon() || base !== from) return
+      virtual = answer.nous.filter((one) => one.virtual).map((one) => one.name)
+      for (const one of told) one()
+    },
+    () => {},
+  )
   return backends
 }
+
+/** The virtual nous of the daemon last read, by their names. */
+export const virtualNous = () => virtual
 
 // Another daemon's CLIs and accounts are others.
 onDaemon(() => {
   backends = null
   reading = ''
+  virtual = []
   asking.clear()
   failed.clear()
 })
+
+/** Where the account, the model and the effort last picked of each harness are kept, in this browser. */
+const LAST = 'hmz.nous.last'
+/** What was last picked of each harness, so that picking it again starts from there. */
+const last = (() => {
+  try {
+    return new Map(Object.entries(JSON.parse(localStorage.getItem(LAST)) || {}))
+  } catch {
+    return new Map()
+  }
+})()
+
+/** Keeps what is picked of its harness, for the next time that harness is. */
+function note({ cli, account, model, effort }) {
+  if (!cli || !model) return
+  const was = last.get(cli)
+  if (was && was.account === account && was.model === model && was.effort === effort) return
+  last.set(cli, { account, model, effort })
+  try {
+    localStorage.setItem(LAST, JSON.stringify(Object.fromEntries(last)))
+  } catch {
+    // Kept for as long as the page is, where this browser keeps nothing.
+  }
+}
+
+/**
+ * A harness as picking it starts: the account, the model and the effort last picked of it, each
+ * where the harness still has it, else its own sign-in -- or the first account that lists a
+ * model -- and no model, which settles on the first listed.
+ */
+export function harnessed(cli) {
+  const accounts = (backends && backends.clis[cli] && backends.clis[cli].accounts) || []
+  const was = last.get(cli)
+  const held = (was && accounts.find((one) => one.name === was.account)) || accounts.find((one) => !one.name && one.models.length) || accounts.find((one) => one.models.length)
+  const account = held ? held.name : ''
+  const model = was && held && was.account === account && held.models.some((one) => one.name === was.model) ? was.model : ''
+  return { cli, account, model, effort: model ? was.effort : '' }
+}
 
 /** Asks a CLI what it runs as an account, once however many pickers ask. */
 function ask(cli, account) {
@@ -60,22 +114,6 @@ function ask(cli, account) {
     )
   }
   return asking.get(key)
-}
-
-/**
- * A nous, typed or picked from those there are: every virtual one by its name, then every
- * concrete one, as `nous.list` answers them.
- *
- * @param {string} value What it holds to begin with.
- * @param {{nous: {name: string, virtual: boolean}[], concrete: string[]} | null} nous
- * @param {{label: string, hmz: string, placeholder?: string}} how
- */
-export function nousField(value, nous, { label, hmz, placeholder = t('A nous') }) {
-  const id = `nous-${Math.random().toString(36).slice(2, 10)}`
-  const named = nous ? [...nous.nous.filter((one) => one.virtual).map((one) => one.name), ...nous.concrete] : []
-  const offered = h('datalist', { id }, named.map((one) => h('option', { value: one })))
-  const input = h('input', { type: 'text', value, list: id, placeholder, 'aria-label': label, 'data-hmz': hmz, spellcheck: 'false', autocomplete: 'off' })
-  return { node: h('span', { class: 'nous-field' }, input, offered), input }
 }
 
 export { parted, spelled }
@@ -135,6 +173,7 @@ export function agentChoice(role, kept, draw, { effort: withEffort = true, chang
   function again() {
     if (!backends) return
     const offered = offering(chosen, backends.clis, role.clis, asked)
+    note(chosen)
     draw(offered)
     if (offered.unasked) refresh()
   }
@@ -177,7 +216,7 @@ export function agentPicker(role, kept, changed, { effort: withEffort = true } =
   const again = iconButton('resume', t('Refresh models'), { class: 'small' })
   const said = h('span', { class: 'hint', 'aria-live': 'polite' })
   // A place a turn goes to is a CLI, an account and a model: no effort is part of it.
-  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field('CLI', cli), field(t('Account'), account), field(t('Model'), model, typed), withEffort ? field(t('Effort'), effort) : null, again, said)
+  const node = h('div', { class: 'picker', 'data-hmz': 'agent-picker' }, field(t('CLI'), cli), field(t('Account'), account), field(t('Model'), model, typed), withEffort ? field(t('Effort'), effort) : null, again, said)
   let typing = false
 
   const picked = agentChoice(role, kept, draw, { effort: withEffort, changed })
@@ -284,7 +323,7 @@ export function envPicker(role, kept, offered, runtimes, { folder = '' } = {}) {
   const node = h('div', { class: 'picker', 'data-hmz': 'env-picker' }, field(t('Backend'), backend), field(t('Runtime'), machine, host), h('div', { class: 'field' }, h('span', { class: 'label' }, t('Directory')), dir))
 
   function draw() {
-    fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, one)))
+    fill(backend, offered.envs.map((one) => h('option', { value: one, selected: one === chosen.backend }, kindSaid(one)[0])))
     const mine = runtimes.filter((one) => one.backend === chosen.backend)
     const local = chosen.backend === 'local'
     machine.closest('.field').hidden = local

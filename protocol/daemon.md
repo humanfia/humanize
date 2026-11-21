@@ -457,6 +457,12 @@ for terminals (Section 4.24.4.10).
 **3.9.8** A daemon MUST fetch the newest release of hmz as Section 13.3 of [CORE] states, and every
 flowverse's index once as it starts, without telling any client.
 
+**3.9.8.1** A daemon MUST, as it starts, begin a scan (Section 4.18.3.6) of every installed harness,
+as each account it runs as, that was never asked what it runs or was last asked more than 7 days
+ago. The scan MUST run apart from everything the daemon serves, asking one harness at a time: it
+MUST NOT delay the daemon's listening or the answer to any call, and a harness that does not answer
+MUST be left as it was. `HUMANIZE_SCAN` (Section 3.11.2.8.1 of [FILES]) MUST turn it off.
+
 ## 4. RPC Methods
 
 ### 4.1. Scope
@@ -490,6 +496,11 @@ Out of scope:
 
 **4.2.5** **Workspace path**: a workspace directory as an absolute path with every symbolic link
 followed. Two spellings of one directory are one workspace path.
+
+**4.2.5.1** **Folderless**: a workspace path is folderless (Section 2.3.6.1 of [CORE]) where it is
+a directory of `<mdir>/nofolder/` (Section 7.7.8 of [FILES]), or a directory `hmz-` followed by
+eight of `a` to `z`, `0` to `9` and `_` in the system's temporary directory, as an earlier hmz
+made one.
 
 **4.2.6** **Slot**: the text naming one host of a workspace: `""` for the workspace's own host,
 `chat:` followed by 1 to 32 lowercase hexadecimal digits for the host of one chat, `ai:` followed by
@@ -577,9 +588,12 @@ whole path, not <workspace>.`, and one naming no directory 404, `There is no dir
 except where a method states the workspace need not exist or that it reads an epic of a workspace
 since removed. A method that names a host by `workspace` and `slot` and MUST NOT start one -- those
 of Section 4.6 but `hosts.open`, of Section 4.23, `btw.list`, `btw.leave`, `chat.say`,
-`chat.commands`, `chat.set` and `chat.stop` -- MUST NOT refuse a `workspace` for naming no
+`chat.commands`, `chat.set`, `chat.move` and `chat.stop` -- MUST NOT refuse a `workspace` for
+naming no
 directory: it MUST answer as it does for the host that holds it, or for none. Nor MUST
-`epic.attach` refuse one where a host of that `workspace` and `slot` is held already.
+`epic.attach` refuse one where a host of that `workspace` and `slot` is held already. A folderless
+`workspace` naming no directory MUST NOT be refused 404: the daemon MUST make its directory again,
+empty, with mode `0700`.
 
 **4.5.3** `slot` absent or `""` MUST mean the workspace's own host; one that is not a slot, nor
 `chat:` or `exec:` alone where Section 4.7.1.2 or Section 4.25.1.1 permits it, MUST be refused 400,
@@ -648,6 +662,8 @@ an absent `turn` as the host holding neither a chat nor an Ai-chan conversation.
   flow, task}`, `at` in Unix seconds; `null` before one has ended.
 - `turn`: Of a chat or an Ai-chan conversation only: `running` while its agent answers, `done`
   between turns and once it is over.
+- `env`: Of a chat or an Ai-chan conversation only: the env its assistant works in, as `-e`
+  writes one after `<role>=`, where it was started in one or moved to one; `""` otherwise.
 - `budget`, `usage`: The epic going's budget and spending as JSON, an infinite limit as the text
   `"Infinity"`; `null` while stopping or idle.
 - `flows`: The canonical refs of the flow calls in progress.
@@ -671,8 +687,9 @@ client id), `workspace` and `slot`.
 **4.7.1.2** `epic.attach` MUST start the workspace's own host where none is; with `slot` `chat:` or
 `exec:` alone it MUST make a new slot of that kind, start its host and attach to it.
 
-**4.7.1.3** `epic.attach` with `scratch` `true` MUST, in place of `workspace`, make a new directory
-for the epic alone in the system's temporary directory, and attach to its own host.
+**4.7.1.3** `epic.attach` with `scratch` `true` MUST, in place of `workspace`, make a new
+folderless workspace, `<mdir>/nofolder/<random>/` (Section 7.7.8 of [FILES]), for one epic or one
+chat alone, and attach to the host of `slot` there.
 
 **4.7.1.4** `epic.attach` naming a chat or exec slot whose host has gone MUST be refused 409, `This
 chat has folded away.` for a chat and `This epic has ended.` for an exec slot; one naming an `ai:`
@@ -1337,7 +1354,8 @@ place it among the chats, and answer its name; `backups.epics` MUST answer it wi
 
 #### 4.16.2. Epic rows
 
-**4.16.2.1** An epic row MUST hold `name`, `workspace`, `kind` (`flow`), `flow`, `task` (its first line,
+**4.16.2.1** An epic row MUST hold `name`, `workspace`, `folderless` (whether that workspace is
+folderless, Section 4.2.5.1), `kind` (`flow`), `flow`, `task` (its first line,
 cut at 240 characters with `…`), `began`, `ended`, `how` (its ending, `running` while going,
 `unfinished` where its process went before it ended), `agents` (`[{name, role, runs}]`), `sessions`
 (a count), `resumable`, `spent`, `held` (whether a host is going with it), `slot` (that host's),
@@ -1504,6 +1522,9 @@ and answer as `workspaces.list` does.
 an epic, and no `ai:` slot a host (Section 14.7.4 of [CORE]): neither counted in `epics`, `last` or
 `running`, nor a reason to list a directory.
 
+**4.17.5.6** `workspaces.list` MUST NOT list a folderless workspace (Section 4.2.5.1), whatever ran
+or goes in it.
+
 #### 4.17.6. `flowverses.*`
 
 **4.17.6.1** `flowverses.list` MUST answer `verses` (each `name`, `url` without credentials,
@@ -1531,6 +1552,15 @@ absent), `files` (boolean, to list files) and `hidden` (boolean, to list names s
 and MUST answer `at` (spelled from `~` where under the home directory), `whole`, `up` (the parent,
 `""` at the root), `entries` (each `name`, `dir`, directories first, at most 500) and `more` (how
 many were left out); a directory that cannot be read MUST be refused 404.
+
+**4.17.7.1.1** With `env` -- a runtime as `-e` writes one, with no directory: `ssh@<name>`,
+`docker`, `apple-container@<name>` -- `paths.list` MUST list the directory `at` of that runtime's
+machine, `~` being the home directory there, and MUST answer as it does for this machine, `at` and
+`whole` both the absolute path. For an ssh runtime it MUST ask the host; for a runtime with no
+name, whose directories are this machine's, it MUST answer as with no `env`; for any other it MUST
+be refused 409, `The directories of <env> cannot be listed from here; write the path.` An `env`
+that names no runtime MUST be refused 400 as `-e` refuses it, and a host that cannot be reached
+409, saying why.
 
 **4.17.7.2** `paths.complete` MUST take `typed` and answer `paths`: at most 50 directories the text
 typed could become, sorted, spelled as typed, each ending in `/`, names starting with `.` only where
@@ -1618,8 +1648,10 @@ refused 404 and a CLI that will not answer 502.
 **4.18.3.1** `nous.list` MUST answer `nous` (each `name`, `virtual`, `tries`, `policy`, `timeout`,
 `graph` and `then`, each graph `null` or `start` and `nodes`, each node `id`, `use`, `balance`,
 `among` (each `nous` and `weight`), `spread` and `on`), `policies`, `default`, `strategies`,
-`faults` (every fault class and `*`) and `concrete` (every concrete nous the daemon's accounts and
-installed harnesses run, without an effort).
+`faults` (every fault class and `*`), `concrete` (every concrete nous the daemon's accounts and
+installed harnesses run, without an effort) and `scanning` (whether a scan of Section 4.18.3.6 is
+going on). `concrete` MUST be answered from what each harness last said it runs, which the daemon
+keeps: `nous.list` MUST NOT ask a harness.
 
 **4.18.3.2** `nous.set` MUST take `name`, `tries` (default `0`), `policy` (default
 `exponential-jitter`), `timeout` (seconds, `0` for none), `graph` and `then`, each graph in a shape
@@ -1632,12 +1664,25 @@ installed harnesses run, without an effort).
 **4.18.3.4** `nous.clear` MUST take `name`, remove its nous, and answer as `nous.list` does; a nous
 with nothing written MUST be refused 404, and one another nous names 400.
 
-**4.18.3.5** `nous.set`, `nous.rename` and `nous.clear` MUST be writes.
+**4.18.3.5** `nous.set`, `nous.rename`, `nous.clear` and `nous.scan` MUST be writes.
+
+**4.18.3.6** `nous.scan` MUST ask every installed harness what it runs, as the daemon's machine's
+own sign-in and as each account made for it, keep each answer as `accounts.models` keeps it, and
+answer as `nous.list` does with `failed`: each `cli` and `account` that would not answer, and
+`why`. A harness that does not answer MUST NOT fail the call. One scan MUST go on at a time: a
+`nous.scan` called while one is going MUST wait for that one and answer what it found; while the
+one going is the scan a daemon starts with (Section 3.9.8.1), which asks only some, it MUST wait
+for that one and then ask every harness itself.
 
 #### 4.18.4. `runtimes.*`
 
 **4.18.4.1** `runtimes.list` MUST answer `runtimes` (each as the runtime's `held()` of Section
 4.20.6.1 of [PYTHON] gives it) and `blanks` (each backend's fields as a new runtime holds them).
+
+**4.18.4.1.1** `runtimes.list` MUST also answer `local`, the daemon's own machine, where work runs
+that names no runtime: its `host` (the host name), `system` and `machine` (as `uname -s` and
+`uname -m` say them), `cpus` and `memory` (bytes). It is no runtime: it MUST NOT be among
+`runtimes`, and no method writes or removes it.
 
 **4.18.4.2** `runtimes.set` MUST take `backend`, `name`, `fields` and `replace` (boolean), and write
 the runtime; `backend` or `name` among `fields`, or an invalid runtime, MUST be refused 400.
@@ -2247,7 +2292,8 @@ the role of the session, while a session working in that env has a turn open.
 one, `chat:`), `agent` (an agent spec, as `epic.start` takes one for a role), `task` (text,
 required; not empty but with `resume`), `resume` (the name of a chat of the workspace, `null`), `prefer` (`native`,
 `flow` or `null`), `permission` (`read-only`, `workspace-write`, `danger-full-access` or `null`),
-`worktree` (boolean, `false`) and `remember` (boolean, `false`), and MUST be a write.
+`worktree` (boolean, `false`), `env` (an env as `-e` writes one after `<role>=`, or `null`) and
+`remember` (boolean, `false`), and MUST be a write.
 
 **4.25.1.2** `chat.start` MUST start the host of that slot as `epic.attach` does (Section 4.7.1.2),
 without attaching to it, MUST start a chat there (Section 8 of [CORE]) with `agent` as its assistant
@@ -2295,6 +2341,15 @@ MUST instead first end the chat there as an empty `chat.say` does and start it a
 had held it. Where a host holds that chat and something has been said to it, `chat.start` with a
 `task` that is not empty MUST be refused 400 with `<resume> is going on already`. Calls with one
 `resume` made at once MUST be answered as though made one after another.
+
+**4.25.1.10** With `env`, `chat.start` MUST start the chat in that env (Section 8.3.15 of [CORE]),
+in a new worktree made there where `worktree` is `true` too; with `resume`, it MUST carry the chat
+on in that env, which is a move (Section 8.3.16 of [CORE]) -- made on the host that holds the chat,
+where one does and the chat is not in that env already, before `task` is said there, and made
+there too where `task` is empty; a move refused there MUST refuse the call as `chat.move` is
+refused. It MUST be refused 400, in the
+words `-e` is refused with, for an `env` that is not one, and as Section 8.3.7 of [CORE] states
+for one that cannot be reached or that the agent cannot be put in, no chat being recorded.
 
 #### 4.25.2. `chat.say`
 
@@ -2357,8 +2412,13 @@ first message or the name), `offset` (default `0`) and `limit` (default `50`, at
 MUST answer `chats` (chat rows, newest begun first), `total`, `offset` and `limit`.
 
 **4.25.5.2** A chat row MUST hold `id` (the chat's name), `title` (Section 8.10.1 of [CORE], cut at
-240 characters), `workspace`, `workdir` (where its assistant works: the workspace, or the worktree
-of Section 8.3.13 of [CORE]), `agent` (its assistant as an agent spec), `model`, `began`, `updated`
+240 characters), `workspace`, `folderless` (whether that workspace is folderless, Section 4.2.5.1),
+`workdir` (where its assistant works: the workspace, or the worktree
+of Section 8.3.13 of [CORE], or the directory of the env it was started in or moved to), `env`
+(the env its assistant works in, as `-e` writes one after `<role>=`: `local/<workdir>` for a
+directory of this machine, Section 8.3.15 of [CORE]; of a chat a host holds, the env that host's
+status says where it says one, Section 4.6.4.1, so that a chat moved with nothing said yet reads
+as where it now works), `agent` (its assistant as an agent spec), `model`, `began`, `updated`
 (when its record was last written), `state`, `slot` (the slot of the host holding it, `""` for
 none), `asking` (the questions its assistant asked mid-turn and waits on, each `<run>:<question>`),
 `permission` (Section 8.3.9 of [CORE]), `archived` (boolean) and `spent` (as an epic row's, Section
@@ -2416,7 +2476,8 @@ the chat's directory.
 started with), MUST back the chat up as `runs.backup` backs up an epic (Section 4.16.5), and MUST be
 answered and refused as `runs.backup` is.
 
-**4.25.7.6** `chat.delete` MUST remove the chat's directory (Section 8.10.4 of [CORE]) and MUST be
+**4.25.7.6** `chat.delete` MUST remove the chat's directory (Section 8.10.4 of [CORE]), and with it
+the directory of the chat's folderless workspace as Section 7.7.8 of [FILES] states, and MUST be
 answered `{}`. Where a host holds the chat between turns, the daemon MUST first end the chat there
 as an empty `chat.say` does (Section 4.25.2). It MUST be refused 409 with `Chat <name> has a turn
 open; delete it once it is done.` while the chat's turn is open or a process that is no host
@@ -2471,6 +2532,25 @@ chat's name. It MUST be refused 409 with `A session of <harness> cannot be conti
 for a harness whose sessions are not continuable (Section 4.25.8.3), and 409, saying why, for an
 `agent` of another harness, for a session that gives no model where `agent` is absent, and where
 the session's files cannot be copied.
+
+#### 4.25.9. `chat.move`
+
+**4.25.9.1** `chat.move` MUST take `workspace`, `slot` and `env` (an env as `-e` writes one after
+`<role>=`, required), MUST be a write, MUST move the chat that host holds to that env as Section
+8.3.16 of [CORE] states, and MUST be answered with `env`, where the chat works from then on,
+written likewise.
+
+**4.25.9.2** `chat.move` MUST be answered only once the env has been reached and the chat's
+assistant settled for it. It MUST be refused 400, in the words `-e` is refused with, for an `env`
+that is not one; 409 with `a turn is open; move the chat once it is done` while the chat is not
+between turns; 409 with `The chat stays where it was: <reason>` for an env that cannot be reached
+or made, or that the assistant's harness cannot be put in; 409 with `<env> did not answer, so the
+chat stays where it was` where the env has not answered within 120 seconds; 409 with `an Ai-chan
+conversation works where it was made` on a host of hers; and as `chat.say` is for a slot no host
+holds or a chat that has folded (Section 4.25.2.4). A move refused MUST leave the chat as it was.
+
+**4.25.9.3** Once a chat is moved, the host MUST list the chat's env anew (Section 4.24), and the
+panes of the chat MUST be those of the env it works in.
 
 ## 5. Security Considerations
 

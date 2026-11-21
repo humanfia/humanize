@@ -15,10 +15,12 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
+import hmz.coganchor.models
 from hmz import home
 from hmz.coganchor import easytier as tier
 from hmz.daemon.api import accounts, easytier, nous, runtimes, settings
 from hmz.rpc import PROTOCOL, Call, Dispatcher, Peer, RpcError, admit, document, hello
+from hmz.runtime import Hmz
 from tests.integration.doubles_easytier import kuma
 
 if TYPE_CHECKING:
@@ -236,6 +238,27 @@ def test_nous_and_runtimes_are_written_into_the_settings_file(
     assert listed["default"] in {one["name"] for one in listed["policies"]}
     assert "shuffle" in {one["name"] for one in listed["strategies"]}
     assert "*" in listed["faults"]
+    # A scan asks every harness installed, and answers as the list does with who would not say.
+    asked: list[tuple[str, str]] = []
+
+    def asks(cli: str, provider: str = "", seconds: float = 0.0) -> tuple[()]:
+        asked.append((cli, provider))
+        if cli == "claude":
+            raise OSError("claude is not signed in")
+        return ()
+
+    def installed(_: Hmz) -> dict[str, tuple[()]]:
+        return {"claude": (), "codex": ()}
+
+    with monkeypatch.context() as patched:
+        patched.setattr(hmz.coganchor.models, "ask", asks)
+        patched.setattr(Hmz, "installed", installed)
+        scanned = _call(client, "nous.scan")
+    assert sorted(asked) == [("claude", ""), ("codex", "")]
+    assert scanned["failed"] == [
+        {"cli": "claude", "account": "", "why": "claude is not signed in"}
+    ]
+    assert scanned["scanning"] is False
     written = _call(
         client, "nous.set", name="claude/opus", then=["codex/gpt"], tries=2, timeout=5
     )

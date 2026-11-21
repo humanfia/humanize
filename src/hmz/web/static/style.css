@@ -968,6 +968,73 @@ code {
   width: 6em;
 }
 
+/* The two kinds of nous are two parts of one card, each under its own small heading. */
+.panel > h3.nous-part {
+  margin: var(--space-16) 0 var(--space-4);
+  font: 600 var(--text-md)/20px var(--sans);
+  color: var(--ink-2);
+}
+
+/* A harness and the nous found of it: its name, then how many, folded away where they are many. */
+.panel > details.nous-harness {
+  margin-top: var(--space-8);
+}
+
+.panel > details.nous-harness > .table-wrap {
+  margin-top: var(--space-4);
+}
+
+/* Every harness's table is ruled alike, so that what is said of one model stands under what is
+   said of the last harness's. */
+@container (min-width: 641px) {
+  details.nous-harness table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  details.nous-harness th:nth-child(2),
+  details.nous-harness th:nth-child(3) {
+    width: 24%;
+  }
+
+  details.nous-harness th:last-child {
+    width: 8.5rem;
+  }
+}
+
+.panel > input.nous-find {
+  width: min(100%, 20rem);
+  margin-top: var(--space-8);
+}
+
+/* What explains the way chosen in a select stands under its row, as long as it needs to be. */
+.hint.way-about {
+  margin: var(--space-4) 0 0;
+}
+
+/* A way picked among fields in a row: the select, and beside it what explains the one chosen,
+   which goes under the select where there is no room beside it and never under another field. */
+.row > .field.way-field {
+  flex: 1 1 20rem;
+}
+
+.row:has(> .field.way-field) {
+  align-items: flex-start;
+}
+
+.way-field > .row > select {
+  flex: none;
+}
+
+.way-field .hint.way-about {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+
+.hint.way-about:empty {
+  display: none;
+}
+
 /* A box ticked beside what it says: said as words, not as a field's name. */
 .field > label.check {
   font: var(--text)/20px var(--sans);
@@ -5147,6 +5214,41 @@ td:has(> .exo-key) {
   background: var(--scrim);
 }
 
+/* What Humanize Desktop's window is moved by while the page's top row is covered: as high as
+   that row, across the window's top, over the scrim and under the dialog -- which is drawn after
+   it, or, where the strip is inside a dialog of the browser's own, holds it under all it shows. */
+.window-strip {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--bar-h);
+}
+
+dialog > .window-strip {
+  z-index: -1;
+}
+
+/* On a wide window of Humanize Desktop's a dialog keeps clear of that row, above and as far
+   below so that it stays in the window's middle: the whole of the row moves the window, not the
+   sliver a dialog as tall as the window would leave of it. A narrow window's dialog fills it, and
+   is moved by its own head. */
+@media (min-width: 861px) {
+  :root[data-shell] .overlay {
+    padding-block: var(--bar-h);
+  }
+}
+
+/* Beside the sidebar's drawer it is there only while the drawer's scrim is, and at its height. */
+.app > .window-strip {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .app.side-open > .window-strip {
+    display: block;
+    z-index: var(--z-scrim);
+  }
+}
+
 /* Nothing here moves, is filtered or is contained: a menu opened inside a dialog is placed
    against the window, which any of those would take from it. */
 .dialog {
@@ -6087,6 +6189,61 @@ input[aria-invalid='true'] {
 .settings-daemon select {
   min-width: 0;
   max-width: min(100%, 320px);
+}
+
+/* Which folder the pages under `Workspace` are of, under the daemon it is a folder of: its name
+   picked, its whole path said after it, and that it is gone where it is. */
+.settings-workspace[hidden] {
+  display: none;
+}
+
+.settings-path {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--ink-3);
+  font: var(--text-sm)/16px var(--mono);
+}
+
+.settings-path .path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The daemon's own machine, over the runtimes written down: said, with nothing to press. */
+.runtime-local {
+  display: flex;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--hover);
+}
+
+.runtime-local > .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ink-2);
+}
+
+.runtime-local p {
+  margin: 0;
+  font: var(--text-md)/20px var(--sans);
+}
+
+.runtime-local p.mono {
+  font: var(--text-sm)/20px var(--mono);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.runtime-local-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
 }
 
 /* What is asked over Settings: a small dialog of the browser's own, drawn as the page's are. */

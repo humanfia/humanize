@@ -7,7 +7,7 @@ chosen. Each test runs in Chromium and in WebKit.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import expect
@@ -157,7 +157,7 @@ def test_with_none_chosen_the_page_follows_what_the_browser_asks_for(
         (
             "zh-CN",
             "跳到页面内容",
-            "聊天和 Epic",
+            "聊天和史诗",
             "超高",
             "文件夹 ghost 已不在这台机器上。请另选一个文件夹。",
             "此浏览器未获准进入。",
@@ -165,7 +165,7 @@ def test_with_none_chosen_the_page_follows_what_the_browser_asks_for(
         (
             "zh-TW",
             "跳至頁面內容",
-            "聊天與 Epic",
+            "聊天與史詩",
             "超高",
             "資料夾 ghost 已不在這台機器上。請另選一個資料夾。",
             "此瀏覽器未獲准進入。",
@@ -208,6 +208,86 @@ def test_what_every_view_shares_is_said_in_the_pages_language(
             expect(shut.locator("#page .empty code")).to_have_text("hmz web")
         finally:
             stranger.close()
+
+
+@pytest.mark.parametrize(
+    ("asked", "words"),
+    [
+        (
+            "zh-CN",
+            {
+                "daemon": "本地",
+                "env": "这台电脑",
+                "runtime": "本机",
+                "none": "无目录",
+                "row": ["SSH 主机", "手动填写"],
+                "way": "由 `claude setup-token` 生成",
+                "asks": "`claude setup-token` 输出的令牌",
+                "connected": "当前连接",
+            },
+        ),
+        (
+            "zh-TW",
+            {
+                "daemon": "本地",
+                "env": "這台電腦",
+                "runtime": "本機",
+                "none": "無目錄",
+                "row": ["SSH 主機", "手動填寫"],
+                "way": "由 `claude setup-token` 產生",
+                "asks": "`claude setup-token` 輸出的權杖",
+                "connected": "目前連線",
+            },
+        ),
+    ],
+)
+def test_in_chinese_the_daemon_the_env_and_the_runtime_each_have_a_word_of_their_own(
+    project: Path, engine: str, asked: str, words: dict[str, Any]
+) -> None:
+    """Which hmz serves, where a chat works and the machine it runs on are never one word."""
+    assert len({words["daemon"], words["env"], words["runtime"]}) == 3
+    with served() as site, opened(site, engine=engine, locale=asked) as page:
+        # A new chat: the daemon at the sidebar's foot, the env under the box, and the
+        # choice of no folder by the word the sidebar groups such chats under.
+        go(page, "/new/chat")
+        chip = page.locator("[data-hmz=start] [data-hmz=environment]")
+        expect(chip).to_contain_text(words["env"])
+        expect(chip).not_to_contain_text(words["daemon"])
+        page.locator("[data-hmz=start] [data-hmz=folder]").click()
+        expect(page.get_by_role("menuitem").first).to_contain_text(words["none"])
+        page.keyboard.press("Escape")
+
+        # A new epic: the daemon in a part of its own, not in the environment's.
+        go(page, "/new")
+        serving = page.locator("[data-hmz=setup-serving]")
+        expect(serving.locator(".setup-name")).to_have_text(words["connected"])
+        expect(serving.locator("[data-hmz=daemon]")).to_have_text(words["daemon"])
+        expect(
+            page.locator("[data-hmz=setup-environment] [data-hmz=daemon]")
+        ).to_have_count(0)
+
+        # The runtimes: this machine by the runtime's word, and what the daemon names out
+        # of a closed set -- a backend, how a runtime was made -- in the page's language.
+        page.evaluate(
+            "async () => (await import('/api.js')).call('runtimes.set',"
+            " {backend: 'ssh', name: 'gpu', fields: {host: 'gpu.lab'}})"
+        )
+        go(page, "/settings/runtimes")
+        expect(page.locator("[data-hmz=runtime-local] b")).to_have_text(
+            words["runtime"]
+        )
+        row = page.locator("[data-hmz=runtime]")
+        for said in words["row"]:
+            expect(row).to_contain_text(said)
+        assert "typed" not in row.inner_text()
+
+        # A way of signing in, and what it asks for, say what they are in the language.
+        go(page, "/settings/accounts")
+        page.locator("#account-cli").select_option("claude")
+        page.locator("#account-way").select_option("token")
+        form = page.locator("form:has(#account-way)")
+        expect(form.locator("p.hint")).to_contain_text(words["way"])
+        expect(form.locator(".field .hint").first).to_contain_text(words["asks"])
 
 
 def test_a_language_chosen_in_one_tab_is_every_tabs(project: Path, engine: str) -> None:

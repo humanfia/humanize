@@ -329,6 +329,20 @@ input.title-edit {
   font-size: var(--text-sm);
 }
 
+/* Those of no folder, under the folder's own: a quiet heading, and a line over it where the
+   folder's chats stand before it. */
+.archived-nowhere > h4 {
+  margin: 0;
+  font: 500 var(--text-sm) / 28px var(--sans);
+  color: var(--ink-3);
+}
+
+.archived-nowhere:not(:first-child) {
+  margin-top: var(--space-12);
+  padding-top: var(--space-8);
+  border-top: var(--border);
+}
+
 /* A harness session, only read: what was said in it, and under it the one way on. */
 .harness-main {
   position: relative;

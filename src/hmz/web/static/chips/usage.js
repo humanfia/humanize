@@ -57,7 +57,7 @@ export function usageChip({ hmz, tip, chat = null, workspace }) {
         (error) => draw(problem(error)),
       )
       // A link among figures, not a choice of a menu.
-      const settings = choice({ label: t('Usage settings'), glyph: 'chart', href: hash(`/settings/usage${folder ? `?workspace=${encodeURIComponent(folder)}` : ''}`), close })
+      const settings = choice({ label: t('Usage settings'), glyph: 'chart', href: hash(folder ? `/settings/workspace-usage?workspace=${encodeURIComponent(folder)}` : '/settings/usage'), close })
       settings.removeAttribute('role')
       settings.dataset.hmz = 'usage-settings'
       mine = chat ? h('div', { class: 'usage-mine' }) : null

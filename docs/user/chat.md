@@ -37,7 +37,7 @@ comes back to the chat.
 | Who works | one agent, the **assistant**, with everything its CLI can do, the web included | every role the flow declares, each with what the flow grants it |
 | How it goes on | one turn per line you say, in one conversation | as the flow's Python says, until it ends or its budget is spent |
 | Budget | none: it spends what its turns spend | always one |
-| Params, environments | none: it works in the directory it was started in, or in [a worktree of it](#worktree), on this machine | as the flow declares |
+| Params, environments | no params; it works in the directory it was started in, in [a worktree of it](#worktree), or in [another environment](#moving) it is started in or moved to | as the flow declares |
 | Stopping | its open turn only, with `/stop` or **Stop** ([below](#stopping-a-turn)); the chat itself is never ended or forced: it waits between turns, and [folds away](#leaving-and-carrying-on) | `ctrl+c` twice, `/stop`, **Stop** |
 | Where it is listed | `/resume` in a chat, and the sidebar and **Search** of `hmz web`, by its title; never in `/epics` | `/epics` and the web's sidebar, an epic of its flow, offering `resume epic` |
 | How it is named | its id, `<stamp>-<hex6>`, and its title | its epic's name |
@@ -109,7 +109,7 @@ your checkout:
 hmz chat --worktree -a claude/claude-opus-5:high "Try the other parser."
 ```
 
-In `hmz web` it is the **Worktree** row of **Environment**, the chip under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
+In `hmz web` it is **New worktree** in the menu of **Environment**, the chip under a new chat's first message. From a program it is `worktree: true` on [`chat.start`](/reference/daemon#chats). Humanize adds
 a new worktree of the repository holding the directory, detached at its `HEAD` and on no
 branch, under [`envs/`](/reference/files#environments) in Humanize's home, and the agent works
 there in place of the directory. The chat is still a chat of the directory it was started in:
@@ -119,6 +119,35 @@ Humanize never removes the worktree, not when the chat is [deleted](#managing) e
 it with `git worktree remove` once you have what you want from it. A directory that is in no
 git repository refuses the start, with what `git` said, and a chat carried on is given no
 worktree: it works where it worked.
+
+### In another environment {#moving}
+
+Where a chat works is its **environment**: where its agent's commands run and its files live.
+That is not the [daemon](/user/web#daemons), which is *which* hmz serves you -- a machine running
+hmz that you connect to. A chat starts in its folder on the daemon's machine, and can be started
+in, or moved to, any other environment: another directory of that machine, or a directory of a
+saved [runtime](/user/settings#runtimes) -- an SSH host, a container, a cluster.
+
+```sh
+hmz chat -e ssh@gpu-box/srv/repo -a claude/claude-opus-5:high "Run the benchmarks here."
+hmz chat --resume 20261117T100000.000Z-ab12cd -e local/Users/me/repo "Now back on my machine."
+```
+
+An environment is written as `-e` writes one for an epic: `local/<dir>`, `ssh@<runtime>/<dir>`,
+`docker[@<runtime>]/<dir>`, and so on; a runtime alone (`ssh@gpu-box`) is the directory it was
+saved with. In `hmz web` it is the **Environment** chip under the chat's box
+([below](/user/web#environment)). From a program it is `env` on
+[`chat.start`](/reference/daemon#chats) and [`chat.move`](/reference/daemon#chats).
+
+A chat is moved **between turns**, at any time; while a turn is open the move is refused -- `a
+turn is open; move the chat once it is done`. Humanize reaches the environment and checks the
+agent can run for it before anything changes, so one that cannot take the chat -- a host that is
+down, a directory that is not there, a CLI that is missing there -- leaves the chat where it was
+and says why. Moved, the chat is still a chat of the folder it was started in, its record says
+where it works, and carrying it on returns there. Its next turn goes on in the same conversation
+where the agent's CLI can carry one on in the new place; where it cannot -- most CLIs cannot move
+a conversation to another machine -- the chat says so and answers in a new conversation, which
+has not read the old one. Nothing is removed from the environment a chat leaves.
 
 ## In the terminal
 
@@ -403,6 +432,7 @@ hmz chat -a claude/claude-opus-5:high "What does this repository do?"
 | `-a`, `--agent` | the agent, as `-a` writes one [after `<role>=`](/user/unattended#name-an-agent-for-each-role): `cli[@account]/model[:effort]`, or the name of a virtual nous. Without it, the agent this directory remembers; with none remembered, refused |
 | `--resume <chat>` | carry the chat of that [id](#where-a-chat-is-kept) on, in this directory, the message as its next turn, with its own agent unless `-a` says another. An epic is not carried on |
 | `--worktree` | start the chat in a [new git worktree](#worktree) of this directory; refused together with `--resume` |
+| `-e`, `--env` | where the agent works, as `-e` writes an [environment](#moving): `backend[@runtime][/directory]`; with `--resume`, the chat moves there |
 | the message | exactly one argument, not empty; one that starts with `-` goes after `--` |
 
 The message is read as [a line in a chat](#what-a-line-means) is, except that a `$` line

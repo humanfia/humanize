@@ -1,15 +1,20 @@
 // The runtimes: an ssh host, a docker daemon, a docker swarm, this Mac's Apple containers or
 // the Slurm cluster this machine submits to, written down under a name an `-e` names. Each can be asked what it has, the way a run
 // reaching it asks; a new one is written from its backend's own fields, or brought in from
-// the hosts an ssh config names.
+// the hosts an ssh config names. Over them all, always, the daemon's own machine: where work
+// runs that names no runtime, which nothing here changes or removes.
 
 import { call, onDaemon } from '../../api.js'
+import { kindSaid } from '../../chips/environment.js'
 import { confirming } from '../../confirm.js'
 import { acting, empty, fill, h, icon, iconButton, problem } from '../../dom.js'
 import { t } from '../../i18n.js'
 import { pathPicker } from '../../paths.js'
 
 const GIB = 2 ** 30
+
+/** How a runtime came to be written down, as the page's language says it: one it does not know, as the daemon does. */
+const MADE = { typed: t('typed@@runtime'), imported: t('imported@@runtime') }
 
 export function draw(holder, query, parts, scope) {
   const listing = h('section', { class: 'panel', 'data-hmz': 'runtimes' }, h('p', { class: 'loading', role: 'status' }, t('Reading the runtimes…')))
@@ -32,8 +37,8 @@ export function draw(holder, query, parts, scope) {
       return h(
         'tr',
         { 'data-hmz': 'runtime' },
-        h('td', { class: 'mono' }, one.backend),
-        h('td', {}, h('b', {}, one.name), h('div', { class: 'dim' }, one.made)),
+        h('td', { title: one.backend }, kindSaid(one.backend)[0]),
+        h('td', {}, h('b', {}, one.name), h('div', { class: 'dim' }, MADE[one.made] || one.made)),
         h('td', { class: 'mono', 'data-label': t('Address') }, reached(one), one.workdir ? h('div', { class: 'dim' }, one.workdir) : null),
         h('td', { 'data-label': t('Resources') }, checked[key] ? said(checked[key]) : h('span', { class: 'dim' }, t('not asked'))),
         h(
@@ -60,11 +65,12 @@ export function draw(holder, query, parts, scope) {
       listing,
       // Each runtime written over the one of its name there, or added; none there taken away.
       h('header', {}, h('h2', {}, t('Runtimes')), scope.batch(() => data.runtimes.map(({ backend, name, made, ...fields }) => ['runtimes.set', { backend, name, fields, replace: true }]))),
+      own(data.local, scope.name),
       rows.length
         ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t('Backend')), h('th', {}, t('Name')), h('th', {}, t('Address')), h('th', {}, t('Resources')), h('th', {}, ''))), h('tbody', {}, rows)))
         : empty(
-            t('No runtime yet.'),
-            t(' Every environment runs on this machine, or is spelled out where it is named, until you add one.'),
+            t('No other runtime yet.'),
+            t(' Add an ssh host, a docker daemon or a cluster, and an environment can be put on it.'),
             h('button', { class: 'btn primary', type: 'button', 'data-hmz': 'runtime-add', onclick: () => edit(null) }, t('Add runtime')),
           ),
     )
@@ -79,7 +85,7 @@ export function draw(holder, query, parts, scope) {
   }
 
   function drawWriting() {
-    const backend = h('select', { id: 'runtime-backend', disabled: Boolean(editing) }, Object.keys(data.blanks).map((one) => h('option', { value: one, selected: editing ? editing.backend === one : false }, one)))
+    const backend = h('select', { id: 'runtime-backend', disabled: Boolean(editing) }, Object.keys(data.blanks).map((one) => h('option', { value: one, selected: editing ? editing.backend === one : false }, kindSaid(one)[0])))
     const name = h('input', { type: 'text', id: 'runtime-name', value: editing ? editing.name : '', placeholder: 'gpu-box', required: true, disabled: Boolean(editing), autocomplete: 'off' })
     const fields = h('div', { class: 'grid' })
     const readers = {}
@@ -175,6 +181,29 @@ export function draw(holder, query, parts, scope) {
     .catch((error) => fill(listing, problem(error)))
 }
 
+/**
+ * The daemon's own machine, first of the list and always there: what it is called, what it is
+ * and has, and that work runs on it unless a runtime is picked. A daemon that does not say what
+ * its machine is -- an older one -- is still said to have it.
+ */
+function own(local, daemon) {
+  const has = local
+    ? [local.host, [local.system === 'Darwin' ? 'macOS' : local.system, local.machine].filter(Boolean).join(' '), local.cpus ? t('{n} cpu', { n: local.cpus }) : '', local.memory ? `${Math.round(local.memory / GIB)} GiB` : ''].filter(Boolean)
+    : []
+  return h(
+    'div',
+    { class: 'runtime-local', 'data-hmz': 'runtime-local' },
+    icon('home'),
+    h(
+      'div',
+      {},
+      h('p', { class: 'runtime-local-name' }, h('b', {}, daemon === 'local' ? t('This machine') : t('{name}’s own machine', { name: daemon })), h('span', { class: 'chip' }, t('Built in'))),
+      has.length ? h('p', { class: 'mono', 'data-hmz': 'runtime-local-has' }, has.join(' · ')) : null,
+      h('p', { class: 'dim' }, t('Chats and epics run here unless you pick another runtime. It is always here: there is nothing to edit or remove.')),
+    ),
+  )
+}
+
 /** A host of an ssh config, as somebody would write it: its port where it is not ssh's own. */
 const hostSaid = (one) => `${one.user ? `${one.user}@` : ''}${one.host}${one.port && one.port !== 22 ? `:${one.port}` : ''}`
 
@@ -258,7 +287,7 @@ function field(key, empty, value, { backend, name, runtimes, from }) {
   }
   if (key === 'harness') {
     const places = ['env', 'local', ...runtimes.filter((one) => one.name !== name || one.backend !== backend).map((one) => `${one.backend}:${one.name}`)]
-    const picked = h('select', { id }, places.map((one) => h('option', { value: one, selected: one === (value || 'env') }, one)))
+    const picked = h('select', { id }, places.map((one) => h('option', { value: one, selected: one === (value || 'env') }, one === 'env' ? t('Inside the environment') : one === 'local' ? t('This machine') : one)))
     return [picked, () => picked.value]
   }
   if (Array.isArray(empty)) {

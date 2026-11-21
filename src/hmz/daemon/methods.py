@@ -16,7 +16,6 @@ import logging
 import os
 import pkgutil
 import socket
-import tempfile
 import threading
 import time
 from collections import defaultdict
@@ -138,7 +137,10 @@ def workspace(said: object, *, made: bool = False) -> str:
     if not path.is_absolute():
         raise _refused(400, f"Say the workspace as a whole path, not {said}.")
     if not made and not path.is_dir():
-        raise _refused(404, f"There is no directory {path}.")
+        if not where.folderless(where.workspace(path)):
+            raise _refused(404, f"There is no directory {path}.")
+        # The machine cleans its temporary directory: a folderless workspace is made again.
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
     return where.workspace(path)
 
 
@@ -364,7 +366,7 @@ class _Methods:
         session = router.session(call)
         params = call.params
         if params.get("scratch"):
-            named = where.workspace(tempfile.mkdtemp(prefix="hmz-"))
+            named = where.nofolder()
         elif "workspace" in params:
             # A host already held is attached to whatever became of its directory; one
             # is started only in a directory that is there (Section 4.5.2).
@@ -494,13 +496,29 @@ class _Methods:
                 # Said to the host standing by with it, nothing said yet, as its first turn;
                 # one of another agent ends as it was first.
                 first = {key: checked[key] for key in ("agent", "prefer", "permission")}
+                # Where it is carried on, before anything is said there.
+                self._moved_first(call, holding, checked["env"])
                 said = {"do": "say", "text": checked["task"], "first": first}
                 if not self._chatted(call, holding[0], said).get("ended"):
                     return {"slot": holding[0].slot, "chat": resumed}
                 self._let_go(resumed)
             elif holding is not None:
+                # Nothing to say, and somewhere to be: the host that holds it is moved there
+                # (Section 4.25.1.10), never answered as though it were.
+                self._moved_first(call, holding, checked["env"])
                 return {"slot": holding[0].slot, "chat": resumed}
             return self._chat_started(call, named, slotted, checked, resumed)
+
+    def _moved_first(
+        self, call: Call, holding: tuple[Hosted, dict[str, Any]], env: str
+    ) -> None:
+        """Moves the chat a host holds to the env a `chat.start` names, where it is not there.
+
+        Raises:
+          RpcError: As `chat.move` is refused, the chat left where it was.
+        """
+        if env and env != holding[1].get("env"):
+            self._chatted(call, holding[0], {"do": "move", "env": env})
 
     def _let_go(self, chat: str) -> None:
         """Waits a while for the host that held a chat to have ended."""
@@ -555,6 +573,7 @@ class _Methods:
                 "prefer": checked["prefer"],
                 "permission": checked["permission"],
                 "worktree": checked["worktree"],
+                "env": checked["env"],
                 "remember": params.get("remember") is True,
             },
         )
@@ -586,6 +605,16 @@ class _Methods:
             raise _refused(400, refused)
         self._chatted(call, self._chat_held(call), {"do": "set", **said})
         return {}
+
+    def chat_move(self, call: Call) -> dict[str, Any]:
+        """Moves a chat to another env, between turns (Section 4.25.9)."""
+        from hmz.runtime.chatting import env_spec
+
+        try:
+            env = env_spec(call.params.get("env"))
+        except ValueError as why:
+            raise _refused(400, str(why)) from why
+        return self._chatted(call, self._chat_held(call), {"do": "move", "env": env})
 
     def chat_stop(self, call: Call) -> dict[str, Any]:
         """Stops a chat's open turn, leaving the chat between turns (Section 4.25.6)."""
@@ -722,6 +751,7 @@ class _Methods:
             "chat.say": self.chat_say,
             "chat.commands": self.chat_commands,
             "chat.set": self.chat_set,
+            "chat.move": self.chat_move,
             "chat.stop": self.chat_stop,
             "chat.delete": self.chat_delete,
         }

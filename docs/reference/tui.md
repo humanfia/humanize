@@ -1345,7 +1345,7 @@ session the [Daemons page](#daemons-page) reaches it by, off the screen.
 | --- | --- |
 | Title | `Epics on <daemon>` |
 | About | `Every epic <daemon> holds and every chat going there, newest first: workspace, task, status, and session count.` A chat a host there holds (`chat.list`, the rows with a `slot`) is a row named `chat`, with its title and how it stands; its menu is **follow** and **copy id** alone. |
-| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<workspace> · <task\|no task> · <n> session(s) · <how>` |
+| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<workspace> · <task\|no task> · <n> session(s) · <how>`; `no folder` in place of the workspace of one started in none (its row's `folderless`) |
 | Buttons | **Search…** (flow, task, run name, workspace); **New epic…**, as `n`; **Refresh**; **Daemon…**, as above |
 | Keys | `enter menu   / search   tab actions   esc close` |
 | Empty | `reaching <daemon>…` while it is read; `no epic on <daemon> yet`; or why it was not reached, in red |
