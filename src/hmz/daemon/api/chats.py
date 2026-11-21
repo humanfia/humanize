@@ -250,6 +250,38 @@ def _rename(call: Call) -> dict[str, Any]:
     return _row(ran)
 
 
+def _agent(call: Call) -> dict[str, Any]:
+    """Writes a chat no host holds as carried on with another model or effort (4.25.7.7).
+
+    One a host holds was given it by that host, which the daemon asked first and whose
+    record it is to write: its row is all that is answered.
+    """
+    from hmz.runtime.chatting import KeptAs, carried_as
+    from hmz.runtime.epic import note
+
+    ran = _named(call)
+    if ran.name in hosted():
+        return _row(ran)
+    # Not under a process that is no host, which reads its record as it opened it.
+    if CHATS.going(ran):
+        raise RpcError(
+            Code.CONFLICT,
+            f"Chat {ran.name} has a turn open; change its model once it is done.",
+        )
+    if not ran.agents:
+        raise RpcError(Code.CONFLICT, f"Chat {ran.name} says no agent of its own.")
+    now = ran.agents[-1]
+    try:
+        wanted = carried_as(now, str(call.params["agent"]))
+    except KeptAs as why:
+        raise RpcError(Code.CONFLICT, str(why)) from why
+    except ValueError as why:
+        raise RpcError(Code.REFUSED, str(why)) from why
+    if wanted.spec != now.spec:
+        note(ran.at, "set", agents=[wanted._asdict()])
+    return _row(ran)
+
+
 def _archives(*, archived: bool) -> Handler:
     def sets(call: Call) -> dict[str, Any]:
         from hmz.runtime.epic import note
@@ -402,6 +434,7 @@ METHODS: Mapping[str, Handler] = {
     "chat.list": _list,
     "chat.get": _get,
     "chat.rename": _rename,
+    "chat.agent": _agent,
     "chat.fork": _fork,
     "chat.archive": _archives(archived=True),
     "chat.unarchive": _archives(archived=False),

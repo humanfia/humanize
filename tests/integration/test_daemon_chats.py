@@ -1673,6 +1673,185 @@ def test_a_chat_standing_by_gives_way_to_another_agent_and_is_one_host_to_two_at
     assert until(lambda: _row(user, name)["slot"] == went["slot"])
 
 
+def _flag(start: dict[str, Any], name: str) -> str:
+    """What one start of the stand-in `claude` was given for a flag."""
+    argv = start["argv"]
+    return str(argv[argv.index(name) + 1]) if name in argv else ""
+
+
+def test_an_old_chat_is_carried_on_with_another_model_and_effort_across_a_restart(
+    legacy: Path, tmp_path: Path
+) -> None:
+    with hosting():
+        daemon.start()
+        earlier = int(where.held(where.at())["pid"])
+        user = _dialed()
+        try:
+            link, _, _, name = _chat(legacy, "the word is papaya")
+            _ended(link, user, name)
+            at = _directory(name)
+            (first,) = started(tmp_path)
+            before = _row(user, name)
+            assert (before["agent"], before["slot"]) == (f"{AGENT}:auto", "")
+
+            # No host holds it: its record says so, and nothing is brought up for it.
+            row = user.call(
+                "chat.agent", {"chat": name, "agent": "claude/opus:high"}, timeout=30
+            )
+            assert set(row) == ROW
+            assert (row["agent"], row["model"]) == ("claude/opus:high", "opus")
+            assert (row["state"], row["slot"]) == ("resting", "")
+            assert len(started(tmp_path)) == 1
+            said = _events(at)[-1]
+            assert said["event"] == "set"
+            assert (said["agents"][0]["model"], said["agents"][0]["effort"]) == (
+                "opus",
+                "high",
+            )
+            # Under the name its sessions were written down by.
+            assert said["agents"][0]["name"] == _events(at)[0]["agents"][0]["name"]
+
+            # Another harness is a new chat's to talk to; what is no agent is refused so.
+            wrote = (at / CHATTED).read_bytes()
+            code, why = _refused(user, "chat.agent", chat=name, agent="codex/gpt-5")
+            assert code == 409
+            assert why == (
+                "a chat keeps its harness, and this one is had with claude; "
+                "start a new chat to talk to codex"
+            )
+            code, why = _refused(user, "chat.agent", chat=name, agent="nonsense")
+            assert code == 400
+            assert "nonsense" in why
+            assert _refused(user, "chat.agent", chat="nothing", agent=AGENT) == (
+                404,
+                "There is no chat nothing.",
+            )
+            assert (at / CHATTED).read_bytes() == wrote
+        finally:
+            user.close()
+
+    # A daemon started again reads it so, and carries it on at them in its conversation.
+    assert until(lambda: not where.alive(earlier))
+    daemon.start()
+    user = _dialed()
+    try:
+        got = _row(user, name)
+        assert (got["agent"], got["state"]) == ("claude/opus:high", "resting")
+        assert got["agents"][0]["runs"] == "claude/opus:high"
+        went = user.call(
+            "chat.start",
+            {"workspace": str(legacy), "task": "what was the word?", "resume": name},
+            timeout=60,
+        )
+        assert went["chat"] == name
+        assert until(lambda: len(started(tmp_path)) == 2)
+        then = started(tmp_path)[-1]
+        assert _flag(then, "--resume") == first["session"]
+        assert (_flag(then, "--model"), _flag(then, "--effort")) == ("opus", "high")
+        assert until(lambda: _row(user, name)["state"] == "going")
+        # The one chat still, in the one record, its sessions both its own.
+        assert written_chats() == [at]
+        assert len(_row(user, name)["sessions"]) == 2
+        assert _row(user, name)["agent"] == "claude/opus:high"
+        user.call(
+            "chat.say",
+            {"workspace": str(legacy), "slot": went["slot"], "text": ""},
+            timeout=30,
+        )
+        assert until(lambda: _row(user, name)["state"] == "resting")
+    finally:
+        user.close()
+
+
+def test_a_chat_a_host_holds_is_given_another_model_and_runs_at_it_from_its_next_turn(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    link, heard, slot, name = _chat(project, "hello there")
+    try:
+        (first,) = started(tmp_path)
+
+        # Mid-turn it is recorded at once and waits for the turn after, as a line would.
+        link.chat_say(SLOW)
+        assert until(lambda: _row(user, name)["state"] == "turn")
+        row = user.call(
+            "chat.agent", {"chat": name, "agent": "claude/opus:low"}, timeout=30
+        )
+        assert (row["agent"], row["slot"], row["state"]) == (
+            "claude/opus:low",
+            slot,
+            "turn",
+        )
+        link.chat_stop()
+        assert until(lambda: _row(user, name)["state"] == "going")
+        assert _flag(started(tmp_path)[-1], "--model") == MODEL
+
+        # Its harness keeps it; so does its host, which nothing was started beside.
+        code, why = _refused(user, "chat.agent", chat=name, agent="codex/gpt-5")
+        assert (code, "start a new chat to talk to codex" in why) == (409, True)
+        assert _row(user, name)["slot"] == slot
+
+        link.chat_say("and now?")
+        assert until(
+            lambda: any(
+                one.get("mode") == "listen"
+                and str(one.get("text") or "").endswith("did: and now?")
+                for one in heard.of("asked")
+            )
+        )
+        then = started(tmp_path)[-1]
+        assert (_flag(then, "--model"), _flag(then, "--effort")) == ("opus", "low")
+        # Moved by its harness's own `/model` and `/effort`: the conversation it had goes
+        # on as it is, never forked into another, and never a new one.
+        assert "--fork-session" not in then["argv"]
+        assert not any(
+            "could not be carried on" in str(one.get("text") or "")
+            for one in heard.of("asked")
+        )
+        assert _row(user, name)["agent"] == "claude/opus:low"
+        assert _row(user, name)["slot"] == slot
+        assert first["session"]
+        assert heard.of("ended") == []
+    finally:
+        link.close()
+
+
+def test_a_chat_standing_by_is_given_another_model_and_stays_on_its_host(
+    project: Path, user: Peer, tmp_path: Path
+) -> None:
+    link, _, _, name = _chat(project, "the word is papaya")
+    _ended(link, user, name)
+    (first,) = started(tmp_path)
+    wrote = (_directory(name) / CHATTED).read_bytes()
+    carried = {"workspace": str(project), "task": "", "resume": name}
+    woke = user.call("chat.start", carried, timeout=60)
+    assert until(lambda: _row(user, name)["slot"] == woke["slot"])
+    assert (_directory(name) / CHATTED).read_bytes() == wrote
+
+    row = user.call(
+        "chat.agent", {"chat": name, "agent": "claude/opus:medium"}, timeout=30
+    )
+
+    # Its record says so, and the host that stands by with it is the one it goes on with.
+    assert (row["agent"], row["slot"]) == ("claude/opus:medium", woke["slot"])
+    assert len(started(tmp_path)) == 1
+    went = user.call(
+        "chat.start", {**carried, "task": "what was the word?"}, timeout=60
+    )
+    assert went == woke
+    assert until(lambda: len(started(tmp_path)) == 2)
+    then = started(tmp_path)[-1]
+    assert _flag(then, "--resume") == first["session"]
+    assert (_flag(then, "--model"), _flag(then, "--effort")) == ("opus", "medium")
+    assert until(lambda: _row(user, name)["state"] == "going")
+    user.call(
+        "chat.say",
+        {"workspace": str(project), "slot": woke["slot"], "text": ""},
+        timeout=30,
+    )
+    assert until(lambda: _row(user, name)["state"] == "resting")
+    assert _row(user, name)["agent"] == "claude/opus:medium"
+
+
 def test_a_chat_carried_on_with_nothing_said_ends_as_it_was_and_is_deleted_between_turns(
     project: Path, user: Peer
 ) -> None:

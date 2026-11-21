@@ -1,7 +1,7 @@
 """Settings, per daemon.
 
-The app's own pages apart from a daemon's, which daemon those read and write, and what a page
-holds copied to several daemons at once.
+The app's own pages apart from a daemon's, which daemon those read and write -- the one the
+page shows, switched under Daemons -- and what a page holds copied to several daemons at once.
 
 `gpu` is another machine's daemon, real and paired with this browser, reached through `/dial`;
 `lab` is kept, but nothing answers where it is reached, as a daemon that is not up.
@@ -67,22 +67,35 @@ def test_the_app_and_the_daemon_are_set_apart(project: Path, engine: str) -> Non
     with served() as site, opened(site, engine=engine) as page:
         go(page, "/settings/general")
         nav = page.locator(".settings-nav")
-        expect(nav.locator(".settings-group")).to_have_text(
-            ["App", "Daemon", "Workspace"]
-        )
+        expect(nav.locator(".settings-group")).to_have_text(["App", "Daemon"])
         expect(nav.locator("a:visible").first).to_have_text("Themes")
-        expect(nav.locator("a:visible")).to_contain_text(
-            ["Themes", "General", "Accounts", "Nous", "Runtimes", "Backup"]
+        expect(nav.locator("a:visible")).to_have_text(
+            [
+                "Themes",
+                "Daemons",
+                "Notifications",
+                "Language",
+                "General",
+                "Accounts",
+                "Nous",
+                "Runtimes",
+                "Backup",
+                "Usage",
+            ]
         )
-        picker = page.locator("[data-hmz=settings-daemon]")
-        expect(picker.locator("option")).to_have_text(["Local"])
+        # Whose the page is, said and not picked: a line of words, with nothing to press.
+        of = page.locator("[data-hmz=settings-of]")
+        expect(of).to_have_text("DaemonLocal")
+        expect(of.locator("select, button, a, input")).to_have_count(0)
+        expect(page.get_by_label("Daemon", exact=True)).to_have_count(0)
         go(page, "/settings/themes")
-        expect(page.locator("[data-hmz=settings-daemon]")).to_have_count(0)
+        expect(page.locator("[data-hmz=settings-of]")).to_have_count(0)
 
 
-def test_the_daemon_picked_is_the_one_read_and_written(
+def test_the_daemon_shown_is_the_one_read_and_written_and_is_switched_under_daemons(
     project: Path, tmp_path: Path, engine: str
 ) -> None:
+    """Sections 3.4.2.4.1, 3.11.1.4 and 3.13.15.1 of protocol/web.md."""
     with (
         another(tmp_path) as gpu,
         served() as site,
@@ -90,34 +103,57 @@ def test_the_daemon_picked_is_the_one_read_and_written(
     ):
         paired(page, "gpu", gpu.code())
         kept(page, _LAB)
-        go(page, "/settings/general")
-        picker = page.locator("[data-hmz=settings-daemon]")
-        expect(picker.locator("option")).to_have_text(["Local", "gpu", "lab"])
-        expect(picker).to_have_value("local")
+        go(page, "/settings/daemons")
+        rows = page.locator("[data-hmz=daemon]")
+        expect(rows).to_have_count(3)
+        local, remote, lab = (rows.nth(at) for at in range(3))
+        # The one shown is said on its line; every other is switched to from its own.
+        expect(local.locator("[data-hmz=daemon-current]")).to_have_text("Current")
+        expect(local.locator("[data-hmz=daemon-use]")).to_have_count(0)
+        expect(remote.locator("[data-hmz=daemon-current]")).to_have_count(0)
+        expect(remote.locator("[data-hmz=daemon-use]")).to_have_text("Switch")
+        expect(lab.locator("[data-hmz=daemon-use]")).to_have_text("Switch")
 
-        picker.select_option("gpu")
+        remote.locator("[data-hmz=daemon-use]").click()
+        # The whole page is gpu's, and Settings stays open on Daemons.
+        expect(page.locator("[data-hmz=daemon-name]")).to_have_text("gpu")
+        expect(page.locator("[data-hmz=settings-daemons]")).to_be_visible()
+        assert page.url.endswith("#/@gpu/settings/daemons")
+        rows = page.locator("[data-hmz=daemon]")
+        expect(rows.nth(1).locator("[data-hmz=daemon-current]")).to_have_text("Current")
+        expect(rows.nth(0).locator("[data-hmz=daemon-use]")).to_have_text("Switch")
+
+        # Its pages are gpu's now: said over them, read from it and written to it.
+        page.locator(".settings-nav a", has_text="General").click()
+        expect(page.locator("[data-hmz=settings-of] b")).to_have_text("gpu")
         expect(page.locator("[data-hmz=harness-sessions]")).to_be_visible()
-        assert "daemon=gpu" in page.url
-        expect(page.locator(".settings-nav a", has_text="Backup")).to_have_attribute(
-            "href", "#/settings/backup?daemon=gpu"
-        )
-
         page.locator("[data-hmz=settings-general] input[type=checkbox]").first.check()
         page.get_by_role("button", name="Save").click()
         expect(page.get_by_role("button", name="Saved")).to_be_visible()
         assert _settings(page, "gpu")["details"] is True
         assert _settings(page, "local")["details"] is False
 
-        # Kept in the address, the daemon is the one the page opens on again.
-        go(page, "/settings/backup?daemon=gpu")
+        # Closed, the page is still gpu's: it never goes back to the daemon left.
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
+        expect(page.locator("[data-hmz=daemon-name]")).to_have_text("gpu")
+        expect(page.locator("div[data-hmz=new-chat]")).to_be_visible()
+        assert "#/@gpu/new/chat" in page.url
+
+        # An address that names a daemon in its query is that daemon's page as a whole.
+        go(page, "/settings/backup?daemon=local")
         expect(page.locator("[data-hmz=backups] h2")).to_have_text("Targets")
-        expect(page.locator("[data-hmz=settings-daemon]")).to_have_value("gpu")
+        expect(page.locator("[data-hmz=daemon-name]")).to_have_text("Local")
+        expect(page.locator("[data-hmz=settings-of] b")).to_have_text("Local")
+        assert page.url.endswith("#/settings/backup")
 
         # One that is not up is said to be unavailable, with its state.
-        picker.select_option("lab")
+        go(page, "/settings/backup?daemon=lab")
+        expect(page.locator("[data-hmz=daemon-name]")).to_have_text("lab")
         expect(page.locator("[data-hmz=settings-backup] .error")).to_contain_text(
             "lab is unavailable, failed"
         )
+        assert page.url.endswith("#/@lab/settings/backup")
 
 
 def test_batch_apply_sends_the_page_to_each_daemon_ticked(
@@ -177,7 +213,7 @@ def test_settings_fit_a_phone(project: Path, engine: str) -> None:
     with served() as site, opened(site, engine=engine, width=390, height=800) as page:
         kept(page, _LAB)
         go(page, "/settings/runtimes")
-        expect(page.locator("[data-hmz=settings-daemon]")).to_be_visible()
+        expect(page.locator("[data-hmz=settings-of]")).to_be_visible()
         page.locator("[data-hmz=batch-apply]").click()
         dialog = page.locator("[data-hmz=batch-dialog]")
         expect(dialog).to_be_visible()

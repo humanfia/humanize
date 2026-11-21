@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 248" role="img">
-  <title>Where each group of settings is kept: App pages in this browser or app, Daemon pages in the picked daemon's settings.yaml, Workspace pages with one folder of that daemon</title>
+  <title>Where settings are kept: App pages in this browser or app, Daemon pages in the settings.yaml of the daemon shown, a folder's Workspace settings with that folder</title>
   <rect width="760" height="248" rx="12" fill="#f4f8f9"/>
   <defs>
     <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
@@ -15,15 +15,15 @@
     <g font-size="14" font-weight="600" fill="#141a1f">
       <text x="40" y="50">App</text>
       <text x="284" y="50">Daemon</text>
-      <text x="528" y="50">Workspace</text>
+      <text x="528" y="50">Workspace settings</text>
     </g>
     <g font-size="12" fill="#435058">
       <text x="40" y="72">Themes, Daemons,</text>
       <text x="40" y="90">Notifications, Language</text>
       <text x="284" y="72">General, Accounts, Nous,</text>
       <text x="284" y="90">Runtimes, Backup, Usage</text>
-      <text x="528" y="72">Setup, Archived chats,</text>
-      <text x="528" y="90">Usage</text>
+      <text x="528" y="72">Setup, Usage,</text>
+      <text x="528" y="90">Archived chats</text>
     </g>
     <g stroke="#5d6a72" stroke-width="1.5" fill="none" marker-end="url(#a)">
       <path d="M136 104 V150"/>
@@ -42,7 +42,7 @@
     </g>
     <g font-size="14" fill="#141a1f">
       <text x="40" y="182">This browser or app</text>
-      <text x="284" y="182">The daemon picked</text>
+      <text x="284" y="182">The daemon shown</text>
       <text x="528" y="182">One folder of that daemon</text>
     </g>
     <g font-size="12" fill="#435058">

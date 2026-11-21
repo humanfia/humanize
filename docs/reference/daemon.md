@@ -357,6 +357,7 @@ Manage files, terminals, and Git in an environment of the epic attached under `s
 | `chat.list` | `workspace` |  | List saved chats. |
 | `chat.get` | `daemon` |  | Get a chat and optionally its transcript. |
 | `chat.rename` | `daemon` | yes | Rename a chat. |
+| `chat.agent` | `daemon` | yes | Carry a chat on with another model or effort of its own harness and account, whether or not a host holds it. |
 | `chat.fork` | `daemon` | yes | Fork a new chat from an existing conversation. |
 | `chat.archive` | `daemon` | yes | Archive a chat to hide it from the list. |
 | `chat.unarchive` | `daemon` | yes | Restore an archived chat to the list. |

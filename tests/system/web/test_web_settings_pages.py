@@ -22,7 +22,7 @@ from tests.system.web.doubles_browser import ENGINES, Wire, go, kept, opened
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from playwright.sync_api import Page
+    from playwright.sync_api import Locator, Page
 
 pytestmark = [
     pytest.mark.parametrize("engine", ENGINES),
@@ -251,8 +251,8 @@ def test_a_range_shown_stays_busy_until_the_next_is_read(
         wire.waits(page)
         # Under Daemon it is of everything the daemon ran: no folder is asked for, or picked.
         assert wire.params("runs.usage")[-1] == {"days": 7}
-        expect(page.locator("[data-hmz=settings-usage] select")).to_have_count(0)
-        expect(page.locator("[data-hmz=settings-workdir]")).to_have_count(0)
+        expect(page.locator(".dialog select")).to_have_count(0)
+        expect(page.locator("[data-hmz=settings-of] b")).to_have_text("Local")
         wire.lets_through()
         expect(usage).not_to_have_attribute("aria-busy", "true")
 
@@ -286,14 +286,14 @@ def test_what_the_chats_spent_is_named_in_the_pages_language(
         # Each opens Search on what it counts: the chats on their tab, a flow's epics.
         expect(named.first).to_have_attribute("href", "#/search?kind=chat")
         expect(named.last).to_have_attribute("href", "#/search?flow=goal")
-        # Usage is two pages, the daemon's and a folder's, each under its own group.
+        # Usage is one page of Settings, the daemon's; a folder's is in its own settings.
         nav = page.locator(".settings-nav a", has_text="用量")
-        expect(nav).to_have_count(2)
-        expect(nav.first).to_have_attribute("aria-current", "page")
+        expect(nav).to_have_count(1)
+        expect(nav).to_have_attribute("aria-current", "page")
         # A folder's lists them in that folder.
-        nav.last.click()
-        expect(nav.last).to_have_attribute("aria-current", "page")
-        expect(page.locator("[data-hmz=settings-workdir]")).to_have_value(str(project))
+        go(page, f"/workspace/usage?workspace={project}")
+        expect(page.locator("[data-hmz=workspace-name]")).to_have_text(project.name)
+        expect(nav).to_have_attribute("aria-current", "page")
         expect(named.first).to_have_attribute(
             "href", re.compile(r"^#/search\?kind=chat&workspace=")
         )
@@ -473,10 +473,56 @@ def test_the_daemons_own_machine_is_first_of_the_runtimes_and_cannot_be_changed(
         assert first == "runtime-local"
 
 
-def test_a_workspace_has_a_group_of_its_own_under_the_daemons(
+def test_a_runtime_falls_back_to_one_picked_of_any_backend_and_is_saved(
+    project: Path, engine: str
+) -> None:
+    """Section 7.4.3.2 of protocol/core.md: what is picked is `<backend>:<name>`, and saved."""
+    wire = Wire()
+    with served() as site, opened(site, engine=engine, routed=wire.routes) as page:
+        for backend, name, fields in (
+            ("ssh", "gpu", "{host: 'gpu.lab'}"),
+            ("ssh", "spare", "{host: 'spare.lab'}"),
+            ("docker", "box", "{}"),
+        ):
+            page.evaluate(
+                "async () => (await import('/api.js')).call('runtimes.set',"
+                f" {{backend: '{backend}', name: '{name}', fields: {fields}}})"
+            )
+        go(page, "/settings/runtimes")
+        row = page.locator("[data-hmz=runtime]").filter(has_text="gpu.lab")
+        row.get_by_role("button", name="Edit").click()
+        editor = page.locator(".list-editor").filter(
+            has=page.locator("#runtime-fallback")
+        )
+        editor.get_by_role("button", name="Add").click()
+        picked = editor.locator("select")
+        # Every other runtime, another backend's among them, and never itself.
+        expect(picked.locator("option")).to_have_text(["ssh:spare", "docker:box"])
+        picked.select_option("docker:box")
+        page.locator("[data-hmz=write-runtime]").get_by_role(
+            "button", name="Save", exact=True
+        ).click()
+        expect(page.locator("#runtime-name")).to_have_value("")
+        saved = wire.params("runtimes.set")[-1]
+        assert saved["fields"]["fallback"] == ["docker:box"]
+        kept_as = page.evaluate(
+            "async () => (await (await import('/api.js')).call('runtimes.list'))"
+            ".runtimes.find((one) => one.name === 'gpu').fallback"
+        )
+        assert kept_as == ["docker:box"]
+
+
+def _heading(page: Page, path: Path | str) -> Locator:
+    """The heading of a folder in the sidebar, pointed at so that its buttons are drawn."""
+    head = page.locator(f"[data-hmz=workspace][data-path='{path}'] .side-folder")
+    head.hover()
+    return head
+
+
+def test_a_workspace_has_settings_of_its_own_opened_from_its_folder(
     project: Path, engine: str, tmp_path: Path
 ) -> None:
-    """Sections 3.11.1.5 and 3.11.1.6 of protocol/web.md: picked by name, said by its path."""
+    """Sections 3.5.7, 3.5.17, 3.11.1.5 and 3.11.4 of protocol/web.md."""
     other = tmp_path / "elsewhere"
     other.mkdir()
     wire = Wire()
@@ -486,70 +532,177 @@ def test_a_workspace_has_a_group_of_its_own_under_the_daemons(
             " {workspace})",
             str(other),
         )
-        go(page, "/settings/workspace")
+        # Settings holds no page of a workspace, and nothing in it picks one.
+        go(page, "/settings/general")
         nav = page.locator(".settings-nav")
-        expect(nav.locator(".settings-group")).to_have_text(
-            ["App", "Daemon", "Workspace"]
+        expect(nav.locator(".settings-group")).to_have_text(["App", "Daemon"])
+        expect(nav.locator("a")).not_to_contain_text(["Setup"])
+        expect(nav.locator("a")).not_to_contain_text(["Archived chats"])
+        expect(nav.get_by_role("link", name="Usage")).to_have_count(1)
+        expect(page.locator(".dialog select[aria-label=Workspace]")).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(page.locator("[data-hmz=dialog-settings]")).to_have_count(0)
+
+        # `Group and sort` on a folder's heading ends with that folder's settings.
+        _heading(page, other).locator("[data-hmz=list-menu-open]").click()
+        page.locator("[data-hmz=list-menu] [data-hmz=workspace-settings]").click()
+        dialog = page.locator("[data-hmz=dialog-workspace]")
+        expect(dialog).to_be_visible()
+        expect(dialog).to_have_attribute(
+            "aria-label", f"Workspace settings: {other.name}"
         )
-        # The last group, under the daemon's own pages.
-        expect(nav.locator("a").nth(-3)).to_have_text("Setup")
-        expect(nav.locator("a").nth(-2)).to_have_text("Archived chats")
-        expect(nav.locator("a").last).to_have_text("Usage")
+        assert "#/workspace/setup?workspace=" in page.url
+        nav = dialog.locator(".settings-nav")
+        expect(nav.locator("h2")).to_have_text("Workspace settings")
+        expect(nav.locator("a")).to_have_text(["Setup", "Usage", "Archived chats"])
         expect(nav.locator("a[aria-current=page]")).to_have_text("Setup")
+        # The folder it was opened for is its subject, said and never picked.
+        of = dialog.locator("[data-hmz=workspace-of]")
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text(other.name)
+        expect(of.locator(".path")).to_have_attribute("data-path", str(other))
+        expect(dialog.locator("select")).to_have_count(0)
+        expect(of.locator("button, a, input")).to_have_count(0)
+        expect(dialog.locator("[data-hmz=workspace-setup] dt")).to_have_text(
+            ["default flow", "configured"]
+        )
+        assert wire.params("settings.get")[-1] == {"workspace": str(other)}
 
-        picker = page.locator("[data-hmz=settings-workdir]")
-        expect(picker).to_have_value(str(project))
-        expect(picker.locator("option")).to_have_text([project.name, other.name])
-        said = page.locator("[data-hmz=settings-workdir-path] .path")
-        expect(said).to_have_attribute("data-path", str(project))
-        shown = page.locator("[data-hmz=settings-workspace] dd").first
-        expect(shown).to_have_text(str(project))
-
-        # Another picked is the page's, and the address's; the other page opens on it.
-        picker.select_option(str(other))
-        expect(said).to_have_attribute("data-path", str(other))
-        expect(shown).to_have_text(str(other))
-        assert "workspace=" in page.url
+        # Each page opens the others on the same folder.
         nav.get_by_role("link", name="Archived chats").click()
-        expect(page.locator("[data-hmz=settings-workdir]")).to_have_value(str(other))
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text(other.name)
         expect(page.locator("[data-hmz=archived-chats] .empty strong")).to_have_text(
             "No archived chats."
         )
-        # And so does its Usage, which asks for what that folder alone spent.
-        nav.locator("a").last.click()
-        expect(page.locator("[data-hmz=settings-workdir]")).to_have_value(str(other))
+        nav.get_by_role("link", name="Usage").click()
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text(other.name)
         expect(page.locator("[data-hmz=usage] .panel").first).to_be_visible()
-        assert "#/settings/workspace-usage?" in page.url
+        assert "#/workspace/usage?" in page.url
         assert wire.params("runs.usage")[-1]["workspace"] == str(other)
         expect(nav.locator("a[aria-current=page]")).to_have_text("Usage")
+        # A range picked stays in the address, with the folder.
+        page.get_by_role("button", name="7d").click()
+        expect(page).to_have_url(re.compile(r"workspace=.*&days=7$"))
+        # Closed, the page is where it was before the first of them opened.
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
 
-        # A directory gone is said beside the picker, not in it.
+        # The folder's own menu offers the same, and its usage.
+        _heading(page, project).click(button="right")
+        labels = page.locator(".popover.context .choice-label")
+        expect(labels).to_contain_text(["Workspace settings", "Usage"])
+        page.get_by_role("menuitem", name="Workspace settings").click()
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text(project.name)
+        expect(nav.locator("a[aria-current=page]")).to_have_text("Setup")
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
+        _heading(page, project).click(button="right")
+        page.get_by_role("menuitem", name="Usage").click()
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text(project.name)
+        expect(nav.locator("a[aria-current=page]")).to_have_text("Usage")
+        page.keyboard.press("Escape")
+
+        # A directory gone is said beside the folder's name.
+        expect(dialog).to_have_count(0)
         other.rmdir()
-        go(page, "/settings/general")
-        go(page, f"/settings/workspace?workspace={other}")
-        expect(page.locator("[data-hmz=settings-workdir] option")).to_have_text(
-            [project.name, other.name]
-        )
-        expect(page.locator("[data-hmz=settings-workdir-missing]")).to_have_text(
-            "Missing"
-        )
+        go(page, f"/workspace/setup?workspace={other}")
+        expect(of.locator("[data-hmz=workspace-missing]")).to_have_text("Missing")
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
 
-        # A daemon with no folder says so, with nothing to pick.
+        # The addresses these pages had in Settings open the folder's own settings.
+        go(page, f"/settings/workspace-usage?workspace={project}&days=90")
+        expect(dialog).to_be_visible()
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text(project.name)
+        expect(page).to_have_url(re.compile(r"#/workspace/usage\?workspace=.*days=90"))
+        expect(page.get_by_role("button", name="90d", exact=True)).to_have_attribute(
+            "aria-pressed", "true"
+        )
+        go(page, "/settings/general")
+        # With no folder named, the one offered first.
+        go(page, "/settings/workspace")
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text(project.name)
+        expect(nav.locator("a[aria-current=page]")).to_have_text("Setup")
+        expect(page).to_have_url(re.compile(r"#/workspace/setup\?workspace="))
+
+        # A daemon with no folder has those of `No folder` alone: its archived chats.
         wire.faked["workspaces.list"] = lambda _: {
             "result": {"here": "", "workspaces": []}
         }
         go(page, "/settings/general")
         go(page, "/settings/workspace")
-        none = page.locator("[data-hmz=settings-workspace] .empty")
-        expect(none.locator("strong")).to_have_text("No folder yet.")
-        expect(none.get_by_role("link", name="New chat")).to_have_attribute(
-            "href", "#/new/chat"
-        )
-        expect(page.locator("[data-hmz=settings-workdir]")).to_be_hidden()
-        # The archived chats of no folder are of no folder picked: their page is drawn
-        # all the same, and says there is none.
-        go(page, "/settings/archived")
+        expect(of.locator("[data-hmz=workspace-name]")).to_have_text("No folder")
+        expect(of.locator(".path")).to_have_count(0)
+        expect(nav.locator("a")).to_have_text(["Archived chats"])
         expect(page.locator("[data-hmz=archived-chats] .empty strong")).to_have_text(
             "No archived chats."
         )
-        expect(page.locator("[data-hmz=settings-workdir]")).to_be_hidden()
+
+
+def test_no_daemon_is_chosen_but_at_the_foot_of_the_sidebar_and_under_daemons(
+    project: Path, engine: str
+) -> None:
+    """Section 3.4.2.4.1 of protocol/web.md: every view and every page, walked."""
+    #: What would choose a daemon: a control named for one, or a list of them.
+    chooser = (
+        "select[aria-label=Daemon], [data-hmz=settings-daemon], [data-hmz=daemon],"
+        " [data-hmz=setup-daemon], [role=menu][aria-label=Daemon],"
+        " button[aria-label^='Daemon:'], [data-daemon]"
+    )
+    with served() as site, opened(site, engine=engine) as page:
+        kept(page, _BOX)
+        # The two places: the menu of the daemon bar, and Daemons of Settings.
+        page.locator("[data-hmz=daemon-bar]").click()
+        page.locator("[data-hmz=daemon-picker]").get_by_role(
+            "menuitem", name="Daemon"
+        ).hover()
+        expect(page.locator("[data-hmz=daemons] .choice-label")).to_have_text(
+            ["Local", "box", "Manage"]
+        )
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        go(page, "/settings/daemons")
+        expect(page.locator("[data-hmz=daemon-use]")).to_have_count(1)
+        page.keyboard.press("Escape")
+        expect(page.locator(".overlay .dialog")).to_have_count(0)
+
+        views = ["/new", "/new/chat", "/flows", "/envs", "/search"]
+        pages = [
+            f"/settings/{one}"
+            for one in (
+                "themes",
+                "notifications",
+                "language",
+                "general",
+                "accounts",
+                "nous",
+                "runtimes",
+                "backup",
+                "usage",
+            )
+        ]
+        folder = [
+            f"/workspace/{one}?workspace={project}"
+            for one in ("setup", "usage", "archived")
+        ]
+        for address in (*views, *pages, *folder, "/workspace/archived?scratch=1"):
+            go(page, address)
+            page.wait_for_timeout(300)
+            scope = ".dialog" if page.locator(".overlay .dialog").count() else "#page"
+            found = page.locator(scope).locator(chooser)
+            assert found.count() == 0, f"{address} offers a daemon"
+            # Every control it holds, opened: none lists the daemons this browser keeps.
+            for name in ("Local", "box"):
+                options = page.locator(scope).locator("option", has_text=name)
+                assert options.count() == 0, f"{address} offers {name}"
+            if address in pages[3:]:
+                expect(page.locator("[data-hmz=settings-of]")).to_have_text(
+                    "DaemonLocal"
+                )
+            page.keyboard.press("Escape")
+            expect(page.locator(".overlay .dialog")).to_have_count(0)
+
+        # The box of a new epic and of a new chat: none of its chips or menus names one.
+        for address in ("/new", "/new/chat"):
+            go(page, address)
+            for chip in page.locator("#page .chip-btn:visible").all():
+                assert not (chip.get_attribute("aria-label") or "").startswith("Daemon")

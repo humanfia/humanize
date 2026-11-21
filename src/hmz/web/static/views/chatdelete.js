@@ -9,12 +9,11 @@ import { chatsChanged } from '../chat-actions.js'
 import { DELETING } from '../chats.js'
 import { fill, h, headline, problem } from '../dom.js'
 import { t } from '../i18n.js'
+import { logKey, logs } from '../logged.js'
 import { dragged } from '../shell.js'
 
-export function mount(root, { parts, query }) {
+export function mount(root, { parts }) {
   const id = parts[1] || ''
-  // A chat of another daemon the page keeps, where its settings list it.
-  const on = query.get('daemon') ? { on: query.get('daemon') } : {}
   const named = h('p', { class: 'delete-title', 'data-hmz': 'delete-title' }, id)
   const said = h('div', { class: 'delete-said', role: 'alert' })
   const doing = h('button', { class: 'btn danger', type: 'button', 'data-hmz': 'delete-confirm' }, t('Delete'))
@@ -29,7 +28,7 @@ export function mount(root, { parts, query }) {
     h('div', { class: 'dialog-foot delete-foot' }, keep, doing),
   )
   let gone = false
-  call('chat.get', { chat: id }, on).then(
+  call('chat.get', { chat: id }).then(
     (chat) => {
       if (gone) return
       named.textContent = headline(chat.title)
@@ -47,7 +46,7 @@ export function mount(root, { parts, query }) {
     doing.textContent = t('Deleting…')
     fill(said)
     try {
-      await call('chat.delete', { chat: id }, on)
+      await call('chat.delete', { chat: id })
     } catch (error) {
       if (gone) return
       fill(said, problem(error))
@@ -55,6 +54,8 @@ export function mount(root, { parts, query }) {
       doing.textContent = t('Delete')
       return
     }
+    // Nothing of it is kept to draw it by again.
+    logs.drop(logKey('chat', id))
     chatsChanged()
     // Closed meanwhile, there is no dialog left to close.
     if (gone) return

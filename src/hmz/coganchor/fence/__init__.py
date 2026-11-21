@@ -1115,8 +1115,16 @@ def needs(*, net: bool) -> str:
       net: Whether the fence cuts the network as well as the filesystem.
 
     Returns:
-      The facility this machine lacks, given what `sandbox.backend` asks for.
+      The facility this machine lacks, given what `sandbox.backend` asks for: `coganchor`
+      itself where there is none here, which is what every fence is put up by.
     """
+    from hmz.coganchor import binary
+
+    if binary.found() is None:
+        return (
+            "a coganchor built for this machine: build crates/coganchor, or name a "
+            f"build with {binary.VARIABLE}"
+        )
     if sys.platform == "darwin":
         return "Seatbelt, which a process already inside a sandbox cannot apply"
     landlock = (

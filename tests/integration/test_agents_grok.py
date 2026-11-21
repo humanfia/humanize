@@ -24,7 +24,7 @@ from hmz.coganchor.agents import (
     GrokBuildAgent,
     GrokBuildAgentConfig,
     Moment,
-    Occasion,
+    Unhooked,
     Unrecoverable,
     Verdict,
 )
@@ -182,24 +182,27 @@ def test_a_session_whose_process_exited_is_loaded_by_the_next(grok: Standins) ->
     assert "load ses-grok" in grok.said()
 
 
-def test_a_permission_request_is_put_to_the_hook_and_refused(grok: Standins) -> None:
+def test_a_permission_request_is_no_moment_a_hook_can_be_hung_on(
+    grok: Standins,
+) -> None:
     agent = GrokBuildAgent(
         GrokBuildAgentConfig(model="grok-stand-in", effort="high", fence=OPEN)
     )
-    seen: list[Occasion] = []
 
-    def gate(occasion: Occasion) -> Verdict:
-        seen.append(occasion)
-        return Verdict(refused=True, because="not that")
+    with pytest.raises(Unhooked):
+        agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _: Verdict(refused=True))
 
-    agent.hooks.on(Moment.PERMISSION_REQUEST, gate)
+
+def test_a_permission_asked_of_an_agent_told_nothing_is_denied(grok: Standins) -> None:
+    del grok
+    agent = GrokBuildAgent(GrokBuildAgentConfig(model="grok-stand-in", effort="high"))
 
     assert agent.new()("ask") == "no"
-    assert len(seen) == 1
-    assert "rm -rf /" in seen[0].about
 
 
-def test_a_permission_nobody_refused_is_allowed_by_its_kind(grok: Standins) -> None:
+def test_a_permission_asked_under_a_fence_is_allowed_by_its_kind(
+    grok: Standins,
+) -> None:
     agent = GrokBuildAgent(
         GrokBuildAgentConfig(model="grok-stand-in", effort="high", fence=OPEN)
     )

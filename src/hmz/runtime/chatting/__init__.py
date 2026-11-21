@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from hmz.runtime.backing import Keeping
     from hmz.runtime.epic import Drove, Epic, Ran
     from hmz.runtime.flowing import AgentDriver, EnvDriver, SessionHandle
+    from hmz.runtime.flowing.harbors import Harbors
     from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.flowing.specs import AgentSpec
     from hmz.runtime.flowing.spi import HookTable, Kept, Placement
@@ -254,6 +255,26 @@ _KEPT_NOUS = (
     "to change it, make another conversation."
 )
 
+#: Why a chat is not carried on with an agent of another harness (Section 8.3.18 of [CORE]).
+_KEPT_HARNESS = (
+    "a chat keeps its harness, and this one is had with {had}; "
+    "start a new chat to talk to {wanted}"
+)
+#: Why it is not carried on as another account.
+_KEPT_ACCOUNT = (
+    "a chat keeps the account it runs as, {had}; start a new chat to run as {wanted}"
+)
+#: Why one whose harness carries no conversation on keeps its model and effort.
+_KEPT_MODEL = (
+    "{harness} cannot carry a conversation on with another model or effort; "
+    "start a new chat for another"
+)
+#: Why one whose harness is told neither keeps them.
+_UNTOLD_MODEL = (
+    "{harness} is told no model and no effort, so this chat keeps its own; "
+    "start a new chat for another"
+)
+
 #: Why a chat with a turn open is not moved (Section 8.3.16 of [CORE]).
 TURN_OPEN = "a turn is open; move the chat once it is done"
 #: Why a chat whose assistant plays a role is not moved.
@@ -262,6 +283,10 @@ _KEPT_PLACE = "an Ai-chan conversation works where it was made"
 #: How long a `!` command may run before it is killed: long enough for a build or a test run, not
 #: so long that a command waiting on input it will never get holds the chat for good.
 SHELL_TIMEOUT = 600.0
+
+
+class KeptAs(ValueError):  # noqa: N818 -- named for what happened, as Refused is
+    """A chat is not carried on as the agent named: it keeps what the message says."""
 
 
 class Chat:
@@ -326,6 +351,9 @@ class Chat:
         self._env = ""
         #: The assistant, once :meth:`run` has made it, and the loop the chat runs on.
         self._driver: AgentDriver | None = None
+        #: What the assistant is written down as now, and the harness runtimes it is put on.
+        self._runs: Drove | None = None
+        self._harbors: Harbors | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._listeners: list[Listener] = []
         self._opened: list[Opened] = []
@@ -393,6 +421,91 @@ class Chat:
             self._permission = permission
             if self._epic is not None and not self._ended:
                 self._epic.write("set", permission=permission)
+
+    @property
+    def driven(self) -> Drove | None:
+        """The assistant as the chat's record says it now; None before :meth:`run` makes it."""
+        return self._runs
+
+    def runs(self, agent: str) -> None:
+        """Carries the chat on with another model, another effort, or both, from its next turn.
+
+        Recorded in the chat at once, a chat carried on with nothing said among them, and
+        taken up ahead of the next turn: by the conversation's own `/model` and `/effort`
+        where its harness calls them, and else by closing the conversation and carrying it on
+        in one opened by the same harness, as the same account, at that model and effort
+        (Section 8.3.18 of [CORE]).
+
+        Args:
+          agent: The agent, as `-a` spells one after `<role>=`: of the chat's own harness and
+            account.
+
+        Raises:
+          KeptAs: For an agent of another harness or account, a harness that carries no
+            conversation on or is told no model, an Ai-chan conversation, and a chat not
+            going.
+          ValueError: For an agent that is not one.
+        """
+        from hmz.runtime.epic import note
+
+        if self.spec.role is not None:
+            raise KeptAs(_KEPT_NOUS)
+        with self._lock:
+            now = self._runs
+            if self._ended or now is None:
+                raise KeptAs("no chat is going here")
+            wanted = carried_as(now, agent)
+            if _at(wanted) == _at(now):
+                return
+            self._runs = wanted
+            self.spec = replace(self.spec, agent=wanted.spec)
+            if self._epic is not None:
+                self._epic.write("set", agents=[wanted._asdict()])
+            elif self._stood is not None:
+                # Carried on with nothing said: its record is not open, and says so itself.
+                note(self._stood[0], "set", agents=[wanted._asdict()])
+
+    def ran_as(self, now: Drove, *, written: bool = False) -> None:
+        """Holds what the assistant runs as now, written in the chat's record where asked."""
+        with self._lock:
+            self._runs = now
+            self.spec = replace(self.spec, agent=now.spec)
+            if written and self._epic is not None and not self._ended:
+                self._epic.write("set", agents=[now._asdict()])
+
+    async def drives(self, wanted: Drove) -> AgentDriver:
+        """A driver of the assistant at another model or effort, settled for where it works.
+
+        Raises:
+          ValueError: For one its CLI cannot be configured at.
+          HarnessError: For one that cannot be put where the chat works.
+        """
+        from hmz.runtime.runner import agent_drivers
+
+        harbors, local = self._harbors, self._local
+        if harbors is None or local is None:
+            raise ValueError("no chat is going here")
+        said = _assistant(wanted.spec)
+        driver = agent_drivers({ASSISTANT: said}, harbors, wanted.name)[ASSISTANT]
+        try:
+            watch = getattr(driver, "watch", None)
+            if callable(watch):
+                for listener in self._listeners:
+                    watch(listener)
+            await _placeable(driver, local, self.granted())
+        except BaseException:
+            with contextlib.suppress(Exception):
+                await driver.close()
+            raise
+        return driver
+
+    async def driven_by(self, driver: AgentDriver) -> None:
+        """Has `driver` be the assistant's from now on, the one before it closed."""
+        with self._lock:
+            had, self._driver = self._driver, driver
+        if had is not None and had is not driver:
+            with contextlib.suppress(Exception):
+                await had.close()
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop | None:
@@ -606,7 +719,7 @@ class Chat:
             backup = chosen(None)
         except ValueError as why:
             raise Refused(str(why)) from why
-        held = harbors()
+        self._harbors = held = harbors()
         driver: AgentDriver | None = None
         #: Where the assistant works, where that is a worktree rather than the workspace.
         workdir = "" if before is None else before.workdir
@@ -647,6 +760,7 @@ class Chat:
                 env = _spelt(local)
             with self._lock:
                 self._driver, self._local, self._env = driver, local, env
+                self._runs = _drove(said, driver.name)
         except BaseException as why:
             # Refused before the chat began: what it was given goes either way.
             await asyncio.shield(closed((driver, *self._owned), held))
@@ -664,9 +778,18 @@ class Chat:
                         self._ended = True
                     await asyncio.shield(closed((driver, *self._owned), held))
                     return ChatEnd(carried, "stopped")
-                self.spec = spec = replace(spec, task=said_next)
+                self.spec = spec = replace(self.spec, task=said_next)
                 # Read again: it may have been written in, or carried on elsewhere, since.
                 carried, before = _carried(spec.resume, workspace)
+                wanted = self._runs
+                if _at(wanted) != _at(_drove(said, driver.name)):
+                    # Given another model or effort while nothing was said: carried on at it.
+                    said = _assistant(spec.agent)
+                    try:
+                        await self.driven_by(await self.drives(wanted))
+                    except FlowException as why:
+                        raise Refused(str(why)) from why
+                    driver = self._driver or driver
             with self._lock:
                 # Where it stands now: it may have been moved while nothing was said.
                 local, env = self._local or local, self._env
@@ -740,7 +863,8 @@ class Chat:
             with self._lock:
                 self._ended = True
             try:
-                await asyncio.shield(closed((driver, *self._owned), held))
+                # The one it has now: carried on at another model, it was given another.
+                await asyncio.shield(closed((self._driver, *self._owned), held))
             finally:
                 if keeping is not None:
                     keeping.ended()
@@ -825,8 +949,7 @@ class _Talk:
         if callable(watch):
             watch(self._heard)
         #: The assistant as last written down: its CLI, model and effort.
-        begun = _drove(_assistant(chat.spec.agent), driver.name)
-        self._as = (begun.backend, begun.model, begun.effort)
+        self._as = _at(chat.driven or _drove(_assistant(chat.spec.agent), driver.name))
 
     @property
     def busy(self) -> bool:
@@ -917,9 +1040,14 @@ class _Talk:
                     (handle, moved, carrying), self._moved = self._moved, None
                     unkept = _said(unkept, moved)
                     briefed = role is None or carrying
-                if chat.permission != self._preset:
-                    # Set since this conversation was opened: carried on in one held to it.
-                    handle, unkept, carrying = await self._permitted(handle, unkept)
+                if self._lags():
+                    # Given another model or effort since this conversation was opened: its
+                    # harness's own commands move it to them, where it has them.
+                    await self._shift()
+                if chat.permission != self._preset or self._lags():
+                    # Set since this conversation was opened: carried on in one held to it,
+                    # opened at the model and effort given.
+                    handle, unkept, carrying = await self._reopened(handle, unkept)
                 line = message.strip()
                 flows, prefer = (
                     # Off the loop: both are read off disk, and the loop is the turns'.
@@ -1032,27 +1160,22 @@ class _Talk:
         As the chat's agent from then on: recorded in the chat as a `set` (Section 6.12.6 of
         [FILES]) and remembered for the workspace's next chat (Section 8.9.5 of [CORE]).
         """
-        from hmz.coganchor.backends import AUTO, written
+        from hmz.coganchor.backends import AUTO
         from hmz.runtime.epic import Drove
         from hmz.runtime.kept import Runs
         from hmz.runtime.settings import Settings
 
-        agent = getattr(handle, "agent", None)
-        if agent is None:
+        running = _running(handle)
+        if running is None:
             return
-        # What the conversation runs at, which is the agent's only where the CLI's command
-        # moved the agent: Codex's moves the conversation alone.
-        conversation = getattr(handle, "coganchor", None)
-        model = str(getattr(conversation, "model", None) or agent.config.model)
-        # Spelt as `began` gives it: an agent holds no rung as "", which is written `auto`.
-        effort = written(str(getattr(conversation, "effort", agent.effort)))
+        model, effort = running
         cli = self._as[0]
         if (cli, model, effort) == self._as:
             return
         self._as = (cli, model, effort)
         provider = self._driver.provider
         now = Drove(ASSISTANT, cli, model, effort, provider, self._driver.name)
-        self._epic.write("set", agents=[now._asdict()])
+        self._chat.ran_as(now, written=True)
         spec = f"{cli}/{model}" + (f":{effort}" if effort != AUTO else "")
         with contextlib.suppress(Exception):
             Settings(self._chat.spec.workspace).chat_agent = Runs(spec, provider)
@@ -1186,6 +1309,112 @@ class _Talk:
             stays = f"The permission stays {had}: {refused}"
             return await self._carried(kept, _said(unkept, stays))
 
+    def _lags(self) -> bool:
+        """Whether the chat was given another model or effort than its conversation runs at."""
+        wanted = self._chat.driven
+        return wanted is not None and _at(wanted) != self._as
+
+    async def _shift(self) -> None:
+        """Has the harness's own commands move the conversation open to what the chat was given."""
+        wanted, handle = self._chat.driven, self.handle
+        if wanted is not None and handle is not None:
+            await self._shifted(handle, wanted)
+
+    async def _reopened(
+        self, handle: SessionHandle, unkept: str
+    ) -> tuple[SessionHandle, str, bool]:
+        """The conversation carried on in one opened as the chat now stands.
+
+        At the model and effort it was given, where its conversation does not run at them,
+        and under the permission it was set, where that one was not opened under it. As
+        :meth:`_carried` returns.
+        """
+        taken = (handle, unkept, False)
+        if self._lags():
+            taken = await self._driven(handle, unkept)
+        if self._chat.permission != self._preset:
+            taken = await self._permitted(taken[0], taken[1])
+        return taken
+
+    async def _shifted(self, handle: SessionHandle, wanted: Drove) -> bool:
+        """Moves the conversation open to another model or effort by its harness's own commands.
+
+        By its `/model` and `/effort`, where its catalogue calls each one that is needed
+        (Section 8.9.5 of [CORE]), which close nothing; no rung at all is not one `/effort`
+        can be told.
+
+        Returns:
+          Whether it now runs as `wanted`; where not, it is left as it ran.
+        """
+        from hmz.coganchor.backends import AUTO
+        from hmz.flows import HarnessError
+
+        _, model, effort = _at(wanted)
+        lines = [f"/model {model}"] if model != self._as[1] else []
+        if effort != self._as[2]:
+            lines.append(f"/effort {effort}")
+        called = {
+            f"/{one.name}"
+            for one in handle.natives()
+            if one.sigil == "/" and one.how == "call"
+        }
+        if effort == AUTO or not {line.split()[0] for line in lines} <= called:
+            return False
+        try:
+            for line in lines:
+                await self._turn(handle, line, native=True)
+        except HarnessError:
+            return False
+        if _running(handle) != (model, effort):
+            return False
+        self._as = _at(wanted)
+        return True
+
+    async def _driven(
+        self, handle: SessionHandle, unkept: str
+    ) -> tuple[SessionHandle, str, bool]:
+        """The conversation carried on in one opened at the model and effort the chat was given.
+
+        By the same harness, as the same account. One that cannot be opened so leaves the
+        chat with the model and effort it had, its record saying so again, and says why. As
+        :meth:`_carried` returns.
+        """
+        from hmz.runtime.epic import Drove, read
+
+        chat, had = self._chat, self._driver
+        cli, model, effort = self._as
+        wanted = chat.driven
+        if wanted is None:
+            return handle, unkept, False
+        await self._close(handle)
+        # Off the loop, which is the turns': the whole record is read off disk.
+        ran = await asyncio.to_thread(read, self._epic.path)
+        # A chat that has opened no conversation yet has none to carry on, and none lost.
+        kept, why = (
+            _conversation(ran) if ran is not None and ran.sessions else (None, "")
+        )
+        unkept = _said(unkept, why)
+        made: AgentDriver | None = None
+        try:
+            self._driver = made = await chat.drives(wanted)
+            watch = getattr(made, "watch", None)
+            if callable(watch):
+                watch(self._heard)
+            # Never in a new one where it cannot be carried on: it keeps what it ran as.
+            opened = await self._open(kept)
+        except Exception as refused:  # noqa: BLE001 -- whatever refuses it, the chat goes on
+            self._driver = had
+            if made is not None:
+                with contextlib.suppress(Exception):
+                    await made.close()
+            now = Drove(ASSISTANT, cli, model, effort, had.provider, had.name)
+            chat.ran_as(now, written=True)
+            stays = f"This chat goes on with {model} at {effort}: {refused}"
+            return await self._carried(kept, _said(unkept, stays))
+        await chat.driven_by(made)
+        self._as = _at(wanted)
+        return opened, unkept, kept is not None
+
     async def _renewed(self, handle: SessionHandle) -> SessionHandle:
         """A new conversation in place of one that could not be carried on."""
         await self._close(handle)
@@ -1310,6 +1539,72 @@ def _drove(said: AgentSpec, name: str) -> Drove:
 
     # At its concrete nous, which is what the record states of one named by a virtual one.
     return drove(ASSISTANT, str(replace(said, nous="")).partition("=")[2], name)
+
+
+def _at(runs: Drove) -> tuple[str, str, str]:
+    """An assistant's CLI, model and effort, the effort spelt as a line names it."""
+    from hmz.coganchor.backends import written
+
+    return runs.backend, runs.model, written(runs.effort)
+
+
+def _running(handle: SessionHandle) -> tuple[str, str] | None:
+    """The model and the effort a conversation runs at, or None where no agent is behind it.
+
+    What the conversation runs at, which is the agent's only where the CLI's command moved
+    the agent: Codex's moves the conversation alone.
+    """
+    from hmz.coganchor.backends import written
+
+    agent = getattr(handle, "agent", None)
+    if agent is None:
+        return None
+    conversation = getattr(handle, "coganchor", None)
+    model = str(getattr(conversation, "model", None) or agent.config.model)
+    # Spelt as `began` gives it: an agent holds no rung as "", which is written `auto`.
+    return model, written(str(getattr(conversation, "effort", agent.effort)))
+
+
+def carried_as(now: Drove, agent: str) -> Drove:
+    """What a chat's assistant is written down as, carried on with another model or effort.
+
+    A chat is carried on by the harness that had it, as the account it ran as (Section
+    8.3.18 of [CORE]): only its model and its effort are given anew.
+
+    Args:
+      now: The assistant as the chat's record says it.
+      agent: The agent to carry it on with, as `-a` spells one after `<role>=`.
+
+    Returns:
+      The assistant as the record is to say it, under the name it had.
+
+    Raises:
+      KeptAs: For an agent of another harness or another account, and, where the model or
+        the effort differs, a harness that carries no conversation on or is told neither.
+      ValueError: For an agent that is not one.
+    """
+    from hmz.coganchor import backends
+    from hmz.flows import HarnessKind
+
+    said = _assistant(agent)
+    wanted = _drove(said, now.name)
+    if wanted.backend != now.backend:
+        raise KeptAs(_KEPT_HARNESS.format(had=now.backend, wanted=wanted.backend))
+    if wanted.provider != now.provider:
+        raise KeptAs(
+            _KEPT_ACCOUNT.format(
+                had=now.provider or "this machine's own",
+                wanted=wanted.provider or "this machine's own",
+            )
+        )
+    if _at(wanted) == _at(now):
+        return wanted
+    profile = backends.named(now.backend)
+    if profile is None or not profile.forks:
+        raise KeptAs(_KEPT_MODEL.format(harness=now.backend))
+    if said.harness is HarnessKind.ACP:
+        raise KeptAs(_UNTOLD_MODEL.format(harness=now.backend))
+    return wanted
 
 
 def _carried(resume: Path | None, workspace: Path) -> tuple[Path | None, Ran | None]:

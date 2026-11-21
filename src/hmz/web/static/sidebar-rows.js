@@ -19,6 +19,20 @@ export function chatState(how) {
 }
 
 /**
+ * How a flow's epic stands before it is marked: `stopping` while the host going with it is
+ * stopping it, which its row in `runs.list` does not say and `hosts.running` does, and otherwise
+ * as its row says.
+ *
+ * @param {{how: string, held?: boolean, workspace?: string, slot?: string}} run The epic's row.
+ * @param {{state?: string, workspace?: string, slot?: string}[]} running What each host says it runs.
+ * @returns {string}
+ */
+export function epicHow(run, running) {
+  const stops = run.held && running.some((one) => one.state === 'stopping' && one.workspace === run.workspace && String(one.slot || '') === String(run.slot || ''))
+  return stops ? 'stopping' : run.how
+}
+
+/**
  * A chat's state in words, as a chat app's says it. The sidebar's row writes `Running` and
  * `Failed`; one that waits on its person it marks with a dot, which says `Awaiting input` only
  * to whoever cannot see it or points at it.

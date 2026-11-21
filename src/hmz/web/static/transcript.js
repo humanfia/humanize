@@ -291,39 +291,50 @@ function said(record, who, began, { chat = false, folded = false } = {}) {
  * with `chat`, has it as its person's line, as the chat drew it while it went.
  */
 export function saidTraced(...sessions) {
+  return tracedLines(...sessions).map((one) => one.make())
+}
+
+/**
+ * The same, a line at a time and not yet drawn: each with a `key` that says all it is drawn
+ * from, and what makes it. A trace read again is then drawn over the one drawn before by key
+ * (`merged` of logs.js): the lines it had stay the nodes they were, and only what is new is made.
+ *
+ * @returns {{key: string, make: () => Node}[]}
+ */
+export function tracedLines(...sessions) {
   const lines = []
   const many = sessions.length > 1
-  const actions = sessions.flatMap((one) => one.actions.map((action) => ({ ...action, whose: one.label || one.key, chat: Boolean(one.chat) }))).sort((a, b) => a.start - b.start)
-  for (const action of actions) {
-    const args = action.args || {}
-    const who = many ? action.whose : ''
-    switch (action.category) {
-      case 'turn': {
-        const prompt = args.prompt ? String(args.prompt) : action.name
-        lines.push(action.chat ? line('you', prompt) : h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), h('div', { class: 'body' }, many ? h('div', { class: 'who' }, action.whose) : null, prompt)))
-        break
-      }
-      case 'message':
-        lines.push(line('text', args.text ?? action.name, { who }))
-        break
-      case 'tool': {
-        const said = [action.name]
-        if (args.input !== undefined) said.push(`\n${typeof args.input === 'string' ? args.input : JSON.stringify(args.input, null, 2)}`)
-        if (args.output !== undefined || args.result !== undefined) {
-          const out = args.output ?? args.result
-          said.push(`\n⎿ ${typeof out === 'string' ? out : JSON.stringify(out, null, 2)}`)
-        }
-        if (args.error) said.push(`\n✕ ${args.error}`)
-        lines.push(line('tool', said.join(''), { who, folded: true }))
-        break
-      }
-      case 'llm':
-        lines.push(line('reasoning', [action.name, modelName(args.model), args.thinking].filter(Boolean).join(' · '), { folded: Boolean(args.thinking) }))
-        break
-      default:
-        lines.push(line('notice', action.name))
-        break
-    }
+  const actions = sessions.flatMap((one) => one.actions.map((action) => ({ action, whose: one.label || one.key, chat: Boolean(one.chat) }))).sort((a, b) => a.action.start - b.action.start)
+  for (const { action, whose, chat } of actions) {
+    lines.push({ key: JSON.stringify([many ? whose : '', chat, action]), make: () => tracedLine(action, whose, chat, many) })
   }
   return lines
+}
+
+/** One line of a trace. */
+function tracedLine(action, whose, chat, many) {
+  const args = action.args || {}
+  const who = many ? whose : ''
+  switch (action.category) {
+    case 'turn': {
+      const prompt = args.prompt ? String(args.prompt) : action.name
+      return chat ? line('you', prompt) : h('div', { class: 'said turn' }, h('span', { class: 'g' }, '❯'), h('div', { class: 'body' }, many ? h('div', { class: 'who' }, whose) : null, prompt))
+    }
+    case 'message':
+      return line('text', args.text ?? action.name, { who })
+    case 'tool': {
+      const said = [action.name]
+      if (args.input !== undefined) said.push(`\n${typeof args.input === 'string' ? args.input : JSON.stringify(args.input, null, 2)}`)
+      if (args.output !== undefined || args.result !== undefined) {
+        const out = args.output ?? args.result
+        said.push(`\n⎿ ${typeof out === 'string' ? out : JSON.stringify(out, null, 2)}`)
+      }
+      if (args.error) said.push(`\n✕ ${args.error}`)
+      return line('tool', said.join(''), { who, folded: true })
+    }
+    case 'llm':
+      return line('reasoning', [action.name, modelName(args.model), args.thinking].filter(Boolean).join(' · '), { folded: Boolean(args.thinking) })
+    default:
+      return line('notice', action.name)
+  }
 }

@@ -299,6 +299,26 @@ def test_nous_and_runtimes_are_written_into_the_settings_file(
     _refused(
         client, 400, "runtimes.set", backend="ssh", name="gpu", fields={"name": "x"}
     )
+    # Section 7.4.3.2 of core.md: a fallback is `<backend>:<name>`, of any backend, and a
+    # bare name is refused.
+    _refused(
+        client,
+        400,
+        "runtimes.set",
+        backend="ssh",
+        name="spare",
+        fields={"host": "spare.lab", "fallback": ["gpu"]},
+    )
+    fell = _call(
+        client,
+        "runtimes.set",
+        backend="ssh",
+        name="spare",
+        fields={"host": "spare.lab", "fallback": ["ssh:gpu", "docker:box"]},
+    )
+    spare = next(one for one in fell["runtimes"] if one["name"] == "spare")
+    assert spare["fallback"] == ["ssh:gpu", "docker:box"]
+    _call(client, "runtimes.remove", backend="ssh", name="spare")
     _refused(client, 404, "runtimes.check", backend="ssh", name="nowhere")
     assert "hosts" in _call(client, "runtimes.hosts")
     _refused(client, 400, "runtimes.import", names=[])

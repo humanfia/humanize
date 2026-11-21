@@ -759,12 +759,29 @@ def test_needs_names_what_the_chosen_backend_needs(
     unwanted: tuple[str, ...],
 ) -> None:
     monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setattr(binary, "found", lambda: Path("/opt/coganchor"))
     _settings(said)
 
     told = needs(net=net)
 
     assert all(one in told for one in wanted)
     assert not any(one in told for one in unwanted)
+
+
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_needs_names_coganchor_where_none_is_built_here(
+    monkeypatch: pytest.MonkeyPatch, platform: str
+) -> None:
+    monkeypatch.setattr("sys.platform", platform)
+    monkeypatch.setattr(binary, "found", lambda: None)
+
+    told = needs(net=False)
+
+    # Not a sandbox this process is in, nor a kernel's lack: the program is not here.
+    assert "a coganchor built for this machine" in told
+    assert "HUMANIZE_COGANCHOR" in told
+    assert "Seatbelt" not in told
+    assert "Landlock" not in told
 
 
 @pytest.fixture

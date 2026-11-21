@@ -36,7 +36,7 @@ Click the chips under the message box to configure the chat.
 | Permission (`Edit this folder`) | What the agent may touch: **Read only**, **Edit this folder** or **Full access**. | [Permissions](/user/permissions) |
 | Usage (the ring) | What this chat and folder have spent. | [Cost and usage](/user/usage) |
 
-Once a chat starts, it keeps the environment, nous, permission and usage chips under its box. The folder chip appears only on the new chat page. Between turns, pick another place from the environment chip to [move the chat](/user/environments).
+Once a chat starts, it keeps the environment, nous, permission and usage chips under its box. The folder chip appears only on the new chat page. Between turns, pick another place from the environment chip to [move the chat](/user/environments). Pick another model or effort from the nous chip at any time, on an old chat too: see [Change the model or effort](/user/chat-input#change-the-model-or-effort).
 
 ### Read the chat
 

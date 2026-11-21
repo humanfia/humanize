@@ -224,6 +224,13 @@ belong to Local.
 **3.4.2.4** Opening an address of another daemon MUST draw the sidebar and the view again, of that
 daemon, and MUST stop drawing anything of the previous daemon.
 
+**3.4.2.4.1** The daemon shown MUST be chosen in two places and in no other: the menu of the daemon
+bar (Section 3.13.15) and `Daemons` of Settings (Section 3.13.15.1). No other view, dialog, form,
+menu, chip or page of Settings MUST offer a daemon to choose: each MUST be of the daemon shown,
+whose name it MAY say. An address whose query names a daemon (`daemon`) MUST open as the same
+address of that daemon, without that query, as Section 3.4.2.4 states, and MUST NOT show one
+daemon's dialog over another daemon's page.
+
 **3.4.2.5** An address of an epic's log of every session MUST open that epic.
 
 **3.4.2.6** A dialog opened over a view and closed again MUST leave the addresses the page steps
@@ -369,7 +376,8 @@ menu of a folder (3.5.7), bar folding it, by a right click and by `More options`
 
 **3.5.1.2** The epics and chats of no workspace, and those of every folderless workspace (the
 `folderless` of a row, Section 4.16.2 and Section 4.25.5.2 of [DAEMON]) together, MUST be listed as
-the last folder, `No folder`, which has no menu of a folder and whose `+` MUST open a new chat on
+the last folder, `No folder`, which has no menu of a folder, whose `Group and sort` MUST offer
+`Workspace settings` as a folder's does (3.5.17) and whose `+` MUST open a new chat on
 `No folder`; no folderless workspace MUST be shown as a folder of its own, by its name or its path,
 and wherever the page names the workspace of an epic or a chat by the last part of its path it
 MUST say `No folder` of a folderless one. Grouped by `Folder`, a list with no workspace and no epic to show MUST keep that
@@ -394,8 +402,9 @@ pointed at or holds the focus, and always where the device has nothing to point 
 
 **3.5.7** The menu of a folder MUST offer: a new chat there, a new epic there, searching
 it, copying its
-path, folding or opening it, its workspace settings, its usage (Section 3.11.2.12.1), and, where no epic ran there,
-forgetting it.
+path, folding or opening it, `Workspace settings`, which opens the dialog of Section 3.11.4 on that
+folder, `Usage`, which opens that dialog on its `Usage` (Section 3.11.2.12.1), and, where no epic
+ran there, forgetting it.
 
 **3.5.7.1** A folder whose directory is no longer there MUST say so by its name and in its menu,
 and MUST NOT offer a new chat there or a new epic there, neither in its menu nor by `+`
@@ -481,7 +490,9 @@ after a choice in `Group and sort`, `Group and sort` MUST.
 
 **3.5.17** `Group and sort` MUST open a menu of: `Group by`, one of `Folder`, `Date` and `None`;
 `Sort by`, one of `Last updated` and `Created`; `Show`, `Chats` and `Epics`, each on or off; and
-`Reset to defaults`. Until the user says otherwise the list MUST be grouped by `Folder`, sorted by
+`Reset to defaults`. Opened on the heading of a folder, or of `No folder`, the menu MUST end, under
+a line, with `Workspace settings`, which MUST open the dialog of Section 3.11.4 on that folder --
+on `No folder`, from its heading; on the heading of any other group it MUST NOT offer it. Until the user says otherwise the list MUST be grouped by `Folder`, sorted by
 `Last updated`, and show both. The page MUST remember what was chosen in this browser.
 
 **3.5.17.1** Grouped by `Date`, the list MUST show its epics under `Today`, `Yesterday`,
@@ -718,11 +729,15 @@ files.
 harness, the model and the effort of the chat's agent, as Section 3.8.19 draws them. The chip MUST
 open a menu saying the agent's
 harness, account, model and effort, a line each in that order as the levels of Section 3.8.19.1 are
-drawn, and offering a new chat in the chat's workspace. Where the
-chat's catalogue holds the harness's own `/model` or `/effort` as `call` (Section 8.9.5 of [CORE]),
-the line of that level MUST open the models known runnable as the agent's account, accepting a
-typed model, or the efforts its model takes, and picking one MUST say that line to the chat. The page MUST NOT
-offer to change the agent of a chat that has begun any other way.
+drawn, and offering a new chat in the chat's workspace. The lines of its harness and its account
+MUST open nothing. On every chat that has begun, whether or not a host holds it, the line of its
+model MUST open the models known runnable as the agent's account, accepting a typed model, and the
+line of its effort the efforts its model takes and `Default`, where it takes any; picking one MUST
+give the chat that agent (`chat.agent`, Section 4.25.7.7 of [DAEMON]), an effort the model picked
+does not take being left out, MUST say it on the chip at once, MUST NOT load the page again or start
+a host, and, where the daemon refuses it, MUST say on the chip what the chat runs again and MUST say
+the daemon's reason in a toast. The page MUST NOT offer to change the
+harness or the account of a chat that has begun.
 
 **3.6.6.14** The row under the box of a chat (Section 3.6.6.15) MUST hold a permission chip that
 names the chat's permission
@@ -765,8 +780,8 @@ Settings. That row MUST NOT hold where the chat runs.
 through and how long it has run, where the page knows them, and while the chat runs each kind of
 token with its share of them all; then what the chat's workspace has spent today and over the
 last 7 days (`runs.usage`), read as the popup opens; and MUST end with a link `Usage settings`,
-which opens the `Usage` of `Workspace` (Section 3.11.2.12.1) on that workspace, and the `Usage` of
-`Daemon` (Section 3.11.2.12) where the chat is of none. It MUST be 308 CSS pixels wide where
+which opens the `Usage` of that workspace's settings (Sections 3.11.4 and 3.11.2.12.1), and the
+`Usage` of `Daemon`, in Settings (Section 3.11.2.12), where the chat is of none. It MUST be 308 CSS pixels wide where
 the window has the room, and MUST be one of the page's popups (Section 3.4.3.4): Escape MUST
 close it and, closed so, the focus MUST go back to the chip.
 
@@ -856,8 +871,9 @@ parameters and budget -- the tree of flows it called, its sessions, what it spen
 took.
 
 **3.6.7.2** The page MUST read the epic's handovers and each session's turns back out of the logs
-it kept, on its own, when the epic is shown, and MUST say so while it reads. Where the reading
-fails, the page MUST say why and MUST offer `Read turns`, which reads them again.
+it kept, on its own, when the epic is shown, and MUST say so while it reads, where it kept nothing
+of them (Section 3.6.12). Where the reading fails, the page MUST say why and MUST offer `Read
+turns`, which reads them again.
 
 **3.6.7.3** The page MUST offer `Export`, which downloads the epic as one archive, as Section 3 of
 [CORE] specifies, reading it in chunks (`runs.bundle` and `files.read`, Section 4.16.4.4 of
@@ -1041,6 +1057,52 @@ which loads the frame afresh and, where the face then calls `hmz.on("ask", ...)`
 **3.6.11.10** The page MUST draw, beside every face it shows, one switch: `Plain form`, which shows
 the form in place of the face, and, while the form is shown, `Back to <title>`, the face's `title`,
 else `the custom view`, which shows the face again as the person left it.
+
+#### 3.6.12. A conversation opened again
+
+**3.6.12.1** The page MUST keep what it last saw of each conversation it has drawn -- a chat, an
+epic, a conversation of Ai-chan's -- and MUST draw a conversation opened again from what it kept,
+at once, in the frame it is opened in: its record, what was said in it, and, of a chat or an
+epic, its thread scrolled to where it was last read from. The page MUST then read the conversation
+again of the daemon, behind what is drawn, each time it is opened.
+
+**3.6.12.2** What the daemon then answers MUST be drawn over what was kept in place: a line
+already drawn MUST stay drawn as it is, a line said since MUST be added where it was said, a line
+that differs MUST be drawn in the place of the one it was, and nothing else of the view MUST be
+drawn again. Meanwhile and after, the page MUST NOT say that the conversation is being read, MUST
+NOT empty its thread, MUST NOT move the thread under a reader who is not at its end, and MUST NOT
+disturb what is typed in its box or where the caret stands.
+
+**3.6.12.3** Where what the daemon answers is another conversation than what was kept -- its host
+is in another life, what was kept was only its end, or it is of another daemon or another
+workspace than the one kept -- the page MUST draw what the daemon answers over what was kept once,
+whole, and never a record at a time. A conversation the daemon answers there is none of (404) MUST
+be drawn as not there, whatever was kept of it, and the page MUST then keep nothing of it; the page
+MUST keep nothing of a conversation it deleted, nor of a daemon it removed.
+
+**3.6.12.4** What is kept MUST only ever be what is drawn first. How a conversation stands, its
+marks, what it waits on a person for, what its box does -- `Stop` among it -- and which host holds
+it MUST be the daemon's word alone, and the page MUST NOT attach to a host, nor mark anything read,
+on the word of what it kept.
+
+**3.6.12.5** A conversation the page has kept nothing of MUST say that it is being read only once
+the reading has lasted 300 milliseconds: one read sooner MUST be drawn with nothing said of its
+reading. The same holds for what is opened beside a conversation -- its environment -- and for
+Ai-chan's drawer.
+
+**3.6.12.6** What is kept MUST be kept in memory while the page is open and in the browser's
+IndexedDB between its openings, by the daemon, the kind of conversation and its id, so that two
+daemons' are never drawn for one another. The page MUST keep no more than 40 conversations and no
+more than 24 MiB of them, weighed as the characters of their JSON, letting go first of the one
+opened longest ago, and of one never opened before any that was; of a conversation weighing more
+than 4 MiB it MUST keep the end alone. What
+was kept in an earlier format MUST be dropped, and where the browser will not keep it the page MUST
+go on keeping it in memory alone.
+
+**3.6.12.7** While the browser is idle and the page asks nothing else, the page SHOULD read ahead,
+one at a time, the 4 conversations of the sidebar's list last heard of that it has not kept as they
+stand, so that each is drawn at once the first time it is opened; it MUST NOT read ahead through a
+host, a conversation whose turn is open, or the conversation in front.
 
 ### 3.7. Exomyth
 
@@ -1229,7 +1291,7 @@ daemon shown serves whose directories are there, each one row named by the last 
 it is pointed at, with the one picked marked, and after them `Open folder…`; the
 menu MUST open with the focus on the workspace picked. Neither chip, and neither menu, MUST name
 or offer a daemon: which hmz serves the page is the whole page's, picked at the foot of the
-sidebar (Section 3.4.2.4).
+sidebar (Section 3.4.2.4.1).
 
 **3.8.22.1** `New worktree` MUST be one of the places of the menu of `Environment` (Section
 3.8.22.3), after `This computer`; picked, the chat MUST be started with `worktree` `true` (Section
@@ -1276,17 +1338,13 @@ heading `New epic`, or `Resume epic`, in the bar with the flow of Section 3.8.4 
 flow is for and, under it, what it is set up with (Section 3.8.6) in the middle of the page; and
 the box of Section 3.8.5 docked at the foot, holding only the `Add` button of Section 3.6.6.16,
 what is typed and the button that sends. The row under that box MUST hold nothing, neither at its
-left nor at its right. `Daemon` MUST be the first part of what the flow is set up with, shown
-whatever flow is picked and where none is, a part of its own and no part of `Environment`, so that
-which hmz serves the page is not read as where the epic works: one row, `Connected to`, a chip
-that names the daemon the page shows and opens a menu of one line that is no choice, `Which hmz serves this page: a machine
-running hmz that you are connected to.`, then Local and every remote daemon this browser keeps,
-with the one shown marked, and `Add daemon…`, which opens the daemons' settings (Section 3.13);
-picking another daemon MUST switch the page to it (Section 3.4.2.4), on the same form.
-`Environment` MUST be the next part, shown likewise: a row `Folder`, the control of
+left nor at its right. The form MUST NOT name or offer a daemon, in a part, a row, a chip or a
+menu: the epic is of the daemon shown, which the foot of the sidebar says and picks (Section
+3.4.2.4.1). `Environment` MUST be the first part of what the flow is set up with, shown whatever
+flow is picked and where none is: a row `Folder`, the control of
 Section 3.8.2.1; and then a row for each environment role of the flow picked, named by the role,
 whose directory on this machine, while none is typed, MUST say the workspace picked, where such a
-role left blank works. The menus of `Daemon` and of `Folder` MUST open under their controls.
+role left blank works. The menu of `Folder` MUST open under its control.
 
 ### 3.9. Flows
 
@@ -1399,32 +1457,26 @@ to and the groups it stands in.
 
 #### 3.11.1. Structure
 
-**3.11.1.1** Settings MUST be a dialog with three groups of pages, in this order: `App`, `Daemon`
-and `Workspace`.
+**3.11.1.1** Settings MUST be a dialog with two groups of pages, in this order: `App` and `Daemon`.
 
 **3.11.1.2** `App` MUST hold `Themes`, `Daemons`, `Notifications` and `Language`, and MUST be the
 same whichever daemon is shown.
 
 **3.11.1.3** `Daemon` MUST hold `General`, `Accounts`, `Nous`, `Runtimes`, `Backup` and `Usage`,
-each of the daemon picked above them.
+each of the daemon shown.
 
-**3.11.1.4** The daemon picked for the `Daemon` and the `Workspace` pages MUST be the daemon shown
-until the user picks another, MUST be part of the address, and picking it MUST change nothing else
-on the page.
+**3.11.1.4** Over each page of `Daemon`, Settings MUST say the daemon shown by its name, on a line
+that is no control, and MUST NOT offer another daemon to pick there (Section 3.4.2.4.1): the pages
+of `Daemon` are of another daemon once the page is switched to it.
 
-**3.11.1.5** `Workspace` MUST hold `Setup`, at `#/settings/workspace`, `Archived chats`, at
-`#/settings/archived`, and `Usage`, at `#/settings/workspace-usage`, each of the workspace picked above them, under the daemon picked, among
-every workspace that daemon serves. The workspace picked MUST be the one the address names
-(`workspace`), else the one Section 3.3.5 offers first; picking another MUST put it in the address,
-and each page of `Workspace` MUST open the others on the same workspace.
+**3.11.1.5** Settings MUST NOT hold a page of a workspace, and MUST NOT offer a workspace to pick:
+what one workspace keeps is that workspace's own dialog (Section 3.11.4).
 
-**3.11.1.6** The workspace MUST be picked by its folder's name -- with the folder it is in where two
-have one name -- and nothing else: its whole path, and `Missing` where its directory is gone, MUST
-be said beside the control, not in its choices. Where the daemon picked serves no workspace the page
-MUST say so in place of its pages (Section 3.4.6), offering `New chat`, and MUST NOT offer a
-workspace to pick.
+**3.11.1.6** The addresses `#/settings/workspace`, `#/settings/workspace-usage` and
+`#/settings/archived`, which were pages of Settings, MUST open the dialog of Section 3.11.4 on
+`Setup`, `Usage` and `Archived chats`, of the workspace the address names (`workspace`).
 
-#### 3.11.2. Daemon and Workspace pages
+#### 3.11.2. Daemon pages, and a workspace's
 
 **3.11.2.1** `General` MUST let the user set whether a turn's working is shown, `Harness
 sessions`, whether the sidebar lists them (Section 3.5.21; off until set), and whether errors are
@@ -1476,7 +1528,7 @@ fields, change it, check it, remove it after confirmation, and import hosts from
 Section 7 of [CORE] specifies.
 
 **3.11.2.7.1** `Runtimes` MUST show first, whatever is written down and where nothing is, the
-machine of the daemon picked (`local` of Section 4.18.4.1.1 of [DAEMON]): `This machine` of Local,
+machine of the daemon shown (`local` of Section 4.18.4.1.1 of [DAEMON]): `This machine` of Local,
 its host name, system and architecture, its processors and memory, and that chats and epics run
 there unless a runtime is picked. It is no runtime: the page MUST NOT offer to change, check or
 remove it, and `Batch apply` MUST NOT carry it. With no runtime written down the page MUST say `No
@@ -1494,23 +1546,25 @@ specifies.
 the target picked where there is more than one, and downloads the one picked as an import does,
 opening it: a chat among the chats (Section 3.6.6), an epic among the epics.
 
-**3.11.2.11** `Setup` MUST show what the workspace picked was last set up with, and MUST let the
+**3.11.2.11** `Setup`, of a workspace's settings (Section 3.11.4), MUST show what that workspace was
+last set up with -- the flow it opens on and every flow set up there -- and MUST let the
 user forget it; forgetting a workspace where no epic ran MUST remove it from the sidebar.
 
-**3.11.2.11.1** `Archived chats` MUST list the archived chats of the workspace picked (`chat.list`
+**3.11.2.11.1** `Archived chats`, of a workspace's settings, MUST list the archived chats of that
+workspace (`chat.list`
 with `archived`), newest first, each by its title and when it was last written, with `Unarchive`,
 which MUST put it back among the others (`chat.unarchive`) and take it off this list, and `Delete`,
-which MUST open the dialog of Section 3.6.6.26. Under them, whichever workspace is picked and
-where there is none to pick, it MUST list likewise, under `No folder`, the archived chats of every
-folderless workspace (Section 3.5.1.2), which no workspace picked names. It MUST say so where there
+which MUST open the dialog of Section 3.6.6.26. Under them, whichever workspace the dialog is of
+and where it is of `No folder`, it MUST list likewise, under `No folder`, the archived chats of every
+folderless workspace (Section 3.5.1.2), which no workspace names. It MUST say so where there
 is none of either.
 
 **3.11.2.12** `Usage`, of `Daemon` and at `#/settings/usage`, MUST show what everything the daemon
-picked ran has spent (`runs.usage` with no `workspace`), by day and by flow, looking back 7, 30, 90
+shown ran has spent (`runs.usage` with no `workspace`), by day and by flow, looking back 7, 30, 90
 or 365 days: the epics and the chats of every workspace, those of a folderless one (Section
 3.5.1.2) among them. It MUST NOT offer a workspace to pick.
 
-**3.11.2.12.1** `Usage`, of `Workspace`, MUST show the same of the workspace picked alone
+**3.11.2.12.1** `Usage`, of a workspace's settings, MUST show the same of that workspace alone
 (`runs.usage` with `workspace`), one whose directory is gone too. On either page each flow MUST
 open `Search` on what it counts -- the chats, for the flow `chat` -- in that workspace on this one.
 
@@ -1528,8 +1582,9 @@ left out.
 
 **3.11.3.1** `Themes` MUST let the user choose a theme as Section 3.12 specifies.
 
-**3.11.3.2** `Daemons` MUST list Local and every remote daemon with its state, and MUST let the
-user add, edit, connect and remove remote daemons, pair devices and revoke them, and set each
+**3.11.3.2** `Daemons` MUST list Local and every remote daemon with its state, MUST say which of
+them is the daemon shown and let the user switch the page to another (Section 3.13.15.1), and MUST
+let the user add, edit, connect and remove remote daemons, pair devices and revoke them, and set each
 remote daemon's STUN and TURN servers, as Section 3.13 specifies.
 
 **3.11.3.3** `Notifications` MUST let the user switch each kind of notification on and off --
@@ -1546,6 +1601,29 @@ any daemon's settings.
 language named in its own words whatever the page is written in. `System`, the default, MUST be no
 language chosen (Section 3.4.4.16). A choice MUST take effect at once, in every page the browser has
 open, and each page MUST stay on the view it was on.
+
+#### 3.11.4. Workspace settings
+
+**3.11.4.1** What one workspace keeps MUST be a dialog of its own, `Workspace settings`, of one
+workspace of the daemon shown, at `#/workspace/<page>?workspace=<path>`. It MUST be opened from
+that workspace in the sidebar, by `Workspace settings` (Sections 3.5.7 and 3.5.17), and MUST NOT be
+a page of Settings (Section 3.11.1.5).
+
+**3.11.4.2** The dialog MUST be named `Workspace settings` with the name of the workspace it is of,
+and MUST say over each of its pages, on a line that is no control, that workspace's name, its whole
+path, and `Missing` where its directory is gone. It MUST NOT offer another workspace, or a daemon,
+to pick.
+
+**3.11.4.3** It MUST hold `Setup` (`setup`, Section 3.11.2.11), `Usage` (`usage`, Section
+3.11.2.12.1) and `Archived chats` (`archived`, Section 3.11.2.11.1), each opening the others on the
+same workspace; a page the address does not name MUST be `Setup`.
+
+**3.11.4.4** Opened from `No folder` (Section 3.5.17), at `#/workspace/archived?scratch=1`, the
+dialog MUST be of `No folder`, MUST say `No folder` in place of a name and a path, and MUST hold
+`Archived chats` alone: those of every folderless workspace, under no heading. An address that
+names neither a workspace nor `scratch` -- one of Section 3.11.1.6 that names none -- MUST be of
+the workspace Section 3.3.5 offers first, where the daemon shown serves one whose directory is
+there, and of `No folder` where it serves none.
 
 ### 3.12. Themes
 
@@ -1663,8 +1741,9 @@ it, leaving everything on that machine as it is.
 **3.13.11** The page MUST NOT ask the user for a password or a host key; a remote daemon that needs
 one MUST fail.
 
-**3.13.12** The page MUST show one daemon at a time: the sidebar, a new epic, search, flows and the
-`Daemon` settings pages MUST be of the daemon shown.
+**3.13.12** The page MUST show one daemon at a time: the sidebar and everything it lists, every
+view, every dialog, the `Daemon` pages of Settings and a workspace's settings MUST be of the daemon
+shown, which is chosen as Section 3.4.2.4.1 states.
 
 **3.13.13** The daemon bar MUST show the daemon shown, its host, whether it is reached, and how many
 epics are going on it, a chat (Section 3.5.10) and an Ai-chan conversation (Section 14 of [CORE])
@@ -1676,6 +1755,11 @@ daemon and its state; then `Settings` and `Usage` (Section 3.11.2.12); and `Upda
 **3.13.15** Picking a daemon in that menu MUST switch the page to it and, for a remote daemon, MUST
 reach it; the menu MUST offer `Connect` on a remote daemon that failed and `Manage`, which opens
 `Settings` › `Daemons`.
+
+**3.13.15.1** `Daemons` of Settings MUST mark the daemon shown, `Current`, and MUST offer `Switch` on
+every other daemon, which MUST switch the page to it as picking it in that menu does and MUST leave
+Settings open on `Daemons`, of that daemon; closing Settings then MUST leave the page on that
+daemon, and MUST NOT go back to the daemon left.
 
 **3.13.16** The page MUST show each remote daemon's state as one of `idle`, `connecting`,
 `installing`, `up` and `failed`, with what was said last, as Section 3.8.2 of [DAEMON] specifies.
@@ -1809,8 +1893,8 @@ while her turn is open and she asks the user nothing in it, and a box that says 
 her, under which the two chips of Section 3.16.3 MUST say the nous, the preset and the scope it was
 made with, and MUST NOT be picked from. The drawer MUST NOT name a session, MUST NOT say in words
 that the conversation waits on the user or has folded away, and MUST NOT show what it cost. Until
-the conversation's host has answered, the drawer MUST say that it is being opened, and, where
-attaching to it was refused, why; of a conversation carried on, what was said before MUST be drawn
+the conversation's host has answered, the drawer MUST say that it is being opened, where it draws
+nothing kept of the conversation (Section 3.6.12), and, where attaching to it was refused, why; of a conversation carried on, what was said before MUST be drawn
 without what Ai-chan was told ahead of the user's first line (Section 14.6.4 of [CORE]).
 
 **3.16.4.1** Beside the conversation's title the drawer MUST offer a button drawn as a pencil,
@@ -2019,8 +2103,11 @@ hmz web printed to let this browser in.`
 
 **4.4.6** An admitted request MUST be refused 403, `Use this server's own page to make this
 request.`, where it carries `Sec-Fetch-Site` with a value other than `same-origin`, or carries no
-`Sec-Fetch-Site` and an `Origin` whose scheme is not `http` or whose host and port differ from its
-`Host`.
+`Sec-Fetch-Site` and an `Origin` that is neither of the following: an origin whose scheme is `http`
+or `https` and whose host and port are those of its `Host`, a port absent from either being the
+default port of the scheme of the `Origin`, 80 for `http` and 443 for `https`; the origin given to
+`--origin` (Section 8.1.3 of [CLI]), compared by scheme, host and port likewise. The server MUST
+NOT read the origin or the host of a request from any other header.
 
 **4.4.7** A request whose method is not `GET` MUST be refused 405, `Only the page's own files are
 here.`
@@ -2165,7 +2252,10 @@ requirement.
   A page without the cookie shows no view (Section 3.3.3).
 - **Origin checks.** A WebSocket or a request from another site is refused: the server admits only
   what the browser states comes from the server's own page (Section 4.4.6), which keeps another
-  site from opening `/rpc` with the cookie the browser holds. Every answer forbids framing and
+  site from opening `/rpc` with the cookie the browser holds. A reverse proxy on this machine that
+  serves the page over HTTPS is admitted as the page's own where it preserves `Host`; one that
+  rewrites `Host` is admitted only for the one origin the user names with `--origin`, and no
+  forwarding header is trusted, since any process on this machine can send one. Every answer forbids framing and
   content sniffing, and the page's HTML carries a content security policy that admits only the
   server's own scripts, styles and connections, and inline styles, which the editor and the terminal
   need and which run no script (Section 4.5.1 and Section 4.5.5); those libraries are the page's own
@@ -2192,9 +2282,10 @@ requirement.
   Section 3.13.9); the daemon answers none (Section 5 of [DAEMON]). The page never asks for a
   password or a host key (Section 3.13.11). A pairing code is a secret until it is claimed, and the
   page claims it at once (Section 3.13.4).
-- **Browser storage.** The remote daemons, where each daemon's notices are taken up and the page's
-  own settings are kept in the browser's storage for the server's origin (Section 3.13.1 and Section 3.15.2.1), which any
-  page of that origin can read; the page's WebRTC certificate is kept there too (Section 4.7.2 of
+- **Browser storage.** The remote daemons, where each daemon's notices are taken up, the page's
+  own settings and what the page last saw of each conversation -- what was said in it among that
+  -- are kept in the browser's storage for the server's origin (Section 3.13.1, Section 3.15.2.1
+  and Section 3.6.12.6), which any page of that origin can read; the page's WebRTC certificate is kept there too (Section 4.7.2 of
   [WIRE]), so that whoever can read that storage can act as this browser on the daemons it paired
   with.
 - **Failures.** An unanticipated failure is answered with its reason in one sentence and its

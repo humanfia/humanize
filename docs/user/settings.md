@@ -11,16 +11,16 @@ Change what Humanize remembers from the settings dialog in the app or `/settings
 
 ## In the app
 
-Click the gear button **Settings** in the sidebar. You can also open **Settings**, **Usage**, and **Manage** (the Daemons page) from the daemon menu at the foot of the sidebar, or open a folder's **Settings** (its Setup page) and **Usage** (the Workspace Usage page of that folder) from the folder menu. Press **Close** or <kbd>esc</kbd> to close the dialog.
+Click the gear button **Settings** in the sidebar. You can also open **Settings**, **Usage**, and **Manage** (the Daemons page) from the daemon menu at the foot of the sidebar. Press **Close** or <kbd>esc</kbd> to close the dialog.
 
-Settings pages fall into three groups, each stored in a different place.
+Settings pages fall into two groups, **App** and **Daemon**. What one folder keeps is not a page of Settings: it is that folder's own dialog, [Workspace settings](#workspace-settings). Each of the three is stored in a different place.
 
-![Three groups of pages: App pages are kept in this browser or app, Daemon pages in the picked daemon's settings.yaml, Workspace pages with one folder of that daemon](/diagrams/user-settings-1.svg)
+![App pages are kept in this browser or app, Daemon pages in the settings.yaml of the daemon shown, and a folder's Workspace settings with that folder](/diagrams/user-settings-1.svg)
 
 | Group | Page | What it holds | Guide |
 | --- | --- | --- | --- |
 | App | **Themes** | Colours and pictures of the page | [Themes and language](/user/themes) |
-| App | **Daemons** | Machines this page reaches | [Connect to other machines](/user/daemons) |
+| App | **Daemons** | Machines this page reaches, and the one it shows | [Connect to other machines](/user/daemons) |
 | App | **Notifications** | What every daemon tells you | [Notifications](/user/notifications) |
 | App | **Language** | What the page is written in | [Themes and language](/user/themes) |
 | Daemon | **General** | Display and reporting | below |
@@ -29,17 +29,14 @@ Settings pages fall into three groups, each stored in a different place.
 | Daemon | **Runtimes** | Machines environments run on | [Runtimes](/user/runtimes) |
 | Daemon | **Backup** | Git repositories epics go to | [Back up to git](/user/backups) |
 | Daemon | **Usage** | What everything on the daemon spent, by day and flow | [Cost and usage](/user/usage) |
-| Workspace | **Setup** | What a folder was last set up with | below |
-| Workspace | **Archived chats** | Chats of a folder that were put away | [Organise chats](/user/manage-chats) |
-| Workspace | **Usage** | What a folder spent, by day and flow | [Cost and usage](/user/usage) |
 
 Each page has a direct address, `#/settings/<page>`, listed in [Page addresses and shortcuts](/reference/web).
 
-### Pick the daemon and the folder
+### Which daemon the pages are of
 
-Use the **Daemon** select at the top of any Daemon or Workspace page to pick **Local** or a remote daemon. The page reads and writes that daemon directly, without switching the rest of the app to it.
+The pages under **Daemon** always read and write the daemon the app shows. Its name is stated in a line at the top of each of them, **Daemon** then **Local** or the remote daemon's name; that line is not a control.
 
-On Workspace pages, use the **Workspace** select to pick a folder on that daemon; its full path appears beside the control. If a folder's directory was deleted on disk, it is marked **Missing**, but you can still select it to inspect or forget its setup. Switching daemons clears the selected folder.
+A daemon is chosen in two places only: the daemon menu at the foot of the sidebar, and the **Daemons** page, where the daemon shown is marked **Current** and every other has a **Switch** button. Either one switches the whole app: the sidebar, every view, and these pages. No other page, form, or menu offers a daemon. See [Connect to other machines](/user/daemons).
 
 ### Save and copy to other daemons
 
@@ -57,11 +54,21 @@ Use **Batch apply** on General, Nous, Runtimes, and Backup to copy the page's se
 | **Harness sessions** | **List in sidebar** | Lists each coding agent's own sessions after a folder's chats. Off by default. See [Continue sessions from other CLIs](/user/harness-sessions). |
 | **Error reports** | **Not set**, **On**, **Off** | Sends reports when Humanize crashes. See [Report a problem](/user/reporting). |
 
-### Workspace setup and Forget
+### Workspace settings
 
-Open **Setup** to see what a folder remembers: its **Directory**, its **Default flow**, and every flow **Configured** there. Press **Forget** and confirm to erase how every flow was set up in that folder. If the folder has no epics or chats, it also leaves the folder list.
+Each folder has a settings dialog of its own, **Workspace settings**. Open it from the sidebar: point at the folder's heading, click **Group and sort**, and choose **Workspace settings**; or right-click the heading and choose **Workspace settings** (or **Usage**, which opens the same dialog on its Usage page). The dialog is about that one folder: its name and full path are stated at the top, with **Missing** if its directory was deleted on disk, and nothing in it picks another folder or a daemon.
+
+| Page | What it holds | Guide |
+| --- | --- | --- |
+| **Setup** | What the folder was last set up with | below |
+| **Usage** | What the folder spent, by day and flow | [Cost and usage](/user/usage) |
+| **Archived chats** | Chats of the folder that were put away | [Organise chats](/user/manage-chats) |
+
+Open **Setup** to see what a folder remembers: its **Default flow**, and every flow **Configured** there. Press **Forget** and confirm to erase how every flow was set up in that folder. If the folder has no epics or chats, it also leaves the folder list.
 
 ![Pressing Forget on the Setup page, confirming, and the page answering Forgotten](/shots/user-settings-forget.svg)
+
+**Workspace settings** on the **No folder** heading opens the dialog for chats that have no folder. It holds **Archived chats** alone.
 
 ## In the terminal
 
@@ -112,7 +119,7 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 ## Where settings are kept
 
 - **App pages** are stored in the browser or the desktop app window. Each browser and device keeps its own values, and clearing site data resets them.
-- **Daemon and Workspace pages**, along with what you save in `/settings`, are stored by the daemon in `~/.hmz/settings.yaml` and shared across all interfaces connected to that daemon. See [settings.yaml](/reference/settings) for the keys. Account secrets are kept apart from that file, and both Usage pages and Archived chats only read what epics and chats recorded.
+- **Daemon pages and Workspace settings**, along with what you save in `/settings`, are stored by the daemon in `~/.hmz/settings.yaml` and shared across all interfaces connected to that daemon. See [settings.yaml](/reference/settings) for the keys. Account secrets are kept apart from that file, and both Usage pages and Archived chats only read what epics and chats recorded.
 - Notifications are stored per browser in the app, and in `settings.yaml` for the terminal.
 
 ## Good to know
@@ -121,5 +128,5 @@ Open `/settings workspace` to manage the directory `hmz` was started in.
 - Setting the `HUMANIZE_SENTRY` environment variable overrides the saved error-report choice for that run, and the terminal's General page notes the override.
 - In the terminal, saving `Forget` at the same time as a changed `Chat agent` forgets both and does not write the agent.
 - Forgetting a folder keeps its chats, epics, and files intact.
-- When no folder exists yet, Setup and the Workspace Usage page show **No folder yet.** and offer **New chat**. Archived chats still opens, to list the archived chats that belong to no folder.
-- On a narrow window, the page list moves to a strip across the top of the dialog.
+- An older address of a folder's page in Settings, such as `#/settings/workspace`, opens that folder's Workspace settings. An address with `daemon=<name>` in its query switches the whole app to that daemon.
+- On a narrow window, the page list moves to a strip across the top of either dialog.

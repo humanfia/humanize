@@ -3,6 +3,7 @@
 
 import { locale, t } from './i18n.js'
 import { closed, opened, place } from './layers.js'
+import { merged } from './logs.js'
 
 /** An element, its properties, and what goes in it. */
 export function h(tag, props = {}, ...kids) {
@@ -37,6 +38,29 @@ function dress(el, props, kids) {
     el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)))
   }
   return el
+}
+
+/**
+ * Draws lines over those drawn before in an element, by the key of each (`merged` of logs.js):
+ * a line drawn already stays the node it was, where it was, only what is new is made, and what
+ * is no longer read -- and whatever else the element held -- goes.
+ *
+ * @param {HTMLElement} box What holds the lines, and nothing else once this is done.
+ * @param {{key: string, node: Node}[]} was The lines drawn, in order.
+ * @param {{key: string, make: () => Node}[]} next The lines read, in order.
+ * @returns {{key: string, node: Node}[]} The lines now drawn.
+ */
+export function patched(box, was, next) {
+  const { from } = merged(was.map((one) => one.key), next.map((one) => one.key))
+  const now = next.map((one, at) => ({ key: one.key, node: from[at] < 0 ? one.make() : was[from[at]].node }))
+  const kept = new Set(now.map((one) => one.node))
+  for (const child of [...box.childNodes]) if (!kept.has(child)) child.remove()
+  let at = box.firstChild
+  for (const one of now) {
+    if (one.node === at) at = at.nextSibling
+    else box.insertBefore(one.node, at)
+  }
+  return now
 }
 
 /** Puts what is given in place of what an element held. */

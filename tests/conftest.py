@@ -54,6 +54,24 @@ _THEIR_HOME = Path(os.environ.get("HUMANIZE_HOME") or Path.home() / ".hmz")
 THEIRS = {"HOME": str(Path.home()), "PATH": os.environ.get("PATH", os.defpath)}
 
 
+def pytest_report_header() -> str | None:
+    """Says, over the run, that no `coganchor` is built for this checkout, where none is.
+
+    A new worktree has none: `crates/coganchor/target` is not in the repository. Every test
+    that runs a turn then fails, each after waiting its patience out, and none of them says
+    why as plainly as this does.
+    """
+    from hmz.coganchor import binary
+
+    if binary.found() is not None:
+        return None
+    return (
+        "hmz: NO coganchor IS BUILT FOR THIS CHECKOUT, and every test that runs a turn will "
+        "fail: run `cargo build --manifest-path crates/coganchor/Cargo.toml`, or name a "
+        f"build with {binary.VARIABLE}"
+    )
+
+
 @pytest.fixture(autouse=True)
 def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A home of the test's own; no crash reports, no price, release or flowverse fetch.

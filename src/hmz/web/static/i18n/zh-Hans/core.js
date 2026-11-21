@@ -258,6 +258,7 @@ export default {
   // Said by more than one area.
   'Daemon': '守护进程',
   'Workspace': '工作区',
+  'Workspace settings': '工作区设置',
   'Epic': '史诗',
   'Unpin': '取消置顶',
   'Pin': '置顶',

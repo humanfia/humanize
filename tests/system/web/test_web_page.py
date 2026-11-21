@@ -46,9 +46,7 @@ _PAGES = (
     "nous",
     "runtimes",
     "backup",
-    "workspace",
     "usage",
-    "workspace-usage",
 )
 
 #: What the macOS app's window says it is: WKWebView, and the app.
@@ -690,39 +688,23 @@ def test_a_new_epic_stands_in_the_frame_of_a_new_chat(
         opened_ = _at(page, "[data-hmz=options]")
         assert opened_["y"] >= 44
         assert opened_["y"] < boxed["y"]
-        # The daemon that serves it first, a part of its own; then Environment, the folder
-        # first: a row each, the names in one column and what each picks in the next.
+        # Environment first, the folder its first row: the names in one column and what
+        # each picks in the next. The form neither names nor offers a daemon: which hmz
+        # serves it is the whole page's, said and picked at the foot of the sidebar.
         parts = view.locator("[data-hmz=options] > *")
-        expect(parts.nth(0)).to_have_attribute("data-hmz", "setup-serving")
-        expect(parts.nth(0).locator("h3")).to_have_text("Daemon")
+        expect(parts.nth(0)).to_have_attribute("data-hmz", "setup-environment")
+        expect(parts.nth(0).locator("h3")).to_have_text("Environment")
         expect(parts.nth(0).locator(".setup-row > .setup-name")).to_have_text(
-            ["Connected to"]
-        )
-        expect(parts.nth(1)).to_have_attribute("data-hmz", "setup-environment")
-        expect(parts.nth(1).locator("h3")).to_have_text("Environment")
-        expect(parts.nth(1).locator(".setup-row > .setup-name")).to_have_text(
             ["Folder"]
         )
-        expect(parts.nth(1).locator("[data-hmz=daemon]")).to_have_count(0)
-        runs = _at(page, "[data-hmz=setup-daemon] [data-hmz=daemon]")
+        expect(view.locator("[data-hmz=setup-serving]")).to_have_count(0)
+        expect(view.locator("[data-hmz=daemon]")).to_have_count(0)
+        expect(view.get_by_role("button", name=re.compile("^Daemon"))).to_have_count(0)
+        expect(view.locator("[data-hmz=options] h3")).not_to_contain_text(["Daemon"])
         folder = _at(page, "[data-hmz=setup-folder] [data-hmz=workspace-picker]")
-        assert runs["x"] == folder["x"]
-        assert folder["y"] >= runs["y"] + runs["height"]
-        assert (runs["height"], folder["height"]) == (24, 24)
-        expect(view.locator("[data-hmz=setup-daemon] [data-hmz=daemon]")).to_have_text(
-            "Local"
-        )
+        assert folder["height"] == 24
         expect(view.locator("[data-hmz=workspace-picker] b")).to_have_text(project.name)
-        # Their menus open under them.
-        view.locator("[data-hmz=setup-daemon] [data-hmz=daemon]").click()
-        daemons = page.get_by_role("menu", name="Daemon")
-        expect(daemons.get_by_role("menuitem")).to_have_text(
-            [re.compile("Local"), "Add daemon…"]
-        )
-        box = daemons.bounding_box()
-        assert box
-        assert box["y"] >= runs["y"] + runs["height"]
-        page.keyboard.press("Escape")
+        # Its menu opens under it.
         view.locator("[data-hmz=workspace-picker]").click()
         folders = page.get_by_role("menu", name="Folders")
         expect(folders.get_by_role("menuitem").nth(0)).to_contain_text("No folder")
@@ -2096,7 +2078,8 @@ def test_every_label_is_a_word_or_a_phrase(project: Path, engine: str) -> None:
         _start_chat(page, "label me")
         said: list[str] = []
         settings = (f"/settings/{one}" for one in _PAGES)
-        for address in (_NEW, "/flows", "/search", *settings):
+        folder = (f"/workspace/{one}" for one in ("setup", "usage", "archived"))
+        for address in (_NEW, "/flows", "/search", *settings, *folder):
             go(page, address)
             page.wait_for_timeout(300)
             said += page.locator(

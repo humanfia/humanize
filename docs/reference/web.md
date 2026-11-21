@@ -43,8 +43,11 @@ Open a dialog address to draw the dialog over the current view. Closing it retur
 | --- | --- |
 | `#/search` | Search. Query: `kind` (`chat` or `flow`; empty for all), `status` (`running`, `done`, `failed`, `stopped` or `unfinished`), `flow`, `workspace`, `q` (the text), `offset`. |
 | `#/download` | Download from a backup target. Query: `target` (the first target when left out). |
-| `#/settings/<page>` | Settings. `<page>` is `themes`, `daemons`, `notifications`, `language`, `general`, `accounts`, `nous`, `runtimes`, `backup`, `usage`, `workspace`, `archived` or `workspace-usage`. Any other word opens `general`. `#/settings/themes/<id>` opens the editor of one custom theme. Query: `daemon` (every page from `general` on), `workspace` (the folder, for `workspace`, `archived` and `workspace-usage`), `days` (`7`, `30`, `90` or `365`; default `30`, for `usage` and `workspace-usage`). `usage` is everything the daemon ran and ignores `workspace`; `workspace-usage` is the same page for one folder. |
-| `#/delete/<id>` | The confirmation before a chat is deleted. Query: `daemon`. |
+| `#/settings/<page>` | Settings. `<page>` is `themes`, `daemons`, `notifications`, `language`, `general`, `accounts`, `nous`, `runtimes`, `backup` or `usage`. Any other word opens `general`. `#/settings/themes/<id>` opens the editor of one custom theme. Query: `days` (`7`, `30`, `90` or `365`; default `30`, for `usage`). `usage` is everything the daemon shown ran. The pages from `general` on are of the daemon the address names, as every address is. |
+| `#/workspace/<page>` | Workspace settings, of one folder. `<page>` is `setup`, `usage` or `archived`; any other word opens `setup`. Query: `workspace` (the folder), `scratch=1` (**No folder**, which has `archived` alone), `days` (as above, for `usage`). With neither `workspace` nor `scratch`, the first folder the daemon offers. |
+| `#/delete/<id>` | The confirmation before a chat is deleted. |
+
+Two kinds of older address still open. `#/settings/workspace`, `#/settings/workspace-usage` and `#/settings/archived` open `setup`, `usage` and `archived` of Workspace settings, with the same query. An address with `daemon=<name>` in its query opens as the same address on that daemon, `#/@<name>/…`, which switches the whole page to it.
 
 ## Shortcuts
 

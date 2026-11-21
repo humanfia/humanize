@@ -205,9 +205,9 @@ class ImageEnvMixin(Protocol):
     """Declares what a container for the role is started from.
 
     Said of a docker, swarm or Apple container environment only: one on this machine or over
-    ssh is the machine it is, and the image says nothing of it. The image needs `/bin/sh` and
-    a Python of at least 3.12, which is what reaches into it; nothing else of Humanize is put
-    there, an sshd least of all.
+    ssh is the machine it is, and the image says nothing of it. The image needs `/bin/sh` on
+    Linux, x86-64 or aarch64, and nothing else: no Python, no sshd and no install of Humanize,
+    whose `coganchor` is copied in and is what reaches into it.
 
     Attributes:
       _image: The image, as `docker run` takes it; "" for the provider's own, or

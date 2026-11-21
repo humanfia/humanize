@@ -175,6 +175,6 @@ Find Apple container IDs with `container list --all` and your `humanize-…` Slu
 - Swarm work directories must exist at the same path on every node. Slurm work directories must sit on a shared filesystem at the same path locally and on every node.
 - Apple containers do not support GPUs and refuse roles that request one.
 - On a Mac, **This machine** is not available as the harness setting: keep **Inside the environment** or name another runtime. For an Apple container, use an image with the CLI installed.
-- In the app, **Falls back to** edits the list a row at a time: **Add** offers the other saved runtimes of the same backend, and each row has **Move down** and **Remove**. **Add** writes a bare name, which Humanize refuses on save because an entry must be `BACKEND:NAME`; add entries in the terminal's `falls back to` row or in `settings.yaml` instead.
+- In the app, **Falls back to** edits the list a row at a time: **Add** offers every other saved runtime of any backend as `BACKEND:NAME`, and each row has **Move down** and **Remove**. To name a runtime that is not saved yet, use the terminal's `falls back to` row or `settings.yaml`.
 - Runtimes with invalid `settings.yaml` entries are hidden from lists and rejected by `-e`.
 - For a full walkthrough, see [Run the work on a server or in a container](/tutorials/work-on-a-server).

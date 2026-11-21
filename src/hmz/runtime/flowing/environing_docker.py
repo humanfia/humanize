@@ -84,7 +84,7 @@ __all__ = [
 ]
 
 #: What a container is started from where neither the role nor the runtime says: small, and
-#: holding the `/bin/sh` and the Python the serving half needs.
+#: holding the `/bin/sh` the serving half needs.
 IMAGE = "python:3.12-slim"
 
 #: The runtime docker's default here is named by, where no runtime is written down under it.

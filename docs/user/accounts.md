@@ -27,7 +27,7 @@ Open **Settings**, then **Accounts**. The table lists each account by CLI, showi
 
 ![Settings, Accounts in Humanize Desktop: Claude Code has the accounts personal and work, and Local, the sign-in made outside Humanize](/shots/user-accounts-list.svg)
 
-Accounts belong to the daemon selected at the top of Settings. **Batch apply** is disabled on this page and displays **Secrets stay put** because accounts cannot be copied across daemons. To use an account on another daemon, select that daemon and create the account there.
+Accounts belong to the daemon the app shows, which is named at the top of the page. **Batch apply** is disabled on this page and displays **Secrets stay put** because accounts cannot be copied across daemons. To use an account on another daemon, [switch to that daemon](/user/daemons#switch-machines) and create the account there.
 
 ### Add an account
 
